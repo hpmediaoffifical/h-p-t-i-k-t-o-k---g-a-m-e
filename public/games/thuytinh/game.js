@@ -542,24 +542,31 @@
             const k = (config.effects?.tornado?.intensity ?? 1);
             const r = jarRect();
             let t = 0;
-            const TOTAL = 90;
+            const TOTAL = 110;  // ~3.3 giây
             const iv = setInterval(() => {
                 if (t++ > TOTAL) { clearInterval(iv); return; }
-                const intensity = Math.sin((t / TOTAL) * Math.PI) * k;
+                // Đường cong sin: ramp up → đỉnh giữa → ramp down. Nhân k.
+                const phase = t / TOTAL;
+                const intensity = Math.sin(phase * Math.PI) * k;
                 bodies.forEach(b => {
                     const dx = b.position.x - r.cx;
                     const dy = b.position.y - r.cy;
                     const dist = Math.max(Math.hypot(dx, dy), 1);
                     const nx = dx / dist, ny = dy / dist;
+                    // Tangential (xoáy) — vuông góc với hướng tâm
                     const tgX = -ny, tgY = nx;
-                    const swirl = 8 * intensity * b.mass;
-                    const suck = 2.5 * intensity * b.mass;
-                    const lift = 2.2 * intensity * b.mass;
-                    Body.setVelocity(b, {
-                        x: b.velocity.x * 0.82 + tgX * swirl - nx * suck,
-                        y: b.velocity.y * 0.82 + tgY * swirl - ny * suck - lift
+                    // Áp lực ADDITIVE (applyForce) thay vì setVelocity — bodies tích luỹ momentum tự nhiên
+                    // Lực tỉ lệ với mass để bodies nặng nhẹ phản ứng giống nhau
+                    const swirlF = 0.0042 * intensity * b.mass;   // xoáy quanh tâm
+                    const suckF = 0.0014 * intensity * b.mass;    // hút vào tâm nhẹ
+                    const liftF = 0.0020 * intensity * b.mass;    // đẩy lên (chống trọng lực)
+                    Body.applyForce(b, b.position, {
+                        x: tgX * swirlF - nx * suckF,
+                        y: tgY * swirlF - ny * suckF - liftF
                     });
-                    Body.setAngularVelocity(b, (Math.random() - 0.5) * 0.4 * intensity);
+                    // Spin tích luỹ
+                    const newAng = b.angularVelocity * 0.94 + (Math.random() - 0.5) * 0.12 * intensity;
+                    Body.setAngularVelocity(b, newAng);
                 });
             }, 30);
         }
