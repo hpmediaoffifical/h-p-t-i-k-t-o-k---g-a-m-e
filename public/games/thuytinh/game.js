@@ -22,6 +22,7 @@
             gift: { minSize: 40, maxSize: 220, showName: false, showCount: true },
             physics: { gravity: 1.4, bounce: 0.42, friction: 0.05 },
             jarVisible: true,
+            jarLocked: false,
             maxCapacity: 0,
             features: {
                 audio: true,
@@ -320,14 +321,14 @@
             if (config.features.audio) audio.ting();
         }
         function flashPoliceJoinToast(name, joined) {
-            if (!comboToastEl) return;
-            comboToastEl.style.background = joined
-                ? 'linear-gradient(135deg, #2563eb, #0ea5e9)'
-                : 'linear-gradient(135deg, #6b7280, #4b5563)';
-            comboToastEl.innerHTML = joined
-                ? `🚓 <b>${escHtml(name)}</b> gia nhập lực lượng Cảnh sát!`
-                : `🚪 <b>${escHtml(name)}</b> rời lực lượng Cảnh sát`;
-            comboToastEl.classList.remove('show'); void comboToastEl.offsetWidth; comboToastEl.classList.add('show');
+            showComboToast(
+                joined
+                    ? `🚓 <b>${escHtml(name)}</b> gia nhập lực lượng Cảnh sát!`
+                    : `🚪 <b>${escHtml(name)}</b> rời lực lượng Cảnh sát`,
+                joined
+                    ? 'linear-gradient(135deg, #2563eb, #0ea5e9)'
+                    : 'linear-gradient(135deg, #6b7280, #4b5563)'
+            );
         }
         function isInPoliceForce(uid) { return !!uid && policeForce.has(String(uid)); }
         function processQueue() {
@@ -649,10 +650,7 @@
             }, durMs);
         }
         function flashShatterToast(text, color) {
-            if (!comboToastEl) return;
-            comboToastEl.style.background = color || 'linear-gradient(135deg, #dc2626, #f59e0b)';
-            comboToastEl.innerHTML = text;
-            comboToastEl.classList.remove('show'); void comboToastEl.offsetWidth; comboToastEl.classList.add('show');
+            showComboToast(text, color || 'linear-gradient(135deg, #dc2626, #f59e0b)');
         }
         function shatterJar() {
             flashShatterToast(`💥 <b>HŨ VỠ TAN!</b> Quà rơi tung toé`);
@@ -811,14 +809,14 @@
             overlayLayer.appendChild(stealCountdownEl);
         }
         function flashStealJarToast(seconds, isStart) {
-            if (!comboToastEl) return;
-            comboToastEl.style.background = isStart
-                ? 'linear-gradient(135deg, #ef4444, #f59e0b)'
-                : 'linear-gradient(135deg, #22c55e, #10b981)';
-            comboToastEl.innerHTML = isStart
-                ? `🚚 Cướp tẩu thoát với cả hũ! Quay lại sau <b>${seconds}s</b>`
-                : `🎉 Hũ đã quay về!`;
-            comboToastEl.classList.remove('show'); void comboToastEl.offsetWidth; comboToastEl.classList.add('show');
+            showComboToast(
+                isStart
+                    ? `🚚 Cướp tẩu thoát với cả hũ! Quay lại sau <b>${seconds}s</b>`
+                    : `🎉 Hũ đã quay về!`,
+                isStart
+                    ? 'linear-gradient(135deg, #ef4444, #f59e0b)'
+                    : 'linear-gradient(135deg, #22c55e, #10b981)'
+            );
         }
 
         // ===== Random events =====
@@ -898,11 +896,10 @@
                 crownEl.style.top = top + '%';
                 crownEl.style.display = config.features.crown && stats.tippers.size > 0 ? 'flex' : 'none';
             }
-            // Goal bar dưới hũ — đẩy xuống dưới đáy hũ để không che số đếm
-            // Chiều rộng tự khớp với chiều rộng hũ
+            // Goal bar dưới hũ — sát đáy hũ hơn để gọn gàng
             if (goalEl) {
                 const left = (r.cx / CANVAS_W * 100);
-                const topPctRaw = ((r.y + r.h) / CANVAS_H * 100) + 2.5;
+                const topPctRaw = ((r.y + r.h) / CANVAS_H * 100) + 0.8;
                 const top = Math.min(96, topPctRaw);
                 goalEl.style.left = left + '%';
                 goalEl.style.top = top + '%';
@@ -915,12 +912,21 @@
             if (totalsEl) {
                 totalsEl.style.display = config.features.sessionTotals ? 'block' : 'none';
             }
-            // Leaderboard bên phải hũ
+            // Leaderboard / Caught / Force — luôn áp dụng position + scale
+            // (vị trí đã lưu trong config.panelPositions, sync giữa app và OBS overlay)
             if (lbEl) {
                 lbEl.style.display = config.features.leaderboard ? 'block' : 'none';
+                applyPanelPosition('leaderboard', lbEl);
                 applyPanelScale('leaderboard', lbEl);
             }
-            if (caughtEl) applyPanelScale('caught', caughtEl);
+            if (caughtEl) {
+                applyPanelPosition('caught', caughtEl);
+                applyPanelScale('caught', caughtEl);
+            }
+            if (forceEl) {
+                applyPanelPosition('force', forceEl);
+                applyPanelScale('force', forceEl);
+            }
         }
         function updateCrown() {
             if (!config.features.crown || !crownEl) return;
@@ -1110,17 +1116,21 @@
             welcomeEl._t = setTimeout(() => welcomeEl.classList.remove('show'), 3000);
             if (config.features.audio) audio.ting();
         }
-        function flashComboToast(name, count) {
+        // Helper chung: show toast, auto-hide sau 3s
+        let _comboToastTimer = null;
+        function showComboToast(html, bg) {
             if (!comboToastEl) return;
-            comboToastEl.style.background = '';
-            comboToastEl.innerHTML = `🔥 <b>${escHtml(name)}</b> combo <span>x${count}</span>`;
+            comboToastEl.style.background = bg || '';
+            comboToastEl.innerHTML = html;
             comboToastEl.classList.remove('show'); void comboToastEl.offsetWidth; comboToastEl.classList.add('show');
+            clearTimeout(_comboToastTimer);
+            _comboToastTimer = setTimeout(() => comboToastEl.classList.remove('show'), 3000);
+        }
+        function flashComboToast(name, count) {
+            showComboToast(`🔥 <b>${escHtml(name)}</b> combo <span>x${count}</span>`);
         }
         function flashMissToast(name) {
-            if (!comboToastEl) return;
-            comboToastEl.style.background = 'linear-gradient(135deg, #ef4444, #ff8a00)';
-            comboToastEl.innerHTML = `💥 <b>${escHtml(name)}</b> bị TUỘT TAY!`;
-            comboToastEl.classList.remove('show'); void comboToastEl.offsetWidth; comboToastEl.classList.add('show');
+            showComboToast(`💥 <b>${escHtml(name)}</b> bị TUỘT TAY!`, 'linear-gradient(135deg, #ef4444, #ff8a00)');
         }
         function respawnLoot(gm, x, y) {
             if (!gm) return;
@@ -1303,10 +1313,7 @@
             return { name: 'Cảnh sát', avatar: '' };
         }
         function flashPoliceCantStealToast(name) {
-            if (!comboToastEl) return;
-            comboToastEl.style.background = 'linear-gradient(135deg, #2563eb, #1e40af)';
-            comboToastEl.innerHTML = `🚓 <b>${escHtml(name || 'User')}</b> là Cảnh sát · không được trộm`;
-            comboToastEl.classList.remove('show'); void comboToastEl.offsetWidth; comboToastEl.classList.add('show');
+            showComboToast(`🚓 <b>${escHtml(name || 'User')}</b> là Cảnh sát · không được trộm`, 'linear-gradient(135deg, #2563eb, #1e40af)');
         }
         function positionEl(el, xCanvas, yCanvas) {
             el.style.position = 'absolute';
@@ -1314,19 +1321,13 @@
             el.style.top = (yCanvas / CANVAS_H * 100) + '%';
         }
         function flashBanRejected(uid, name) {
-            if (!comboToastEl) return;
-            comboToastEl.style.background = 'linear-gradient(135deg, #2563eb, #1e40af)';
             const t = bannedUntilByUid.get(String(uid || ''));
             const left = t ? Math.max(0, Math.ceil((t - Date.now()) / 1000)) : 0;
-            comboToastEl.innerHTML = `🚔 <b>${escHtml(name || 'Trộm')}</b> đang bị giam · còn ${left}s`;
-            comboToastEl.classList.remove('show'); void comboToastEl.offsetWidth; comboToastEl.classList.add('show');
+            showComboToast(`🚔 <b>${escHtml(name || 'Trộm')}</b> đang bị giam · còn ${left}s`, 'linear-gradient(135deg, #2563eb, #1e40af)');
         }
         function flashPoliceCatchToast(thiefName, copName) {
-            if (!comboToastEl) return;
-            comboToastEl.style.background = 'linear-gradient(135deg, #2563eb, #ef4444)';
             const cop = copName ? `<b style="color:#60a5fa">${escHtml(copName)}</b> ` : '🚔 Cảnh sát ';
-            comboToastEl.innerHTML = `${cop}tóm <b style="color:#ffd166">${escHtml(thiefName)}</b>!`;
-            comboToastEl.classList.remove('show'); void comboToastEl.offsetWidth; comboToastEl.classList.add('show');
+            showComboToast(`${cop}tóm <b style="color:#ffd166">${escHtml(thiefName)}</b>!`, 'linear-gradient(135deg, #2563eb, #ef4444)');
         }
 
         function buildThiefNode({ name, avatar } = {}) {
@@ -1376,9 +1377,11 @@
                 const { wrap, rope, body, loot } = buildThiefNode({ name, avatar });
                 thiefLayer.appendChild(wrap);
                 const r = jarRect();
-                // Điểm hạ rope: hai bên ngoài hũ, ngẫu nhiên trái/phải
-                const fromLeft = Math.random() < 0.5;
-                const dropX = fromLeft ? Math.max(40, r.x - 80) : Math.min(CANVAS_W - 40, r.x + r.w + 80);
+                // Điểm hạ rope: ưu tiên VÙNG GIỮA màn hình (tránh viền 2 bên do TikTok UI che).
+                // Lấy tâm hũ + offset ngẫu nhiên trong khoảng ±35% bề ngang hũ.
+                const jarCenterX = r.x + r.w / 2;
+                const offset = (Math.random() - 0.5) * r.w * 0.7;
+                const dropX = Math.max(CANVAS_W * 0.18, Math.min(CANVAS_W * 0.82, jarCenterX + offset));
                 const ropeStartY = 20;
                 const mouthY = r.y + r.h * SHAPE.neckTopY + 10;
                 const targetBody = bodies[Math.floor(Math.random() * bodies.length)];
@@ -1699,7 +1702,9 @@
             }
             engine.gravity.y = config.physics.gravity;
             positionJar();
+            // Cập nhật TẤT CẢ panel để pick up vị trí + scale mới từ config
             updateGoalBar(); updateLeaderboard(); updateSessionTotals(); updateCrown();
+            updateCaughtList(); updatePoliceForcePanel();
             if (config.features.randomEvents) startRandomEvents(); else stopRandomEvents();
             if (config.features.thiefAuto) startThiefAuto(); else stopThiefAuto();
         }

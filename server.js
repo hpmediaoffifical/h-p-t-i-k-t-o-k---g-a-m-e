@@ -320,12 +320,34 @@ app.post('/api/games/:id/config', (req, res) => {
     res.json({ ok: true, config: appConfig.games[g.id] });
 });
 
-// Cache trạng thái game từng game — đẩy lên overlay khi (re)connect
+// Cache trạng thái game từng game — đẩy lên overlay khi (re)connect VÀ push realtime cho overlay
 const gameStateCache = {};
 app.post('/api/games/:id/state', (req, res) => {
     const g = GAMES[req.params.id];
     if (!g) return res.status(404).json({ ok: false, error: 'Không tìm thấy game' });
     gameStateCache[g.id] = req.body || {};
+    // Live-push snapshot tới room 'overlay' (KHÔNG echo về 'preview' để tránh ghi đè local edits).
+    // Cách này đảm bảo BỊ TÓM / LỰC LƯỢNG CS / count v.v. trên OBS luôn theo App, không cần refresh OBS.
+    io.to('overlay').emit('gameStateSnapshot', { gameId: g.id, state: gameStateCache[g.id] });
+    res.json({ ok: true });
+});
+
+// Phát "gift" giả lập cho overlay khi user bấm test trong app preview
+// (gifts thật từ TikTok đã broadcast tự động qua emitGift)
+app.post('/api/games/:id/test-gift', (req, res) => {
+    const g = GAMES[req.params.id];
+    if (!g) return res.status(404).json({ ok: false, error: 'Không tìm thấy game' });
+    const gift = req.body || {};
+    const sheetItem = giftMap[String(gift.giftId)] || null;
+    const enriched = {
+        ...gift,
+        sheetItem,
+        image: sheetItem?.image || gift.image || gift.giftPicture,
+        coinValue: sheetItem?.diamond ?? gift.coinValue ?? 1,
+        source: 'test',
+        ts: Date.now()
+    };
+    io.to('overlay').emit('gift', enriched);
     res.json({ ok: true });
 });
 app.get('/api/games/:id/state', (req, res) => {

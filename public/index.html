@@ -56,17 +56,7 @@
                 </div>
             </section>
 
-            <!-- License/Bản quyền — badge hiển thị trạng thái kích hoạt -->
-            <section class="side-card lic-card">
-                <div class="side-card-title">🔑 Bản quyền</div>
-                <div class="lic-badge" id="lic-badge">
-                    <div class="lic-status" id="lic-status-text">Đang kiểm tra…</div>
-                    <div class="lic-meta" id="lic-meta"></div>
-                </div>
-                <button id="btn-license-logout" class="ghost block small" hidden>🔓 Đăng xuất key</button>
-            </section>
-
-            <!-- Thư viện game -->
+            <!-- Thư viện game (đặt trên cùng — chính là vùng tương tác chính) -->
             <section class="side-card side-library">
                 <div class="side-card-title">🎮 Thư viện Game</div>
                 <div id="game-list" class="game-list"></div>
@@ -79,7 +69,35 @@
                 <div class="hint" id="gift-count-hint">— quà</div>
             </section>
 
-            <div class="side-footer">© HP Media · v1.0</div>
+            <!-- License/Bản quyền — badge nhỏ ở cuối sidebar -->
+            <section class="side-card lic-card">
+                <div class="side-card-title">🔑 Bản quyền</div>
+                <div class="lic-badge" id="lic-badge">
+                    <div class="lic-status" id="lic-status-text">Đang kiểm tra…</div>
+                    <div class="lic-meta" id="lic-meta"></div>
+                </div>
+            </section>
+
+            <!-- Phiên bản -->
+            <section class="side-card">
+                <div class="side-card-title">📦 Phiên bản</div>
+                <div class="version-block">
+                    <div class="vb-row">
+                        <span class="vb-label">Hiện tại</span>
+                        <span class="vb-value" id="vb-current">…</span>
+                    </div>
+                    <div class="vb-row" id="vb-row-latest" hidden>
+                        <span class="vb-label">Mới nhất</span>
+                        <span class="vb-value new" id="vb-latest">—</span>
+                    </div>
+                    <div class="vb-row" style="justify-content: space-between;">
+                        <button class="vb-btn" id="btn-check-update" title="Kiểm tra GitHub Releases">🔄 Kiểm tra</button>
+                        <button class="vb-btn primary" id="btn-show-update" hidden>📥 Cập nhật</button>
+                    </div>
+                </div>
+            </section>
+
+            <div class="side-footer">© HP Media · <span id="footer-version">v1.0</span></div>
         </aside>
 
         <!-- ============ MAIN ============ -->
@@ -101,18 +119,10 @@
                         <div class="game-sub" id="g-sub">Quà rơi vào hũ thủy tinh với vật lý realtime — nền trong suốt sẵn sàng cho OBS.</div>
                     </div>
                     <div class="overlay-bar">
-                        <div class="overlay-group">
-                            <label class="overlay-label">📺 Overlay OBS</label>
-                            <div class="overlay-link-row">
-                                <input id="overlay-url" type="text" readonly hidden />
-                                <button id="btn-copy-overlay" class="secondary small" title="Copy URL overlay vào clipboard">📋 Copy link</button>
-                                <button id="btn-open-overlay" class="secondary small" title="Mở overlay trong tab mới">↗ Mở</button>
-                            </div>
-                        </div>
-                        <div class="overlay-group overlay-group-save">
-                            <label class="overlay-label">💾 Cài đặt</label>
-                            <button id="btn-save-all" class="primary small" title="Lưu mọi cài đặt ngay lập tức">💾 Lưu tất cả</button>
-                        </div>
+                        <input id="overlay-url" type="text" readonly hidden />
+                        <button id="btn-copy-overlay" class="secondary small" title="Copy URL overlay vào clipboard">📋 Overlay</button>
+                        <button id="btn-save-all" class="primary small" title="Lưu mọi cài đặt ngay lập tức">💾 Lưu</button>
+                        <button id="btn-open-overlay" class="secondary small" title="Mở overlay trong tab mới">↗ Mở</button>
                     </div>
                 </header>
 
@@ -145,7 +155,7 @@
                                     <span class="cfg-val" id="cfg-friction-v">0.05</span>
                                 </div>
                                 <div class="cfg-row">
-                                    <label>Cao hũ</label>
+                                    <label>Kích thước hũ</label>
                                     <input type="range" id="cfg-jar-h" min="400" max="1700" step="20" />
                                     <span class="cfg-val" id="cfg-jar-h-v">1200</span>
                                 </div>
@@ -162,6 +172,7 @@
                                 <div class="cfg-row inline">
                                     <label><input type="checkbox" id="cfg-show-count"/> Số đếm</label>
                                     <label><input type="checkbox" id="cfg-jar-visible"/> Hiện hũ</label>
+                                    <label><input type="checkbox" id="cfg-jar-locked"/> 🔒 Khoá hũ</label>
                                 </div>
                             </div>
 
@@ -238,6 +249,11 @@
                                         <label>BỊ TÓM</label>
                                         <input type="range" id="cfg-scale-caught" min="0.6" max="1.6" step="0.05"/>
                                         <span class="cfg-val" id="cfg-scale-caught-v">1.0</span>
+                                    </div>
+                                    <div class="cfg-row">
+                                        <label>LỰC LƯỢNG CS</label>
+                                        <input type="range" id="cfg-scale-force" min="0.6" max="1.6" step="0.05"/>
+                                        <span class="cfg-val" id="cfg-scale-force-v">1.0</span>
                                     </div>
                                 </div>
                             </div>
@@ -352,6 +368,28 @@
         <div class="cm-list" id="cm-list"></div>
         <hr/>
         <button class="cm-clear" id="cm-clear">❌ Xoá gán</button>
+    </div>
+
+    <!-- Update modal — hỏi xác nhận Cập nhật / Để sau -->
+    <div class="update-modal" id="update-modal" role="dialog" aria-modal="true">
+        <div class="um-card">
+            <div class="um-head">
+                <div class="um-ico">🎉</div>
+                <div>
+                    <div class="um-title">Có bản cập nhật mới</div>
+                    <div class="um-sub">Phiên bản hiện tại <b id="um-current">v?</b> → mới <b id="um-new">v?</b></div>
+                </div>
+            </div>
+            <div class="um-body">
+                <div class="um-section-label">Nội dung cập nhật</div>
+                <div class="um-notes" id="um-notes"></div>
+            </div>
+            <div class="um-foot">
+                <button class="um-btn um-btn-link" id="um-btn-details">Xem trang chi tiết ↗</button>
+                <button class="um-btn um-btn-skip" id="um-btn-skip">Để sau</button>
+                <button class="um-btn um-btn-confirm" id="um-btn-confirm">📥 Cập nhật</button>
+            </div>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>

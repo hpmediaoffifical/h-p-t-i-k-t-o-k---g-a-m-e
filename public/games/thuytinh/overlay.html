@@ -109,6 +109,24 @@
             game.setConfig(config);
         });
 
+        // SAFETY NET — OBS browser sources đôi khi mất socket im lặng (không trigger disconnect).
+        // Refetch config mỗi 20s để bảo đảm overlay luôn đồng bộ kể cả khi miss event.
+        setInterval(() => {
+            fetch('/api/games/thuytinh/config').then(r => r.json()).then(cfg => {
+                if (game && cfg) game.setConfig(cfg);
+            }).catch(() => { /* ignore network blips */ });
+        }, 20000);
+
+        // Reconnect — fetch lại snapshot config ngay khi socket khôi phục
+        socket.on('reconnect', () => {
+            debugEl.classList.remove('hidden');
+            debugEl.textContent = 'reconnected';
+            setTimeout(() => debugEl.classList.add('hidden'), 2000);
+            fetch('/api/games/thuytinh/config').then(r => r.json()).then(cfg => {
+                if (game && cfg) game.setConfig(cfg);
+            }).catch(() => { });
+        });
+
         // Khi overlay reset/reload — server gửi snapshot để khôi phục state
         socket.on('gameStateSnapshot', ({ gameId, state }) => {
             if (gameId !== 'thuytinh') return;

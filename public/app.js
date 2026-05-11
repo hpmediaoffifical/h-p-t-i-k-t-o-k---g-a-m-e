@@ -105,6 +105,9 @@
         cfgScaleLbV: $('#cfg-scale-lb-v'),
         cfgScaleCaught: $('#cfg-scale-caught'),
         cfgScaleCaughtV: $('#cfg-scale-caught-v'),
+        cfgScaleForce: $('#cfg-scale-force'),
+        cfgScaleForceV: $('#cfg-scale-force-v'),
+        cfgJarLocked: $('#cfg-jar-locked'),
         saveStatus: $('#save-status'),
         triggerList: $('#trigger-list'),
         giftOptions: $('#gift-options'),
@@ -258,18 +261,32 @@
         startStateSync();
     }
 
-    // ===== Định kỳ push state lên server (để overlay/refresh nhận được) =====
+    // ===== Định kỳ push state lên server (overlay nhận realtime) =====
+    // Server sẽ tự broadcast snapshot tới room 'overlay' nên OBS luôn theo App,
+    // không cần refresh OBS browser source.
     let stateSyncTimer = null;
+    let lastStateHash = '';
     function startStateSync() {
         stopStateSync();
-        stateSyncTimer = setInterval(() => {
+        const pushState = () => {
             if (!gameInstance || !currentGame) return;
             const state = gameInstance.serializeState();
+            // Skip push nếu state không đổi — tiết kiệm băng thông + tránh re-render thừa trên OBS
+            const hash = JSON.stringify([
+                state.totalDiamonds, state.totalGifts,
+                (state.caughtList || []).length,
+                (state.policeForce || []).length,
+                (state.tippers || []).length
+            ]);
+            if (hash === lastStateHash) return;
+            lastStateHash = hash;
             fetch(`/api/games/${currentGame.id}/state`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(state)
             }).catch(() => {});
-        }, 3000);
+        };
+        pushState(); // push ngay 1 lần khi sync start
+        stateSyncTimer = setInterval(pushState, 1500);
     }
     function stopStateSync() {
         if (stateSyncTimer) { clearInterval(stateSyncTimer); stateSyncTimer = null; }
@@ -300,11 +317,13 @@
             if (!gameInstance) return;
             if (dragging) return;
             const p = clientToCanvas(ev);
-            stage.style.cursor = isInsideJar(p) ? 'grab' : 'default';
+            const locked = !!gameInstance.getConfig().jarLocked;
+            stage.style.cursor = (!locked && isInsideJar(p)) ? 'grab' : 'default';
         });
 
         stage.addEventListener('mousedown', (ev) => {
             if (!gameInstance || ev.button !== 0) return;
+            if (gameInstance.getConfig().jarLocked) return; // Hũ đã khoá → không cho kéo
             const p = clientToCanvas(ev);
             if (!isInsideJar(p)) return;
             dragging = true;
@@ -367,10 +386,14 @@
         if (dom.cfgPoliceName) dom.cfgPoliceName.value = cfg.policeName || '';
         const sLb = cfg.panelScales?.leaderboard ?? 1;
         const sCa = cfg.panelScales?.caught ?? 1;
+        const sFo = cfg.panelScales?.force ?? 1;
         bindRange(dom.cfgScaleLb, sLb, dom.cfgScaleLbV);
         bindRange(dom.cfgScaleCaught, sCa, dom.cfgScaleCaughtV);
+        bindRange(dom.cfgScaleForce, sFo, dom.cfgScaleForceV);
         if (dom.cfgScaleLbV) dom.cfgScaleLbV.textContent = sLb;
         if (dom.cfgScaleCaughtV) dom.cfgScaleCaughtV.textContent = sCa;
+        if (dom.cfgScaleForceV) dom.cfgScaleForceV.textContent = sFo;
+        if (dom.cfgJarLocked) dom.cfgJarLocked.checked = !!cfg.jarLocked;
         if (dom.cfgShowCount) dom.cfgShowCount.checked = !!cfg.gift.showCount;
         if (dom.cfgJarVisible) dom.cfgJarVisible.checked = !!cfg.jarVisible;
         const f = cfg.features || {};
@@ -417,8 +440,10 @@
             policeName: (dom.cfgPoliceName?.value || '').trim(),
             panelScales: {
                 leaderboard: parseFloat(dom.cfgScaleLb.value) || 1,
-                caught: parseFloat(dom.cfgScaleCaught.value) || 1
+                caught: parseFloat(dom.cfgScaleCaught.value) || 1,
+                force: parseFloat(dom.cfgScaleForce.value) || 1
             },
+            jarLocked: !!dom.cfgJarLocked?.checked,
             triggers: JSON.parse(JSON.stringify(currentTriggers || {})),
             effects: JSON.parse(JSON.stringify(currentEffectsConfig || {}))
         };
@@ -443,6 +468,7 @@
         if (dom.cfgPoliceBanV) dom.cfgPoliceBanV.textContent = cfg.policeBanSec;
         if (dom.cfgScaleLbV) dom.cfgScaleLbV.textContent = cfg.panelScales.leaderboard;
         if (dom.cfgScaleCaughtV) dom.cfgScaleCaughtV.textContent = cfg.panelScales.caught;
+        if (dom.cfgScaleForceV) dom.cfgScaleForceV.textContent = cfg.panelScales.force;
         setSaveStatus('saving');
         clearTimeout(saveCfgTimer);
         const doSave = () => {
@@ -781,7 +807,7 @@
     function spawnInGame(g) {
         if (!gameInstance) return;
         const sheet = giftMap[String(g.giftId)];
-        gameInstance.drop({
+        const payload = {
             giftId: String(g.giftId),
             giftName: sheet?.name || g.giftName,
             image: sheet?.image || g.image || g.giftPicture,
@@ -789,8 +815,20 @@
             userId: g.userId,
             uniqueId: g.uniqueId,
             nickname: g.nickname,
-            profilePicture: g.profilePicture
-        }, g.repeatCount || 1);
+            profilePicture: g.profilePicture,
+            repeatCount: g.repeatCount || 1
+        };
+        // Drop ngay vào preview
+        gameInstance.drop(payload, payload.repeatCount);
+        // Đồng thời gửi tới OBS overlay (gift thật từ TikTok đã tự broadcast — chỉ cần broadcast khi user
+        // bấm test thủ công trong app preview). Server emit 'gift' cho room 'overlay' duy nhất.
+        if (currentGame && g._fromLive !== true) {
+            fetch(`/api/games/${currentGame.id}/test-gift`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).catch(() => {});
+        }
     }
 
     function renderGiftCatalog(filter = '') {
@@ -836,10 +874,15 @@
                 }
             }
             card.addEventListener('click', () => {
-                fetch(`/api/games/${currentGame?.id || 'thuytinh'}/test-gift`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ giftId: g.id, count: 1, nickname: 'preview' })
-                }).catch(() => {});
+                // spawnInGame: drop NGAY vào App preview + POST /test-gift để broadcast cho OBS
+                spawnInGame({
+                    giftId: g.id,
+                    giftName: g.name,
+                    image: g.image,
+                    coinValue: g.diamond || 1,
+                    nickname: 'preview',
+                    repeatCount: 1
+                });
             });
             // Chuột phải → mở context menu gán effect
             card.addEventListener('contextmenu', (ev) => {
@@ -1015,9 +1058,10 @@
     dom.usernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') dom.btnConnect.click(); });
 
     // Config range inputs
-    ['cfgGravity', 'cfgBounce', 'cfgFriction', 'cfgJarH', 'cfgGmin', 'cfgGmax', 'cfgGoal', 'cfgShakeAt', 'cfgThiefMiss', 'cfgPoliceRate', 'cfgPoliceBan', 'cfgScaleLb', 'cfgScaleCaught']
+    ['cfgGravity', 'cfgBounce', 'cfgFriction', 'cfgJarH', 'cfgGmin', 'cfgGmax', 'cfgGoal', 'cfgShakeAt', 'cfgThiefMiss', 'cfgPoliceRate', 'cfgPoliceBan', 'cfgScaleLb', 'cfgScaleCaught', 'cfgScaleForce']
         .forEach(k => dom[k]?.addEventListener('input', pushConfigUpdate));
     dom.cfgPoliceName?.addEventListener('input', pushConfigUpdate);
+    dom.cfgJarLocked?.addEventListener('change', pushConfigUpdate);
     dom.cfgShowCount?.addEventListener('change', pushConfigUpdate);
     dom.cfgJarVisible?.addEventListener('change', pushConfigUpdate);
     // Feature toggles
@@ -1089,8 +1133,9 @@
     socket.on('chat', appendComment);
     socket.on('gift', (g) => {
         appendGiftEvent(g);
-        // Cũng spawn vào preview thực (overlay nhận qua room 'overlay')
-        if (currentGame) spawnInGame(g);
+        // Gift từ TikTok (hoặc test broadcast) đã được server gửi đồng thời tới overlay room
+        // → preview KHÔNG cần re-broadcast (đánh dấu _fromLive để spawnInGame skip fetch)
+        if (currentGame) spawnInGame({ ...g, _fromLive: true });
     });
     socket.on('gameGift', (g) => {
         // tin từ server đẩy cho preview/overlay — preview cũng đã xử lý qua 'gift' event
@@ -1158,50 +1203,117 @@
         return 0;
     }
     let dismissedUpdateVer = '';
-    async function checkForUpdate() {
+    let currentLocalVersion = '0.0.0';
+    let pendingUpdateInfo = null; // dữ liệu update mới nhất (giữ để nút "Cập nhật" trong sidebar mở lại modal)
+
+    async function fetchVersionInfo() {
         try {
             const local = await (await fetch('/api/version')).json();
-            const localVer = local?.version || '0.0.0';
+            currentLocalVersion = local?.version || '0.0.0';
+            const cur = document.getElementById('vb-current');
+            const foot = document.getElementById('footer-version');
+            if (cur) cur.textContent = 'v' + currentLocalVersion;
+            if (foot) foot.textContent = 'v' + currentLocalVersion;
+            return local;
+        } catch { return null; }
+    }
+
+    async function checkForUpdate(opts = {}) {
+        const manual = !!opts.manual;
+        try {
+            const local = await fetchVersionInfo();
+            const localVer = currentLocalVersion;
             const repo = local?.repo;
-            if (!repo) return;
+            if (!repo) { if (manual) toastInfo('Chưa cấu hình GitHub repo'); return; }
             const remote = await (await fetch(`https://api.github.com/repos/${repo}/releases/latest`)).json();
-            if (!remote?.tag_name) return;
+            if (!remote?.tag_name) { if (manual) toastInfo('Không tìm thấy bản phát hành'); return; }
             const remoteVer = String(remote.tag_name).replace(/^v/i, '');
-            if (cmpVersion(remoteVer, localVer) <= 0) return;
-            if (remoteVer === dismissedUpdateVer) return;
+            const isNewer = cmpVersion(remoteVer, localVer) > 0;
+
+            if (!isNewer) {
+                pendingUpdateInfo = null;
+                renderVersionRow(null);
+                if (manual) toastInfo('Bạn đang dùng bản mới nhất ✓');
+                return;
+            }
+
             const exeAsset = (remote.assets || []).find(a => /\.exe$/i.test(a.name));
-            showUpdateBanner({
+            pendingUpdateInfo = {
                 version: remoteVer,
                 releaseUrl: remote.html_url,
                 downloadUrl: exeAsset?.browser_download_url || remote.html_url,
                 title: remote.name || `v${remoteVer}`,
                 body: remote.body || ''
-            });
-        } catch (e) { /* offline / rate-limited — ignore */ }
-    }
-    function showUpdateBanner(info) {
-        let banner = document.getElementById('update-banner');
-        if (!banner) {
-            banner = document.createElement('div');
-            banner.id = 'update-banner';
-            banner.className = 'update-banner';
-            document.body.appendChild(banner);
+            };
+            renderVersionRow(pendingUpdateInfo);
+
+            // Chỉ tự bật modal nếu user CHƯA dismiss version này trong phiên hiện tại,
+            // hoặc nếu user vừa bấm "Kiểm tra" thủ công.
+            if (manual || pendingUpdateInfo.version !== dismissedUpdateVer) {
+                showUpdateModal(pendingUpdateInfo);
+            }
+        } catch (e) {
+            if (manual) toastInfo('Không kết nối được GitHub. Hãy kiểm tra mạng.');
         }
-        banner.innerHTML = `
-            <span class="ub-ico">🎉</span>
-            <span class="ub-text">Có bản cập nhật mới: <b>v${info.version}</b></span>
-            <button class="ub-btn ub-download">📥 Tải về</button>
-            <button class="ub-btn ub-info" title="Mở trang chi tiết">📖 Chi tiết</button>
-            <button class="ub-close" title="Đóng (sẽ nhắc lại sau)">✕</button>
-        `;
-        banner.classList.add('show');
-        banner.querySelector('.ub-download').onclick = () => window.open(info.downloadUrl, '_blank');
-        banner.querySelector('.ub-info').onclick = () => window.open(info.releaseUrl, '_blank');
-        banner.querySelector('.ub-close').onclick = () => {
-            banner.classList.remove('show');
-            dismissedUpdateVer = info.version; // không hiện lại version này trong session
+    }
+
+    function renderVersionRow(info) {
+        const row = document.getElementById('vb-row-latest');
+        const latestEl = document.getElementById('vb-latest');
+        const btnShow = document.getElementById('btn-show-update');
+        if (info) {
+            if (row) row.hidden = false;
+            if (latestEl) latestEl.textContent = 'v' + info.version;
+            if (btnShow) btnShow.hidden = false;
+        } else {
+            if (row) row.hidden = true;
+            if (btnShow) btnShow.hidden = true;
+        }
+    }
+
+    function showUpdateModal(info) {
+        const modal = document.getElementById('update-modal');
+        if (!modal) return;
+        document.getElementById('um-current').textContent = 'v' + currentLocalVersion;
+        document.getElementById('um-new').textContent = 'v' + info.version;
+        // GitHub body là markdown đơn giản — hiển thị raw an toàn (textContent), giữ xuống dòng
+        document.getElementById('um-notes').textContent = (info.body || '').trim();
+        modal.classList.add('show');
+
+        const btnConfirm = document.getElementById('um-btn-confirm');
+        const btnSkip = document.getElementById('um-btn-skip');
+        const btnDetails = document.getElementById('um-btn-details');
+
+        const close = () => modal.classList.remove('show');
+        btnConfirm.onclick = () => { window.open(info.downloadUrl, '_blank'); close(); };
+        btnDetails.onclick = () => window.open(info.releaseUrl, '_blank');
+        btnSkip.onclick = () => {
+            dismissedUpdateVer = info.version; // không tự bật lại trong phiên này
+            close();
         };
     }
+
+    // Toast nhẹ cho phản hồi "Kiểm tra cập nhật"
+    function toastInfo(msg) {
+        let t = document.getElementById('version-toast');
+        if (!t) {
+            t = document.createElement('div');
+            t.id = 'version-toast';
+            t.style.cssText = 'position:fixed;left:50%;top:22px;transform:translateX(-50%);background:#1a1f2c;color:#e6e8ee;border:1px solid #2c3243;padding:9px 16px;border-radius:10px;font-size:13px;z-index:10004;box-shadow:0 12px 32px rgba(0,0,0,0.5);opacity:0;transition:opacity .2s ease;';
+            document.body.appendChild(t);
+        }
+        t.textContent = msg;
+        t.style.opacity = '1';
+        clearTimeout(t._h);
+        t._h = setTimeout(() => t.style.opacity = '0', 2500);
+    }
+
+    // Wire sidebar buttons
+    document.getElementById('btn-check-update')?.addEventListener('click', () => checkForUpdate({ manual: true }));
+    document.getElementById('btn-show-update')?.addEventListener('click', () => {
+        if (pendingUpdateInfo) showUpdateModal(pendingUpdateInfo);
+    });
+    fetchVersionInfo(); // điền version hiện tại ngay khi load
 
     // ===== License Gate =====
     const gateEl = document.getElementById('license-gate');
@@ -1210,7 +1322,7 @@
     const gateMsg = document.getElementById('lg-message');
     const licStatusText = document.getElementById('lic-status-text');
     const licMeta = document.getElementById('lic-meta');
-    const btnLicLogout = document.getElementById('btn-license-logout');
+    // (Đã bỏ nút Đăng xuất key)
 
     function showGate(errorMsg) {
         if (gateEl) {
@@ -1239,7 +1351,7 @@
             const keyMask = info.key ? info.key.slice(0, 4) + '****' + info.key.slice(-4) : '';
             licMeta.innerHTML = `${escAttrInline(keyMask)}<br/>HSD: <b>${escAttrInline(info.expiry || '—')}</b>`;
         }
-        if (btnLicLogout) btnLicLogout.hidden = false;
+        // (Nút Đăng xuất key đã bỏ — bản quyền hiển thị badge thuần tuý)
     }
     async function tryActivate() {
         const key = (gateInput.value || '').trim();
@@ -1279,11 +1391,7 @@
     }
     gateBtn?.addEventListener('click', tryActivate);
     gateInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryActivate(); });
-    btnLicLogout?.addEventListener('click', async () => {
-        if (!confirm('Đăng xuất key bản quyền? App sẽ yêu cầu nhập lại key.')) return;
-        await fetch('/api/license/deactivate', { method: 'POST' });
-        location.reload();
-    });
+    // (Nút Đăng xuất key đã bỏ — nếu cần đổi key, dùng API /api/license/deactivate)
 
     let appStarted = false;
     async function startApp() {
@@ -1296,8 +1404,9 @@
         } catch (e) {}
         await loadGames();
         if (games.length) openGame(games[0].id);
+        // Chỉ check cập nhật 1 LẦN khi mở app (sau khi load key + games)
+        // KHÔNG tự check định kỳ trong khi đang dùng — user vẫn có nút "🔄 Kiểm tra" thủ công
         setTimeout(checkForUpdate, 3000);
-        setInterval(checkForUpdate, 10 * 60 * 1000);
     }
 
     // ===== Init: license gate trước, app sau =====
