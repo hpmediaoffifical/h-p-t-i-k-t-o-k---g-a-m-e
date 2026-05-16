@@ -2933,18 +2933,19 @@
     // KHÔNG còn link GitHub. App's internal server proxy tới license-server.
     async function checkForUpdate(opts = {}) {
         const manual = !!opts.manual;
+        const autoInstall = !!opts.autoInstall;
         try {
             await fetchVersionInfo();
             const r = await (await fetch('/api/update/check')).json();
             if (!r.ok) {
                 if (manual) toastInfo(r.error || 'Không kiểm tra được phiên bản');
-                return;
+                return false;
             }
             if (!r.hasUpdate) {
                 pendingUpdateInfo = null;
                 renderVersionRow(null);
                 if (manual) toastInfo('Bạn đang dùng bản mới nhất ✓');
-                return;
+                return false;
             }
             pendingUpdateInfo = {
                 version: r.latestVersion,
@@ -2953,11 +2954,18 @@
                 sha256: r.sha256 || ''
             };
             renderVersionRow(pendingUpdateInfo);
+            if (autoInstall) {
+                toastInfo(`Có bản v${pendingUpdateInfo.version}, app sẽ tự cập nhật...`);
+                startAutoUpdate(pendingUpdateInfo);
+                return true;
+            }
             if (manual || pendingUpdateInfo.version !== dismissedUpdateVer) {
                 showUpdateModal(pendingUpdateInfo);
             }
+            return false;
         } catch (e) {
             if (manual) toastInfo('Không kết nối được máy chủ cập nhật');
+            return false;
         }
     }
 
@@ -3005,7 +3013,10 @@
     // 2. POST /api/update/download → server tải + emit socket events
     // 3. Update overlay theo events (downloading → verifying → installing)
     // 4. Server tự spawn installer + quit electron app
+    let updateStarted = false;
     async function startAutoUpdate(info) {
+        if (updateStarted) return;
+        updateStarted = true;
         showUpdateOverlay();
         socket.on('updateProgress', onUpdateProgress);
         try {
@@ -3014,6 +3025,7 @@
                 onUpdateProgress({ phase: 'error', percent: 0, message: 'Lỗi: ' + (r.error || 'Không khởi tạo được tải về') });
             }
         } catch (e) {
+            updateStarted = false;
             onUpdateProgress({ phase: 'error', percent: 0, message: 'Lỗi: ' + e.message });
         }
     }
@@ -3378,8 +3390,12 @@
             gateMsg.textContent = `✓ Kích hoạt thành công · ${data.vip} · HSD ${data.expiry}`;
             gateMsg.className = 'lg-message ok';
             await new Promise(r => setTimeout(r, 700));
-            hideGate();
             updateLicenseBadge(data);
+            gateMsg.textContent = '⏳ Đang kiểm tra bản cập nhật...';
+            gateMsg.className = 'lg-message info';
+            const updating = await checkForUpdate({ autoInstall: true });
+            if (updating) return;
+            hideGate();
             startApp();
         } catch (e) {
             gateMsg.textContent = '❌ Lỗi kết nối: ' + e.message;
@@ -3402,8 +3418,6 @@
         await loadGames();
         if (games.length) openGame(games[0].id);
         initSidebarToggle();
-        // CHỈ check 1 lần khi mở app — KHÔNG có setInterval định kỳ
-        setTimeout(() => checkForUpdate(), 3000);
     }
 
     // ===== Sidebar toggle thu/mở =====
@@ -3427,6 +3441,8 @@
             const lic = await (await fetch('/api/license/status')).json();
             if (lic.activated) {
                 updateLicenseBadge(lic);
+                const updating = await checkForUpdate({ autoInstall: true });
+                if (updating) return;
                 startApp();
             } else {
                 showGate(lic.error);
