@@ -527,14 +527,17 @@ button.mini { padding: 2px 8px; font-size: 11px; }
 .side-bottom-card {
     position: static;
     margin: 0;
-    padding: 0;
+    padding: 8px 10px;
     background: transparent;
     border: 0;
     border-radius: 0;
-    display: contents;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
 }
 .side-soundfx-btn { width: auto; min-width: 44px; padding: 9px 11px; border-radius: 12px; }
-.side-footer { text-align: right; font-size: 10px; color: #5b6378; padding: 0; line-height: 1.4; min-width: 0; }
+.side-footer { text-align: left; font-size: 10px; color: #5b6378; padding: 0; line-height: 1.4; min-width: 0; }
 .side-footer-author { font-size: 9px; color: #6b7390; margin-top: 1px; font-style: italic; }
 .hint { font-size: 11px; color: #8b93a8; }
 
@@ -1307,6 +1310,57 @@ body:not(.game-thuytinh) .comments-popup.translate-popup { bottom: 70px; }
     background: #0f1218;
 }
 .cc-lang-grid label { min-width: 0; color: #d7dcef; font-size: 12px; display: flex; align-items: center; gap: 7px; }
+.cc-mic-meter {
+    padding: 9px 10px;
+    border: 1px solid #1f2533;
+    border-radius: 10px;
+    background: #0f1218;
+}
+.cc-mic-meter-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #8b93a8;
+    font-size: 11px;
+    font-weight: 800;
+    margin-bottom: 7px;
+}
+.cc-mic-meter-top b { color: #ffd166; font-size: 12px; }
+.cc-mic-meter-track {
+    height: 12px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #06080d;
+    border: 1px solid #232936;
+}
+.cc-mic-meter-fill {
+    width: 0%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #22c55e, #ffd166, #ff2d55);
+    transition: width 0.06s linear;
+}
+.cc-mic-meter-hint { margin-top: 6px; color: #6b7390; font-size: 10px; line-height: 1.3; }
+.cc-transcript-box {
+    padding: 9px 10px;
+    border: 1px solid #1f2533;
+    border-radius: 10px;
+    background: #0f1218;
+}
+.cc-transcript-title {
+    color: #8b93a8;
+    font-size: 11px;
+    font-weight: 900;
+    margin-bottom: 6px;
+}
+.cc-transcript {
+    min-height: 38px;
+    color: #e6e8ee;
+    font-size: 12px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+.cc-transcript.empty { color: #6b7390; font-style: italic; }
 #btn-cc-toggle.listening {
     background: linear-gradient(135deg, #25F4EE, #16c6c0) !important;
     color: #041113 !important;
@@ -1888,6 +1942,147 @@ body:not(.game-thuytinh) .comments-popup.unknown-popup {
 .tt-lb-row .dia { color: #60a5fa; font-weight: 700; font-size: 11px; }
 .tt-lb-row .cd { color: #ff8a65; font-weight: 800; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace; }
 
+/* Avatar TOP treo bằng dây ở miệng hũ */
+.tt-top-hangers {
+    --hanger-dir: 1;
+    --hanger-size: 74px;
+    --wind-lift: -170px;
+    --wind-sway: 80px;
+    --wind-duration: 3000ms;
+    position: absolute;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    z-index: 8;
+    filter: drop-shadow(0 7px 12px rgba(0,0,0,0.45));
+}
+.tt-hanger {
+    position: absolute;
+    left: var(--x, 0px);
+    top: 0;
+    width: var(--hanger-size);
+    height: calc(var(--len) + var(--hanger-size));
+    transform-origin: 50% 0;
+    transform: translateX(calc(var(--hanger-dir) * -18%)) rotate(var(--tilt, 4deg));
+    animation: hangerFloat 3.8s ease-in-out infinite;
+    animation-delay: calc(var(--i) * -0.55s);
+}
+.tt-hanger-rope {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 2px;
+    height: var(--len);
+    transform: translateX(-50%);
+    background: linear-gradient(90deg, rgba(255,255,255,0.15), rgba(244,224,188,0.95), rgba(92,64,38,0.45));
+    border-radius: 99px;
+    box-shadow: 0 0 4px rgba(255,255,255,0.45);
+}
+.tt-hanger-knot {
+    position: absolute;
+    left: 50%;
+    top: calc(var(--len) - 5px);
+    width: 10px;
+    height: 10px;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: #f5deb8;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}
+.tt-hanger-face {
+    position: absolute;
+    left: 50%;
+    top: var(--len);
+    width: var(--hanger-size);
+    height: var(--hanger-size);
+    transform: translateX(-50%);
+    border-radius: 50%;
+    padding: 4px;
+    background: conic-gradient(from 20deg, var(--ring, #ffd166), #ffffff, #7dd3fc, var(--ring, #ffd166));
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.82), 0 0 18px rgba(96,165,250,0.55);
+}
+.tt-hanger-face::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 2px dashed var(--ring, #ffd166);
+    animation: hangerRingSpin 7s linear infinite;
+}
+.tt-hanger-face::after {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 10px rgba(255,255,255,0.55);
+    pointer-events: none;
+}
+.tt-hanger-avatar {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+    /* transparent — tránh "card xám" khi avatar là logo PNG trong suốt / đang load */
+    background: transparent;
+}
+.tt-hanger-rank {
+    position: absolute;
+    right: -5px;
+    bottom: -2px;
+    z-index: 2;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 4px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--ring, #ffd166), #38bdf8);
+    border: 2px solid rgba(255,255,255,0.92);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 950;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.55);
+}
+.tt-hanger-avatar.ph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #ff8a65, #7dd3fc);
+    color: #ffffff;
+    font-weight: 900;
+    font-size: calc(var(--hanger-size) * 0.28);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.55);
+}
+.tt-top-hangers.wind .tt-hanger {
+    animation: none;
+}
+.tt-top-hangers.wind .tt-hanger-rope {
+    animation: ropeWind var(--wind-duration) cubic-bezier(.18,.9,.2,1) both;
+}
+.tt-top-hangers.wind .tt-hanger-knot,
+.tt-top-hangers.wind .tt-hanger-face {
+    animation: faceWind var(--wind-duration) cubic-bezier(.18,.9,.2,1) both;
+}
+@keyframes hangerFloat {
+    0%, 100% { translate: 0 0; }
+    50% { translate: calc(var(--hanger-dir) * 5px) 7px; }
+}
+@keyframes hangerRingSpin { to { transform: rotate(360deg); } }
+@keyframes ropeWind {
+    0%, 100% { height: var(--len); rotate: 0deg; }
+    18%, 72% { height: calc(var(--len) + 155px); rotate: calc(var(--hanger-dir) * -28deg); }
+}
+@keyframes faceWind {
+    0% { translate: 0 0; rotate: 0deg; }
+    18% { translate: var(--fly-x, 0px) var(--fly-y, -280px); rotate: calc(var(--hanger-dir) * 18deg); }
+    72% { translate: var(--fly-x, 0px) var(--fly-y, -280px); rotate: calc(var(--hanger-dir) * -8deg); }
+    100% { translate: 0 0; rotate: 0deg; }
+}
+
 /* Caught list — thiết kế lại: avatar bên trái, info vertical bên phải */
 .tt-caught {
     --cs: 1; /* caught-scale, set bằng JS từ config.panelScales.caught */
@@ -2040,18 +2235,17 @@ body:not(.game-thuytinh) .comments-popup.unknown-popup {
     display: flex; flex-direction: column; align-items: center;
     gap: 0.3cqw;
     pointer-events: none;
-    width: 32%;
-    max-width: 360px;
+    width: auto;
+    max-width: none;
     opacity: 0.92;
 }
 .tt-goal .bar {
-    width: 100%;
-    height: 1.5cqw;
-    min-height: 8px;
-    background: rgba(0,0,0,0.55);
-    border-radius: 999px;
-    overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.18);
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
 }
 .tt-goal .fill {
     height: 100%; width: 0%;
@@ -2856,11 +3050,16 @@ body:not(.game-thuytinh) .comments-popup.unknown-popup {
     background: linear-gradient(135deg, #22c55e, #16a34a);
     color: #fff;
     border: none;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 12px; font-weight: 800;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 18px; font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-    letter-spacing: 0.3px;
+    letter-spacing: 0;
     box-shadow: 0 4px 10px rgba(34,197,94,0.35);
     transition: filter .15s ease, transform .1s ease;
 }
@@ -4840,55 +5039,36 @@ body.game-caro #caught-popup {
     50%      { box-shadow: 0 0 18px #22c55e, 0 0 0 4px rgba(34, 197, 94, 0.15); opacity: 1; }
 }
 
-/* ===== Bottom popup dock =====
-   Global: Bình luận LIVE, Quà mới, Dịch bình luận LIVE luôn hiện.
-   Game-specific: Cảnh sát/Bị tóm chỉ hiện ở Hũ Thủy Tinh. */
+/* ===== Quick action rail — GÓC DƯỚI-PHẢI =====
+   Cụm 3 nút nhanh nằm gọn góc dưới-PHẢI app: KHÔNG đè footer (góc dưới-trái),
+   KHÔNG che preview game (ở giữa). Popup mở lên trên từ phải → khoa học, gọn. */
 body {
-    --popup-dock-left: calc(var(--fab-base-left) + 8px);
-    --popup-dock-icon-left: calc(var(--popup-dock-left) + 14px);
-    --popup-dock-right: 14px;
-    --popup-dock-bottom: 12px;
-    --popup-dock-gap: 10px;
-    --popup-dock-size: 50px;
-    --popup-dock-card-h: 72px;
+    --quick-rail-right: 16px;
+    --quick-rail-bottom: 16px;
+    --quick-rail-gap: 10px;
+    --quick-rail-size: 46px;
 }
-body::after {
-    content: '';
-    position: fixed;
-    left: var(--popup-dock-left);
-    right: var(--popup-dock-right);
-    bottom: var(--popup-dock-bottom);
-    height: var(--popup-dock-card-h);
-    background: linear-gradient(180deg, rgba(22, 26, 35, 0.96), rgba(13, 16, 23, 0.98));
-    border: 1px solid #1f2533;
-    border-radius: 16px;
-    box-shadow: 0 18px 50px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.03);
-    pointer-events: none;
-    z-index: 9400;
-}
-.main { padding-bottom: calc(var(--popup-dock-card-h) + var(--popup-dock-bottom) + 10px); }
+.main { padding-bottom: 0; }
 .view.active { min-height: 0; }
 .game-view { padding-bottom: 0; }
 .comments-fab,
 .comments-fab.unknown-fab,
 .comments-fab.translate-fab,
-.police-fab,
-.caught-fab,
 #btn-open-soundfx {
-    width: var(--popup-dock-size);
-    height: var(--popup-dock-size);
-    bottom: calc(var(--popup-dock-bottom) + (var(--popup-dock-card-h) - var(--popup-dock-size)) / 2) !important;
+    width: var(--quick-rail-size);
+    height: var(--quick-rail-size);
+    bottom: var(--quick-rail-bottom) !important;
     top: auto !important;
-    border-radius: 16px;
+    left: auto !important;
+    border-radius: 14px;
     opacity: 1;
     z-index: 9600;
 }
-#comments-fab { left: var(--popup-dock-icon-left) !important; }
-#unknown-fab { left: calc(var(--popup-dock-icon-left) + (var(--popup-dock-size) + var(--popup-dock-gap)) * 1) !important; }
+/* 3 nút xếp ngang từ mép phải vào: SoundFX | Unknown | Comments */
 #btn-open-soundfx {
     position: fixed !important;
-    left: calc(var(--popup-dock-icon-left) + (var(--popup-dock-size) + var(--popup-dock-gap)) * 2) !important;
-    right: auto !important;
+    right: var(--quick-rail-right) !important;
+    left: auto !important;
     padding: 0 !important;
     display: inline-flex !important;
     align-items: center;
@@ -4897,30 +5077,23 @@ body::after {
     border: 1px solid rgba(167, 139, 250, 0.4) !important;
     box-shadow: 0 10px 28px rgba(0,0,0,0.45), 0 0 0 3px rgba(124,58,237,0.14);
 }
-#btn-open-soundfx .soundfx-btn-ico { font-size: 28px; line-height: 1; }
+#unknown-fab { right: calc(var(--quick-rail-right) + (var(--quick-rail-size) + var(--quick-rail-gap)) * 1) !important; left: auto !important; }
+#comments-fab { right: calc(var(--quick-rail-right) + (var(--quick-rail-size) + var(--quick-rail-gap)) * 2) !important; left: auto !important; }
+#btn-open-soundfx .soundfx-btn-ico { font-size: 26px; line-height: 1; }
 #btn-open-soundfx .soundfx-btn-text { display: none; }
-#translate-fab { left: calc(var(--popup-dock-icon-left) + (var(--popup-dock-size) + var(--popup-dock-gap)) * 3) !important; }
-#creator-caption-fab { left: calc(var(--popup-dock-icon-left) + (var(--popup-dock-size) + var(--popup-dock-gap)) * 4) !important; }
 #police-fab,
 #caught-fab { display: none !important; }
-.side-footer {
-    position: fixed;
-    right: 30px;
-    bottom: calc(var(--popup-dock-bottom) + 21px);
-    z-index: 9601;
-    pointer-events: none;
-    background: transparent;
-    border: 0;
-}
+/* Popup mở LÊN TRÊN, neo mép phải — không tràn ra ngoài, không che footer trái */
 .comments-popup,
 .comments-popup.unknown-popup,
 .comments-popup.translate-popup,
 .comments-popup.creator-caption-popup,
 .police-popup,
 .caught-popup {
-    bottom: calc(var(--popup-dock-bottom) + var(--popup-dock-size) + 10px) !important;
+    bottom: calc(var(--quick-rail-bottom) + var(--quick-rail-size) + 12px) !important;
     top: auto !important;
-    left: var(--popup-dock-left) !important;
+    left: auto !important;
+    right: var(--quick-rail-right) !important;
     max-height: min(72vh, 620px);
     z-index: 9700;
 }

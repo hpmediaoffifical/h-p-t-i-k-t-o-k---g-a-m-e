@@ -2599,16 +2599,25 @@ app.post('/api/games/:id/test-gift', (req, res) => {
     const giftId = String(body.giftId || '');
     const sheetItem = giftMap[giftId];
     const repeatCount = parseInt(body.count, 10) || 1;
-    emitGift({
+    const enriched = {
         uniqueId: body.uniqueId || 'tester',
         nickname: body.nickname || 'HP Media',
         giftId,
         giftName: sheetItem?.name || body.giftName || 'Gift',
         giftPicture: sheetItem?.image,
         diamondCount: sheetItem?.diamond,
+        sheetItem,
+        image: sheetItem?.image,
+        coinValue: sheetItem?.diamond ?? 1,
         repeatCount,
-        source: 'test'
-    });
+        source: 'test',
+        previewOnly: true,
+        ts: Date.now()
+    };
+    // App preview (room 'preview') nhận qua 'gift'; OBS overlay (room 'overlay')
+    // nhận qua 'gameGift' — mirror đúng cách emitGift() thật để icon HIỆN trên OBS.
+    io.to('preview').emit('gift', enriched);
+    io.to('overlay').emit('gameGift', enriched);
     res.json({ ok: true });
 });
 

@@ -46,12 +46,13 @@
        Yêu cầu UX: không có UI, không có khung, không có thông báo gì.
        Toàn bộ #content (hũ + canvas + panels) bị ẩn → OBS browser source thấy nền trong.
        Như vậy không ảnh hưởng livestream của user. */
+    body::after { content: none !important; display: none !important; }
     body.offline #content { display: none; }
     body.offline #stage { background: transparent; }
     body.offline .debug-pill { display: none !important; }
 </style>
 </head>
-<body>
+<body class="obs-overlay">
     <div id="stage">
         <div id="content">
             <img class="jar-bottom" src="/assets/thuytinh/jar-bottom.png" />
@@ -203,7 +204,14 @@
             if (state && game) game.loadState(state);
         });
 
+        const seenGiftEvents = new Set();
         function handleGift(g) {
+            const giftKey = [g.ts || '', g.uniqueId || g.userId || '', g.giftId || '', g.repeatCount || 1].join('|');
+            if (giftKey && seenGiftEvents.has(giftKey)) return;
+            if (giftKey) {
+                seenGiftEvents.add(giftKey);
+                setTimeout(() => seenGiftEvents.delete(giftKey), 5000);
+            }
             ensureGame();
             game.drop({
                 giftId: String(g.giftId || ''),
@@ -219,8 +227,9 @@
             debugEl.textContent = `+ ${g.giftName} x${g.repeatCount || 1}`;
             setTimeout(() => debugEl.classList.add('hidden'), 2500);
         }
-        // Chỉ listen 1 event để tránh duplicate (server emit cả 'gift' broadcast + 'gameGift' vào room overlay)
+        // Listen cả hai kênh để OBS không mất quà nếu broadcast global bị hụt; dedupe bằng ts/id ở trên.
         socket.on('gift', handleGift);
+        socket.on('gameGift', handleGift);
 
         // Cache giftSheet để renderBadges() lookup metadata (image, name) cho gifts đã gán effect
         socket.on('giftSheet', (data) => {
@@ -295,6 +304,7 @@
             else if (cmd === 'rain') { if (game.fxRain) game.fxRain(); }
             else if (cmd === 'geyser') { if (game.fxGeyser) game.fxGeyser(); }
             else if (cmd === 'magnet') { if (game.fxMagnet) game.fxMagnet(); }
+            else if (cmd === 'wind') { if (game.fxWind) game.fxWind(); }
             else if (cmd === 'crackJar') { if (game.fxCrackJar) game.fxCrackJar(); }
             else if (cmd === 'stealJar') { if (game.fxStealJar) game.fxStealJar(); }
             else if (cmd === 'combo') { if (game.fxCombo) game.fxCombo(payload || {}); }

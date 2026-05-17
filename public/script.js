@@ -22,7 +22,7 @@
     // State
     let giftSheet = [];
     let giftMap = {};
-    const placeholderImg = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="%231f2533"/><text x="32" y="38" text-anchor="middle" fill="%23ff6b3d" font-size="14" font-family="Arial">QUÀ</text></svg>';
+    const placeholderImg = '/hp-logo.png';
 
     function setStatus(state, text) {
         dot.classList.remove('online', 'connecting', 'error');

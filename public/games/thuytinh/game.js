@@ -44,7 +44,8 @@
                 autoShake: false,
                 randomEvents: false,
                 thiefAuto: false,
-                police: true
+                police: true,
+                topHangers: true
             },
             goal: { target: 5000 },
             goalBarGap: 0.1,
@@ -130,6 +131,11 @@
                 magnet: {
                     durationMs: 3500,
                     pullStrength: 1.0       // 0.5-2.0
+                },
+                wind: {
+                    durationMs: 3000,
+                    lift: 170,
+                    sway: 80
                 }
             },
             // Vị trí panel UI (đơn vị %) — null = dùng default CSS
@@ -143,6 +149,12 @@
             panelScales: {
                 leaderboard: 0.7,
                 caught: 1
+            },
+            // Avatar TOP user treo bằng dây ở miệng hũ. Giới hạn 5 để không lọt khỏi overlay OBS.
+            topHangers: {
+                count: 2,
+                size: 74,
+                side: 'right'
             },
             // Tỉ lệ scale nhân vật trộm / cảnh sát / osin / ufo (1 = 100% base size)
             actorScales: {
@@ -466,6 +478,9 @@
         let tiltAnimating = false;
         let currentTiltAngle = 0;
         const imgCache = new Map();
+        const HP_LOGO_SRC = '/hp-logo.png';
+        const hpLogoImage = new Image();
+        hpLogoImage.src = HP_LOGO_SRC;
         let spawnQueue = [];
         let spawnTicker = null;
 
@@ -526,7 +541,10 @@
             // Floor SÁT đáy canvas — TOP EDGE ở y = CANVAS_H. Thickness 400px → chống tunneling
             // khi OBS browser source chạy ở 30fps (dt tăng → bodies di chuyển nhiều/tick).
             // Tường mỏng 24px cũ → bodies vận tốc cao có thể xuyên qua → mất quà.
-            worldWalls.push(makeWall(CANVAS_W / 2, CANVAS_H + 200, CANVAS_W + 200, 400));
+            // Sàn world ĐẶT DƯỚI vùng nhìn: quà rơi khỏi hũ trôi xuống hết khung
+            // rồi despawn sạch ngay dưới mép (cull ở render) — KHÔNG đọng "đống icon"
+            // ngay đáy OBS đè lên streamer, cũng không lọt mất vô hình.
+            worldWalls.push(makeWall(CANVAS_W / 2, CANVAS_H + 460, CANVAS_W + 200, 400));
             // Side walls: thick, span well beyond canvas
             worldWalls.push(makeWall(-100, CANVAS_H / 2, 200, CANVAS_H + 400));
             worldWalls.push(makeWall(CANVAS_W + 100, CANVAS_H / 2, 200, CANVAS_H + 400));
@@ -593,6 +611,14 @@
         // ===== Drop =====
         function drop(g, count) {
             const n = Math.max(1, parseInt(count || g.repeatCount || 1, 10));
+            if (g.previewOnly) {
+                for (let i = 0; i < n; i++) spawnQueue.push(g);
+                if (!spawnTicker) spawnTicker = setInterval(processQueue, 45);
+                // Quà test VẪN ghi tipper → TOP tặng cập nhật → "Treo Avatar gió"
+                // (top-hangers) hiện ra khi test, đúng như khi LIVE thật.
+                recordTipper(g, n);
+                return;
+            }
             const triggerAction = config.triggers && config.triggers[String(g.giftId)];
             if (triggerAction) {
                 // Quà kích hoạt — KHÔNG rơi vào hũ
@@ -638,6 +664,7 @@
                 case 'rain': fxRain(); break;
                 case 'geyser': fxGeyser(); break;
                 case 'magnet': fxMagnet(); break;
+                case 'wind': fxWind(); break;
                 case 'crackJar': fxCrackJar(); break;
                 case 'stealJar': fxStealJar(); break;
                 case 'osin': triggerOsin(userInfo); break;
@@ -704,28 +731,31 @@
         function isJarFull() { return config.maxCapacity > 0 && bodies.length >= config.maxCapacity; }
 
         function loadImage(g) {
-            const key = g.giftId || g.image || Math.random().toString(36);
+            const src = (g.image && String(g.image).trim()) ? g.image : HP_LOGO_SRC;
+            const key = g.giftId || src || Math.random().toString(36);
             if (imgCache.has(key)) return imgCache.get(key);
             const im = new Image();
             im.onerror = () => {
-                const oc = document.createElement('canvas');
-                oc.width = 96; oc.height = 96;
-                const oc2 = oc.getContext('2d');
-                const hue = (parseInt(g.giftId, 10) || 0) % 360;
-                oc2.fillStyle = `hsl(${hue},60%,50%)`;
-                oc2.beginPath(); oc2.arc(48, 48, 44, 0, Math.PI * 2); oc2.fill();
-                oc2.fillStyle = '#fff';
-                oc2.font = 'bold 14px Arial';
-                oc2.textAlign = 'center';
-                const label = (g.giftName || g.giftId || '?').toString().slice(0, 8);
-                oc2.fillText(label, 48, 54);
-                const fallback = new Image();
-                fallback.src = oc.toDataURL();
-                imgCache.set(key, fallback);
+                if (im.src.endsWith(HP_LOGO_SRC)) return;
+                im.src = HP_LOGO_SRC;
             };
-            im.src = g.image || '';
+            im.src = src;
             imgCache.set(key, im);
             return im;
+        }
+
+        function drawGiftFallback(ctx, sz) {
+            if (hpLogoImage.complete && hpLogoImage.naturalWidth > 0) {
+                ctx.drawImage(hpLogoImage, -sz / 2, -sz / 2, sz, sz);
+                return;
+            }
+            ctx.fillStyle = 'rgba(255,107,61,0.82)';
+            ctx.beginPath(); ctx.arc(0, 0, sz / 2, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = `900 ${Math.max(12, sz * 0.28)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('HP', 0, 1);
         }
 
         function dropOne(g) {
@@ -759,7 +789,8 @@
                 tier: tierOf(g.coinValue || 1),
                 sz,
                 img: loadImage(g),
-                tipperUid: g.userId || g.uniqueId
+                tipperUid: g.userId || g.uniqueId,
+                previewOnly: !!g.previewOnly
             };
             Body.setVelocity(body, { x: (Math.random() - 0.5) * 3, y: Math.random() * 2 + 1 });
             Composite.add(engine.world, body);
@@ -1069,11 +1100,6 @@
                 visualEls.forEach(el => { el.style.transform = `rotate(${deg}deg)`; });
             };
 
-            // Toast cảnh báo
-            showComboToast(
-                `🔄 Hũ bị <b>DỐC NGƯỢC</b> — quà đổ tung tóe!`,
-                'linear-gradient(135deg, #f59e0b, #ef4444)'
-            );
             if (config.features.audio) audio.pourOut();
 
             // Phase 1: nghiêng nhanh tới góc max (1.2s)
@@ -1178,7 +1204,6 @@
                     Body.setAngularVelocity(b, (Math.random() - 0.5) * 0.2 * intensity);
                 });
             }, 30);
-            showComboToast('🌪 <b>Lốc xoáy</b> giữa canvas!', 'linear-gradient(135deg, #6366f1, #8b5cf6)');
         }
         function fxSlow() {
             const ts = (config.effects?.slow?.timeScale ?? 0.25);
@@ -1197,7 +1222,7 @@
             // Lấy ngẫu nhiên giftMap để có icon đa dạng — fallback dùng bodies trong hũ nếu trống
             const allGms = [];
             for (const b of bodies) if (b.gm) allGms.push(b.gm);
-            if (!allGms.length) return showComboToast('☔ Mưa quà cần ít nhất 1 quà trong hũ', 'linear-gradient(135deg,#6b7280,#4b5563)');
+            if (!allGms.length) return;
             const interval = durMs / count;
             for (let i = 0; i < count; i++) {
                 setTimeout(() => {
@@ -1220,7 +1245,6 @@
                 updateCountDisplay();
                 onCountChange(bodies.length);
             }, durMs + 200);
-            showComboToast('☔ <b>Mưa quà</b> đang rơi xuống!', 'linear-gradient(135deg, #0ea5e9, #6366f1)');
         }
 
         // ===== 🚀 Phun trào — hút quà NGOÀI hũ về phía hũ (như máy hút bụi) =====
@@ -1255,7 +1279,6 @@
                     });
                 });
             }, 30);
-            showComboToast('🚀 <b>Phun trào</b> — hút quà về hũ!', 'linear-gradient(135deg, #f59e0b, #ef4444)');
         }
 
         // ===== 🧲 Nam châm — bodies hút lẫn nhau tạo cụm =====
@@ -1296,7 +1319,6 @@
                     });
                 });
             }, 30);
-            showComboToast('🧲 <b>Nam châm</b> hút quà lên trên cao!', 'linear-gradient(135deg, #8b5cf6, #ec4899)');
         }
 
         // ===== Tạo hình quà (hút bodies → ghép hình/chữ → giữ → rơi tự do) =====
@@ -1545,14 +1567,7 @@
             // biết cần thêm bao nhiêu quà nữa.
             const minN = minBodiesForShape(type, sCfg.customText);
             const have = bodies.length;
-            if (have < minN) {
-                const need = minN - have;
-                showComboToast(
-                    `🎨 Cần thêm <b>${need}</b> quà nữa để vẽ hình <b>${shapeLabel(type)}</b> · đang có ${have}/${minN}`,
-                    'linear-gradient(135deg, #f59e0b, #ef4444)'
-                );
-                return;
-            }
+            if (have < minN) return;
 
             shapeBusy = true;
 
@@ -1763,11 +1778,7 @@
                 }, 500);
             }, durMs);
         }
-        function flashShatterToast(text, color) {
-            showComboToast(text, color || 'linear-gradient(135deg, #dc2626, #f59e0b)');
-        }
         function shatterJar() {
-            flashShatterToast(`💥 <b>HŨ VỠ TAN!</b> Quà rơi tung toé`);
             if (config.features.audio) { audio.fanfare(); audio.big(); }
             // Nháy đỏ
             if (jarBottomEl) jarBottomEl.style.transition = 'opacity 0.4s, filter 0.4s';
@@ -1803,7 +1814,6 @@
                 crackElements.forEach(c => c.remove());
                 crackElements.length = 0;
                 crackLevel = 0;
-                flashShatterToast(`✨ Hũ phục hồi nguyên vẹn`, 'linear-gradient(135deg, #22c55e, #10b981)');
             }, 3000);
         }
 
@@ -1836,7 +1846,7 @@
             posBig(enterX);
 
             // Lưu state gốc của hũ
-            const targets = [jarBottomEl, jarGlassEl, canvas, countDisplay].filter(Boolean);
+            const targets = [jarBottomEl, jarGlassEl, canvas, countDisplay, _accessoryEl, topHangersEl].filter(Boolean);
             targets.forEach(el => {
                 el.dataset._stealOp = el.style.opacity || '1';
                 el.dataset._stealTr = el.style.transform || '';
@@ -1861,7 +1871,6 @@
             targets.forEach(el => { el.style.opacity = '0'; });
             ninja.style.display = 'none';
 
-            flashStealJarToast(durSec, true);
             if (config.features.audio) audio.fanfare();
 
             // Phase 3: hiển thị countdown ở giữa
@@ -1914,7 +1923,6 @@
             });
             engine.timing.timeScale = savedTimeScale || 1;
             jarStolen = false;
-            flashStealJarToast(0, false);
             if (config.features.audio) audio.big();
         }
         function ensureStealCountdownEl() {
@@ -1947,14 +1955,22 @@
         function stopRandomEvents() { if (randomEventTimer) { clearInterval(randomEventTimer); randomEventTimer = null; } }
 
         // ===== UI overlays =====
-        let goalEl, totalsEl, crownEl, lbEl, welcomeEl, comboToastEl, thiefLayer, caughtEl, forceEl;
+        let goalEl, totalsEl, crownEl, lbEl, topHangersEl, welcomeEl, comboToastEl, thiefLayer, caughtEl, forceEl;
+        let windTimer = null;
         function ensureOverlayDom() {
             if (!overlayLayer) return;
             if (overlayLayer.dataset.thuytinhInit === '1') {
                 goalEl = overlayLayer.querySelector('.tt-goal');
+                goalEl?.querySelector('.bar')?.remove();
                 totalsEl = overlayLayer.querySelector('.tt-totals');
                 crownEl = overlayLayer.querySelector('.tt-crown');
                 lbEl = overlayLayer.querySelector('.tt-leaderboard');
+                topHangersEl = overlayLayer.querySelector('.tt-top-hangers');
+                if (!topHangersEl) {
+                    topHangersEl = document.createElement('div');
+                    topHangersEl.className = 'tt-top-hangers';
+                    overlayLayer.insertBefore(topHangersEl, lbEl || overlayLayer.firstChild);
+                }
                 caughtEl = overlayLayer.querySelector('.tt-caught');
                 forceEl = overlayLayer.querySelector('.tt-force');
                 welcomeEl = overlayLayer.querySelector('.tt-welcome');
@@ -1972,17 +1988,20 @@
                 <div class="tt-welcome"></div>
                 <div class="tt-combo-toast"></div>
                 <div class="tt-crown"><img class="ico" alt=""><img class="avatar" alt=""><div class="name"></div></div>
+                <div class="tt-top-hangers"></div>
                 <div class="tt-leaderboard tt-drag-panel" data-panel="leaderboard"></div>
                 <div class="tt-caught tt-drag-panel" data-panel="caught"></div>
                 <div class="tt-force tt-drag-panel" data-panel="force"></div>
-                <div class="tt-goal"><div class="bar"><div class="fill"></div></div><div class="label"></div></div>
+                <div class="tt-goal"><div class="label"></div></div>
                 <div class="tt-totals"></div>
                 <div class="tt-thief-layer"></div>
             `;
             goalEl = overlayLayer.querySelector('.tt-goal');
+            goalEl?.querySelector('.bar')?.remove();
             totalsEl = overlayLayer.querySelector('.tt-totals');
             crownEl = overlayLayer.querySelector('.tt-crown');
             lbEl = overlayLayer.querySelector('.tt-leaderboard');
+            topHangersEl = overlayLayer.querySelector('.tt-top-hangers');
             caughtEl = overlayLayer.querySelector('.tt-caught');
             forceEl = overlayLayer.querySelector('.tt-force');
             welcomeEl = overlayLayer.querySelector('.tt-welcome');
@@ -2020,8 +2039,7 @@
                 const top = Math.max(0, Math.min(98, topPctRaw));
                 goalEl.style.left = left + '%';
                 goalEl.style.top = top + '%';
-                // Ngắn hơn đáy hũ (70%) cho gọn
-                goalEl.style.width = (r.w * 0.7 / CANVAS_W * 100) + '%';
+                goalEl.style.width = 'auto';
                 goalEl.style.maxWidth = 'none';
                 goalEl.style.display = config.features.goalBar ? 'flex' : 'none';
             }
@@ -2034,7 +2052,26 @@
                 lbEl.style.display = config.features.leaderboard ? 'block' : 'none';
                 applyPanelScale('leaderboard', lbEl);
             }
+            positionTopHangers(r);
             if (caughtEl) applyPanelScale('caught', caughtEl);
+        }
+        function positionTopHangers(r) {
+            if (!topHangersEl) return;
+            const cfg = config.topHangers || {};
+            const enabled = !!(config.features?.topHangers);
+            const rawCount = parseInt(cfg.count, 10);
+            const count = Math.max(0, Math.min(5, Number.isFinite(rawCount) && rawCount > 0 ? rawCount : 2));
+            // Chỉ hiện khi feature ON + có hanger thật (tránh container rỗng = card xám trên OBS)
+            const hasHangers = topHangersEl.children.length > 0;
+            topHangersEl.style.display = enabled && count > 0 && hasHangers ? 'block' : 'none';
+            if (!enabled || count <= 0 || !hasHangers) return;
+            const sideRight = (cfg.side || 'right') !== 'left';
+            const anchorX = r.cx;
+            const anchorY = r.y + r.h * SHAPE.neckTopY + Math.max(3, r.h * 0.012);
+            topHangersEl.style.left = (anchorX / CANVAS_W * 100) + '%';
+            topHangersEl.style.top = (anchorY / CANVAS_H * 100) + '%';
+            topHangersEl.style.setProperty('--hanger-dir', sideRight ? '1' : '-1');
+            topHangersEl.style.setProperty('--hanger-size', Math.max(44, Math.min(120, cfg.size || 74)) + 'px');
         }
         function updateCrown() {
             if (!config.features.crown || !crownEl) return;
@@ -2062,8 +2099,9 @@
             return Array.from(stats.tippers.values()).sort((a, b) => b.diamonds - a.diamonds).slice(0, n);
         }
         function updateLeaderboard() {
-            if (!config.features.leaderboard || !lbEl) return;
             const top = topTippers(5);
+            updateTopHangers(top);
+            if (!config.features.leaderboard || !lbEl) return;
             lbEl.innerHTML = `<div class="tt-lb-title">TOP TẶNG</div>` + top.map((t, i) => `
                 <div class="tt-lb-row">
                     <div class="rank">#${i + 1}</div>
@@ -2074,6 +2112,54 @@
                     <div class="dia">${t.diamonds}⭐</div>
                 </div>`).join('');
             applyPanelPosition('leaderboard', lbEl);
+        }
+        function updateTopHangers(topList) {
+            if (!topHangersEl) return;
+            const cfg = config.topHangers || {};
+            const rawCount = parseInt(cfg.count, 10);
+            const count = Math.max(0, Math.min(5, Number.isFinite(rawCount) && rawCount > 0 ? rawCount : 2));
+            let top = (topList || topTippers(5)).slice(0, count);
+            // Chưa có ai tặng → KHÔNG treo avatar giả (tránh "card xám" trên stream sạch)
+            if (!top.length) {
+                topHangersEl.innerHTML = '';
+                topHangersEl.style.display = 'none';
+                return;
+            }
+            topHangersEl.innerHTML = top.map((t, i) => {
+                const r = jarRect();
+                const center = (top.length - 1) / 2;
+                const spread = Math.max(46, Math.min(96, r.w * 0.18));
+                const offset = (i - center) * spread;
+                const dir = offset >= 0 ? 1 : -1;
+                const len = 92 + i * 36;
+                const tilt = dir * (5 + Math.min(8, Math.abs(i - center) * 3));
+                const flyMode = i % 2 === 0 ? 'sky' : 'center';
+                const flyX = flyMode === 'sky' ? (i - center) * 18 : -offset * 0.78;
+                const flyY = -(260 + i * 34);
+                const ring = i === 0 ? '#ffd166' : i === 1 ? '#dbeafe' : i === 2 ? '#f59e0b' : '#7dd3fc';
+                const avatarSrc = t.avatar || HP_LOGO_SRC;
+                const avatar = `<img class="tt-hanger-avatar" src="${escAttr(avatarSrc)}" alt="" onerror="this.onerror=null;this.src='${HP_LOGO_SRC}'">`;
+                return `<div class="tt-hanger" style="--i:${i};--x:${offset}px;--len:${len}px;--tilt:${tilt}deg;--ring:${ring};--fly-x:${flyX}px;--fly-y:${flyY}px">
+                    <div class="tt-hanger-rope"></div>
+                    <div class="tt-hanger-knot"></div>
+                    <div class="tt-hanger-face" title="#${i + 1} ${escAttr(t.nickname || t.uniqueId || 'guest')}">${avatar}<span class="tt-hanger-rank">#${i + 1}</span></div>
+                </div>`;
+            }).join('');
+            positionTopHangers(jarRect());
+        }
+        function fxWind() {
+            if (!topHangersEl) return;
+            updateTopHangers(topTippers(5));
+            const fx = config.effects?.wind || {};
+            const duration = Math.max(800, Math.min(8000, fx.durationMs || 3000));
+            topHangersEl.style.setProperty('--wind-lift', '-' + Math.max(60, Math.min(420, fx.lift || 170)) + 'px');
+            topHangersEl.style.setProperty('--wind-sway', Math.max(20, Math.min(220, fx.sway || 80)) + 'px');
+            topHangersEl.style.setProperty('--wind-duration', duration + 'ms');
+            topHangersEl.classList.remove('wind');
+            void topHangersEl.offsetWidth;
+            topHangersEl.classList.add('wind');
+            clearTimeout(windTimer);
+            windTimer = setTimeout(() => topHangersEl?.classList.remove('wind'), duration + 120);
         }
         function updateCaughtList() {
             if (!caughtEl) return;
@@ -2448,10 +2534,7 @@
         function updateGoalBar() {
             if (!config.features.goalBar || !goalEl) return;
             const target = Math.max(1, config.goal.target);
-            const pct = Math.min(100, (stats.totalDiamonds / target) * 100);
-            const fill = goalEl.querySelector('.fill');
             const label = goalEl.querySelector('.label');
-            if (fill) fill.style.width = pct + '%';
             if (label) label.textContent = `${stats.totalDiamonds.toLocaleString('vi-VN')} / ${target.toLocaleString('vi-VN')} ⭐`;
         }
         function showWelcome(g) {
@@ -4055,7 +4138,10 @@
         }
 
         // ===== Render =====
-        const CULL_BELOW_Y = CANVAS_H + 2000; // bodies stack ở floor (CANVAS_H+12) — safety net cho bug fall-through hiếm gặp
+        // Quà rơi khỏi hũ → rơi xuống hết khung rồi DESPAWN sạch ngay dưới mép nhìn.
+        // KHÔNG để stack thành "mảng/card tối" ở đáy OBS, cũng KHÔNG kẹt vô hình mãi
+        // (CANVAS_H+2000 cũ → nằm dưới sàn off-screen, không bao giờ cull → trông như mất).
+        const CULL_BELOW_Y = CANVAS_H + 160;
         function render() {
             ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
             // Khi hũ bị trộm, không vẽ bodies (tạo cảm giác hũ + quà cùng biến mất)
@@ -4090,8 +4176,7 @@
                 if (img && img.complete && img.naturalWidth > 0) {
                     ctx.drawImage(img, -sz / 2, -sz / 2, sz, sz);
                 } else {
-                    ctx.fillStyle = 'rgba(180,180,180,0.35)';
-                    ctx.beginPath(); ctx.arc(0, 0, sz / 2, 0, Math.PI * 2); ctx.fill();
+                    drawGiftFallback(ctx, sz);
                 }
                 ctx.restore();
             }
@@ -4204,7 +4289,7 @@
                 goalReached: !!stats.goalReached,
                 // PERSIST bodies — quà đang trong hũ (giữ qua restart)
                 // gm có circular refs (img is HTMLImageElement) → chỉ save fields cần thiết
-                bodies: bodies.map(b => ({
+                bodies: bodies.filter(b => !b.gm?.previewOnly).map(b => ({
                     x: b.position.x,
                     y: b.position.y,
                     sz: b.gm?.sz || 40,
@@ -4326,7 +4411,7 @@
             banThief, unbanThief, isThiefBanned, bailUser,
             serializeState, loadState,
             fxFireworks, fxMegaboom, fxTilt, fxGravFlip, fxTornado, fxSlow, fxPourOut,
-            fxRain, fxGeyser, fxMagnet,
+            fxRain, fxGeyser, fxMagnet, fxWind,
             fxCrackJar, fxStealJar, fxCombo, fxShape,
             togglePoliceMembership,
             // Trả về snapshot lực lượng CS (cho Police popup ngoài app)

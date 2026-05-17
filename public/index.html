@@ -7,7 +7,7 @@
     <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="stylesheet" href="/style.css" />
 </head>
-<body>
+<body class="app-shell">
     <!-- License gate: full-screen overlay hiển thị khi chưa kích hoạt key -->
     <div id="license-gate" class="license-gate" hidden>
         <div class="lg-card">
@@ -162,6 +162,7 @@
                                         <label class="feat"><input type="checkbox" id="ft-welcome"/> 👋 Welcome</label>
                                         <label class="feat"><input type="checkbox" id="ft-crown"/> 👑 Vương miện</label>
                                         <label class="feat"><input type="checkbox" id="ft-leaderboard"/> 🏆 Top tặng</label>
+                                        <label class="feat"><input type="checkbox" id="ft-top-hangers"/> 🧵 Treo Gió</label>
                                         <label class="feat"><input type="checkbox" id="ft-totals"/> 📊 Tổng quà</label>
                                         <label class="feat"><input type="checkbox" id="ft-goalbar"/> 🎯 Goal Bar</label>
                                     </div>
@@ -220,6 +221,23 @@
                                         <label>Cỡ UFO</label>
                                         <input type="range" id="cfg-scale-ufo" min="0.5" max="2.5" step="0.05"/>
                                         <span class="cfg-val" id="cfg-scale-ufo-v">1.0</span>
+                                    </div>
+                                    <div class="cfg-row" title="Số avatar TOP treo bằng dây ở miệng hũ, tối đa 5 để không rớt khỏi overlay OBS">
+                                        <label>Treo TOP</label>
+                                        <input type="range" id="cfg-top-hanger-count" min="1" max="5" step="1"/>
+                                        <span class="cfg-val" id="cfg-top-hanger-count-v">2</span>
+                                    </div>
+                                    <div class="cfg-row" title="Kích thước avatar TOP treo">
+                                        <label>Cỡ avatar</label>
+                                        <input type="range" id="cfg-top-hanger-size" min="44" max="120" step="2"/>
+                                        <span class="cfg-val" id="cfg-top-hanger-size-v">74</span>
+                                    </div>
+                                    <div class="cfg-row" title="Chọn treo avatar TOP bên trái hoặc phải miệng hũ">
+                                        <label>Bên treo</label>
+                                        <select id="cfg-top-hanger-side" class="cfg-select">
+                                            <option value="right">Bên phải</option>
+                                            <option value="left">Bên trái</option>
+                                        </select>
                                     </div>
                                     <div class="cfg-row" title="Gắn phụ kiện trang trí lên miệng hũ — không che thân hũ">
                                         <label>🎀 Phụ kiện hũ</label>
@@ -367,6 +385,7 @@
                                     <button id="btn-osin" class="ghost small">🧹 Gọi OSIN</button>
                                     <button id="btn-fx-firework" class="ghost small">🎆 Pháo hoa</button>
                                     <button id="btn-fx-tornado" class="ghost small">🌀 Lốc xoáy</button>
+                                    <button id="btn-fx-wind" class="ghost small">💨 Gió avatar TOP</button>
                                     <button id="btn-fx-shape" class="ghost small">🎨 Tạo hình</button>
                                 </div>
                                 <div class="quick-test-section">
@@ -381,8 +400,8 @@
 
                         <div class="card thuy-side-panel">
                             <div class="thuy-side-switch">
-                                <button id="thuy-police-tab" class="active" type="button">🚓 Lực lượng cảnh sát <span id="thuy-police-count">0</span></button>
-                                <button id="thuy-caught-tab" type="button">🥷 Bị Tóm <span id="thuy-caught-count">0</span></button>
+                                <button id="thuy-police-tab" class="active" type="button">🚓 Cảnh sát <span id="thuy-police-count">0</span></button>
+                                <button id="thuy-caught-tab" type="button">🥷 Kẻ trộm <span id="thuy-caught-count">0</span></button>
                             </div>
                             <div id="thuy-side-panel-host" class="thuy-side-panel-host"></div>
                         </div>
@@ -979,6 +998,15 @@
                 <select id="cc-mic"><option value="default">Micro mặc định của máy</option></select>
                 <button id="btn-cc-mic-test" class="ghost mini" title="Kiểm tra quyền micro">✓</button>
             </div>
+            <div class="cc-mic-meter" id="cc-mic-meter">
+                <div class="cc-mic-meter-top"><span>Âm lượng micro</span><b id="cc-mic-level-v">0%</b></div>
+                <div class="cc-mic-meter-track"><div id="cc-mic-level" class="cc-mic-meter-fill"></div></div>
+                <div class="cc-mic-meter-hint">Thanh này sẽ chạy khi test mic hoặc khi bắt đầu nghe.</div>
+            </div>
+            <div class="cc-transcript-box">
+                <div class="cc-transcript-title">AI nghe được</div>
+                <div id="cc-transcript" class="cc-transcript empty">Chưa có chữ nào được nhận từ giọng nói.</div>
+            </div>
             <div class="translate-row"><label>Dừng nói sau</label><input type="range" id="cc-silence" min="0.5" max="8" step="0.5" value="2" /><span class="translate-val" id="cc-silence-v">2s</span></div>
             <div class="translate-row vertical">
                 <label>Dịch ra nhiều ngôn ngữ</label>
@@ -1004,7 +1032,7 @@
             </div>
             <div class="creator-caption-actions">
                 <button id="btn-cc-toggle" class="primary block">BẮT ĐẦU NGHE</button>
-                <button id="btn-cc-test" class="ghost block">Test phụ đề</button>
+                <button id="btn-cc-test" class="ghost block">Test offline</button>
             </div>
             <div id="cc-status" class="translate-status"></div>
         </div>
@@ -1233,7 +1261,7 @@
         <div class="police-popup-foot">User tặng quà gán "Gia nhập CS" sẽ vào danh sách này.</div>
     </div>
 
-    <!-- 🥷 Bị Tóm popup — quản lý danh sách trộm bị tóm + nút BẢO LÃNH -->
+    <!-- 🥷 Kẻ trộm popup — quản lý danh sách trộm bị tóm + nút thả sớm -->
     <button id="caught-fab" class="caught-fab" title="Danh sách trộm bị tóm">
         🥷<span class="badge" id="caught-badge" hidden>0</span>
     </button>
@@ -1247,7 +1275,7 @@
         <div id="caught-popup-list" class="caught-popup-list">
             <div class="caught-empty">Chưa có ai bị tóm.</div>
         </div>
-        <div class="caught-popup-foot">Idol bấm <b>BẢO LÃNH</b> để thả tự do sớm.</div>
+        <div class="caught-popup-foot">Idol bấm <b>🔓</b> để thả tự do sớm.</div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>

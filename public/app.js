@@ -8,7 +8,7 @@
     let games = [];
     let currentGame = null;
     let gameInstance = null;
-    const placeholderImg = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="%231f2533"/><text x="32" y="38" text-anchor="middle" fill="%23ff6b3d" font-size="14" font-family="Arial">QUÀ</text></svg>';
+    const placeholderImg = '/hp-logo.png';
 
     // ===== Effects list (trigger map) =====
     // Mỗi effect chỉ gán cho 1 quà duy nhất (1 hiệu ứng ↔ 1 quà).
@@ -32,6 +32,7 @@
         { key: 'rain',       ico: '☔', label: 'Mưa quà' },
         { key: 'geyser',     ico: '🚀', label: 'Phun trào' },
         { key: 'magnet',     ico: '🧲', label: 'Nam châm' },
+        { key: 'wind',       ico: '💨', label: 'Gió thổi avatar TOP' },
         { key: 'crackJar',   ico: '🪟', label: 'Nứt hũ' },
         { key: 'stealJar',   ico: '🚚', label: 'Trộm cả hũ' },
         { key: 'combo',      ico: '⛓', label: 'Combo (chuỗi)' },
@@ -77,12 +78,12 @@
     }
 
     // ===== Feature toggles map =====
-    const FEATURE_KEYS = ['audio','welcome','crown','leaderboard','sessionTotals','goalBar','combo','tierBorder','bigGiftFx','autoShake','randomEvents','thiefAuto','police'];
+    const FEATURE_KEYS = ['audio','welcome','crown','leaderboard','sessionTotals','goalBar','topHangers','combo','tierBorder','bigGiftFx','autoShake','randomEvents','thiefAuto','police'];
     const FEATURE_INPUT = {
         audio:'ft-audio', welcome:'ft-welcome', crown:'ft-crown', leaderboard:'ft-leaderboard',
         sessionTotals:'ft-totals', goalBar:'ft-goalbar', combo:'ft-combo', tierBorder:'ft-tier',
         bigGiftFx:'ft-bigfx', autoShake:'ft-autoshake', randomEvents:'ft-random', thiefAuto:'ft-thiefauto',
-        police:'ft-police'
+        police:'ft-police', topHangers:'ft-top-hangers'
     };
 
     // ===== DOM =====
@@ -146,6 +147,7 @@
         btnOsin: $('#btn-osin'),
         btnFxFirework: $('#btn-fx-firework'),
         btnFxTornado: $('#btn-fx-tornado'),
+        btnFxWind: $('#btn-fx-wind'),
         btnFxShape: $('#btn-fx-shape'),
         cfgGoal: $('#cfg-goal'),
         cfgGoalV: $('#cfg-goal-v'),
@@ -174,6 +176,11 @@
         cfgScaleUfoV: $('#cfg-scale-ufo-v'),
         cfgJarAccessory: $('#cfg-jar-accessory'),
         cfgJarTheme: $('#cfg-jar-theme'),
+        cfgTopHangerCount: $('#cfg-top-hanger-count'),
+        cfgTopHangerCountV: $('#cfg-top-hanger-count-v'),
+        cfgTopHangerSize: $('#cfg-top-hanger-size'),
+        cfgTopHangerSizeV: $('#cfg-top-hanger-size-v'),
+        cfgTopHangerSide: $('#cfg-top-hanger-side'),
         cfgBadgesEnabled: $('#cfg-badges-enabled'),
         cfgBadgesLayout: $('#cfg-badges-layout'),
         cfgBadgesNamepos: $('#cfg-badges-namepos'),
@@ -691,6 +698,15 @@
         if (dom.cfgScaleUfoV) dom.cfgScaleUfoV.textContent = sUf;
         if (dom.cfgJarAccessory) dom.cfgJarAccessory.value = cfg.jarAccessory || 'none';
         if (dom.cfgJarTheme) dom.cfgJarTheme.value = cfg.jarTheme || 'default';
+        const th = cfg.topHangers || {};
+        const rawThCount = parseInt(th.count, 10);
+        const thCount = Math.max(1, Math.min(5, Number.isFinite(rawThCount) && rawThCount > 0 ? rawThCount : 2));
+        const thSize = th.size ?? 74;
+        if (dom.cfgTopHangerCount) dom.cfgTopHangerCount.value = String(thCount);
+        if (dom.cfgTopHangerCountV) dom.cfgTopHangerCountV.textContent = thCount;
+        if (dom.cfgTopHangerSize) dom.cfgTopHangerSize.value = String(thSize);
+        if (dom.cfgTopHangerSizeV) dom.cfgTopHangerSizeV.textContent = thSize;
+        if (dom.cfgTopHangerSide) dom.cfgTopHangerSide.value = th.side || 'right';
         const bdg = cfg.badges || {};
         if (dom.cfgBadgesEnabled) dom.cfgBadgesEnabled.checked = !!bdg.enabled;
         if (dom.cfgBadgesLocked)  dom.cfgBadgesLocked.checked  = !!bdg.locked;
@@ -728,7 +744,7 @@
         const f = cfg.features || {};
         for (const key of FEATURE_KEYS) {
             const el = document.getElementById(FEATURE_INPUT[key]);
-            if (el) el.checked = !!f[key];
+            if (el) el.checked = key === 'topHangers' ? f[key] !== false : !!f[key];
         }
         currentTriggers = JSON.parse(JSON.stringify(cfg.triggers || {}));
         currentEffectsConfig = JSON.parse(JSON.stringify(cfg.effects || {}));
@@ -810,6 +826,11 @@
             },
             jarAccessory: dom.cfgJarAccessory?.value || 'none',
             jarTheme: dom.cfgJarTheme?.value || 'default',
+            topHangers: {
+                count: Math.max(1, Math.min(5, parseInt(dom.cfgTopHangerCount?.value, 10) || 2)),
+                size: Math.max(44, Math.min(120, parseInt(dom.cfgTopHangerSize?.value, 10) || 74)),
+                side: dom.cfgTopHangerSide?.value || 'right'
+            },
             badges: {
                 enabled: !!dom.cfgBadgesEnabled?.checked,
                 locked: !!dom.cfgBadgesLocked?.checked,
@@ -856,6 +877,8 @@
         if (dom.cfgScalePoliceV) dom.cfgScalePoliceV.textContent = cfg.actorScales.police;
         if (dom.cfgScaleOsinV) dom.cfgScaleOsinV.textContent = cfg.actorScales.osin;
         if (dom.cfgScaleUfoV) dom.cfgScaleUfoV.textContent = cfg.actorScales.ufo;
+        if (dom.cfgTopHangerCountV) dom.cfgTopHangerCountV.textContent = cfg.topHangers?.count ?? 0;
+        if (dom.cfgTopHangerSizeV) dom.cfgTopHangerSizeV.textContent = cfg.topHangers?.size ?? 74;
         if (dom.cfgBadgesScaleV) dom.cfgBadgesScaleV.textContent = cfg.badges?.scale ?? 1;
         if (dom.cfgBadgesIconScaleV) dom.cfgBadgesIconScaleV.textContent = cfg.badges?.iconScale ?? 1;
         if (dom.cfgBadgesGapV) dom.cfgBadgesGapV.textContent = cfg.badges?.gap ?? 0.8;
@@ -949,10 +972,7 @@
             card.appendChild(name);
             card.addEventListener('click', () => {
                 if (!currentGame) return;
-                fetch(`/api/games/${currentGame.id}/test-gift`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ giftId, count: 1, nickname: 'HP Media' })
-                }).catch(() => {});
+                spawnInGame({ giftId, repeatCount: 1, nickname: 'HP Media', previewOnly: true });
             });
             frag.appendChild(card);
         }
@@ -1521,7 +1541,7 @@
         item.appendChild(img); item.appendChild(info); item.appendChild(qty);
 
         // Click thả thử vào game preview
-        item.addEventListener('click', () => spawnInGame(g));
+        item.addEventListener('click', () => spawnInGame({ ...g, previewOnly: true }));
         dom.giftStreamEl.appendChild(item);
         if (dom.giftStreamEl.children.length > 80) dom.giftStreamEl.removeChild(dom.giftStreamEl.firstChild);
         dom.giftStreamEl.scrollTop = dom.giftStreamEl.scrollHeight;
@@ -1538,7 +1558,8 @@
             userId: g.userId,
             uniqueId: g.uniqueId,
             nickname: g.nickname,
-            profilePicture: g.profilePicture
+            profilePicture: g.profilePicture,
+            previewOnly: !!g.previewOnly
         }, g.repeatCount || 1);
     }
 
@@ -1593,10 +1614,8 @@
                 }
             }
             card.addEventListener('click', () => {
-                fetch(`/api/games/${currentGame?.id || 'thuytinh'}/test-gift`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ giftId: g.id, count: 1, nickname: 'preview' })
-                }).catch(() => {});
+                if (!currentGame) return;
+                spawnInGame({ giftId: g.id, repeatCount: 1, nickname: 'preview', previewOnly: true });
             });
             // Chuột phải → mở context menu gán effect
             card.addEventListener('contextmenu', (ev) => {
@@ -1817,7 +1836,7 @@
     dom.usernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') dom.btnConnect.click(); });
 
     // Config range inputs
-    ['cfgGravity', 'cfgBounce', 'cfgFriction', 'cfgJarH', 'cfgGmin', 'cfgGmax', 'cfgGoal', 'cfgGoalGap', 'cfgShakeAt', 'cfgThiefMiss', 'cfgPoliceRate', 'cfgPoliceBan', 'cfgScaleLb', 'cfgScaleCaught', 'cfgScaleThief', 'cfgScalePolice', 'cfgScaleOsin', 'cfgScaleUfo']
+    ['cfgGravity', 'cfgBounce', 'cfgFriction', 'cfgJarH', 'cfgGmin', 'cfgGmax', 'cfgGoal', 'cfgGoalGap', 'cfgShakeAt', 'cfgThiefMiss', 'cfgPoliceRate', 'cfgPoliceBan', 'cfgScaleLb', 'cfgScaleCaught', 'cfgScaleThief', 'cfgScalePolice', 'cfgScaleOsin', 'cfgScaleUfo', 'cfgTopHangerCount', 'cfgTopHangerSize']
         .forEach(k => dom[k]?.addEventListener('input', pushConfigUpdate));
     dom.cfgPoliceName?.addEventListener('input', pushConfigUpdate);
     dom.cfgShowCount?.addEventListener('change', pushConfigUpdate);
@@ -1825,6 +1844,7 @@
     dom.cfgJarLocked?.addEventListener('change', pushConfigUpdate);
     dom.cfgJarAccessory?.addEventListener('change', pushConfigUpdate);
     dom.cfgJarTheme?.addEventListener('change', pushConfigUpdate);
+    dom.cfgTopHangerSide?.addEventListener('change', pushConfigUpdate);
     dom.cfgBadgesEnabled?.addEventListener('change', pushConfigUpdate);
     dom.cfgBadgesLocked?.addEventListener('change', pushConfigUpdate);
     // Preset cỡ card / icon / gap / chữ đẹp cho từng combo layout — auto-fill khi đổi layout
@@ -2084,6 +2104,7 @@
     });
     dom.btnFxFirework?.addEventListener('click', () => { gameInstance?.fxFireworks(); sendCmd('fireworks'); });
     dom.btnFxTornado?.addEventListener('click', () => { gameInstance?.fxTornado(); sendCmd('tornado'); });
+    dom.btnFxWind?.addEventListener('click', () => { gameInstance?.fxWind?.(); sendCmd('wind'); });
     dom.btnFxShape?.addEventListener('click', () => {
         if (!gameInstance) return;
         // Bấm test = chọn 1 tipper gần đây để hiện tên ở giữa hình
@@ -2493,6 +2514,9 @@
     const ccSource = document.getElementById('cc-source');
     const ccMic = document.getElementById('cc-mic');
     const btnCcMicTest = document.getElementById('btn-cc-mic-test');
+    const ccMicLevel = document.getElementById('cc-mic-level');
+    const ccMicLevelV = document.getElementById('cc-mic-level-v');
+    const ccTranscript = document.getElementById('cc-transcript');
     const ccSilence = document.getElementById('cc-silence');
     const ccSilenceV = document.getElementById('cc-silence-v');
     const ccTargets = Array.from(document.querySelectorAll('input[name="cc-targets"]'));
@@ -2509,6 +2533,8 @@
     let creatorCaptionRestarting = false;
     let creatorCaptionBuffer = '';
     let creatorCaptionSilenceTimer = null;
+    let creatorCaptionMicTestStop = null;
+    let creatorCaptionMeterStop = null;
     let translateRulesAutoSynced = false;
 
     function setTranslateStatus(text, cls) {
@@ -2520,6 +2546,15 @@
         if (!ccStatus) return;
         ccStatus.textContent = text || '';
         ccStatus.className = 'translate-status' + (cls ? ' ' + cls : '');
+    }
+    function setCreatorSpeechState(detected) {
+        setCreatorCaptionStatus(detected ? 'Đã phát hiện và ghi nhận' : 'Chưa có giọng nói', detected ? 'ok' : '');
+    }
+    function setCreatorTranscript(text) {
+        if (!ccTranscript) return;
+        const value = String(text || '').trim();
+        ccTranscript.textContent = value || 'Chưa có chữ nào được nhận từ giọng nói.';
+        ccTranscript.classList.toggle('empty', !value);
     }
     function setTranslateUnread(n) {
         unreadTranslations = Math.max(0, n);
@@ -2763,7 +2798,10 @@
         creatorCaptionBuffer = '';
         if (creatorCaptionSilenceTimer) clearTimeout(creatorCaptionSilenceTimer);
         creatorCaptionSilenceTimer = null;
-        if (text) socket.emit('creatorCaption:speech', { text, sourceLang: cfg.sourceLang, targetLangs: cfg.targetLangs });
+        if (text) {
+            setCreatorSpeechState(true);
+            socket.emit('creatorCaption:speech', { text, sourceLang: cfg.sourceLang, targetLangs: cfg.targetLangs });
+        }
     }
     function scheduleCreatorCaptionFlush(cfg) {
         if (creatorCaptionSilenceTimer) clearTimeout(creatorCaptionSilenceTimer);
@@ -2778,15 +2816,78 @@
             ccMic.innerHTML = '<option value="default">Micro mặc định của máy</option>' + mics.map((d, i) => `<option value="${d.deviceId}">${d.label || `Micro ${i + 1}`}</option>`).join('');
         } catch (e) {}
     }
-    async function testCreatorCaptionMicrophone() {
+    function setCreatorCaptionMicLevel(level) {
+        const pct = Math.max(0, Math.min(100, Math.round(level || 0)));
+        if (ccMicLevel) ccMicLevel.style.width = pct + '%';
+        if (ccMicLevelV) ccMicLevelV.textContent = pct + '%';
+    }
+    function stopCreatorCaptionMicMeter() {
+        if (creatorCaptionMicTestStop) {
+            creatorCaptionMicTestStop();
+            creatorCaptionMicTestStop = null;
+        }
+        if (creatorCaptionMeterStop) {
+            creatorCaptionMeterStop();
+            creatorCaptionMeterStop = null;
+        }
+        if (btnCcMicTest) btnCcMicTest.textContent = '✓';
+    }
+    async function startCreatorCaptionMicMeter(options = {}) {
         if (!navigator.mediaDevices?.getUserMedia) { setCreatorCaptionStatus('Máy này không hỗ trợ kiểm tra micro', 'err'); return; }
+        if (creatorCaptionMeterStop) creatorCaptionMeterStop();
         try {
             const deviceId = ccMic?.value && ccMic.value !== 'default' ? { exact: ccMic.value } : undefined;
             const stream = await navigator.mediaDevices.getUserMedia({ audio: deviceId ? { deviceId } : true });
-            stream.getTracks().forEach(t => t.stop());
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) {
+                stream.getTracks().forEach(t => t.stop());
+                setCreatorCaptionStatus('Micro đã sẵn sàng nhưng máy này không hỗ trợ meter âm lượng', 'ok');
+                return null;
+            }
+            const ctx = new AudioCtx();
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 1024;
+            analyser.smoothingTimeConstant = 0.72;
+            const source = ctx.createMediaStreamSource(stream);
+            source.connect(analyser);
+            const data = new Uint8Array(analyser.fftSize);
+            let raf = 0;
+            let peak = 0;
+            const startedAt = Date.now();
+            function tick() {
+                analyser.getByteTimeDomainData(data);
+                let sum = 0;
+                for (let i = 0; i < data.length; i++) {
+                    const v = (data[i] - 128) / 128;
+                    sum += v * v;
+                }
+                const rms = Math.sqrt(sum / data.length);
+                const level = Math.min(100, rms * 260);
+                peak = Math.max(peak, level);
+                setCreatorCaptionMicLevel(level);
+                if (!options.durationMs || Date.now() - startedAt < options.durationMs) raf = requestAnimationFrame(tick);
+                else stopCreatorCaptionMicMeter();
+            }
+            const stop = () => {
+                if (raf) cancelAnimationFrame(raf);
+                stream.getTracks().forEach(t => t.stop());
+                try { source.disconnect(); } catch (e) {}
+                try { analyser.disconnect(); } catch (e) {}
+                try { ctx.close(); } catch (e) {}
+                setCreatorCaptionMicLevel(0);
+                if (options.warnOnSilent && peak < 4) setCreatorCaptionStatus('Không thấy tín hiệu âm lượng. Hãy chọn đúng micro hoặc kiểm tra quyền micro Windows.', 'err');
+            };
+            creatorCaptionMeterStop = stop;
+            if (options.testButton && btnCcMicTest) btnCcMicTest.textContent = '■';
             await refreshCreatorCaptionMicrophones();
-            setCreatorCaptionStatus('Micro đã sẵn sàng. Nhận giọng vẫn dùng micro mặc định của hệ thống.', 'ok');
-        } catch (e) { setCreatorCaptionStatus('Không truy cập được micro: ' + e.message, 'err'); }
+            if (options.message) setCreatorCaptionStatus(options.message, options.messageClass || 'ok');
+            tick();
+            return stop;
+        } catch (e) { setCreatorCaptionStatus('Không truy cập được micro: ' + e.message, 'err'); return null; }
+    }
+    async function testCreatorCaptionMicrophone() {
+        stopCreatorCaptionMicMeter();
+        creatorCaptionMicTestStop = await startCreatorCaptionMicMeter({ durationMs: 10000, warnOnSilent: true, testButton: true, message: 'Đang đo âm lượng micro trong 10 giây. Hãy nói thử...' });
     }
     async function startCreatorCaptionListening() {
         const Ctor = getSpeechRecognitionCtor();
@@ -2794,6 +2895,9 @@
         try {
             if (ccEnabled) ccEnabled.checked = true;
             const cfg = await saveCreatorCaptionConfig();
+            stopCreatorCaptionMicMeter();
+            startCreatorCaptionMicMeter().catch(() => {});
+            setCreatorTranscript('');
             creatorCaptionListening = true;
             creatorCaptionRecognition = new Ctor();
             creatorCaptionRecognition.lang = cfg.sourceLang || 'vi-VN';
@@ -2801,30 +2905,36 @@
             creatorCaptionRecognition.interimResults = true;
             creatorCaptionRecognition.maxAlternatives = 1;
             creatorCaptionRecognition.onresult = (ev) => {
+                let finalText = '';
+                let interimText = '';
                 for (let i = ev.resultIndex; i < ev.results.length; i++) {
                     const r = ev.results[i];
-                    if (!r?.isFinal) continue;
                     const text = String(r[0]?.transcript || '').trim();
-                    if (text) {
-                        creatorCaptionBuffer = `${creatorCaptionBuffer} ${text}`.trim();
-                        scheduleCreatorCaptionFlush(cfg);
-                        setCreatorCaptionStatus(`Đã ghi nhận, chờ ngưng nói ${cfg.silenceSeconds || 2}s để dịch...`, 'ok');
-                    }
+                    if (!text) continue;
+                    if (r?.isFinal) finalText = `${finalText} ${text}`.trim();
+                    else interimText = `${interimText} ${text}`.trim();
+                }
+                const text = finalText || interimText;
+                if (text) {
+                    creatorCaptionBuffer = text;
+                    setCreatorTranscript(text);
+                    scheduleCreatorCaptionFlush(cfg);
+                    setCreatorSpeechState(true);
                 }
             };
-            creatorCaptionRecognition.onerror = (ev) => setCreatorCaptionStatus('Nhận giọng: ' + (ev.error || 'lỗi'), 'err');
+            creatorCaptionRecognition.onerror = () => setCreatorSpeechState(false);
             creatorCaptionRecognition.onend = () => {
                 if (!creatorCaptionListening) return;
                 creatorCaptionRestarting = true;
                 setTimeout(() => {
-                    try { creatorCaptionRecognition?.start(); setCreatorCaptionStatus('Đang nghe giọng Creator...', 'ok'); }
+                    try { creatorCaptionRecognition?.start(); setCreatorSpeechState(false); }
                     catch (e) {}
                     creatorCaptionRestarting = false;
                 }, 450);
             };
             creatorCaptionRecognition.start();
             applyCreatorCaptionConfig(cfg);
-            setCreatorCaptionStatus('Đang nghe giọng Creator...', 'ok');
+            setCreatorSpeechState(false);
         } catch (e) { setCreatorCaptionStatus('Không bật được micro: ' + e.message, 'err'); }
     }
     function stopCreatorCaptionListening() {
@@ -2833,8 +2943,10 @@
         if (creatorCaptionConfig) flushCreatorCaptionBuffer(creatorCaptionConfig);
         try { creatorCaptionRecognition?.stop(); } catch (e) {}
         creatorCaptionRecognition = null;
+        stopCreatorCaptionMicMeter();
+        setCreatorTranscript('');
         applyCreatorCaptionConfig(creatorCaptionConfig);
-        setCreatorCaptionStatus('Đã dừng nghe giọng Creator', '');
+        setCreatorSpeechState(false);
     }
     async function toggleCreatorCaptionListening() {
         if (creatorCaptionListening || creatorCaptionRestarting) stopCreatorCaptionListening();
@@ -2848,11 +2960,11 @@
     async function testCreatorCaption() {
         try {
             if (ccEnabled) ccEnabled.checked = true;
-            await saveCreatorCaptionConfig();
-            const res = await fetch('/api/creator-caption/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'Xin chào mọi người, hôm nay chúng ta bắt đầu live.' }) });
-            const json = await res.json();
-            if (!res.ok || !json.ok) throw new Error(json.error || 'caption_test_failed');
-            setCreatorCaptionStatus('Đã gửi test phụ đề sang OBS', 'ok');
+            const cfg = await saveCreatorCaptionConfig();
+            creatorCaptionBuffer = 'Xin chào mọi người, đây là kiểm tra offline phụ đề giọng Creator.';
+            setCreatorTranscript(creatorCaptionBuffer);
+            scheduleCreatorCaptionFlush(cfg);
+            setCreatorSpeechState(true);
         } catch (e) { setCreatorCaptionStatus('Test phụ đề lỗi: ' + e.message, 'err'); }
     }
     refreshTranslateOverlayUrl();
@@ -3226,7 +3338,7 @@
     // Sync nhanh (500ms) — đảm bảo badge cập nhật gần như realtime sau toggle/bail
     setInterval(syncPoliceFromGame, 500);
 
-    // ===== Caught (Bị Tóm) popup — quản lý + BẢO LÃNH =====
+    // ===== Kẻ trộm popup — quản lý + thả sớm =====
     const caughtFab = document.getElementById('caught-fab');
     const caughtPopup = document.getElementById('caught-popup');
     const caughtBadge = document.getElementById('caught-badge');
@@ -3241,7 +3353,7 @@
     document.getElementById('caught-close')?.addEventListener('click', () => {
         if (caughtPopup) caughtPopup.hidden = true;
     });
-    // Event delegation cho nút BẢO LÃNH trong popup
+    // Event delegation cho nút thả sớm trong popup
     caughtListEl?.addEventListener('click', (ev) => {
         const btn = ev.target.closest('.cp-bail');
         if (!btn) return;
@@ -3286,7 +3398,7 @@
                     ${meta}
                     <span class="cp-cd">${left}s</span>
                 </div>
-                <button class="cp-bail" data-uid="${escAttrInline(c.uid || '')}" title="Bảo lãnh trộm này ra sớm">BẢO LÃNH</button>
+                <button class="cp-bail" data-uid="${escAttrInline(c.uid || '')}" title="Thả kẻ trộm ra sớm" aria-label="Thả kẻ trộm">🔓</button>
             </div>`;
         }).join('');
     }
