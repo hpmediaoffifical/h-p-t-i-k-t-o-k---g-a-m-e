@@ -985,6 +985,10 @@
             </div>
         </div>
         <div class="translate-settings">
+            <div class="creator-caption-actions top-actions">
+                <button id="btn-cc-toggle" class="primary block">BẮT ĐẦU NGHE</button>
+                <button id="btn-cc-test" class="ghost block">Test phụ đề</button>
+            </div>
             <label class="translate-check"><input type="checkbox" id="cc-enabled" /> Bật nhận giọng Creator</label>
             <label class="translate-check"><input type="checkbox" id="cc-original" checked /> Hiện cả câu gốc</label>
             <div class="translate-row">
@@ -996,10 +1000,25 @@
                     <option value="ru-RU">Russian</option><option value="pt-BR">Portuguese</option><option value="hi-IN">Hindi</option><option value="ar-SA">Arabic</option><option value="tr-TR">Turkish</option>
                 </select>
             </div>
+            <div class="translate-row cc-local-row" hidden>
+                <label>Whisper EXE</label>
+                <input id="cc-whisper-exe" type="text" placeholder="Để trống = dùng whisper tích hợp sẵn" />
+            </div>
+            <div class="translate-row cc-local-row" hidden>
+                <label>Model local</label>
+                <input id="cc-whisper-model" type="text" placeholder="Để trống = dùng ggml-base tích hợp sẵn" />
+            </div>
             <div class="translate-row">
                 <label>Micro</label>
                 <select id="cc-mic"><option value="default">Micro mặc định của máy</option></select>
                 <button id="btn-cc-mic-test" class="ghost mini" title="Kiểm tra quyền micro">✓</button>
+            </div>
+            <div id="cc-wave" class="cc-wave" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="cc-transcript-box">
+                <div class="cc-transcript-label">Test nhận giọng</div>
+                <div id="cc-transcript" class="cc-transcript">Bấm BẮT ĐẦU NGHE rồi nói. Câu nghe được sẽ hiện ở đây trước khi dịch.</div>
             </div>
             <div class="translate-row"><label>Dừng nói sau</label><input type="range" id="cc-silence" min="0.5" max="8" step="0.5" value="2" /><span class="translate-val" id="cc-silence-v">2s</span></div>
             <label class="translate-check"><input type="checkbox" id="cc-auto-targets" checked /> Tự bật ngôn ngữ phụ đề theo người xem đang chat</label>
@@ -1029,10 +1048,6 @@
                     <label><input type="checkbox" name="cc-targets" value="ms" /> Malay</label>
                     <label><input type="checkbox" name="cc-targets" value="fil" /> Filipino</label>
                 </div>
-            </div>
-            <div class="creator-caption-actions">
-                <button id="btn-cc-toggle" class="primary block">BẮT ĐẦU NGHE</button>
-                <button id="btn-cc-test" class="ghost block">Test phụ đề</button>
             </div>
             <div id="cc-status" class="translate-status"></div>
         </div>
