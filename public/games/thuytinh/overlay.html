@@ -261,16 +261,18 @@
                     seenSeqs.delete(old);
                 }
             }
-            // Dedup phụ: same cmd+payload trong 800ms → bỏ qua
-            const now = Date.now();
-            const hashKey = cmd + ':' + JSON.stringify(payload?.thieves?.map(t=>t.uid) || payload?.uid || payload?.name || '');
-            const lastTs = recentCmdHashes.get(hashKey);
-            if (lastTs && (now - lastTs) < 800) return;
-            recentCmdHashes.set(hashKey, now);
-            // Cleanup map cũ (giữ tối đa 30 entries)
-            if (recentCmdHashes.size > 30) {
-                const oldestKey = recentCmdHashes.keys().next().value;
-                recentCmdHashes.delete(oldestKey);
+            // Dedup phụ chỉ dành cho cmd cũ không có seq. Cmd mới có seq riêng phải được phép lặp theo combo x10/x100.
+            if (seq == null) {
+                const now = Date.now();
+                const hashKey = cmd + ':' + JSON.stringify(payload?.thieves?.map(t=>t.uid) || payload?.uid || payload?.name || '');
+                const lastTs = recentCmdHashes.get(hashKey);
+                if (lastTs && (now - lastTs) < 800) return;
+                recentCmdHashes.set(hashKey, now);
+                // Cleanup map cũ (giữ tối đa 30 entries)
+                if (recentCmdHashes.size > 30) {
+                    const oldestKey = recentCmdHashes.keys().next().value;
+                    recentCmdHashes.delete(oldestKey);
+                }
             }
             if (payload && payload._state) {
                 try { game.loadState(payload._state); } catch (e) {}

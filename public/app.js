@@ -43,6 +43,19 @@
     function giftIdsForEffect(key) {
         return Object.keys(currentTriggers).filter(id => currentTriggers[id] === key);
     }
+    function findAssignedGiftId(gift) {
+        const directId = String(gift?.id ?? gift?.giftId ?? '');
+        if (directId && currentTriggers[directId]) return directId;
+        const giftName = String(gift?.name || gift?.giftName || '').trim().toLowerCase();
+        const giftImage = String(gift?.image || gift?.giftPicture || '').trim();
+        for (const id of Object.keys(currentTriggers || {})) {
+            const meta = giftMap[String(id)];
+            if (!meta) continue;
+            if (giftName && String(meta.name || '').trim().toLowerCase() === giftName) return String(id);
+            if (giftImage && String(meta.image || '').trim() === giftImage) return String(id);
+        }
+        return directId;
+    }
     // Đẩy giftId lên đầu danh sách "vừa gán" → catalog hiển thị quà này trước.
     function bumpRecent(giftId) {
         const id = String(giftId);
@@ -53,6 +66,12 @@
     function dropRecent(giftId) {
         const id = String(giftId);
         recentAssignments = recentAssignments.filter(x => x !== id);
+    }
+    function cleanupUnassignedGiftState(giftId) {
+        const id = String(giftId || '');
+        if (!id || currentTriggers[id]) return;
+        dropRecent(id);
+        if (currentBadgeItems[id]) delete currentBadgeItems[id];
     }
     // Đồng bộ danh sách giftIds trong editingDraft (multi) → currentTriggers.
     // Dùng để auto-commit ngay khi user pick/bỏ trong modal — tránh "save xong vẫn mất".
@@ -72,7 +91,7 @@
         }
         // Diff: thêm mới → bump; bỏ → drop
         for (const id of newIds) if (!oldIds.has(id)) bumpRecent(id);
-        for (const id of oldIds) if (!newIds.has(id)) dropRecent(id);
+        for (const id of oldIds) if (!newIds.has(id)) cleanupUnassignedGiftState(id);
     }
 
     // ===== Feature toggles map =====
@@ -286,6 +305,13 @@
     window.hpConfirm = hpConfirm;
 
     // ===== Games =====
+    const GAME_DEVELOPMENT_NOTICE = 'Đang phát triển, có thể gặp sự cố...';
+
+    function renderGameDevelopmentNotice(game) {
+        if (game.id === 'thuytinh') return '';
+        return `<div class="gd game-dev-notice game-dev-${game.id}">${GAME_DEVELOPMENT_NOTICE}</div>`;
+    }
+
     async function loadGames() {
         const res = await fetch('/api/games');
         games = await res.json();
@@ -313,7 +339,7 @@
             div.innerHTML = `<span class="ico">${g.icon}</span>
                 <div class="meta">
                     <div class="gn">${g.name}</div>
-                    ${g.description ? `<div class="gd">${g.description.length > 38 ? g.description.slice(0, 38) + '…' : g.description}</div>` : ''}
+                    ${renderGameDevelopmentNotice(g)}
                 </div>
                 <button class="game-toggle ${isEnabled ? 'on' : 'off'}" data-game-toggle="${g.id}" title="${isEnabled ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT'} ${g.virtual ? 'tool' : 'game'} chạy ngầm">⏻</button>`;
             // Click toàn thân (trừ toggle) → mở game
@@ -369,7 +395,7 @@
             card.className = 'home-card';
             card.innerHTML = `<div class="ico">${g.icon}</div>
                 <div class="gn">${g.name}</div>
-                ${g.description ? `<div class="gd">${g.description}</div>` : ''}`;
+                ${renderGameDevelopmentNotice(g)}`;
             card.addEventListener('click', () => openGame(g.id));
             dom.homeGrid.appendChild(card);
         }
@@ -811,6 +837,7 @@
                 }, 500);
             }
         }
+        for (const id of Object.keys(currentBadgeItems || {})) cleanupUnassignedGiftState(id);
         // Khởi tạo recentAssignments theo thứ tự key trong cfg.triggers (giữ relative order
         // sau khi reload). User mới gán quà nào trong phiên hiện tại thì bumpRecent sẽ đẩy lên đầu.
         recentAssignments = Object.keys(currentTriggers);
@@ -1509,8 +1536,8 @@
             // Single: xoá toàn bộ assignment cũ của effect này, drop khỏi recent, rồi gán mới
             for (const k of Object.keys(currentTriggers)) {
                 if (currentTriggers[k] === editingEffect.key) {
-                    dropRecent(k);
                     delete currentTriggers[k];
+                    cleanupUnassignedGiftState(k);
                 }
             }
             if (editingDraft.giftId) {
@@ -1597,6 +1624,15 @@
 
         // Click thả thử vào game preview
         item.addEventListener('click', () => spawnInGame(g));
+        item.addEventListener('contextmenu', (ev) => {
+            ev.preventDefault();
+            openGiftContextMenu({
+                id: String(g.giftId),
+                name: sheet?.name || g.giftName || 'Quà',
+                image: sheet?.image || g.image || g.giftPicture,
+                diamond: g.coinValue || sheet?.diamond || 0
+            }, ev.clientX, ev.clientY);
+        });
         dom.giftStreamEl.appendChild(item);
         if (dom.giftStreamEl.children.length > 80) dom.giftStreamEl.removeChild(dom.giftStreamEl.firstChild);
         dom.giftStreamEl.scrollTop = dom.giftStreamEl.scrollHeight;
@@ -1622,8 +1658,6 @@
         if (!dom.giftCatalogEl) return;
         dom.giftCatalogEl.innerHTML = '';
         const f = filter.trim().toLowerCase();
-        // ẨN các quà đã gán hiệu ứng (đã hiển thị ở quick-test grid bên trái tab Thử)
-        // → Tránh hiển thị 2 lần và làm giảm số card trong DANH SÁCH QUÀ
         let list = giftSheet.filter(g => !currentTriggers[String(g.id)]);
         if (f) {
             list = list.filter(g =>
@@ -1655,19 +1689,6 @@
             card.appendChild(nm);
             card.appendChild(idL);
             card.appendChild(di);
-            // Hiển thị badge nếu đã gán effect
-            const action = currentTriggers[String(g.id)];
-            if (action) {
-                card.classList.add('has-trigger');
-                const ef = EFFECTS.find(e => e.key === action);
-                if (ef) {
-                    const badge = document.createElement('div');
-                    badge.className = 'trigger-badge';
-                    badge.textContent = ef.ico;
-                    badge.title = `Đang gán: ${ef.label}`;
-                    card.appendChild(badge);
-                }
-            }
             card.addEventListener('click', () => {
                 fetch(`/api/games/${currentGame?.id || 'thuytinh'}/test-gift`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1692,27 +1713,29 @@
     let cmGift = null;
     function openGiftContextMenu(gift, clientX, clientY) {
         if (!ctxMenu) return;
-        cmGift = gift;
-        const currentAction = currentTriggers[String(gift.id)];
+        const giftId = String(gift?.id ?? gift?.giftId ?? '');
+        if (!giftId) return;
+        const assignedGiftId = findAssignedGiftId(gift);
+        cmGift = { ...gift, id: assignedGiftId || giftId };
+        const currentAction = currentTriggers[assignedGiftId] || '';
         const ef = EFFECTS.find(e => e.key === currentAction);
-        cmCurrent.innerHTML = `<b>${escHtml(gift.name)}</b> · ID ${gift.id} · ${gift.diamond || 0}⭐`
+        cmCurrent.innerHTML = `<b>${escHtml(gift.name || 'Quà')}</b> · ID ${giftId} · ${gift.diamond || 0}⭐`
             + (ef ? `<br/>Đang gán: <span style="color:#ffd166">${ef.ico} ${ef.label}</span>` : '');
+        if (cmClear) cmClear.hidden = !currentAction;
         cmList.innerHTML = '';
         for (const e of EFFECTS) {
             const btn = document.createElement('button');
             btn.dataset.effect = e.key;
-            // ✓ Hiển thị dấu tích cho effect đã có quà gán (giúp scan nhanh slot trống)
             const assignedIds = giftIdsForEffect(e.key);
             const hasAnyGift = assignedIds.length > 0;
             const isCurrent = currentAction === e.key;
-            // Multi effect: hiện số quà đã gán (vd "Pháo hoa ✓×3"). Single: chỉ ✓
             const checkmark = hasAnyGift
                 ? (e.multi ? `<span class="cm-check">✓×${assignedIds.length}</span>` : `<span class="cm-check">✓</span>`)
                 : '';
             btn.innerHTML = `<span>${e.ico}</span> ${e.label}${checkmark}`;
             if (isCurrent) btn.classList.add('active');
-            else if (hasAnyGift) btn.classList.add('assigned');   // có quà khác đang giữ slot
-            btn.addEventListener('click', () => assignTrigger(gift.id, e.key));
+            else if (hasAnyGift) btn.classList.add('assigned');
+            btn.addEventListener('click', () => assignTrigger(giftId, e.key));
             cmList.appendChild(btn);
         }
         ctxMenu.hidden = false;
@@ -1734,8 +1757,8 @@
             // Cũng xoá khỏi recent vì quà cũ không còn được gán nữa.
             for (const k of Object.keys(currentTriggers)) {
                 if (currentTriggers[k] === effect) {
-                    dropRecent(k);
                     delete currentTriggers[k];
+                    cleanupUnassignedGiftState(k);
                 }
             }
         }
@@ -1751,14 +1774,16 @@
     }
     cmClear?.addEventListener('click', () => {
         if (!cmGift) return;
-        const removed = currentTriggers[String(cmGift.id)];
-        delete currentTriggers[String(cmGift.id)];
-        dropRecent(cmGift.id);
+        const giftId = String(cmGift.id);
+        const giftName = cmGift.name;
+        const removed = currentTriggers[giftId];
+        delete currentTriggers[giftId];
+        cleanupUnassignedGiftState(giftId);
         closeGiftContextMenu();
         renderTriggerList();
         renderGiftCatalog(dom.giftSearchInput.value);
         pushConfigUpdate(true);
-        if (removed) flashTriggerToast(`✗ Đã xoá gán cho ${cmGift.name}`);
+        if (removed) flashTriggerToast(`✗ Đã xoá gán cho ${giftName}`);
     });
     document.addEventListener('click', (ev) => {
         if (!ctxMenu || ctxMenu.hidden) return;
@@ -1870,13 +1895,13 @@
 
     // Old license save handler đã chuyển sang gate flow (xem phần License Gate ở cuối file)
 
-    dom.btnCopyOverlay.addEventListener('click', () => {
-        dom.overlayUrl.select();
-        navigator.clipboard.writeText(dom.overlayUrl.value).then(() => {
-            const t = dom.btnCopyOverlay.textContent;
-            dom.btnCopyOverlay.textContent = '✓ Đã copy';
-            setTimeout(() => dom.btnCopyOverlay.textContent = t, 1500);
-        });
+    dom.btnCopyOverlay.addEventListener('click', async () => {
+        const url = dom.overlayUrl?.value || (location.origin + '/overlay/thuytinh');
+        const ok = await copyText(url);
+        const t = dom.btnCopyOverlay.textContent;
+        dom.btnCopyOverlay.textContent = ok ? '✓ Đã copy' : 'Copy lỗi';
+        if (!ok) flashTriggerToast('Không copy tự động được. Link: ' + url);
+        setTimeout(() => dom.btnCopyOverlay.textContent = t, 1500);
     });
     // (Nút "↗ Mở" đã bỏ — user dùng Copy link + paste vào OBS browser source)
     dom.btnSaveAll?.addEventListener('click', async () => {
@@ -2330,6 +2355,7 @@
     }
     async function copyText(text) {
         try {
+            if (!navigator.clipboard?.writeText) throw new Error('clipboard_unavailable');
             await navigator.clipboard.writeText(text);
             return true;
         } catch (e) {
@@ -2341,6 +2367,7 @@
             catch (_) { document.body.removeChild(ta); return false; }
         }
     }
+    window.hpCopyText = copyText;
     function renderUnknownList() {
         if (!unknownListEl) return;
         unknownListEl.innerHTML = '';
@@ -3165,6 +3192,40 @@
         }
         return new Blob([buffer], { type: 'audio/wav' });
     }
+    function analyzeCreatorCaptionAudio(audioBuffer) {
+        const channels = Math.min(2, audioBuffer.numberOfChannels || 1);
+        const sampleRate = audioBuffer.sampleRate || 48000;
+        const samples = audioBuffer.length || 0;
+        const frameSize = Math.max(1, Math.round(sampleRate * 0.02));
+        let peak = 0;
+        let sumSquares = 0;
+        let voicedMs = 0;
+        let frameSquares = 0;
+        let frameCount = 0;
+        for (let i = 0; i < samples; i++) {
+            let sample = 0;
+            for (let ch = 0; ch < channels; ch++) sample += audioBuffer.getChannelData(ch)[i] || 0;
+            sample /= channels;
+            const abs = Math.abs(sample);
+            peak = Math.max(peak, abs);
+            const square = sample * sample;
+            sumSquares += square;
+            frameSquares += square;
+            frameCount += 1;
+            if (frameCount >= frameSize || i === samples - 1) {
+                const frameRms = Math.sqrt(frameSquares / Math.max(1, frameCount));
+                if (frameRms >= 0.012) voicedMs += (frameCount / sampleRate) * 1000;
+                frameSquares = 0;
+                frameCount = 0;
+            }
+        }
+        return {
+            durationMs: samples ? (samples / sampleRate) * 1000 : 0,
+            peak,
+            rms: samples ? Math.sqrt(sumSquares / samples) : 0,
+            voicedMs
+        };
+    }
     async function convertBlobToWav(blob) {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (!AudioCtx) throw new Error('browser_no_audio_context');
@@ -3172,7 +3233,7 @@
         try {
             const arrayBuffer = await blob.arrayBuffer();
             const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-            return encodeWavFromAudioBuffer(audioBuffer);
+            return { blob: encodeWavFromAudioBuffer(audioBuffer), metrics: analyzeCreatorCaptionAudio(audioBuffer) };
         } finally {
             try { await ctx.close(); } catch (e) {}
         }
@@ -3194,17 +3255,27 @@
         if (now < creatorCaptionRateLimitedUntil) return;
         if (now - creatorCaptionLastTranscribeAt < 2500) return;
         creatorCaptionTranscribing = true;
+        const providerLabel = 'Whisper local';
         try {
-            const providerLabel = 'Whisper local';
             setCreatorCaptionTranscript(`Đang gửi audio sang ${providerLabel} để nhận chữ...`, 'pending');
             creatorCaptionLastTranscribeAt = Date.now();
-            const sendBlob = await convertBlobToWav(blob);
+            const converted = await convertBlobToWav(blob);
+            const sendBlob = converted.blob;
+            const audioMetrics = converted.metrics || {};
+            if (audioMetrics.peak < 0.055 || audioMetrics.rms < 0.0065 || audioMetrics.voicedMs < 260) {
+                if (audioMetrics.peak >= 0.035 && Date.now() - creatorCaptionLastSkipNoticeAt > 5000) {
+                    creatorCaptionLastSkipNoticeAt = Date.now();
+                    setCreatorCaptionTranscript('Đã nghe âm thanh nhưng chưa đủ giống giọng nói. Bỏ qua để tránh phụ đề ảo.', 'pending');
+                }
+                return;
+            }
             const audioBase64 = await blobToBase64(sendBlob);
             const res = await fetch('/api/creator-caption/transcribe', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     audioBase64,
                     mimeType: sendBlob.type || blob.type || 'audio/webm',
+                    audioMetrics,
                     sourceLang: cfg.sourceLang,
                     targetLangs: getSelectedCreatorCaptionTargets()
                 })
@@ -3608,6 +3679,9 @@
     const openSettingsPopup = () => { if (settingsPopup) settingsPopup.hidden = false; };
     document.getElementById('btn-open-settings')?.addEventListener('click', openSettingsPopup);
     document.getElementById('caro-btn-settings')?.addEventListener('click', openSettingsPopup);
+    document.getElementById('pktiktok-btn-settings')?.addEventListener('click', openSettingsPopup);
+    document.getElementById('vipwelcome-btn-settings')?.addEventListener('click', openSettingsPopup);
+    document.getElementById('live-translate-btn-settings')?.addEventListener('click', openSettingsPopup);
     document.getElementById('settings-close')?.addEventListener('click', () => {
         if (settingsPopup) settingsPopup.hidden = true;
     });

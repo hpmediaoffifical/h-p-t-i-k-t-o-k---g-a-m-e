@@ -530,7 +530,13 @@ function sourceLangForTranslate(lang) {
 let lastCreatorCaptionNorm = '';
 let lastCreatorCaptionAt = 0;
 function normalizeCaptionDedupeText(text) {
-    return String(text || '').toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, ' ').trim();
+    return String(text || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/[\s\p{P}\p{S}]+/gu, ' ')
+        .trim();
 }
 function isLikelyWhisperHallucination(text) {
     const norm = normalizeCaptionDedupeText(text);
@@ -549,7 +555,16 @@ function isLikelyWhisperHallucination(text) {
         'what are you from',
         'skip',
         'face name',
-        'shall we do something'
+        'shall we do something',
+        'de khong bo lo nhung video hap dan',
+        'de khong bo lo nhung video moi nhat',
+        'de khong bo lo nhung video tiep theo',
+        'hay dang ky kenh',
+        'nho dang ky kenh',
+        'cam on cac ban a',
+        'cam on moi nguoi',
+        'cam on cac ban da theo doi',
+        'hen gap lai cac ban trong video tiep theo'
     ]);
     if (exact.has(norm)) return true;
     const suspicious = [
@@ -565,12 +580,31 @@ function isLikelyWhisperHallucination(text) {
         'so you dont miss out',
         'shall we do something',
         'face name',
-        'skip'
+        'skip',
+        'de khong bo lo',
+        'nhung video hap dan',
+        'nhung video moi nhat',
+        'nhung video tiep theo',
+        'dang ky kenh',
+        'cam on cac ban a',
+        'cam on moi nguoi',
+        'cam on cac ban da theo doi',
+        'hen gap lai cac ban trong video'
     ];
     if (suspicious.some(s => norm.includes(s))) return true;
     // Very short generic English questions often appear from silence in multilingual models.
     if (words.length <= 5 && /^(who|what|where|how|why)\b/.test(norm)) return true;
     return false;
+}
+
+function validateCreatorCaptionAudioMetrics(metrics) {
+    if (!metrics || typeof metrics !== 'object') throw new Error('missing_audio_metrics');
+    const peak = Number(metrics.peak) || 0;
+    const rms = Number(metrics.rms) || 0;
+    const voicedMs = Number(metrics.voicedMs) || 0;
+    const durationMs = Number(metrics.durationMs) || 0;
+    if (durationMs && durationMs < 400) throw new Error('audio_too_short');
+    if (peak < 0.055 || rms < 0.0065 || voicedMs < 260) throw new Error('audio_not_voice_like');
 }
 
 function sourceLangForTranscription(lang) {
@@ -635,6 +669,7 @@ function resolveWhisperLocalModel(cfg) {
 }
 
 async function transcribeCreatorCaptionAudioLocal(payload, cfg) {
+    validateCreatorCaptionAudioMetrics(payload?.audioMetrics);
     const whisperExe = resolveWhisperLocalExe(cfg);
     const whisperModel = resolveWhisperLocalModel(cfg);
     if (!whisperExe) throw new Error('missing_whisper_local_exe');
@@ -649,7 +684,7 @@ async function transcribeCreatorCaptionAudioLocal(payload, cfg) {
     fs.writeFileSync(wavPath, audio);
     try {
         const lang = sourceLangForTranscription(payload?.sourceLang || cfg.sourceLang) || 'auto';
-        const args = ['-m', whisperModel, '-f', wavPath, '-nt', '-np'];
+        const args = ['-m', whisperModel, '-f', wavPath, '-nt', '-np', '-nf', '-sns', '-nth', '0.75'];
         if (lang && lang !== 'auto') args.push('-l', lang);
         const out = await runWhisperLocal(whisperExe, args);
         return cleanWhisperOutput(out);
@@ -1177,9 +1212,10 @@ function attachConnectionEvents(conn) {
 
     conn.on(WebcastEvent.GIFT, (data) => {
         const giftType = data?.giftDetails?.giftType ?? data?.gift?.gift_type ?? data?.giftType;
-        const isStreak = giftType === 1;
+        const isStreak = Number(giftType) === 1;
         maybeTriggerPkItemFromGift(data);
-        if (isStreak && !data?.repeatEnd) return;
+        const repeatEnded = data?.repeatEnd ?? data?.repeat_end ?? data?.isStreakEnd ?? data?.is_streak_end;
+        if (isStreak && !repeatEnded) return;
         rememberUserMapping(data?.user?.userId, data?.user?.uniqueId);
         emitGift({
             uniqueId: data?.user?.uniqueId,
@@ -1192,7 +1228,7 @@ function attachConnectionEvents(conn) {
             giftName: data?.giftDetails?.giftName || data?.gift?.name || data?.giftName,
             giftPicture: data?.giftDetails?.giftImage?.giftPictureUrl || data?.gift?.image?.url_list?.[0],
             diamondCount: data?.giftDetails?.diamondCount ?? data?.gift?.diamond_count,
-            repeatCount: data?.repeatCount ?? 1,
+            repeatCount: normalizeGiftRepeatCount(data),
             source: 'tiktok'
         });
     });
@@ -1849,6 +1885,18 @@ function recordUnknownGift(g) {
 
 // Retry lookup icon cho gift chưa có image — quét lại availableGifts sau khi connect ổn định
 const giftIconRetryAttempts = new Map();   // id → number of attempts
+function normalizeGiftRepeatCount(data) {
+    const raw = data?.repeatCount
+        ?? data?.repeat_count
+        ?? data?.comboCount
+        ?? data?.combo_count
+        ?? data?.gift?.repeat_count
+        ?? data?.gift?.repeatCount
+        ?? data?.giftDetails?.repeatCount
+        ?? 1;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 500) : 1;
+}
 function scheduleGiftIconRetry(id) {
     const attempts = giftIconRetryAttempts.get(id) || 0;
     if (attempts >= 5) return;   // bỏ cuộc sau 5 lần
