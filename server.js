@@ -326,6 +326,14 @@ if (appConfig.liveTranslate.manualStartVersion !== 1) {
     appConfig.liveTranslate.manualStartVersion = 1;
 }
 appConfig.creatorCaption = sanitizeCreatorCaptionConfig(appConfig.creatorCaption || {});
+// Gemini translate config — key & model lưu trong app-config.json (per-machine).
+// Khi key trống, fallback sang Google free endpoint như cũ → 0 breaking change cho user
+// chưa cấu hình. Khi có key, Gemini chạy đầu chain → Google → MyMemory.
+appConfig.gemini = {
+    apiKey: String(appConfig.gemini?.apiKey || process.env.GEMINI_API_KEY || '').trim(),
+    model: String(appConfig.gemini?.model || 'gemini-2.5-flash-lite').trim() || 'gemini-2.5-flash-lite',
+    enabled: appConfig.gemini?.enabled !== false
+};
 saveAppConfig();
 
 // ====== Live Translate MVP ======
@@ -603,8 +611,12 @@ function validateCreatorCaptionAudioMetrics(metrics) {
     const rms = Number(metrics.rms) || 0;
     const voicedMs = Number(metrics.voicedMs) || 0;
     const durationMs = Number(metrics.durationMs) || 0;
-    if (durationMs && durationMs < 400) throw new Error('audio_too_short');
-    if (peak < 0.055 || rms < 0.0065 || voicedMs < 260) throw new Error('audio_not_voice_like');
+    // v1.0.72: nâng threshold để chặn audio quá nhỏ → Whisper sẽ KHÔNG hallucinate
+    // ("Mom you're leaving" trên silence). Trước: peak 0.055 / rms 0.0065 / voiced 260ms.
+    // Sau: peak 0.08 / rms 0.012 / voiced 500ms / duration ≥ 600ms. Audio yếu hơn sẽ bị reject
+    // sớm — không tốn cycle Whisper + không có cơ hội bịa câu.
+    if (durationMs && durationMs < 600) throw new Error('audio_too_short');
+    if (peak < 0.08 || rms < 0.012 || voicedMs < 500) throw new Error('audio_not_voice_like');
 }
 
 function sourceLangForTranscription(lang) {
@@ -684,13 +696,71 @@ async function transcribeCreatorCaptionAudioLocal(payload, cfg) {
     fs.writeFileSync(wavPath, audio);
     try {
         const lang = sourceLangForTranscription(payload?.sourceLang || cfg.sourceLang) || 'auto';
-        const args = ['-m', whisperModel, '-f', wavPath, '-nt', '-np', '-nf', '-sns', '-nth', '0.75'];
+        // ⚠️ v1.0.72 — ROLLBACK FLAGS GÂY STUTTER LOOP:
+        //   v1.0.70/71 dùng `-bs 1 -bo 1 -nf -mc 0` → khi gặp im lặng/nhiễu, Whisper rơi vào
+        //   loop lặp 1 cụm từ 30-50+ lần ("a smell, a smell, a smell..." / "let's go, let's go..."),
+        //   xuất hiện trên overlay LIVE → rủi ro lớn cho streamer.
+        //
+        //   Cách fix:
+        //   - Bỏ `-bs 1 -bo 1` → để default 5 (cho phép decoder thử nhiều nhánh, thoát loop tự nhiên).
+        //   - Bỏ `-nf` (no-fallback) → cho phép temperature fallback (whisper.cpp tự tăng temp khi
+        //     confidence thấp, đây là cơ chế anti-loop chính thức).
+        //   - Bỏ `-mc 0` (no-context) → để default carry-over, model tận dụng được lịch sử để
+        //     phá vỡ pattern lặp.
+        //   - Giữ -et 2.0 + -lpt -1.0 → vẫn lọc output entropy cao.
+        //   - Giữ --prompt → seed context giúp bắt slang VN.
+        //
+        //   Trade-off: chậm hơn v1.0.71 (~2-3s/câu trên small model). Accept vì chống loop quan trọng hơn.
+        const args = [
+            '-m', whisperModel,
+            '-f', wavPath,
+            '-nt', '-np', '-sns',
+            '-nth', '0.7',
+            '-tp', '0',
+            '-et', '2.0',
+            '-lpt', '-1.0',
+            '--prompt', 'Buổi livestream TikTok tiếng Việt. Người nói là idol/streamer, dùng nhiều từ lóng: anh em, ae, kim cương, hũ thủy tinh, tặng quà, kênh, đăng ký, follow, like, tym, support, idol, cảm ơn, share, viewer, donate.'
+        ];
         if (lang && lang !== 'auto') args.push('-l', lang);
         const out = await runWhisperLocal(whisperExe, args);
-        return cleanWhisperOutput(out);
+        const cleaned = cleanWhisperOutput(out);
+        // Detector loop: nếu cùng 1 cụm 2-4 từ lặp >=3 lần → reject (Whisper stutter)
+        if (isStutterLoop(cleaned)) {
+            io.emit('creatorCaption:debug', { type: 'status', text: 'Bỏ qua câu Whisper stutter loop: ' + cleaned.slice(0, 80), ts: Date.now() });
+            return '';
+        }
+        return cleaned;
     } finally {
         try { fs.unlinkSync(wavPath); } catch (e) {}
     }
+}
+
+// Phát hiện hiện tượng Whisper stutter (lặp 1 cụm 2-6 từ liên tục).
+// Ví dụ: "a smell, a smell, a smell, a smell..." hoặc "đi nào, đi nào, đi nào, đi nào..."
+// Logic: chia text thành "tokens" theo dấu phẩy/space, dò cụm 1-6 token có lặp >=3 lần liên tiếp.
+function isStutterLoop(text) {
+    const s = String(text || '').trim();
+    if (!s) return false;
+    // Bỏ punctuation lặp, gộp space — chuẩn hoá để dò pattern
+    const norm = s.toLowerCase().replace(/[.,!?;:'"()\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const tokens = norm.split(' ').filter(Boolean);
+    if (tokens.length < 6) return false;  // câu ngắn không xét
+    // Thử window size 1..6: tìm cụm lặp liên tiếp >=3 lần
+    for (let w = 1; w <= 6; w++) {
+        if (tokens.length < w * 3) continue;
+        for (let i = 0; i + w * 3 <= tokens.length; i++) {
+            const a = tokens.slice(i, i + w).join(' ');
+            const b = tokens.slice(i + w, i + 2 * w).join(' ');
+            const c = tokens.slice(i + 2 * w, i + 3 * w).join(' ');
+            if (a && a === b && a === c) return true;  // 3 lần lặp liên tiếp = loop
+        }
+    }
+    // Cũng dò trường hợp 1 token chiếm >50% tổng tokens (whisper lặp 1 từ)
+    const counts = {};
+    for (const t of tokens) counts[t] = (counts[t] || 0) + 1;
+    const max = Math.max(...Object.values(counts));
+    if (tokens.length >= 8 && max / tokens.length > 0.5) return true;
+    return false;
 }
 
 function isLiveTranslateExcludedSource(detectedLang, cfg) {
@@ -713,6 +783,12 @@ async function processCreatorCaptionSpeech(payload) {
     if (!originalText) return;
     if (isLikelyWhisperHallucination(originalText)) {
         io.emit('creatorCaption:debug', { type: 'status', text: 'Bỏ qua câu nghi ảo giác Whisper: ' + originalText, ts: Date.now() });
+        return;
+    }
+    // Safety net thứ 2: nếu STT path (transcribe) miss được câu stutter (vd bypass Whisper hoặc browser STT),
+    // đây là lớp filter cuối trước khi gửi qua Gemini + emit lên overlay.
+    if (isStutterLoop(originalText)) {
+        io.emit('creatorCaption:debug', { type: 'status', text: 'Bỏ qua câu stutter loop (chặn ở translate path): ' + originalText.slice(0, 80), ts: Date.now() });
         return;
     }
     const norm = normalizeCaptionDedupeText(originalText);
@@ -865,6 +941,56 @@ function shouldSpeakLiveTranslate(chat, cfg) {
     return true;
 }
 
+// Gemini translate — chạy đầu chain khi user cấu hình API key. Tham số trả về
+// giữ nguyên shape { translatedText, detectedLang } để 2 caller (chat translate +
+// creator caption) không cần đụng gì. Lỗi → throw để chain rớt xuống Google free.
+async function translateWithGemini(cleanText, sl, targetLang) {
+    const key = String(appConfig.gemini?.apiKey || '').trim();
+    if (!key) throw new Error('gemini_no_key');
+    const model = String(appConfig.gemini?.model || 'gemini-2.5-flash-lite').trim() || 'gemini-2.5-flash-lite';
+    const srcLabel = sl === 'auto' ? 'detect source language' : `source language is ${sl}`;
+    const targetLabel = LIVE_TRANSLATE_LANG_LABELS[String(targetLang).toLowerCase()] || targetLang;
+    const prompt = `You translate TikTok livestream comments/captions. ${srcLabel}. Translate to ${targetLabel} (code: ${targetLang}). Preserve emojis & slang tone. Output STRICT JSON only.\n\nText: ${JSON.stringify(cleanText)}\n\nReturn: {"t":"<translated>","s":"<detected source ISO-639-1>"}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+    const res = await fetch(url, {
+        method: 'POST',
+        timeout: 12000,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+                temperature: 0.2,
+                responseMimeType: 'application/json',
+                maxOutputTokens: 512
+            }
+        })
+    });
+    if (!res.ok) throw new Error(`gemini_http_${res.status}`);
+    const body = await res.json();
+    const raw = body?.candidates?.[0]?.content?.parts?.map(p => p?.text || '').join('') || '';
+    if (!raw) throw new Error('gemini_empty');
+    // Flash-Lite đôi khi trả JSON malformed (thừa `"s":"vi"}` cuối, hoặc lặp key).
+    // Thử JSON.parse trước; nếu fail rơi sang regex extract t + s — robust hơn.
+    let translated = '';
+    let detected = sl || 'auto';
+    try {
+        const parsed = JSON.parse(raw);
+        translated = String(parsed?.t || '').trim();
+        if (parsed?.s) detected = String(parsed.s).toLowerCase();
+    } catch {
+        const tMatch = raw.match(/"t"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+        const sMatch = raw.match(/"s"\s*:\s*"([a-z-]{2,12})"/i);
+        if (tMatch) {
+            try { translated = JSON.parse('"' + tMatch[1] + '"'); }
+            catch { translated = tMatch[1]; }
+        }
+        if (sMatch) detected = sMatch[1].toLowerCase();
+    }
+    translated = String(translated || '').trim();
+    if (!translated) throw new Error('gemini_no_translation');
+    return { translatedText: translated, detectedLang: detected };
+}
+
 async function translateTextToTarget(text, sourceLang, targetLang) {
     const cleanText = String(text || '').trim().slice(0, 450);
     if (!cleanText) return { translatedText: '', detectedLang: sourceLang || 'auto' };
@@ -873,21 +999,34 @@ async function translateTextToTarget(text, sourceLang, targetLang) {
     if (translationCache.has(cacheKey)) return translationCache.get(cacheKey);
     let translated = '';
     let detectedLang = sl;
-    try {
-        const googleUrl = 'https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl='
-            + encodeURIComponent(sl) + '&tl=' + encodeURIComponent(targetLang) + '&q=' + encodeURIComponent(cleanText);
-        const res = await fetch(googleUrl, { timeout: 10000, headers: { 'User-Agent': 'HP-Action-LIVE/translate-mvp' } });
-        if (!res.ok) throw new Error(`google_http_${res.status}`);
-        const body = await res.json();
-        translated = Array.isArray(body?.[0]) ? body[0].map(part => part?.[0] || '').join('') : '';
-        if (body?.[2]) detectedLang = String(body[2]).toLowerCase();
-    } catch (e) {
-        const fallbackUrl = 'https://api.mymemory.translated.net/get?q='
-            + encodeURIComponent(cleanText) + '&langpair=' + encodeURIComponent(sl) + '|' + encodeURIComponent(targetLang);
-        const res = await fetch(fallbackUrl, { timeout: 10000, headers: { 'User-Agent': 'HP-Action-LIVE/translate-mvp' } });
-        if (!res.ok) throw new Error(`translate_http_${res.status}`);
-        const body = await res.json();
-        translated = String(body?.responseData?.translatedText || '').trim();
+    let geminiUsed = false;
+    if (appConfig.gemini?.enabled !== false && appConfig.gemini?.apiKey) {
+        try {
+            const g = await translateWithGemini(cleanText, sl, targetLang);
+            translated = g.translatedText;
+            detectedLang = g.detectedLang || sl;
+            geminiUsed = true;
+        } catch (e) {
+            // Quota / mạng / key sai → âm thầm rơi xuống Google free (giữ live mượt)
+        }
+    }
+    if (!geminiUsed) {
+        try {
+            const googleUrl = 'https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl='
+                + encodeURIComponent(sl) + '&tl=' + encodeURIComponent(targetLang) + '&q=' + encodeURIComponent(cleanText);
+            const res = await fetch(googleUrl, { timeout: 10000, headers: { 'User-Agent': 'HP-Action-LIVE/translate-mvp' } });
+            if (!res.ok) throw new Error(`google_http_${res.status}`);
+            const body = await res.json();
+            translated = Array.isArray(body?.[0]) ? body[0].map(part => part?.[0] || '').join('') : '';
+            if (body?.[2]) detectedLang = String(body[2]).toLowerCase();
+        } catch (e) {
+            const fallbackUrl = 'https://api.mymemory.translated.net/get?q='
+                + encodeURIComponent(cleanText) + '&langpair=' + encodeURIComponent(sl) + '|' + encodeURIComponent(targetLang);
+            const res = await fetch(fallbackUrl, { timeout: 10000, headers: { 'User-Agent': 'HP-Action-LIVE/translate-mvp' } });
+            if (!res.ok) throw new Error(`translate_http_${res.status}`);
+            const body = await res.json();
+            translated = String(body?.responseData?.translatedText || '').trim();
+        }
     }
     const result = { translatedText: String(translated || cleanText).trim() || cleanText, detectedLang };
     translationCache.set(cacheKey, result);
@@ -2284,6 +2423,64 @@ app.post('/api/creator-caption/transcribe', async (req, res) => {
 app.post('/api/creator-caption/test', (req, res) => {
     processCreatorCaptionSpeech({ text: req.body?.text || 'Xin chào mọi người, hôm nay chúng ta bắt đầu live.' });
     res.json({ ok: true });
+});
+
+// ====== Gemini Translate config ======
+// GET trả về key MASKED (chỉ 4 ký tự cuối) để UI hiển thị đã cấu hình chưa
+// mà không leak key xuống client lần thứ 2.
+app.get('/api/gemini/config', (req, res) => {
+    const k = String(appConfig.gemini?.apiKey || '');
+    res.json({
+        hasKey: !!k,
+        keyMasked: k ? '••••' + k.slice(-4) : '',
+        model: appConfig.gemini?.model || 'gemini-2.5-flash-lite',
+        enabled: appConfig.gemini?.enabled !== false
+    });
+});
+
+app.post('/api/gemini/config', (req, res) => {
+    const body = req.body || {};
+    if (typeof body.apiKey === 'string') {
+        // Cho phép xoá bằng cách gửi ''. Không trim '*' (giữ '••••' tránh user paste mask).
+        const trimmed = body.apiKey.trim();
+        if (trimmed && !/^[•*]+/.test(trimmed)) appConfig.gemini.apiKey = trimmed.slice(0, 200);
+        else if (trimmed === '') appConfig.gemini.apiKey = '';
+    }
+    if (typeof body.model === 'string') {
+        const m = body.model.trim().slice(0, 80);
+        if (m) appConfig.gemini.model = m;
+    }
+    if (typeof body.enabled === 'boolean') appConfig.gemini.enabled = body.enabled;
+    saveAppConfig();
+    res.json({
+        ok: true,
+        hasKey: !!appConfig.gemini.apiKey,
+        keyMasked: appConfig.gemini.apiKey ? '••••' + appConfig.gemini.apiKey.slice(-4) : '',
+        model: appConfig.gemini.model,
+        enabled: appConfig.gemini.enabled
+    });
+});
+
+// Test endpoint — gửi 1 câu mẫu qua Gemini để verify key + model hoạt động
+app.post('/api/gemini/test', async (req, res) => {
+    const text = String(req.body?.text || 'Chào buổi sáng anh chị em, hôm nay live vui nha!').slice(0, 220);
+    const targetLang = String(req.body?.targetLang || 'en').toLowerCase().replace(/[^a-z-]/g, '').slice(0, 12) || 'en';
+    if (!appConfig.gemini?.apiKey) return res.json({ ok: false, error: 'no_api_key' });
+    try {
+        const t0 = Date.now();
+        const r = await translateWithGemini(text, 'auto', targetLang);
+        res.json({
+            ok: true,
+            input: text,
+            output: r.translatedText,
+            detectedLang: r.detectedLang,
+            targetLang,
+            model: appConfig.gemini.model,
+            latencyMs: Date.now() - t0
+        });
+    } catch (e) {
+        res.json({ ok: false, error: e?.message || 'gemini_failed' });
+    }
 });
 
 app.get('/api/live-translate/tts', async (req, res) => {

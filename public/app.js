@@ -3736,6 +3736,77 @@
 
     fetchVersionInfo();  // điền version hiện tại ngay khi load
 
+    // ===== Gemini AI translate settings =====
+    // Key được mask trên server (chỉ trả 4 ký tự cuối). Input ban đầu hiển thị mask;
+    // user gõ key mới sẽ overwrite. Type=password để không leak qua screenshare.
+    const geminiKeyInput = document.getElementById('gemini-key-input');
+    const geminiKeyToggle = document.getElementById('gemini-key-toggle');
+    const geminiModelSelect = document.getElementById('gemini-model-select');
+    const geminiEnabled = document.getElementById('gemini-enabled');
+    const geminiStatus = document.getElementById('gemini-status');
+    const btnGeminiSave = document.getElementById('btn-gemini-save');
+    const btnGeminiTest = document.getElementById('btn-gemini-test');
+    async function loadGeminiConfig() {
+        try {
+            const r = await (await fetch('/api/gemini/config')).json();
+            if (geminiKeyInput) geminiKeyInput.value = r.keyMasked || '';
+            if (geminiKeyInput) geminiKeyInput.dataset.masked = r.keyMasked || '';
+            if (geminiModelSelect && r.model) geminiModelSelect.value = r.model;
+            if (geminiEnabled) geminiEnabled.checked = r.enabled !== false;
+            if (geminiStatus) geminiStatus.textContent = r.hasKey ? '✓ Đã có key — Gemini sẽ chạy đầu chain' : '⚠ Chưa có key — đang dùng Google free';
+        } catch { /* server có thể đang khởi động */ }
+    }
+    geminiKeyToggle?.addEventListener('click', () => {
+        if (!geminiKeyInput) return;
+        geminiKeyInput.type = geminiKeyInput.type === 'password' ? 'text' : 'password';
+    });
+    geminiKeyInput?.addEventListener('focus', () => {
+        if (geminiKeyInput.value && geminiKeyInput.value === geminiKeyInput.dataset.masked) {
+            geminiKeyInput.value = '';
+        }
+    });
+    btnGeminiSave?.addEventListener('click', async () => {
+        if (!btnGeminiSave) return;
+        btnGeminiSave.disabled = true;
+        try {
+            const val = geminiKeyInput?.value || '';
+            const isMask = val && val === geminiKeyInput.dataset.masked;
+            const body = {
+                model: geminiModelSelect?.value || 'gemini-2.5-flash-lite',
+                enabled: !!geminiEnabled?.checked
+            };
+            if (!isMask) body.apiKey = val.trim();
+            const r = await (await fetch('/api/gemini/config', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            })).json();
+            if (geminiKeyInput) geminiKeyInput.value = r.keyMasked || '';
+            if (geminiKeyInput) geminiKeyInput.dataset.masked = r.keyMasked || '';
+            if (geminiStatus) geminiStatus.textContent = r.hasKey ? '✓ Đã lưu — Gemini sẽ chạy đầu chain' : '⚠ Chưa có key — đang dùng Google free';
+        } catch (e) {
+            if (geminiStatus) geminiStatus.textContent = 'Lỗi lưu: ' + (e?.message || e);
+        } finally { btnGeminiSave.disabled = false; }
+    });
+    btnGeminiTest?.addEventListener('click', async () => {
+        if (!btnGeminiTest || !geminiStatus) return;
+        btnGeminiTest.disabled = true;
+        geminiStatus.textContent = '⏳ Đang gọi Gemini...';
+        try {
+            const r = await (await fetch('/api/gemini/test', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: 'Chào buổi sáng anh chị em, hôm nay live vui nha!', targetLang: 'en' })
+            })).json();
+            if (r.ok) {
+                geminiStatus.textContent = `✓ ${r.model} · ${r.latencyMs}ms · "${r.input}" → "${r.output}"`;
+            } else {
+                geminiStatus.textContent = '✗ ' + (r.error || 'gemini_failed') + ' — fallback Google đang hoạt động';
+            }
+        } catch (e) {
+            geminiStatus.textContent = 'Lỗi: ' + (e?.message || e);
+        } finally { btnGeminiTest.disabled = false; }
+    });
+    document.getElementById('btn-open-settings')?.addEventListener('click', () => { loadGeminiConfig(); });
+
     // ===== Police Force popup (FAB) =====
     function mountThuySidePanel(active = 'police') {
         const host = document.getElementById('thuy-side-panel-host');
