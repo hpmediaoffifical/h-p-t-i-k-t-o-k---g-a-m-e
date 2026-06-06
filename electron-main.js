@@ -843,6 +843,10 @@ function openNhietDoPopoutWindow({ pin = false, edit = false } = {}) {
     };
     if (Number.isFinite(sub.x) && Number.isFinite(sub.y)) { opts.x = sub.x; opts.y = sub.y; }
     const win = new BrowserWindow(opts);
+    // Pin (Sửa Overlay): ghim NỔI TRÊN MỌI cửa sổ — kể cả OBS / projector always-on-top.
+    // Dùng level 'screen-saver' (cao hơn 'floating' mặc định) để không bị OBS che khi user
+    // bấm qua lại. Chỉnh xong bấm chuột phải trong overlay là tự đóng (handler trong overlay.html).
+    if (pin) { try { win.setAlwaysOnTop(true, 'screen-saver'); } catch {} }
     const params = [];
     if (pin) params.push('pin=1');
     if (edit) params.push('edit=1');

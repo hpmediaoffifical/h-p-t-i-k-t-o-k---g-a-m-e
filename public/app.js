@@ -447,7 +447,7 @@
                     <div class="gn">${g.name}</div>
                     ${renderGameDevelopmentNotice(g)}
                 </div>
-                <button class="game-toggle ${isEnabled ? 'on' : 'off'}" data-game-toggle="${g.id}" title="${isEnabled ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT'} ${g.virtual ? 'tool' : 'game'} chạy ngầm">⏻</button>`;
+                <button class="game-toggle ${isEnabled ? 'on' : 'off'}" data-game-toggle="${g.id}" title="${isEnabled ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT'} ${g.virtual ? 'tool' : 'game'} chạy ngầm"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="3" x2="12" y2="12.5"/><path d="M7.1 6.7a7.3 7.3 0 1 0 9.8 0"/></svg></button>`;
             // Click toàn thân (trừ toggle) → mở game
             div.addEventListener('click', (e) => {
                 if (e.target.closest('[data-game-toggle]')) return;
@@ -2216,7 +2216,7 @@
             dom.btnConnect.classList.remove('primary');
             dom.btnConnect.classList.add('secondary');
             dom.btnConnect.disabled = false;
-            dom.btnConnect.innerHTML = `<span class="conn-dot"></span><span class="conn-name">@${escAttrInline(liveUsername)}</span><span class="conn-eject" title="Ngắt kết nối">⏻</span>`;
+            dom.btnConnect.innerHTML = `<span class="conn-dot"></span><span class="conn-name">@${escAttrInline(liveUsername)}</span><span class="conn-eject" title="Ngắt kết nối"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="3" x2="12" y2="12.5"/><path d="M7.1 6.7a7.3 7.3 0 1 0 9.8 0"/></svg></span>`;
             if (dom.liveStatsGrid) dom.liveStatsGrid.hidden = false;
             // Ẩn status-row khi connected (button + stats đã đủ thông tin)
             if (statusRow) statusRow.style.display = 'none';

@@ -918,6 +918,13 @@
                 const data = await r.json();
                 if (data?.state) {
                     liveState = data.state;
+                    // Server tự BẬT phiên khi điều khiển thủ công lúc đang DỪNG → đồng bộ nút +
+                    // báo cho user biết overlay giờ đã hiện trên OBS (tránh tưởng "không hiển thị").
+                    if (cfg && data.state.sessionActive === true && cfg.sessionActive === false) {
+                        cfg.sessionActive = true;
+                        updateSessionBtn();
+                        toastOk('▶ Đã BẮT ĐẦU phiên — thanh nhiệt hiện trên OBS');
+                    }
                     renderLive();
                 }
             }

@@ -615,9 +615,10 @@
     body.nd-cold .nd-flames-bottom,
     body.nd-cold .nd-embers,
     body.nd-cold .nd-inferno { display: none !important; }
-    /* Khi phiên KẾT THÚC — ẩn tất cả overlay items (thanh nhiệt + leaderboard + effects) */
-    body.nd-stopped .nd-thermo,
-    body.nd-stopped .nd-top,
+    /* Khi phiên KẾT THÚC / chưa BẮT ĐẦU — VẪN hiện thanh nhiệt + leaderboard ở opacity đầy đủ
+       để OBS preview rõ ngay khi thêm Browser Source (user KHÔNG cần bấm "Bắt đầu" mới thấy).
+       Đồng bộ pattern với Bắn Cung (bc-stopped). Chỉ ẩn các effect layers (tint / sương / lửa /
+       tàn lửa / inferno) + milestone media + ticker — những thứ chỉ hợp lý khi phiên đang chạy. */
     body.nd-stopped .nd-tint,
     body.nd-stopped .nd-haze,
     body.nd-stopped .nd-vignette,
@@ -1096,8 +1097,10 @@
         });
         socket.on('nhietdo:state', (s) => {
             state = s;
-            // Session active/stopped → toggle nd-stopped class (overlay hide khi stop)
-            document.body.classList.toggle('nd-stopped', s.sessionActive === false);
+            // Session active/stopped → toggle nd-stopped class (overlay hide effect khi stop).
+            // CHẾ ĐỘ SỬA (?edit=1): LUÔN hiện đầy đủ (thanh nhiệt + quà + mọi thứ) bất kể phiên
+            // dừng — để user kéo/định vị thấy rõ toàn bộ overlay.
+            document.body.classList.toggle('nd-stopped', !isEdit && s.sessionActive === false);
             applyTemp(s.temp || 0, s.tempMax || 100);
             updateAmbientVolume(s.temp || 0, s.tempMax || 100);
             if (Array.isArray(s.top)) renderTop(s.top);

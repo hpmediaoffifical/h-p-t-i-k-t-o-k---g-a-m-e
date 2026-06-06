@@ -563,6 +563,31 @@ const obsBridge = new OBSBridge({
         log: (...args) => console.log('[obs-bridge]', ...args)
     }
 });
+
+// ★ Auto-REFRESH overlay browser source khi app khởi động + OBS đã kết nối.
+// Giải quyết "lỗi muôn thuở": mở lại app → overlay OBS đứng yên (trang cũ trỏ server đã chết),
+// phải vào OBS bấm Refresh thủ công. Giờ app tự bấm Refresh hộ qua OBS WebSocket — chỉ refresh
+// các source trỏ overlay của app (lọc theo URL), KHÔNG đụng source khác (BEAUTY, WEBM…).
+// Chạy MỘT LẦN cho mỗi phiên app (lần OBS connect đầu tiên) để tránh refresh lặp khi reconnect.
+let obsBridgeStartupRefreshDone = false;
+function obsBridgeAutoRefreshOverlays(reason) {
+    if (obsBridgeStartupRefreshDone) return;
+    obsBridgeStartupRefreshDone = true;
+    // Delay nhỏ để chắc chắn HTTP server đã phục vụ overlay trước khi OBS nạp lại trang.
+    setTimeout(() => {
+        obsBridge.refreshBrowserSources({
+            urlIncludes: ['/overlay/', '/_prototype/', `localhost:${PORT}`, `127.0.0.1:${PORT}`]
+        })
+        .then(r => {
+            if (r && r.ok) console.log(`[obs-bridge] startup auto-refresh overlay (${reason}) → ${r.refreshed.length} source`);
+            else if (r && r.reason && r.reason !== 'disconnected') console.log(`[obs-bridge] startup auto-refresh skip: ${r.reason}`);
+        })
+        .catch(() => {});
+    }, 1500);
+}
+// obs-websocket-js phát 'Identified' sau khi kết nối + xác thực xong (đủ điều kiện gọi request).
+// Bắt ở đây để cover cả 2 case: app mở khi OBS đã chạy, VÀ OBS mở sau app (reconnect thành công).
+try { obsBridge.obs.on('Identified', () => obsBridgeAutoRefreshOverlays('OBS connected')); } catch (e) {}
 // ===== Effect Queue — PER-GROUP serialization =====
 // Logic: mỗi mapping có field `group`. Effect cùng group → chạy tuần tự (queue chung).
 //        Effect khác group → chạy parallel (queue riêng).
@@ -4253,6 +4278,20 @@ function nhietDoReset() {
     broadcastNhietDoState({ immediate: true });
 }
 
+// Khi user dùng nút TEST / điều khiển thủ công (setTemp/addTemp/testGift) mà phiên đang DỪNG,
+// tự BẬT phiên để overlay OBS hiện ngay. Nếu không: App đổi nhiệt nhưng OBS vẫn ẩn (class
+// nd-stopped → display:none) → "không hiển thị nhiệt độ ở OBS". Trả về true nếu vừa kích hoạt
+// (caller đã emit gameConfig để panel cập nhật nút BẮT ĐẦU → KẾT THÚC).
+function nhietDoEnsureSessionActive() {
+    if (!appConfig.games.nhietdo) appConfig.games.nhietdo = makeDefaultNhietDoConfig();
+    if (appConfig.games.nhietdo.sessionActive !== false) return false;
+    appConfig.games.nhietdo.sessionActive = true;
+    saveAppConfig();
+    io.emit('gameConfig', { gameId: 'nhietdo', config: appConfig.games.nhietdo });
+    console.log('[nhietdo] auto-BẬT phiên (điều khiển thủ công lúc đang DỪNG) → overlay hiện trên OBS');
+    return true;
+}
+
 function nhietDoSetTemp(temp) {
     const before = nhietDoState.temp;
     nhietDoState.temp = nhietDoClamp(Number(temp) || 0);
@@ -4436,10 +4475,13 @@ app.post('/api/games/nhietdo/control', (req, res) => {
     } else if (cmd === 'reset') {
         nhietDoReset();
     } else if (cmd === 'settemp') {
+        nhietDoEnsureSessionActive();   // test thủ công lúc DỪNG → tự BẬT để OBS hiện
         nhietDoSetTemp(req.body?.temp);
     } else if (cmd === 'addtemp') {
+        nhietDoEnsureSessionActive();
         nhietDoAddTemp(req.body?.delta || 0, { fromGift: false });
     } else if (cmd === 'testgift') {
+        nhietDoEnsureSessionActive();
         handleNhietDoGift({
             uniqueId: req.body?.uniqueId || 'tester',
             nickname: req.body?.nickname || 'Người Thử',
