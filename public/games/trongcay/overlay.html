@@ -1,0 +1,1586 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <script src="/lib/overlay-resolution.js"></script>
+    <meta charset="utf-8" />
+    <title>HP Trồng Cây — Overlay</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; font-family: 'Segoe UI', Arial, sans-serif; user-select: none; }
+        body.tc-stopped:not(.tc-edit) .tc-root { display: none; }
+        body.tc-empty:not(.tc-edit) .tc-garden,
+        body.tc-empty:not(.tc-edit) .tc-flower-layer,
+        body.tc-empty:not(.tc-edit) .tc-butterfly-layer,
+        body.tc-empty:not(.tc-edit) .tc-status { opacity: 0; }
+        .tc-root { position: fixed; inset: 0; pointer-events: none; }
+        .tc-weather { position: fixed; inset: 0; opacity: 0; transition: opacity 500ms ease; z-index: 2; overflow: hidden; }
+        .tc-weather.sunny { opacity: .9; background: radial-gradient(circle at 80% 12%, rgba(255,230,90,.55), rgba(255,180,80,.12) 18%, transparent 42%); }
+        .tc-weather.rain { opacity: 1; }
+        .tc-weather.cutting { opacity: 1; }
+        .tc-rain-drop { position: absolute; top: -12vh; width: var(--w, 3px); height: var(--h, 42px); border-radius: 999px; background: linear-gradient(180deg, rgba(205,246,255,0) 0%, rgba(150,226,255,.55) 42%, rgba(212,247,255,.98) 100%); transform: rotate(8deg); filter: drop-shadow(0 0 4px rgba(120,220,255,.6)); animation: tc-rain-drop var(--dur, 2s) linear forwards; }
+        @keyframes tc-rain-drop { to { transform: translate(-20px, 134vh) rotate(8deg); } }
+        /* tia nước bắn nhẹ khi hạt chạm đất — bán kính nhỏ, mờ, để rất thật */
+        .tc-rain-splash { position: absolute; width: var(--s, 16px); height: calc(var(--s, 16px) * .5); border: 2px solid rgba(190,238,255,.8); border-bottom: none; border-radius: 999px 999px 0 0; opacity: 0; transform: translate(-50%, -50%) scale(.4); animation: tc-rain-splash .5s ease-out forwards; }
+        @keyframes tc-rain-splash { 0% { opacity: .85; transform: translate(-50%, -50%) scale(.3); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.25); } }
+        .tc-scissor { position: absolute; left: var(--x); top: var(--y); font-size: var(--s, 58px); filter: drop-shadow(0 5px 7px rgba(0,0,0,.65)); transform-origin: 50% 50%; animation: tc-scissor-move 2.4s ease-in-out forwards; }
+        .tc-scissor::after { content: ''; position: absolute; left: 50%; top: 50%; width: 60px; height: 4px; border-radius: 999px; background: rgba(255,255,255,.85); box-shadow: 0 0 8px rgba(255,255,255,.7); transform: translate(-50%, -50%) rotate(-13deg) scaleX(0); animation: tc-cut-mark 2.4s ease-out forwards; }
+        /* Kéo bay vào → LIA QUA LẠI ~4 vòng → phình to → SNIP cắt → bay ra */
+        @keyframes tc-scissor-move {
+            0%   { opacity: 0; transform: translate(-80px, -26px) rotate(-30deg) scale(.7); }
+            10%  { opacity: 1; transform: translate(-22px, 0) rotate(-16deg) scale(1); }
+            22%  { transform: translate(22px, -2px) rotate(18deg) scale(1); }
+            34%  { transform: translate(-22px, 2px) rotate(-18deg) scale(1); }
+            46%  { transform: translate(22px, -2px) rotate(18deg) scale(1); }
+            58%  { transform: translate(-22px, 2px) rotate(-18deg) scale(1); }
+            68%  { transform: translate(0, 0) rotate(0deg) scale(1.2); }
+            76%  { transform: translate(3px, -4px) rotate(-15deg) scale(1.26); }
+            82%  { transform: translate(0, 1px) rotate(7deg) scale(1.04); }
+            100% { opacity: 0; transform: translate(36px, 16px) rotate(24deg) scale(.82); }
+        }
+        @keyframes tc-cut-mark { 0%, 70% { opacity: 1; transform: translate(-50%, -50%) rotate(-13deg) scaleX(0); } 78% { transform: translate(-50%, -50%) rotate(-13deg) scaleX(1); } 100% { opacity: 0; transform: translate(-50%, -50%) rotate(-13deg) scaleX(1); } }
+
+        .tc-garden { position: fixed; left: 50%; top: 82%; width: 980px; height: 1200px; transform: translate(-50%, -100%) scale(1); transform-origin: 50% 100%; z-index: 8; transition: left .25s ease, top .25s ease, transform .25s ease, filter .7s ease; }
+        .tc-garden.wilt { filter: sepia(.8) saturate(.7) brightness(.86); }
+        /* 🌍 Vùng đất 3D — mô đất có khối: mặt cỏ trên + thân đất lộ mặt cắt + đá/sỏi + cỏ đu đưa */
+        /* z-index:-1 → mô đất nằm SAU lớp cây/vật (#tc-svg) nên trái rụng & xác sâu hiện TRÊN mặt đất, không bị che. */
+        .tc-soil { position: absolute; left: -3%; right: -3%; bottom: 0; height: 184px; pointer-events: none; z-index: -1; }
+        .tc-soil > svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 7px 11px rgba(0,0,0,.3)); }
+        .tc-blade { fill: none; stroke: url(#tc-blade-grad); stroke-width: 3; stroke-linecap: round; }
+        .tc-blade.thin { stroke-width: 2.4; }
+        .tc-tuft { transform-box: fill-box; transform-origin: 50% 100%; animation: tc-blade-sway 3.8s ease-in-out infinite alternate; will-change: transform; }
+        @keyframes tc-blade-sway { from { transform: rotate(-3.5deg); } to { transform: rotate(3.5deg); } }
+        .tc-garden.wilt .tc-blade { stroke: #9a8a3c; }
+        /* cỏ + bóng ôm gốc mỗi cây → cây "cắm" vào mặt đất ở mọi độ sâu */
+        .tc-baseblade { fill: none; stroke: #56b045; stroke-width: 3; stroke-linecap: round; }
+        .tc-plant.wilt .tc-baseblade, .tc-garden.wilt .tc-baseblade { stroke: #9a8a3c; }
+        .tc-base-shadow { fill: rgba(26,15,6,.3); }
+        /* Đu đưa nhẹ đặt trên LỚP CỐ ĐỊNH (svg/flower-layer) — KHÔNG đặt trên cây/lá/icon vì
+           chúng bị vẽ lại mỗi ~0.3s khiến animation restart → giật/khựng. Lớp cố định không bị
+           vẽ lại nên đu đưa LIÊN TỤC, mượt qua lại nhẹ nhàng. */
+        .tc-svg { position: absolute; inset: 0; overflow: visible; transform-origin: 50% 100%; animation: tc-garden-sway 6s ease-in-out infinite alternate; will-change: transform; }
+        .tc-plant { transform-box: fill-box; transform-origin: 50% 100%; }
+        .tc-stem { fill: none; stroke: #31a64c; stroke-width: 7; stroke-linecap: round; filter: drop-shadow(0 2px 1px rgba(0,0,0,.35)); }
+        .tc-stem.alt { stroke: #43be5f; stroke-width: 5; }
+        .tc-leaf { filter: drop-shadow(0 2px 1px rgba(0,0,0,.28)); }
+        .tc-leaf-sway { transform-box: fill-box; transform-origin: 12% 50%; }
+        .tc-leaf-shape { fill: url(#tc-leaf-grad); stroke: rgba(20,120,46,.52); stroke-width: 1.4; }
+        .tc-leaf-vein { fill: none; stroke: rgba(230,255,218,.58); stroke-width: 1.7; stroke-linecap: round; }
+        .tc-leaf-vein.sub { stroke-width: 1.15; opacity: .72; }
+        .tc-leaf:nth-child(2n) { animation-delay: -.8s; }
+        .tc-garden.wilt .tc-stem { stroke: #669a4a; }
+        .tc-garden.wilt .tc-leaf-shape { fill: #9a8d46; stroke: rgba(100,82,28,.6); }
+        .tc-garden.wilt .tc-leaf-vein { stroke: rgba(255,238,160,.45); }
+        .tc-plant.wilt .tc-stem { stroke: #6d8f45; }
+        .tc-plant.wilt .tc-leaf-shape { fill: #9a8d46; stroke: rgba(100,82,28,.6); }
+        .tc-plant.wilt .tc-leaf-vein { stroke: rgba(255,238,160,.45); }
+        @keyframes tc-garden-sway { from { transform: rotate(-1.25deg); } to { transform: rotate(1.25deg); } }
+
+        .tc-flower-layer, .tc-butterfly-layer { position: absolute; inset: 0; z-index: 14; overflow: visible; }
+        /* Lớp icon quà đu đưa CÙNG nhịp với cây (lớp cố định → mượt, icon dính trên ngọn). */
+        .tc-flower-layer { transform-origin: 50% 100%; animation: tc-garden-sway 6s ease-in-out infinite alternate; will-change: transform; }
+        .tc-flower { position: absolute; width: var(--s, 58px); height: var(--s, 58px); transform: translate(-50%, -50%) rotate(var(--r, 0deg)); transform-origin: 50% 64%; filter: drop-shadow(0 4px 4px rgba(0,0,0,.55)) drop-shadow(0 0 8px rgba(255,255,255,.28)); border-radius: 20%; object-fit: contain; transition: width .6s ease, height .6s ease, left .5s ease, top .5s ease; }
+        .tc-garden.wilt .tc-flower { filter: sepia(.8) brightness(.86) drop-shadow(0 3px 4px rgba(0,0,0,.45)); opacity: .82; }
+
+        .tc-butterfly { position: absolute; left: var(--from-x); top: var(--from-y); width: 104px; height: 104px; animation: tc-fly var(--dur, 3s) cubic-bezier(.16,.9,.34,1) forwards; z-index: 25; }
+        .tc-butterfly.perched { left: var(--to-x); top: var(--to-y); animation: tc-wander 9s ease-in-out infinite; }
+        .tc-butterfly-inner { position: relative; width: 100%; height: 100%; animation: tc-bob .72s ease-in-out infinite alternate; }
+        /* 🦋 Bướm SVG: cánh to + cong, vỗ cánh; râu phát sáng */
+        .tc-bf-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 3px 5px rgba(0,0,0,.45)) drop-shadow(0 0 var(--bf-aura, 3px) var(--bf-glow, rgba(255,140,220,.5))) saturate(var(--bf-sat, 1)) brightness(var(--bf-bri, 1)); }
+        .tc-bf-wing { stroke: rgba(255,255,255,.7); stroke-width: 1.6; filter: drop-shadow(0 0 6px var(--bf-glow, rgba(255,140,220,.65))); }
+        .tc-bf-wL, .tc-bf-wR { transform-box: view-box; transform-origin: 60px 62px; animation: tc-bf-flap .19s ease-in-out infinite alternate; }
+        .tc-bf-body { fill: #3a2a1f; }
+        .tc-bf-ant { fill: #fff3a0; }
+        .tc-bf-ant path { fill: none; stroke: #ffe14d; stroke-width: 2.6; stroke-linecap: round; }
+        .tc-bf-ant { filter: drop-shadow(0 0 5px rgba(255,238,110,.95)) drop-shadow(0 0 9px rgba(255,220,60,.7)); animation: tc-bf-antglow 1.3s ease-in-out infinite alternate; }
+        @keyframes tc-bf-flap { from { transform: scaleX(1); } to { transform: scaleX(.46); } }
+        @keyframes tc-bf-antglow { from { opacity: .8; } to { opacity: 1; } }
+        .tc-avatar { position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; border-radius: 50%; transform: translate(-50%, -50%); border: 3px solid #fff; object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,.6); background: #ff7ab8; }
+        /* Tên nằm DƯỚI avatar (không đè) — cách tâm xuống một đoạn cố định */
+        .tc-bname { position: absolute; top: calc(50% + 36px); left: 50%; transform: translateX(-50%); max-width: 150px; padding: 3px 8px; border-radius: 999px; color: #fff; background: rgba(0,0,0,.6); font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px #000; }
+        @keyframes tc-fly { 0% { left: var(--from-x); top: var(--from-y); transform: scale(.68) rotate(-8deg); } 55% { left: var(--mid-x); top: var(--mid-y); transform: scale(1.04) rotate(8deg); } 100% { left: var(--to-x); top: var(--to-y); transform: scale(.78) rotate(0deg); } }
+        @keyframes tc-bob { to { transform: translateY(-7px) rotate(2deg); } }
+        @keyframes tc-wander { 0%, 100% { transform: translate(-4px, 0) scale(.78) rotate(-2deg); } 18% { transform: translate(18px, -18px) scale(.86) rotate(8deg); } 36% { transform: translate(-24px, -9px) scale(.8) rotate(-7deg); } 58% { transform: translate(12px, 15px) scale(.76) rotate(4deg); } 78% { transform: translate(-14px, 9px) scale(.82) rotate(-5deg); } }
+
+        /* 🐝 Ong thợ đi hái trái — bay vào cây chín, đậu hái trái rồi mang đi */
+        .tc-bee { position: absolute; left: var(--from-x); top: var(--from-y); width: 56px; height: 56px; animation: tc-fly var(--dur, 2600ms) cubic-bezier(.16,.9,.34,1) forwards; z-index: 27; }
+        .tc-bee.arrived { left: var(--to-x); top: var(--to-y); animation: tc-bee-hover .55s ease-in-out infinite alternate; transition: left 2.2s ease-in, top 2.2s ease-in, opacity 2.2s ease-in; }
+        .tc-bee-inner { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 38px; filter: drop-shadow(0 3px 5px rgba(0,0,0,.5)); animation: tc-bob .42s ease-in-out infinite alternate; }
+        .tc-bee-ava { position: absolute; left: 50%; top: -8px; transform: translateX(-50%); width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; object-fit: cover; background: #ffce54; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+        .tc-bee-load { position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%) scale(0); width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 38% 34%, #ff9a6b, #d8362a); box-shadow: 0 2px 3px rgba(0,0,0,.45); transition: transform .25s ease; }
+        .tc-bee.loaded .tc-bee-load { transform: translateX(-50%) scale(1); }
+        @keyframes tc-bee-hover { 0% { transform: translate(-4px, 0) rotate(-5deg); } 100% { transform: translate(5px, -7px) rotate(5deg); } }
+
+        /* 🐛 Sâu xanh ăn lá + xác sâu + vùng được bảo vệ (xịt thuốc) */
+        .tc-cat { filter: drop-shadow(0 0 7px rgba(190,255,90,.95)) drop-shadow(0 0 14px rgba(150,240,70,.5)) drop-shadow(0 3px 4px rgba(0,0,0,.55)); }
+        .tc-cat.dying { opacity: .35; filter: grayscale(.6) drop-shadow(0 3px 4px rgba(0,0,0,.4)); }
+        .tc-corpse { filter: grayscale(.5) drop-shadow(0 2px 2px rgba(0,0,0,.4)); }
+        .tc-shield { fill: rgba(120,235,170,.07); stroke: rgba(150,245,195,.42); stroke-width: 2.5; stroke-dasharray: 10 9; }
+        /* 🐛→🦋 Kén (nhộng) nằm dưới đất — pod ngọc lục viền vàng, sắp nở thì phát sáng (glow đặt inline theo thời gian) */
+        .tc-pupa-body { fill: url(#tc-pupa-grad); stroke: #caa23a; stroke-width: 1.6; }
+        .tc-pupa-seg { fill: none; stroke: rgba(70,50,18,.5); stroke-width: 1.2; stroke-linecap: round; }
+        .tc-pupa-dot { fill: #ffe79a; }
+        .tc-pupa-silk { fill: none; stroke: rgba(255,255,255,.5); stroke-width: 1.2; }
+        /* 🐛 Sâu rơi xuống đất để hóa nhộng (dùng lại nhịp rơi của trái) */
+        .tc-pupa-drop { position: fixed; font-size: 26px; line-height: 1; transform: translate(-50%, -50%); top: var(--y0); pointer-events: none; z-index: 34; animation: tc-fruit-drop .9s cubic-bezier(.5,0,.85,.9) forwards; }
+        /* ✨ Kén nở: lóe sáng tại chỗ */
+        .tc-evolve-flash { position: fixed; width: 120px; height: 120px; border-radius: 50%; transform: translate(-50%, -50%) scale(.3); pointer-events: none; z-index: 35; background: radial-gradient(circle, rgba(180,255,210,.95), rgba(90,240,170,.35) 45%, rgba(90,240,170,0) 70%); animation: tc-evolve-flash .85s ease-out forwards; }
+        @keyframes tc-evolve-flash { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.3); } 25% { opacity: 1; transform: translate(-50%,-50%) scale(1); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.7); } }
+        /* 🦋 Bướm TIẾN HÓA: hào quang ngọc lục mạnh để dễ nhận biết */
+        .tc-butterfly.evolved .tc-bf-svg { filter: drop-shadow(0 3px 5px rgba(0,0,0,.4)) drop-shadow(0 0 16px rgba(70,255,175,.95)) saturate(1.2) brightness(1.08); }
+        /* 🧴 Bình xịt + sương thuốc */
+        .tc-sprayer { position: fixed; transform: translate(-50%, -50%) rotate(var(--rot, -25deg)); font-size: 54px; filter: drop-shadow(0 5px 7px rgba(0,0,0,.6)); pointer-events: none; z-index: 39; animation: tc-sprayer .9s ease-out; }
+        /* Nghiêng vòi theo --rot (chĩa vào con sâu) + giật nhẹ khi bóp xịt cho thật. */
+        @keyframes tc-sprayer { 0% { opacity: 0; transform: translate(-50%,-50%) rotate(calc(var(--rot,-25deg) - 26deg)) scale(.7); } 25% { opacity: 1; transform: translate(-50%,-50%) rotate(var(--rot,-25deg)) scale(1); } 70% { transform: translate(-50%,-50%) rotate(calc(var(--rot,-25deg) - 6deg)) scale(1); } 100% { opacity: 0; transform: translate(-50%,-50%) rotate(calc(var(--rot,-25deg) + 4deg)) scale(.95); } }
+        /* 🍃 Lá bị kéo cắt rơi rụng (xoay + héo nâu dần khi rơi) */
+        .tc-cutleaf { position: fixed; font-size: var(--s, 26px); line-height: 1; transform: translate(-50%, -50%); pointer-events: none; z-index: 37; animation: tc-cutleaf var(--dur, 1.8s) cubic-bezier(.3,.12,.6,1) forwards; }
+        @keyframes tc-cutleaf {
+            0% { opacity: 0; transform: translate(-50%, -50%) rotate(0) scale(.6); filter: none; }
+            14% { opacity: 1; transform: translate(-50%, -50%) rotate(24deg) scale(1); }
+            60% { filter: sepia(.55) saturate(.85) brightness(.9); }
+            100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), var(--fall, 220px)) rotate(var(--spin, 380deg)) scale(.85); filter: sepia(.95) saturate(.55) brightness(.78); }
+        }
+        /* 🦋💚 Bướm chữa lành cây yếu: cánh ánh xanh + đốm lành rơi lên cây */
+        .tc-butterfly.heal .tc-bf-svg { filter: drop-shadow(0 3px 5px rgba(0,0,0,.4)) drop-shadow(0 0 12px rgba(120,255,170,.9)) saturate(1.1) brightness(1.05); }
+        .tc-heal-mote { position: fixed; font-size: var(--s, 18px); line-height: 1; transform: translate(-50%, -50%); pointer-events: none; z-index: 36; animation: tc-heal-mote var(--dur, 1.5s) ease-out forwards; }
+        @keyframes tc-heal-mote { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.5); } 22% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% - var(--rise, 60px))) scale(1); } }
+        .tc-mist { position: fixed; width: 11px; height: 11px; border-radius: 50%; background: radial-gradient(circle, rgba(205,255,225,.92), rgba(150,235,190,.15)); transform: translate(-50%, -50%); pointer-events: none; z-index: 38; animation: tc-mist .9s ease-out forwards; }
+        @keyframes tc-mist { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.4); } 20% { opacity: .9; } 100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 60px))) scale(1.5); } }
+        .tc-crumb { position: fixed; width: 7px; height: 7px; border-radius: 1px; background: #6fbf3a; transform: translate(-50%, -50%) rotate(20deg); pointer-events: none; z-index: 33; animation: tc-crumb .7s ease-out forwards; }
+        @keyframes tc-crumb { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 30px))) rotate(120deg); } }
+
+        .tc-status { position: fixed; left: 28px; bottom: 30px; min-width: 230px; padding: 14px 16px; border-radius: 22px; background: rgba(9, 22, 15, .64); color: #fff; z-index: 30; backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(0,0,0,.35); font-weight: 800; text-shadow: 0 2px 3px #000; }
+        .tc-status-row { display: grid; grid-template-columns: 72px 1fr 42px; gap: 8px; align-items: center; margin: 6px 0; font-size: 16px; }
+        .tc-bar { height: 10px; border-radius: 999px; background: rgba(255,255,255,.18); overflow: hidden; }
+        .tc-fill { height: 100%; width: 0%; border-radius: inherit; transition: width .35s ease; }
+        .tc-fill.height { background: linear-gradient(90deg,#44d860,#b5ff78); }
+        .tc-fill.water { background: linear-gradient(90deg,#36b9ff,#92efff); }
+        .tc-fill.sun { background: linear-gradient(90deg,#ffd53b,#ff8b37); }
+        .tc-fill.wilt { background: linear-gradient(90deg,#b48435,#69401f); }
+
+        /* 🏆 Top người chăm cây */
+        .tc-top { position: fixed; right: 24px; top: 24px; min-width: 214px; padding: 12px 14px; border-radius: 18px; background: rgba(9,22,15,.62); color: #fff; z-index: 30; backdrop-filter: blur(8px); box-shadow: 0 8px 30px rgba(0,0,0,.35); text-shadow: 0 2px 3px #000; }
+        .tc-top.empty { display: none; }
+        .tc-top h4 { font-size: 16px; margin-bottom: 8px; color: #aeffba; display: flex; gap: 6px; align-items: center; font-weight: 900; }
+        .tc-top-row { display: grid; grid-template-columns: 22px 34px 1fr auto; gap: 8px; align-items: center; margin: 7px 0; font-size: 15px; }
+        .tc-top-rank { font-weight: 900; text-align: center; font-size: 17px; }
+        .tc-top-ava { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,.5); background: #2a5a3a; }
+        .tc-top-ava.ph { display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 900; color: #fff; }
+        .tc-top-name { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+        .tc-top-score { color: #ffd76b; font-weight: 800; font-size: 13px; }
+        .tc-harvest { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.14); font-size: 13px; color: #cfe9d2; }
+
+        /* 🎯 Banner mốc / thu hoạch + confetti */
+        .tc-banner-layer { position: fixed; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; }
+        .tc-banner { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(.6); padding: 16px 30px; border-radius: 999px; font-size: 34px; font-weight: 900; color: #fff; white-space: nowrap; text-shadow: 0 3px 8px rgba(0,0,0,.6); background: linear-gradient(135deg, rgba(86,217,108,.95), rgba(34,160,90,.9)); box-shadow: 0 10px 40px rgba(0,0,0,.45); opacity: 0; animation: tc-banner-pop 2.6s ease forwards; }
+        .tc-banner.gold { background: linear-gradient(135deg, rgba(255,210,80,.96), rgba(255,150,40,.92)); }
+        @keyframes tc-banner-pop { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.6); } 14% { opacity: 1; transform: translate(-50%,-50%) scale(1.08); } 26% { transform: translate(-50%,-50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%,-58%) scale(.96); } }
+        .tc-confetti { position: absolute; top: -6vh; width: 12px; height: 16px; border-radius: 2px; opacity: .95; animation: tc-confetti-fall var(--dur, 2.8s) linear forwards; }
+        @keyframes tc-confetti-fall { to { transform: translateY(118vh) rotate(720deg); opacity: .2; } }
+
+        /* 🌸 Bùng nở hoa khi thu hoạch */
+        .tc-bloom { position: absolute; left: 0; top: 0; font-size: var(--s, 46px); line-height: 1; transform: translate(-50%, -50%) scale(0); animation: tc-bloom-pop 1.9s ease forwards; }
+        @keyframes tc-bloom-pop { 0% { transform: translate(-50%,-50%) scale(0) rotate(0); } 42% { transform: translate(-50%,-50%) scale(1.18) rotate(18deg); } 100% { transform: translate(-50%,-50%) scale(1) rotate(0); opacity: .85; } }
+
+        /* 🌱 +Tên nổi lên khi quà làm cây cao */
+        .tc-grow-pop { position: absolute; transform: translate(-50%, -50%); color: #dfffe3; font-weight: 900; font-size: 20px; text-shadow: 0 2px 4px #000; white-space: nowrap; pointer-events: none; z-index: 36; animation: tc-grow-pop 1.6s ease forwards; }
+        @keyframes tc-grow-pop { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.7); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%,-160%) scale(1); } }
+
+        /* 🍎 Kết trái tại chỗ — trái treo trên cây đã chín (cây không bao giờ biến mất) */
+        .tc-fruit-body { fill: url(#tc-fruit-grad); stroke: rgba(120,20,15,.55); stroke-width: 1.4; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
+        .tc-fruit-stem { stroke: #6b4a2b; stroke-width: 3; fill: none; stroke-linecap: round; }
+        .tc-fruit-shine { fill: rgba(255,255,255,.6); }
+        /* Trái tĩnh treo trên cây: KHÔNG animation entrance — vì SVG được vẽ lại mỗi ~500ms
+           (state tick), nếu để pop sẽ bị restart liên tục và không bao giờ hiện đủ to.
+           Hiệu ứng "bung trái" đã do tc-fruit-fall (event) lo. */
+        .tc-fruit { transform-box: fill-box; }
+        /* Cây chín: lá ngả vàng + ánh hào quang ấm */
+        .tc-plant.ripe .tc-leaf-shape { fill: #8fd96b; filter: saturate(1.1) drop-shadow(0 0 7px rgba(255,206,84,.55)); }
+        .tc-plant.ripe .tc-stem { filter: drop-shadow(0 0 6px rgba(255,206,84,.4)); }
+        /* 🌈 Cây TEAM (nhiều người góp): hào quang cầu vồng nổi bật */
+        .tc-plant.team { filter: drop-shadow(0 0 5px rgba(255,95,163,.85)) drop-shadow(0 0 11px rgba(255,210,74,.6)) drop-shadow(0 0 18px rgba(66,185,255,.55)); }
+        /* 🍎 Trái nằm dưới đất (rụng khi cây héo) + bóng đổ */
+        .tc-ground-shadow { fill: rgba(0,0,0,.32); }
+        /* 🍎 Trái rụng xuống đất (animation rơi từ tán xuống) */
+        .tc-fruit-drop { position: fixed; font-size: 30px; line-height: 1; transform: translate(-50%, -50%); top: var(--y0); pointer-events: none; z-index: 31; animation: tc-fruit-drop .9s cubic-bezier(.5,0,.85,.9) forwards; }
+        @keyframes tc-fruit-drop { 0% { top: var(--y0); opacity: 0; } 14% { opacity: 1; } 88% { top: var(--y1); } 100% { top: var(--y1); opacity: 1; } }
+        /* 🍎 Trái rụng/ăn mừng khi rung cây */
+        .tc-fruit-fall { position: fixed; font-size: var(--s, 30px); line-height: 1; transform: translate(-50%, -50%); pointer-events: none; z-index: 32; animation: tc-fruit-fall 1.6s ease-in forwards; }
+        @keyframes tc-fruit-fall { 0% { opacity: 0; transform: translate(-50%, -90%) scale(.5); } 18% { opacity: 1; transform: translate(-50%, -115%) scale(1.12); } 100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), 70%) scale(.9) rotate(40deg); } }
+
+        /* ═══════════════════ 🐉 RỒNG LỬA THIÊU VƯỜN ═══════════════════ */
+        .tcd-layer { position: fixed; inset: 0; z-index: 33; pointer-events: none; overflow: hidden; }
+        /* Cây cháy đen: phủ filter tối-ấm lên cả vườn (cháy xém → tro). Transition do JS đặt = charMs. */
+        .tc-garden.tcd-burning { filter: brightness(.09) sepia(.55) saturate(.7) contrast(1.25) !important; }
+        .tc-garden.tcd-burning .tc-flower { filter: brightness(.12) saturate(.35) !important; opacity: .45 !important; }
+
+        /* Con rồng (2 pose chồng lên nhau, đổi bằng opacity cho mượt) */
+        .tcd-dragon { position: fixed; left: 118%; top: 18%; width: var(--tcd-size, 42vmin);
+            transform: translate(-50%, -50%) scaleX(1); will-change: left, top, transform;
+            filter: drop-shadow(0 10px 18px rgba(0,0,0,.55)) drop-shadow(0 0 24px rgba(255,110,30,.5));
+            z-index: 35; }
+        .tcd-dragon-inner { position: relative; width: 100%; animation: tcd-bob .5s ease-in-out infinite alternate; }
+        @keyframes tcd-bob { from { transform: translateY(-2%) rotate(-1.2deg); } to { transform: translateY(2%) rotate(1.2deg); } }
+        .tcd-dragon .tcd-pose { display: block; width: 100%; height: auto; }
+        .tcd-dragon .tcd-breath { position: absolute; inset: 0; opacity: 0; transition: opacity .16s linear; }
+        .tcd-dragon .tcd-fly { opacity: 1; transition: opacity .16s linear; }
+        .tcd-dragon.is-breath .tcd-fly { opacity: 0; }
+        .tcd-dragon.is-breath .tcd-breath { opacity: 1; }
+
+        /* Ngọn lửa CSS bốc cháy tại gốc cây */
+        .tcd-flame { position: fixed; transform: translate(-50%, -100%); transform-origin: 50% 100%;
+            width: var(--fw, 70px); height: var(--fh, 150px);
+            background: radial-gradient(ellipse 60% 52% at 50% 88%, #fff3c0 0%, #ffd23a 20%, #ff9020 44%, #ff3a14 68%, rgba(190,30,10,0) 84%);
+            border-radius: 48% 48% 46% 46% / 62% 62% 38% 38%;
+            filter: blur(.6px) drop-shadow(0 0 16px rgba(255,120,30,.75));
+            animation: tcd-flick var(--ff, .42s) ease-in-out infinite alternate; }
+        .tcd-flame.core { background: radial-gradient(ellipse 60% 52% at 50% 90%, #ffffff 0%, #fff0a0 30%, #ffb733 60%, rgba(255,140,40,0) 82%); filter: blur(.4px); }
+        @keyframes tcd-flick {
+            0%   { transform: translate(-50%, -100%) scaleY(.9)  scaleX(1.06) skewX(-4deg); }
+            100% { transform: translate(-50%, -100%) scaleY(1.18) scaleX(.82) skewX(5deg); }
+        }
+        /* Luồng lửa rồng phun (ảnh PNG xoay theo hướng bay xuống tán cây) */
+        .tcd-streak { position: fixed; width: var(--sw, 24vmin); transform: translate(-50%, -50%) rotate(var(--sr, 70deg));
+            transform-origin: 50% 50%; opacity: 0; filter: drop-shadow(0 0 12px rgba(255,120,30,.6)); }
+        .tcd-streak img { display: block; width: 100%; height: auto; }
+        /* Khói đen bốc lên */
+        .tcd-smoke { position: fixed; width: var(--kw, 90px); height: var(--kw, 90px); border-radius: 50%;
+            background: radial-gradient(circle at 50% 50%, rgba(58,54,50,.62), rgba(28,26,24,0) 70%);
+            transform: translate(-50%, -50%) scale(.4); opacity: 0; animation: tcd-smoke var(--kd, 3.2s) ease-out forwards; }
+        @keyframes tcd-smoke { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.4); } 18% { opacity: .5; } 100% { opacity: 0; transform: translate(calc(-50% + var(--kx,0px)), calc(-50% - var(--ky,220px))) scale(2.4); } }
+        /* Tàn than bay lên */
+        .tcd-ember { position: fixed; width: 6px; height: 6px; border-radius: 50%;
+            background: radial-gradient(circle, #ffe79a, #ff7a1e 60%, rgba(255,90,20,0));
+            transform: translate(-50%, -50%); opacity: 0; animation: tcd-ember var(--ed, 1.8s) ease-out forwards; }
+        @keyframes tcd-ember { 0% { opacity: 0; transform: translate(-50%,-50%) scale(1); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(-50% + var(--ex,0px)), calc(-50% - var(--ey,160px))) scale(.35); } }
+    </style>
+</head>
+<body class="tc-stopped">
+<div class="tc-root">
+    <div id="tc-weather" class="tc-weather"></div>
+    <div id="tc-garden" class="tc-garden">
+        <svg id="tc-svg" class="tc-svg" viewBox="0 0 980 1200" preserveAspectRatio="xMidYMax meet">
+            <defs>
+                <linearGradient id="tc-leaf-grad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#72e58a"/>
+                    <stop offset="0.52" stop-color="#41c463"/>
+                    <stop offset="1" stop-color="#199842"/>
+                </linearGradient>
+            </defs>
+        </svg>
+        <div id="tc-flower-layer" class="tc-flower-layer"></div>
+        <div id="tc-butterfly-layer" class="tc-butterfly-layer"></div>
+        <div class="tc-soil">
+            <svg viewBox="0 0 1000 180" preserveAspectRatio="none">
+                <defs>
+                    <radialGradient id="tc-grass-grad" cx="0.4" cy="0.26" r="0.95">
+                        <stop offset="0" stop-color="#86d75f"/>
+                        <stop offset="0.5" stop-color="#58b347"/>
+                        <stop offset="1" stop-color="#388630"/>
+                    </radialGradient>
+                    <linearGradient id="tc-grass-edge" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#4f9e3a"/>
+                        <stop offset="1" stop-color="#6a5634"/>
+                    </linearGradient>
+                    <linearGradient id="tc-dirt-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#7e5637"/>
+                        <stop offset="0.45" stop-color="#5d3e27"/>
+                        <stop offset="1" stop-color="#321f0e"/>
+                    </linearGradient>
+                    <radialGradient id="tc-pebble-grad" cx="0.36" cy="0.3" r="0.85">
+                        <stop offset="0" stop-color="#cdc6ba"/>
+                        <stop offset="0.6" stop-color="#998f81"/>
+                        <stop offset="1" stop-color="#6c6257"/>
+                    </radialGradient>
+                    <radialGradient id="tc-soil-shadow" cx="0.5" cy="0.5" r="0.5">
+                        <stop offset="0" stop-color="rgba(0,0,0,.36)"/>
+                        <stop offset="0.7" stop-color="rgba(0,0,0,.16)"/>
+                        <stop offset="1" stop-color="rgba(0,0,0,0)"/>
+                    </radialGradient>
+                    <linearGradient id="tc-blade-grad" x1="0" y1="1" x2="0" y2="0">
+                        <stop offset="0" stop-color="#3f8a33"/>
+                        <stop offset="1" stop-color="#7bcb51"/>
+                    </linearGradient>
+                    <linearGradient id="tc-dirt-side" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0" stop-color="rgba(20,12,4,.5)"/>
+                        <stop offset="0.22" stop-color="rgba(20,12,4,0)"/>
+                        <stop offset="0.78" stop-color="rgba(20,12,4,0)"/>
+                        <stop offset="1" stop-color="rgba(20,12,4,.5)"/>
+                    </linearGradient>
+                    <radialGradient id="tc-grass-dome" cx="0.5" cy="0.74" r="0.62">
+                        <stop offset="0" stop-color="rgba(180,245,150,.32)"/>
+                        <stop offset="0.55" stop-color="rgba(120,210,110,0)"/>
+                        <stop offset="1" stop-color="rgba(18,70,24,.34)"/>
+                    </radialGradient>
+                </defs>
+
+                <!-- bóng tiếp đất -->
+                <ellipse cx="500" cy="169" rx="492" ry="17" fill="url(#tc-soil-shadow)"/>
+
+                <!-- thân đất 3D (mặt cắt lộ chiều sâu) -->
+                <path fill="url(#tc-dirt-grad)" d="M 45 102 C 30 124, 48 150, 78 161 Q 500 182, 922 161 C 952 150, 970 124, 955 102 A 455 40 0 0 1 45 102 Z"/>
+
+                <!-- kết cấu đất: đốm sáng/tối -->
+                <g opacity="0.9">
+                    <ellipse cx="150" cy="120" rx="6" ry="3" fill="#84613e"/>
+                    <ellipse cx="220" cy="140" rx="5" ry="2.5" fill="#5a3c25"/>
+                    <ellipse cx="300" cy="128" rx="7" ry="3" fill="#6e4a2d"/>
+                    <ellipse cx="360" cy="148" rx="5" ry="2.5" fill="#4a2f1c"/>
+                    <ellipse cx="430" cy="134" rx="6" ry="3" fill="#88633f"/>
+                    <ellipse cx="500" cy="150" rx="7" ry="3" fill="#5d3e27"/>
+                    <ellipse cx="560" cy="130" rx="5" ry="2.5" fill="#8a6440"/>
+                    <ellipse cx="640" cy="146" rx="6" ry="3" fill="#6e4a2d"/>
+                    <ellipse cx="710" cy="128" rx="7" ry="3" fill="#7c5536"/>
+                    <ellipse cx="780" cy="144" rx="5" ry="2.5" fill="#4a2f1c"/>
+                    <ellipse cx="840" cy="126" rx="6" ry="3" fill="#8a6440"/>
+                    <ellipse cx="120" cy="142" rx="5" ry="2.5" fill="#6e4a2d"/>
+                    <ellipse cx="880" cy="142" rx="5" ry="2.5" fill="#5a3c25"/>
+                    <ellipse cx="260" cy="118" rx="4" ry="2" fill="#9a734a"/>
+                    <ellipse cx="470" cy="120" rx="4" ry="2" fill="#9a734a"/>
+                    <ellipse cx="680" cy="118" rx="4" ry="2" fill="#9a734a"/>
+                    <ellipse cx="200" cy="129" rx="3" ry="1.5" fill="#a87b4f"/>
+                    <ellipse cx="390" cy="123" rx="3" ry="1.5" fill="#a87b4f"/>
+                    <ellipse cx="600" cy="125" rx="3" ry="1.5" fill="#a87b4f"/>
+                    <ellipse cx="770" cy="123" rx="3" ry="1.5" fill="#a87b4f"/>
+                </g>
+
+                <!-- nứt đất nhỏ -->
+                <path d="M 330 116 q 14 10 8 24 q -6 10 6 18" fill="none" stroke="rgba(28,16,8,.4)" stroke-width="1.4" stroke-linecap="round"/>
+                <path d="M 720 114 q -10 12 -4 24 q 6 9 -4 18" fill="none" stroke="rgba(28,16,8,.4)" stroke-width="1.4" stroke-linecap="round"/>
+
+                <!-- đá/sỏi -->
+                <g stroke="rgba(40,28,18,.4)" stroke-width="1">
+                    <ellipse cx="180" cy="150" rx="9" ry="6" fill="url(#tc-pebble-grad)"/>
+                    <ellipse cx="177" cy="147" rx="3" ry="1.6" fill="rgba(255,255,255,.45)" stroke="none"/>
+                    <ellipse cx="420" cy="155" rx="12" ry="7.5" fill="url(#tc-pebble-grad)"/>
+                    <ellipse cx="416" cy="151" rx="4" ry="2" fill="rgba(255,255,255,.45)" stroke="none"/>
+                    <ellipse cx="612" cy="152" rx="8" ry="5" fill="url(#tc-pebble-grad)"/>
+                    <ellipse cx="609" cy="149" rx="2.6" ry="1.4" fill="rgba(255,255,255,.45)" stroke="none"/>
+                    <ellipse cx="824" cy="151" rx="10" ry="6.5" fill="url(#tc-pebble-grad)"/>
+                    <ellipse cx="820" cy="148" rx="3.4" ry="1.8" fill="rgba(255,255,255,.45)" stroke="none"/>
+                </g>
+
+                <!-- bóng đổ 2 mép thân đất → khối tròn (không phải tấm phẳng) -->
+                <path fill="url(#tc-dirt-side)" d="M 45 102 C 30 124, 48 150, 78 161 Q 500 182, 922 161 C 952 150, 970 124, 955 102 A 455 40 0 0 1 45 102 Z"/>
+
+                <!-- viền cỏ dày (khối tiếp giáp cỏ–đất) -->
+                <path fill="url(#tc-grass-edge)" d="M 45 102 A 455 40 0 0 1 955 102 A 470 52 0 0 0 45 102 Z"/>
+
+                <!-- mặt cỏ trên -->
+                <ellipse cx="500" cy="102" rx="455" ry="40" fill="url(#tc-grass-grad)"/>
+                <!-- vệt cỏ loang nhẹ -->
+                <g opacity="0.5">
+                    <ellipse cx="330" cy="96" rx="70" ry="14" fill="rgba(150,225,120,.5)"/>
+                    <ellipse cx="640" cy="108" rx="86" ry="15" fill="rgba(60,140,70,.42)"/>
+                    <ellipse cx="500" cy="92" rx="120" ry="13" fill="rgba(160,235,130,.4)"/>
+                </g>
+                <!-- vòm cỏ: sáng phía trước, tối mép sau → cảm giác mặt cong -->
+                <ellipse cx="500" cy="102" rx="455" ry="40" fill="url(#tc-grass-dome)"/>
+                <!-- ánh sáng viền cỏ (góc trên-trái) -->
+                <path d="M 90 88 A 455 40 0 0 1 470 63" fill="none" stroke="rgba(222,255,200,.5)" stroke-width="4" stroke-linecap="round"/>
+
+                <!-- cụm cỏ đu đưa quanh mặt đất -->
+                <g>
+                    <g class="tc-tuft" style="animation-delay:-.2s"><path class="tc-blade" d="M 110 81 q -4 -10 -7 -22"/><path class="tc-blade" d="M 112 81 q 0 -12 1 -26"/><path class="tc-blade" d="M 114 81 q 5 -9 9 -20"/></g>
+                    <g class="tc-tuft" style="animation-delay:-1.1s"><path class="tc-blade" d="M 200 72 q -4 -11 -7 -24"/><path class="tc-blade" d="M 202 72 q 0 -13 1 -28"/><path class="tc-blade" d="M 204 72 q 5 -10 9 -22"/></g>
+                    <g class="tc-tuft" style="animation-delay:-.6s"><path class="tc-blade" d="M 300 66 q -4 -11 -8 -26"/><path class="tc-blade" d="M 302 66 q 0 -14 1 -30"/><path class="tc-blade" d="M 304 66 q 6 -10 10 -23"/></g>
+                    <g class="tc-tuft" style="animation-delay:-1.7s"><path class="tc-blade" d="M 395 63 q -4 -12 -8 -27"/><path class="tc-blade" d="M 397 63 q 0 -15 1 -31"/><path class="tc-blade" d="M 399 63 q 6 -11 10 -24"/></g>
+                    <g class="tc-tuft" style="animation-delay:-.9s"><path class="tc-blade" d="M 460 62 q -4 -12 -8 -28"/><path class="tc-blade" d="M 462 62 q 0 -15 1 -32"/><path class="tc-blade" d="M 464 62 q 6 -11 10 -25"/></g>
+                    <g class="tc-tuft" style="animation-delay:-2.1s"><path class="tc-blade" d="M 540 62 q -4 -12 -8 -28"/><path class="tc-blade" d="M 542 62 q 0 -15 1 -32"/><path class="tc-blade" d="M 544 62 q 6 -11 10 -25"/></g>
+                    <g class="tc-tuft" style="animation-delay:-.4s"><path class="tc-blade" d="M 610 63 q -4 -12 -8 -27"/><path class="tc-blade" d="M 612 63 q 0 -15 1 -31"/><path class="tc-blade" d="M 614 63 q 6 -11 10 -24"/></g>
+                    <g class="tc-tuft" style="animation-delay:-1.4s"><path class="tc-blade" d="M 705 66 q -4 -11 -8 -26"/><path class="tc-blade" d="M 707 66 q 0 -14 1 -30"/><path class="tc-blade" d="M 709 66 q 6 -10 10 -23"/></g>
+                    <g class="tc-tuft" style="animation-delay:-.75s"><path class="tc-blade" d="M 800 72 q -4 -11 -7 -24"/><path class="tc-blade" d="M 802 72 q 0 -13 1 -28"/><path class="tc-blade" d="M 804 72 q 5 -10 9 -22"/></g>
+                    <g class="tc-tuft" style="animation-delay:-1.9s"><path class="tc-blade" d="M 890 81 q -4 -10 -7 -22"/><path class="tc-blade" d="M 892 81 q 0 -12 1 -26"/><path class="tc-blade" d="M 894 81 q 5 -9 9 -20"/></g>
+                    <!-- cỏ mép trước (thấp hơn, tạo độ phủ chân mô đất) -->
+                    <g class="tc-tuft" style="animation-delay:-1.3s"><path class="tc-blade thin" d="M 170 150 q -3 -8 -5 -16"/><path class="tc-blade thin" d="M 172 150 q 0 -10 1 -18"/><path class="tc-blade thin" d="M 174 150 q 4 -7 7 -14"/></g>
+                    <g class="tc-tuft" style="animation-delay:-.5s"><path class="tc-blade thin" d="M 390 152 q -3 -8 -5 -16"/><path class="tc-blade thin" d="M 392 152 q 0 -10 1 -18"/><path class="tc-blade thin" d="M 394 152 q 4 -7 7 -14"/></g>
+                    <g class="tc-tuft" style="animation-delay:-1.6s"><path class="tc-blade thin" d="M 620 151 q -3 -8 -5 -16"/><path class="tc-blade thin" d="M 622 151 q 0 -10 1 -18"/><path class="tc-blade thin" d="M 624 151 q 4 -7 7 -14"/></g>
+                    <g class="tc-tuft" style="animation-delay:-.85s"><path class="tc-blade thin" d="M 835 150 q -3 -8 -5 -16"/><path class="tc-blade thin" d="M 837 150 q 0 -10 1 -18"/><path class="tc-blade thin" d="M 839 150 q 4 -7 7 -14"/></g>
+                </g>
+            </svg>
+        </div>
+    </div>
+    <div id="tc-status" class="tc-status"></div>
+    <div id="tc-top" class="tc-top empty"></div>
+    <div id="tc-banner" class="tc-banner-layer"></div>
+    <div id="tc-dragon" class="tcd-layer"></div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/games/trongcay/game.js"></script>
+<script>
+(function () {
+    'use strict';
+    const isEdit = /[?&]edit=1\b/.test(location.search);
+    if (isEdit) document.body.classList.add('tc-edit');
+    const $garden = document.getElementById('tc-garden');
+    const $svg = document.getElementById('tc-svg');
+    const $flowers = document.getElementById('tc-flower-layer');
+    const $butterflies = document.getElementById('tc-butterfly-layer');
+    const $status = document.getElementById('tc-status');
+    const $weather = document.getElementById('tc-weather');
+    const $top = document.getElementById('tc-top');
+    const $banner = document.getElementById('tc-banner');
+    const $tcd = document.getElementById('tc-dragon');
+    const svgDefs = `<defs><linearGradient id="tc-leaf-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#72e58a"/><stop offset="0.52" stop-color="#41c463"/><stop offset="1" stop-color="#199842"/></linearGradient><radialGradient id="tc-fruit-grad" cx="0.38" cy="0.34" r="0.75"><stop offset="0" stop-color="#ff9a6b"/><stop offset="0.55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#c62828"/></radialGradient><radialGradient id="tc-cat-grad" cx="0.4" cy="0.28" r="0.85"><stop offset="0" stop-color="#f2ffae"/><stop offset="0.45" stop-color="#b6f24f"/><stop offset="1" stop-color="#5fc21f"/></radialGradient><radialGradient id="tc-cat-head" cx="0.4" cy="0.3" r="0.8"><stop offset="0" stop-color="#eaffb0"/><stop offset="1" stop-color="#6fc62a"/></radialGradient><clipPath id="tc-cat-head-clip"><circle cx="0" cy="0" r="18"/></clipPath><linearGradient id="tc-pupa-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#bdf7c8"/><stop offset="0.5" stop-color="#4cc98a"/><stop offset="1" stop-color="#1f8f5f"/></linearGradient></defs>`;
+    let config = window.HpGame.trongcay.defaultConfig();
+    let state = { height: 0, water: 55, sun: 28, wilt: 0, flowers: [], sessionActive: false };
+    let tcBurning = false;   // 🐉 đóng băng render trong lúc rồng thiêu (overlay tự lo hình)
+
+    function clamp(v, lo, hi) { return window.HpGame.trongcay.clamp(v, lo, hi); }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    function stemMeta(index) {
+        const count = clamp(parseInt(config.display.stemCount, 10) || 7, 1, 12);
+        const i = clamp(parseInt(index, 10) || 0, 0, count - 1);
+        const hBase = clamp(state.height || 0, 0, config.maxHeight || 100) / (config.maxHeight || 100);
+        const cuts = state.stemCuts || {};
+        const cut = clamp(Number(cuts[i]) || 0, 0, 95) / 100;
+        const h = Math.max(0.001, hBase * (1 - cut));
+        const wilt = clamp(state.wilt || 0, 0, 100) / 100;
+        const t = count === 1 ? .5 : i / (count - 1);
+        const baseX = 90 + t * 800;
+        const mult = .62 + ((i * 37) % 43) / 100;
+        const stemH = 90 + 850 * h * mult;
+        const topY = 1120 - stemH + wilt * 120;
+        const sway = ((i % 2 ? -1 : 1) * (36 + i * 7)) + wilt * (i % 2 ? -120 : 120);
+        const cx = baseX + sway;
+        return { i, baseX, stemH, topY, sway, cx, cut };
+    }
+    function cubic(a, b, c, d, t) {
+        const mt = 1 - t;
+        return mt * mt * mt * a + 3 * mt * mt * t * b + 3 * mt * t * t * c + t * t * t * d;
+    }
+    function stemPoint(index, at) {
+        const m = stemMeta(index);
+        const safeT = clamp(Number(at) || .82, .08, Math.max(.1, 1 - m.cut * .82));
+        return {
+            x: cubic(m.baseX, m.baseX + m.sway * .2, m.cx, m.cx, safeT),
+            y: cubic(1120, 900 - m.stemH * .08, m.topY + m.stemH * .38, m.topY, safeT),
+            meta: m
+        };
+    }
+    // ── CHIỀU SÂU TRÊN MẶT ĐẤT (đĩa cỏ elip) ──────────────────────────────
+    // Mỗi cây/vật có 1 độ sâu d∈[0,1]: 0 = phía trong (xa, cao, nhỏ, vẽ trước),
+    // 1 = phía trước (gần, thấp, to, vẽ sau). Nhờ đó cây rải khắp bề mặt → 3D thật,
+    // không xếp 1 hàng ở viền. Độ sâu suy ra ỔN ĐỊNH từ leafSeed/id (không reset).
+    const TC_GROUND_Y = 1120, TC_SURF_DY = 38;
+    function tcFract(n) { n = n - Math.floor(n); return n < 0 ? n + 1 : n; }
+    function tcHashDepth(key) {
+        const s = String(key == null ? '' : key);
+        let h = 2166136261;
+        for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 16777619) >>> 0; }
+        return (h % 1000) / 1000;
+    }
+    function plantDepth(p) {
+        const d = Number(p?.depth);
+        if (d >= 0 && d <= 1) return d;
+        const seed = Number(p?.leafSeed) || (String(p?.id || '').length * 7 + 3);
+        return tcFract(seed * 0.61803398875);   // dãy vàng → rải đều, ít trùng
+    }
+    // Seed nguyên CỐ ĐỊNH cho mỗi cây (từ leafSeed/id, KHÔNG phụ thuộc thứ tự vẽ).
+    // Dùng cho dáng lá (trái/phải), màu thân, nhịp đung đưa → cây mới mọc KHÔNG làm
+    // cây đang có đổi lá/thân. Trước đây dùng index i sau khi sort theo độ sâu, nên thêm
+    // 1 cây là mọi cây phía sau bị dịch i → lá lật bên, thân đổi màu, nhịp lắc nhảy.
+    function plantSeedInt(p) {
+        const s = Number(p?.leafSeed);
+        if (isFinite(s) && s) return Math.abs(Math.round(s));
+        return Math.round(tcHashDepth(p?.id) * 100000);
+    }
+    function depthY(d) { return TC_GROUND_Y + (clamp(d, 0, 1) * 2 - 1) * TC_SURF_DY; }
+    function depthScale(d) { return 0.82 + clamp(d, 0, 1) * 0.32; }
+    function plantMeta(p) {
+        const h = clamp(Number(p?.height) || 0, 0, config.maxHeight || 100) / (config.maxHeight || 100);
+        const wilt = clamp(state.wilt || 0, 0, 100) / 100;
+        const baseX = clamp(Number(p?.x) || 50, 0, 100) / 100 * 980;
+        const depth = plantDepth(p);
+        const ds = depthScale(depth);
+        const baseY = depthY(depth);
+        const stemH = (90 + 850 * h) * ds;
+        const topY = baseY - stemH + wilt * 120;
+        const sway = (Number(p?.lean) || 0) + wilt * ((Number(p?.lean) || 0) >= 0 ? 92 : -92);
+        const cx = baseX + sway;
+        return { baseX, baseY, stemH, topY, sway, cx, depth, ds };
+    }
+    function plantPoint(p, at) {
+        const m = plantMeta(p);
+        const t = clamp(Number(at) || .98, .08, .99);
+        return {
+            x: cubic(m.baseX, m.baseX + m.sway * .18, m.cx, m.cx, t),
+            y: cubic(m.baseY, (m.baseY - 220) - m.stemH * .08, m.topY + m.stemH * .38, m.topY, t),
+            meta: m
+        };
+    }
+    function flowerPoint(f) {
+        if (f && f.stemIndex != null) return stemPoint(f.stemIndex, f.stemT || .84);
+        return { x: clamp(f?.x || 50, 0, 100) / 100 * 980, y: clamp(f?.y || 50, 0, 100) / 100 * 1200 };
+    }
+    // Vật trên MẶT ĐẤT: rải theo độ sâu trên đĩa cỏ (không còn dồn 1 hàng y=1118).
+    function surfacePoint(xPct, depth) {
+        const d = (depth == null) ? 0.6 : clamp(depth, 0, 1);
+        return { x: clamp(Number(xPct) || 50, 0, 100) / 100 * 980, y: depthY(d), depth: d };
+    }
+    function groundPoint(xPct) { return surfacePoint(xPct, 0.6); }
+    // Bóng đổ + vài lá cỏ ôm gốc cây → cây "cắm" vào mặt đất (ở mọi độ sâu/scale).
+    function baseTuftSvg(x, y, s) {
+        const sc = s || 1;
+        const sh = `<ellipse class="tc-base-shadow" cx="${x.toFixed(1)}" cy="${(y + 3).toFixed(1)}" rx="${(20 * sc).toFixed(1)}" ry="${(5.5 * sc).toFixed(1)}"/>`;
+        const blade = (bx, qx, qy, ex, ey) => `<path class="tc-baseblade" d="M ${(x + bx * sc).toFixed(1)} ${y.toFixed(1)} q ${(qx * sc).toFixed(1)} ${(qy * sc).toFixed(1)} ${(ex * sc).toFixed(1)} ${(ey * sc).toFixed(1)}"/>`;
+        return sh
+            + blade(-9, -3, -11, -6, -19)
+            + blade(-3, -1, -12, 0, -21)
+            + blade(4, 2, -11, 5, -18)
+            + blade(10, 3, -9, 7, -15);
+    }
+    function leafSvg(x, y, side, angle, scale, delay) {
+        const s = scale || 1;
+        const len = 72 * s;
+        const half = 18 * s;
+        const dir = side < 0 ? -1 : 1;
+        const tipX = len;
+        const d = `M 0 0 C ${len * .28} ${-half * 1.2}, ${len * .72} ${-half * 1.05}, ${tipX} 0 C ${len * .72} ${half * 1.05}, ${len * .28} ${half * 1.2}, 0 0 Z`;
+        const sub = [
+            `M ${len * .22} 0 C ${len * .32} ${-half * .45}, ${len * .44} ${-half * .55}, ${len * .56} ${-half * .72}`,
+            `M ${len * .42} 0 C ${len * .53} ${-half * .35}, ${len * .62} ${-half * .44}, ${len * .72} ${-half * .56}`,
+            `M ${len * .25} 0 C ${len * .36} ${half * .44}, ${len * .46} ${half * .52}, ${len * .57} ${half * .7}`,
+            `M ${len * .48} 0 C ${len * .58} ${half * .34}, ${len * .68} ${half * .42}, ${len * .78} ${half * .54}`
+        ];
+        return `<g class="tc-leaf" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${angle}) scale(${dir} 1)">
+            <g class="tc-leaf-sway" style="animation-delay:${delay || 0}s">
+                <path class="tc-leaf-shape" d="${d}"/>
+                <path class="tc-leaf-vein" d="M 0 0 C ${len * .35} ${-half * .08}, ${len * .62} ${half * .04}, ${tipX} 0"/>
+                ${sub.map(path => `<path class="tc-leaf-vein sub" d="${path}"/>`).join('')}
+            </g>
+        </g>`;
+    }
+    function fruitSvg(x, y, scale, seed) {
+        const s = scale || 1;
+        const r = 13 * s;
+        const delay = (((seed || 0) % 100) / 100 * 0.55).toFixed(2);
+        return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)})"><g class="tc-fruit" style="animation-delay:${delay}s">
+            <path class="tc-fruit-stem" d="M 0 ${(-r * 0.95).toFixed(1)} q ${(r * 0.55).toFixed(1)} ${(-r * 0.55).toFixed(1)} ${(r * 0.95).toFixed(1)} ${(-r * 0.2).toFixed(1)}"/>
+            <circle class="tc-fruit-body" cx="0" cy="0" r="${r.toFixed(1)}"/>
+            <ellipse class="tc-fruit-shine" cx="${(-r * 0.36).toFixed(1)}" cy="${(-r * 0.36).toFixed(1)}" rx="${(r * 0.32).toFixed(1)}" ry="${(r * 0.22).toFixed(1)}"/>
+        </g></g>`;
+    }
+    function fruitBurst(data) {
+        const plant = (state.plants || []).find(p => p.id === data?.plantId);
+        const pt = plant ? plantPoint(plant, .84) : { x: 490, y: 320 };
+        const rect = $garden.getBoundingClientRect();
+        const cx = rect.left + pt.x / 980 * rect.width;
+        const cy = rect.top + pt.y / 1200 * rect.height;
+        const emojis = ['🍎', '🍏', '🍊', '🍐'];
+        const n = clamp(Number(data?.gained) || 3, 2, 8);
+        for (let i = 0; i < n; i++) {
+            const el = document.createElement('div');
+            el.className = 'tc-fruit-fall';
+            el.textContent = emojis[i % emojis.length];
+            el.style.left = (cx + (Math.random() * 80 - 40)).toFixed(0) + 'px';
+            el.style.top = cy.toFixed(0) + 'px';
+            el.style.setProperty('--s', (28 + Math.random() * 16).toFixed(0) + 'px');
+            el.style.setProperty('--dx', (Math.random() * 120 - 60).toFixed(0) + 'px');
+            el.style.animationDelay = (Math.random() * .25).toFixed(2) + 's';
+            $banner.appendChild(el);
+            setTimeout(() => el.remove(), 1800);
+        }
+    }
+    function applyConfig(cfg) {
+        const def = window.HpGame.trongcay.defaultConfig();
+        config = Object.assign({}, def, cfg || {});
+        config.display = Object.assign({}, def.display, config.display || {});
+        const d = config.display;
+        $garden.style.left = (d.gardenXPercent ?? 50) + '%';
+        $garden.style.top = (d.gardenYPercent ?? 82) + '%';
+        $garden.style.transform = 'translate(-50%, -100%) scale(' + ((d.scale || 100) / 100) + ')';
+        $status.style.display = d.showStatus === false ? 'none' : 'block';
+        render();
+    }
+    function render() {
+        if (tcBurning) return;   // 🐉 đang cháy → giữ nguyên DOM cây để vẽ cháy đen, không vẽ lại
+        document.body.classList.toggle('tc-stopped', !isEdit && state.sessionActive === false);
+        const hasPlants = Array.isArray(state.plants) && state.plants.some(p => (Number(p.height) || 0) > 0);
+        // Còn vật dưới đất (kén, sâu, trái rụng, xác sâu) thì vườn KHÔNG coi là trống → giữ hiển thị
+        // để thấy sâu hóa nhộng & kén nở thành bướm dù cây đã bị ăn sạch.
+        const len = a => Array.isArray(a) ? a.length : 0;
+        const hasGroundLife = len(state.pupae) || len(state.caterpillars) || len(state.groundFruits) || len(state.corpses);
+        const isEmpty = !hasPlants && (Number(state.height) || 0) <= 0.05 && len(state.flowers) === 0 && !hasGroundLife;
+        document.body.classList.toggle('tc-empty', isEmpty);
+        // Héo hiển thị theo TỪNG cây (mỗi cây có p.wilt riêng), KHÔNG phủ nâu toàn vườn,
+        // để cây mới được tặng quà vẫn xanh tươi dù cây cũ đang héo.
+        // Chỉ phủ nâu cả vườn ở chế độ 1-thân (legacy, không có plants riêng).
+        const wilt = clamp(state.wilt || 0, 0, 100);
+        const hasPlantList = Array.isArray(state.plants) && state.plants.length > 0;
+        $garden.classList.toggle('wilt', !hasPlantList && wilt > 38);
+        renderStems();
+        renderFlowers();
+        renderStatus();
+        renderTop();
+    }
+    function renderTop() {
+        const show = config.display.showLeaderboard !== false;
+        const top = Array.isArray(state.top) ? state.top : [];
+        const harvest = Number(state.harvestCount) || 0;
+        if (!show || (!top.length && !harvest)) { $top.classList.add('empty'); $top.innerHTML = ''; return; }
+        $top.classList.remove('empty');
+        const medals = ['🥇', '🥈', '🥉'];
+        const fmt = n => n >= 1000 ? (Math.round(n / 100) / 10) + 'k' : n;
+        const rows = top.map((c, i) => {
+            const letter = esc((c.nickname || '?').trim().slice(0, 1).toUpperCase() || '?');
+            const ava = c.avatar
+                ? `<img class="tc-top-ava" src="${esc(c.avatar)}" onerror="this.style.display='none'">`
+                : `<span class="tc-top-ava ph">${letter}</span>`;
+            return `<div class="tc-top-row"><span class="tc-top-rank">${medals[i] || (i + 1)}</span>${ava}<span class="tc-top-name">${esc(c.nickname || 'Ẩn danh')}</span><span class="tc-top-score">${fmt(c.score)}💎</span></div>`;
+        }).join('');
+        $top.innerHTML = `<h4>🏆 Top chăm cây</h4>${rows}${harvest ? `<div class="tc-harvest">🍎 Đã thu hoạch: <b>${harvest}</b> trái</div>` : ''}`;
+    }
+    function showBanner(text, gold) {
+        const b = document.createElement('div');
+        b.className = 'tc-banner' + (gold ? ' gold' : '');
+        b.textContent = text;
+        $banner.appendChild(b);
+        setTimeout(() => b.remove(), 2800);
+    }
+    function confettiBurst(n) {
+        const colors = ['#ff5fa3', '#ffd54a', '#56d96c', '#42b9ff', '#b57bff', '#ff8b37'];
+        for (let i = 0; i < n; i++) {
+            const c = document.createElement('i');
+            c.className = 'tc-confetti';
+            c.style.left = (Math.random() * 100).toFixed(1) + '%';
+            c.style.background = colors[i % colors.length];
+            c.style.setProperty('--dur', (2.2 + Math.random() * 1.8).toFixed(2) + 's');
+            c.style.animationDelay = (Math.random() * .5).toFixed(2) + 's';
+            c.style.transform = 'rotate(' + Math.floor(Math.random() * 180) + 'deg)';
+            $banner.appendChild(c);
+            setTimeout(() => c.remove(), 4400);
+        }
+    }
+    function bloomBurst() {
+        const rect = $garden.getBoundingClientRect();
+        const cx = rect.left + rect.width * 0.5;
+        const cy = rect.top + rect.height * 0.22;
+        const emojis = ['🌸', '🌺', '🌼', '🌷', '💮', '🏵️'];
+        for (let i = 0; i < 18; i++) {
+            const el = document.createElement('div');
+            el.className = 'tc-bloom';
+            el.textContent = emojis[i % emojis.length];
+            const ang = Math.random() * Math.PI * 2, dist = 40 + Math.random() * 190;
+            el.style.left = (cx + Math.cos(ang) * dist).toFixed(0) + 'px';
+            el.style.top = (cy + Math.sin(ang) * dist * .8).toFixed(0) + 'px';
+            el.style.setProperty('--s', (34 + Math.random() * 30).toFixed(0) + 'px');
+            el.style.animationDelay = (Math.random() * .4).toFixed(2) + 's';
+            $banner.appendChild(el);
+            setTimeout(() => el.remove(), 2400);
+        }
+    }
+    function growPop(data) {
+        if (config.display.showNames === false || !data || !data.nickname) return;
+        const plant = (state.plants || []).find(p => p.id === data.plantId);
+        const pt = plant ? plantPoint(plant, .985) : { x: 490, y: 300 };
+        const rect = $garden.getBoundingClientRect();
+        const el = document.createElement('div');
+        el.className = 'tc-grow-pop';
+        el.textContent = '🌱 ' + data.nickname;
+        el.style.left = (rect.left + pt.x / 980 * rect.width).toFixed(0) + 'px';
+        el.style.top = (rect.top + pt.y / 1200 * rect.height).toFixed(0) + 'px';
+        $banner.appendChild(el);
+        setTimeout(() => el.remove(), 1600);
+    }
+    let audioCtx = null;
+    function sfx(type) {
+        if (config.display.soundEnabled === false) return;
+        try {
+            audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const now = audioCtx.currentTime;
+            const tones = {
+                grow: [[523, 0], [784, .08]],
+                water: [[330, 0], [262, .06]],
+                sun: [[660, 0], [880, .1]],
+                cut: [[200, 0]],
+                butterfly: [[700, 0], [900, .05], [1100, .1]],
+                milestone: [[523, 0], [659, .1], [784, .2], [1046, .3]],
+                harvest: [[392, 0], [523, .12], [659, .24], [784, .36], [1046, .5]]
+            };
+            const seq = tones[type] || [[600, 0]];
+            const wave = type === 'cut' ? 'sawtooth' : (type === 'water' ? 'sine' : 'triangle');
+            seq.forEach(([f, t]) => {
+                const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+                o.type = wave;
+                o.frequency.value = f;
+                g.gain.setValueAtTime(0.0001, now + t);
+                g.gain.exponentialRampToValueAtTime(type === 'cut' ? .1 : .16, now + t + .02);
+                g.gain.exponentialRampToValueAtTime(0.0001, now + t + .3);
+                o.connect(g); g.connect(audioCtx.destination);
+                o.start(now + t); o.stop(now + t + .32);
+            });
+        } catch (e) {}
+    }
+    function groundFruitsSvg() {
+        const list = Array.isArray(state.groundFruits) ? state.groundFruits : [];
+        if (!list.length) return '';
+        // rải theo độ sâu + vẽ từ trong ra ngoài (back→front) để xa nhỏ, gần to, xếp lớp đúng.
+        const items = list.map((g, i) => {
+            const d = tcHashDepth(g.id || ('gf' + i));
+            const pt = surfacePoint(g.x, d);
+            const seed = (i * 53 + Math.round((Number(g.x) || 0) * 7)) % 1000;
+            const jx = (seed % 30) - 15;
+            return { d, x: pt.x + jx, y: pt.y, seed, sc: 0.86 + d * 0.4 };
+        }).sort((a, b) => a.d - b.d);
+        return items.map(it =>
+            `<ellipse class="tc-ground-shadow" cx="${it.x.toFixed(1)}" cy="${(it.y + 15 * it.sc).toFixed(1)}" rx="${(20 * it.sc).toFixed(1)}" ry="${(6 * it.sc).toFixed(1)}"/>`
+            + fruitSvg(it.x, it.y, it.sc, it.seed)
+        ).join('');
+    }
+    function catPoint(c) {
+        if (c && c.plantId) { const p = (state.plants || []).find(x => x.id === c.plantId); if (p) { const pt = plantPoint(p, .62); return { x: pt.x, y: pt.y }; } }
+        return surfacePoint(Number(c && c.x) || 50, tcHashDepth((c && c.id) || 'cat'));
+    }
+    function caterpillarSvg(x, y, dying, avatar) {
+        const r = [9, 12, 13, 12, 10];
+        let body = '';
+        for (let i = 0; i < r.length; i++) {
+            const cx = -28 + i * 14;
+            const cy = -Math.sin(i / (r.length - 1) * Math.PI) * 3;
+            body += `<circle cx="${cx}" cy="${cy.toFixed(1)}" r="${r[i]}" fill="url(#tc-cat-grad)" stroke="#256b1c" stroke-width="2.4"/>`;
+        }
+        const hx = -28 + (r.length - 1) * 14;
+        let head;
+        if (avatar) {
+            // 😄 ĐẦU SÂU = AVATAR người tặng quà sâu — TO + viền vàng cho dễ nhận diện
+            const antennae = `<path d="M ${hx - 3} -16 q -4 -10 -10 -12" stroke="#256b1c" stroke-width="2.8" fill="none" stroke-linecap="round"/><circle cx="${hx - 14}" cy="-30" r="3.2" fill="#ffe14d"/>`
+                + `<path d="M ${hx + 3} -16 q 4 -10 10 -12" stroke="#256b1c" stroke-width="2.8" fill="none" stroke-linecap="round"/><circle cx="${hx + 14}" cy="-30" r="3.2" fill="#ffe14d"/>`;
+            head = antennae + `<g transform="translate(${hx} 0)"><circle r="20" fill="#fff"/>`
+                + `<image href="${esc(avatar)}" x="-18" y="-18" width="36" height="36" clip-path="url(#tc-cat-head-clip)" preserveAspectRatio="xMidYMid slice"/>`
+                + `<circle r="18.5" fill="none" stroke="#ffd23a" stroke-width="3.2"/></g>`;
+        } else {
+            const antennae = `<path d="M ${hx + 3} -10 q 6 -8 11 -4" stroke="#256b1c" stroke-width="2.4" fill="none" stroke-linecap="round"/><circle cx="${hx + 15}" cy="-15" r="2.6" fill="#ffe14d"/>`
+                + `<path d="M ${hx + 3} 10 q 6 8 11 4" stroke="#256b1c" stroke-width="2.4" fill="none" stroke-linecap="round"/><circle cx="${hx + 15}" cy="15" r="2.6" fill="#ffe14d"/>`;
+            head = antennae + `<circle cx="${hx}" cy="0" r="13" fill="url(#tc-cat-head)" stroke="#256b1c" stroke-width="2.4"/>`
+                + `<circle cx="${hx + 4}" cy="-4.5" r="2.6" fill="#1a1a1a"/><circle cx="${hx + 4}" cy="4.5" r="2.6" fill="#1a1a1a"/>`;
+        }
+        return `<g class="tc-cat${dying ? ' dying' : ''}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})">${body}${head}</g>`;
+    }
+    function corpseSvg(x, y, s) {
+        const sc = s || 1;
+        let body = '';
+        for (let i = 0; i < 5; i++) { const a = -0.7 + i * 0.55; const cx = Math.cos(a) * 15; const cy = -Math.sin(a) * 15; body += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(7 - i * 0.5).toFixed(1)}" fill="#8a9a6e" stroke="#5c6850" stroke-width="1.4" opacity="0.85"/>`; }
+        const hx = Math.cos(-0.7) * 15, hy = -Math.sin(-0.7) * 15;
+        body += `<path d="M ${(hx - 3).toFixed(1)} ${(hy - 3).toFixed(1)} l 5 5 M ${(hx + 2).toFixed(1)} ${(hy - 3).toFixed(1)} l -5 5" stroke="#3a3a3a" stroke-width="1.4"/>`;
+        return `<g class="tc-corpse" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${sc.toFixed(3)})">${body}</g>`;
+    }
+    function caterpillarsSvg() {
+        if (config.display.showCaterpillars === false) return '';
+        const list = Array.isArray(state.caterpillars) ? state.caterpillars : [];
+        return list.map(c => { const pt = catPoint(c); return caterpillarSvg(pt.x, pt.y, c.dying, c.avatar); }).join('');
+    }
+    function corpsesSvg() {
+        if (config.display.showCaterpillars === false) return '';
+        const list = Array.isArray(state.corpses) ? state.corpses : [];
+        if (!list.length) return '';
+        const items = list.map((c, i) => {
+            const d = tcHashDepth(c.id || ('cp' + i));
+            const pt = surfacePoint(c.x, d);
+            return { d, x: pt.x + ((i * 37) % 24 - 12), y: pt.y + 4, sc: 0.85 + d * 0.4 };
+        }).sort((a, b) => a.d - b.d);
+        return items.map(it => corpseSvg(it.x, it.y, it.sc)).join('');
+    }
+    // 🐛→🦋 Kén dưới đất — vẽ tĩnh (SVG vẽ lại ~0.5s nên KHÔNG animation kẻo restart), glow tăng
+    // dần theo tiến độ sắp nở để báo hiệu "sắp thành bướm".
+    function pupaSvg(x, y, prog, s) {
+        const sc = s || 1;
+        const glow = (4 + clamp(prog, 0, 1) * 15).toFixed(1);
+        const op = (0.5 + clamp(prog, 0, 1) * 0.5).toFixed(2);
+        return `<g class="tc-pupa" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${sc.toFixed(3)})" style="filter:drop-shadow(0 0 ${glow}px rgba(110,245,175,${op}))">
+            <ellipse class="tc-base-shadow" cx="0" cy="15" rx="${(11 * 1).toFixed(1)}" ry="4"/>
+            <path class="tc-pupa-silk" d="M 0 -26 q 4 6 0 6"/>
+            <path class="tc-pupa-body" d="M 0 -20 C 10 -16, 11 -2, 7 9 C 4 15, -4 15, -7 9 C -11 -2, -10 -16, 0 -20 Z"/>
+            <path class="tc-pupa-seg" d="M -7 -7 Q 0 -3 7 -7 M -8 0 Q 0 4 8 0 M -7 7 Q 0 10 7 7"/>
+            <circle class="tc-pupa-dot" cx="0" cy="-10" r="2"/>
+        </g>`;
+    }
+    function pupaeSvg() {
+        const list = Array.isArray(state.pupae) ? state.pupae : [];
+        if (!list.length) return '';
+        const now = Date.now();
+        const items = list.map((p, i) => {
+            const d = tcHashDepth(p.id || ('pu' + i));
+            const pt = surfacePoint(p.x, d);
+            const total = Math.max(1, (Number(p.evolveAt) || now) - (Number(p.bornAt) || now));
+            const prog = clamp(1 - ((Number(p.evolveAt) || now) - now) / total, 0, 1);
+            return { d, x: pt.x + ((i * 29) % 22 - 11), y: pt.y - 4, sc: 0.85 + d * 0.4, prog };
+        }).sort((a, b) => a.d - b.d);
+        return items.map(it => pupaSvg(it.x, it.y, it.prog, it.sc)).join('');
+    }
+    function protectedZonesSvg() {
+        const zones = Array.isArray(state.protectedZones) ? state.protectedZones : [];
+        if (!zones.length) return '';
+        return zones.map(z => {
+            const x0 = clamp(z.x0, 0, 100) / 100 * 980, x1 = clamp(z.x1, 0, 100) / 100 * 980, cx = (x0 + x1) / 2;
+            return `<path class="tc-shield" d="M ${x0.toFixed(0)} 1122 Q ${cx.toFixed(0)} ${(1122 - 360).toFixed(0)} ${x1.toFixed(0)} 1122 Z"/>`;
+        }).join('');
+    }
+    function renderStems() {
+        const plants = Array.isArray(state.plants) ? state.plants.filter(p => (Number(p.height) || 0) > 0) : [];
+        if (plants.length) {
+            let html = '';
+            // vẽ từ TRONG (xa) ra NGOÀI (gần): cây sâu nhỏ hơn nằm sau, cây gần to hơn đè lên → 3D.
+            plants.slice().sort((a, b) => plantDepth(a) - plantDepth(b)).forEach((p) => {
+                const m = plantMeta(p);
+                const sd = plantSeedInt(p);   // dáng cây suy từ seed CỐ ĐỊNH → cây mới mọc không đổi cây cũ
+                const dur = (4.2 + (sd % 5) * .35).toFixed(2) + 's';
+                const wiltCls = (Number(p.wilt) || 0) > 38 ? ' wilt' : '';
+                const ripeCls = p.ripe ? ' ripe' : '';
+                const teamMin = Number(config.teamMinContributors) || 3;
+                const teamCls = (Number(p.teamCount) || 0) >= teamMin ? ' team' : '';   // cây nhiều người góp → glow TEAM
+                html += `<g class="tc-plant${wiltCls}${ripeCls}${teamCls}" style="--sway-dur:${dur};animation-delay:${(-(sd % 7) * .42).toFixed(2)}s">`;
+                // bóng + cỏ ôm gốc cây (cắm vào mặt đất ở đúng độ sâu)
+                html += baseTuftSvg(m.baseX, m.baseY, m.ds);
+                html += `<path class="tc-stem ${sd % 2 ? 'alt' : ''}" d="M ${m.baseX} ${m.baseY} C ${m.baseX + m.sway * .18} ${(m.baseY - 220) - m.stemH * .08}, ${m.cx} ${m.topY + m.stemH * .38}, ${m.cx} ${m.topY}"/>`;
+                const hp = clamp(Number(p.height) || 0, 0, config.maxHeight || 100) / (config.maxHeight || 100);
+                const leafN = clamp(Math.round(2 + hp * 5), 2, 7);
+                for (let j = 0; j < leafN; j++) {
+                    const tt = .22 + j * (.64 / leafN);
+                    const pt = plantPoint(p, tt);
+                    if (pt.y < m.topY + 34) continue;
+                    const side = (j + sd) % 2 ? -1 : 1;
+                    html += leafSvg(pt.x, pt.y, side, side * (8 + (j % 3) * 4), (0.68 + j * .04) * m.ds, (-(sd % 7) * .25 - j * .35).toFixed(2));
+                }
+                // Trái treo thành CHÙM trong tán — xếp so le (hex) có khoảng cách nên KHÔNG chồng
+                // bệt lên nhau mà thưa ra như một chùm trái thật.
+                const fruitN = clamp(Math.round(Number(p.fruits) || 0), 0, 8);
+                if (fruitN) {
+                    const anchor = plantPoint(p, .64);          // điểm treo chùm (tán giữa-trên)
+                    const fr = 14 * m.ds;                       // bán kính ~1 trái
+                    const gapX = fr * 2.1, gapY = fr * 1.7;     // giãn cách → không chồng bệt
+                    for (let k = 0; k < fruitN; k++) {
+                        const col = (k % 3) - 1;                 // -1,0,1
+                        const row = Math.floor(k / 3);           // hàng 0,1,2…
+                        const seed = (Number(p.leafSeed) || 0) + k * 97;
+                        const jx = (seed % 7) - 3, jy = (seed * 3) % 6;   // lệch nhẹ cho tự nhiên
+                        const fx = anchor.x + col * gapX + (row % 2 ? gapX * 0.5 : 0) + jx;  // so le hàng chẵn/lẻ
+                        const fy = anchor.y + row * gapY + jy;
+                        if (fy < m.topY + 18) continue;
+                        html += fruitSvg(fx, fy, (1.0 + (k % 3) * 0.12) * m.ds, seed);
+                    }
+                }
+                html += '</g>';
+            });
+            $svg.innerHTML = svgDefs + html + corpsesSvg() + pupaeSvg() + groundFruitsSvg() + caterpillarsSvg() + protectedZonesSvg();
+            return;
+        }
+        const count = clamp(parseInt(config.display.stemCount, 10) || 7, 1, 12);
+        const h = clamp(state.height || 0, 0, config.maxHeight || 100) / (config.maxHeight || 100);
+        // Vườn không còn cây đứng (bị sâu ăn sạch) nhưng VẪN còn vật dưới đất (xác sâu, kén, trái
+        // rụng, sâu) → vẫn vẽ chúng để thấy kén nở thành bướm, thay vì xoá trắng cả lớp.
+        if (h <= 0.001) { $svg.innerHTML = svgDefs + corpsesSvg() + pupaeSvg() + groundFruitsSvg() + caterpillarsSvg() + protectedZonesSvg(); return; }
+        const wilt = clamp(state.wilt || 0, 0, 100) / 100;
+        let html = '';
+        for (let i = 0; i < count; i++) {
+            const m = stemMeta(i);
+            const baseX = m.baseX, stemH = m.stemH, topY = m.topY, sway = m.sway, cx = m.cx;
+            const dur = (4.2 + (i % 5) * .35).toFixed(2) + 's';
+            html += `<g class="tc-plant" style="--sway-dur:${dur};animation-delay:${(-i * .42).toFixed(2)}s"><path class="tc-stem ${i % 2 ? 'alt' : ''}" d="M ${baseX} 1120 C ${baseX + sway * .2} ${900 - stemH * .08}, ${cx} ${topY + stemH * .38}, ${cx} ${topY}"/>`;
+            const leafN = clamp(Math.round(2 + h * 5), 2, 7);
+            for (let j = 0; j < leafN; j++) {
+                const ly = 1060 - stemH * (.18 + j * (.62 / leafN));
+                if (ly < topY + 35) continue;
+                const side = (j + i) % 2 ? -1 : 1;
+                const lx = baseX + sway * (.16 + j * .1);
+                html += leafSvg(lx, ly, side, side * (8 + (j % 3) * 4), 0.68 + j * .04, (-i * .25 - j * .35).toFixed(2));
+            }
+            html += '</g>';
+        }
+        $svg.innerHTML = svgDefs + html + corpsesSvg() + pupaeSvg() + groundFruitsSvg() + caterpillarsSvg() + protectedZonesSvg();
+    }
+    function renderFlowers() {
+        if (config.display.showFlowers === false) { $flowers.innerHTML = ''; return; }
+        const plants = Array.isArray(state.plants) ? state.plants.filter(p => (Number(p.height) || 0) > 0 && p.giftImage) : [];
+        if (plants.length) {
+            $flowers.innerHTML = plants.slice().sort((a, b) => plantDepth(a) - plantDepth(b)).map((p) => {
+                const m = plantMeta(p);
+                const sd = plantSeedInt(p);   // nhịp đung đưa hoa theo seed cố định → cây mới mọc không làm hoa cây cũ nhảy nhịp
+                const pt = plantPoint(p, .985);
+                const scent = Math.max(1, Number(p.scent) || 1);
+                const height = Math.max(0, Number(p.height) || 0);
+                const count = Math.max(1, Number(p.count) || 1);
+                const size = clamp((28 + Math.sqrt(scent) * .34 + height * .52 + Math.min(16, count * 1.3)) * m.ds, 30, 140);
+                const dur = (4.6 + (sd % 5) * .5).toFixed(2);
+                const delay = (-(sd % 9) * .6).toFixed(2);
+                const z = Math.round(m.depth * 100);   // cây gần (depth lớn) đè lên cây xa
+                const wilt = Number(p.wilt) || 0;
+                const wiltStyle = wilt > 38 ? `filter:sepia(${Math.min(.9, wilt / 100).toFixed(2)}) brightness(${Math.max(.62, 1 - wilt / 260).toFixed(2)}) drop-shadow(0 3px 4px rgba(0,0,0,.45));opacity:${Math.max(.58, 1 - wilt / 260).toFixed(2)};` : '';
+                return `<img class="tc-flower" src="${esc(p.giftImage || '')}" title="${esc((p.giftName || '') + ' x' + (p.count || 1))}" style="left:${pt.x.toFixed(1)}px;top:${pt.y.toFixed(1)}px;z-index:${z};--s:${size.toFixed(0)}px;--r:${((Number(p.lean) || 0) / 3).toFixed(2)}deg;--sway-dur:${dur}s;--sway-delay:${delay}s;${wiltStyle}" onerror="this.style.display='none'"/>`;
+            }).join('');
+            return;
+        }
+        const list = Array.isArray(state.flowers) ? state.flowers : [];
+        const hGlobal = clamp(state.height || 0, 0, config.maxHeight || 100) / (config.maxHeight || 100);
+        $flowers.innerHTML = list.map((f, i) => {
+            const p = flowerPoint(f);
+            const baseSize = clamp(f.size || 58, 28, 110);
+            const size = clamp(baseSize * (0.72 + hGlobal * 0.7), 30, 140);
+            const dur = (4.6 + (i % 5) * .5).toFixed(2);
+            const delay = (-i * .6).toFixed(2);
+            return `<img class="tc-flower" src="${esc(f.giftImage || '')}" title="${esc(f.giftName || '')}" style="left:${p.x.toFixed(1)}px;top:${p.y.toFixed(1)}px;--s:${size.toFixed(0)}px;--r:${Number(f.rot || 0)}deg;--sway-dur:${dur}s;--sway-delay:${delay}s" onerror="this.style.display='none'"/>`;
+        }).join('');
+    }
+    function renderStatus() {
+        if (config.display.showStatus === false) return;
+        const rows = [
+            ['Cao', 'height', state.height || 0],
+            ['Nước', 'water', state.water || 0],
+            ['Nắng', 'sun', state.sun || 0],
+            ['Héo', 'wilt', state.wilt || 0]
+        ];
+        $status.innerHTML = rows.map(r => `<div class="tc-status-row"><span>${r[0]}</span><span class="tc-bar"><i class="tc-fill ${r[1]}" style="width:${clamp(r[2],0,100)}%"></i></span><span>${Math.round(r[2])}</span></div>`).join('');
+    }
+    // ════════════════════════════════════════════════════════════════════════
+    // THỜI TIẾT REALTIME — KHÔNG xếp hàng tuần tự nữa (sửa bug combo mưa lệch nhịp)
+    // ────────────────────────────────────────────────────────────────────────
+    // Bug cũ: mỗi quà mưa = 1 "cơn" 4.2s phát NỐI ĐUÔI qua hàng đợi → combo 10 quà = mưa
+    //   kéo 42s, lệch hẳn với trạng thái cây (server áp nước & cây xanh TỨC THÌ) → tiếng kêu
+    //   ngay còn mưa trễ 40s. Cắt/nắng cũng kẹt sau mưa.
+    // Sửa: mưa/nắng là TRẠNG THÁI LIÊN TỤC. Mỗi quà thả giọt NGAY + gia hạn đuôi 1.5s; combo
+    //   = mưa dày realtime rồi tạnh ngay sau quà cuối. Cắt bắn thẳng lớp riêng, không bị chặn.
+    //   Mọi hiệu ứng giờ đều realtime → hình & tiếng luôn khớp, không bao giờ lệch.
+    let rainEndAt = 0, rainTimer = null, sunEndAt = 0, sunTimer = null;
+    function flashWeather(kind) {
+        if (kind === 'rain') triggerRain();
+        else if (kind === 'sunny') triggerSun();
+    }
+    function spawnRainBurst(count) {
+        const drops = count || 42;
+        for (let i = 0; i < drops; i++) {
+            const d = document.createElement('i');
+            d.className = 'tc-rain-drop';
+            // ~34% hạt "gần" (to, dày, sáng, rơi nhanh) + còn lại hạt "xa" (mảnh, mờ, chậm)
+            // → tạo CHIỀU SÂU nên mưa trông NẶNG HẠT mà vẫn rất thật, không bị phẳng/giả.
+            const near = Math.random() < 0.34;
+            const w = near ? (3.2 + Math.random() * 1.9) : (1.4 + Math.random() * 1.1);
+            const h = near ? (48 + Math.random() * 28) : (24 + Math.random() * 18);
+            const dur = near ? (1.3 + Math.random() * 0.55) : (1.9 + Math.random() * 1.1);
+            const left = Math.random() * 114 - 7;
+            const delay = Math.random() * 0.9;
+            d.style.left = left.toFixed(2) + '%';
+            d.style.setProperty('--w', w.toFixed(2) + 'px');
+            d.style.setProperty('--h', h.toFixed(1) + 'px');
+            d.style.setProperty('--dur', dur.toFixed(2) + 's');
+            d.style.animationDelay = delay.toFixed(2) + 's';
+            d.style.opacity = (near ? (.82 + Math.random() * .18) : (.4 + Math.random() * .34)).toFixed(2);
+            $weather.appendChild(d);
+            const life = (delay + dur + 0.3) * 1000;
+            setTimeout(() => d.remove(), life);     // mỗi giọt tự dọn → không cần xoá cả lớp
+            if (near && Math.random() < 0.5) {
+                const sp = document.createElement('i');
+                sp.className = 'tc-rain-splash';
+                sp.style.left = (left - 2).toFixed(2) + '%';
+                sp.style.top = (78 + Math.random() * 10).toFixed(1) + '%';
+                sp.style.setProperty('--s', (12 + Math.random() * 12).toFixed(0) + 'px');
+                sp.style.animationDelay = (delay + dur * 0.82).toFixed(2) + 's';
+                $weather.appendChild(sp);
+                setTimeout(() => sp.remove(), life + 200);
+            }
+        }
+    }
+    function triggerRain() {
+        if (config.display.showWeatherFx === false) return;
+        $weather.classList.add('rain');
+        spawnRainBurst(42);                       // giọt rơi NGAY (đồng bộ tiếng "water")
+        rainEndAt = Date.now() + 1500;            // đuôi 1.5s sau quà cuối
+        if (!rainTimer) rainTimer = setInterval(() => {
+            if (Date.now() >= rainEndAt) { clearInterval(rainTimer); rainTimer = null; $weather.classList.remove('rain'); }
+        }, 250);
+    }
+    function triggerSun() {
+        if (config.display.showWeatherFx === false) return;
+        $weather.classList.add('sunny');
+        sunEndAt = Date.now() + 1300;
+        if (!sunTimer) sunTimer = setInterval(() => {
+            if (Date.now() >= sunEndAt) { clearInterval(sunTimer); sunTimer = null; $weather.classList.remove('sunny'); }
+        }, 250);
+    }
+    function playCut(payload) {
+        // Kéo cắt bắn NGAY vào lớp banner (z40) — KHÔNG đụng lớp mưa nên không bị combo mưa
+        // chặn/đè. Kéo LIA QUA LẠI ~4 vòng (2.4s) rồi mới SNIP — tiếng "cut" phát đúng lúc snip.
+        const targetPlant = (state.plants || []).find(p => p.id === payload?.plantId);
+        // Độ cao cắt NGẪU NHIÊN theo cutT của server → kéo lia ở vị trí khác nhau mỗi lần
+        // (không còn luôn sát gốc). Mặc định .62 nếu quà cũ chưa kèm cutT.
+        const cutT = clamp(Number(payload?.cutT) || 0.62, 0.18, 0.95);
+        const local = targetPlant ? plantPoint(targetPlant, cutT) : stemPoint(payload?.stemIndex || 0, cutT);
+        const rect = $garden.getBoundingClientRect();
+        const centerX = rect.left + local.x / 980 * rect.width;
+        const centerY = rect.top + local.y / 1200 * rect.height;
+        const s = document.createElement('div');
+        s.className = 'tc-scissor';
+        s.textContent = '✂️';
+        s.style.setProperty('--x', (centerX + (Math.random() * 28 - 14)).toFixed(1) + 'px');
+        s.style.setProperty('--y', (centerY + (Math.random() * 24 - 12)).toFixed(1) + 'px');
+        s.style.setProperty('--s', (52 + Math.random() * 24).toFixed(1) + 'px');
+        $banner.appendChild(s);
+        // Khoảnh khắc SNIP (~76% của 2.4s): tiếng "rẹt" + LÁ bị cắt rụng xuống TRƯỚC, phần thân
+        // cây tụt chiều cao SAU (server áp cut sau cutSnipDelaySec) → đúng thứ tự "cắt lá → cắt thân".
+        setTimeout(() => { sfx('cut'); spawnCutLeaves(centerX, centerY); }, 1840);
+        setTimeout(() => s.remove(), 2600);
+    }
+    // 🍃 Lá bị kéo cắt rơi rụng xuống (xoay tròn + héo dần nâu khi chạm đất).
+    function spawnCutLeaves(cx, cy) {
+        const leaves = ['🍃', '🍂', '🌿'];
+        const n = 4 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < n; i++) {
+            const el = document.createElement('div');
+            el.className = 'tc-cutleaf';
+            el.textContent = leaves[i % leaves.length];
+            el.style.left = (cx + (Math.random() * 72 - 36)).toFixed(0) + 'px';
+            el.style.top = (cy + (Math.random() * 40 - 20)).toFixed(0) + 'px';
+            el.style.setProperty('--s', (20 + Math.random() * 16).toFixed(0) + 'px');
+            el.style.setProperty('--dx', (Math.random() * 130 - 65).toFixed(0) + 'px');
+            el.style.setProperty('--fall', (150 + Math.random() * 170).toFixed(0) + 'px');
+            el.style.setProperty('--spin', (Math.random() * 760 - 380).toFixed(0) + 'deg');
+            el.style.setProperty('--dur', (1.5 + Math.random() * 0.9).toFixed(2) + 's');
+            el.style.animationDelay = (Math.random() * 0.2).toFixed(2) + 's';
+            $banner.appendChild(el);
+            setTimeout(() => el.remove(), 2900);
+        }
+    }
+    // 🦋 Bảng màu cánh bướm — mỗi con bốc 1 bộ ngẫu nhiên (sáng → giữa → đậm + màu glow).
+    const TC_BF_PALETTES = [
+        { c0: '#ffe1f1', c1: '#ff7ab8', c2: '#9b5bff', glow: 'rgba(255,140,220,.7)' },   // hồng → tím
+        { c0: '#dff1ff', c1: '#5fb8ff', c2: '#3a5cff', glow: 'rgba(120,190,255,.7)' },   // xanh dương
+        { c0: '#ffe9c2', c1: '#ffac4d', c2: '#ff4f3c', glow: 'rgba(255,150,70,.7)' },    // cam → đỏ (chúa)
+        { c0: '#d6fff0', c1: '#45e0b0', c2: '#11a07e', glow: 'rgba(80,235,180,.7)' },    // ngọc lục
+        { c0: '#fff6c2', c1: '#ffd84d', c2: '#ff9a2e', glow: 'rgba(255,210,80,.7)' },    // vàng → cam
+        { c0: '#f3e0ff', c1: '#c77bff', c2: '#ff6fae', glow: 'rgba(200,130,255,.7)' },   // tím → hồng
+        { c0: '#e0fbff', c1: '#4fe6ff', c2: '#2b8bff', glow: 'rgba(90,225,255,.7)' },    // aqua
+        { c0: '#ffe0e6', c1: '#ff6b8a', c2: '#d6336c', glow: 'rgba(255,110,140,.7)' },   // đỏ hồng
+        { c0: '#eafdd6', c1: '#9be84f', c2: '#3fae27', glow: 'rgba(160,235,90,.7)' }     // xanh lá
+    ];
+    function spawnButterfly(b) {
+        if (config.display.showButterflies === false || !b || (!b.avatar && !b.evolved)) return;
+        const el = document.createElement('div');
+        el.className = 'tc-butterfly' + (b.heal ? ' heal' : '') + (b.evolved ? ' evolved' : '');
+        const targetFlower = (state.flowers || []).find(f => f.id === b.flowerId);
+        const targetPlant = (state.plants || []).find(p => p.id === b.plantId);
+        // BẦY ĐÀN: mỗi con đậu ở MỘT vị trí khác nhau trong VÒM TÁN TRÊN của cây (quanh ngọn,
+        // toả ngang + xuống một đoạn) → nhìn như cả đàn bám tán, KHÔNG sà xuống gốc/đất.
+        const spreadX = (Math.random() * 2 - 1) * 78;        // lệch ngang ±78px
+        let target;
+        if (targetPlant) {
+            const m = plantMeta(targetPlant);
+            const span = Math.min(m.stemH * 0.42, 150);      // vùng tán trên (từ ngọn xuống một đoạn)
+            target = { x: m.cx + spreadX, y: m.topY + Math.random() * span };
+        } else if (targetFlower) {
+            const fp = flowerPoint(targetFlower);
+            target = { x: fp.x + spreadX, y: fp.y - Math.random() * 36 };
+        } else {
+            target = { x: 490 + spreadX, y: 430 + (Math.random() * 2 - 1) * 60 };
+        }
+        el.style.setProperty('--from-x', (b.fromX || -10) + '%');
+        el.style.setProperty('--from-y', (b.fromY || 45) + '%');
+        el.style.setProperty('--mid-x', (b.midX || 50) + '%');
+        el.style.setProperty('--mid-y', (b.midY || 20) + '%');
+        el.style.setProperty('--to-x', target.x.toFixed(1) + 'px');
+        el.style.setProperty('--to-y', target.y.toFixed(1) + 'px');
+        el.style.setProperty('--dur', (b.durationMs || 3200) + 'ms');
+        const wg = 'wg-' + (b.id || Math.random().toString(36).slice(2, 7));
+        // 🐛→🦋 Bướm tiến hóa = MÀU NGỌC LỤC ÁNH VÀNG cố định (dễ nhận biết); còn lại bốc ngẫu nhiên.
+        const evolved = !!b.evolved;
+        const pal = evolved
+            ? { c0: '#eafff2', c1: '#43e6a0', c2: '#0f9d6b', glow: 'rgba(70,255,175,.95)' }
+            : TC_BF_PALETTES[Math.floor(Math.random() * TC_BF_PALETTES.length)];
+        const level = Math.max(0, Math.min(1, Number(b.level) || 0));   // cây càng cao → bướm càng rực
+        const team = !!b.team && !evolved;                              // cây nhiều người góp → màu TEAM (bướm tiến hóa giữ màu riêng)
+        // ĐẲNG CẤP: cây cao → bướm TO + SÁNG + RỰC hơn. TEAM → cầu vồng + glow vàng mạnh.
+        const size = Math.round(104 * (1 + level * 0.45));
+        el.style.width = el.style.height = size + 'px';
+        el.style.setProperty('--bf-glow', team ? 'rgba(255,232,120,.95)' : pal.glow);
+        el.style.setProperty('--bf-aura', ((team ? 14 : 3) + level * 18).toFixed(1) + 'px');
+        el.style.setProperty('--bf-sat', (1 + level * 0.5 + (team ? 0.4 : 0)).toFixed(2));
+        el.style.setProperty('--bf-bri', (1 + level * 0.25 + (team ? 0.15 : 0)).toFixed(2));
+        const gradStops = team
+            ? `<stop offset="0" stop-color="#ffe1f6"/><stop offset=".28" stop-color="#ff5fa3"/><stop offset=".52" stop-color="#ffd24a"/><stop offset=".76" stop-color="#42e36b"/><stop offset="1" stop-color="#42b9ff"/>`
+            : `<stop offset="0" stop-color="${pal.c0}"/><stop offset="0.42" stop-color="${pal.c1}"/><stop offset="1" stop-color="${pal.c2}"/>`;
+        el.innerHTML = `<div class="tc-butterfly-inner">
+            <svg class="tc-bf-svg" viewBox="0 0 120 124">
+                <defs><radialGradient id="${wg}" cx="0.5" cy="0.42" r="0.72">${gradStops}</radialGradient></defs>
+                <g class="tc-bf-ant">
+                    <path d="M56 42 C 49 22, 41 13, 33 7"/><circle cx="32.5" cy="6.5" r="3.6"/>
+                    <path d="M64 42 C 71 22, 79 13, 87 7"/><circle cx="87.5" cy="6.5" r="3.6"/>
+                </g>
+                <g class="tc-bf-wL"><path class="tc-bf-wing" fill="url(#${wg})" d="M60 59 C 24 18, -6 22, 1 54 C 4 74, 36 68, 60 62 Z"/><path class="tc-bf-wing" fill="url(#${wg})" d="M60 64 C 36 84, 4 94, 11 116 C 18 130, 52 103, 60 70 Z"/></g>
+                <g class="tc-bf-wR"><path class="tc-bf-wing" fill="url(#${wg})" d="M60 59 C 96 18, 126 22, 119 54 C 116 74, 84 68, 60 62 Z"/><path class="tc-bf-wing" fill="url(#${wg})" d="M60 64 C 84 84, 116 94, 109 116 C 102 130, 68 103, 60 70 Z"/></g>
+                <ellipse class="tc-bf-body" cx="60" cy="64" rx="4.2" ry="15"/>
+            </svg>
+            <img class="tc-avatar" src="${esc(b.avatar)}" onerror="this.style.display='none'"/>
+            ${config.display.showNames === false ? '' : `<div class="tc-bname">${esc(b.nickname || b.uniqueId || '')}</div>`}
+        </div>`;
+        $butterflies.appendChild(el);
+        const dur = b.durationMs || 3200;
+        setTimeout(() => {
+            el.classList.add('perched');
+            el.style.left = target.x.toFixed(1) + 'px';
+            el.style.top = target.y.toFixed(1) + 'px';
+            el.style.animationDelay = (-Math.random() * 9).toFixed(2) + 's';   // lệch nhịp đập/bay lượn → cả đàn không đồng pha
+            // 🦋💚 Bướm chữa lành đậu xuống → rắc đốm lành lên cây yếu (server hồi héo song song ở tick).
+            if (b.heal) {
+                spawnHealMotes(target, 3);
+                const hv = setInterval(() => { if (!el.isConnected) { clearInterval(hv); return; } spawnHealMotes(target, 2); }, 2200);
+                setTimeout(() => clearInterval(hv), (b.wanderMs || 28000));
+            }
+        }, dur + 40);
+        setTimeout(() => el.remove(), dur + (b.wanderMs || 28000));
+    }
+    function spawnHealMotes(target, count) {
+        const rect = $garden.getBoundingClientRect();
+        const cx = rect.left + target.x / 980 * rect.width;
+        const cy = rect.top + target.y / 1200 * rect.height;
+        const motes = ['💚', '✨', '🍃'];
+        for (let i = 0; i < (count || 3); i++) {
+            const el = document.createElement('div');
+            el.className = 'tc-heal-mote';
+            el.textContent = motes[Math.floor(Math.random() * motes.length)];
+            el.style.left = (cx + (Math.random() * 70 - 35)).toFixed(0) + 'px';
+            el.style.top = (cy + (Math.random() * 50 - 10)).toFixed(0) + 'px';
+            el.style.setProperty('--s', (16 + Math.random() * 12).toFixed(0) + 'px');
+            el.style.setProperty('--dx', (Math.random() * 50 - 25).toFixed(0) + 'px');
+            el.style.setProperty('--rise', (50 + Math.random() * 60).toFixed(0) + 'px');
+            el.style.setProperty('--dur', (1.3 + Math.random() * 0.7).toFixed(2) + 's');
+            $banner.appendChild(el);
+            setTimeout(() => el.remove(), 2200);
+        }
+    }
+    function spawnBee(b) {
+        if (config.display.showBees === false || !b) return;
+        const el = document.createElement('div');
+        el.className = 'tc-bee';
+        let target;
+        if (b.targetKind === 'ground') {
+            target = surfacePoint(b.gx, tcHashDepth(b.gid));   // ong bay XUỐNG ĐẤT đúng chỗ trái rụng
+        } else {
+            const targetPlant = (state.plants || []).find(p => p.id === b.plantId);
+            target = targetPlant ? plantPoint(targetPlant, .70) : { x: 490, y: 470 };
+        }
+        el.style.setProperty('--from-x', (b.fromX ?? -10) + '%');
+        el.style.setProperty('--from-y', (b.fromY ?? 30) + '%');
+        el.style.setProperty('--mid-x', (b.midX ?? 50) + '%');
+        el.style.setProperty('--mid-y', (b.midY ?? 16) + '%');
+        el.style.setProperty('--to-x', target.x.toFixed(1) + 'px');
+        el.style.setProperty('--to-y', target.y.toFixed(1) + 'px');
+        el.style.setProperty('--dur', (b.durationMs || 2600) + 'ms');
+        el.innerHTML = `<div class="tc-bee-inner">🐝${b.avatar ? `<img class="tc-bee-ava" src="${esc(b.avatar)}" onerror="this.style.display='none'"/>` : ''}<i class="tc-bee-load"></i></div>`;
+        $butterflies.appendChild(el);
+        const dur = b.durationMs || 2600;
+        // tới nơi → đậu hái trái (hiện "tải" trái), rồi bay ra mép mang trái đi
+        setTimeout(() => { el.classList.add('arrived', 'loaded'); }, dur + 30);
+        setTimeout(() => {
+            el.style.left = (Math.random() < .5 ? -12 : 112) + '%';
+            el.style.top = (8 + Math.random() * 22).toFixed(1) + '%';
+            el.style.opacity = '0';
+        }, dur + 950);
+        setTimeout(() => el.remove(), dur + 3300);
+    }
+    function beeHarvestPop(d) {
+        if (!d) return;
+        let pt;
+        if (d.ground) {
+            pt = surfacePoint(d.x, tcHashDepth(d.gid));
+        } else {
+            const plant = (state.plants || []).find(p => p.id === d.plantId);
+            pt = plant ? plantPoint(plant, .70) : { x: 490, y: 470 };
+        }
+        const rect = $garden.getBoundingClientRect();
+        const el = document.createElement('div');
+        el.className = 'tc-grow-pop';
+        const who = (config.display.showNames === false) ? '' : ' ' + (d.owner || '');
+        el.textContent = `🍯 +${d.points}${who}`.trim();
+        el.style.left = (rect.left + pt.x / 980 * rect.width).toFixed(0) + 'px';
+        el.style.top = (rect.top + pt.y / 1200 * rect.height).toFixed(0) + 'px';
+        $banner.appendChild(el);
+        setTimeout(() => el.remove(), 1700);
+    }
+    function fruitDropFx(d) {
+        if (!d) return;
+        const plant = (state.plants || []).find(p => p.id === d.plantId);
+        const gp = surfacePoint(d.x, tcHashDepth(d.gid));   // rơi đúng chỗ trái sẽ nằm trên mặt đất
+        const top = plant ? plantPoint(plant, .62) : gp;
+        const rect = $garden.getBoundingClientRect();
+        const el = document.createElement('div');
+        el.className = 'tc-fruit-drop';
+        el.textContent = '🍎';
+        el.style.left = (rect.left + gp.x / 980 * rect.width).toFixed(0) + 'px';
+        el.style.setProperty('--y0', (rect.top + top.y / 1200 * rect.height).toFixed(0) + 'px');
+        el.style.setProperty('--y1', (rect.top + gp.y / 1200 * rect.height).toFixed(0) + 'px');
+        $banner.appendChild(el);
+        setTimeout(() => el.remove(), 1000);
+    }
+    function spraySound() {
+        if (config.display.soundEnabled === false) return;
+        try {
+            audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const dur = 0.55, sr = audioCtx.sampleRate;
+            const buf = audioCtx.createBuffer(1, Math.floor(sr * dur), sr);
+            const d = buf.getChannelData(0);
+            for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.4);
+            const src = audioCtx.createBufferSource(); src.buffer = buf;
+            const bp = audioCtx.createBiquadFilter(); bp.type = 'highpass'; bp.frequency.value = 2200;
+            const g = audioCtx.createGain(); g.gain.value = 0.13;
+            src.connect(bp); bp.connect(g); g.connect(audioCtx.destination); src.start();
+        } catch (e) {}
+    }
+    function playSpray(payload) {
+        spraySound();
+        const rect = $garden.getBoundingClientRect();
+        const xPct = clamp(Number(payload && payload.x) || 50, 0, 100);
+        // Điểm CON SÂU (mục tiêu xịt): tính y theo cây/đất để bình xịt ghé SÁT con sâu, không
+        // còn xịt từ tít trên cao xuống. cũ chỉ có x → mặc định mặt đất.
+        let aimGX = xPct / 100 * 980, aimGY = depthY(0.6);
+        const aim = payload && payload.aim;
+        if (aim) {
+            if (!aim.ground && aim.plantId) {
+                const p = (state.plants || []).find(pp => pp.id === aim.plantId);
+                if (p) { const pt = plantPoint(p, .58); aimGX = pt.x; aimGY = pt.y; }
+                else { const s = surfacePoint(aim.x ?? xPct, 0.6); aimGX = s.x; aimGY = s.y; }
+            } else {
+                const s = surfacePoint(aim.x ?? xPct, 0.6); aimGX = s.x; aimGY = s.y;
+            }
+        }
+        const tx = rect.left + aimGX / 980 * rect.width;       // con sâu (px màn hình)
+        const ty = rect.top + aimGY / 1200 * rect.height;
+        // Bình xịt đứng CHẾCH trên một bên con sâu, vòi chĩa xuống ~45° vào sâu (xịt chân thực).
+        const side = (xPct <= 50) ? 1 : -1;                    // sâu lệch trái → xịt từ trái qua
+        const bx = tx + 118 * side, by = ty - 120;
+        const baseAng = Math.atan2(ty - by, tx - bx);          // hướng từ vòi tới con sâu
+        const bottle = document.createElement('div');
+        bottle.className = 'tc-sprayer'; bottle.textContent = '🧴';
+        bottle.style.left = bx.toFixed(0) + 'px'; bottle.style.top = by.toFixed(0) + 'px';
+        bottle.style.setProperty('--rot', (side > 0 ? 34 : -34) + 'deg');   // nghiêng vòi ~45° về phía sâu
+        $banner.appendChild(bottle);
+        setTimeout(() => bottle.remove(), 1400);
+        const reach = Math.hypot(tx - bx, ty - by);
+        for (let i = 0; i < 26; i++) {
+            const m = document.createElement('i'); m.className = 'tc-mist';
+            const a = baseAng + (-0.32 + Math.random() * 0.64);            // chùm sương ±~18° quanh hướng tới sâu
+            const dist = reach * (0.55 + Math.random() * 0.7);
+            m.style.left = bx.toFixed(0) + 'px'; m.style.top = by.toFixed(0) + 'px';
+            m.style.setProperty('--dx', (Math.cos(a) * dist).toFixed(0) + 'px');
+            m.style.setProperty('--dy', (Math.sin(a) * dist).toFixed(0) + 'px');
+            m.style.animationDelay = (Math.random() * .28).toFixed(2) + 's';
+            $banner.appendChild(m);
+            setTimeout(() => m.remove(), 1300);
+        }
+    }
+    function catBiteFx(data) {
+        if (!data) return;
+        let pt;
+        if (data.ground) pt = groundPoint(data.x);
+        else { const plant = (state.plants || []).find(p => p.id === data.plantId); pt = plant ? plantPoint(plant, .62) : groundPoint(data.x); }
+        const rect = $garden.getBoundingClientRect();
+        const cx = rect.left + pt.x / 980 * rect.width, cy = rect.top + pt.y / 1200 * rect.height;
+        for (let i = 0; i < 3; i++) {
+            const el = document.createElement('i'); el.className = 'tc-crumb';
+            el.style.left = cx.toFixed(0) + 'px'; el.style.top = cy.toFixed(0) + 'px';
+            el.style.setProperty('--dx', (Math.random() * 40 - 20).toFixed(0) + 'px');
+            el.style.setProperty('--dy', (10 + Math.random() * 26).toFixed(0) + 'px');
+            $banner.appendChild(el);
+            setTimeout(() => el.remove(), 700);
+        }
+    }
+    // 🐛 Sâu sống sót rơi từ cây xuống đất để hóa nhộng (kén render tĩnh từ state).
+    function playPupate(d) {
+        if (!d) return;
+        const gp = surfacePoint(d.x, 0.6);
+        const plant = d.plantId ? (state.plants || []).find(p => p.id === d.plantId) : null;
+        const top = (plant && !d.onGround) ? plantPoint(plant, .5) : { x: gp.x, y: gp.y - 180 };
+        const rect = $garden.getBoundingClientRect();
+        const el = document.createElement('div');
+        el.className = 'tc-pupa-drop';
+        el.textContent = '🐛';
+        el.style.left = (rect.left + gp.x / 980 * rect.width).toFixed(0) + 'px';
+        el.style.setProperty('--y0', (rect.top + top.y / 1200 * rect.height).toFixed(0) + 'px');
+        el.style.setProperty('--y1', (rect.top + gp.y / 1200 * rect.height).toFixed(0) + 'px');
+        $banner.appendChild(el);
+        setTimeout(() => el.remove(), 1000);
+    }
+    // ✨ Kén nở → bướm tiến hóa: lóe sáng + ✨🦋💚 bung lên (con bướm bay lên do event butterfly lo).
+    function playEvolve(d) {
+        if (!d) return;
+        sfx('butterfly');
+        const gp = surfacePoint(d.x, 0.6);
+        const rect = $garden.getBoundingClientRect();
+        const cx = rect.left + gp.x / 980 * rect.width, cy = rect.top + gp.y / 1200 * rect.height;
+        const flash = document.createElement('div');
+        flash.className = 'tc-evolve-flash';
+        flash.style.left = cx.toFixed(0) + 'px'; flash.style.top = cy.toFixed(0) + 'px';
+        $banner.appendChild(flash);
+        setTimeout(() => flash.remove(), 900);
+        const icons = ['✨', '🦋', '💚', '🌟'];
+        for (let i = 0; i < 9; i++) {
+            const el = document.createElement('div');
+            el.className = 'tc-heal-mote';
+            el.textContent = icons[i % icons.length];
+            el.style.left = (cx + (Math.random() * 60 - 30)).toFixed(0) + 'px';
+            el.style.top = (cy + (Math.random() * 30 - 15)).toFixed(0) + 'px';
+            el.style.setProperty('--s', (18 + Math.random() * 14).toFixed(0) + 'px');
+            el.style.setProperty('--dx', (Math.random() * 60 - 30).toFixed(0) + 'px');
+            el.style.setProperty('--rise', (60 + Math.random() * 70).toFixed(0) + 'px');
+            el.style.setProperty('--dur', (1.2 + Math.random() * 0.7).toFixed(2) + 's');
+            $banner.appendChild(el);
+            setTimeout(() => el.remove(), 2200);
+        }
+    }
+
+    // ═══════════════════ 🐉 RỒNG LỬA THIÊU VƯỜN ═══════════════════
+    const TCD_FLY = '/assets/jar-fx-webm/dragon-fly.png';
+    const TCD_BREATH = '/assets/jar-fx-webm/dragon-breath.png';
+    let tcdTimers = [], tcdIvs = [];
+    function tcdT(fn, ms) { tcdTimers.push(setTimeout(fn, ms)); }
+    function tcdIv(iv) { tcdIvs.push(iv); }
+    function tcdClearIvs() { tcdIvs.forEach(clearInterval); tcdIvs = []; }
+    function tcdClearTimers() { tcdTimers.forEach(clearTimeout); tcdTimers = []; tcdClearIvs(); }
+
+    // Vị trí (px màn hình) các gốc cây hiện có → nơi sẽ bốc cháy.
+    function tcdTreePoints() {
+        const rect = $garden.getBoundingClientRect();
+        const toScreen = (gx, gy) => ({ x: rect.left + gx / 980 * rect.width, y: rect.top + gy / 1200 * rect.height });
+        const pts = [];
+        const plants = Array.isArray(state.plants) ? state.plants.filter(p => (Number(p.height) || 0) > 0) : [];
+        if (plants.length) {
+            plants.forEach(p => { const m = plantMeta(p); const b = toScreen(m.baseX, 1120); const t = toScreen(m.cx, m.topY); pts.push({ baseX: b.x, baseY: b.y, h: Math.max(80, b.y - t.y) }); });
+        } else if ((Number(state.height) || 0) > 0.05) {
+            const count = clamp(parseInt(config.display.stemCount, 10) || 7, 1, 12);
+            for (let i = 0; i < count; i++) { const m = stemMeta(i); const b = toScreen(m.baseX, 1120); const t = toScreen(m.cx, m.topY); pts.push({ baseX: b.x, baseY: b.y, h: Math.max(80, b.y - t.y) }); }
+        }
+        if (!pts.length) {   // vườn trống → vẫn cháy 1 dải ngang mặt đất cho hoành tráng
+            const g = toScreen(490, 1118);
+            for (let i = 0; i < 7; i++) pts.push({ baseX: rect.left + rect.width * (0.16 + i * 0.11), baseY: g.y, h: rect.height * 0.18 });
+        }
+        return { rect, pts };
+    }
+    function tcdAddFlame(x, baseY, treeH) {
+        const big = Math.max(70, treeH * 0.5);
+        const layers = 2 + Math.round(Math.random());
+        for (let k = 0; k < layers; k++) {
+            const f = document.createElement('i');
+            f.className = 'tcd-flame' + (k === 0 ? '' : ' core');
+            f.style.left = (x + (Math.random() * 30 - 15)).toFixed(0) + 'px';
+            f.style.top = baseY.toFixed(0) + 'px';
+            f.style.setProperty('--fw', (big * (0.7 - k * 0.18) + Math.random() * 16).toFixed(0) + 'px');
+            f.style.setProperty('--fh', (treeH * (0.55 - k * 0.1) + 80 + Math.random() * 40).toFixed(0) + 'px');
+            f.style.setProperty('--ff', (0.3 + Math.random() * 0.3).toFixed(2) + 's');
+            f.style.opacity = '0';
+            $tcd.appendChild(f);
+            requestAnimationFrame(() => { f.style.transition = 'opacity .35s ease'; f.style.opacity = '1'; });
+        }
+    }
+    function tcdAddEmber(x, y) {
+        const e = document.createElement('i'); e.className = 'tcd-ember';
+        e.style.left = x.toFixed(0) + 'px'; e.style.top = y.toFixed(0) + 'px';
+        e.style.setProperty('--ex', (Math.random() * 80 - 40).toFixed(0) + 'px');
+        e.style.setProperty('--ey', (120 + Math.random() * 120).toFixed(0) + 'px');
+        e.style.setProperty('--ed', (1.4 + Math.random() * 1.2).toFixed(2) + 's');
+        $tcd.appendChild(e); setTimeout(() => e.remove(), 2800);
+    }
+    function tcdAddSmoke(x, y) {
+        const s = document.createElement('i'); s.className = 'tcd-smoke';
+        s.style.left = x.toFixed(0) + 'px'; s.style.top = y.toFixed(0) + 'px';
+        s.style.setProperty('--kw', (70 + Math.random() * 70).toFixed(0) + 'px');
+        s.style.setProperty('--kx', (Math.random() * 120 - 60).toFixed(0) + 'px');
+        s.style.setProperty('--ky', (180 + Math.random() * 160).toFixed(0) + 'px');
+        s.style.setProperty('--kd', (2.6 + Math.random() * 1.6).toFixed(2) + 's');
+        $tcd.appendChild(s); setTimeout(() => s.remove(), 4400);
+    }
+    function tcdBreath(fromX, fromY, toX, toY) {
+        const s = document.createElement('div'); s.className = 'tcd-streak';
+        const dir = (toX >= fromX) ? 'right' : 'left';
+        s.innerHTML = `<img src="/assets/jar-fx-webm/fire-streak-${dir}.png">`;
+        const ang = Math.atan2(toY - fromY, toX - fromX) * 180 / Math.PI;
+        s.style.left = fromX.toFixed(0) + 'px'; s.style.top = fromY.toFixed(0) + 'px';
+        s.style.setProperty('--sw', (20 + Math.random() * 10).toFixed(0) + 'vmin');
+        s.style.setProperty('--sr', ang.toFixed(1) + 'deg');
+        $tcd.appendChild(s);
+        requestAnimationFrame(() => { s.style.transition = 'left .5s ease-in, top .5s ease-in, opacity .5s ease'; s.style.opacity = '1'; s.style.left = toX.toFixed(0) + 'px'; s.style.top = toY.toFixed(0) + 'px'; });
+        setTimeout(() => { s.style.opacity = '0'; }, 480);
+        setTimeout(() => s.remove(), 1050);
+    }
+    function dragonRoar() {
+        if (config.display.soundEnabled === false) return;
+        try {
+            audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const now = audioCtx.currentTime;
+            const o = audioCtx.createOscillator(), g = audioCtx.createGain(), lp = audioCtx.createBiquadFilter();
+            o.type = 'sawtooth'; o.frequency.setValueAtTime(120, now); o.frequency.exponentialRampToValueAtTime(48, now + 1.1);
+            g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.22, now + 0.12); g.gain.exponentialRampToValueAtTime(0.0001, now + 1.3);
+            lp.type = 'lowpass'; lp.frequency.value = 900;
+            o.connect(lp); lp.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 1.35);
+            const dur = 1.2, sr = audioCtx.sampleRate, buf = audioCtx.createBuffer(1, Math.floor(sr * dur), sr), dd = buf.getChannelData(0);
+            for (let i = 0; i < dd.length; i++) dd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / dd.length, 1.2) * 0.5;
+            const src = audioCtx.createBufferSource(); src.buffer = buf;
+            const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 0.7;
+            const ng = audioCtx.createGain(); ng.gain.value = 0.1;
+            src.connect(bp); bp.connect(ng); ng.connect(audioCtx.destination); src.start(now + 0.05);
+        } catch (e) {}
+    }
+    function tcdBuildDragon() {
+        const el = document.createElement('div');
+        el.className = 'tcd-dragon';
+        el.innerHTML = `<div class="tcd-dragon-inner"><img class="tcd-pose tcd-fly" src="${TCD_FLY}"><img class="tcd-pose tcd-breath" src="${TCD_BREATH}"></div>`;
+        $tcd.appendChild(el);
+        return el;
+    }
+    // faceDir: +1 nhìn phải, -1 nhìn trái. Pose bay (png) nhìn TRÁI, pose phun nhìn PHẢI.
+    function tcdMove(el, leftPct, topPct, ms, faceDir, breath, tilt) {
+        if (!el) return;
+        const native = breath ? 1 : -1;
+        const sx = (native === faceDir) ? 1 : -1;
+        el.style.transition = `left ${ms}ms ease-in-out, top ${ms}ms ease-in-out, transform ${Math.min(ms, 420)}ms ease`;
+        el.style.left = leftPct + '%';
+        el.style.top = topPct + '%';
+        el.style.transform = `translate(-50%,-50%) scaleX(${sx}) rotate(${tilt || 0}deg)`;
+    }
+    function tcdFinalize() {
+        tcBurning = false;
+        tcdClearTimers();
+        $tcd.innerHTML = ''; $tcd.style.opacity = ''; $tcd.style.transition = '';
+        $garden.classList.remove('tcd-burning'); $garden.style.removeProperty('transition');
+        $svg.style.transition = $flowers.style.transition = '';
+        $svg.style.opacity = $flowers.style.opacity = '';
+        render();
+    }
+    function playDragon(d) {
+        if (!d || config.display.showDragon === false || tcBurning) return;
+        tcBurning = true;
+        tcdClearTimers(); $tcd.innerHTML = ''; $tcd.style.opacity = ''; $tcd.style.transition = '';
+        const pre = Math.max(1500, Number(d.preburnMs) || 5200);
+        const ch = Math.max(400, Number(d.charMs) || 2000);
+        const burn = clamp(Number(d.burnSeconds) || 10, 2, 60) * 1000;
+        const fade = Math.max(400, Number(d.fadeMs) || 1600);
+        const total = pre + ch + burn + fade;
+        const { rect: burnRect, pts: treePts } = tcdTreePoints();
+        const groundY = burnRect.top + burnRect.height * (1118 / 1200);
+        const ignited = new Set();
+        const igniteNearest = (mx) => {
+            let best = -1, bd = 1e9;
+            treePts.forEach((t, i) => { if (ignited.has(i)) return; const dd = Math.abs(t.baseX - mx); if (dd < bd) { bd = dd; best = i; } });
+            if (best >= 0 && bd < burnRect.width * 0.26) { ignited.add(best); const t = treePts[best]; tcdAddFlame(t.baseX, t.baseY, t.h); tcdAddSmoke(t.baseX, t.baseY - t.h * 0.5); }
+        };
+        const el = tcdBuildDragon();
+        el.classList.remove('is-breath');
+        el.style.left = '118%'; el.style.top = '16%'; el.style.transform = 'translate(-50%,-50%) scaleX(1)';
+        dragonRoar();
+        // 1) bay vào (nhìn trái) → 2) lượn sang trái
+        tcdT(() => tcdMove(el, 68, 19, 1150, -1, false, -4), 60);
+        tcdT(() => tcdMove(el, 22, 25, 1300, -1, false, 3), 1250);
+        // 3) đổi pose phun lửa (nhìn phải) + quét trái→phải vừa phun
+        const sweepFrom = 2600;
+        const sweepMs = Math.max(800, (pre - sweepFrom) + ch);
+        tcdT(() => { el.classList.add('is-breath'); tcdMove(el, 24, 22, 300, 1, true, 0); }, sweepFrom);
+        tcdT(() => tcdMove(el, 82, 24, sweepMs, 1, true, 0), sweepFrom + 320);
+        tcdT(() => {
+            const iv = setInterval(() => {
+                if (!el.isConnected) return;
+                const dr = el.getBoundingClientRect();
+                const mx = dr.left + dr.width * 0.5, my = dr.top + dr.height * 0.6;
+                tcdBreath(mx, my, mx + (Math.random() * 100 - 50), groundY);
+                igniteNearest(mx);
+                if (Math.random() < 0.7) tcdAddEmber(mx + (Math.random() * 60 - 30), my);
+            }, 200);
+            tcdIv(iv);
+        }, sweepFrom + 280);
+        // 4) char toàn vườn + đốt sạch cây còn lại
+        tcdT(() => {
+            $garden.style.setProperty('transition', `filter ${ch}ms ease`, 'important');
+            $garden.classList.add('tcd-burning');
+            treePts.forEach((t, i) => { if (!ignited.has(i)) { ignited.add(i); tcdAddFlame(t.baseX, t.baseY, t.h); tcdAddSmoke(t.baseX, t.baseY - t.h * 0.5); } });
+            dragonRoar();
+        }, pre);
+        // 5) ngừng phun, đổi pose bay, bay đi
+        tcdT(() => { tcdClearIvs(); el.classList.remove('is-breath'); tcdMove(el, 120, -14, 1300, 1, false, 8); }, pre + ch);
+        tcdT(() => { if (el) el.remove(); }, pre + ch + 1400);
+        // 6) pha tro: tàn than + khói lai rai
+        tcdT(() => {
+            const iv = setInterval(() => {
+                treePts.forEach(t => { if (Math.random() < 0.45) tcdAddEmber(t.baseX + (Math.random() * 44 - 22), t.baseY - t.h * Math.random() * 0.7); });
+                if (Math.random() < 0.6 && treePts.length) { const t = treePts[Math.floor(Math.random() * treePts.length)]; tcdAddSmoke(t.baseX, t.baseY - t.h * 0.5); }
+            }, 300);
+            tcdIv(iv);
+        }, pre + ch + 200);
+        // 7) tan dần: mờ lớp lửa + cây cháy (giữ mặt đất)
+        tcdT(() => {
+            tcdClearIvs();
+            $tcd.style.transition = `opacity ${fade}ms ease`; $tcd.style.opacity = '0';
+            $svg.style.transition = $flowers.style.transition = `opacity ${fade}ms ease`;
+            $svg.style.opacity = $flowers.style.opacity = '0';
+        }, total - fade);
+        // 8) kết thúc: render trạng thái mới (server đã xóa cây) + gỡ char
+        tcdT(() => tcdFinalize(), total + 180);
+    }
+
+    const socket = io({ transports: ['websocket', 'polling'] });
+    socket.on('connect', () => {
+        socket.emit('subscribe', 'overlay');
+        fetch('/api/games/trongcay/config').then(r => r.json()).then(applyConfig).catch(() => {});
+        fetch('/api/games/trongcay/livestate').then(r => r.json()).then(s => { state = s || state; render(); }).catch(() => {});
+    });
+    socket.on('trongcay:state', s => { state = s || state; render(); });
+    socket.on('trongcay:butterfly', b => { spawnButterfly(b); sfx('butterfly'); });
+    socket.on('trongcay:bee', b => { spawnBee(b); sfx('butterfly'); });
+    socket.on('trongcay:beeharvest', d => { beeHarvestPop(d); sfx('grow'); });
+    socket.on('trongcay:fruitdrop', d => { fruitDropFx(d); });
+    socket.on('trongcay:catbite', d => { catBiteFx(d); });
+    socket.on('trongcay:pupate', d => { playPupate(d); });
+    socket.on('trongcay:evolve', d => { playEvolve(d); });
+    socket.on('trongcay:spray', d => { playSpray(d); });
+    socket.on('trongcay:dragon', d => { playDragon(d); });
+    socket.on('trongcay:water', data => { triggerRain(); sfx('water'); });
+    socket.on('trongcay:sun', data => { triggerSun(); sfx('sun'); });
+    socket.on('trongcay:cut', data => { playCut(data); });   // tiếng cut phát ở lúc snip (trong playCut)
+    socket.on('trongcay:grow', data => { sfx('grow'); growPop(data); });
+    socket.on('trongcay:milestone', data => {
+        if (config.display.showMilestones === false) return;
+        sfx('milestone');
+        showBanner('🎉 Cây đạt ' + data.percent + '%!', data.percent >= 100);
+        confettiBurst(data.percent >= 100 ? 80 : 42);
+    });
+    socket.on('trongcay:bloom', () => { sfx('milestone'); bloomBurst(); });
+    socket.on('trongcay:fruit', data => {
+        // Cây chạm 100% → kết trái tại chỗ (cây KHÔNG biến mất). Lần đầu chín = ăn mừng to,
+        // những lần tặng tiếp = rung cây cho rụng thêm trái.
+        sfx('harvest');
+        fruitBurst(data);
+        if (data && data.first && config.display.showMilestones !== false) {
+            bloomBurst();
+            confettiBurst(56);
+            showBanner('🍎 Cây kết trái! +' + (Number(data.gained) || 3), true);
+        }
+    });
+    socket.on('gameConfig', ({ gameId, config: cfg }) => { if (gameId === 'trongcay') applyConfig(cfg); });
+    socket.on('gameDisabled', ({ gameId }) => { if (gameId === 'trongcay') document.body.classList.add('tc-stopped'); });
+    socket.on('overlay:reload', data => { if (!data || !data.gameId || data.gameId === 'trongcay') location.reload(); });
+
+    if (isEdit) {
+        let drag = null;
+        $garden.style.pointerEvents = 'auto';
+        $garden.addEventListener('mousedown', e => {
+            const d = config.display || {};
+            drag = { sx: e.clientX, sy: e.clientY, x: Number(d.gardenXPercent) || 50, y: Number(d.gardenYPercent) || 82 };
+            e.preventDefault();
+        });
+        window.addEventListener('mousemove', e => {
+            if (!drag) return;
+            const nx = clamp(drag.x + (e.clientX - drag.sx) / innerWidth * 100, 0, 100);
+            const ny = clamp(drag.y + (e.clientY - drag.sy) / innerHeight * 100, 0, 100);
+            config.display.gardenXPercent = nx; config.display.gardenYPercent = ny; applyConfig(config);
+        });
+        window.addEventListener('mouseup', async () => { if (!drag) return; drag = null; await saveConfig(); });
+        $garden.addEventListener('wheel', e => {
+            e.preventDefault();
+            config.display.scale = clamp((Number(config.display.scale) || 100) + (e.deltaY < 0 ? 5 : -5), 35, 220);
+            applyConfig(config);
+            clearTimeout($garden._saveT); $garden._saveT = setTimeout(saveConfig, 350);
+        }, { passive: false });
+    }
+    async function saveConfig() {
+        try { await fetch('/api/games/trongcay/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) }); } catch (e) {}
+    }
+})();
+</script>
+</body>
+</html>

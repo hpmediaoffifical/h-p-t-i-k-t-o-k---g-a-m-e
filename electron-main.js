@@ -158,10 +158,10 @@ function createMainWindow() {
     } catch (_) {}
 
     mainWindow = new BrowserWindow({
-        width: 1440,
-        height: 920,
-        minWidth: 1100,
-        minHeight: 700,
+        width: 1180,
+        height: 760,
+        minWidth: 960,
+        minHeight: 620,
         backgroundColor: '#0b0d12',
         title: APP_NAME,
         icon: getIcon(),
@@ -190,6 +190,11 @@ function createMainWindow() {
         // /quick-launch → cửa sổ điều khiển nhanh tách rời (always-on-top)
         if (url === `${APP_URL}/quick-launch` || url.startsWith(`${APP_URL}/quick-launch`)) {
             openQuickLaunchWindow();
+            return { action: 'deny' };
+        }
+        // /gift-list → cửa sổ Danh sách quà tách rời, ghim trên cùng (test quà mọi game)
+        if (url === `${APP_URL}/gift-list` || url.startsWith(`${APP_URL}/gift-list`)) {
+            openGiftListWindow();
             return { action: 'deny' };
         }
         // /overlay/caro?popout=1 → cửa sổ Overlay Review trong suốt + frameless để
@@ -738,6 +743,101 @@ ipcMain.on('caro-preview:close', () => {
     if (caroPreviewWindow && !caroPreviewWindow.isDestroyed()) caroPreviewWindow.close();
 });
 ipcMain.on('open-caro-preview', () => openCaroPreviewWindow());
+
+// ============================================================
+// 📦 Danh sách quà — cửa sổ tách rời, ghim trên cùng
+// ============================================================
+// User mở để test quà mọi game mà KHÔNG cần ở lại tab Hũ Thủy Tinh. Click 1 quà →
+// POST /api/games/thuytinh/test-gift → emitGift broadcast toàn cục → main window
+// route vào game đang bật. Lưu bounds + alwaysOnTop qua phiên (file disk dưới userData).
+let giftListWindow = null;
+function getGiftListPrefsPath() {
+    try { return path.join(app.getPath('userData'), 'data', 'gift-list.json'); }
+    catch { return null; }
+}
+function loadGiftListPrefs() {
+    try {
+        const p = getGiftListPrefsPath();
+        if (!p || !fs.existsSync(p)) return {};
+        return JSON.parse(fs.readFileSync(p, 'utf8')) || {};
+    } catch { return {}; }
+}
+let glSaveTimer = null;
+function saveGiftListPrefs(patch) {
+    if (glSaveTimer) clearTimeout(glSaveTimer);
+    glSaveTimer = setTimeout(() => {
+        try {
+            const p = getGiftListPrefsPath();
+            if (!p) return;
+            const dir = path.dirname(p);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            const cur = loadGiftListPrefs();
+            const next = { ...cur, ...patch };
+            fs.writeFileSync(p, JSON.stringify(next, null, 2), 'utf8');
+        } catch (e) { /* swallow */ }
+    }, 250);
+}
+function openGiftListWindow() {
+    if (giftListWindow && !giftListWindow.isDestroyed()) {
+        giftListWindow.show(); giftListWindow.focus(); return;
+    }
+    const prefs = loadGiftListPrefs();
+    const opts = {
+        width:  Math.max(300, parseInt(prefs.w, 10) || 420),
+        height: Math.max(320, parseInt(prefs.h, 10) || 620),
+        minWidth: 300,
+        minHeight: 320,
+        resizable: true,
+        maximizable: true,
+        fullscreenable: false,
+        title: 'HP — Danh sách quà',
+        icon: getIcon(),
+        backgroundColor: '#0b0d12',
+        alwaysOnTop: prefs.alwaysOnTop !== false,   // mặc định Pin = on
+        autoHideMenuBar: true,
+        frame: false,
+        skipTaskbar: false,
+        show: false,
+        webPreferences: {
+            contextIsolation: true,
+            sandbox: false,
+            preload: path.join(__dirname, 'gift-list-preload.js')
+        }
+    };
+    if (Number.isFinite(prefs.x) && Number.isFinite(prefs.y)) {
+        opts.x = prefs.x; opts.y = prefs.y;
+    }
+    giftListWindow = new BrowserWindow(opts);
+    giftListWindow.loadURL(`${APP_URL}/gift-list`);
+    giftListWindow.once('ready-to-show', () => {
+        try { giftListWindow.webContents.send('gift-list:initPin', opts.alwaysOnTop); } catch {}
+        giftListWindow.show();
+    });
+    const persistBounds = () => {
+        if (!giftListWindow || giftListWindow.isDestroyed()) return;
+        try {
+            const b = giftListWindow.getBounds();
+            saveGiftListPrefs({ x: b.x, y: b.y, w: b.width, h: b.height });
+        } catch {}
+    };
+    giftListWindow.on('moved',  persistBounds);
+    giftListWindow.on('resize', persistBounds);
+    giftListWindow.on('close',  persistBounds);
+    giftListWindow.on('closed', () => { giftListWindow = null; });
+    giftListWindow.webContents.setWindowOpenHandler(({ url }) => {
+        shell.openExternal(url); return { action: 'deny' };
+    });
+}
+ipcMain.on('gift-list:setAlwaysOnTop', (e, on) => {
+    if (giftListWindow && !giftListWindow.isDestroyed()) {
+        giftListWindow.setAlwaysOnTop(!!on);
+        saveGiftListPrefs({ alwaysOnTop: !!on });
+    }
+});
+ipcMain.on('gift-list:close', () => {
+    if (giftListWindow && !giftListWindow.isDestroyed()) giftListWindow.close();
+});
+ipcMain.on('open-gift-list', () => openGiftListWindow());
 
 // 📂 Chọn file audio từ máy
 ipcMain.handle('sfx:pickAudio', async () => {

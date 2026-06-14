@@ -143,6 +143,14 @@ const GAMES = {
         overlayPath: '/overlay/bancung',
         defaultConfig: makeDefaultBanCungConfig()
     },
+    trongcay: {
+        id: 'trongcay',
+        name: 'Trồng Cây',
+        description: 'Quà làm cây cao lên, tưới nước hồi cây, nắng quá làm héo, quà cắt cây. Hoa là icon quà, bướm là avatar người tặng.',
+        icon: '🌱',
+        overlayPath: '/overlay/trongcay',
+        defaultConfig: makeDefaultTrongCayConfig()
+    },
     'level-quest': {
         id: 'level-quest',
         name: 'LEVEL QUEST',
@@ -272,6 +280,97 @@ function makeDefaultVoteCommentConfig() {
             scale: 100,
             xPercent: 50,
             yPercent: 50
+        }
+    };
+}
+
+// ====== Trồng Cây — defaults ======
+function makeDefaultTrongCayConfig() {
+    return {
+        enabled: true,
+        sessionActive: false,
+        schemaVersion: 2,
+        growthMode: 'perCoin',      // perCoin | perGift | specificGifts
+        perCoinGrowth: 2,            // độ nhạy theo xu — cao để cây vọt nhanh (user đỡ chán)
+        perGiftGrowth: 5,
+        specificGifts: [],           // [{ giftId, giftName, giftImage, growth }]
+        waterGifts: [],              // [{ giftId, giftName, giftImage, water, growth }]
+        waterCommentRequired: true,
+        waterCommentKeyword: 'tuoicay',
+        waterCommentWindowSeconds: 30,
+        sunGifts: [],                // [{ giftId, giftName, giftImage, sun, wilt }]
+        cutGifts: [],                // [{ giftId, giftName, giftImage, cut }]
+        butterflyGifts: [],          // [{ giftId, giftName, giftImage, lifeSeconds }]
+        beeGifts: [],                // [{ giftId, giftName, giftImage, bees, harvestPerBee }] — ong thợ tới hái trái cây chín
+        beesPerGift: 3,              // số ong mỗi lần tặng quà ong (nếu gift không ghi rõ "bees")
+        beeHarvestPerTrip: 1,        // mỗi con ong hái mấy trái 1 chuyến
+        beePointsPerFruit: 50,       // hái 1 trái → +điểm cho NGƯỜI ĐÃ TẶNG NUÔI cây đó (đẩy Top chăm cây)
+        maxBees: 30,
+        teamMinContributors: 3,      // 1 cây có >= bao nhiêu người cùng góp thì lên màu "TEAM" (cầu vồng)
+        // 🐛 Sâu xanh ăn lá (phá hoại): tới theo quà → ăn lá/trái trên cây hoặc trái rụng dưới đất.
+        caterpillarGifts: [],        // [{ giftId, giftName, giftImage, count }]
+        caterpillarsPerGift: 2,      // số sâu mỗi lần tặng quà sâu (nếu gift không ghi rõ "count")
+        caterpillarBite: 1,          // mỗi lần cắn ăn bao nhiêu % chiều cao cây (chỉnh ở panel "Tỉ lệ sâu phá cây")
+        caterpillarBiteEverySec: 5,  // nhịp ăn — chậm để sâu phá ít, cây lớn nhanh hơn
+        caterpillarStartDelaySec: 5, // sâu xuất hiện xong CHỜ bao lâu mới bắt đầu phá (để có thời gian xịt thuốc)
+        caterpillarLifeSeconds: 75,  // sâu sống bao lâu rồi tự bò đi (nếu không bị xịt)
+        maxCaterpillars: 20,
+        // 🐛→🦋 Sâu KHÔNG bị xịt, ăn hết cây / hết đời → rơi xuống đất hóa NHỘNG, sau N giây TIẾN HÓA
+        //    thành bướm (màu ngọc lục dễ nhận biết) rồi tiếp tục vòng đời đi cứu cây héo.
+        caterpillarEvolves: true,
+        caterpillarPupaSeconds: 8,   // sâu nằm kén dưới đất bao lâu rồi nở thành bướm
+        maxPupae: 16,
+        // 🧴 Thuốc trừ sâu: tới theo quà → xịt khu có sâu, bảo vệ vùng đó, sâu rụng thành xác.
+        sprayGifts: [],              // [{ giftId, giftName, giftImage, protectSeconds }]
+        sprayProtectSeconds: 30,     // vùng được bảo vệ bao lâu (sâu không vào/không ăn được)
+        sprayRadiusPercent: 28,      // bán kính vùng bảo vệ quanh điểm xịt (theo % bề ngang)
+        maxCaterpillarCorpses: 36,   // trần số xác sâu dồn dưới đất
+        // ⏱️ Hiệu ứng thời tiết tới TRƯỚC, tác dụng lên cây áp sau (đúng nhân quả: mưa rơi → cây mới tươi).
+        weatherEffectDelaySec: 1.0,  // tưới/nắng: chờ mưa/nắng "rơi xuống" bao lâu rồi mới đổi trạng thái cây
+        cutSnipDelaySec: 1.8,        // kéo lia qua lại bao lâu rồi mới thực sự cắt (khớp animation overlay)
+        carnivorousGifts: [],        // [{ giftId, giftName, giftImage, damage }]
+        // 🐉 Rồng lửa phá hoại: bay vào → lượn → phun lửa thiêu rụi cả vườn → cây cháy đen N giây rồi rồng bay đi.
+        //    Đốt xong XÓA hết cây nhưng GIỮ Top người chăm cây & điểm tích lũy (không reset bảng xếp hạng).
+        dragonGifts: [],             // [{ giftId, giftName, giftImage, burnSeconds }]
+        dragonBurnSeconds: 10,       // mặc định cây cháy thành tro đen bao lâu rồi tan (nếu gift không ghi rõ)
+        maxHeight: 100,
+        initialHeight: 30,
+        initialWater: 55,
+        initialSun: 28,
+        initialWilt: 0,
+        waterLossPerSecond: 0.22,
+        sunReturnPerSecond: 0.18,
+        wiltGainPerSecond: 0.45,
+        wiltRecoverPerSecond: 0.28,
+        wiltGrowthBlockAt: 62,
+        wiltShrinkPerSecond: 1.4,
+        deadPlantBelowHeight: 1.2,
+        fruitsPerHarvest: 3,         // số trái mỗi lần cây chạm 100% (hoặc được tặng thêm khi đã chín)
+        maxFruitsPerPlant: 12,       // trần trái treo trên 1 cây (chỉ để vẽ cho đẹp)
+        fruitDropWilt: 55,           // cây héo tới mức này → trái chín bắt đầu rụng xuống đất
+        fruitDropChancePerSec: 0.6,  // tốc độ rụng (xác suất rụng 1 trái mỗi giây khi đang héo)
+        groundFruitMax: 40,          // trần số trái nằm dưới đất
+        butterflyLifeSeconds: 45,
+        butterflySunDamagePerSecond: 2.4,
+        butterflyHealPerSecond: 1.6,   // 🦋 bướm đậu cây YẾU (héo) hồi bao nhiêu héo mỗi giây (chia nhau chữa cây yếu)
+        predatorChancePerSecond: 0.006,
+        carnivoreDamage: 55,
+        maxFlowers: 80,
+        maxButterflies: 28,
+        display: {
+            gardenXPercent: 50,
+            gardenYPercent: 82,
+            scale: 100,
+            stemCount: 7,
+            showStatus: true,
+            showNames: true,
+            showButterflies: true,
+            showBees: true,
+            showCaterpillars: true,
+            showFlowers: true,
+            showWeatherFx: true,
+            showDragon: true,
+            theme: 'cute'
         }
     };
 }
@@ -917,9 +1016,20 @@ if (appConfig.games.nhietdo) {
     const def = makeDefaultNhietDoConfig();
     appConfig.games.nhietdo.display = { ...def.display, ...(appConfig.games.nhietdo.display || {}) };
 }
+if (appConfig.games.trongcay) {
+    const def = makeDefaultTrongCayConfig();
+    appConfig.games.trongcay.display = { ...def.display, ...(appConfig.games.trongcay.display || {}) };
+    for (const k of Object.keys(def)) {
+        if (k !== 'display' && !(k in appConfig.games.trongcay)) appConfig.games.trongcay[k] = def[k];
+    }
+    if ((Number(appConfig.games.trongcay.schemaVersion) || 1) < 2) {
+        appConfig.games.trongcay.schemaVersion = 2;
+        appConfig.games.trongcay.initialHeight = 0;
+    }
+}
 // Mỗi lần mở app → các game có "phiên" (session) về DỪNG, buộc bấm ▶ Bắt đầu mới chạy.
 // Khắc phục triệu chứng popup Khởi động nhanh "tự hiển thị Đang chạy" do config cũ lưu sessionActive:true.
-for (const gId of ['nhietdo', 'bancung']) {
+for (const gId of ['nhietdo', 'bancung', 'trongcay']) {
     if (appConfig.games[gId]) appConfig.games[gId].sessionActive = false;
 }
 appConfig.liveTranslate = {
@@ -1745,24 +1855,43 @@ async function loadGiftSheet() {
         console.warn('[gift-sheet] License-server fail:', e.message);
         serverFailed = true;
     }
-    // Fallback: nếu server empty hoặc fail → fetch trực tiếp Google Sheet
-    if (serverFailed || listFromServer.length === 0) {
-        console.log('[gift-sheet] License-server empty → fallback fetch Google Sheet trực tiếp...');
+    // Đánh giá chất lượng data từ license-server. KHÔNG chỉ check length===0:
+    // sheet nguồn ở VPS có thể bị hỏng/lệch cột → trả về NHIỀU dòng nhưng (gần
+    // như) không dòng nào có icon (vd chỉ còn dòng mẫu 111,222,333,... rỗng
+    // name+image). Nếu hiển thị thẳng thì catalog mất sạch icon dù sheet thật
+    // vẫn ổn → coi như invalid để fallback Google Sheet trực tiếp.
+    const imgCount = (arr) => arr.filter(g => g && g.image && String(g.image).trim()).length;
+    const serverImg = imgCount(listFromServer);
+    const serverDataBad = listFromServer.length > 0 && serverImg < listFromServer.length * 0.5;
+    if (serverDataBad) {
+        console.warn(`[gift-sheet] License-server trả ${listFromServer.length} quà nhưng chỉ ${serverImg} có icon → coi như hỏng.`);
+    }
+    // Fallback: server empty, fail, HOẶC data hỏng (mất icon) → fetch trực tiếp Google Sheet
+    if (serverFailed || listFromServer.length === 0 || serverDataBad) {
+        console.log('[gift-sheet] Fallback fetch Google Sheet trực tiếp...');
         try {
-            listFromServer = await fetchGiftSheetDirect();
-            console.log(`[gift-sheet] Fallback OK: ${listFromServer.length} quà từ Google Sheet`);
+            const direct = await fetchGiftSheetDirect();
+            // Chỉ thay bằng data trực tiếp nếu nó tốt hơn (nhiều icon hơn) — tránh
+            // thay data server bằng data trực tiếp cũng rỗng/ít hơn.
+            if (direct.length > 0 && imgCount(direct) >= serverImg) {
+                console.log(`[gift-sheet] Fallback OK: ${direct.length} quà từ Google Sheet (${imgCount(direct)} có icon)`);
+                listFromServer = direct;
+            } else {
+                console.warn(`[gift-sheet] Google Sheet trực tiếp không tốt hơn (${imgCount(direct)} icon/${direct.length}) — giữ nguồn cũ.`);
+            }
         } catch (e) {
             console.error('[gift-sheet] Fallback cũng fail:', e.message);
         }
     }
-    // Cả license-server lẫn Google Sheet đều fail (firewall, AV, no internet)
-    // → fall back về cache đĩa nếu có. Không ghi đè giftList hiện tại bằng [].
-    if (listFromServer.length === 0) {
+    // Sau fallback vẫn rỗng HOẶC vẫn mất icon (cả license-server lẫn Google Sheet
+    // đều hỏng/không reach) → ưu tiên cache đĩa nếu cache tốt hơn. Không ghi đè
+    // giftList tốt bằng data rỗng/rác.
+    if (listFromServer.length === 0 || imgCount(listFromServer) < listFromServer.length * 0.5) {
         const cached = loadGiftCacheFromDisk();
-        if (cached.length > 0) {
-            console.warn(`[gift-sheet] Network fail toàn bộ → dùng cache đĩa: ${cached.length} quà`);
+        if (cached.length > 0 && imgCount(cached) > imgCount(listFromServer)) {
+            console.warn(`[gift-sheet] Data hiện tại thiếu icon → dùng cache đĩa: ${cached.length} quà (${imgCount(cached)} có icon)`);
             listFromServer = cached;
-        } else {
+        } else if (listFromServer.length === 0) {
             console.error('[gift-sheet] Network fail VÀ không có cache → giữ giftList hiện tại');
             // Không reset. giftList giữ nguyên (có thể có data eager-load lúc init, hoặc rỗng nếu install mới).
             io.emit('giftSheet', giftList);
@@ -1778,10 +1907,35 @@ async function loadGiftSheet() {
     }
     // Ghi cache đĩa MỖI lần load thành công — máy chỉ cần online 1 lần là gift
     // sheet persist mãi mãi cho các lần khởi động sau (kể cả offline).
-    saveGiftCacheToDisk(giftList);
+    // Chỉ ghi khi data tốt (đủ icon) để không phá cache tốt bằng data rác.
+    if (giftList.length > 0 && imgCount(giftList) >= giftList.length * 0.5) {
+        saveGiftCacheToDisk(giftList);
+    } else {
+        console.warn(`[gift-sheet] Bỏ qua ghi cache: data thiếu icon (${imgCount(giftList)}/${giftList.length}) — giữ cache cũ.`);
+    }
     console.log(`[gift-sheet] Đã tải ${giftList.length} quà (sort theo Kim Cương ASC).`);
     io.emit('giftSheet', giftList);
     return giftList;
+}
+
+function pickRandomGiftSheetItem() {
+    const usable = giftList.filter(g => g && g.id && (g.image || g.name));
+    const list = usable.length ? usable : giftList.filter(g => g && g.id);
+    return list.length ? list[Math.floor(Math.random() * list.length)] : null;
+}
+
+const TEST_GIFT_IMAGE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect x="12" y="32" width="56" height="38" rx="8" fill="%23ff5fa3"/><rect x="36" y="28" width="8" height="42" fill="%23ffe66d"/><rect x="8" y="24" width="64" height="16" rx="6" fill="%23ff7ab8"/><path d="M40 24 C24 12 20 22 28 28 C33 32 38 29 40 24 ZM40 24 C56 12 60 22 52 28 C47 32 42 29 40 24 Z" fill="%23ffe66d"/></svg>';
+
+function makeTestGiftPayload(body = {}) {
+    const requestedId = String(body.giftId || '').trim();
+    const sheetItem = requestedId ? giftMap[requestedId] : pickRandomGiftSheetItem();
+    const giftId = String(requestedId || sheetItem?.id || ('test-gift-' + Math.max(1, Math.ceil(Math.random() * 5))));
+    return {
+        giftId,
+        giftName: sheetItem?.name || body.giftName || ('Quà Test ' + String(giftId).replace('test-gift-', '#')),
+        giftImage: sheetItem?.image || body.giftImage || body.giftPicture || TEST_GIFT_IMAGE,
+        coinValue: Math.max(1, Number(sheetItem?.diamond ?? body.coinValue ?? body.diamondCount ?? 20) || 20)
+    };
 }
 
 // ============================================================
@@ -1882,6 +2036,7 @@ function attachConnectionEvents(conn) {
         maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'chat', verified, userId);
         try { handleVipWelcomeEvent('comment', { uniqueId, nickname, level, profilePicture, verified, comment }); } catch (e) {}
         try { handleVoteCommentChat({ uniqueId, comment }); } catch (e) {}
+        try { handleTrongCayChat({ uniqueId, comment }); } catch (e) {}
     });
 
     conn.on(WebcastEvent.GIFT, (data) => {
@@ -2710,6 +2865,20 @@ function emitGift(g) {
             repeatCount: g.repeatCount || 1
         });
     } catch (e) { /* non-fatal */ }
+    // Trồng Cây — quà mọc hoa / bướm avatar / tưới nước / nắng / cắt cây
+    try {
+        handleTrongCayGift({
+            uniqueId: g.uniqueId,
+            nickname: g.nickname,
+            profilePicture: g.profilePicture || '',
+            giftId: g.giftId,
+            giftName: enriched.giftName || g.giftName,
+            giftImage: enriched.image,
+            coinValue: enriched.coinValue || 0,
+            repeatCount: g.repeatCount || 1,
+            source: g.source || ''
+        });
+    } catch (e) { /* non-fatal */ }
 }
 
 function makeTikTokConnectOptions(extra = {}) {
@@ -3219,10 +3388,10 @@ app.post('/api/games/:id/config', (req, res) => {
     if (!g) return res.status(404).json({ ok: false, error: 'Không tìm thấy game' });
     const prevConfig = appConfig.games[g.id] || {};
     const prevEnabled = prevConfig.enabled !== false;
-    // Deep-merge display sub-object cho nhietdo/bancung — phòng case partial POST
+    // Deep-merge display sub-object cho game server-authoritative — phòng case partial POST
     // (panel chỉ gửi subset of display fields). Whoever posts last wins per-field.
     const incoming = req.body || {};
-    if ((g.id === 'nhietdo' || g.id === 'bancung') && incoming.display && prevConfig.display) {
+    if ((g.id === 'nhietdo' || g.id === 'bancung' || g.id === 'trongcay') && incoming.display && prevConfig.display) {
         incoming.display = { ...prevConfig.display, ...incoming.display };
     }
     appConfig.games[g.id] = { ...appConfig.games[g.id], ...incoming };
@@ -3245,6 +3414,10 @@ app.post('/api/games/:id/config', (req, res) => {
         try { global.__bancungApplyHotkeys?.(appConfig.games.bancung); } catch (e) {}
         broadcastBanCungState({ immediate: true });
     }
+    if (g.id === 'trongcay') {
+        try { trongCayApplyConfigToState(appConfig.games.trongcay); } catch (e) {}
+        broadcastTrongCayState({ immediate: true });
+    }
     const newEnabled = appConfig.games[g.id].enabled !== false;
     saveAppConfig();
     io.emit('gameConfig', { gameId: g.id, config: appConfig.games[g.id] });
@@ -3266,6 +3439,8 @@ app.post('/api/games/:id/config', (req, res) => {
         } else if (g.id === 'bancung') {
             // Khi tắt → reset HP về full để khi bật lại không bị "chết treo"
             banCungReset();
+        } else if (g.id === 'trongcay') {
+            trongCayReset();
         }
         // Generic event cho mọi game — overlay nào lắng nghe sẽ tự clear
         io.emit('gameDisabled', { gameId: g.id, ts: Date.now() });
@@ -3919,20 +4094,19 @@ app.post('/api/games/:id/test-gift', (req, res) => {
     const g = GAMES[req.params.id];
     if (!g) return res.status(404).json({ ok: false, error: 'Không tìm thấy game' });
     const body = req.body || {};
-    const giftId = String(body.giftId || '');
-    const sheetItem = giftMap[giftId];
+    const testGift = makeTestGiftPayload(body);
     const repeatCount = parseInt(body.count, 10) || 1;
     emitGift({
         uniqueId: body.uniqueId || 'tester',
         nickname: body.nickname || 'HP Media',
-        giftId,
-        giftName: sheetItem?.name || body.giftName || 'Gift',
-        giftPicture: sheetItem?.image,
-        diamondCount: sheetItem?.diamond,
+        giftId: testGift.giftId,
+        giftName: testGift.giftName,
+        giftPicture: testGift.giftImage,
+        diamondCount: testGift.coinValue,
         repeatCount,
         source: 'test'
     });
-    res.json({ ok: true });
+    res.json({ ok: true, gift: testGift });
 });
 
 // OBS overlay (transparent fullpage)
@@ -3950,6 +4124,9 @@ app.get('/overlay/vipwelcome', (req, res) => {
 });
 app.get('/overlay/votecomment', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'votecomment', 'overlay.html'));
+});
+app.get('/overlay/trongcay', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'trongcay', 'overlay.html'));
 });
 app.get('/overlay/translate', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'overlay', 'translate.html'));
@@ -4533,6 +4710,1200 @@ app.get('/api/games/nhietdo/asset/:fn', (req, res) => {
     const fp = path.join(NHIETDO_ASSETS_DIR, fn);
     if (!fs.existsSync(fp)) return res.status(404).end();
     res.sendFile(fp);
+});
+
+// ============================================================
+// TRỒNG CÂY — live state + gift hook (grow/water/sun/cut/butterfly)
+// ============================================================
+let trongCayState = {
+    height: 0,
+    water: 55,
+    sun: 28,
+    wilt: 0,
+    plants: [],
+    flowers: [],
+    groundFruits: [],        // trái chín rụng xuống đất khi cây héo → { id, x%, uniqueId, nickname, ts }
+    butterflies: [],
+    butterflyUsers: {},
+    caterpillars: [],        // 🐛 sâu đang ăn → { id, plantId, onGround, x%, bornAt, lastBiteAt, dying }
+    corpses: [],             // 🐛 xác sâu dồn dưới đất sau khi bị xịt → { id, x%, ts }
+    pupae: [],               // 🐛→🦋 sâu sống sót hóa nhộng dưới đất → { id, x%, evolveAt, avatar, nickname, uniqueId }
+    protectedZones: [],      // 🧴 vùng vừa xịt thuốc, sâu không vào/ăn được → { x0%, x1%, until }
+    stemCuts: {},
+    contributors: {},        // uid → { nickname, avatar, score, drops, lastAt } — Top người chăm cây
+    milestoneReached: 0,     // mốc % cao nhất đã đạt (25/50/75/100) để không bắn lại
+    harvestCount: 0,         // số cây đã thu hoạch trong buổi LIVE
+    blooming: false,         // đang trong pha nở hoa chờ thu hoạch
+    lastGiftAt: 0,
+    updatedAt: Date.now()
+};
+let trongCayLastTickAt = Date.now();
+let trongCayLastBroadcast = 0;
+let trongCayPendingBroadcast = null;
+// 🐉 Rồng lửa — mốc thời gian "đang thiêu". Trong lúc cháy: tick đóng băng (cây giữ nguyên để
+//    overlay vẽ cháy đen), bỏ qua quà tới. Hết tổng thời gian → đốt rụi cây (giữ Top/điểm).
+//    Các hằng số NÀY PHẢI KHỚP với overlay.html (preburnMs/charMs/fadeMs cũng gửi kèm event).
+const TC_DRAGON = { PREBURN: 5200, CHAR: 2000, FADE: 1600 };
+function tcDragonTotalMs(burnSec) {
+    return TC_DRAGON.PREBURN + TC_DRAGON.CHAR + trongCayClamp(Number(burnSec) || 10, 2, 60) * 1000 + TC_DRAGON.FADE;
+}
+let trongCayBurnUntil = 0;
+let trongCayBurnTimer = null;
+const trongCayWaterComments = new Map();
+
+function trongCayClamp(v, lo, hi) {
+    v = Number(v);
+    if (!isFinite(v)) return lo;
+    return Math.max(lo, Math.min(hi, v));
+}
+
+function trongCayCommentKey(uniqueId) {
+    return String(uniqueId || '').trim().toLowerCase();
+}
+
+function trongCayNormalizeText(text) {
+    return String(text || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/[^a-z0-9]+/g, '');
+}
+
+function handleTrongCayChat({ uniqueId, comment }) {
+    if (appConfig.games?.trongcay?.enabled === false) return;
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const key = trongCayCommentKey(uniqueId);
+    if (!key) return;
+    const keyword = trongCayNormalizeText(cfg.waterCommentKeyword || 'tuoicay');
+    if (!keyword) return;
+    const normalized = trongCayNormalizeText(comment);
+    if (normalized === keyword || normalized.includes(keyword)) {
+        trongCayWaterComments.set(key, Date.now());
+    }
+}
+
+function trongCayHasRecentWaterComment(uniqueId, cfg) {
+    if (cfg.waterCommentRequired === false) return true;
+    const key = trongCayCommentKey(uniqueId);
+    if (!key) return false;
+    const lastAt = trongCayWaterComments.get(key) || 0;
+    const windowMs = Math.max(3, Number(cfg.waterCommentWindowSeconds) || 30) * 1000;
+    return lastAt > 0 && (Date.now() - lastAt) <= windowMs;
+}
+
+function trongCaySnapshot() {
+    const cfg = appConfig.games?.trongcay;
+    return {
+        height: Math.round(trongCayState.height * 10) / 10,
+        water: Math.round(trongCayState.water * 10) / 10,
+        sun: Math.round(trongCayState.sun * 10) / 10,
+        wilt: Math.round(trongCayState.wilt * 10) / 10,
+        plants: trongCayState.plants.slice(-120).map(p => { const { contribs, ...rest } = p; return rest; }),
+        flowers: trongCayState.flowers.slice(-120),
+        groundFruits: (trongCayState.groundFruits || []).slice(-60),
+        caterpillars: (trongCayState.caterpillars || []).slice(-30),
+        corpses: (trongCayState.corpses || []).slice(-40),
+        pupae: (trongCayState.pupae || []).slice(-20),
+        protectedZones: (trongCayState.protectedZones || []).filter(z => z.until > Date.now()),
+        butterflies: trongCayState.butterflies.slice(-40),
+        stemCuts: { ...(trongCayState.stemCuts || {}) },
+        top: trongCayTopContributors(3),
+        harvestCount: Number(trongCayState.harvestCount) || 0,
+        milestone: Number(trongCayState.milestoneReached) || 0,
+        blooming: !!trongCayState.blooming,
+        burning: Date.now() < trongCayBurnUntil,   // 🐉 overlay tải lại giữa pha cháy thì biết để không vẽ sai
+        lastGiftAt: trongCayState.lastGiftAt,
+        sessionActive: cfg ? (cfg.sessionActive !== false) : true,
+        enabled: cfg ? (cfg.enabled !== false) : true,
+        updatedAt: trongCayState.updatedAt
+    };
+}
+
+function broadcastTrongCayState({ immediate = false } = {}) {
+    const send = () => {
+        trongCayLastBroadcast = Date.now();
+        trongCayPendingBroadcast = null;
+        io.emit('trongcay:state', trongCaySnapshot());
+    };
+    if (immediate) {
+        if (trongCayPendingBroadcast) { clearTimeout(trongCayPendingBroadcast); trongCayPendingBroadcast = null; }
+        return send();
+    }
+    const now = Date.now();
+    const wait = Math.max(0, 250 - (now - trongCayLastBroadcast));
+    if (trongCayPendingBroadcast) return;
+    trongCayPendingBroadcast = setTimeout(send, wait);
+}
+
+function trongCayApplyConfigToState(cfg) {
+    if (!cfg) cfg = makeDefaultTrongCayConfig();
+    const maxH = Math.max(20, Number(cfg.maxHeight) || 100);
+    trongCayState.height = trongCayClamp(trongCayState.height, 0, maxH);
+    trongCayState.water = trongCayClamp(trongCayState.water, 0, 100);
+    trongCayState.sun = trongCayClamp(trongCayState.sun, 0, 100);
+    trongCayState.wilt = trongCayClamp(trongCayState.wilt, 0, 100);
+}
+
+function trongCayReset() {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    // Vườn luôn bắt đầu trống. Cây/hoa chỉ xuất hiện sau gift hoặc nút test gift.
+    trongCayState.height = 0;
+    trongCayState.water = trongCayClamp(cfg.initialWater == null ? 55 : Number(cfg.initialWater), 0, 100);
+    trongCayState.sun = trongCayClamp(cfg.initialSun == null ? 28 : Number(cfg.initialSun), 0, 100);
+    trongCayState.wilt = trongCayClamp(cfg.initialWilt == null ? 0 : Number(cfg.initialWilt), 0, 100);
+    trongCayState.plants = [];
+    trongCayState.flowers = [];
+    trongCayState.groundFruits = [];
+    trongCayState.caterpillars = [];
+    trongCayState.corpses = [];
+    trongCayState.pupae = [];
+    trongCayState.protectedZones = [];
+    trongCayState.butterflies = [];
+    trongCayState.butterflyUsers = {};
+    trongCayState.stemCuts = {};
+    trongCayState.contributors = {};
+    trongCayState.milestoneReached = 0;
+    trongCayState.harvestCount = 0;
+    trongCayState.blooming = false;
+    trongCayState.lastGiftAt = 0;
+    trongCayState.updatedAt = Date.now();
+    broadcastTrongCayState({ immediate: true });
+}
+
+// 🐉 Rồng lửa thiêu rụi vườn nhưng GIỮ Top người chăm cây & điểm tích lũy.
+//    Khác trongCayReset ở chỗ KHÔNG xóa contributors & harvestCount.
+function trongCayDragonClear() {
+    trongCayState.height = 0;
+    trongCayState.plants = [];
+    trongCayState.flowers = [];
+    trongCayState.groundFruits = [];
+    trongCayState.caterpillars = [];
+    trongCayState.corpses = [];
+    trongCayState.pupae = [];
+    trongCayState.protectedZones = [];
+    trongCayState.butterflies = [];
+    trongCayState.butterflyUsers = {};
+    trongCayState.stemCuts = {};
+    trongCayState.blooming = false;
+    trongCayState.milestoneReached = 0;   // trồng lại từ đầu → cho ăn mừng mốc lại
+    trongCayState.wilt = 0;
+    // GIỮ NGUYÊN: contributors (Top), harvestCount (điểm/đếm thu hoạch)
+    trongCayState.updatedAt = Date.now();
+    broadcastTrongCayState({ immediate: true });
+}
+
+// 🐉 Khởi động pha rồng tấn công. Overlay tự lo toàn bộ choreography theo các mốc gửi kèm.
+//    Server: chụp trạng thái cây hiện tại (broadcast) → emit event → đóng băng → hết giờ đốt rụi.
+function trongCayDragonAttack({ nickname, uniqueId, profilePicture, burnSeconds } = {}) {
+    if (appConfig.games?.trongcay?.enabled === false) return;
+    trongCayEnsureSessionActive();
+    const now = Date.now();
+    if (now < trongCayBurnUntil) return;   // đang cháy → bỏ qua quà rồng trùng lặp
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const burnSec = trongCayClamp(Number(burnSeconds) || Number(cfg.dragonBurnSeconds) || 10, 2, 60);
+    if (cfg.display?.showDragon === false) {
+        // Tắt hiển thị rồng → vẫn thực thi hậu quả (đốt rụi) nhưng không có animation.
+        trongCayDragonClear();
+        return;
+    }
+    broadcastTrongCayState({ immediate: true });   // overlay "chụp" cây hiện tại trước khi đốt
+    io.emit('trongcay:dragon', {
+        nickname: nickname || '', uniqueId: uniqueId || '', avatar: profilePicture || '',
+        burnSeconds: burnSec,
+        preburnMs: TC_DRAGON.PREBURN, charMs: TC_DRAGON.CHAR, fadeMs: TC_DRAGON.FADE,
+        ts: now
+    });
+    const total = tcDragonTotalMs(burnSec);
+    trongCayBurnUntil = now + total;
+    clearTimeout(trongCayBurnTimer);
+    trongCayBurnTimer = setTimeout(() => { trongCayBurnUntil = 0; trongCayDragonClear(); }, total);
+}
+
+function trongCayEnsureSessionActive() {
+    if (!appConfig.games.trongcay) appConfig.games.trongcay = makeDefaultTrongCayConfig();
+    if (appConfig.games.trongcay.sessionActive !== false) return false;
+    appConfig.games.trongcay.sessionActive = true;
+    saveAppConfig();
+    io.emit('gameConfig', { gameId: 'trongcay', config: appConfig.games.trongcay });
+    return true;
+}
+
+function trongCayPickGift(list, giftId) {
+    return Array.isArray(list) ? list.find(g => String(g.giftId) === String(giftId)) : null;
+}
+
+function trongCayComputeGrowth(cfg, { giftId, coinValue, repeatCount }) {
+    const repeat = Math.max(1, Number(repeatCount) || 1);
+    const mode = cfg.growthMode || 'perCoin';
+    if (mode === 'perCoin') {
+        // Dùng sqrt để quà lớn vẫn khác nhau nhưng không cùng đụng trần 100 quá nhanh.
+        // Ví dụ perCoinGrowth=0.25: 15k KC ~= +30.6, 20k KC ~= +35.4.
+        const coins = Math.max(0, Number(coinValue) || 0);
+        return Math.sqrt(coins) * repeat * (Number(cfg.perCoinGrowth) || 0);
+    }
+    if (mode === 'perGift') return repeat * (Number(cfg.perGiftGrowth) || 0);
+    if (mode === 'specificGifts') {
+        const hit = trongCayPickGift(cfg.specificGifts, giftId);
+        return hit ? repeat * (Number(hit.growth) || 0) : 0;
+    }
+    return 0;
+}
+
+function trongCayPickPlantX() {
+    const plants = Array.isArray(trongCayState.plants) ? trongCayState.plants : [];
+    if (plants.length && Math.random() < 0.22) {
+        const near = plants[Math.floor(Math.random() * plants.length)];
+        return Math.round(trongCayClamp((Number(near.x) || 50) + (Math.random() * 24 - 12), 5, 95) * 10) / 10;
+    }
+    if (plants.length < 8) {
+        const slots = [8, 20, 32, 44, 56, 68, 80, 92].filter(x => !plants.some(p => Math.abs((Number(p.x) || 50) - x) < 7));
+        if (slots.length) return Math.round((slots[Math.floor(Math.random() * slots.length)] + (Math.random() * 6 - 3)) * 10) / 10;
+    }
+    return Math.round((6 + Math.random() * 88) * 10) / 10;
+}
+
+function trongCayGrowGiftPlant({ giftId, giftName, giftImage, nickname, uniqueId, coinValue, repeatCount, growth }) {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const grow = Math.max(0, Number(growth) || 0);
+    if (grow <= 0) return null;
+    // Quà LUÔN làm cây xuất hiện / lớn lên — không chặn dù vườn đang héo. Cây mới phải mọc
+    // lên tươi xanh kể cả khi những cây cũ xung quanh đã héo.
+    if (!Array.isArray(trongCayState.plants)) trongCayState.plants = [];
+    const gid = String(giftId || giftName || Date.now());
+    let plant = trongCayState.plants.find(p => String(p.giftId) === gid);
+    const now = Date.now();
+    const repeat = Math.max(1, Number(repeatCount) || 1);
+    const scent = Math.max(1, Math.min(100000, (Number(coinValue) || 1) * repeat));
+    if (!plant) {
+        plant = {
+            id: 'plant-' + gid.replace(/[^a-z0-9_-]/gi, '').slice(0, 32) + '-' + now.toString(36),
+            giftId: gid,
+            giftName: giftName || ('Quà #' + gid),
+            giftImage: giftImage || '',
+            x: trongCayPickPlantX(),
+            height: 0,
+            lean: Math.round((Math.random() * 90 - 45) * 10) / 10,
+            leafSeed: Math.floor(Math.random() * 9999),
+            count: 0,
+            scent: 0,
+            visits: 0,
+            wilt: 0,
+            nickname: nickname || uniqueId || '',
+            uniqueId: uniqueId || '',
+            ripe: false,        // đã đạt 100% & kết trái chưa
+            fruits: 0,          // số trái đang treo trên cây (để vẽ)
+            contribs: {},       // uid → true: những người đã góp nuôi CÂY NÀY (đủ nhiều → TEAM)
+            teamCount: 0,
+            ts: now,
+            lastAt: now
+        };
+        trongCayState.plants.push(plant);
+    }
+    plant.height = trongCayClamp((Number(plant.height) || 0) + grow, 2, Number(cfg.maxHeight) || 100);
+    plant.count = (Number(plant.count) || 0) + repeat;
+    plant.scent = Math.max(Number(plant.scent) || 0, scent);
+    plant.giftName = giftName || plant.giftName;
+    plant.giftImage = giftImage || plant.giftImage;
+    plant.nickname = nickname || plant.nickname;
+    plant.uniqueId = uniqueId || plant.uniqueId;
+    plant.lastAt = now;
+    // Theo dõi NGƯỜI GÓP cho cây này → đủ nhiều người (teamMinContributors) thì cây lên "TEAM".
+    const cuid = String(uniqueId || nickname || '').toLowerCase();
+    if (cuid) { if (!plant.contribs) plant.contribs = {}; plant.contribs[cuid] = true; }
+    plant.teamCount = plant.contribs ? Object.keys(plant.contribs).length : 0;
+    // Tặng quà = chăm cây → cây này xanh tươi trở lại (dù vườn đang héo).
+    plant.wilt = 0;
+    // ===== THU HOẠCH KIỂU "KẾT TRÁI TẠI CHỖ" =====
+    // Cây đạt 100% KHÔNG biến mất. Lần đầu chạm trần → "chín": kết trái + ăn mừng.
+    // Mỗi lần được tặng tiếp khi đã chín → rung cây cho ra thêm trái. Cây luôn đứng đó.
+    const maxH = Number(cfg.maxHeight) || 100;
+    if (plant.height >= maxH - 0.01) {
+        const fruitsPer = Math.max(1, Number(cfg.fruitsPerHarvest) || 3) * repeat;
+        const maxFruits = Math.max(1, Number(cfg.maxFruitsPerPlant) || 12);
+        const wasRipe = !!plant.ripe;
+        plant.ripe = true;
+        plant.fruits = Math.min(maxFruits, (Number(plant.fruits) || 0) + fruitsPer);
+        trongCayState.harvestCount = (Number(trongCayState.harvestCount) || 0) + fruitsPer;
+        io.emit('trongcay:fruit', {
+            plantId: plant.id, x: plant.x, nickname: plant.nickname,
+            gained: fruitsPer, fruits: plant.fruits, total: trongCayState.harvestCount,
+            first: !wasRipe, ts: now
+        });
+    }
+    const maxFlowers = Math.max(10, Number(cfg.maxFlowers) || 80);
+    while (trongCayState.plants.length > maxFlowers) trongCayState.plants.shift();
+    trongCayState.height = trongCayClamp(Math.max(0, ...trongCayState.plants.map(p => Number(p.height) || 0)), 0, Number(cfg.maxHeight) || 100);
+    trongCayState.updatedAt = now;
+    return plant;
+}
+
+function trongCayAddFlower({ giftId, giftName, giftImage, nickname, uniqueId, coinValue, repeatCount }) {
+    if (!giftImage) return null;
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const stemCount = Math.max(1, Math.min(12, parseInt(cfg.display?.stemCount, 10) || 7));
+    const stemIndex = Math.floor(Math.random() * stemCount);
+    const repeat = Math.max(1, Number(repeatCount) || 1);
+    const scent = Math.max(1, Math.min(100000, (Number(coinValue) || 1) * repeat));
+    const flower = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        giftId: String(giftId || ''),
+        giftName: giftName || '',
+        giftImage: giftImage || '',
+        nickname: nickname || uniqueId || '',
+        uniqueId: uniqueId || '',
+        stemIndex,
+        stemT: Math.round((0.72 + Math.random() * 0.25) * 1000) / 1000,
+        x: 50,
+        y: 50,
+        size: Math.round((44 + Math.random() * 30) * 10) / 10,
+        rot: Math.round(-18 + Math.random() * 36),
+        scent,
+        visits: 0,
+        ts: Date.now()
+    };
+    trongCayState.flowers.push(flower);
+    const maxFlowers = Math.max(10, Number(cfg.maxFlowers) || 80);
+    while (trongCayState.flowers.length > maxFlowers) trongCayState.flowers.shift();
+    return flower;
+}
+
+function trongCayPickButterflyFlower(fallbackFlower) {
+    const plants = (trongCayState.plants || []).filter(p => p && p.giftImage);
+    if (plants.length) {
+        let bestPlant = plants[0];
+        let bestPlantScore = -Infinity;
+        for (const p of plants) {
+            const scentScore = Math.sqrt(Math.max(1, Number(p.scent) || 1)) * 4.2;
+            const highScore = (Number(p.height) || 0) * 2.5;
+            const popularScore = Math.min(8, Number(p.visits) || 0) * 3;
+            const score = scentScore + highScore + popularScore + Math.random() * 60;
+            if (score > bestPlantScore) { bestPlantScore = score; bestPlant = p; }
+        }
+        bestPlant.visits = (Number(bestPlant.visits) || 0) + 1;
+        return { id: bestPlant.id, plantId: bestPlant.id, x: bestPlant.x, y: 50, scent: bestPlant.scent, visits: bestPlant.visits };
+    }
+    const flowers = (trongCayState.flowers || []).filter(f => f && f.giftImage);
+    if (!flowers.length) return fallbackFlower || null;
+    let best = fallbackFlower || flowers[flowers.length - 1];
+    let bestScore = -Infinity;
+    for (const f of flowers) {
+        // Ưu tiên hoa "thơm" (quà giá trị hơn) và hoa cao hơn (y nhỏ hơn), thêm random nhẹ để tự nhiên.
+        const scentScore = Math.sqrt(Math.max(1, Number(f.scent) || 1)) * 4.2;
+        const highScore = (100 - trongCayClamp(f.y, 0, 100)) * 2.1;
+        const popularScore = Math.min(8, Number(f.visits) || 0) * 4;
+        const score = scentScore + highScore + popularScore + Math.random() * 55;
+        if (score > bestScore) { bestScore = score; best = f; }
+    }
+    best.visits = (Number(best.visits) || 0) + 1;
+    return best;
+}
+
+// Chọn cây cho bướm: NGOÀI việc đậu cây đẹp nhất (cao/thơm), nếu vườn có cây YẾU (héo nặng)
+// thì ~62% bướm bay tới CHỮA LÀNH cây yếu — chia theo mức héo nên nhiều bướm tự toả ra mỗi
+// con một cây yếu khác nhau. Bướm "heal" sẽ hồi héo cho cây đó dần trong lúc đậu (xử lý ở tick).
+function trongCayPickButterflyTarget(flower, preferHeal) {
+    const WEAK = 38;   // ngưỡng "yếu" (khớp ngưỡng đổi màu héo của overlay)
+    // Chỉ chữa cây CÒN ĐỦ CAO (>=10) — cây bị ăn trụi chỉ còn gốc thì bỏ qua, để bướm không sà
+    // xuống sát đất đậu lên mẩu cây cụt (trông như "nằm dưới đất").
+    const plants = (trongCayState.plants || []).filter(p => p && (Number(p.height) || 0) > 0);
+    const weak = plants.filter(p => (Number(p.wilt) || 0) >= WEAK && (Number(p.height) || 0) >= 10);
+    // Bướm tiến hóa (preferHeal) gần như LUÔN bay đi cứu cây héo; bướm quà thường ~62%.
+    if (weak.length && Math.random() < (preferHeal ? 0.92 : 0.62)) {
+        let best = weak[0], bestScore = -Infinity;
+        for (const p of weak) {
+            const score = (Number(p.wilt) || 0) * 1.5 + Math.random() * 55;   // càng héo càng ưu tiên + random để chia đều
+            if (score > bestScore) { bestScore = score; best = p; }
+        }
+        best.visits = (Number(best.visits) || 0) + 1;
+        return { id: best.id, plantId: best.id, x: best.x, y: 50, scent: best.scent, visits: best.visits, heal: true };
+    }
+    const t = trongCayPickButterflyFlower(null);
+    if (t) t.heal = false;
+    return t;
+}
+// Cây CAO NHẤT mà user này đã góp nuôi → dùng để tính độ rực rỡ + cờ TEAM cho con bướm của họ.
+function trongCaySenderTree(uid) {
+    const u = String(uid || '').toLowerCase();
+    if (!u) return { height: 0, teamCount: 0 };
+    let best = null;
+    for (const p of (trongCayState.plants || [])) {
+        const mine = String(p.uniqueId || '').toLowerCase() === u || (p.contribs && p.contribs[u]);
+        if (!mine) continue;
+        if (!best || (Number(p.height) || 0) > (Number(best.height) || 0)) best = p;
+    }
+    return best ? { height: Number(best.height) || 0, teamCount: Number(best.teamCount) || 0 } : { height: 0, teamCount: 0 };
+}
+function trongCayAddButterfly({ profilePicture, nickname, uniqueId }, flower, opts = {}) {
+    const evolved = !!opts.evolved;
+    const target = trongCayPickButterflyTarget(flower, evolved);   // bướm tiến hóa ưu tiên cứu cây héo
+    if (!target) return;
+    if (!profilePicture && !evolved) return;   // bướm quà cần avatar; bướm tiến hóa thì không bắt buộc
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    if (Array.isArray(cfg.butterflyGifts) && cfg.butterflyGifts.length) {
+        // Reserved for panel-specific butterfly gifts later. Empty list means all accepted gifts.
+    }
+    // Đẳng cấp: cây của user càng CAO → bướm của user đó càng rực rỡ/phát sáng. Cây nhiều
+    // người góp (>= teamMinContributors) → bướm lên màu TEAM (cầu vồng) + sáng hơn.
+    const maxH = Number(cfg.maxHeight) || 100;
+    const teamMin = Math.max(2, Number(cfg.teamMinContributors) || 3);
+    const mine = trongCaySenderTree(uniqueId);
+    const level = Math.round(trongCayClamp(mine.height / maxH, 0, 1) * 100) / 100;
+    const butterfly = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        avatar: profilePicture || '',
+        nickname: nickname || uniqueId || '',
+        uniqueId: uniqueId || '',
+        level,                                   // 0..1 theo chiều cao cây cao nhất của user
+        team: mine.teamCount >= teamMin,         // cây của user là cây TEAM (nhiều người góp)
+        teamCount: mine.teamCount,
+        evolved,                                 // 🐛→🦋 bướm tiến hóa từ sâu → màu ngọc lục riêng
+        // Bướm tiến hóa BAY LÊN TỪ kén dưới đất (opts.fromX/Y); bướm quà bay vào từ mép màn hình.
+        fromX: opts.fromX != null ? opts.fromX : (Math.random() < 0.5 ? -10 : 110),
+        fromY: opts.fromY != null ? opts.fromY : Math.round((18 + Math.random() * 52) * 10) / 10,
+        midX: Math.round((20 + Math.random() * 60) * 10) / 10,
+        midY: Math.round((8 + Math.random() * 26) * 10) / 10,
+        toX: target.x,
+        toY: target.y,
+        flowerId: target.id,
+        plantId: target.plantId || '',
+        heal: evolved ? true : !!target.heal,    // 🦋 bướm chữa lành cây yếu (hồi héo trong lúc đậu)
+        durationMs: 3200 + Math.round(Math.random() * 1800),
+        wanderMs: 26000 + Math.round(Math.random() * 18000),
+        ts: Date.now()
+    };
+    trongCayState.butterflies.push(butterfly);
+    const maxButterflies = Math.max(5, Number(cfg.maxButterflies) || 28);
+    while (trongCayState.butterflies.length > maxButterflies) trongCayState.butterflies.shift();
+    io.emit('trongcay:butterfly', butterfly);
+}
+
+function trongCayApplyDelta({ growth = 0, water = 0, sun = 0, wilt = 0, cut = 0 } = {}) {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const maxH = Math.max(20, Number(cfg.maxHeight) || 100);
+    if (cut) growth = 0;
+    trongCayState.height = trongCayClamp(trongCayState.height + (Number(growth) || 0), 0, maxH);
+    trongCayState.water = trongCayClamp(trongCayState.water + (Number(water) || 0), 0, 100);
+    trongCayState.sun = trongCayClamp(trongCayState.sun + (Number(sun) || 0), 0, 100);
+    trongCayState.wilt = trongCayClamp(trongCayState.wilt + (Number(wilt) || 0), 0, 100);
+    if (water > 0) trongCayState.wilt = trongCayClamp(trongCayState.wilt - Math.abs(water) * 0.35, 0, 100);
+    if (growth > 0) trongCayState.wilt = trongCayClamp(trongCayState.wilt - growth * 0.08, 0, 100);
+    // Tưới nước = chăm cả vườn → mọi cây hồi héo (panel: "Tưới lại sẽ hồi héo").
+    if ((Number(water) || 0) > 0 && Array.isArray(trongCayState.plants)) {
+        for (const p of trongCayState.plants) p.wilt = trongCayClamp((Number(p.wilt) || 0) - Math.abs(water) * 0.5, 0, 100);
+    }
+    trongCayState.updatedAt = Date.now();
+}
+
+// CHỌN mục tiêu cắt (chưa cắt). Trả { evt } để bắn cho kéo bay tới, và apply(amount) để
+// thực sự cắt — gọi SAU khi kéo lia xong (snip), tránh cây tụt chiều cao trước khi kéo cắt.
+function trongCayPickCut() {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const maxH = Number(cfg.maxHeight) || 100;
+    // Độ cao cắt NGẪU NHIÊN rải rộng (0.30 → 0.94 thân cây) thay vì luôn sát gốc → mỗi lần
+    // tặng quà kéo cắt ở một vị trí khác nhau cho sinh động (overlay đặt kéo theo cutT này).
+    const cutT = Math.round((0.30 + Math.random() * 0.64) * 100) / 100;
+    const plants = Array.isArray(trongCayState.plants) ? trongCayState.plants.filter(p => (Number(p.height) || 0) > 0) : [];
+    if (plants.length) {
+        const plant = plants[Math.floor(Math.random() * plants.length)];
+        return {
+            evt: { plantId: plant.id, x: plant.x, cutT },
+            apply(amount) {
+                plant.height = trongCayClamp((Number(plant.height) || 0) - Math.max(1, Number(amount) || 10), 0, maxH);
+                plant.lastAt = Date.now();
+                trongCayState.height = trongCayClamp(Math.max(0, ...trongCayState.plants.map(p => Number(p.height) || 0)), 0, maxH);
+                trongCayState.wilt = trongCayClamp(trongCayState.wilt + 4, 0, 100);
+                trongCayState.updatedAt = Date.now();
+            }
+        };
+    }
+    const count = Math.max(1, Math.min(12, parseInt(cfg.display?.stemCount, 10) || 7));
+    const idx = Math.floor(Math.random() * count);
+    return {
+        evt: { stemIndex: idx, cutT },
+        apply(amount) {
+            const cur = Number(trongCayState.stemCuts?.[idx]) || 0;
+            if (!trongCayState.stemCuts) trongCayState.stemCuts = {};
+            trongCayState.stemCuts[idx] = trongCayClamp(cur + Math.max(1, Number(amount) || 10), 0, 92);
+            trongCayState.wilt = trongCayClamp(trongCayState.wilt + 4, 0, 100);
+            trongCayState.updatedAt = Date.now();
+        }
+    };
+}
+// Kéo lia vài vòng (overlay) rồi mới cắt → áp tác dụng cắt sau cutSnipDelaySec.
+function trongCayCutDelayed(target, amount) {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const snipMs = Math.max(0, Number(cfg.cutSnipDelaySec) || 1.8) * 1000;
+    const apply = () => { try { target.apply(amount); broadcastTrongCayState({ immediate: true }); } catch (e) {} };
+    if (snipMs <= 0) apply(); else setTimeout(apply, snipMs);
+}
+
+// ===== Top người chăm cây (leaderboard) =====
+function trongCayAddContrib({ uniqueId, nickname, profilePicture, coinValue, repeatCount }) {
+    const uid = String(uniqueId || nickname || '').toLowerCase();
+    if (!uid) return;
+    if (!trongCayState.contributors) trongCayState.contributors = {};
+    const c = trongCayState.contributors[uid] || { uniqueId, nickname: nickname || '', avatar: profilePicture || '', score: 0, drops: 0, lastAt: 0 };
+    if (nickname) c.nickname = nickname;
+    if (profilePicture) c.avatar = profilePicture;
+    c.score += Math.max(1, Number(coinValue) || 0) * Math.max(1, Number(repeatCount) || 1);
+    c.drops += Math.max(1, Number(repeatCount) || 1);
+    c.lastAt = Date.now();
+    trongCayState.contributors[uid] = c;
+}
+function trongCayTopContributors(n = 3) {
+    const arr = Object.values(trongCayState.contributors || {});
+    arr.sort((a, b) => (b.score - a.score) || (b.lastAt - a.lastAt));
+    return arr.slice(0, n).map(c => ({ nickname: c.nickname || 'Ẩn danh', avatar: c.avatar || '', score: Math.round(c.score), drops: c.drops || 0 }));
+}
+// Cộng điểm cho NGƯỜI ĐÃ TẶNG NUÔI cây này (chủ cây) khi ong hái được trái của cây đó.
+function trongCayAwardTreeOwner(plant, pts) {
+    const uid = String(plant?.uniqueId || plant?.nickname || '').toLowerCase();
+    if (!uid) return null;
+    if (!trongCayState.contributors) trongCayState.contributors = {};
+    const c = trongCayState.contributors[uid] || { uniqueId: plant.uniqueId || '', nickname: plant.nickname || '', avatar: '', score: 0, drops: 0, lastAt: 0 };
+    if (plant.nickname) c.nickname = plant.nickname;
+    c.score += Math.max(0, Number(pts) || 0);
+    c.lastAt = Date.now();
+    trongCayState.contributors[uid] = c;
+    return c;
+}
+
+// ===== 🐝 Ong thợ đi hái trái (theo quà tặng ong) =====
+// Ong bay tới cây ĐÃ CHÍN còn trái, hái trái về → cộng điểm cho chủ cây (đẩy Top chăm cây).
+// Hái xong cây vẫn đứng đó; được tặng tiếp sẽ ra trái lại → vòng lặp liên tục.
+function trongCayBeeHarvest(plantId, count, pointsPerFruit) {
+    const plant = (trongCayState.plants || []).find(p => p.id === plantId);
+    if (!plant) return;
+    let picked = 0;
+    for (let i = 0; i < Math.max(1, Number(count) || 1); i++) {
+        if ((Number(plant.fruits) || 0) <= 0) break;
+        plant.fruits = Math.max(0, (Number(plant.fruits) || 0) - 1);
+        picked++;
+    }
+    if (!picked) return;
+    const pts = picked * Math.max(1, Number(pointsPerFruit) || 50);
+    const owner = trongCayAwardTreeOwner(plant, pts);
+    trongCayState.updatedAt = Date.now();
+    io.emit('trongcay:beeharvest', {
+        plantId: plant.id, x: plant.x, picked, points: pts,
+        owner: (owner && owner.nickname) || plant.nickname || '', fruits: plant.fruits, ts: Date.now()
+    });
+    broadcastTrongCayState({ immediate: true });
+}
+// Ong nhặt 1 trái DƯỚI ĐẤT (trái đã rụng khi cây héo) → vẫn cộng điểm cho chủ cây ban đầu.
+function trongCayBeeHarvestGround(gid, pointsPerFruit) {
+    if (!Array.isArray(trongCayState.groundFruits)) return;
+    const idx = trongCayState.groundFruits.findIndex(g => g.id === gid);
+    if (idx < 0) return;                          // ong khác đã nhặt trước → bỏ qua
+    const gf = trongCayState.groundFruits.splice(idx, 1)[0];
+    const pts = Math.max(1, Number(pointsPerFruit) || 50);
+    const owner = trongCayAwardTreeOwner({ uniqueId: gf.uniqueId, nickname: gf.nickname }, pts);
+    trongCayState.updatedAt = Date.now();
+    io.emit('trongcay:beeharvest', {
+        gid: gf.id, x: gf.x, ground: true, picked: 1, points: pts,
+        owner: (owner && owner.nickname) || gf.nickname || '', ts: Date.now()
+    });
+    broadcastTrongCayState({ immediate: true });
+}
+// Cây héo nặng → 1 trái chín rụng xuống đất (gắn chủ cây để sau ong nhặt vẫn cộng đúng người).
+function trongCayDropFruit(plant) {
+    if (!plant || (Number(plant.fruits) || 0) <= 0) return;
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    plant.fruits = Math.max(0, (Number(plant.fruits) || 0) - 1);
+    if (!Array.isArray(trongCayState.groundFruits)) trongCayState.groundFruits = [];
+    const now = Date.now();
+    const gf = {
+        id: 'gf-' + now.toString(36) + Math.random().toString(36).slice(2, 6),
+        x: trongCayClamp((Number(plant.x) || 50) + (Math.random() * 10 - 5), 2, 98),
+        uniqueId: plant.uniqueId || '',
+        nickname: plant.nickname || '',
+        ts: now
+    };
+    trongCayState.groundFruits.push(gf);
+    const cap = Math.max(4, Number(cfg.groundFruitMax) || 40);
+    while (trongCayState.groundFruits.length > cap) trongCayState.groundFruits.shift();
+    trongCayState.updatedAt = now;
+    io.emit('trongcay:fruitdrop', { plantId: plant.id, x: gf.x, gid: gf.id, ts: now });
+    broadcastTrongCayState();
+}
+// Rải đàn ong ra NHIỀU KHU VỰC có trái (cây chín + trái rụng dưới đất) thay vì chụm 1 nơi.
+// Mỗi "khu vực" = 1 cây chín hoặc 1 trái dưới đất; xếp theo x để trải đều bề ngang vườn,
+// rồi chia ong vòng tròn qua từng khu (1 ong/khu mỗi vòng) → ong toả khắp vườn.
+function trongCayAssignBeeTargets(nBees) {
+    const areas = (trongCayState.plants || [])
+        .filter(p => p && p.ripe && (Number(p.fruits) || 0) > 0)
+        .map(p => ({ kind: 'tree', plantId: p.id, x: Number(p.x) || 50, avail: Number(p.fruits) || 0 }))
+        .concat((trongCayState.groundFruits || [])
+            .map(g => ({ kind: 'ground', gid: g.id, gx: Number(g.x) || 50, x: Number(g.x) || 50, avail: 1 })));
+    areas.sort((a, b) => a.x - b.x);
+    const out = [];
+    let i = 0, guard = 0;
+    while (out.length < nBees && guard++ < nBees * 4) {
+        const live = areas.filter(a => a.avail > 0);
+        if (!live.length) break;
+        const a = live[i % live.length];
+        out.push(a.kind === 'tree' ? { kind: 'tree', plantId: a.plantId } : { kind: 'ground', gid: a.gid, gx: a.gx });
+        a.avail--; i++;
+    }
+    while (out.length < nBees) out.push(null);   // dư ong mà hết trái → bay cho vui, không hái
+    return out;
+}
+function trongCaySpawnBee({ profilePicture, nickname, uniqueId, harvestPerBee, delayIdx, target: assigned } = {}) {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const ground = Array.isArray(trongCayState.groundFruits) ? trongCayState.groundFruits : [];
+    // Mục tiêu được swarm chỉ định (rải khắp khu); nếu gọi lẻ thì tự chọn như cũ.
+    let target = (assigned !== undefined) ? assigned : null;
+    if (assigned === undefined) {
+        const ripe = (trongCayState.plants || []).filter(p => p && p.ripe && (Number(p.fruits) || 0) > 0);
+        if (ground.length && (!ripe.length || Math.random() < 0.55)) {
+            const gf = ground[Math.floor(Math.random() * ground.length)];
+            target = { kind: 'ground', gid: gf.id, gx: gf.x };
+        } else if (ripe.length) {
+            ripe.sort((a, b) => (Number(b.fruits) || 0) - (Number(a.fruits) || 0));
+            const plant = ripe[Math.floor(Math.random() * Math.min(ripe.length, 3))];
+            target = { kind: 'tree', plantId: plant.id };
+        }
+    }
+    if (target && target.kind === 'ground' && target.gx == null) {
+        const gf = ground.find(g => g.id === target.gid);
+        target.gx = gf ? gf.x : 50;
+    }
+    const now = Date.now();
+    const durationMs = 2400 + Math.round(Math.random() * 1000) + (Number(delayIdx) || 0) * 360;
+    io.emit('trongcay:bee', {
+        id: now.toString(36) + Math.random().toString(36).slice(2, 7),
+        avatar: profilePicture || '',
+        nickname: nickname || uniqueId || '',
+        uniqueId: uniqueId || '',
+        targetKind: target ? target.kind : '',
+        plantId: target && target.kind === 'tree' ? target.plantId : '',
+        gid: target && target.kind === 'ground' ? target.gid : '',
+        gx: target && target.kind === 'ground' ? target.gx : null,
+        fromX: Math.random() < 0.5 ? -10 : 110,
+        fromY: Math.round((14 + Math.random() * 40) * 10) / 10,
+        midX: Math.round((20 + Math.random() * 60) * 10) / 10,
+        midY: Math.round((6 + Math.random() * 22) * 10) / 10,
+        durationMs,
+        ts: now
+    });
+    if (!target) return false;
+    const per = Math.max(1, Number(harvestPerBee) || Number(cfg.beeHarvestPerTrip) || 1);
+    const points = Math.max(1, Number(cfg.beePointsPerFruit) || 50);
+    // Hái khi ong đã bay tới nơi (≈ thời gian bay + 1 nhịp đậu).
+    if (target.kind === 'ground') {
+        setTimeout(() => { try { trongCayBeeHarvestGround(target.gid, points); } catch (e) {} }, durationMs + 600);
+    } else {
+        setTimeout(() => { try { trongCayBeeHarvest(target.plantId, per, points); } catch (e) {} }, durationMs + 600);
+    }
+    return true;
+}
+function trongCaySpawnBeeSwarm({ profilePicture, nickname, uniqueId, beeGift, repeat }) {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const per = Math.max(1, Number(beeGift?.harvestPerBee) || Number(cfg.beeHarvestPerTrip) || 1);
+    const nBees = Math.min(
+        Math.max(1, Number(cfg.maxBees) || 30),
+        Math.max(1, Math.round((Number(beeGift?.bees) || Number(cfg.beesPerGift) || 3) * Math.max(1, Number(repeat) || 1)))
+    );
+    const targets = trongCayAssignBeeTargets(nBees);   // chia ong ra khắp khu vực có trái
+    for (let i = 0; i < nBees; i++) {
+        trongCaySpawnBee({ profilePicture, nickname, uniqueId, harvestPerBee: per, delayIdx: i, target: targets[i] });
+    }
+    return nBees;
+}
+
+// ===== 🐛 Sâu xanh ăn lá + 🧴 Thuốc trừ sâu =====
+function trongCayPtInZone(x, zones) {
+    const now = Date.now();
+    return (zones || []).some(z => z.until > now && x >= z.x0 && x <= z.x1);
+}
+function trongCaySpawnCaterpillar({ profilePicture, nickname, uniqueId, delayIdx } = {}) {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    if (!Array.isArray(trongCayState.caterpillars)) trongCayState.caterpillars = [];
+    if (trongCayState.caterpillars.length >= (Number(cfg.maxCaterpillars) || 20)) return false;
+    const plants = (trongCayState.plants || []).filter(p => (Number(p.height) || 0) > 4);
+    const ground = (trongCayState.groundFruits || []);
+    // Mục tiêu: ưu tiên cây có lá/trái (ăn lá, ăn icon quà, ăn trái); nếu không thì xuống đất ăn trái rụng.
+    let plantId = '', onGround = false, x = 50;
+    if (plants.length && (!ground.length || Math.random() < 0.7)) {
+        const p = plants[Math.floor(Math.random() * plants.length)];
+        plantId = p.id; x = Number(p.x) || 50;
+    } else if (ground.length) {
+        const gf = ground[Math.floor(Math.random() * ground.length)];
+        onGround = true; x = Number(gf.x) || 50;
+    } else if (plants.length) {
+        const p = plants[Math.floor(Math.random() * plants.length)];
+        plantId = p.id; x = Number(p.x) || 50;
+    } else {
+        return false; // vườn trống → không có gì để ăn
+    }
+    // Không thả vào vùng đang được bảo vệ (vừa xịt thuốc).
+    if (trongCayPtInZone(x, trongCayState.protectedZones)) return false;
+    const now = Date.now();
+    const born = now + (Number(delayIdx) || 0) * 250;
+    const startDelayMs = Math.max(0, Number(cfg.caterpillarStartDelaySec) || 0) * 1000;
+    trongCayState.caterpillars.push({
+        id: 'cat-' + now.toString(36) + Math.random().toString(36).slice(2, 6),
+        plantId, onGround, x: trongCayClamp(x, 2, 98),
+        avatar: profilePicture || '',          // đầu sâu = avatar người tặng quà sâu
+        nickname: nickname || uniqueId || '',
+        uniqueId: uniqueId || '',
+        bornAt: born,
+        eatFrom: born + startDelayMs,           // CHỜ rồi mới bắt đầu phá (cho thời gian xịt thuốc)
+        lastBiteAt: born,
+        dying: false
+    });
+    trongCayState.updatedAt = now;
+    return true;
+}
+function trongCaySpawnCaterpillarSwarm({ profilePicture, nickname, uniqueId, caterpillarGift, repeat }) {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const n = Math.min(
+        Math.max(1, Number(cfg.maxCaterpillars) || 20),
+        Math.max(1, Math.round((Number(caterpillarGift?.count) || Number(cfg.caterpillarsPerGift) || 2) * Math.max(1, Number(repeat) || 1)))
+    );
+    let spawned = 0;
+    for (let i = 0; i < n; i++) if (trongCaySpawnCaterpillar({ profilePicture, nickname, uniqueId, delayIdx: i })) spawned++;
+    if (spawned) broadcastTrongCayState({ immediate: true });
+    return spawned;
+}
+// Một con sâu cắn 1 phát: ăn lá/trái trên cây HOẶC ăn 1 trái rụng dưới đất.
+function trongCayCaterpillarBite(cat) {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const bite = Math.max(1, Number(cfg.caterpillarBite) || 6);
+    if (cat.onGround) {
+        const gfs = trongCayState.groundFruits || [];
+        // ăn trái rụng gần nó nhất
+        let idx = -1, best = 999;
+        for (let i = 0; i < gfs.length; i++) { const dd = Math.abs((Number(gfs[i].x) || 50) - cat.x); if (dd < best) { best = dd; idx = i; } }
+        if (idx >= 0 && best < 18) { trongCayState.groundFruits.splice(idx, 1); io.emit('trongcay:catbite', { x: cat.x, ground: true, ts: Date.now() }); return true; }
+        return false;
+    }
+    const plant = (trongCayState.plants || []).find(p => p.id === cat.plantId);
+    if (!plant) return false;
+    if ((Number(plant.height) || 0) <= 1 && (Number(plant.fruits) || 0) <= 0) return false; // cây trụi rồi → đổi mục tiêu
+    // ăn trái trên cây trước (icon/quả), rồi ăn lá (giảm chiều cao) + làm cây yếu (héo).
+    let ate = false;
+    if ((Number(plant.fruits) || 0) > 0 && Math.random() < 0.5) { plant.fruits = Math.max(0, plant.fruits - 1); ate = true; }
+    plant.height = trongCayClamp((Number(plant.height) || 0) - bite, 0, Number(cfg.maxHeight) || 100);
+    plant.wilt = trongCayClamp((Number(plant.wilt) || 0) + 5, 0, 100);
+    if (plant.height <= 2) plant.ripe = false; // ăn trụi → không còn chín
+    trongCayState.height = trongCayClamp(Math.max(0, ...(trongCayState.plants || []).map(p => Number(p.height) || 0)), 0, Number(cfg.maxHeight) || 100);
+    io.emit('trongcay:catbite', { x: cat.x, plantId: plant.id, ts: Date.now() });
+    return true || ate;
+}
+// 🧴 Xịt thuốc: chọn chỗ NHIỀU SÂU nhất (ưu tiên), bảo vệ vùng đó, sâu trong vùng rụng thành xác.
+function trongCaySpray({ sprayGift } = {}) {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const cats = trongCayState.caterpillars || [];
+    const radius = Math.max(8, Number(cfg.sprayRadiusPercent) || 28);
+    // tâm xịt = nơi có nhiều sâu nhất trong bán kính; nếu không có sâu thì giữa vườn.
+    let centerX = 50;
+    if (cats.length) {
+        let bestX = cats[0].x, bestCount = -1;
+        for (const c of cats) {
+            const cnt = cats.filter(o => Math.abs(o.x - c.x) <= radius).length;
+            if (cnt > bestCount) { bestCount = cnt; bestX = c.x; }
+        }
+        centerX = bestX;
+    }
+    // Con sâu đại diện (gần tâm xịt nhất) → overlay chĩa vòi bình xịt SÁT vào sâu (cây/đất).
+    let aim = null;
+    if (cats.length) {
+        let rep = cats[0], rd = 1e9;
+        for (const c of cats) { const dd = Math.abs(c.x - centerX); if (dd < rd) { rd = dd; rep = c; } }
+        aim = { x: rep.x, plantId: rep.onGround ? '' : (rep.plantId || ''), ground: !!rep.onGround };
+    }
+    const now = Date.now();
+    const protectMs = Math.max(3, Number(sprayGift?.protectSeconds) || Number(cfg.sprayProtectSeconds) || 30) * 1000;
+    if (!Array.isArray(trongCayState.protectedZones)) trongCayState.protectedZones = [];
+    trongCayState.protectedZones.push({ x0: trongCayClamp(centerX - radius, 0, 100), x1: trongCayClamp(centerX + radius, 0, 100), until: now + protectMs });
+    trongCayState.protectedZones = trongCayState.protectedZones.filter(z => z.until > now).slice(-6);
+    // sâu trong vùng → rụng thành XÁC dồn dưới đất (pro: cảm giác thật)
+    const killed = [];
+    trongCayState.caterpillars = cats.filter(c => {
+        if (Math.abs(c.x - centerX) <= radius) { killed.push(c); return false; }
+        return true;
+    });
+    if (!Array.isArray(trongCayState.corpses)) trongCayState.corpses = [];
+    for (const c of killed) trongCayState.corpses.push({ id: 'corpse-' + c.id, x: c.x, ts: now });
+    const capC = Math.max(6, Number(cfg.maxCaterpillarCorpses) || 36);
+    while (trongCayState.corpses.length > capC) trongCayState.corpses.shift();
+    trongCayState.updatedAt = now;
+    io.emit('trongcay:spray', { x: centerX, radius, killed: killed.length, until: now + protectMs, aim, ts: now });
+    broadcastTrongCayState({ immediate: true });
+    return { centerX, killed: killed.length };
+}
+
+// ===== 🐛→🦋 Sâu sống sót hóa nhộng rồi tiến hóa thành bướm cứu cây =====
+// Sâu KHÔNG bị xịt thuốc, ăn hết cây / hết đời → rơi xuống đất nằm KÉN (pupa). Sau
+// caterpillarPupaSeconds giây → nở thành BƯỚM TIẾN HÓA (màu ngọc lục dễ nhận biết) bay
+// lên tiếp tục vòng đời: đi cứu (hồi héo) cây đang yếu. Mang theo avatar người tặng sâu.
+function trongCayPupate(c, now, cfg) {
+    cfg = cfg || appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    if (cfg.caterpillarEvolves === false) return;   // tắt tiến hóa → sâu chỉ bò đi như cũ
+    if (!Array.isArray(trongCayState.pupae)) trongCayState.pupae = [];
+    const pupaMs = Math.max(1, Number(cfg.caterpillarPupaSeconds) || 8) * 1000;
+    trongCayState.pupae.push({
+        id: 'pupa-' + (c.id || now.toString(36)) + Math.random().toString(36).slice(2, 5),
+        x: trongCayClamp(Number(c.x) || 50, 2, 98),
+        evolveAt: now + pupaMs,
+        bornAt: now,
+        avatar: c.avatar || '',
+        nickname: c.nickname || '',
+        uniqueId: c.uniqueId || ''
+    });
+    const cap = Math.max(4, Number(cfg.maxPupae) || 16);
+    while (trongCayState.pupae.length > cap) trongCayState.pupae.shift();
+    io.emit('trongcay:pupate', { x: c.x, plantId: c.plantId || '', onGround: !!c.onGround, ts: now });
+}
+function trongCayEvolvePupa(pu, now) {
+    io.emit('trongcay:evolve', { x: pu.x, ts: now });   // nở kén: lóe sáng + 🐛→🦋
+    // Bướm tiến hóa BAY LÊN TỪ kén (fromX = vị trí kén, fromY thấp sát đất), ép heal, màu riêng.
+    trongCayAddButterfly(
+        { profilePicture: pu.avatar || '', nickname: pu.nickname || '', uniqueId: pu.uniqueId || '' },
+        null,
+        { evolved: true, fromX: trongCayClamp(Number(pu.x) || 50, 2, 98), fromY: 78 }
+    );
+}
+
+// ===== Mốc chiều cao =====
+// Gọi sau mỗi lần cây CAO LÊN. Bắn event mốc 25/50/75/100% (1 lần mỗi mốc).
+// "Kết trái" khi cây chạm 100% xử lý per-plant trong trongCayGrowGiftPlant (event
+// trongcay:fruit) — vườn KHÔNG bao giờ bị thu hoạch/xoá sạch nữa.
+function trongCayPostGrowChecks() {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const d = cfg.display || {};
+    const maxH = Math.max(20, Number(cfg.maxHeight) || 100);
+    const pct = trongCayClamp(trongCayState.height / maxH * 100, 0, 100);
+    [25, 50, 75, 100].forEach(m => {
+        if (pct >= m && (Number(trongCayState.milestoneReached) || 0) < m) {
+            trongCayState.milestoneReached = m;
+            if (d.showMilestones !== false) io.emit('trongcay:milestone', { percent: m, ts: Date.now() });
+        }
+    });
+}
+
+// Áp tác dụng thời tiết (tưới/nắng) SAU khi mưa/nắng "rơi xuống" — đúng nhân quả: hiệu ứng
+// hình hiện trước, trạng thái cây đổi sau. `delta` có thể là object hoặc hàm trả object (để
+// tính giá trị phụ thuộc trạng thái tại đúng thời điểm áp).
+function trongCayApplyWeatherDelayed(delta) {
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const delayMs = Math.max(0, Number(cfg.weatherEffectDelaySec) || 0) * 1000;
+    const apply = () => {
+        try { trongCayApplyDelta(typeof delta === 'function' ? delta() : delta); broadcastTrongCayState({ immediate: true }); } catch (e) {}
+    };
+    if (delayMs <= 0) apply(); else setTimeout(apply, delayMs);
+}
+
+function handleTrongCayGift({ uniqueId, nickname, profilePicture, giftId, giftName, giftImage, coinValue, repeatCount, source }) {
+    if (appConfig.games?.trongcay?.enabled === false) return;
+    // 🐉 Vườn đang bị rồng thiêu → bỏ qua mọi quà tới (cây sắp bị xóa, tránh mọc vô hình rồi mất).
+    if (Date.now() < trongCayBurnUntil) return;
+    // Quà tới là tự bật phiên (giống Hũ Thủy Tinh "bấm quà là tự hiện") thay vì bỏ qua
+    // khi chưa bấm BẮT ĐẦU. Muốn tắt hẳn thì bỏ tích "Bật game" (enabled=false).
+    trongCayEnsureSessionActive();
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    const repeat = Math.max(1, Number(repeatCount) || 1);
+    const isTestGift = source === 'test';
+    const gid = String(giftId || '');
+    // 🐉 Quà rồng lửa → tấn công thiêu rụi vườn ngay, KHÔNG chạy các hành động khác.
+    const dragonHit = trongCayPickGift(cfg.dragonGifts, gid);
+    if (dragonHit) {
+        trongCayAddContrib({ uniqueId, nickname, profilePicture, coinValue, repeatCount: repeat });
+        trongCayState.lastGiftAt = Date.now();
+        trongCayDragonAttack({ nickname, uniqueId, profilePicture, burnSeconds: dragonHit.burnSeconds });
+        return;
+    }
+    let accepted = false;
+    let flower = null;
+    const cutHit = trongCayPickGift(cfg.cutGifts, gid);
+    const waterHit = trongCayPickGift(cfg.waterGifts, gid);
+    const sunHit = trongCayPickGift(cfg.sunGifts, gid);
+    const butterflyHit = trongCayPickGift(cfg.butterflyGifts, gid);
+    const beeHit = trongCayPickGift(cfg.beeGifts, gid);
+    const caterpillarHit = trongCayPickGift(cfg.caterpillarGifts, gid);
+    const sprayHit = trongCayPickGift(cfg.sprayGifts, gid);
+    if (cutHit) {
+        // Kéo bay tới + lia vài vòng (overlay) → cắt áp sau (trongCayCutDelayed) cho khớp hình.
+        const target = trongCayPickCut();
+        io.emit('trongcay:cut', { nickname, uniqueId, giftImage, ...target.evt, ts: Date.now() });
+        trongCayCutDelayed(target, Math.max(1, Number(cutHit.cut) || 10) * repeat);
+        accepted = true;
+    } else if (waterHit) {
+        if (!isTestGift && !trongCayHasRecentWaterComment(uniqueId, cfg)) {
+            io.emit('trongcay:hint', {
+                type: 'waterCommentRequired',
+                uniqueId,
+                nickname,
+                keyword: cfg.waterCommentKeyword || 'tuoicay',
+                ts: Date.now()
+            });
+            return;
+        }
+        // Mưa RƠI trước (event), cây tươi/đỡ héo áp SAU khi mưa rơi xuống (đúng nhân quả).
+        io.emit('trongcay:water', { nickname, uniqueId, ts: Date.now() });
+        trongCayApplyWeatherDelayed({ water: Math.max(1, Number(waterHit.water) || 18) * repeat, growth: Math.max(0, Number(waterHit.growth) || 2) * repeat });
+        accepted = true;
+    } else if (sunHit) {
+        const sun = Math.max(1, Number(sunHit.sun) || 20) * repeat;
+        const sunWilt = Math.max(3, Number(sunHit.wilt) || 10) * repeat;
+        io.emit('trongcay:sun', { nickname, uniqueId, ts: Date.now() });
+        // wilt do nắng gắt tính tại lúc ÁP (sau khi nắng "rọi xuống") cho đúng trạng thái.
+        trongCayApplyWeatherDelayed(() => ({ sun, wilt: (trongCayState.sun + sun > 72 ? sunWilt : 0) }));
+        accepted = true;
+    } else {
+        const growth = trongCayComputeGrowth(cfg, { giftId: gid, coinValue, repeatCount: repeat });
+        if (growth > 0) {
+            const plant = trongCayGrowGiftPlant({ giftId: gid, giftName, giftImage, nickname, uniqueId, coinValue, repeatCount: repeat, growth });
+            if (plant) {
+                trongCayApplyDelta({ water: -0.6 * repeat });
+                io.emit('trongcay:grow', { nickname, uniqueId, plantId: plant.id, giftImage, ts: Date.now() });
+                accepted = true;
+            }
+        }
+    }
+    if (butterflyHit) {
+        const uid = String(uniqueId || nickname || '').toLowerCase();
+        const now = Date.now();
+        const existing = uid ? trongCayState.butterflyUsers?.[uid] : null;
+        if (!existing || existing <= now) {
+            if (!trongCayState.butterflyUsers) trongCayState.butterflyUsers = {};
+            const lifeMs = Math.max(8, Number(butterflyHit.lifeSeconds) || Number(cfg.butterflyLifeSeconds) || 45) * 1000;
+            if (uid) trongCayState.butterflyUsers[uid] = now + lifeMs;
+            trongCayAddButterfly({ profilePicture, nickname, uniqueId }, null);
+            accepted = true;
+        }
+    }
+    if (beeHit) {
+        // Quà ong → thả đàn ong thợ đi hái trái cây chín. Hái được trái sẽ cộng điểm cho
+        // CHỦ cây đó (xử lý trong trongCayBeeHarvest). Người tặng ong cũng được tính chăm cây.
+        trongCaySpawnBeeSwarm({ profilePicture, nickname, uniqueId, beeGift: beeHit, repeat });
+        accepted = true;
+    }
+    if (caterpillarHit) {
+        // 🐛 Quà sâu → thả sâu xanh phá vườn (ăn lá/trái trên cây hoặc trái rụng dưới đất).
+        //    Đầu mỗi con sâu = avatar người tặng.
+        trongCaySpawnCaterpillarSwarm({ profilePicture, nickname, uniqueId, caterpillarGift: caterpillarHit, repeat });
+        accepted = true;
+    }
+    if (sprayHit) {
+        // 🧴 Quà thuốc trừ sâu → xịt chỗ nhiều sâu, bảo vệ vùng đó, sâu rụng thành xác.
+        trongCaySpray({ sprayGift: sprayHit });
+        accepted = true;
+    }
+    if (!accepted && isTestGift) {
+        const forcedGrowth = Math.max(2, Math.sqrt(Math.max(1, Number(coinValue) || 20)) * (Number(cfg.perCoinGrowth) || 0.25));
+        const wiltBlockAt = Number(cfg.wiltGrowthBlockAt) || 62;
+        if (trongCayState.wilt >= wiltBlockAt) trongCayState.wilt = Math.max(0, wiltBlockAt - 8);
+        const plant = trongCayGrowGiftPlant({ giftId: gid, giftName, giftImage, nickname, uniqueId, coinValue, repeatCount: repeat, growth: forcedGrowth });
+        if (plant) {
+            trongCayApplyDelta({ water: -0.6 * repeat });
+            io.emit('trongcay:grow', { nickname, uniqueId, plantId: plant.id, giftImage, ts: Date.now() });
+            accepted = true;
+        }
+    }
+    if (!accepted) return;
+    trongCayAddContrib({ uniqueId, nickname, profilePicture, coinValue, repeatCount: repeat });
+    trongCayPostGrowChecks();
+    trongCayState.lastGiftAt = Date.now();
+    broadcastTrongCayState({ immediate: true });
+}
+
+function trongCayTick() {
+    const now = Date.now();
+    const dt = (now - trongCayLastTickAt) / 1000;
+    trongCayLastTickAt = now;
+    const cfg = appConfig.games?.trongcay;
+    if (!cfg || cfg.enabled === false || cfg.sessionActive === false) return;
+    if (now < trongCayBurnUntil) return;   // 🐉 đóng băng vườn trong lúc rồng thiêu (overlay vẽ cháy đen)
+    const before = `${trongCayState.height.toFixed(2)}:${trongCayState.water.toFixed(2)}:${trongCayState.sun.toFixed(2)}:${trongCayState.wilt.toFixed(2)}:${(trongCayState.plants || []).map(p => (Number(p.height)||0).toFixed(2) + '/' + (Number(p.wilt)||0).toFixed(1)).join('|')}`;
+    const waterLoss = (Number(cfg.waterLossPerSecond) || 0) * dt;
+    const sunTarget = 32;
+    const sunReturn = (Number(cfg.sunReturnPerSecond) || 0) * dt;
+    trongCayState.water = trongCayClamp(trongCayState.water - waterLoss, 0, 100);
+    if (trongCayState.sun > sunTarget) trongCayState.sun = Math.max(sunTarget, trongCayState.sun - sunReturn);
+    else if (trongCayState.sun < sunTarget) trongCayState.sun = Math.min(sunTarget, trongCayState.sun + sunReturn * 0.5);
+    const bad = trongCayState.water < 18 || trongCayState.sun > 76;
+    const recover = trongCayState.water > 35 && trongCayState.sun < 70;
+    if (bad) trongCayState.wilt = trongCayClamp(trongCayState.wilt + (Number(cfg.wiltGainPerSecond) || 0) * dt, 0, 100);
+    else if (recover) trongCayState.wilt = trongCayClamp(trongCayState.wilt - (Number(cfg.wiltRecoverPerSecond) || 0) * dt, 0, 100);
+    if (Array.isArray(trongCayState.plants)) {
+        // Vườn tích lũy lâu dài: cây KHÔNG teo nhỏ rồi biến mất theo thời gian nữa.
+        // Thiếu nước/nắng gắt chỉ làm cây ĐỔI MÀU HÉO (xanh→nâu), không rụi mất.
+        // Cây chỉ rời vườn khi: bị Cắt (cut) hoặc bấm "Reset vườn".
+        const dropWilt = Number(cfg.fruitDropWilt) || 55;
+        const dropChance = (Number(cfg.fruitDropChancePerSec) || 0.6) * dt;
+        for (const p of trongCayState.plants) {
+            const curWilt = Number(p.wilt) || 0;
+            // Héo dần theo nhịp riêng từng cây (không nhảy thẳng theo vườn) → cây vừa
+            // được tặng quà (wilt=0) sẽ xanh tươi thêm một lúc dù vườn đang thiếu nước.
+            if (bad) p.wilt = trongCayClamp(curWilt + (Number(cfg.wiltGainPerSecond) || 0.45) * dt, 0, 100);
+            else if (recover) p.wilt = trongCayClamp(curWilt - (Number(cfg.wiltRecoverPerSecond) || 0.28) * dt * 1.8, 0, 100);
+            // Cây héo nặng → trái chín RỤNG XUỐNG ĐẤT (ong vẫn nhặt được dưới đất).
+            if ((Number(p.wilt) || 0) >= dropWilt && (Number(p.fruits) || 0) > 0 && Math.random() < dropChance) {
+                trongCayDropFruit(p);
+            }
+        }
+        trongCayState.height = trongCayClamp(Math.max(0, ...trongCayState.plants.map(p => Number(p.height) || 0)), 0, Number(cfg.maxHeight) || 100);
+    }
+    const cutoff = now - 65000;
+    trongCayState.butterflies = trongCayState.butterflies.filter(b => (b.ts || 0) > cutoff);
+    // 🐛 Sâu ăn + 🧴 vùng bảo vệ hết hạn
+    let catDirty = false;
+    if (Array.isArray(trongCayState.protectedZones) && trongCayState.protectedZones.length) {
+        const n0 = trongCayState.protectedZones.length;
+        trongCayState.protectedZones = trongCayState.protectedZones.filter(z => z.until > now);
+        if (trongCayState.protectedZones.length !== n0) catDirty = true;
+    }
+    if (Array.isArray(trongCayState.caterpillars) && trongCayState.caterpillars.length) {
+        const biteEvery = Math.max(0.4, Number(cfg.caterpillarBiteEverySec) || 1.6) * 1000;
+        const lifeMs = Math.max(8, Number(cfg.caterpillarLifeSeconds) || 75) * 1000;
+        if (!Array.isArray(trongCayState.corpses)) trongCayState.corpses = [];
+        const survivors = [];
+        for (const c of trongCayState.caterpillars) {
+            if (now < c.bornAt) { survivors.push(c); continue; }      // stagger: chưa "vào sân"
+            if (trongCayPtInZone(c.x, trongCayState.protectedZones)) { // dính thuốc → rụng thành xác
+                trongCayState.corpses.push({ id: 'corpse-' + c.id, x: c.x, ts: now }); catDirty = true; continue;
+            }
+            if (now - c.bornAt > lifeMs) { trongCayPupate(c, now, cfg); catDirty = true; continue; } // hết đời → hóa nhộng (rồi tiến hóa thành bướm)
+            if (now < (c.eatFrom || c.bornAt)) { survivors.push(c); continue; } // còn trong thời gian "khởi động", chưa phá
+            if (now - (c.lastBiteAt || 0) >= biteEvery) {
+                const ok = trongCayCaterpillarBite(c);
+                c.lastBiteAt = now; catDirty = true;
+                if (!ok) {
+                    // 🐛 Sâu CHUNG THỦY 1 cây: ăn hết cây của mình → rơi xuống đất hóa nhộng NGAY,
+                    //    KHÔNG bò sang cây khác (mỗi con gắn đúng 1 cây tới trọn đời → đúng 1 kén).
+                    trongCayPupate(c, now, cfg); continue;
+                }
+                c.x = trongCayClamp(c.x + (Math.random() * 4 - 2), 2, 98); // bò nhẹ cho sinh động
+            }
+            survivors.push(c);
+        }
+        trongCayState.caterpillars = survivors;
+        const capCorpse = Math.max(6, Number(cfg.maxCaterpillarCorpses) || 36);
+        while (trongCayState.corpses.length > capCorpse) trongCayState.corpses.shift();
+        trongCayState.height = trongCayClamp(Math.max(0, ...(trongCayState.plants || []).map(p => Number(p.height) || 0)), 0, Number(cfg.maxHeight) || 100);
+    }
+    // 🐛→🦋 Nhộng dưới đất tới giờ → NỞ thành bướm tiến hóa đi cứu cây héo.
+    if (Array.isArray(trongCayState.pupae) && trongCayState.pupae.length) {
+        const stay = [];
+        for (const pu of trongCayState.pupae) {
+            if (now >= (Number(pu.evolveAt) || 0)) { trongCayEvolvePupa(pu, now); catDirty = true; }
+            else stay.push(pu);
+        }
+        trongCayState.pupae = stay;
+    }
+    // 🦋 Bướm chữa lành: con nào đã bay tới ĐẬU trên cây yếu thì hồi héo cho cây đó dần dần.
+    if (Array.isArray(trongCayState.butterflies) && trongCayState.butterflies.length) {
+        const healRate = Math.max(0, Number(cfg.butterflyHealPerSecond) || 0) * dt;
+        if (healRate > 0) {
+            for (const b of trongCayState.butterflies) {
+                if (!b.heal || !b.plantId) continue;
+                if (now < (Number(b.ts) || 0) + (Number(b.durationMs) || 3200)) continue;  // chưa bay tới đậu
+                const p = (trongCayState.plants || []).find(x => x.id === b.plantId);
+                if (!p || (Number(p.wilt) || 0) <= 0) continue;
+                p.wilt = trongCayClamp((Number(p.wilt) || 0) - healRate, 0, 100);
+                catDirty = true;
+            }
+        }
+    }
+    const after = `${trongCayState.height.toFixed(2)}:${trongCayState.water.toFixed(2)}:${trongCayState.sun.toFixed(2)}:${trongCayState.wilt.toFixed(2)}:${(trongCayState.plants || []).map(p => (Number(p.height)||0).toFixed(2) + '/' + (Number(p.wilt)||0).toFixed(1)).join('|')}`;
+    if (before !== after || catDirty) {
+        trongCayState.updatedAt = now;
+        broadcastTrongCayState();
+    }
+}
+setInterval(trongCayTick, 500);
+
+try { trongCayApplyConfigToState(appConfig.games.trongcay || makeDefaultTrongCayConfig()); } catch (e) {}
+try { trongCayReset(); } catch (e) {}
+
+app.get('/api/games/trongcay/livestate', (req, res) => {
+    res.json(trongCaySnapshot());
+});
+
+app.post('/api/games/trongcay/control', (req, res) => {
+    const cmd = String(req.body?.cmd || '').toLowerCase();
+    if (cmd === 'start') {
+        if (!appConfig.games.trongcay) appConfig.games.trongcay = makeDefaultTrongCayConfig();
+        appConfig.games.trongcay.sessionActive = true;
+        saveAppConfig();
+        io.emit('gameConfig', { gameId: 'trongcay', config: appConfig.games.trongcay });
+        io.emit('overlay:reload', { gameId: 'trongcay' });
+        broadcastTrongCayState({ immediate: true });
+    } else if (cmd === 'stop') {
+        if (!appConfig.games.trongcay) appConfig.games.trongcay = makeDefaultTrongCayConfig();
+        appConfig.games.trongcay.sessionActive = false;
+        saveAppConfig();
+        io.emit('gameConfig', { gameId: 'trongcay', config: appConfig.games.trongcay });
+        broadcastTrongCayState({ immediate: true });
+    } else if (cmd === 'reset') {
+        trongCayReset();
+    } else if (cmd === 'grow') {
+        trongCayEnsureSessionActive();
+        trongCayApplyDelta({ growth: Number(req.body?.growth) || 8 });
+        trongCayPostGrowChecks();
+        broadcastTrongCayState({ immediate: true });
+    } else if (cmd === 'water') {
+        trongCayEnsureSessionActive();
+        io.emit('trongcay:water', { nickname: 'TEST', ts: Date.now() });
+        trongCayApplyWeatherDelayed({ water: Number(req.body?.water) || 20, growth: Number(req.body?.growth) || 2 });
+    } else if (cmd === 'sun') {
+        trongCayEnsureSessionActive();
+        io.emit('trongcay:sun', { nickname: 'TEST', ts: Date.now() });
+        trongCayApplyWeatherDelayed({ sun: Number(req.body?.sun) || 28, wilt: Number(req.body?.wilt) || 10 });
+    } else if (cmd === 'cut') {
+        trongCayEnsureSessionActive();
+        const target = trongCayPickCut();
+        io.emit('trongcay:cut', { nickname: 'TEST', ...target.evt, ts: Date.now() });
+        trongCayCutDelayed(target, Number(req.body?.cut) || 14);
+    } else if (cmd === 'testgift') {
+        trongCayEnsureSessionActive();
+        const action = String(req.body?.action || '').toLowerCase() || 'grow';
+        const testGift = makeTestGiftPayload(req.body || {});
+        const giftImage = testGift.giftImage || TEST_GIFT_IMAGE;
+        const profilePicture = req.body?.profilePicture || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect width="80" height="80" rx="40" fill="%23ff6fae"/><text x="40" y="50" text-anchor="middle" font-size="34">HP</text></svg>';
+        if (action === 'water') {
+            io.emit('trongcay:water', { nickname: 'TEST', ts: Date.now() });
+            trongCayApplyWeatherDelayed({ water: 20, growth: 0 });
+        } else if (action === 'sun') {
+            io.emit('trongcay:sun', { nickname: 'TEST', ts: Date.now() });
+            trongCayApplyWeatherDelayed({ sun: 28, wilt: 10 });
+        } else if (action === 'cut') {
+            const target = trongCayPickCut();
+            io.emit('trongcay:cut', { nickname: 'TEST', ...target.evt, ts: Date.now() });
+            trongCayCutDelayed(target, 16);
+        } else if (action === 'butterfly') {
+            trongCayAddButterfly({ profilePicture, nickname: 'Người Thử', uniqueId: 'tester' }, null);
+        } else if (action === 'bee') {
+            trongCaySpawnBeeSwarm({ profilePicture, nickname: 'Người Thử', uniqueId: 'tester', beeGift: req.body || {}, repeat: 1 });
+        } else if (action === 'caterpillar') {
+            trongCaySpawnCaterpillarSwarm({ profilePicture, nickname: 'Người Thử', uniqueId: 'tester', caterpillarGift: req.body || {}, repeat: 1 });
+        } else if (action === 'spray') {
+            trongCaySpray({ sprayGift: req.body || {} });
+        } else if (action === 'dragon') {
+            trongCayDragonAttack({ profilePicture, nickname: 'Người Thử', uniqueId: 'tester', burnSeconds: Number(req.body?.burnSeconds) || Number(req.body?.value) });
+        } else {
+            const giftId = testGift.giftId;
+            const coinValue = testGift.coinValue;
+            const growth = Math.max(2, Math.sqrt(coinValue) * (Number((appConfig.games.trongcay || {}).perCoinGrowth) || 0.25));
+            const giftName = testGift.giftName;
+            const wiltBlockAt = Number((appConfig.games.trongcay || {}).wiltGrowthBlockAt) || 62;
+            if (trongCayState.wilt >= wiltBlockAt) trongCayState.wilt = Math.max(0, wiltBlockAt - 8);
+            const plant = trongCayGrowGiftPlant({ giftId, giftName, giftImage, nickname: 'Người Thử', uniqueId: 'tester', coinValue, repeatCount: 1, growth });
+            if (plant) trongCayApplyDelta({ water: -0.6 });
+            if (plant) io.emit('trongcay:grow', { nickname: 'Người Thử', plantId: plant.id, giftImage, ts: Date.now() });
+            if (plant && Math.random() < 0.55) trongCayAddButterfly({ profilePicture, nickname: 'Người Thử', uniqueId: 'tester' }, null);
+        }
+        trongCayPostGrowChecks();
+        trongCayState.lastGiftAt = Date.now();
+        broadcastTrongCayState({ immediate: true });
+    } else {
+        return res.status(400).json({ ok: false, error: 'cmd phải là start|stop|reset|grow|water|sun|cut|testGift' });
+    }
+    res.json({ ok: true, state: trongCaySnapshot() });
 });
 
 // ============================================================
@@ -6488,6 +7859,10 @@ app.post('/api/obs-bridge/trigger', express.json(), async (req, res) => {
 // ====== 🚀 Quick Launch — cửa sổ điều khiển nhanh tách rời, always-on-top ======
 app.get('/quick-launch', (req, res) =>
     res.sendFile(path.join(__dirname, 'public', 'quick-launch.html')));
+
+// ====== 📦 Danh sách quà — cửa sổ tách rời, ghim trên cùng (test quà mọi game) ======
+app.get('/gift-list', (req, res) =>
+    res.sendFile(path.join(__dirname, 'public', 'gift-list.html')));
 
 // Default index
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));

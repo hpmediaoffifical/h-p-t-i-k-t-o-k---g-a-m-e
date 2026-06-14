@@ -763,7 +763,7 @@
         currentGame = game;
         highlightActiveGame(gameId);
         // Body class: dùng để CSS ẩn/hiện FAB/popup theo game
-        document.body.classList.remove('game-thuytinh', 'game-caro', 'game-pktiktok', 'game-vipwelcome', 'game-votecomment', 'game-nhietdo', 'game-bancung', 'game-liveTranslate');
+        document.body.classList.remove('game-thuytinh', 'game-caro', 'game-pktiktok', 'game-vipwelcome', 'game-votecomment', 'game-nhietdo', 'game-bancung', 'game-trongcay', 'game-liveTranslate');
         document.body.classList.add('game-' + gameId);
         // Auto-reload OBS overlay của game này — tránh cache stale khi user mới mở game
         try { socket && socket.emit('overlay:reload', { gameId }); } catch (e) {}
@@ -779,6 +779,7 @@
         else if (gameId === 'votecomment') openVoteComment(game);
         else if (gameId === 'nhietdo') openNhietDo(game);
         else if (gameId === 'bancung') openBanCung(game);
+        else if (gameId === 'trongcay') openTrongCay(game);
         else if (gameId === 'liveTranslate') openLiveTranslateView();
         else if (gameId === 'level-quest') showView('view-level-quest');
         else if (gameId === 'timer') showView('view-timer');
@@ -808,6 +809,15 @@
             window.HpBanCungPanel.open(socket);
         } else {
             console.error('[bancung] HpBanCungPanel chưa load');
+        }
+    }
+
+    function openTrongCay(game) {
+        if (!window.__giftSheet) window.__giftSheet = giftSheet;
+        if (window.HpTrongCayPanel && typeof window.HpTrongCayPanel.open === 'function') {
+            window.HpTrongCayPanel.open(socket);
+        } else {
+            console.error('[trongcay] HpTrongCayPanel chưa load');
         }
     }
 
@@ -2686,6 +2696,12 @@
         window.open('/soundfx', '_blank');
     });
 
+    // 📦 Tách Danh sách quà ra cửa sổ riêng — Electron bắt /gift-list → cửa sổ ghim
+    // trên cùng (persist bounds + pin); trình duyệt → tab mới.
+    document.getElementById('btn-popout-giftlist')?.addEventListener('click', () => {
+        window.open('/gift-list', '_blank');
+    });
+
     // ⚙ Cài đặt: handler đã có ở dưới (line ~4160) — openSettingsPopup() mở #settings-popup
     // có sẵn (BẢN QUYỀN / PHIÊN BẢN / DANH SÁCH QUÀ). Không cần custom modal riêng.
 
@@ -3438,6 +3454,8 @@
         if (translatePopup) translatePopup.hidden = false;
         setTranslateUnread(0);
         loadLiveTranslateConfig();
+        // Tự đồng bộ quy tắc mỗi lần mở popup (không cần bấm nút Đồng bộ)
+        syncTranslateSheetRules();
     }
     function closeTranslatePopup() { if (translatePopup) translatePopup.hidden = true; }
     function openCreatorCaptionPopup() {

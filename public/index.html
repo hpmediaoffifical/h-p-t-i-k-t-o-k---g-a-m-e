@@ -528,6 +528,7 @@
 
                         <div class="card stretch">
                             <div class="card-title">📦 Danh sách quà
+                                <button id="btn-popout-giftlist" class="ghost mini" title="Tách ra cửa sổ riêng, ghim trên cùng để test quà mọi game">🪟 Tách cửa sổ</button>
                                 <input id="gift-search" type="text" placeholder="Tìm..." class="search-mini"/>
                             </div>
                             <div id="gift-catalog" class="gift-catalog"></div>
@@ -1555,6 +1556,45 @@
                 </div>
             </section>
 
+            <!-- ============ GAME VIEW: Trồng Cây ============ -->
+            <section id="view-trongcay" class="view game-view trongcay-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🌱 Trồng Cây</h2>
+                        <div class="game-sub">Khán giả tặng quà để gieo, tưới và chăm cây lớn trên overlay OBS.</div>
+                    </div>
+                    <div class="overlay-bar tc-overlay-bar">
+                        <div class="tc-bar-group tc-bar-session">
+                            <button id="tc-btn-session" class="primary small" title="Bắt đầu phiên — overlay nhận quà + hiển thị">▶ BẮT ĐẦU</button>
+                            <span id="tc-session-status" class="nd-session-status">⏸ Sẵn sàng</span>
+                            <label class="toggle-row" title="Bật/tắt game Trồng Cây"><input type="checkbox" id="tc-cfg-enabled" checked><span>Bật game</span></label>
+                        </div>
+                        <div class="tc-bar-group tc-bar-tools">
+                            <button id="tc-btn-copy" class="ghost small" title="Copy URL overlay cho OBS">📋 Copy link</button>
+                            <button id="tc-btn-popout-edit" class="ghost small" title="Mở overlay chế độ sửa — kéo cây để chỉnh vị trí, cuộn để zoom">✏ Sửa Overlay</button>
+                            <button id="tc-btn-reload" class="ghost small" title="Buộc overlay reload">🔄 Reload</button>
+                            <button id="tc-btn-reset" class="danger small" title="Reset cây, hoa và bướm">↺ Reset vườn</button>
+                            <button id="tc-btn-save" class="primary small" title="Lưu tất cả cấu hình ngay">💾 Lưu tất cả</button>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="game-body trongcay-body">
+                    <div class="nd-tabs">
+                        <button class="nd-tab tc-tab active" data-tc-tab="growth">🌱 Tăng trưởng</button>
+                        <button class="nd-tab tc-tab" data-tc-tab="gifts">🎁 Quà đặc biệt</button>
+                        <button class="nd-tab tc-tab" data-tc-tab="display">🎨 Hiển thị</button>
+                        <button class="nd-tab tc-tab" data-tc-tab="live">🦋 Live &amp; Test</button>
+                    </div>
+                    <div class="nd-panes">
+                        <div class="nd-pane tc-pane active" data-tc-pane="growth" id="tc-growth-pane"></div>
+                        <div class="nd-pane tc-pane" data-tc-pane="gifts" id="tc-gifts-pane"></div>
+                        <div class="nd-pane tc-pane" data-tc-pane="display" id="tc-display-pane"></div>
+                        <div class="nd-pane tc-pane" data-tc-pane="live" id="tc-live-pane"></div>
+                    </div>
+                </div>
+            </section>
+
             <section id="view-live-translate" class="view game-view live-translate-view">
                 <header class="game-header">
                     <div>
@@ -1990,7 +2030,7 @@
                 <button id="btn-translate-toggle" class="primary block">BẮT ĐẦU</button>
                 <button id="btn-translate-save" class="primary block">Lưu cài đặt dịch</button>
             </div>
-            <details class="translate-collapse translate-group" open>
+            <details class="translate-collapse translate-group">
                 <summary>Bật / lọc / đọc LIVE</summary>
                 <label class="translate-check"><input type="checkbox" id="lt-enabled" checked /> Bật dịch bình luận</label>
                 <label class="translate-check"><input type="checkbox" id="lt-tts" checked /> Đọc thành tiếng trên overlay</label>
@@ -1998,7 +2038,7 @@
                 <label class="translate-check"><input type="checkbox" id="lt-clean-unreadable" checked /> Bỏ phần trong [] và ký tự đặc biệt khó đọc</label>
                 <label class="translate-check"><input type="checkbox" id="lt-ai-filter" checked /> AI lọc bình luận độc hại trước khi đọc LIVE</label>
             </details>
-            <details class="translate-collapse translate-group" open>
+            <details class="translate-collapse translate-group">
                 <summary>Ngôn ngữ / giọng đọc</summary>
                 <div class="translate-row">
                     <label>Dịch từ</label>
@@ -2055,7 +2095,7 @@
                 <div class="translate-row"><label>Tốc độ đọc</label><input type="range" id="lt-rate" min="0.5" max="2" step="0.1" value="1" /><span class="translate-val" id="lt-rate-v">1.0x</span></div>
                 <button id="btn-translate-test-voice" class="ghost block">Test giọng tiếng Việt</button>
             </details>
-            <details class="translate-collapse translate-group" open>
+            <details class="translate-collapse translate-group">
                 <summary>Quy tắc / từ bổ sung</summary>
                 <details class="translate-collapse"><summary>Từ tắt / cụm thay thế bổ sung</summary><div class="translate-row vertical"><label>Quy tắc từ xa tự đồng bộ. Mục này chỉ để bổ sung local.</label><textarea id="lt-glossary" rows="5" spellcheck="false" placeholder="hp=HP Media\nidk=I don't know\nny=người yêu"></textarea></div></details>
                 <details class="translate-collapse"><summary>Từ cấm / tên user cấm bổ sung</summary><div class="translate-row vertical"><label>Quy tắc từ xa tự đồng bộ. Mục này chỉ để bổ sung local.</label><textarea id="lt-forbidden" rows="6" spellcheck="false" placeholder="spam\nkeyword\nusername"></textarea></div></details>
@@ -2425,6 +2465,8 @@
     <script src="/games/nhietdo/nhietdo-panel.js"></script>
     <script src="/games/bancung/game.js"></script>
     <script src="/games/bancung/bancung-panel.js"></script>
+    <script src="/games/trongcay/game.js"></script>
+    <script src="/games/trongcay/trongcay-panel.js"></script>
     <script src="/app.js"></script>
 </body>
 </html>
