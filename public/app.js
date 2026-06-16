@@ -2664,8 +2664,8 @@
             row.innerHTML = `
                 <img src="${e.image || ''}" onerror="this.style.display='none'"/>
                 <div class="be-info">
-                    <div class="be-name">${(e.customLabel || e.name).replace(/[<>]/g,'')}</div>
-                    <div class="be-id">ID ${e.id} · ${e.namePos}</div>
+                    <input class="be-name be-name-edit" value="${(e.customLabel || e.name).replace(/"/g,'&quot;')}" data-idx="${idx}" title="Sửa tên badge — để trống = dùng tên quà"/>
+                    <div class="be-id">ID ${e.id}${e.namePos ? ' · ' + e.namePos : ''}</div>
                 </div>
                 <label class="be-toggle"><input type="checkbox" ${e.enabled !== false ? 'checked' : ''} data-idx="${idx}"/></label>
                 <button class="be-remove ghost mini" data-idx="${idx}" title="Xoá">✕</button>
@@ -2678,6 +2678,16 @@
                 const i = parseInt(cb.dataset.idx, 10);
                 if (currentBadgeExtras[i]) {
                     currentBadgeExtras[i].enabled = cb.checked;
+                    pushConfigUpdate(true);
+                }
+            });
+        });
+        // Sửa tên badge ngay trên dòng — lưu vào customLabel khi rời ô (không re-render để giữ con trỏ)
+        list.querySelectorAll('.be-name-edit').forEach(inp => {
+            inp.addEventListener('change', () => {
+                const i = parseInt(inp.dataset.idx, 10);
+                if (currentBadgeExtras[i]) {
+                    currentBadgeExtras[i].customLabel = inp.value.trim();
                     pushConfigUpdate(true);
                 }
             });

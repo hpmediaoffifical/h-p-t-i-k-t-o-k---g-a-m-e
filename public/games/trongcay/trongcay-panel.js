@@ -10,8 +10,8 @@
     let popoutWindow = null;
     let giftPickerSearch = '';
     let giftPickerList = 'specificGifts';
-    let giftPickerValues = {};
-    let selectedGiftId = '';
+    let pickerOpen = false;   // popup chọn quà (badge hiệu ứng + tìm + lưới quà) — chỉ hiện khi cần cho gọn
+    let growthOpen = { health: false, pests: false };   // 2 card nâng cao ở tab Tăng trưởng — mặc định thu gọn
     const $ = (sel, ctx = document) => ctx.querySelector(sel);
     const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
     const GIFT_ACTIONS = [
@@ -188,7 +188,7 @@
                     ${numRow('Chiều cao ban đầu', 'initialHeight', cfg.initialHeight, 0, 100, 1, '%')}
                 </div>
             </div>
-            <div class="nd-card"><div class="nd-card-title">💧 Sức khỏe cây (nước &amp; héo)</div>
+            <details class="nd-card tc-collapse" data-growth-card="health" ${growthOpen.health ? 'open' : ''}><summary class="nd-card-title">💧 Sức khỏe cây (nước &amp; héo)</summary>
                 <div class="nd-help">Không tưới → cây mất nước rồi héo dần. Tưới lại sẽ hồi héo. Số càng lớn cây càng “khó tính”.</div>
                 <div class="tc-fieldset">
                     ${numRow('Mất nước / giây', 'waterLossPerSecond', cfg.waterLossPerSecond, 0, 3, .05, '/ s')}
@@ -197,8 +197,8 @@
                     ${numRow('Trái rụng khi héo ≥', 'fruitDropWilt', cfg.fruitDropWilt == null ? 55 : cfg.fruitDropWilt, 0, 100, 1, 'héo')}
                 </div>
                 <div class="nd-help">🍎 Cây héo tới mức trên → trái chín rụng xuống đất. Ong vẫn nhặt trái dưới đất được (cộng điểm cho chủ cây).</div>
-            </div>
-            <div class="nd-card"><div class="nd-card-title">🐛 Tỉ lệ sâu phá cây</div>
+            </details>
+            <details class="nd-card tc-collapse" data-growth-card="pests" ${growthOpen.pests ? 'open' : ''}><summary class="nd-card-title">🐛 Tỉ lệ sâu phá cây</summary>
                 <div class="nd-help">Sâu xanh ăn lá làm cây thấp dần. Thấy phá nhiều → GIẢM “Ăn mỗi lần” hoặc TĂNG “Nhịp ăn” (sâu ăn chậm lại). Giảm “Sâu sống” để sâu sớm bỏ đi.</div>
                 <div class="tc-fieldset">
                     ${numRow('Chờ rồi mới phá', 'caterpillarStartDelaySec', cfg.caterpillarStartDelaySec == null ? 3 : cfg.caterpillarStartDelaySec, 0, 30, .5, 's')}
@@ -207,8 +207,9 @@
                     ${numRow('Sâu sống tối đa', 'caterpillarLifeSeconds', cfg.caterpillarLifeSeconds == null ? 75 : cfg.caterpillarLifeSeconds, 5, 300, 5, 's')}
                 </div>
                 <div class="nd-help">🐛 Sâu xuất hiện xong sẽ chờ “Chờ rồi mới phá” giây mới bắt đầu ăn → kịp xịt thuốc cứu cây.</div>
-            </div>`;
+            </details>`;
         $$('input[name="tc-growth-mode"]', host).forEach(r => r.addEventListener('change', e => { cfg.growthMode = e.target.value; schedulePersist(); renderGrowth(); }));
+        $$('details[data-growth-card]', host).forEach(d => d.addEventListener('toggle', () => { growthOpen[d.dataset.growthCard] = d.open; }));
         bindNumberInputs(host);
     }
     function numRow(label, key, val, min, max, step, suffix) {
@@ -225,69 +226,40 @@
         const host = $('#tc-gifts-pane');
         if (!host) return;
         const action = currentGiftAction();
-        const selected = findGift(selectedGiftId);
-        // Nếu quà đang chọn ĐÃ CHỐT → ô số hiện ĐÚNG số đã lưu của quà đó (số liệu thống nhất),
-        // không phải defVal/giá trị gõ lần trước. Quà chưa chốt thì dùng giá trị đang gõ / mặc định.
-        const savedItem = selected ? (cfg[action.listKey] || []).find(x => String(x.giftId) === String(selectedGiftId)) : null;
-        const value = savedItem ? (savedItem[action.valueKey] ?? action.defVal)
-            : (giftPickerValues[action.listKey] == null ? action.defVal : giftPickerValues[action.listKey]);
         host.innerHTML = `
-            <div class="nd-card"><div class="nd-card-title">🎁 Gán quà đặc biệt</div>
-                <div class="nd-help">Icon quà chỉ mọc trên cây khi nằm trong nhóm Hoa/Tăng trưởng hoặc chế độ tăng trưởng cho phép. Tưới/nắng/cắt chỉ chạy hiệu ứng riêng.</div>
-                <div class="tc-gift-layout">
-                    <div class="tc-gift-picker">
-                        <div class="tc-action-strip">
-                            ${GIFT_ACTIONS.map(a => `<button type="button" class="tc-action-btn ${a.listKey === action.listKey ? 'active' : ''}" data-action-list="${a.listKey}"><span>${a.icon}</span>${escapeHtml(a.title)}</button>`).join('')}
-                        </div>
-                        <div class="tc-gift-tools">
-                            <input data-tc-gift-search type="text" value="${escapeHtml(giftPickerSearch)}" placeholder="Tìm tên, ID, số KC...">
-                            <span id="tc-gift-count">${giftGridCountText()}</span>
-                        </div>
-                        <div id="tc-gift-grid" class="tc-gift-grid">${giftGridHtml()}</div>
-                    </div>
-                    <div class="tc-gift-config">
-                        <div class="tc-gift-config-title">${action.icon} ${escapeHtml(action.title)}</div>
-                        <label class="tc-value-box"><span>${escapeHtml(action.valueLabel)}</span><input data-tc-gift-value type="number" step="1" value="${escapeHtml(value)}"></label>
-                        <div class="tc-selected-gift ${selected ? '' : 'empty'}">
-                            ${selected ? `<img src="${escapeHtml(giftImage(selected))}" onerror="this.style.display='none'"><div><b>${escapeHtml(giftName(selected))}</b><span>${escapeHtml(giftDiamond(selected))} KC</span></div>` : '<div><b>Chưa chọn quà</b><span>Bấm icon quà trong lưới bên trái</span></div>'}
-                        </div>
-                        <button class="primary small" data-add-selected-gift ${selected ? '' : 'disabled'}>+ Thêm / cập nhật</button>
-                        <div class="tc-assigned-title">🔒 Đã chốt cho mục này <span class="tc-assigned-count">${(cfg[action.listKey] || []).length}</span></div>
-                        ${assignedForFeatureHtml(action)}
-                    </div>
+            <div class="nd-card"><div class="nd-card-title">🎁 Gán quà cho hiệu ứng</div>
+                <div class="nd-help">Bấm <b>➕ Thêm quà</b> để mở bảng chọn quà cho từng hiệu ứng. Bấm icon quà ở dưới để đổi quà. Chỉnh số ngay trên từng dòng.</div>
+                <div class="tc-gift-actions-row">
+                    <button class="primary small tc-add-gift" data-open-picker>➕ Thêm quà cho hiệu ứng</button>
+                    <button class="ghost small tc-auto-badge" data-auto-badge title="Tự đẩy toàn bộ quà đã gán sang “🏷 Badge hiệu ứng quà” của Hũ Thủy Tinh — vào danh sách Badge thủ công bổ sung (có tick hiện / nút xoá riêng).">🏷 Auto → Badge Hũ Thủy Tinh</button>
                 </div>
-                ${waterCommentCard()}
-                <div class="tc-assigned-title">Quà đã gán <span class="tc-assigned-count">${assignedTotalCount()}</span></div>
+                <div class="tc-assigned-title">🔖 Quà đã gán <span class="tc-assigned-count">${assignedTotalCount()}</span></div>
                 <div class="tc-assigned-groups">${assignedGroupsHtml()}</div>
-            </div>`;
+            </div>
+            ${pickerOpen ? pickerModalHtml(action) : ''}`;
+        // Mở / đóng popup chọn quà
+        $('[data-open-picker]', host)?.addEventListener('click', () => { pickerOpen = true; renderGifts(); });
+        $('[data-auto-badge]', host)?.addEventListener('click', exportToThuytinhBadges);
+        $$('[data-close-picker]', host).forEach(b => b.addEventListener('click', () => { pickerOpen = false; renderGifts(); }));
+        $('[data-picker-backdrop]', host)?.addEventListener('click', e => { if (e.target === e.currentTarget) { pickerOpen = false; renderGifts(); } });
+        // Bấm icon quà ở 1 dòng → mở popup đúng hiệu ứng đó để đổi/thêm quà
+        $$('[data-edit-effect]', host).forEach(b => b.addEventListener('click', () => { giftPickerList = b.dataset.editEffect; pickerOpen = true; renderGifts(); }));
+        // (trong popup) tìm quà + đổi nhóm hiệu ứng + chọn quà
         $('[data-tc-gift-search]', host)?.addEventListener('input', e => {
             giftPickerSearch = e.target.value;
             renderGiftGrid(host);
         });
-        $('[data-tc-gift-value]', host)?.addEventListener('input', e => {
-            const v = Number(e.target.value) || 0;
-            giftPickerValues[action.listKey] = v;
-            // Quà đang chọn ĐÃ CHỐT → cập nhật số NGAY (realtime): sửa data + lưu + đồng bộ chữ
-            // ở danh sách "Đã chốt"/"Quà đã gán" mà KHÔNG render lại (giữ con trỏ trong ô số).
-            const existing = (cfg[action.listKey] || []).find(x => String(x.giftId) === String(selectedGiftId));
-            if (existing) {
-                existing[action.valueKey] = v;
-                schedulePersist();
-                $$(`.tc-val-num[data-valgift="${selectedGiftId}"][data-vallist="${action.listKey}"]`, host).forEach(el => { el.textContent = v; });
-            }
-        });
-        $('[data-add-selected-gift]', host)?.addEventListener('click', () => {
-            const input = $('[data-tc-gift-value]', host);
-            const nextValue = Number(input?.value) || 0;
-            giftPickerValues[action.listKey] = nextValue;
-            addGiftItem(action.listKey, action.valueKey, selectedGiftId, nextValue);
-        });
         $$('[data-action-list]', host).forEach(btn => btn.addEventListener('click', () => {
             giftPickerList = btn.dataset.actionList;
-            selectedGiftId = '';   // mỗi menu độc lập — không để 1 icon đang chọn "dính" sang mọi menu
             renderGifts();
         }));
         bindGiftGrid(host);
+        // Chỉnh số ngay trên dòng (inline) — KHÔNG render lại để giữ con trỏ trong ô.
+        $$('[data-row-val]', host).forEach(inp => inp.addEventListener('input', e => {
+            const list = cfg[e.target.dataset.list] || [];
+            const item = list.find(x => String(x.giftId) === String(e.target.dataset.gift));
+            if (item) { item[e.target.dataset.key] = Number(e.target.value) || 0; schedulePersist(); }
+        }));
         $$('[data-tc-key]', host).forEach(inp => inp.addEventListener('input', e => {
             const key = e.target.dataset.tcKey;
             cfg[key] = e.target.type === 'checkbox' ? !!e.target.checked : (e.target.type === 'number' ? Number(e.target.value) : e.target.value);
@@ -362,15 +334,46 @@
         const sid = String(id || '');
         return GIFT_ACTIONS.filter(a => (cfg[a.listKey] || []).some(x => String(x.giftId) === sid)).map(a => a.icon).join('');
     }
+    // Popup chọn quà: badge hiệu ứng + tìm + lưới quà (toàn bộ phần "cồng kềnh" dồn vào đây cho gọn panel)
+    function pickerModalHtml(action) {
+        return `<div class="tc-picker-backdrop" data-picker-backdrop>
+            <div class="tc-picker">
+                <div class="tc-picker-head">
+                    <b>🎁 Chọn quà cho hiệu ứng</b>
+                    <button class="tc-picker-close" data-close-picker title="Đóng">✕</button>
+                </div>
+                <div class="tc-badge-strip">
+                    ${GIFT_ACTIONS.map(a => {
+                        const n = (cfg[a.listKey] || []).length;
+                        return `<button type="button" class="tc-badge ${a.listKey === action.listKey ? 'active' : ''}" data-action-list="${a.listKey}" title="${escapeHtml(a.title)}">
+                            <span class="tc-badge-ico">${a.icon}</span><span class="tc-badge-txt">${escapeHtml(a.title)}</span>${n ? `<span class="tc-badge-num">${n}</span>` : ''}
+                        </button>`;
+                    }).join('')}
+                </div>
+                <div class="tc-gift-tools">
+                    <input data-tc-gift-search type="text" value="${escapeHtml(giftPickerSearch)}" placeholder="Tìm quà cho “${escapeHtml(action.icon + ' ' + action.title)}”: tên, ID, số KC...">
+                    <span id="tc-gift-count">${giftGridCountText()}</span>
+                </div>
+                <div id="tc-gift-grid" class="tc-gift-grid">${giftGridHtml()}</div>
+                <div class="tc-picker-foot">
+                    <span class="nd-help">Bấm quà để gán/bỏ cho “${escapeHtml(action.icon + ' ' + action.title)}”. ✓ = đã gán.</span>
+                    <button class="primary small" data-close-picker>Xong</button>
+                </div>
+            </div>
+        </div>`;
+    }
     function giftGridHtml() {
         const items = filteredGifts();
         if (!giftSheet().length) return '<div class="tc-gift-empty">Chưa tải được gift sheet. Hãy mở danh sách quà hoặc kết nối LIVE để app có dữ liệu quà.</div>';
         if (!items.length) return '<div class="tc-gift-empty">Không tìm thấy quà phù hợp.</div>';
+        const curList = cfg[currentGiftAction().listKey] || [];
         return items.map(g => {
             const id = giftId(g);
             const badges = assignedIconsForGift(id);
-            return `<button type="button" class="tc-gift-card ${String(selectedGiftId) === id ? 'selected' : ''} ${badges ? 'assigned' : ''}" data-pick-gift="${escapeHtml(id)}" title="${escapeHtml(giftName(g))}">
+            const inCur = curList.some(x => String(x.giftId) === id);
+            return `<button type="button" class="tc-gift-card ${inCur ? 'in-current' : ''} ${badges ? 'assigned' : ''}" data-pick-gift="${escapeHtml(id)}" title="${escapeHtml(giftName(g))}">
                 ${badges ? `<span class="tc-gift-badges">${escapeHtml(badges)}</span>` : ''}
+                ${inCur ? '<span class="tc-gift-check">✓</span>' : ''}
                 <img src="${escapeHtml(giftImage(g))}" onerror="this.style.display='none'">
                 <b>${escapeHtml(giftName(g))}</b>
                 <span>${escapeHtml(giftDiamond(g))} KC</span>
@@ -386,12 +389,66 @@
     }
     function bindGiftGrid(host) {
         $$('[data-pick-gift]', host).forEach(btn => btn.addEventListener('click', () => {
-            selectedGiftId = btn.dataset.pickGift;
-            renderGifts();
+            toggleGiftInAction(currentGiftAction(), btn.dataset.pickGift);
         }));
+    }
+    // Bấm icon quà = bật/tắt gán cho hiệu ứng đang chọn. Thêm mới dùng số mặc định, chỉnh số ở dòng "Quà đã gán".
+    function toggleGiftInAction(action, id) {
+        const gift = findGift(id);
+        if (!gift) return toast('Chưa có gift sheet — mở danh sách quà hoặc kết nối LIVE', 'warn');
+        const list = cfg[action.listKey] = (cfg[action.listKey] || []);
+        const idx = list.findIndex(x => String(x.giftId) === String(id));
+        if (idx >= 0) {
+            list.splice(idx, 1);
+        } else {
+            const item = { giftId: giftId(gift), giftName: giftName(gift), giftImage: giftImage(gift) };
+            item[action.valueKey] = action.defVal;
+            list.push(item);
+        }
+        schedulePersist();
+        renderGifts();
     }
     function assignedTotalCount() {
         return GIFT_ACTIONS.reduce((n, a) => n + (cfg[a.listKey] || []).length, 0);
+    }
+    // 🏷 Auto: đẩy quà đã gán ở Trồng Cây → danh sách "Badge thủ công bổ sung" của Hũ Thủy Tinh
+    //    (config.badges.extras). Dạng mục giống badge thủ công → tự có tick hiện + nút xoá.
+    //    Merge theo giftId: chỉ thêm quà CHƯA có, giữ nguyên mục cũ (kể cả trạng thái tick).
+    async function exportToThuytinhBadges(ev) {
+        const btn = ev && ev.currentTarget;
+        // Gom theo giftId; mỗi quà kèm danh sách hiệu ứng (icon + tên) để đặt làm NHÃN badge.
+        const byGift = new Map();
+        GIFT_ACTIONS.forEach(a => (cfg[a.listKey] || []).forEach(g => {
+            const id = String(g.giftId || '');
+            if (!id) return;
+            if (!byGift.has(id)) byGift.set(id, { id, name: g.giftName || ('Gift ' + id), image: g.giftImage || '', labels: [] });
+            byGift.get(id).labels.push(`${a.icon} ${a.title}`);
+        }));
+        const gifts = [...byGift.values()];
+        if (!gifts.length) return toast('Chưa gán quà nào để đẩy sang Badge', 'warn');
+        if (btn) { btn.disabled = true; var old = btn.textContent; btn.textContent = '⏳ Đang đẩy...'; }
+        try {
+            const r = await fetch('/api/games/thuytinh/config');
+            if (!r.ok) throw new Error('Không đọc được cấu hình Hũ Thủy Tinh');
+            const tcfg = await r.json();
+            tcfg.badges = tcfg.badges || {};
+            const extras = Array.isArray(tcfg.badges.extras) ? tcfg.badges.extras : [];
+            const have = new Set(extras.map(e => String(e.id)));
+            let added = 0;
+            for (const g of gifts) {
+                if (have.has(g.id)) continue;
+                extras.push({ id: g.id, name: g.name, image: g.image, customLabel: g.labels.join(' · '), enabled: true });
+                have.add(g.id); added++;
+            }
+            tcfg.badges.extras = extras;
+            const sr = await fetch('/api/games/thuytinh/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tcfg) });
+            if (!sr.ok) throw new Error('Lưu Badge thất bại');
+            toast(added ? `✓ Đã đẩy ${added} quà sang Badge (đặt tên theo hiệu ứng)` : 'Tất cả quà đã có sẵn trong Badge rồi', added ? 'success' : 'info');
+        } catch (e) {
+            toast('Lỗi Auto Badge: ' + e.message, 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = old; }
+        }
     }
     function giftIconCell(image, name, cls) {
         const nm = name || '';
@@ -399,57 +456,49 @@
             ? `<img class="${cls}" src="${escapeHtml(image)}" alt="${escapeHtml(nm)}" title="${escapeHtml(nm)}" onerror="this.classList.add('tc-ico-broken')">`
             : `<span class="${cls} tc-ico-text" title="${escapeHtml(nm)}">${escapeHtml(nm)}</span>`;
     }
-    function assignedForFeatureHtml(action) {
-        const list = cfg[action.listKey] || [];
-        if (!list.length) return `<div class="nd-help" style="padding:6px 2px">Chưa chốt quà nào cho mục này.</div>`;
-        const rows = list.map((g, i) => {
-            const nm = g.giftName || ('Gift ' + g.giftId);
-            return `<div class="tc-assigned-line tc-assigned-line--compact" title="${escapeHtml(nm)}">
-                ${giftIconCell(g.giftImage, nm, 'tc-assigned-ico')}
-                <b class="tc-assigned-val">${escapeHtml(nm)} · <span class="tc-val-num" data-valgift="${escapeHtml(g.giftId)}" data-vallist="${action.listKey}">${escapeHtml(g[action.valueKey] ?? 0)}</span></b>
-                <button class="ghost tiny tc-test-btn" data-test-list="${action.listKey}" data-test-action="${action.testAction}" data-test-idx="${i}" title="Chạy thử quà này">▶</button>
-                <button class="danger tiny" data-del-list="${action.listKey}" data-idx="${i}" title="Xoá ${escapeHtml(nm)}">✕</button>
-            </div>`;
-        }).join('');
-        return `<div class="tc-assigned-list">${rows}</div>`;
-    }
+    // Mỗi quà đã gán = đúng 1 hàng gọn. Cụm 💬 Comment tự tưới được nhét NGAY TRÊN CÙNG HÀNG
+    // với quà Tưới nước đầu tiên (không tách card/dòng riêng). Nếu chưa gán quà tưới nào thì
+    // hiện 1 dòng gọn để vẫn cấu hình được — comment-tưới chạy độc lập với quà.
     function assignedGroupsHtml() {
-        const rows = [];
+        const blocks = [];
         GIFT_ACTIONS.forEach(a => {
-            (cfg[a.listKey] || []).forEach((g, i) => {
+            const list = cfg[a.listKey] || [];
+            list.forEach((g, i) => {
                 const nm = g.giftName || ('Gift ' + g.giftId);
-                rows.push(`<div class="tc-assigned-line" title="${escapeHtml(nm)}">
-                    <span class="tc-assigned-chip">${a.icon} ${escapeHtml(a.title)}</span>
-                    ${giftIconCell(g.giftImage, nm, 'tc-assigned-ico')}
-                    <b class="tc-assigned-val">${escapeHtml(a.valueLabel)}: <span class="tc-val-num" data-valgift="${escapeHtml(g.giftId)}" data-vallist="${a.listKey}">${escapeHtml(g[a.valueKey] ?? 0)}</span></b>
-                    <button class="ghost tiny tc-test-btn" data-test-list="${a.listKey}" data-test-action="${a.testAction}" data-test-idx="${i}" title="Chạy thử / bù hiệu ứng quà này lên overlay">▶ Thử</button>
-                    <button class="danger tiny" data-del-list="${a.listKey}" data-idx="${i}" title="Xoá ${escapeHtml(nm)}">✕</button>
+                const cmt = (a.listKey === 'waterGifts' && i === 0) ? commentInlineHtml() : '';
+                blocks.push(`<div class="tc-row" title="${escapeHtml(nm)}">
+                    <button type="button" class="tc-row-iconbtn" data-edit-effect="${a.listKey}" title="Đổi quà cho ${escapeHtml(a.title)}">${giftIconCell(g.giftImage, nm, 'tc-row-ico')}</button>
+                    <span class="tc-row-chip">${a.icon} ${escapeHtml(a.title)}</span>
+                    <label class="tc-row-val"><span>${escapeHtml(a.valueLabel)}</span><input type="number" step="1" data-row-val data-list="${a.listKey}" data-key="${a.valueKey}" data-gift="${escapeHtml(g.giftId)}" value="${escapeHtml(g[a.valueKey] ?? a.defVal)}"></label>
+                    ${cmt}
+                    <button class="tc-test-btn" data-test-list="${a.listKey}" data-test-action="${a.testAction}" data-test-idx="${i}" title="Chạy thử hiệu ứng quà này lên overlay">▶ Thử</button>
+                    <button class="danger tiny" data-del-list="${a.listKey}" data-idx="${i}" title="Bỏ gán ${escapeHtml(nm)}">✕</button>
                 </div>`);
             });
+            if (a.listKey === 'waterGifts' && !list.length) {
+                blocks.push(`<div class="tc-row tc-row--cmt">
+                    <span class="tc-row-cmtico">💧</span>
+                    <span class="tc-row-chip">💧 Tưới nước</span>
+                    ${commentInlineHtml()}
+                </div>`);
+            }
         });
-        if (!rows.length) return '<div class="nd-help" style="padding:10px 0">Chưa gán quà nào. Chọn nhóm bên trên → chọn quà → bấm “Thêm / cập nhật”.</div>';
-        return `<div class="tc-assigned-list">${rows.join('')}</div>`;
+        const hasAny = GIFT_ACTIONS.some(a => (cfg[a.listKey] || []).length);
+        const lead = hasAny ? '' : '<div class="nd-help" style="padding:4px 0 8px">Chưa gán quà nào. Bấm “➕ Thêm quà” để chọn quà cho hiệu ứng.</div>';
+        return `<div class="tc-assigned-list">${lead}${blocks.join('')}</div>`;
     }
-    function waterCommentCard() {
-        return `<div class="nd-subcard">
-            <h4>💬 Điều kiện comment khi tưới</h4>
-            <label class="toggle-row"><input data-tc-key="waterCommentRequired" type="checkbox" ${cfg.waterCommentRequired !== false ? 'checked' : ''}><span>Bắt buộc vừa comment đúng từ khóa vừa tặng quà tưới</span></label>
-            <div class="nd-row" style="margin-top:8px">
-                <label class="nd-inline">Từ khóa <input data-tc-key="waterCommentKeyword" type="text" value="${escapeHtml(cfg.waterCommentKeyword || 'tuoicay')}" placeholder="tuoicay"></label>
-                <label class="nd-inline">Hiệu lực <input data-tc-key="waterCommentWindowSeconds" type="number" min="3" max="300" step="1" value="${escapeHtml(cfg.waterCommentWindowSeconds || 30)}"> giây</label>
-            </div>
-            <div class="nd-help">Ví dụ: user comment <b>${escapeHtml(cfg.waterCommentKeyword || 'tuoicay')}</b>, trong ${escapeHtml(cfg.waterCommentWindowSeconds || 30)} giây tiếp theo tặng quà tưới thì mới kích hoạt mưa/tưới cây.</div>
-        </div>`;
-    }
-    function addGiftItem(listKey, valueKey, id, value) {
-        const gift = findGift(id);
-        if (!gift) return toast('Chưa chọn quà hoặc chưa có gift sheet', 'warn');
-        const item = { giftId: giftId(gift), giftName: giftName(gift), giftImage: giftImage(gift) };
-        item[valueKey] = Number(value) || 0;
-        cfg[listKey] = (cfg[listKey] || []).filter(x => String(x.giftId) !== String(item.giftId));
-        cfg[listKey].push(item);
-        schedulePersist();
-        renderGifts();
+    // 💬 Cụm "Comment tự tưới" gọn dạng pill — nằm cùng hàng với Tưới nước.
+    function commentInlineHtml() {
+        const kw = cfg.waterCommentKeyword || 'tuoicay';
+        const amt = cfg.waterCommentAmount ?? 6;
+        const cd = cfg.waterCommentCooldownSeconds ?? 8;
+        const on = cfg.waterCommentAutoWater !== false;
+        return `<span class="tc-cmt-inline ${on ? '' : 'off'}" title="Comment chứa “${escapeHtml(kw)}” → vườn +${escapeHtml(amt)} nước. Mỗi người tưới lại sau ${escapeHtml(cd)} giây (chống spam/lag). Chỉ chạy khi phiên đang BẮT ĐẦU.">
+            <label class="tc-cmt-chk" title="Bật/tắt comment tự tưới"><input data-tc-key="waterCommentAutoWater" type="checkbox" ${on ? 'checked' : ''}>💬</label>
+            <input class="tc-cmt-kw" data-tc-key="waterCommentKeyword" type="text" value="${escapeHtml(kw)}" placeholder="tuoicay" title="Từ khóa comment">
+            <span class="tc-cmt-lbl">Nước +</span><input class="tc-cmt-n" data-tc-key="waterCommentAmount" type="number" min="1" max="100" step="1" value="${escapeHtml(amt)}" title="Nước cộng mỗi comment">
+            <span class="tc-cmt-lbl">Chống spam</span><input class="tc-cmt-n" data-tc-key="waterCommentCooldownSeconds" type="number" min="1" max="120" step="1" value="${escapeHtml(cd)}" title="Giây/người"><span class="tc-cmt-lbl">s</span>
+        </span>`;
     }
     function renderDisplay() {
         const host = $('#tc-display-pane');
@@ -471,11 +520,20 @@
             ${checkRow('🎯 Ăn mừng khi đạt mốc 25/50/75/100% & khi cây kết trái', 'showMilestones', d.showMilestones !== false)}
             ${checkRow('🔊 Âm thanh hiệu ứng', 'soundEnabled', d.soundEnabled !== false)}
         </div>`;
-        $$('input[data-dkey]', host).forEach(inp => inp.addEventListener('input', e => { d[e.target.dataset.dkey] = Number(e.target.value); schedulePersist(); }));
+        $$('input[data-dkey]', host).forEach(inp => inp.addEventListener('input', e => {
+            const key = e.target.dataset.dkey;
+            const v = Number(e.target.value);
+            d[key] = v;
+            const span = host.querySelector('span[data-dval="' + key + '"]');
+            if (span) span.textContent = Math.round(v) + (span.dataset.dsuffix || '');
+            schedulePersist();
+        }));
         $$('input[data-ckey]', host).forEach(inp => inp.addEventListener('change', e => { d[e.target.dataset.ckey] = !!e.target.checked; schedulePersist(); }));
     }
     function displayNum(label, key, val, min, max, step, suffix) {
-        return `<div class="nd-field"><label>${label}</label><input data-dkey="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${escapeHtml(val)}"><span>${escapeHtml(val)}${suffix}</span></div>`;
+        const shown = Math.round(Number(val) || 0);   // làm tròn % hiển thị (vị trí kéo từ overlay có thể là số lẻ dài)
+        const sfx = suffix || '';
+        return `<div class="nd-field"><label>${label}</label><input data-dkey="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${escapeHtml(val)}"><span data-dval="${key}" data-dsuffix="${escapeHtml(sfx)}">${shown}${escapeHtml(sfx)}</span></div>`;
     }
     function checkRow(label, key, checked) {
         return `<label class="toggle-row"><input data-ckey="${key}" type="checkbox" ${checked ? 'checked' : ''}><span>${label}</span></label>`;

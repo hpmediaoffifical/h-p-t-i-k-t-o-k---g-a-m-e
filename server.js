@@ -295,9 +295,10 @@ function makeDefaultTrongCayConfig() {
         perGiftGrowth: 5,
         specificGifts: [],           // [{ giftId, giftName, giftImage, growth }]
         waterGifts: [],              // [{ giftId, giftName, giftImage, water, growth }]
-        waterCommentRequired: true,
+        waterCommentAutoWater: true,    // comment đúng từ khóa → TỰ TƯỚI (không cần quà). Chỉ chạy khi phiên đang bật.
         waterCommentKeyword: 'tuoicay',
-        waterCommentWindowSeconds: 30,
+        waterCommentAmount: 6,          // mỗi comment hợp lệ cộng bao nhiêu nước cho vườn
+        waterCommentCooldownSeconds: 8, // trần thời gian / mỗi người — chống 1 user spam comment gây lag
         sunGifts: [],                // [{ giftId, giftName, giftImage, sun, wilt }]
         cutGifts: [],                // [{ giftId, giftName, giftImage, cut }]
         butterflyGifts: [],          // [{ giftId, giftName, giftImage, lifeSeconds }]
@@ -2036,7 +2037,7 @@ function attachConnectionEvents(conn) {
         maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'chat', verified, userId);
         try { handleVipWelcomeEvent('comment', { uniqueId, nickname, level, profilePicture, verified, comment }); } catch (e) {}
         try { handleVoteCommentChat({ uniqueId, comment }); } catch (e) {}
-        try { handleTrongCayChat({ uniqueId, comment }); } catch (e) {}
+        try { handleTrongCayChat({ uniqueId, nickname, profilePicture, comment }); } catch (e) {}
     });
 
     conn.on(WebcastEvent.GIFT, (data) => {
@@ -4749,7 +4750,8 @@ function tcDragonTotalMs(burnSec) {
 }
 let trongCayBurnUntil = 0;
 let trongCayBurnTimer = null;
-const trongCayWaterComments = new Map();
+const trongCayCommentWaterAt = new Map(); // uid -> lần cuối comment-tưới (trần thời gian / user)
+let trongCayLastCommentRainAt = 0;        // throttle toàn cục cho event mưa (chống flood overlay khi đông người comment)
 
 function trongCayClamp(v, lo, hi) {
     v = Number(v);
@@ -4771,26 +4773,43 @@ function trongCayNormalizeText(text) {
         .replace(/[^a-z0-9]+/g, '');
 }
 
-function handleTrongCayChat({ uniqueId, comment }) {
-    if (appConfig.games?.trongcay?.enabled === false) return;
-    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+// 💬 Chỉ cần comment ĐÚNG từ khóa là TỰ TƯỚI nước — không cần tặng quà.
+//    Chống spam/lag: (1) trần thời gian mỗi người (cooldown), (2) throttle toàn cục cho event mưa.
+//    Chỉ chạy khi phiên ĐANG bật (sessionActive !== false) — comment lúc dừng phiên thì bỏ qua.
+function handleTrongCayChat({ uniqueId, nickname, profilePicture, comment }) {
+    const cfg = appConfig.games?.trongcay;
+    if (!cfg || cfg.enabled === false) return;
+    if (cfg.waterCommentAutoWater === false) return;
+    if (cfg.sessionActive === false) return;          // phiên đang dừng → không tưới
+    if (Date.now() < trongCayBurnUntil) return;       // 🐉 vườn đang bị thiêu → bỏ qua
     const key = trongCayCommentKey(uniqueId);
     if (!key) return;
     const keyword = trongCayNormalizeText(cfg.waterCommentKeyword || 'tuoicay');
     if (!keyword) return;
     const normalized = trongCayNormalizeText(comment);
-    if (normalized === keyword || normalized.includes(keyword)) {
-        trongCayWaterComments.set(key, Date.now());
-    }
-}
+    if (!(normalized === keyword || normalized.includes(keyword))) return;
 
-function trongCayHasRecentWaterComment(uniqueId, cfg) {
-    if (cfg.waterCommentRequired === false) return true;
-    const key = trongCayCommentKey(uniqueId);
-    if (!key) return false;
-    const lastAt = trongCayWaterComments.get(key) || 0;
-    const windowMs = Math.max(3, Number(cfg.waterCommentWindowSeconds) || 30) * 1000;
-    return lastAt > 0 && (Date.now() - lastAt) <= windowMs;
+    const now = Date.now();
+    const cooldownMs = Math.max(1, Number(cfg.waterCommentCooldownSeconds) || 8) * 1000;
+    const last = trongCayCommentWaterAt.get(key) || 0;
+    if (now - last < cooldownMs) return;              // trần thời gian / user
+    trongCayCommentWaterAt.set(key, now);
+    if (trongCayCommentWaterAt.size > 3000) {         // dọn map khỏi phình to
+        for (const [k, t] of trongCayCommentWaterAt) { if (now - t > cooldownMs) trongCayCommentWaterAt.delete(k); }
+    }
+
+    const amount = Math.max(1, Number(cfg.waterCommentAmount) || 6);
+    trongCayApplyDelta({ water: amount });
+    trongCayAddContrib({ uniqueId, nickname, profilePicture, coinValue: 0, repeatCount: 1 });
+    trongCayState.lastGiftAt = now;
+    // event mưa: gộp theo throttle toàn cục để overlay không bị flood khi nhiều người cùng comment
+    if (now - trongCayLastCommentRainAt >= 600) {
+        trongCayLastCommentRainAt = now;
+        io.emit('trongcay:water', { nickname, uniqueId, ts: now });
+        broadcastTrongCayState({ immediate: true });
+    } else {
+        broadcastTrongCayState();                     // coalesce ~250ms (xem broadcastTrongCayState)
+    }
 }
 
 function trongCaySnapshot() {
@@ -5632,16 +5651,7 @@ function handleTrongCayGift({ uniqueId, nickname, profilePicture, giftId, giftNa
         trongCayCutDelayed(target, Math.max(1, Number(cutHit.cut) || 10) * repeat);
         accepted = true;
     } else if (waterHit) {
-        if (!isTestGift && !trongCayHasRecentWaterComment(uniqueId, cfg)) {
-            io.emit('trongcay:hint', {
-                type: 'waterCommentRequired',
-                uniqueId,
-                nickname,
-                keyword: cfg.waterCommentKeyword || 'tuoicay',
-                ts: Date.now()
-            });
-            return;
-        }
+        // Quà tưới luôn tưới ngay (đã bỏ ràng buộc "phải comment trước" — comment giờ tự tưới riêng).
         // Mưa RƠI trước (event), cây tươi/đỡ héo áp SAU khi mưa rơi xuống (đúng nhân quả).
         io.emit('trongcay:water', { nickname, uniqueId, ts: Date.now() });
         trongCayApplyWeatherDelayed({ water: Math.max(1, Number(waterHit.water) || 18) * repeat, growth: Math.max(0, Number(waterHit.growth) || 2) * repeat });
