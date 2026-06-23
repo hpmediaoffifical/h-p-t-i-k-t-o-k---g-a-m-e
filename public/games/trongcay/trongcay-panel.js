@@ -12,9 +12,28 @@
     let giftPickerList = 'specificGifts';
     let pickerOpen = false;   // popup chọn quà (badge hiệu ứng + tìm + lưới quà) — chỉ hiện khi cần cho gọn
     let growthOpen = { health: false, pests: false };   // 2 card nâng cao ở tab Tăng trưởng — mặc định thu gọn
+    let decorAdvOpen = false;   // ⚙ cụm chỉnh kích thước & vị trí trang trí — mặc định gọn
+    let decorKpiOpen = false;   // 💎 cụm mở khoá theo KPI Kim Cương — mặc định gọn
+    let decorPetsOpen = false;  // 🐾 cụm thú cưng sân vườn — mặc định gọn
+    const PET_LABELS = { cat: '🐱 Mèo', dog: '🐶 Chó', rabbit: '🐰 Thỏ', duck: '🦆 Vịt', turtle: '🐢 Rùa', hamster: '🐹 Hamster', penguin: '🐧 Cánh cụt', snake: '🐍 Rắn', bird: '🐦 Chim bay' };
+    const PET_KINDS_ALL = ['cat', 'dog', 'rabbit', 'duck', 'turtle', 'hamster', 'penguin', 'snake', 'bird'];
+    const PET_KINDS_TOP = ['cat', 'rabbit', 'duck', 'turtle', 'hamster', 'penguin', 'snake', 'bird'];   // 🐶 Chó KHÔNG dùng làm con vật TOP
+    function petCfgRow(p, idx, group, rankLabel, kinds) {
+        const pm = (p.media || '').trim();
+        const pv = /\.(webm|mp4)(\?|#|$)/i.test(pm);
+        const kindSel = `<select data-pet-kind data-pet-group="${group}" data-pet-idx="${idx}" style="flex:1;min-width:0">${kinds.map(k => `<option value="${k}" ${k === p.kind ? 'selected' : ''}>${PET_LABELS[k] || k}</option>`).join('')}</select>`;
+        const upBtn = `<label class="ghost small" style="cursor:pointer;margin:0" title="Up WEBM/PNG động thay con này">📤<input type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.webm,.mp4,image/*,video/*" data-pet-upload data-pet-group="${group}" data-pet-idx="${idx}" hidden></label>`;
+        const chip = pm ? `<span title="${escapeHtml(pm)}" style="font-size:11px;background:rgba(255,255,255,.1);padding:2px 6px;border-radius:999px">${pv ? '🎞' : '🖼'}</span><button class="danger tiny" data-pet-clear data-pet-group="${group}" data-pet-idx="${idx}" title="Bỏ media, vẽ lại con vật">✕</button>` : '';
+        const left = group === 'top'
+            ? `<span style="width:62px;font-weight:800;font-size:13px">${rankLabel}</span>`
+            : `<label class="toggle-row" style="margin:0" title="Bật/tắt con này"><input type="checkbox" data-pet-toggle data-pet-idx="${idx}" ${p.enabled !== false ? 'checked' : ''}><span></span></label>`;
+        const rm = group === 'decor' ? `<button class="danger tiny" data-pet-remove data-pet-idx="${idx}" title="Bỏ con trang trí này">✕</button>` : '';
+        return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0">${left}${kindSel}${upBtn}${chip}${rm}</div>`;
+    }
     const $ = (sel, ctx = document) => ctx.querySelector(sel);
     const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
     const GIFT_ACTIONS = [
+        { listKey: 'activateGifts', title: 'Quà kích hoạt (1 quà = 1 cây)', icon: '🌳', valueKey: null, valueLabel: '', defVal: 0, testAction: 'activate' },
         { listKey: 'specificGifts', title: 'Tạo cây', icon: '🌱', valueKey: 'growth', valueLabel: 'Cao thêm %', defVal: 8, testAction: 'grow' },
         { listKey: 'waterGifts', title: 'Tưới nước', icon: '💧', valueKey: 'water', valueLabel: 'Nước +', defVal: 8, testAction: 'water' },
         { listKey: 'sunGifts', title: 'Nắng', icon: '☀️', valueKey: 'sun', valueLabel: 'Nắng +', defVal: 20, testAction: 'sun' },
@@ -51,7 +70,7 @@
         return Array.isArray(window.__giftSheet) ? window.__giftSheet : [];
     }
     function ensureArrays() {
-        ['specificGifts','waterGifts','sunGifts','cutGifts','butterflyGifts','beeGifts','caterpillarGifts','sprayGifts','carnivorousGifts','dragonGifts'].forEach(k => { if (!Array.isArray(cfg[k])) cfg[k] = []; });
+        ['activateGifts','deactivateGifts','specificGifts','waterGifts','sunGifts','cutGifts','butterflyGifts','beeGifts','caterpillarGifts','sprayGifts','carnivorousGifts','dragonGifts'].forEach(k => { if (!Array.isArray(cfg[k])) cfg[k] = []; });
     }
     async function loadAll() {
         try {
@@ -188,6 +207,10 @@
                     ${numRow('Chiều cao ban đầu', 'initialHeight', cfg.initialHeight, 0, 100, 1, '%')}
                 </div>
             </div>
+            <div class="nd-card"><div class="nd-card-title">🌳 Chọn cây muốn trồng</div>
+                <label class="toggle-row"><input id="tc-choose-enabled" type="checkbox" ${cfg.chooseTreeEnabled ? 'checked' : ''}><span><b>Bật chế độ chọn cây</b></span></label>
+                <div class="nd-help"><b>Mỗi quà kích hoạt = 1 loại cây.</b> Khán giả tặng quà 🌳 → mọc <b>cây loại đó của họ</b> (ảnh quà = cây); tặng <b>lại quà đó</b> → <b>tạm dừng</b> (khóa) cây; tặng nữa → <b>chăm tiếp</b>. Gán <b>không giới hạn</b> quà kích hoạt cho nhiều loại cây ở tab <b>🎁 Quà đặc biệt</b> (mục 🌳). Quà thường làm cao <b>cây vừa kích hoạt gần nhất</b> theo Xu (quà có hiệu ứng chỉ chạy hiệu ứng). Cây trưởng thành buông <b>dây + avatar</b> chủ cây. Người chưa kích hoạt cây nào vẫn mọc cây như thường.</div>
+            </div>
             <details class="nd-card tc-collapse" data-growth-card="health" ${growthOpen.health ? 'open' : ''}><summary class="nd-card-title">💧 Sức khỏe cây (nước &amp; héo)</summary>
                 <div class="nd-help">Không tưới → cây mất nước rồi héo dần. Tưới lại sẽ hồi héo. Số càng lớn cây càng “khó tính”.</div>
                 <div class="tc-fieldset">
@@ -209,6 +232,7 @@
                 <div class="nd-help">🐛 Sâu xuất hiện xong sẽ chờ “Chờ rồi mới phá” giây mới bắt đầu ăn → kịp xịt thuốc cứu cây.</div>
             </details>`;
         $$('input[name="tc-growth-mode"]', host).forEach(r => r.addEventListener('change', e => { cfg.growthMode = e.target.value; schedulePersist(); renderGrowth(); }));
+        $('#tc-choose-enabled', host)?.addEventListener('change', e => { cfg.chooseTreeEnabled = !!e.target.checked; schedulePersist(); renderGrowth(); });
         $$('details[data-growth-card]', host).forEach(d => d.addEventListener('toggle', () => { growthOpen[d.dataset.growthCard] = d.open; }));
         bindNumberInputs(host);
     }
@@ -402,7 +426,7 @@
             list.splice(idx, 1);
         } else {
             const item = { giftId: giftId(gift), giftName: giftName(gift), giftImage: giftImage(gift) };
-            item[action.valueKey] = action.defVal;
+            if (action.valueKey) item[action.valueKey] = action.defVal;   // quà khóa cây không cần số
             list.push(item);
         }
         schedulePersist();
@@ -469,7 +493,7 @@
                 blocks.push(`<div class="tc-row" title="${escapeHtml(nm)}">
                     <button type="button" class="tc-row-iconbtn" data-edit-effect="${a.listKey}" title="Đổi quà cho ${escapeHtml(a.title)}">${giftIconCell(g.giftImage, nm, 'tc-row-ico')}</button>
                     <span class="tc-row-chip">${a.icon} ${escapeHtml(a.title)}</span>
-                    <label class="tc-row-val"><span>${escapeHtml(a.valueLabel)}</span><input type="number" step="1" data-row-val data-list="${a.listKey}" data-key="${a.valueKey}" data-gift="${escapeHtml(g.giftId)}" value="${escapeHtml(g[a.valueKey] ?? a.defVal)}"></label>
+                    ${a.valueKey ? `<label class="tc-row-val"><span>${escapeHtml(a.valueLabel)}</span><input type="number" step="1" data-row-val data-list="${a.listKey}" data-key="${a.valueKey}" data-gift="${escapeHtml(g.giftId)}" value="${escapeHtml(g[a.valueKey] ?? a.defVal)}"></label>` : `<span class="tc-row-val tc-row-val--none">tặng lại = bật/tắt</span>`}
                     ${cmt}
                     <button class="tc-test-btn" data-test-list="${a.listKey}" data-test-action="${a.testAction}" data-test-idx="${i}" title="Chạy thử hiệu ứng quà này lên overlay">▶ Thử</button>
                     <button class="danger tiny" data-del-list="${a.listKey}" data-idx="${i}" title="Bỏ gán ${escapeHtml(nm)}">✕</button>
@@ -504,10 +528,18 @@
         const host = $('#tc-display-pane');
         if (!host) return;
         const d = cfg.display;
+        const media = d.topBoardMedia || '';
+        const isVid = /\.(webm|mp4)(\?|#|$)/i.test(media);
+        const mediaName = media ? (media.split('/').pop().split('?')[0] || 'media') : '';
+        const kpiCur = liveState && liveState.kpiDiamond != null ? Math.round(liveState.kpiDiamond) : null;
+        if (!Array.isArray(d.topPets) || !d.topPets.length) d.topPets = [{ kind: 'cat', media: '' }, { kind: 'rabbit', media: '' }, { kind: 'turtle', media: '' }];
+        if (!Array.isArray(d.decorPets) || !d.decorPets.length) d.decorPets = [{ kind: 'dog', enabled: true, media: '' }, { kind: 'duck', enabled: true, media: '' }];
+        const topPets = d.topPets, decorPets = d.decorPets;
         host.innerHTML = `<div class="nd-card"><div class="nd-card-title">🎨 Hiển thị overlay</div>
             ${displayNum('Vị trí ngang', 'gardenXPercent', d.gardenXPercent, 0, 100, 1, '%')}
             ${displayNum('Vị trí dọc', 'gardenYPercent', d.gardenYPercent, 0, 100, 1, '%')}
             ${displayNum('Scale', 'scale', d.scale, 35, 220, 5, '%')}
+            ${displayNum('🌱 Chiều cao cây', 'treeHeightScale', d.treeHeightScale == null ? 100 : d.treeHeightScale, 80, 260, 5, '%')}
             ${displayNum('Số thân cây', 'stemCount', d.stemCount, 1, 12, 1, '')}
             ${checkRow('Hiện bảng chỉ số', 'showStatus', d.showStatus !== false)}
             ${checkRow('Hiện tên trên bướm', 'showNames', d.showNames !== false)}
@@ -516,9 +548,70 @@
             ${checkRow('🐛 Hiện sâu ăn lá & xác sâu', 'showCaterpillars', d.showCaterpillars !== false)}
             ${checkRow('Hiện hoa icon quà', 'showFlowers', d.showFlowers !== false)}
             ${checkRow('🐉 Hiện rồng lửa thiêu vườn', 'showDragon', d.showDragon !== false)}
-            ${checkRow('🏆 Hiện Top người chăm cây', 'showLeaderboard', d.showLeaderboard !== false)}
+            ${checkRow('🏆 Hiện Top người chăm cây (góc phải)', 'showLeaderboard', d.showLeaderboard !== false)}
             ${checkRow('🎯 Ăn mừng khi đạt mốc 25/50/75/100% & khi cây kết trái', 'showMilestones', d.showMilestones !== false)}
             ${checkRow('🔊 Âm thanh hiệu ứng', 'soundEnabled', d.soundEnabled !== false)}
+        </div>
+        <div class="nd-card"><div class="nd-card-title">🪧 Trang trí khu vườn</div>
+            <div class="nd-help">Cảnh cắm trên mặt đất: <b>bảng ghi danh TOP 3</b> người tặng nhiều điểm nhất, hàng rào + giàn hoa leo, đồ sân vườn.</div>
+            ${checkRow('🪧 Hiện trang trí mặt đất (tổng)', 'showGroundDecor', d.showGroundDecor !== false)}
+            ${checkRow('🏆 Bảng ghi danh TOP 3 tặng điểm', 'showTopBoard', d.showTopBoard !== false)}
+            ${checkRow('🚧 Hàng rào + giàn hoa leo', 'showFence', d.showFence !== false)}
+            ${checkRow('🍄 Đồ sân vườn (nấm, hoa, chậu cây)', 'showGardenProps', d.showGardenProps !== false)}
+            <div class="nd-field" style="align-items:center"><label>🖼 Mặt bảng</label>
+                <div style="flex:1;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                    <label class="ghost small" style="cursor:pointer;margin:0">📤 Tải PNG/WEBM<input type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.webm,.mp4,image/*,video/*" data-board-upload hidden></label>
+                    ${media ? `<span title="${escapeHtml(media)}" style="font-size:12px;background:rgba(255,255,255,.1);padding:2px 8px;border-radius:999px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${isVid ? '🎞' : '🖼'} ${escapeHtml(mediaName)}</span><button class="danger tiny" data-board-clear title="Gỡ media, dùng bảng gỗ vẽ sẵn">✕</button>` : '<span class="nd-help" style="margin:0">Trống = bảng gỗ vẽ sẵn</span>'}
+                </div>
+            </div>
+            <div class="nd-field"><label>hoặc dán link</label><input data-tkey="topBoardMedia" type="text" value="${escapeHtml(media)}" placeholder="URL .png / .webp / .webm / .mp4" style="flex:1"><span></span></div>
+            <div class="nd-help">📤 Tải ảnh PNG hoặc video WEBM/MP4 lên app, hoặc dán link. 3 dòng TOP 3 vẫn hiện đè lên mặt bảng.</div>
+            <details class="tc-collapse" data-decor-adv ${decorAdvOpen ? 'open' : ''} style="margin-top:8px">
+                <summary class="nd-card-title" style="cursor:pointer">⚙ Chỉnh kích thước &amp; vị trí (gọn)</summary>
+                <div class="nd-help">Kéo để phóng to / thu nhỏ và dời <b>trái–phải, lên–xuống</b> từng phần. 100% &amp; 0 = mặc định.</div>
+                <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.08)"><div style="font-weight:800;font-size:13px;opacity:.85;margin-bottom:2px">🏆 Bảng TOP 3</div>
+                    ${displayNum('Kích thước', 'boardScale', d.boardScale == null ? 100 : d.boardScale, 40, 240, 5, '%')}
+                    ${displayNum('Ngang (−trái / +phải)', 'boardX', d.boardX || 0, -400, 400, 5, '')}
+                    ${displayNum('Dọc (−lên / +xuống)', 'boardY', d.boardY || 0, -300, 300, 5, '')}
+                </div>
+                <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.08)"><div style="font-weight:800;font-size:13px;opacity:.85;margin-bottom:2px">🚧 Hàng rào + giàn hoa</div>
+                    ${displayNum('Kích thước', 'fenceScale', d.fenceScale == null ? 100 : d.fenceScale, 40, 240, 5, '%')}
+                    ${displayNum('Ngang (−trái / +phải)', 'fenceX', d.fenceX || 0, -400, 400, 5, '')}
+                    ${displayNum('Dọc (−lên / +xuống)', 'fenceY', d.fenceY || 0, -300, 300, 5, '')}
+                </div>
+                <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.08)"><div style="font-weight:800;font-size:13px;opacity:.85;margin-bottom:2px">🍄 Đồ sân vườn</div>
+                    ${displayNum('Kích thước', 'propsScale', d.propsScale == null ? 100 : d.propsScale, 40, 240, 5, '%')}
+                    ${displayNum('Ngang (−trái / +phải)', 'propsX', d.propsX || 0, -400, 400, 5, '')}
+                    ${displayNum('Dọc (−lên / +xuống)', 'propsY', d.propsY || 0, -300, 300, 5, '')}
+                </div>
+            </details>
+            <details class="tc-collapse" data-decor-kpi ${decorKpiOpen ? 'open' : ''} style="margin-top:8px">
+                <summary class="nd-card-title" style="cursor:pointer">💎 Mở khoá theo Kim Cương (KPI)${kpiCur != null ? ` <span style="opacity:.7;font-weight:600">— buổi này ${kpiCur.toLocaleString('vi-VN')} 💎</span>` : ''}</summary>
+                <div class="nd-help">Khi tổng 💎 buổi LIVE đạt mốc → phần trang trí <b>tự hiện</b> kèm banner 🎉 trên overlay. Tắt = luôn hiện đủ (mặc định).</div>
+                ${checkRow('Bật mở khoá dần theo KPI 💎', 'kpiUnlockEnabled', d.kpiUnlockEnabled === true)}
+                ${d.kpiUnlockEnabled === true ? `<div style="margin-top:6px">
+                    ${dnumRow('🍄 Đồ sân vườn', 'kpiProps', d.kpiProps, 0, 5000000, 100)}
+                    ${dnumRow('🚧 Hàng rào + giàn hoa', 'kpiFence', d.kpiFence, 0, 5000000, 100)}
+                    ${dnumRow('🏆 Bảng TOP 3 tặng điểm', 'kpiBoard', d.kpiBoard, 0, 5000000, 100)}
+                    ${dnumRow('📋 BXH góc phải', 'kpiLeaderboard', d.kpiLeaderboard, 0, 5000000, 100)}
+                    ${dnumRow('🐾 Thú cưng sân vườn (sắp có)', 'kpiPet', d.kpiPet, 0, 5000000, 100)}
+                    <div class="nd-help">Đặt 0 = mở ngay từ đầu. Mốc tính theo tổng 💎 nhận trong buổi LIVE.</div>
+                </div>` : ''}
+            </details>
+            <details class="tc-collapse" data-decor-pets ${decorPetsOpen ? 'open' : ''} style="margin-top:8px">
+                <summary class="nd-card-title" style="cursor:pointer">🐾 Thú cưng sân vườn</summary>
+                <div class="nd-help">Con vật <b>đi dạo tự nhiên</b> trên bãi cỏ. 3 con đại diện <b>TOP 1/2/3</b> (ghi tên người TOP phía trên), 2 con còn lại trang trí. Up 📤 <b>WEBM/PNG động</b> để thay con bất kỳ.</div>
+                ${checkRow('🐾 Hiện thú cưng', 'showPets', d.showPets !== false)}
+                ${d.showPets !== false ? `
+                    ${displayNum('Kích thước thú cưng', 'petScale', d.petScale == null ? 100 : d.petScale, 40, 200, 5, '%')}
+                    <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.08)"><div style="font-weight:800;font-size:13px;opacity:.85;margin-bottom:3px">🏆 Con theo TOP — hiện TÊN người TOP (🐶 Chó không dùng cho TOP)</div>
+                        ${topPets.map((p, idx) => petCfgRow(p, idx, 'top', ['🥇 TOP 1', '🥈 TOP 2', '🥉 TOP 3'][idx], PET_KINDS_TOP)).join('')}
+                    </div>
+                    <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.08)"><div style="font-weight:800;font-size:13px;opacity:.85;margin-bottom:3px">🌿 Con trang trí (đi dạo, không tên) — chọn con muốn hiện</div>
+                        ${decorPets.map((p, idx) => petCfgRow(p, idx, 'decor', null, PET_KINDS_ALL)).join('')}
+                        <button class="ghost small" data-pet-add style="margin-top:4px">➕ Thêm con trang trí</button>
+                    </div>` : ''}
+            </details>
         </div>`;
         $$('input[data-dkey]', host).forEach(inp => inp.addEventListener('input', e => {
             const key = e.target.dataset.dkey;
@@ -529,6 +622,32 @@
             schedulePersist();
         }));
         $$('input[data-ckey]', host).forEach(inp => inp.addEventListener('change', e => { d[e.target.dataset.ckey] = !!e.target.checked; schedulePersist(); }));
+        $$('input[data-tkey]', host).forEach(inp => inp.addEventListener('input', e => { d[e.target.dataset.tkey] = e.target.value; schedulePersist(); }));
+        $('[data-board-upload]', host)?.addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) uploadBoardMedia(f); });
+        $('[data-board-clear]', host)?.addEventListener('click', () => { d.topBoardMedia = ''; schedulePersist(); renderDisplay(); });
+        $('[data-decor-adv]', host)?.addEventListener('toggle', e => { decorAdvOpen = e.target.open; });
+        $('[data-decor-kpi]', host)?.addEventListener('toggle', e => { decorKpiOpen = e.target.open; });
+        $('[data-decor-pets]', host)?.addEventListener('toggle', e => { decorPetsOpen = e.target.open; });
+        // Bật/tắt KPI / thú cưng → render lại để hiện/ẩn ô con (handler data-ckey đã lưu value)
+        $('input[data-ckey="kpiUnlockEnabled"]', host)?.addEventListener('change', () => renderDisplay());
+        $('input[data-ckey="showPets"]', host)?.addEventListener('change', () => renderDisplay());
+        $$('[data-pet-kind]', host).forEach(s => s.addEventListener('change', e => {
+            const arr = e.target.dataset.petGroup === 'top' ? d.topPets : d.decorPets, i = +e.target.dataset.petIdx;
+            if (arr && arr[i]) { arr[i].kind = e.target.value; schedulePersist(); renderDisplay(); }
+        }));
+        $$('[data-pet-toggle]', host).forEach(inp => inp.addEventListener('change', e => { const i = +e.target.dataset.petIdx; if (d.decorPets[i]) { d.decorPets[i].enabled = e.target.checked; schedulePersist(); } }));
+        $$('[data-pet-upload]', host).forEach(inp => inp.addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) uploadPetMedia(e.target.dataset.petGroup, +e.target.dataset.petIdx, f); }));
+        $$('[data-pet-clear]', host).forEach(b => b.addEventListener('click', () => {
+            const arr = b.dataset.petGroup === 'top' ? d.topPets : d.decorPets, i = +b.dataset.petIdx;
+            if (arr && arr[i]) { arr[i].media = ''; schedulePersist(); renderDisplay(); }
+        }));
+        $$('[data-pet-remove]', host).forEach(b => b.addEventListener('click', () => { d.decorPets.splice(+b.dataset.petIdx, 1); schedulePersist(); renderDisplay(); }));
+        $('[data-pet-add]', host)?.addEventListener('click', () => {
+            const used = new Set(d.decorPets.map(p => p.kind));
+            const next = PET_KINDS_ALL.find(k => !used.has(k)) || 'hamster';
+            d.decorPets.push({ kind: next, enabled: true, media: '' });
+            schedulePersist(); renderDisplay();
+        });
     }
     function displayNum(label, key, val, min, max, step, suffix) {
         const shown = Math.round(Number(val) || 0);   // làm tròn % hiển thị (vị trí kéo từ overlay có thể là số lẻ dài)
@@ -537,6 +656,51 @@
     }
     function checkRow(label, key, checked) {
         return `<label class="toggle-row"><input data-ckey="${key}" type="checkbox" ${checked ? 'checked' : ''}><span>${label}</span></label>`;
+    }
+    // Ô nhập số (display) cho ngưỡng KPI — dùng chung handler data-dkey (span suffix tĩnh).
+    function dnumRow(label, key, val, min, max, step) {
+        return `<div class="nd-field"><label>${label}</label><input data-dkey="${key}" type="number" min="${min}" max="${max}" step="${step}" value="${escapeHtml(val == null ? 0 : val)}"><span>💎</span></div>`;
+    }
+    // 📤 Tải ảnh PNG / video WEBM-MP4 lên app → URL /api/games/trongcay/asset/... → đặt làm mặt bảng TOP 3.
+    async function uploadBoardMedia(file) {
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        if (!['png', 'jpg', 'jpeg', 'gif', 'webp', 'webm', 'mp4'].includes(ext)) return toast('Chỉ nhận PNG/JPG/GIF/WEBP/WEBM/MP4', 'warn');
+        if (file.size > 40 * 1024 * 1024) return toast('File quá 40MB — vui lòng nén nhỏ hơn', 'warn');
+        try {
+            const r = await fetch('/api/games/trongcay/upload?ext=' + encodeURIComponent(ext), {
+                method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file
+            });
+            const j = await r.json();
+            if (!r.ok || !j.ok) throw new Error(j && j.error || 'upload_fail');
+            cfg.display.topBoardMedia = j.url;
+            await persistConfig();
+            renderDisplay();
+            toast('Đã tải lên mặt bảng: ' + file.name, 'success');
+        } catch (e) {
+            toast('Lỗi upload: ' + e.message, 'error');
+        }
+    }
+    // 📤 Up WEBM/PNG động thay 1 con thú cưng (vẫn roam như con vẽ sẵn). group = 'top' | 'decor'.
+    async function uploadPetMedia(group, idx, file) {
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        if (!['png', 'jpg', 'jpeg', 'gif', 'webp', 'webm', 'mp4'].includes(ext)) return toast('Chỉ nhận PNG/JPG/GIF/WEBP/WEBM/MP4', 'warn');
+        if (file.size > 40 * 1024 * 1024) return toast('File quá 40MB — vui lòng nén nhỏ hơn', 'warn');
+        try {
+            const r = await fetch('/api/games/trongcay/upload?ext=' + encodeURIComponent(ext), {
+                method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file
+            });
+            const j = await r.json();
+            if (!r.ok || !j.ok) throw new Error(j && j.error || 'upload_fail');
+            const arr = group === 'top' ? cfg.display.topPets : cfg.display.decorPets;
+            if (Array.isArray(arr) && arr[idx]) {
+                arr[idx].media = j.url;
+                await persistConfig();
+                renderDisplay();
+                toast('Đã thay thú cưng bằng: ' + file.name, 'success');
+            }
+        } catch (e) {
+            toast('Lỗi upload thú cưng: ' + e.message, 'error');
+        }
     }
     function renderLive() {
         const host = $('#tc-live-pane');

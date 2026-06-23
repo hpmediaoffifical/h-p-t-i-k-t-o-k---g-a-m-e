@@ -458,6 +458,14 @@
       <label><input type="checkbox" id="enShare" checked /> 🔄 KPI Chia Sẻ</label>
     </div>
 
+    <div class="enable-row" style="background:#eafbf0; border-color:#84d6a3;">
+      <label style="color:#0a5c2e;"><input type="checkbox" id="enPersist" checked /> 💾 Giữ tiến trình khi kết nối lại</label>
+      <span style="font-size:11px;opacity:.8;flex-basis:100%;color:#0a5c2e;">
+        Bật → giữ nguyên 💎 Kim Cương, ❤ Táp Tim, 🔄 Chia Sẻ, Level &amp; đồng hồ khi reload/mở lại app hoặc kết nối lại — <b>không mất tiến trình LIVE</b>.
+        Tắt → mỗi lần mở lại bắt đầu từ 0. Bấm <b>⟲ Reset state</b> để xoá tiến trình đã lưu.
+      </span>
+    </div>
+
     <div class="enable-row" style="background:#e8f5ff; border-color:#7ec0e8;">
       <label><input type="checkbox" id="enFloating" /> ✨ Hiệu ứng di chuyển nhẹ (NPC walking feel)</label>
       <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#0a3d6b;">
@@ -656,6 +664,7 @@
 
 const IS_OVERLAY = new URLSearchParams(location.search).get('mode') === 'overlay';
 const LS_KEY = 'levelQuest.cfg.v1';
+const LS_STATE_KEY = 'levelQuest.state.v1';   // tiến trình LIVE (level/💎/❤/🔄/timer) — chỉ lưu khi bật "Giữ tiến trình"
 
 const cfg = {
   title: "HP Media",
@@ -673,6 +682,7 @@ const cfg = {
   timerColor: '#ff4040',
   floatingEnabled: false,
   floatDur: 2.8,  // seconds per bob cycle
+  persistState: true,  // giữ tiến trình LIVE qua reload/kết nối lại (mặc định BẬT)
 };
 
 const state = { level:0, dia:0, heart:0, share:0, finished:false,
@@ -685,11 +695,12 @@ function fmtClock(sec){
   const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
   return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
-function startTimer(){
+function startTimer(resume){
   stopTimer();
   if (!state.timerActive || cfg.timerDurationSec <= 0){ hideTimer(); return; }
-  // LAB tính expiresAt, OVERLAY dùng giá trị nhận về từ broadcast
-  if (!IS_OVERLAY){
+  // LAB tính expiresAt mới, OVERLAY dùng giá trị nhận về từ broadcast.
+  // resume=true (khôi phục tiến trình đã lưu) → GIỮ expiresAt cũ, không tính lại.
+  if (!IS_OVERLAY && !resume){
     state.timerExpiresAt = Date.now() + cfg.timerDurationSec * 1000;
   }
   state.timerRemain = Math.max(0, Math.ceil((state.timerExpiresAt - Date.now())/1000));
@@ -808,6 +819,7 @@ function saveCfg(){
       timerDurationSec: cfg.timerDurationSec,
       timerFs: cfg.timerFs, timerColor: cfg.timerColor,
       floatingEnabled: cfg.floatingEnabled, floatDur: cfg.floatDur,
+      persistState: cfg.persistState,
       // Lưu cả input totals mong muốn để khôi phục đúng cấu hình
       totDia: parseInt($("cfgTotalDia")?.value)   || 30000,
       totHeart: parseInt($("cfgTotalHeart")?.value)|| 100000,
@@ -844,6 +856,7 @@ function loadCfg(){
       timerColor: d.timerColor || cfg.timerColor,
       floatingEnabled: !!d.floatingEnabled,
       floatDur: (typeof d.floatDur === 'number') ? d.floatDur : cfg.floatDur,
+      persistState: (typeof d.persistState === 'boolean') ? d.persistState : cfg.persistState,
     });
     // Sync UI inputs
     const set = (id, v) => { const e = $(id); if (e && v !== undefined && v !== null) e.value = v; };
@@ -856,6 +869,7 @@ function loadCfg(){
     set('cfgTimerFs', cfg.timerFs); set('cfgTimerColor', cfg.timerColor);
     set('cfgFloatDur', cfg.floatDur);
     if ($("enFloating")) $("enFloating").checked = !!cfg.floatingEnabled;
+    if ($("enPersist"))  $("enPersist").checked  = !!cfg.persistState;
     set('cfgTotalDia', d.totDia); set('cfgTotalHeart', d.totHeart);
     set('cfgTotalShare', d.totShare); set('cfgTotalMaxLv', d.totMaxLv);
     set('cfgTotalMode', d.totMode);
@@ -883,6 +897,46 @@ function loadCfg(){
 function clearCfg(){
   try { localStorage.removeItem(LS_KEY); log('<span class="lv">🗑 Đã xoá cấu hình lưu</span>'); }
   catch(e){}
+  clearState();   // xoá luôn tiến trình LIVE đã lưu
+}
+
+/* ---------- State persistence (Giữ tiến trình LIVE) ----------
+   Mặc định state (level/💎/❤/🔄/timer) chỉ sống trong RAM của LAB → reload/kết nối lại
+   là mất sạch. Khi bật cfg.persistState, snapshot state vào localStorage mỗi lần đổi và
+   khôi phục lúc boot. Timer dùng timerExpiresAt tuyệt đối nên sống sót qua reload. */
+function saveState(){
+  if (IS_OVERLAY || !cfg.persistState) return;
+  try {
+    localStorage.setItem(LS_STATE_KEY, JSON.stringify({
+      level: state.level, dia: state.dia, heart: state.heart, share: state.share,
+      finished: state.finished,
+      timerActive: state.timerActive, timerExpiresAt: state.timerExpiresAt,
+      savedAt: Date.now(),
+    }));
+  } catch (e) { console.warn('saveState failed', e); }
+}
+function loadState(){
+  if (IS_OVERLAY || !cfg.persistState) return false;
+  try {
+    const raw = localStorage.getItem(LS_STATE_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    state.level    = d.level || 0;
+    state.dia      = d.dia   || 0;
+    state.heart    = d.heart || 0;
+    state.share    = d.share || 0;
+    state.finished = !!d.finished;
+    state.timerActive    = !!d.timerActive;
+    state.timerExpiresAt = d.timerExpiresAt || 0;
+    // Timer đã hết hạn trong lúc app đóng → coi như quest đã khoá
+    if (state.timerActive && state.timerExpiresAt && state.timerExpiresAt <= Date.now()){
+      state.timerActive = false; state.finished = true;
+    }
+    return true;
+  } catch (e) { console.warn('loadState failed', e); return false; }
+}
+function clearState(){
+  try { localStorage.removeItem(LS_STATE_KEY); } catch (e) {}
 }
 
 /* ---------- mutators ---------- */
@@ -917,7 +971,9 @@ function afterChange(which){
 /* ---------- Socket broadcast (LAB → OVERLAY real-time sync) ---------- */
 let _sock = null;
 function broadcastState(){
-  if (IS_OVERLAY || !_sock || !_sock.connected) return;
+  if (IS_OVERLAY) return;
+  saveState();   // giữ tiến trình LIVE (no-op nếu tắt persistState) — chạy kể cả khi socket offline
+  if (!_sock || !_sock.connected) return;
   _sock.emit('levelquest:state', {
     level: state.level, dia: state.dia, heart: state.heart, share: state.share,
     finished: state.finished,
@@ -1253,6 +1309,7 @@ function presetLinear18(){
 function resetAll(){
   state.level=0; state.dia=0; state.heart=0; state.share=0; state.finished=false;
   state.timerActive=false; state.timerExpiresAt=0;
+  clearState();   // xoá tiến trình đã lưu → mở lại không khôi phục lại số cũ
   if (autoTimer){ clearInterval(autoTimer); autoTimer=null; const b=$("btnAuto"); if(b) b.textContent="▶ Auto Demo"; }
   stopTimer(); hideTimer(); updateTimerBtn();
   log(`<span class="lv">⟲ Reset state — bấm ▶ BẮT ĐẦU để chạy timer lại</span>`);
@@ -1410,10 +1467,33 @@ $("cfgFloatDur")?.addEventListener('change', () => {
   saveCfg();
 });
 
+// Bật/tắt "Giữ tiến trình" — bật thì snapshot ngay state hiện tại; tắt thì xoá bản lưu
+$("enPersist")?.addEventListener('change', () => {
+  cfg.persistState = !!$("enPersist").checked;
+  saveCfg();
+  if (cfg.persistState){
+    saveState();
+    log('<span class="lv">💾 Giữ tiến trình: BẬT — sẽ khôi phục 💎/❤/🔄/Level/đồng hồ khi mở lại</span>');
+  } else {
+    clearState();
+    log('<span class="lv">Giữ tiến trình: TẮT — mở lại sẽ bắt đầu từ 0</span>');
+  }
+});
+
 // Boot: ưu tiên load từ localStorage; fallback dùng totals defaults (30k/100k/100/18)
 const restored = loadCfg();
 if (!restored){
   applyTotalsPreset();   // dùng input defaults
+}
+
+// Khôi phục tiến trình LIVE đã lưu (nếu bật "Giữ tiến trình") — chỉ ở LAB.
+// Phải chạy SAU loadCfg (cần biết persistState) và TRƯỚC render.
+let stateRestored = false;
+if (!IS_OVERLAY && cfg.persistState){
+  stateRestored = loadState();
+  if (stateRestored && state.timerActive){
+    startTimer(true);   // resume: giữ nguyên expiresAt cũ, không tính lại
+  }
 }
 // Sync UI timer inputs từ cfg sau load (duration only — timer KHÔNG auto-start)
 if ($("cfgTimerH")){ const s = cfg.timerDurationSec || 7200; $("cfgTimerH").value = Math.floor(s/3600); $("cfgTimerM").value = Math.floor((s%3600)/60); $("cfgTimerS").value = s%60; }
@@ -1447,6 +1527,9 @@ if (IS_OVERLAY){
   log(restored
     ? `<span class="lv">📂 Khôi phục cấu hình đã lưu — Nhân vật: <b>${cfg.title}</b></span>`
     : `Sẵn sàng. Bật/tắt KPI, dùng Auto Demo, hoặc mở OBS link để test live.`);
+  if (stateRestored){
+    log(`<span class="lv">💾 Khôi phục tiến trình LIVE — Lv ${state.level + 1} · 💎 ${fmt(state.dia)} · ❤ ${fmt(state.heart)} · 🔄 ${state.share}${state.timerActive ? ' · ⏱ đang chạy' : ''}</span>`);
+  }
 }
 </script>
 

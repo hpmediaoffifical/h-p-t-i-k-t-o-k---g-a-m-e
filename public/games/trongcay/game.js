@@ -12,6 +12,10 @@
             perCoinGrowth: 2,
             perGiftGrowth: 5,
             specificGifts: [],
+            chooseTreeEnabled: false,
+            activateGifts: [],
+            deactivateGifts: [],
+            chooseWindowSeconds: 90,
             waterGifts: [],
             waterCommentAutoWater: true,
             waterCommentKeyword: 'tuoicay',
@@ -53,7 +57,7 @@
             wiltRecoverPerSecond: 0.28,
             wiltGrowthBlockAt: 62,
             fruitsPerHarvest: 3,
-            maxFruitsPerPlant: 12,
+            maxFruitsPerPlant: 24,
             fruitDropWilt: 55,
             fruitDropChancePerSec: 0.6,
             groundFruitMax: 40,
@@ -67,6 +71,7 @@
                 gardenXPercent: 50,
                 gardenYPercent: 82,
                 scale: 100,
+                treeHeightScale: 100,
                 stemCount: 7,
                 showStatus: true,
                 showNames: true,
@@ -76,6 +81,31 @@
                 showFlowers: true,
                 showWeatherFx: true,
                 showDragon: true,
+                showGroundDecor: true,    // 🪧 lớp trang trí mặt đất (bảng TOP 3 + hàng rào + đồ vật)
+                showTopBoard: true,       // bảng ghi danh TOP 3 tặng điểm cắm trên đất
+                showFence: true,          // hàng rào cọc + giàn hoa leo
+                showGardenProps: true,    // nấm, hoa, chậu cây trang trí
+                topBoardMedia: '',        // (tuỳ chọn) URL ảnh PNG hoặc video WEBM/MP4 thay mặt bảng — để trống = vẽ mặc định
+                // ⚙ Kích thước & vị trí từng phần trang trí (scale %, X ngang, Y dọc theo toạ độ vườn). 100/0/0 = mặc định.
+                boardScale: 100, boardX: 0, boardY: 0,
+                fenceScale: 100, fenceX: 0, fenceY: 0,
+                propsScale: 100, propsX: 0, propsY: 0,
+                // 💎 KPI Kim Cương: đạt mốc tổng 💎 buổi LIVE → tự mở khoá từng phần trang trí (mặc định TẮT = luôn hiện)
+                kpiUnlockEnabled: false,
+                kpiProps: 2000, kpiFence: 3000, kpiBoard: 5000, kpiLeaderboard: 10000, kpiPet: 20000,
+                // 🐾 Thú cưng: 3 con theo TOP 1/2/3 (ghi tên người TOP, KHÔNG dùng chó) + 2 con trang trí.
+                showPets: true,
+                petScale: 100,
+                topPets: [
+                    { kind: 'cat', media: '' },     // TOP 1
+                    { kind: 'rabbit', media: '' },  // TOP 2
+                    { kind: 'turtle', media: '' }   // TOP 3
+                ],
+                decorPets: [
+                    { kind: 'dog', enabled: true, media: '' },
+                    { kind: 'duck', enabled: true, media: '' },
+                    { kind: 'bird', enabled: true, media: '' }
+                ],
                 showLeaderboard: true,
                 showMilestones: true,
                 autoHarvest: true,

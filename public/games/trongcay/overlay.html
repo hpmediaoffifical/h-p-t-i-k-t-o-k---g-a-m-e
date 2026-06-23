@@ -95,6 +95,23 @@
         @keyframes tc-bf-flap { from { transform: scaleX(1); } to { transform: scaleX(.46); } }
         @keyframes tc-bf-antglow { from { opacity: .8; } to { opacity: 1; } }
         .tc-avatar { position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; border-radius: 50%; transform: translate(-50%, -50%); border: 3px solid #fff; object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,.6); background: #ff7ab8; }
+        /* 🌱 Chủ cây: dây leo buông từ ngọn + huy hiệu avatar (như ảnh 1) — phân biệt cây của từng viewer */
+        .tc-owner { position: absolute; z-index: 18; pointer-events: none; will-change: transform; }
+        .tc-owner-crown { position: absolute; left: 0; top: 0; transform: translate(-50%, -118%); font-size: calc(30px * var(--s, 1)); filter: drop-shadow(0 3px 4px rgba(0,0,0,.5)); animation: tc-owner-sway 3.4s ease-in-out infinite alternate; transform-origin: 50% 120%; }
+        .tc-owner-vine { position: absolute; left: 0; top: 0; overflow: visible; }
+        .tc-owner-vine path { fill: none; stroke: #2fa44a; stroke-width: calc(5px * var(--s, 1)); stroke-linecap: round; filter: drop-shadow(0 1px 1px rgba(0,0,0,.45)); }
+        .tc-owner-medal { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: calc(4px * var(--s, 1)); animation: tc-owner-swing 3.2s ease-in-out infinite alternate; transform-origin: 50% calc(-90px * var(--s, 1)); }
+        .tc-owner-ring { width: calc(58px * var(--s, 1)); height: calc(58px * var(--s, 1)); border-radius: 50%; padding: calc(3px * var(--s, 1)); background: conic-gradient(from 0deg, #ff5a4d, #ffd23a, #44d860, #36b9ff, #ff5a4d); box-shadow: 0 5px 14px rgba(0,0,0,.55); }
+        .tc-owner-ava { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: calc(2px * var(--s, 1)) solid #fff; background: #2a5a3a; display: block; }
+        .tc-owner-ava.ph { display: flex; align-items: center; justify-content: center; font-size: calc(26px * var(--s, 1)); font-weight: 900; color: #fff; background: linear-gradient(135deg,#3aa657,#1f8f5f); box-sizing: border-box; }
+        .tc-owner-ring { position: relative; }
+        .tc-owner-lock { position: absolute; right: calc(-6px * var(--s,1)); bottom: calc(-4px * var(--s,1)); font-size: calc(22px * var(--s,1)); filter: drop-shadow(0 2px 2px rgba(0,0,0,.6)); }
+        .tc-owner.locked .tc-owner-ring { filter: grayscale(.5) brightness(.82); }
+        .tc-owner.locked .tc-owner-vine path { stroke: #8a8a8a; stroke-dasharray: 7 6; }
+        .tc-owner-name { max-width: calc(140px * var(--s, 1)); padding: calc(2px * var(--s,1)) calc(8px * var(--s,1)); border-radius: 999px; color: #fff; background: rgba(0,0,0,.62); font-size: calc(16px * var(--s, 1)); font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px #000; }
+        @keyframes tc-owner-swing { from { transform: translate(-50%, -50%) rotate(-5deg); } to { transform: translate(-50%, -50%) rotate(5deg); } }
+        @keyframes tc-owner-sway { from { transform: translate(-50%, -118%) rotate(-4deg); } to { transform: translate(-50%, -118%) rotate(4deg); } }
+        .tc-garden.wilt .tc-owner-vine path { stroke: #9a8a3c; }
         /* Tên nằm DƯỚI avatar (không đè) — cách tâm xuống một đoạn cố định */
         .tc-bname { position: absolute; top: calc(50% + 36px); left: 50%; transform: translateX(-50%); max-width: 150px; padding: 3px 8px; border-radius: 999px; color: #fff; background: rgba(0,0,0,.6); font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px #000; }
         @keyframes tc-fly { 0% { left: var(--from-x); top: var(--from-y); transform: scale(.68) rotate(-8deg); } 55% { left: var(--mid-x); top: var(--mid-y); transform: scale(1.04) rotate(8deg); } 100% { left: var(--to-x); top: var(--to-y); transform: scale(.78) rotate(0deg); } }
@@ -252,6 +269,75 @@
             background: radial-gradient(circle, #ffe79a, #ff7a1e 60%, rgba(255,90,20,0));
             transform: translate(-50%, -50%); opacity: 0; animation: tcd-ember var(--ed, 1.8s) ease-out forwards; }
         @keyframes tcd-ember { 0% { opacity: 0; transform: translate(-50%,-50%) scale(1); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(-50% + var(--ex,0px)), calc(-50% - var(--ey,160px))) scale(.35); } }
+
+        /* ═══════════════ 🪧 TRANG TRÍ KHU VƯỜN: bảng TOP 3, hàng rào, đồ sân vườn ═══════════════ */
+        /* Đặt TRÊN lớp thân cây (#tc-svg z auto=0) nhưng DƯỚI icon quà (flower-layer z14) → bảng/hàng
+           rào nằm trong cảnh, đọc rõ TOP 3, mà icon quà trên ngọn cây vẫn hiện trên cùng.
+           Cùng viewBox 980×1200 + preserveAspectRatio như #tc-svg → toạ độ khớp mặt đất tuyệt đối. */
+        .tc-decor { position: absolute; inset: 0; z-index: 12; pointer-events: none; overflow: visible; }
+        .tc-decor svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; display: block; }
+        .tc-decor.off { display: none; }                                  /* tắt toàn bộ trang trí */
+        .tc-decor.no-board .tc-board, .tc-decor.no-board .tc-board-rows { display: none; }
+        .tc-decor.no-fence .tc-fence { display: none; }
+        .tc-decor.no-props .tc-props { display: none; }
+        .tc-garden.wilt .tc-decor, .tc-garden.tcd-burning .tc-decor { filter: sepia(.65) saturate(.7) brightness(.8); }
+        /* gỗ + nét */
+        .tc-board-edge { fill: none; stroke: rgba(40,24,10,.55); stroke-width: 2; }
+        .tc-plank-line { stroke: rgba(60,36,16,.4); stroke-width: 1.5; stroke-linecap: round; }
+        .tc-board-ribbon-txt { fill: #fff7e6; font: 900 21px 'Segoe UI', Arial, sans-serif; letter-spacing: .3px; }
+        .tc-board-name { fill: #fff; font: 800 19px 'Segoe UI', Arial, sans-serif; }
+        .tc-board-score { fill: #ffd76b; font: 800 18px 'Segoe UI', Arial, sans-serif; }
+        .tc-board-rank { font-size: 27px; }
+        .tc-board-letter { fill: #fff; font: 900 18px 'Segoe UI', Arial, sans-serif; }
+        .tc-board-empty { fill: rgba(255,248,230,.66); font: 700 19px 'Segoe UI', Arial, sans-serif; }
+        .tc-pennant { transform-box: fill-box; transform-origin: 0 50%; animation: tc-pennant 2.4s ease-in-out infinite alternate; }
+        @keyframes tc-pennant { from { transform: skewY(-4deg) scaleX(.97); } to { transform: skewY(5deg) scaleX(1); } }
+        /* đồ sân vườn (emoji) đu đưa nhẹ — đặt trên lớp tĩnh nên không bị vẽ lại → mượt */
+        .tc-prop { font-size: 34px; }
+        .tc-prop-bob { transform-box: fill-box; transform-origin: 50% 100%; animation: tc-prop-bob 3.2s ease-in-out infinite alternate; will-change: transform; }
+        @keyframes tc-prop-bob { from { transform: translateY(1px) rotate(-3deg); } to { transform: translateY(-3px) rotate(3deg); } }
+
+        /* ═══════════════ 🐾 THÚ CƯNG SÂN VƯỜN ═══════════════ */
+        /* Roam tự nhiên trên bãi cỏ: JS dời left%, lật scaleX theo hướng; CSS lo nhún chân/đuôi.
+           Trong .tc-garden nên tự scale/di chuyển theo vườn. z giữa lớp trang trí (12) và icon quà (14). */
+        .tc-pets { position: absolute; inset: 0; z-index: 13; pointer-events: none; overflow: visible; }
+        .tc-pets.off { display: none; }
+        #tc-pet-list { position: absolute; inset: 0; }
+        .tc-pet { position: absolute; transform: translate(-50%, -100%); will-change: left; }
+        .tc-pet-shadow { position: absolute; left: 50%; bottom: -3px; width: calc(var(--pw, 100px) * .62); height: calc(var(--pw, 100px) * .15); transform: translate(-50%, 0); background: radial-gradient(ellipse at center, rgba(0,0,0,.34), rgba(0,0,0,0) 70%); }
+        .tc-pet-face { transform-origin: 50% 100%; transition: transform .14s ease; }
+        .tc-pet-walk { transform-origin: 50% 100%; }
+        .tc-pet svg, .tc-pet-media { display: block; width: var(--pw, 100px); height: auto; filter: drop-shadow(0 3px 4px rgba(0,0,0,.28)); }
+        .tc-pet-media { border-radius: 10%; object-fit: contain; }
+        .tc-garden.wilt .tc-pets, .tc-garden.tcd-burning .tc-pets { filter: sepia(.6) saturate(.7) brightness(.82); }
+        /* nhún khi đi */
+        .tc-pet.moving .tc-pet-walk { animation: tc-pet-bob .42s ease-in-out infinite; }
+        @keyframes tc-pet-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5%); } }
+        .tc-pet.hopper.moving .tc-pet-walk { animation: tc-pet-hop .52s ease-in-out infinite; }
+        @keyframes tc-pet-hop { 0%, 100% { transform: translateY(0) scaleY(1); } 35% { transform: translateY(-26%) scaleY(1.05); } 70% { transform: translateY(0) scaleY(.94); } }
+        /* 🐍 Rắn TRƯỜN: không nhảy — lắc thân ngang nhẹ (uốn) liên tục, không nhún dọc */
+        .tc-pet.slither .tc-pet-walk { transform-origin: 50% 100%; animation: tc-pet-slither 1.15s ease-in-out infinite !important; }
+        @keyframes tc-pet-slither { 0%, 100% { transform: translateX(-3%) skewX(-3deg); } 50% { transform: translateX(3%) skewX(3deg); } }
+        /* chân bước xen kẽ */
+        .tc-pet .leg { transform-box: fill-box; transform-origin: 50% 10%; }
+        .tc-pet.moving .leg.a { animation: tc-leg-a .42s ease-in-out infinite; }
+        .tc-pet.moving .leg.b { animation: tc-leg-b .42s ease-in-out infinite; }
+        @keyframes tc-leg-a { 0%, 100% { transform: rotate(15deg); } 50% { transform: rotate(-15deg); } }
+        @keyframes tc-leg-b { 0%, 100% { transform: rotate(-15deg); } 50% { transform: rotate(15deg); } }
+        .tc-pet.hopper .leg { animation: none !important; }
+        /* tai/đuôi đung đưa nhẹ liên tục */
+        .tc-pet .wag { transform-box: fill-box; transform-origin: 50% 100%; animation: tc-pet-wag 1.3s ease-in-out infinite alternate; }
+        @keyframes tc-pet-wag { from { transform: rotate(-7deg); } to { transform: rotate(8deg); } }
+        /* 🐦 Con BAY: lượn trên không (không chạm đất) — bóng mờ phía dưới, thân bồng bềnh, cánh vỗ */
+        .tc-pet.flyer .tc-pet-shadow { opacity: .16; bottom: -34px; width: calc(var(--pw, 100px) * .4); }
+        .tc-pet.flyer .tc-pet-walk { animation: tc-pet-float 2.6s ease-in-out infinite !important; }
+        @keyframes tc-pet-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14%); } }
+        /* cánh dính vai (61,46 trong viewBox) — vỗ LÊN/XUỐNG quanh khớp vai */
+        .tc-pet .flap { transform-box: view-box; transform-origin: 61px 46px; animation: tc-pet-flap .17s ease-in-out infinite alternate; }
+        @keyframes tc-pet-flap { from { transform: rotate(-32deg); } to { transform: rotate(14deg); } }
+        /* 🏆 Nhãn TÊN người TOP phía trên con vật — KHÔNG lật theo hướng đi (đặt ngoài .tc-pet-face) */
+        .tc-pet-name { position: absolute; left: 50%; bottom: 100%; transform: translate(-50%, 0); margin-bottom: 3px; max-width: 150px; padding: 2px 9px; border-radius: 999px; background: rgba(8,20,12,.66); color: #fff; font: 800 16px 'Segoe UI', Arial, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px #000; box-shadow: 0 2px 7px rgba(0,0,0,.4); pointer-events: none; }
+        .tc-pet.top .tc-pet-name::after { content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: rgba(8,20,12,.66); }
     </style>
 </head>
 <body class="tc-stopped">
@@ -398,6 +484,18 @@
                 </g>
             </svg>
         </div>
+        <!-- 🪧 Lớp trang trí mặt đất: bảng TOP 3, hàng rào, đồ sân vườn.
+             - tc-decor-static: vẽ 1 lần (hàng rào + khung bảng + đồ vật) → animation mượt, không restart.
+             - tc-decor-rows: chỉ 3 dòng TOP 3 (avatar/tên/điểm) → vẽ lại mỗi state tick. -->
+        <div id="tc-decor" class="tc-decor">
+            <svg id="tc-decor-static" viewBox="0 0 980 1200" preserveAspectRatio="xMidYMax meet"></svg>
+            <svg id="tc-decor-rows" class="tc-board-rows" viewBox="0 0 980 1200" preserveAspectRatio="xMidYMax meet"></svg>
+        </div>
+        <!-- 🐾 Thú cưng roam trên bãi cỏ. defs ẩn (gradient dùng chung) + danh sách con vật. -->
+        <div id="tc-pets" class="tc-pets">
+            <svg class="tc-pet-defs" width="0" height="0" aria-hidden="true" style="position:absolute"><defs></defs></svg>
+            <div id="tc-pet-list"></div>
+        </div>
     </div>
     <div id="tc-status" class="tc-status"></div>
     <div id="tc-top" class="tc-top empty"></div>
@@ -406,6 +504,7 @@
 </div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/games/trongcay/game.js"></script>
+<script src="/games/trongcay/pets.js"></script>
 <script>
 (function () {
     'use strict';
@@ -420,6 +519,11 @@
     const $top = document.getElementById('tc-top');
     const $banner = document.getElementById('tc-banner');
     const $tcd = document.getElementById('tc-dragon');
+    const $decor = document.getElementById('tc-decor');
+    const $decorStatic = document.getElementById('tc-decor-static');
+    const $decorRows = document.getElementById('tc-decor-rows');
+    const $pets = document.getElementById('tc-pets');
+    const $petList = document.getElementById('tc-pet-list');
     const svgDefs = `<defs><linearGradient id="tc-leaf-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#72e58a"/><stop offset="0.52" stop-color="#41c463"/><stop offset="1" stop-color="#199842"/></linearGradient><radialGradient id="tc-fruit-grad" cx="0.38" cy="0.34" r="0.75"><stop offset="0" stop-color="#ff9a6b"/><stop offset="0.55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#c62828"/></radialGradient><radialGradient id="tc-cat-grad" cx="0.4" cy="0.28" r="0.85"><stop offset="0" stop-color="#f2ffae"/><stop offset="0.45" stop-color="#b6f24f"/><stop offset="1" stop-color="#5fc21f"/></radialGradient><radialGradient id="tc-cat-head" cx="0.4" cy="0.3" r="0.8"><stop offset="0" stop-color="#eaffb0"/><stop offset="1" stop-color="#6fc62a"/></radialGradient><clipPath id="tc-cat-head-clip"><circle cx="0" cy="0" r="18"/></clipPath><linearGradient id="tc-pupa-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#bdf7c8"/><stop offset="0.5" stop-color="#4cc98a"/><stop offset="1" stop-color="#1f8f5f"/></linearGradient></defs>`;
     let config = window.HpGame.trongcay.defaultConfig();
     let state = { height: 0, water: 55, sun: 28, wilt: 0, flowers: [], sessionActive: false };
@@ -438,8 +542,10 @@
         const t = count === 1 ? .5 : i / (count - 1);
         const baseX = 90 + t * 800;
         const mult = .62 + ((i * 37) % 43) / 100;
-        const stemH = 90 + 850 * h * mult;
-        const topY = 1120 - stemH + wilt * 120;
+        let stemH = 90 + 850 * h * mult * tcHeightScale();
+        let topY = 1120 - stemH + wilt * 120;
+        const minTopY = tcMinTopY();   // giữ ngọn (icon quà) trong màn như nhánh per-plant
+        if (topY < minTopY) { topY = minTopY; stemH = 1120 - topY + wilt * 120; }
         const sway = ((i % 2 ? -1 : 1) * (36 + i * 7)) + wilt * (i % 2 ? -120 : 120);
         const cx = baseX + sway;
         return { i, baseX, stemH, topY, sway, cx, cut };
@@ -462,6 +568,7 @@
     // 1 = phía trước (gần, thấp, to, vẽ sau). Nhờ đó cây rải khắp bề mặt → 3D thật,
     // không xếp 1 hàng ở viền. Độ sâu suy ra ỔN ĐỊNH từ leafSeed/id (không reset).
     const TC_GROUND_Y = 1120, TC_SURF_DY = 38;
+    const TC_MATURE_FRAC = 0.42;   // 🌱 cây của viewer cao >= 42% trần = "trưởng thành, có tán lá" → buông dây + avatar chủ cây
     function tcFract(n) { n = n - Math.floor(n); return n < 0 ? n + 1 : n; }
     function tcHashDepth(key) {
         const s = String(key == null ? '' : key);
@@ -486,18 +593,54 @@
     }
     function depthY(d) { return TC_GROUND_Y + (clamp(d, 0, 1) * 2 - 1) * TC_SURF_DY; }
     function depthScale(d) { return 0.82 + clamp(d, 0, 1) * 0.32; }
+    // 🌱 Hệ số chiều cao cây (user chỉnh ở panel). 100% = chiều cao gốc, >100% = cây cao hơn.
+    function tcHeightScale() { return clamp(Number(config.display?.treeHeightScale) || 100, 30, 400) / 100; }
+    // Trần chiều cao theo MÀN HÌNH: ngọn cây (kèm icon quà) chỉ được lên tới khi icon CHẠM đỉnh
+    // overlay mà vẫn còn nguyên — tính ngược từ kích thước viewport + vị trí/scale vườn. Tăng
+    // "Chiều cao cây" cao mấy cũng không làm icon quà bay ra khỏi màn (luôn thấy trọn icon).
+    function tcMinTopY() {
+        const d = config.display || {};
+        const sf = Math.max(0.2, (Number(d.scale) || 100) / 100);
+        const vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 1920;
+        const gardenBottomPx = (d.gardenYPercent == null ? 82 : Number(d.gardenYPercent)) / 100 * vh;
+        const margin = 10;        // chừa mép trên overlay (px màn hình)
+        const iconReserve = 95;   // chừa khoảng (px-vườn) cho nửa icon quà to nhất (~70) + đệm → icon không bị cắt
+        // screen(y) = gardenBottomPx - (1200 - y) * sf ;  cần screen(topY - iconReserve) >= margin
+        return (1200 + iconReserve) - (gardenBottomPx - margin) / sf;
+    }
+    // Biên TRÁI/PHẢI cho tâm cây (px-vườn): kẹp để icon quà + tán lá luôn chừa mép 2 bên overlay,
+    // không bị cắt dù cây mọc ở rìa hay nghiêng nhiều. Tính ngược từ viewport + vị trí/scale vườn.
+    // Vườn scale quanh tâm ngang (x=490): screenX(gx) = centerScreenX + (gx - 490) * sf.
+    function tcXBounds() {
+        const d = config.display || {};
+        const sf = Math.max(0.2, (Number(d.scale) || 100) / 100);
+        const vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1080;
+        const centerScreenX = (d.gardenXPercent == null ? 50 : Number(d.gardenXPercent)) / 100 * vw;
+        const margin = 16;     // chừa mép trái/phải overlay (px màn hình)
+        const reach = 110;     // nửa bề ngang icon/lá to nhất (px-vườn) → cây không lè ra mép
+        let lo = 490 + reach + (margin - centerScreenX) / sf;
+        let hi = 490 - reach + (vw - margin - centerScreenX) / sf;
+        if (lo > hi) { const mid = (lo + hi) / 2; lo = hi = mid; }   // vườn quá hẹp → dồn về giữa
+        return [lo, hi];
+    }
     function plantMeta(p) {
         const h = clamp(Number(p?.height) || 0, 0, config.maxHeight || 100) / (config.maxHeight || 100);
         const wilt = clamp(state.wilt || 0, 0, 100) / 100;
-        const baseX = clamp(Number(p?.x) || 50, 0, 100) / 100 * 980;
+        let baseX = clamp(Number(p?.x) || 50, 0, 100) / 100 * 980;
         const depth = plantDepth(p);
         const ds = depthScale(depth);
         const baseY = depthY(depth);
-        const stemH = (90 + 850 * h) * ds;
-        const topY = baseY - stemH + wilt * 120;
+        let stemH = (90 + 850 * h * tcHeightScale()) * ds;
+        let topY = baseY - stemH + wilt * 120;
+        const minTopY = tcMinTopY();   // chặn ngọn không vượt đỉnh overlay (giữ icon quà luôn hiện)
+        if (topY < minTopY) { topY = minTopY; stemH = baseY - topY + wilt * 120; }
         const sway = (Number(p?.lean) || 0) + wilt * ((Number(p?.lean) || 0) >= 0 ? 92 : -92);
-        const cx = baseX + sway;
-        return { baseX, baseY, stemH, topY, sway, cx, depth, ds };
+        let cx = baseX + sway;
+        // Kẹp ngang: gốc & ngọn đều nằm trong biên an toàn → icon/lá luôn chừa mép 2 bên.
+        const [gxMin, gxMax] = tcXBounds();
+        baseX = clamp(baseX, gxMin, gxMax);
+        cx = clamp(cx, gxMin, gxMax);
+        return { baseX, baseY, stemH, topY, sway: cx - baseX, cx, depth, ds };
     }
     function plantPoint(p, at) {
         const m = plantMeta(p);
@@ -590,6 +733,10 @@
         $garden.style.top = (d.gardenYPercent ?? 82) + '%';
         $garden.style.transform = 'translate(-50%, -100%) scale(' + ((d.scale || 100) / 100) + ')';
         $status.style.display = d.showStatus === false ? 'none' : 'block';
+        // 🪧 Trang trí: bật/tắt theo từng nhóm (+ KPI 💎) + dựng lại khung tĩnh (đổi media bảng / đồ vật)
+        applyDecorVisibility();
+        buildDecorStatic();
+        buildPets();
         render();
     }
     function render() {
@@ -612,9 +759,13 @@
         renderFlowers();
         renderStatus();
         renderTop();
+        applyDecorVisibility();   // 💎 KPI cập nhật theo state (totalDiamond đổi mỗi tick)
+        renderDecorRows();
+        updateTopPetNames();      // 🐾 tên người TOP trên con vật + ẩn/hiện theo bảng top
+        checkKpiUnlocks();
     }
     function renderTop() {
-        const show = config.display.showLeaderboard !== false;
+        const show = config.display.showLeaderboard !== false && kpiUnlocked('leaderboard');
         const top = Array.isArray(state.top) ? state.top : [];
         const harvest = Number(state.harvestCount) || 0;
         if (!show || (!top.length && !harvest)) { $top.classList.add('empty'); $top.innerHTML = ''; return; }
@@ -629,6 +780,232 @@
             return `<div class="tc-top-row"><span class="tc-top-rank">${medals[i] || (i + 1)}</span>${ava}<span class="tc-top-name">${esc(c.nickname || 'Ẩn danh')}</span><span class="tc-top-score">${fmt(c.score)}💎</span></div>`;
         }).join('');
         $top.innerHTML = `<h4>🏆 Top chăm cây</h4>${rows}${harvest ? `<div class="tc-harvest">🍎 Đã thu hoạch: <b>${harvest}</b> trái</div>` : ''}`;
+    }
+    // ═══════════ 🪧 TRANG TRÍ KHU VƯỜN ═══════════
+    // Khung tĩnh (hàng rào + bảng + đồ vật) vẽ 1 lần ở buildDecorStatic() — animation mượt.
+    // 3 dòng TOP 3 vẽ lại mỗi state tick ở renderDecorRows() — bám đúng state.top.
+    // Toạ độ trong viewBox 980×1200, mặt đất ~y1120; bảng bên trái, hàng rào bên phải (như mẫu).
+    // ⚙ Phép biến hình (to/nhỏ + dời ngang/dọc) cho từng phần trang trí, quanh điểm neo ở đáy
+    //    (scale giữ chân vật trên mặt đất, mọc lên trên). 100/0/0 = không đổi.
+    const TC_DECOR_ANCHOR = { board: [214, 1136], fence: [700, 1150], props: [470, 1158] };
+    function decorTf(kind) {
+        const d = config.display || {};
+        const a = TC_DECOR_ANCHOR[kind] || [490, 1150];
+        const s = clamp(Number(d[kind + 'Scale']) == null ? 100 : Number(d[kind + 'Scale']), 40, 240) / 100;
+        const dx = clamp(Number(d[kind + 'X']) || 0, -500, 500);
+        const dy = clamp(Number(d[kind + 'Y']) || 0, -400, 400);
+        if (s === 1 && !dx && !dy) return '';
+        return `translate(${dx} ${dy}) translate(${a[0]} ${a[1]}) scale(${s.toFixed(3)}) translate(${-a[0]} ${-a[1]})`;
+    }
+    // 💎 KPI Kim Cương: mỗi phần trang trí mở khoá khi tổng 💎 buổi LIVE đạt mốc.
+    //    Tắt kpiUnlockEnabled → luôn mở (giữ nguyên hành vi cũ). Edit mode → mở hết để xem.
+    const KPI_KEY = { props: 'kpiProps', fence: 'kpiFence', board: 'kpiBoard', leaderboard: 'kpiLeaderboard', pet: 'kpiPet' };
+    const KPI_LABEL = { props: '🍄 Đồ sân vườn', fence: '🚧 Hàng rào', board: '🏆 Bảng TOP 3', leaderboard: '📋 Bảng xếp hạng', pet: '🐾 Thú cưng' };
+    function kpiUnlocked(kind) {
+        const d = config.display || {};
+        if (d.kpiUnlockEnabled !== true || isEdit) return true;
+        const thr = Number(d[KPI_KEY[kind]]) || 0;
+        return (Number(state.kpiDiamond) || 0) >= thr;
+    }
+    let tcKpiPrev = null;   // Set các phần đã mở ở tick trước → phát banner khi vừa vượt mốc
+    function checkKpiUnlocks() {
+        if (config.display.kpiUnlockEnabled !== true || isEdit) { tcKpiPrev = null; return; }
+        const kinds = ['props', 'fence', 'board', 'leaderboard', 'pet'];
+        const now = new Set(kinds.filter(kpiUnlocked));
+        if (tcKpiPrev) {
+            kinds.forEach(k => {
+                if (now.has(k) && !tcKpiPrev.has(k)) { showBanner('🎉 Mở khoá: ' + KPI_LABEL[k] + '!', true); confettiBurst(46); sfx('milestone'); }
+            });
+        }
+        tcKpiPrev = now;
+    }
+    function applyDecorVisibility() {
+        if (!$decor) return;
+        const d = config.display || {};
+        $decor.classList.toggle('off', d.showGroundDecor === false);
+        $decor.classList.toggle('no-board', d.showTopBoard === false || !kpiUnlocked('board'));
+        $decor.classList.toggle('no-fence', d.showFence === false || !kpiUnlocked('fence'));
+        $decor.classList.toggle('no-props', d.showGardenProps === false || !kpiUnlocked('props'));
+        if ($pets) $pets.classList.toggle('off', d.showGroundDecor === false || d.showPets === false || !kpiUnlocked('pet'));
+    }
+    // 🐾 Thú cưng: bơm gradient dùng chung 1 lần + dựng đàn con vật + vòng lặp roam tự nhiên.
+    let tcPetDefsInjected = false;
+    function ensurePetDefs() {
+        if (tcPetDefsInjected) return;
+        const defs = $pets && $pets.querySelector('.tc-pet-defs defs');
+        if (defs && window.HpTrongCayPets) { defs.innerHTML = window.HpTrongCayPets.DEFS; tcPetDefsInjected = true; }
+    }
+    const TC_PETS = [];
+    let tcPetRAF = 0, tcPetLast = 0;
+    function petMediaHtml(media) {
+        return /\.(webm|mp4)(\?|#|$)/i.test(media)
+            ? `<video class="tc-pet-media" src="${esc(media)}" autoplay loop muted playsinline></video>`
+            : `<img class="tc-pet-media" src="${esc(media)}" alt="">`;
+    }
+    function buildPets() {
+        if (!$petList || !window.HpTrongCayPets) return;
+        if (tcPetRAF) { cancelAnimationFrame(tcPetRAF); tcPetRAF = 0; }
+        TC_PETS.length = 0;
+        $petList.innerHTML = '';
+        const d = config.display || {};
+        if (d.showPets === false) return;
+        ensurePetDefs();
+        const P = window.HpTrongCayPets;
+        const scale = clamp(Number(d.petScale) || 100, 40, 220) / 100;
+        // tạo 1 con: kind + {topRank?, media?}. topRank != null → có nhãn tên, ẩn tới khi có user TOP đó.
+        const mk = (kind, opts) => {
+            const meta = P.META[kind]; if (!meta) return;
+            const media = String(opts.media || '').trim();
+            const inner = media ? petMediaHtml(media) : (P.ART[kind] || '');
+            const isTop = opts.topRank != null;
+            const el = document.createElement('div');
+            el.className = 'tc-pet' + (meta.hopper ? ' hopper' : '') + (meta.flyer ? ' flyer' : '') + (meta.slither ? ' slither' : '') + (isTop ? ' top' : '');
+            el.style.setProperty('--pw', (meta.size * scale).toFixed(1) + 'px');
+            el.innerHTML = (isTop ? '<div class="tc-pet-name"></div>' : '') + `<div class="tc-pet-shadow"></div><div class="tc-pet-face"><div class="tc-pet-walk">${inner}</div></div>`;
+            const x = 12 + Math.random() * 76;
+            el.style.left = x.toFixed(2) + '%';
+            el.style.top = meta.baseY + '%';
+            if (isTop) el.style.display = 'none';   // chờ có người TOP mới hiện
+            $petList.appendChild(el);
+            TC_PETS.push({ el, face: el.querySelector('.tc-pet-face'), nameEl: el.querySelector('.tc-pet-name'), x, tx: x, dir: 1, speed: meta.speed, moving: false, paused: 500 + Math.random() * 2000, topRank: isTop ? opts.topRank : null, flyer: !!meta.flyer });
+        };
+        const decor = Array.isArray(d.decorPets) ? d.decorPets : P.defaultDecorPets();
+        decor.forEach(p => { if (p && p.enabled !== false && p.kind) mk(p.kind, { media: p.media }); });
+        const tops = Array.isArray(d.topPets) ? d.topPets : P.defaultTopPets();
+        tops.forEach((p, rank) => { if (rank < 3 && p && p.kind) mk(p.kind, { topRank: rank, media: p.media }); });
+        updateTopPetNames();
+        if (TC_PETS.length) { tcPetLast = (typeof performance !== 'undefined' ? performance.now() : Date.now()); tcPetRAF = requestAnimationFrame(petTick); }
+    }
+    // Cập nhật nhãn tên + ẩn/hiện con vật TOP theo state.top (không dựng lại → giữ vị trí roam).
+    function updateTopPetNames() {
+        if (!TC_PETS.some(p => p.topRank != null)) return;
+        const medals = ['🥇', '🥈', '🥉'];
+        let top = Array.isArray(state.top) ? state.top : [];
+        if (!top.length && isEdit) top = [{ nickname: 'Người Top 1' }, { nickname: 'Người Top 2' }, { nickname: 'Người Top 3' }];
+        const showPets = (config.display || {}).showPets !== false;
+        TC_PETS.forEach(pet => {
+            if (pet.topRank == null) return;
+            const u = top[pet.topRank];
+            if (u && showPets) {
+                pet.el.style.display = '';
+                if (pet.nameEl) pet.nameEl.textContent = medals[pet.topRank] + ' ' + (u.nickname || 'Ẩn danh');
+            } else {
+                pet.el.style.display = 'none';
+            }
+        });
+    }
+    function petTick(ts) {
+        const dt = Math.min(60, ts - tcPetLast) / 1000; tcPetLast = ts;
+        for (const pet of TC_PETS) {
+            if (pet.paused > 0) {
+                pet.paused -= dt * 1000;
+                if (pet.moving) { pet.moving = false; pet.el.classList.remove('moving'); }
+                // Chim BAY: tuần tra qua lại 2 đầu (đang ở nửa nào → bay sang đầu kia). Con khác: điểm ngẫu nhiên.
+                if (pet.paused <= 0) pet.tx = pet.flyer ? (pet.x < 50 ? 80 + Math.random() * 8 : 6 + Math.random() * 8) : (8 + Math.random() * 80);
+                continue;
+            }
+            const dx = pet.tx - pet.x, adx = Math.abs(dx);
+            if (adx < 0.5) {
+                if (pet.moving) { pet.moving = false; pet.el.classList.remove('moving'); }
+                pet.paused = pet.flyer ? (160 + Math.random() * 380) : (700 + Math.random() * 2800);   // chim nghỉ ngắn rồi quay đầu
+                continue;
+            }
+            if (!pet.moving) { pet.moving = true; pet.el.classList.add('moving'); }
+            const ndir = dx > 0 ? 1 : -1;
+            if (ndir !== pet.dir) { pet.dir = ndir; pet.face.style.transform = 'scaleX(' + ndir + ')'; }
+            const step = pet.speed * dt;
+            pet.x += step > adx ? dx : step * ndir;
+            pet.el.style.left = pet.x.toFixed(2) + '%';
+        }
+        tcPetRAF = requestAnimationFrame(petTick);
+    }
+    function buildDecorStatic() {
+        if (!$decorStatic) return;
+        const d = config.display || {};
+        const media = String(d.topBoardMedia || '').trim();
+        // 🚧 Hàng rào cọc trắng (phải) + 2 thanh ngang
+        const pk = [], px0 = 540, n = 7, pitch = 41, pw = 22, gBase = 1150, flat = 1074, peak = 1058;
+        for (let i = 0; i < n; i++) {
+            const x = px0 + i * pitch;
+            pk.push(`<path d="M ${x} ${flat} L ${x + pw / 2} ${peak} L ${x + pw} ${flat} L ${x + pw} ${gBase} L ${x} ${gBase} Z" fill="#f3ead6" stroke="rgba(90,60,28,.5)" stroke-width="1.6"/><rect x="${x + 3}" y="${flat + 4}" width="3" height="${gBase - flat - 6}" fill="rgba(255,255,255,.5)"/>`);
+        }
+        const rails = `<rect x="532" y="1092" width="276" height="13" rx="3" fill="#e7dcc2" stroke="rgba(90,60,28,.45)" stroke-width="1.4"/><rect x="532" y="1126" width="276" height="13" rx="3" fill="#dfd2b4" stroke="rgba(90,60,28,.45)" stroke-width="1.4"/>`;
+        // 🪜 Giàn hoa leo (lưới đan chéo) — góc phải, như nét vẽ mẫu
+        const lx = 816, lw = 98, ly = 1004, lh = 120, lb = 1150;
+        const ld = [];
+        for (let k = -5; k <= 5; k++) {
+            const off = k * 22;
+            ld.push(`<line x1="${lx + off}" y1="${ly + 6}" x2="${lx + lw + off}" y2="${ly + lh}" stroke="#7a4f26" stroke-width="4" stroke-linecap="round"/>`);
+            ld.push(`<line x1="${lx + lw - off}" y1="${ly + 6}" x2="${lx - off}" y2="${ly + lh}" stroke="#8f5d30" stroke-width="4" stroke-linecap="round"/>`);
+        }
+        const lattice = `<rect x="${lx}" y="${ly}" width="8" height="${lb - ly}" fill="url(#tcb-wood)"/><rect x="${lx + lw - 8}" y="${ly}" width="8" height="${lb - ly}" fill="url(#tcb-wood)"/><rect x="${lx}" y="${ly}" width="${lw}" height="9" rx="2" fill="url(#tcb-wood)"/><g clip-path="url(#tcb-lat)">${ld.join('')}</g><rect x="${lx}" y="${ly}" width="${lw}" height="${lh}" fill="none" stroke="rgba(40,24,10,.4)" stroke-width="2"/>` +
+            `<text class="tc-prop" x="${lx + 26}" y="${ly + 46}" text-anchor="middle" style="font-size:24px">🌹</text><text class="tc-prop" x="${lx + 70}" y="${ly + 84}" text-anchor="middle" style="font-size:22px">🌸</text>`;
+        // 🪧 Bảng TOP 3: cọc + mái + ruy băng tiêu đề + mặt bảng (xanh đậm hoặc media png/webm)
+        const posts = `<rect x="86" y="940" width="20" height="230" rx="4" fill="url(#tcb-wood)"/><rect x="322" y="940" width="20" height="230" rx="4" fill="url(#tcb-wood)"/>`;
+        const roof = `<path d="M 44 946 L 214 890 L 384 946 Z" fill="#6e4423" stroke="rgba(40,24,10,.55)" stroke-width="2"/><path d="M 214 890 L 384 946 L 214 946 Z" fill="rgba(0,0,0,.14)"/>`;
+        const frame = `<rect x="58" y="940" width="312" height="196" rx="14" fill="#5e3a18" stroke="rgba(30,18,8,.6)" stroke-width="2"/>`;
+        let face;
+        if (media && /\.(webm|mp4)(\?|#|$)/i.test(media)) {
+            face = `<foreignObject x="70" y="952" width="288" height="172" clip-path="url(#tcb-inner)"><video xmlns="http://www.w3.org/1999/xhtml" src="${esc(media)}" autoplay loop muted playsinline style="width:100%;height:100%;object-fit:cover;border-radius:10px"></video></foreignObject>`;
+        } else if (media) {
+            face = `<image href="${esc(media)}" xlink:href="${esc(media)}" x="70" y="952" width="288" height="172" clip-path="url(#tcb-inner)" preserveAspectRatio="xMidYMid slice"/>`;
+        } else {
+            face = `<rect x="70" y="952" width="288" height="172" rx="10" fill="url(#tcb-board)"/><rect x="70" y="952" width="288" height="172" rx="10" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2"/>`;
+        }
+        const ribbon = `<path d="M 70 906 H 358 L 348 925 L 358 944 H 70 L 80 925 Z" fill="#d2462f" stroke="rgba(90,20,12,.5)" stroke-width="1.5"/><text class="tc-board-ribbon-txt" x="214" y="932" text-anchor="middle">🏆 TOP 3 TẶNG ĐIỂM</text>`;
+        // 🍄🌷 Đồ sân vườn (emoji) — bật/tắt riêng. transform-origin đáy để đu đưa như mọc từ đất.
+        const prop = (x, y, s, e, delay) => `<g class="tc-prop-bob" style="animation-delay:${delay}s"><text class="tc-prop" x="${x}" y="${y}" text-anchor="middle" style="font-size:${s}px">${e}</text></g>`;
+        const props = prop(404, 1160, 34, '🍄', -0.2) + prop(430, 1150, 24, '🍄', -1.4) +
+            prop(456, 1158, 30, '🌷', -0.8) + prop(486, 1162, 32, '🌻', -1.9) + prop(514, 1154, 26, '🌷', -0.5) +
+            prop(792, 1156, 30, '🪴', -1.1);
+        const defs = `<defs>
+            <linearGradient id="tcb-wood" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7c4f27"/><stop offset=".5" stop-color="#a06a36"/><stop offset="1" stop-color="#5e3a18"/></linearGradient>
+            <linearGradient id="tcb-board" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2c5e36"/><stop offset="1" stop-color="#143a1d"/></linearGradient>
+            <clipPath id="tcb-inner"><rect x="70" y="952" width="288" height="172" rx="10"/></clipPath>
+            <clipPath id="tcb-lat"><rect x="${lx}" y="${ly}" width="${lw}" height="${lh}"/></clipPath>
+        </defs>`;
+        $decorStatic.innerHTML = defs
+            + `<g class="tc-fence" transform="${decorTf('fence')}">${rails}${pk.join('')}${lattice}</g>`
+            + `<g class="tc-board" transform="${decorTf('board')}">${posts}${roof}${frame}${face}${ribbon}</g>`
+            + `<g class="tc-props" transform="${decorTf('props')}">${props}</g>`;
+    }
+    function renderDecorRows() {
+        if (!$decorRows) return;
+        const d = config.display || {};
+        if (d.showGroundDecor === false || d.showTopBoard === false || !kpiUnlocked('board')) { $decorRows.innerHTML = ''; return; }
+        const real = (Array.isArray(state.top) ? state.top : []).slice(0, 3);
+        // Chế độ chỉnh (popout edit) chưa có dữ liệu → hiện mẫu để xem mô hình bảng.
+        const demo = isEdit ? [{ nickname: 'Người Top 1', score: 12500 }, { nickname: 'Người Top 2', score: 8400 }, { nickname: 'Người Top 3', score: 3200 }] : [];
+        // Luôn 3 ô ghi danh: ô trống = chỗ "Đang chờ" → bảng đầy đặn như bảng vàng đúng nghĩa.
+        const slots = [0, 1, 2].map(i => real[i] || demo[i] || null);
+        const rowsY = [990, 1040, 1090], medals = ['🥇', '🥈', '🥉'];
+        const fmt = v => { v = Number(v) || 0; return v >= 1000 ? (Math.round(v / 100) / 10) + 'k' : v; };
+        let defs = '', body = '';
+        slots.forEach((c, i) => {
+            const y = rowsY[i], cx = 140, r = 20;
+            body += `<text class="tc-board-rank" x="98" y="${y}" text-anchor="middle" dominant-baseline="central">${medals[i] || (i + 1)}</text>`;
+            if (!c) {
+                body += `<circle cx="${cx}" cy="${y}" r="${r}" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="2" stroke-dasharray="5 5"/>`;
+                body += `<text class="tc-board-empty" x="166" y="${y}" dominant-baseline="central">Đang chờ…</text>`;
+                return;
+            }
+            const av = esc(c.avatar || '');
+            const raw = c.nickname || 'Ẩn danh';
+            const nm = esc(raw.length > 12 ? raw.slice(0, 12) + '…' : raw);
+            const letter = esc((raw.trim().slice(0, 1) || '?').toUpperCase());
+            defs += `<clipPath id="tcb-av${i}"><circle cx="${cx}" cy="${y}" r="${r}"/></clipPath>`;
+            // Cắt tên trong khung cố định → tên dài mấy cũng KHÔNG đè lên điểm.
+            defs += `<clipPath id="tcb-nm${i}"><rect x="166" y="${y - 18}" width="124" height="36"/></clipPath>`;
+            body += `<circle cx="${cx}" cy="${y}" r="${r}" fill="#2a5a3a"/>`;
+            body += av
+                ? `<image href="${av}" xlink:href="${av}" x="${cx - r}" y="${y - r}" width="${2 * r}" height="${2 * r}" clip-path="url(#tcb-av${i})" preserveAspectRatio="xMidYMid slice"/>`
+                : `<text class="tc-board-letter" x="${cx}" y="${y}" text-anchor="middle" dominant-baseline="central">${letter}</text>`;
+            body += `<circle cx="${cx}" cy="${y}" r="${r}" fill="none" stroke="#fff" stroke-width="2.5" opacity=".85"/>`;
+            body += `<text class="tc-board-name" x="166" y="${y}" dominant-baseline="central" clip-path="url(#tcb-nm${i})">${nm}</text>`;
+            body += `<text class="tc-board-score" x="352" y="${y}" text-anchor="end" dominant-baseline="central">${fmt(c.score)}💎</text>`;
+        });
+        // Bọc cùng transform với khung bảng → 3 dòng TOP 3 to/nhỏ & dời theo bảng.
+        $decorRows.innerHTML = `<defs>${defs}</defs><g transform="${decorTf('board')}">${body}</g>`;
     }
     function showBanner(text, gold) {
         const b = document.createElement('div');
@@ -834,30 +1211,40 @@
                 html += baseTuftSvg(m.baseX, m.baseY, m.ds);
                 html += `<path class="tc-stem ${sd % 2 ? 'alt' : ''}" d="M ${m.baseX} ${m.baseY} C ${m.baseX + m.sway * .18} ${(m.baseY - 220) - m.stemH * .08}, ${m.cx} ${m.topY + m.stemH * .38}, ${m.cx} ${m.topY}"/>`;
                 const hp = clamp(Number(p.height) || 0, 0, config.maxHeight || 100) / (config.maxHeight || 100);
-                const leafN = clamp(Math.round(2 + hp * 5), 2, 7);
+                // 🍃 Lá NHIỀU HƠN & rải khắp thân theo chiều cao (cây cao = nhiều xu = tán dày, đa hướng).
+                const leafN = clamp(Math.round(3 + hp * 13), 3, 16);
                 for (let j = 0; j < leafN; j++) {
-                    const tt = .22 + j * (.64 / leafN);
+                    const tt = .17 + j * (.74 / leafN);          // trải rộng .17 → ~.91 thân
                     const pt = plantPoint(p, tt);
-                    if (pt.y < m.topY + 34) continue;
+                    if (pt.y < m.topY + 30) continue;
                     const side = (j + sd) % 2 ? -1 : 1;
-                    html += leafSvg(pt.x, pt.y, side, side * (8 + (j % 3) * 4), (0.68 + j * .04) * m.ds, (-(sd % 7) * .25 - j * .35).toFixed(2));
+                    const ang = side * (7 + ((sd + j * 17) % 10));               // hướng lá đa dạng theo seed
+                    const lsc = (0.6 + ((sd + j * 13) % 5) * .045 + j * .012) * m.ds;
+                    html += leafSvg(pt.x, pt.y, side, ang, lsc, (-(sd % 7) * .25 - j * .3).toFixed(2));
                 }
-                // Trái treo thành CHÙM trong tán — xếp so le (hex) có khoảng cách nên KHÔNG chồng
-                // bệt lên nhau mà thưa ra như một chùm trái thật.
-                const fruitN = clamp(Math.round(Number(p.fruits) || 0), 0, 8);
-                if (fruitN) {
-                    const anchor = plantPoint(p, .64);          // điểm treo chùm (tán giữa-trên)
-                    const fr = 14 * m.ds;                       // bán kính ~1 trái
-                    const gapX = fr * 2.1, gapY = fr * 1.7;     // giãn cách → không chồng bệt
-                    for (let k = 0; k < fruitN; k++) {
-                        const col = (k % 3) - 1;                 // -1,0,1
-                        const row = Math.floor(k / 3);           // hàng 0,1,2…
-                        const seed = (Number(p.leafSeed) || 0) + k * 97;
-                        const jx = (seed % 7) - 3, jy = (seed * 3) % 6;   // lệch nhẹ cho tự nhiên
-                        const fx = anchor.x + col * gapX + (row % 2 ? gapX * 0.5 : 0) + jx;  // so le hàng chẵn/lẻ
-                        const fy = anchor.y + row * gapY + jy;
-                        if (fy < m.topY + 18) continue;
-                        html += fruitSvg(fx, fy, (1.0 + (k % 3) * 0.12) * m.ds, seed);
+                // 🍎 Trái rải thành NHIỀU CHÙM dọc thân (nhiều trái → nhiều chùm ở nhiều nơi), mỗi
+                // chùm xếp so le (hex) cho thưa tự nhiên. Vị trí suy từ leafSeed → KHÔNG nhảy mỗi tick.
+                const fruitTotal = clamp(Math.round(Number(p.fruits) || 0), 0, 28);
+                if (fruitTotal) {
+                    const fr = 14 * m.ds;
+                    const gapX = fr * 2.0, gapY = fr * 1.55;
+                    const clusters = clamp(Math.ceil(fruitTotal / 4), 1, 6);     // càng nhiều trái càng nhiều chùm
+                    const base = Math.floor(fruitTotal / clusters), extra = fruitTotal % clusters;
+                    for (let c = 0; c < clusters; c++) {
+                        const cseed = (Number(p.leafSeed) || 0) + c * 131;
+                        const frac = clusters > 1 ? (.46 + (c / (clusters - 1)) * .42) : .6;   // rải .46 → .88 dọc thân
+                        const anchor = plantPoint(p, clamp(frac + ((cseed % 5) - 2) * .015, .4, .92));
+                        const ox = ((cseed % 9) - 4) * (fr * .55);               // lệch chùm sang 2 bên thân
+                        const per = base + (c < extra ? 1 : 0);                  // chia đều trái cho các chùm
+                        for (let k = 0; k < per; k++) {
+                            const col = (k % 3) - 1, row = Math.floor(k / 3);
+                            const seed = cseed + k * 97;
+                            const jx = (seed % 7) - 3, jy = (seed * 3) % 6;      // lệch nhẹ cho tự nhiên
+                            const fx = anchor.x + ox + col * gapX + (row % 2 ? gapX * .5 : 0) + jx;
+                            const fy = anchor.y + row * gapY + jy;
+                            if (fy < m.topY + 16) continue;
+                            html += fruitSvg(fx, fy, (1.0 + (k % 3) * .12) * m.ds, seed);
+                        }
                     }
                 }
                 html += '</g>';
@@ -893,7 +1280,8 @@
         if (config.display.showFlowers === false) { $flowers.innerHTML = ''; return; }
         const plants = Array.isArray(state.plants) ? state.plants.filter(p => (Number(p.height) || 0) > 0 && p.giftImage) : [];
         if (plants.length) {
-            $flowers.innerHTML = plants.slice().sort((a, b) => plantDepth(a) - plantDepth(b)).map((p) => {
+            const sorted = plants.slice().sort((a, b) => plantDepth(a) - plantDepth(b));
+            const flowersHtml = sorted.map((p) => {
                 const m = plantMeta(p);
                 const sd = plantSeedInt(p);   // nhịp đung đưa hoa theo seed cố định → cây mới mọc không làm hoa cây cũ nhảy nhịp
                 const pt = plantPoint(p, .985);
@@ -908,6 +1296,13 @@
                 const wiltStyle = wilt > 38 ? `filter:sepia(${Math.min(.9, wilt / 100).toFixed(2)}) brightness(${Math.max(.62, 1 - wilt / 260).toFixed(2)}) drop-shadow(0 3px 4px rgba(0,0,0,.45));opacity:${Math.max(.58, 1 - wilt / 260).toFixed(2)};` : '';
                 return `<img class="tc-flower" src="${esc(p.giftImage || '')}" title="${esc((p.giftName || '') + ' x' + (p.count || 1))}" style="left:${pt.x.toFixed(1)}px;top:${pt.y.toFixed(1)}px;z-index:${z};--s:${size.toFixed(0)}px;--r:${((Number(p.lean) || 0) / 3).toFixed(2)}deg;--sway-dur:${dur}s;--sway-delay:${delay}s;${wiltStyle}" onerror="this.style.display='none'"/>`;
             }).join('');
+            // 🌱 Dây + avatar chủ cây cho cây CỦA VIEWER đã trưởng thành (có tán lá). Vẽ sau hoa → nổi trên cùng.
+            const maxH = config.maxHeight || 100;
+            // Cây CỦA VIEWER (owned) đã trưởng thành → luôn hiện dây + huy hiệu (avatar thật, hoặc chữ cái nếu thiếu avatar).
+            const ownersHtml = (config.display.showNames === false) ? '' : sorted
+                .filter(p => p.owned && (Number(p.height) || 0) / maxH >= TC_MATURE_FRAC)
+                .map(ownerMedalHtml).join('');
+            $flowers.innerHTML = flowersHtml + ownersHtml;
             return;
         }
         const list = Array.isArray(state.flowers) ? state.flowers : [];
@@ -920,6 +1315,30 @@
             const delay = (-i * .6).toFixed(2);
             return `<img class="tc-flower" src="${esc(f.giftImage || '')}" title="${esc(f.giftName || '')}" style="left:${p.x.toFixed(1)}px;top:${p.y.toFixed(1)}px;--s:${size.toFixed(0)}px;--r:${Number(f.rot || 0)}deg;--sway-dur:${dur}s;--sway-delay:${delay}s" onerror="this.style.display='none'"/>`;
         }).join('');
+    }
+    // 🌱 Huy hiệu chủ cây: 👑 + dây leo buông từ ngọn xuống avatar tròn (vành cầu vồng) + tên.
+    //    Neo tại ngọn cây (plantPoint .94); avatar lệch xuống-phải để dây buông tự nhiên như ảnh 1.
+    function ownerMedalHtml(p) {
+        const m = plantMeta(p);
+        const anchor = plantPoint(p, .94);
+        const sc = clamp(0.78 + m.depth * 0.4, 0.7, 1.25);   // cây gần (depth lớn) → huy hiệu to hơn
+        const z = Math.round(m.depth * 100) + 40;            // luôn nổi trên hoa cùng độ sâu
+        const dx = 30 * sc, dy = 96 * sc;                    // vị trí avatar so với điểm neo
+        const w = Math.ceil(Math.abs(dx) + 30), h = Math.ceil(dy + 10);
+        const vine = `<svg class="tc-owner-vine" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="M 0 0 C ${(dx * 0.1).toFixed(0)} ${(dy * 0.5).toFixed(0)}, ${(dx * 1.25).toFixed(0)} ${(dy * 0.45).toFixed(0)}, ${dx.toFixed(0)} ${dy.toFixed(0)}"/></svg>`;
+        // Avatar thật nếu có; nếu thiếu → vòng tròn chữ cái đầu nickname (vẫn hiện dây để phân biệt chủ cây).
+        const nm = String(p.nickname || '').trim();
+        const ava = p.ownerAvatar
+            ? `<img class="tc-owner-ava" src="${esc(p.ownerAvatar)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'tc-owner-ava ph',textContent:'${esc((nm[0] || '🌱').toUpperCase())}'}))"/>`
+            : `<span class="tc-owner-ava ph">${esc((nm[0] || '🌱').toUpperCase())}</span>`;
+        const lock = p.growthLocked ? `<span class="tc-owner-lock" title="Đã tạm khóa tăng trưởng">🔒</span>` : '';
+        return `<div class="tc-owner${p.growthLocked ? ' locked' : ''}" style="left:${anchor.x.toFixed(1)}px;top:${anchor.y.toFixed(1)}px;z-index:${z};--s:${sc.toFixed(3)}">`
+            + `<span class="tc-owner-crown">👑</span>`
+            + vine
+            + `<div class="tc-owner-medal" style="left:${dx.toFixed(0)}px;top:${dy.toFixed(0)}px">`
+            + `<span class="tc-owner-ring">${ava}${lock}</span>`
+            + `<span class="tc-owner-name">${esc(nm)}</span>`
+            + `</div></div>`;
     }
     function renderStatus() {
         if (config.display.showStatus === false) return;
@@ -1059,17 +1478,34 @@
         const targetPlant = (state.plants || []).find(p => p.id === b.plantId);
         // BẦY ĐÀN: mỗi con đậu ở MỘT vị trí khác nhau trong VÒM TÁN TRÊN của cây (quanh ngọn,
         // toả ngang + xuống một đoạn) → nhìn như cả đàn bám tán, KHÔNG sà xuống gốc/đất.
-        const spreadX = (Math.random() * 2 - 1) * 78;        // lệch ngang ±78px
+        const spreadX = (Math.random() * 2 - 1) * 60;        // lệch ngang ±60px (quanh ngọn)
         let target;
-        if (targetPlant) {
-            const m = plantMeta(targetPlant);
-            const span = Math.min(m.stemH * 0.42, 150);      // vùng tán trên (từ ngọn xuống một đoạn)
-            target = { x: m.cx + spreadX, y: m.topY + Math.random() * span };
-        } else if (targetFlower) {
-            const fp = flowerPoint(targetFlower);
-            target = { x: fp.x + spreadX, y: fp.y - Math.random() * 36 };
+        // Bướm phải ĐẬU LÊN ICON CÂY XANH (vòm lá trên ngọn) — KHÔNG sà xuống thân/đất.
+        // Nếu plantId/flowerId không khớp (lệch nhịp state) thì chọn một cây/hoa ĐANG HIỆN
+        // làm đích thay vì rơi về điểm mặc định dưới thấp.
+        let plant = targetPlant;
+        if (!plant && Array.isArray(state.plants) && state.plants.length) {
+            const live = state.plants.filter(p => (Number(p.height) || 0) > 0 && p.giftImage);
+            if (live.length) plant = live[Math.floor(Math.random() * live.length)];
+        }
+        if (plant) {
+            const m = plantMeta(plant);
+            // Bám SÁT vòm lá quanh icon trên ngọn: dải hẹp ôm đỉnh (từ hơi trên ngọn xuống một
+            // chút), KHÔNG còn cộng dồn tới 150px khiến bướm tụt xuống giữa thân như "rơi xuống đất".
+            const band = Math.min(m.stemH * 0.18, 54);
+            target = { x: m.cx + spreadX, y: m.topY - 14 + Math.random() * band };
         } else {
-            target = { x: 490 + spreadX, y: 430 + (Math.random() * 2 - 1) * 60 };
+            let flower = targetFlower;
+            if (!flower && Array.isArray(state.flowers) && state.flowers.length) {
+                flower = state.flowers[Math.floor(Math.random() * state.flowers.length)];
+            }
+            if (flower) {
+                const fp = flowerPoint(flower);
+                target = { x: fp.x + spreadX, y: fp.y - Math.random() * 28 };
+            } else {
+                // Không còn cây/icon nào → đậu ở vùng tán giữa khung (vẫn TRÊN cao, không xuống đất).
+                target = { x: 490 + spreadX, y: 360 + (Math.random() * 2 - 1) * 50 };
+            }
         }
         el.style.setProperty('--from-x', (b.fromX || -10) + '%');
         el.style.setProperty('--from-y', (b.fromY || 45) + '%');
@@ -1533,6 +1969,11 @@
     socket.on('trongcay:sun', data => { triggerSun(); sfx('sun'); });
     socket.on('trongcay:cut', data => { playCut(data); });   // tiếng cut phát ở lúc snip (trong playCut)
     socket.on('trongcay:grow', data => { sfx('grow'); growPop(data); });
+    socket.on('trongcay:treelock', data => {   // 🔒 tạm dừng / 🌳 kích hoạt cây của 1 viewer (mỗi quà kích hoạt = 1 cây)
+        const name = (data && data.nickname) ? data.nickname : 'Khán giả';
+        if (data && data.locked) showBanner('🔒 ' + name + ' tạm dừng chăm cây', false);
+        else showBanner('🌳 ' + name + ' kích hoạt cây!', false);
+    });
     socket.on('trongcay:milestone', data => {
         if (config.display.showMilestones === false) return;
         sfx('milestone');
