@@ -25,13 +25,13 @@
             cutGifts: [],
             butterflyGifts: [],
             beeGifts: [],
-            beesPerGift: 3,
+            beesPerGift: 1,
             beeHarvestPerTrip: 1,
             beePointsPerFruit: 50,
             maxBees: 30,
             teamMinContributors: 3,
             caterpillarGifts: [],
-            caterpillarsPerGift: 2,
+            caterpillarsPerGift: 1,
             caterpillarBite: 1,
             caterpillarBiteEverySec: 5,
             caterpillarStartDelaySec: 5,
@@ -42,6 +42,7 @@
             sprayRadiusPercent: 28,
             dragonGifts: [],
             dragonBurnSeconds: 10,
+            birdGifts: [],   // 🦅 quà bay → chim của viewer (mặc định nạp từ server)
             maxCaterpillarCorpses: 36,
             weatherEffectDelaySec: 1.0,
             cutSnipDelaySec: 1.8,
@@ -96,6 +97,9 @@
                 // 🐾 Thú cưng: 3 con theo TOP 1/2/3 (ghi tên người TOP, KHÔNG dùng chó) + 2 con trang trí.
                 showPets: true,
                 petScale: 100,
+                petRequireTree: true,        // 🌳 chỉ hiện thú TOP khi user đã tự trồng cây + đang TOP 3 (tắt = chỉ cần TOP)
+                petKindMode: 'preset',       // 'preset' = con vật cấu hình | 'treeIcon' = ảnh thú = icon quà cây user đã trồng
+                birdFlyHeightPercent: 55,    // 🦅 cây cao ≥ % này → chim (quà bay) cất cánh bay ra
                 topPets: [
                     { kind: 'cat', media: '' },     // TOP 1
                     { kind: 'rabbit', media: '' },  // TOP 2

@@ -657,6 +657,62 @@ button.mini { padding: 2px 8px; font-size: 11px; }
     display: contents;
 }
 .side-soundfx-btn { width: auto; min-width: 44px; padding: 9px 11px; border-radius: 12px; }
+
+/* ===== Hàng 5 nút TRÒN căn giữa ở đáy sidebar:
+   💬 Bình luận · 🆕 Quà mới · 🎵 Sound Effects · 🚀 Khởi động nhanh · ⚙ Cài đặt
+   Cỡ 40px + gap 8px → 5×40 + 4×8 = 232px, vừa khít trong sidebar (rộng ~240px) mà
+   vẫn căn giữa, không lệch / không phá khung. */
+.side-fab-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0 2px;
+}
+/* Mọi nút trong hàng dùng chung 1 cỡ tròn 40px (đè mọi rule cũ — kể cả vị trí fixed
+   theo từng game như body.game-thuytinh ...). */
+.side-fab-row .comments-fab,
+.side-fab-row .comments-fab.unknown-fab,
+.side-fab-row .quick-launch-fab,
+.side-fab-row .side-soundfx-circle,
+.side-fab-row .side-settings-circle {
+    position: relative !important;
+    inset: auto !important;
+    margin: 0;
+    width: 40px; height: 40px;
+    min-width: 0;
+    font-size: 20px;
+    z-index: auto;
+    opacity: 1;                 /* trong hàng luôn hiện rõ, không mờ như khi nổi ở góc */
+    flex: 0 0 auto;
+    transition: transform .12s ease, box-shadow .15s ease;
+}
+/* Nền dạng tròn cho 2 nút vốn không phải FAB (Sound Effects + Cài đặt) */
+.side-soundfx-circle,
+.side-settings-circle {
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    padding: 0;
+}
+/* Sound Effects: tông tím-teal */
+.side-soundfx-circle {
+    background: linear-gradient(135deg, #7c3aed, #25F4EE);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45), 0 0 0 3px rgba(124,58,237,0.18);
+}
+/* Cài đặt: tông tím-hồng cho khác các nút kia */
+.side-settings-circle {
+    background: linear-gradient(135deg, #6d28d9, #db2777);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45), 0 0 0 3px rgba(219,39,119,0.18);
+}
+.side-soundfx-circle:hover,
+.side-settings-circle:hover { transform: scale(1.05); }
+.side-soundfx-circle:active,
+.side-settings-circle:active { transform: scale(0.95); }
+/* Sidebar thu gọn: 5 nút xếp dọc cho vừa bề ngang hẹp */
+.sidebar.collapsed .side-fab-row { flex-direction: column; gap: 8px; }
 .side-footer {
     display: flex;
     flex-direction: column;
@@ -1443,8 +1499,11 @@ button.mini { padding: 2px 8px; font-size: 11px; }
 /* === FAB stack — 4 icon (Comments, Police, Caught, Unknown) xếp DỌC sát mép sidebar.
    Compact hơn cluster ngang, không đè game canvas. Popup mở ra bên phải FAB.
    Tab Caro/PK TikTok chỉ giữ Unknown-fab (3 FAB Hũ ẩn) → rất gọn. */
-body { --fab-base-left: 272px; }  /* sidebar 260 + gap 12 */
-body.sidebar-collapsed { --fab-base-left: 76px; }  /* sidebar 60 + gap 16 */
+/* Hai nút 💬 Bình luận + 🆕 Quà mới giờ nằm trong hàng nút tròn ở đáy sidebar
+   (.side-fab-row), KHÔNG còn nổi ở góc. --fab-base-left chỉ còn dùng để đặt vị trí
+   các POPUP (danh sách bình luận / quà mới) — mở ở góc dưới-trái màn hình. */
+body { --fab-base-left: 12px; }
+body.sidebar-collapsed { --fab-base-left: 12px; }
 .comments-fab,
 .police-fab,
 .caught-fab,
@@ -5777,11 +5836,9 @@ body.game-caro #caught-popup {
     height: 44px;
     padding: 0;
     margin: 0 auto;
-    border-radius: 14px;
+    border-radius: 50%;
 }
 .sidebar-toggle { display: none !important; }
-.sidebar.collapsed #btn-open-soundfx .soundfx-btn-ico { font-size: 20px; }
-.sidebar.collapsed #btn-open-soundfx .soundfx-btn-text { display: none; }
 .sidebar.collapsed .side-footer { display: block; }
 
 /* ===== Status dot khi collapsed — to hơn + màu rõ ràng ===== */
@@ -6879,6 +6936,54 @@ img.nd-gift-icon { background: #11131a; border-radius: 4px; }
     border-radius: 8px;
 }
 .trongcay-view .tc-row-iconbtn:hover { box-shadow: 0 0 0 2px rgba(86,217,108,0.5); }
+/* 🦅 Quà chim — 1 hàng chip gọn (chọn nhiều quà) */
+.trongcay-view .tc-row--bird { flex-wrap: wrap; }
+.trongcay-view .tc-bird-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 220px; min-width: 0; }
+.trongcay-view .tc-bird-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: #0e1118; border: 1px solid #2a2e3a; border-radius: 999px;
+    padding: 2px 5px 2px 7px; font-size: 11px; color: #cfd5e6; max-width: 150px;
+}
+.trongcay-view .tc-bird-chip img { width: 18px; height: 18px; object-fit: contain; border-radius: 4px; flex: 0 0 auto; }
+.trongcay-view .tc-bird-chip .tc-bird-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trongcay-view .tc-bird-chip-x {
+    flex: 0 0 auto; border: 0; cursor: pointer; padding: 0; line-height: 1;
+    width: 16px; height: 16px; border-radius: 999px; font-size: 10px;
+    background: rgba(255,90,90,0.15); color: #ff9a9a;
+}
+.trongcay-view .tc-bird-chip-x:hover { background: rgba(255,90,90,0.32); color: #fff; }
+/* 🎭 Segmented control (kiểu hình thú) — 2 nút pill đẹp thay cho select thô */
+.trongcay-view .tc-seg-field { display: flex; align-items: center; gap: 10px; margin: 6px 0; flex-wrap: wrap; }
+.trongcay-view .tc-seg-field > label { flex: 0 0 auto; color: #cfd5e6; font-size: 13px; }
+.trongcay-view .tc-seg { display: inline-flex; gap: 4px; padding: 3px; background: #0e1118; border: 1px solid #232838; border-radius: 999px; flex: 1 1 auto; }
+.trongcay-view .tc-seg-btn {
+    flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 7px 12px; border: 1px solid transparent; background: transparent; color: #aeb8cb;
+    border-radius: 999px; font-size: 12.5px; font-weight: 700; white-space: nowrap; cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+}
+.trongcay-view .tc-seg-btn:hover { color: #dfffe3; }
+.trongcay-view .tc-seg-btn.active {
+    color: #08210d; border-color: rgba(86,217,108,0.85);
+    background: linear-gradient(135deg, #7ef08e, #46c963);
+    box-shadow: 0 2px 8px rgba(86,217,108,0.28);
+}
+.trongcay-view .tc-seg-ico { font-size: 15px; }
+/* 🎨 Hiển thị — tinh gọn: toggle xếp 2 cột, slider sát nhau */
+.trongcay-view .tc-disp-sliders .nd-field { margin: 3px 0; }
+.trongcay-view .tc-disp-sub { margin: 10px 0 4px; font-weight: 800; font-size: 12.5px; color: #9fb0c8; border-top: 1px solid rgba(255,255,255,0.07); padding-top: 8px; }
+.trongcay-view .tc-toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 16px; }
+.trongcay-view .tc-toggle-grid .toggle-row { margin: 0; padding: 3px 0; font-size: 12.5px; }
+@media (max-width: 560px) { .trongcay-view .tc-toggle-grid { grid-template-columns: 1fr; } }
+/* ⚙ Chỉnh kích thước & vị trí — mỗi khu 1 màu viền để dễ nhận biết (như mẫu đỏ/lục/lam) */
+.trongcay-view .tc-decor-grp { margin-top: 8px; padding: 8px 10px 4px; border: 1.5px solid #2a2e3a; border-left-width: 4px; border-radius: 10px; background: rgba(255,255,255,0.015); }
+.trongcay-view .tc-decor-grp-hd { font-weight: 800; font-size: 13px; margin-bottom: 4px; }
+.trongcay-view .tc-decor-grp--board { border-color: rgba(255,99,99,0.55); border-left-color: #ff6363; background: rgba(255,99,99,0.06); }
+.trongcay-view .tc-decor-grp--board .tc-decor-grp-hd { color: #ffb1b1; }
+.trongcay-view .tc-decor-grp--fence { border-color: rgba(86,217,108,0.55); border-left-color: #56d96c; background: rgba(86,217,108,0.06); }
+.trongcay-view .tc-decor-grp--fence .tc-decor-grp-hd { color: #aeffba; }
+.trongcay-view .tc-decor-grp--props { border-color: rgba(95,160,255,0.6); border-left-color: #5fa0ff; background: rgba(95,160,255,0.07); }
+.trongcay-view .tc-decor-grp--props .tc-decor-grp-hd { color: #aecbff; }
 .trongcay-view .tc-gift-actions-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 12px; }
 .trongcay-view .tc-gift-actions-row .tc-add-gift { margin: 0; }
 .trongcay-view .tc-auto-badge {

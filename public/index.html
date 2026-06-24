@@ -67,18 +67,18 @@
             </section>
 
             <section class="side-card side-bottom-card">
-                <button id="btn-open-soundfx" class="ghost block side-soundfx-btn" title="Mở bảng âm thanh nổi (always-on-top) cho LIVE">
-                    <span class="soundfx-btn-ico">🎵</span><span class="soundfx-btn-text">Sound Effects</span>
-                </button>
+                <!-- Hàng 4 nút tròn căn giữa: 💬 Bình luận · 🆕 Quà mới · 🎵 Sound Effects · 🚀 Khởi động nhanh -->
+                <div class="side-fab-row">
+                    <button id="comments-fab" class="comments-fab" title="Bình luận LIVE">💬<span class="badge" id="comments-badge" hidden>0</span></button>
+                    <button id="unknown-fab" class="comments-fab unknown-fab" title="Quà mới">🆕<span class="badge" id="unknown-badge" hidden>0</span></button>
+                    <button id="btn-open-soundfx" class="side-soundfx-circle" title="Sound Effects">🎵</button>
+                    <button id="quick-launch-fab" class="quick-launch-fab" title="Khởi động nhanh">🚀</button>
+                    <button id="btn-open-settings" class="side-settings-circle" title="Cài đặt">⚙</button>
+                </div>
                 <div class="side-footer">
-                    <button id="btn-open-settings" class="side-footer-settings" title="Bản quyền · Phiên bản · Danh sách quà">
-                        <span class="side-footer-settings-ico">⚙</span>
-                        <span class="side-footer-settings-text">Cài đặt</span>
-                    </button>
                     <div class="side-footer-copy">
-                        © <a href="https://hpvn.media" target="_blank" rel="noopener">HP Media</a> · <span id="footer-version">v1.0.3</span>
+                        © <a href="https://hpvn.media" target="_blank" rel="noopener">HP Media</a> · <span id="footer-version">v1.0.3</span> <span class="side-footer-author">by N.H.Phung</span>
                     </div>
-                    <div class="side-footer-author">by Nguyen Hoang Phung</div>
                 </div>
             </section>
             <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Thu / Mở menu" title="Thu / Mở menu">‹</button>
@@ -1970,16 +1970,9 @@
         </main>
     </div>
 
-    <!-- 🚀 FAB Khởi động nhanh — click mở cửa sổ tách rời (always-on-top), tiện minimize app chính -->
-    <button id="quick-launch-fab" class="quick-launch-fab" title="🚀 Khởi động nhanh — mở cửa sổ điều khiển rời để dùng nhanh khi minimize app">
-        🚀
-    </button>
+    <!-- 🚀 FAB Khởi động nhanh đã chuyển vào hàng 4 nút tròn ở đáy sidebar (.side-fab-row). -->
 
-    <!-- Floating: quà mới phát hiện (không có trong Google Sheet) — luôn hiện để user
-         truy cập được kể cả khi chưa có quà nào. Badge chỉ hiện khi count > 0. -->
-    <button id="unknown-fab" class="comments-fab unknown-fab" title="Quà mới">
-        🆕<span class="badge" id="unknown-badge" hidden>0</span>
-    </button>
+    <!-- Nút 🆕 Quà mới đã chuyển lên hàng 3 nút tròn ở đáy sidebar (.side-fab-row). -->
     <!-- Popup danh sách quà mới — show từng entry với nút Copy/Tải icon/Đã thêm -->
     <div id="unknown-popup" class="comments-popup unknown-popup" hidden>
         <div class="comments-popup-head">
@@ -1997,10 +1990,7 @@
         <div class="comments-popup-foot">Server tự ghi nhận mọi quà unknown trong phiên — danh sách giữ qua restart app.</div>
     </div>
 
-    <!-- Floating Bình luận LIVE — popup -->
-    <button id="comments-fab" class="comments-fab" title="Bình luận LIVE">
-        💬<span class="badge" id="comments-badge" hidden>0</span>
-    </button>
+    <!-- Nút 💬 Bình luận đã chuyển lên hàng 3 nút tròn ở đáy sidebar (.side-fab-row). -->
     <div id="comments-popup" class="comments-popup" hidden>
         <div class="comments-popup-head">
             <span>💬 Bình luận LIVE</span>

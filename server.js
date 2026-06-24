@@ -307,14 +307,14 @@ function makeDefaultTrongCayConfig() {
         cutGifts: [],                // [{ giftId, giftName, giftImage, cut }]
         butterflyGifts: [],          // [{ giftId, giftName, giftImage, lifeSeconds }]
         beeGifts: [],                // [{ giftId, giftName, giftImage, bees, harvestPerBee }] — ong thợ tới hái trái cây chín
-        beesPerGift: 3,              // số ong mỗi lần tặng quà ong (nếu gift không ghi rõ "bees")
+        beesPerGift: 1,              // số ong mỗi lần tặng quà ong (nếu gift không ghi rõ "bees") — 1 quà = 1 ong (combo xN = N ong)
         beeHarvestPerTrip: 1,        // mỗi con ong hái mấy trái 1 chuyến
         beePointsPerFruit: 50,       // hái 1 trái → +điểm cho NGƯỜI ĐÃ TẶNG NUÔI cây đó (đẩy Top chăm cây)
         maxBees: 30,
         teamMinContributors: 3,      // 1 cây có >= bao nhiêu người cùng góp thì lên màu "TEAM" (cầu vồng)
         // 🐛 Sâu xanh ăn lá (phá hoại): tới theo quà → ăn lá/trái trên cây hoặc trái rụng dưới đất.
         caterpillarGifts: [],        // [{ giftId, giftName, giftImage, count }]
-        caterpillarsPerGift: 2,      // số sâu mỗi lần tặng quà sâu (nếu gift không ghi rõ "count")
+        caterpillarsPerGift: 1,      // số sâu mỗi lần tặng quà sâu (nếu gift không ghi rõ "count") — 1 quà = 1 sâu (combo xN = N sâu)
         caterpillarBite: 1,          // mỗi lần cắn ăn bao nhiêu % chiều cao cây (chỉnh ở panel "Tỉ lệ sâu phá cây")
         caterpillarBiteEverySec: 5,  // nhịp ăn — chậm để sâu phá ít, cây lớn nhanh hơn
         caterpillarStartDelaySec: 5, // sâu xuất hiện xong CHỜ bao lâu mới bắt đầu phá (để có thời gian xịt thuốc)
@@ -338,6 +338,21 @@ function makeDefaultTrongCayConfig() {
         //    Đốt xong XÓA hết cây nhưng GIỮ Top người chăm cây & điểm tích lũy (không reset bảng xếp hạng).
         dragonGifts: [],             // [{ giftId, giftName, giftImage, burnSeconds }]
         dragonBurnSeconds: 10,       // mặc định cây cháy thành tro đen bao lâu rồi tan (nếu gift không ghi rõ)
+        // 🦅 Quà CHIM bay: viewer (đã trồng cây) tặng 1 quà-bay → đánh dấu cây đó là "chim" (ảnh chim = icon quà này).
+        //    Nuôi cây cao ≥ birdFlyHeightPercent% → con chim/phượng hoàng bay ra kèm tên user (chỉ khi vào TOP 3).
+        //    Mặc định = các quà bay phổ biến (ID TikTok); host tự thêm/bớt. (dragonGifts kiểm tra TRƯỚC → nếu trùng ID, rồng-thiêu thắng.)
+        birdGifts: [                  // [{ giftId, giftName, giftImage }]
+            { giftId: '8651', giftName: 'Thunder Falcon', giftImage: '' },
+            { giftId: '9092', giftName: 'Fire Phoenix', giftImage: '' },
+            { giftId: '7319', giftName: 'Phoenix', giftImage: '' },
+            { giftId: '7610', giftName: 'Dragon Flame', giftImage: '' },
+            { giftId: '13604', giftName: 'Fiery Dragon', giftImage: '' },
+            { giftId: '9500', giftName: 'Flying Jets', giftImage: '' },
+            { giftId: '5767', giftName: 'Private Jet', giftImage: '' },
+            { giftId: '16312', giftName: 'Hero Space', giftImage: '' },
+            { giftId: '16899', giftName: 'Magic World', giftImage: '' },
+            { giftId: '17845', giftName: 'Bat Headwear', giftImage: '' }
+        ],
         maxHeight: 100,
         initialHeight: 30,
         initialWater: 55,
@@ -388,6 +403,9 @@ function makeDefaultTrongCayConfig() {
             kpiProps: 2000, kpiFence: 3000, kpiBoard: 5000, kpiLeaderboard: 10000, kpiPet: 20000,
             showPets: true,                          // 🐾 3 con theo TOP 1/2/3 (ghi tên) + 2 con trang trí
             petScale: 100,
+            petRequireTree: true,                    // 🌳 chỉ hiện thú TOP khi user ĐÃ TỰ TRỒNG CÂY (Chọn cây) + đang TOP 3; tắt = về hành vi cũ (chỉ cần TOP)
+            petKindMode: 'preset',                   // 'preset' = con vật cấu hình (mascot/media) | 'treeIcon' = ảnh thú = icon quà cây user đã trồng
+            birdFlyHeightPercent: 55,                // 🦅 cây cao ≥ % maxHeight này → chim (quà bay) mới cất cánh bay ra
             topPets: [
                 { kind: 'cat', media: '' },
                 { kind: 'rabbit', media: '' },
@@ -2003,6 +2021,8 @@ let liveStats = {
 };
 function resetLiveStats() {
     liveStats = { viewerCount: 0, totalDiamond: 0, totalLikes: 0, totalShares: 0, totalFollows: 0, followerCount: 0 };
+    // 💎 LIVE mới → tổng 💎 về 0, nên baseline KPI Trồng Cây cũng phải về 0 (tránh mốc bị "âm" rồi clamp 0 cả buổi sau).
+    if (typeof trongCayState !== 'undefined' && trongCayState) trongCayState.kpiBaseline = 0;
 }
 // Broadcast stats với throttle để không spam socket
 let lastStatsEmit = 0;
@@ -4796,6 +4816,7 @@ let trongCayState = {
     harvestCount: 0,         // số cây đã thu hoạch trong buổi LIVE
     blooming: false,         // đang trong pha nở hoa chờ thu hoạch
     lastGiftAt: 0,
+    kpiBaseline: 0,          // 💎 mốc gốc của KPI: kpiDiamond = totalDiamond(buổi LIVE) − baseline. Nút "Reset mốc KPI" set baseline = total hiện tại → đếm lại từ 0 mà KHÔNG đụng thẻ 💎 tổng chung.
     updatedAt: Date.now()
 };
 let trongCayLastTickAt = Date.now();
@@ -4890,7 +4911,7 @@ function trongCaySnapshot() {
         butterflies: trongCayState.butterflies.slice(-40),
         stemCuts: { ...(trongCayState.stemCuts || {}) },
         top: trongCayTopContributors(3),
-        kpiDiamond: Math.round(Number(liveStats && liveStats.totalDiamond) || 0),   // 💎 tổng kim cương buổi LIVE → mở khoá trang trí theo KPI
+        kpiDiamond: Math.max(0, Math.round(Number(liveStats && liveStats.totalDiamond) || 0) - (Number(trongCayState.kpiBaseline) || 0)),   // 💎 KPI = tổng kim cương buổi LIVE − baseline (nút Reset) → mở khoá trang trí theo KPI
         harvestCount: Number(trongCayState.harvestCount) || 0,
         milestone: Number(trongCayState.milestoneReached) || 0,
         blooming: !!trongCayState.blooming,
@@ -5061,6 +5082,30 @@ function trongCayActiveTreeOf(uid) {
         if (!best || (Number(p.activatedAt) || 0) > (Number(best.activatedAt) || 0)) best = p;
     }
     return best;
+}
+// 🐾 Thông tin thú cưng cho 1 viewer: tìm cây OWNED của họ để overlay vẽ thú cạnh cây.
+//    Ưu tiên cây "chim" (đã tặng quà bay) → bird bay theo độ cao; nếu không có thì cây active/cao nhất.
+function trongCayPetInfoFor(uid) {
+    const u = String(uid || '').toLowerCase();
+    if (!u || !Array.isArray(trongCayState.plants)) return null;
+    let bird = null, active = null, tallest = null;
+    for (const p of trongCayState.plants) {
+        if (!p.owned || String(p.ownerUid || '') !== u) continue;
+        if (p.birdGiftImage && (!bird || (Number(p.activatedAt) || 0) > (Number(bird.activatedAt) || 0))) bird = p;
+        if (!p.growthLocked && (!active || (Number(p.activatedAt) || 0) > (Number(active.activatedAt) || 0))) active = p;
+        if (!tallest || (Number(p.height) || 0) > (Number(tallest.height) || 0)) tallest = p;
+    }
+    const tree = bird || active || tallest;
+    if (!tree) return null;
+    const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
+    return {
+        treeIcon: tree.giftImage || '',
+        treeName: tree.giftName || '',
+        treeX: Math.round((Number(tree.x) || 50) * 10) / 10,
+        treeHeight: Math.round((Number(tree.height) || 0) * 10) / 10,
+        maxH: Number(cfg.maxHeight) || 100,
+        birdIcon: (bird && bird.birdGiftImage) || ''
+    };
 }
 // Avatar đã lưu của người chăm cây (dùng làm dự phòng khi quà tới thiếu profilePicture).
 function trongCayContribAvatar(uid) {
@@ -5388,9 +5433,15 @@ function trongCayAddContrib({ uniqueId, nickname, profilePicture, coinValue, rep
     trongCayState.contributors[uid] = c;
 }
 function trongCayTopContributors(n = 3) {
-    const arr = Object.values(trongCayState.contributors || {});
-    arr.sort((a, b) => (b.score - a.score) || (b.lastAt - a.lastAt));
-    return arr.slice(0, n).map(c => ({ nickname: c.nickname || 'Ẩn danh', avatar: c.avatar || '', score: Math.round(c.score), drops: c.drops || 0 }));
+    const arr = Object.entries(trongCayState.contributors || {});
+    arr.sort((a, b) => (b[1].score - a[1].score) || (b[1].lastAt - a[1].lastAt));
+    return arr.slice(0, n).map(([uid, c]) => {
+        const row = { uid, nickname: c.nickname || 'Ẩn danh', avatar: c.avatar || '', score: Math.round(c.score), drops: c.drops || 0 };
+        // 🐾 Gắn thông tin cây OWNED (nếu có) → overlay vẽ thú cạnh cây / chim bay theo độ cao.
+        const pet = trongCayPetInfoFor(uid);
+        if (pet) { row.treeIcon = pet.treeIcon; row.treeName = pet.treeName; row.treeX = pet.treeX; row.treeHeight = pet.treeHeight; row.maxH = pet.maxH; row.birdIcon = pet.birdIcon; }
+        return row;
+    });
 }
 // Cộng điểm cho NGƯỜI ĐÃ TẶNG NUÔI cây này (chủ cây) khi ong hái được trái của cây đó.
 function trongCayAwardTreeOwner(plant, pts) {
@@ -5798,6 +5849,7 @@ function handleTrongCayGift({ uniqueId, nickname, profilePicture, giftId, giftNa
     const beeHit = trongCayPickGift(cfg.beeGifts, gid);
     const caterpillarHit = trongCayPickGift(cfg.caterpillarGifts, gid);
     const sprayHit = trongCayPickGift(cfg.sprayGifts, gid);
+    const birdHit = trongCayPickGift(cfg.birdGifts, gid);   // 🦅 quà bay → đánh dấu cây active của viewer là "chim"
     if (cutHit) {
         // Kéo bay tới + lia vài vòng (overlay) → cắt áp sau (trongCayCutDelayed) cho khớp hình.
         const target = trongCayPickCut();
@@ -5824,6 +5876,8 @@ function handleTrongCayGift({ uniqueId, nickname, profilePicture, giftId, giftNa
         if (!isOtherEffect) {
             const tree = trongCayActiveTreeOf(uniqueId);
             if (tree) {
+                // 🦅 Quà bay → cây này thành "chim": ảnh chim = icon quà bay. Nuôi cây cao đủ ngưỡng → chim bay ra.
+                if (birdHit) { tree.birdGiftId = gid; tree.birdGiftName = giftName || tree.birdGiftName || ''; if (giftImage) tree.birdGiftImage = giftImage; }
                 const grow = trongCayCoinGrowth(cfg, coinValue, repeat);
                 const avatar = profilePicture || tree.ownerAvatar || trongCayContribAvatar(uniqueId);
                 const plant = trongCayGrowGiftPlant({
@@ -6037,6 +6091,11 @@ app.post('/api/games/trongcay/control', (req, res) => {
         broadcastTrongCayState({ immediate: true });
     } else if (cmd === 'reset') {
         trongCayReset();
+    } else if (cmd === 'resetkpi') {
+        // 💎 Đếm lại mốc KPI từ 0: ghim baseline = tổng 💎 hiện tại. KHÔNG xoá cây/điểm, KHÔNG đụng thẻ 💎 tổng chung.
+        trongCayState.kpiBaseline = Math.round(Number(liveStats && liveStats.totalDiamond) || 0);
+        trongCayState.updatedAt = Date.now();
+        broadcastTrongCayState({ immediate: true });
     } else if (cmd === 'grow') {
         trongCayEnsureSessionActive();
         trongCayApplyDelta({ growth: Number(req.body?.growth) || 8 });
@@ -6105,7 +6164,7 @@ app.post('/api/games/trongcay/control', (req, res) => {
         trongCayState.lastGiftAt = Date.now();
         broadcastTrongCayState({ immediate: true });
     } else {
-        return res.status(400).json({ ok: false, error: 'cmd phải là start|stop|reset|grow|water|sun|cut|testGift' });
+        return res.status(400).json({ ok: false, error: 'cmd phải là start|stop|reset|resetKpi|grow|water|sun|cut|testGift' });
     }
     res.json({ ok: true, state: trongCaySnapshot() });
 });

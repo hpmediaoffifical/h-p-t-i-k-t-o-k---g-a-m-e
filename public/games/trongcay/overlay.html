@@ -8,7 +8,9 @@
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; font-family: 'Segoe UI', Arial, sans-serif; user-select: none; }
         body.tc-stopped:not(.tc-edit) .tc-root { display: none; }
-        body.tc-empty:not(.tc-edit) .tc-garden,
+        /* Vườn trống: chỉ ẩn lớp cây/hoa/bướm + bảng trạng thái. GIỮ .tc-soil (mặt đất)
+           luôn hiển thị để User nhìn ra ngay đây là khu vườn, dù chưa có cây nào. */
+        body.tc-empty:not(.tc-edit) .tc-svg,
         body.tc-empty:not(.tc-edit) .tc-flower-layer,
         body.tc-empty:not(.tc-edit) .tc-butterfly-layer,
         body.tc-empty:not(.tc-edit) .tc-status { opacity: 0; }
@@ -397,6 +399,12 @@
                         <stop offset="0.55" stop-color="rgba(120,210,110,0)"/>
                         <stop offset="1" stop-color="rgba(18,70,24,.34)"/>
                     </radialGradient>
+                    <!-- 🅷🅿 Gradient logo HP (peach→hồng, khớp icon app) -->
+                    <linearGradient id="tc-hp-grad" x1="0" y1="0" x2="1" y2="0.35">
+                        <stop offset="0" stop-color="#f6c8a6"/>
+                        <stop offset="0.55" stop-color="#f1b3bd"/>
+                        <stop offset="1" stop-color="#e99fc8"/>
+                    </linearGradient>
                 </defs>
 
                 <!-- bóng tiếp đất -->
@@ -463,6 +471,27 @@
                 <ellipse cx="500" cy="102" rx="455" ry="40" fill="url(#tc-grass-dome)"/>
                 <!-- ánh sáng viền cỏ (góc trên-trái) -->
                 <path d="M 90 88 A 455 40 0 0 1 470 63" fill="none" stroke="rgba(222,255,200,.5)" stroke-width="4" stroke-linecap="round"/>
+
+                <!-- 🅷🅿 Logo HP khắc dẹp lên mặt cỏ — điểm nhấn độc quyền (ép phẳng theo phối cảnh đất) -->
+                <g transform="translate(740 106)" opacity="0.96">
+                    <!-- rãnh đất tối ôm quanh logo → cảm giác lún chìm vào cỏ -->
+                    <ellipse cx="0" cy="2" rx="60" ry="17" fill="rgba(20,40,16,.32)"/>
+                    <g transform="rotate(-3.5) scale(1 0.45)">
+                        <!-- nền plaque bo góc + viền sáng -->
+                        <rect x="-54" y="-34" width="108" height="68" rx="22" fill="url(#tc-hp-grad)" stroke="rgba(255,255,255,.6)" stroke-width="3"/>
+                        <!-- ánh sáng phản chiếu nửa trên -->
+                        <rect x="-49" y="-30" width="98" height="28" rx="16" fill="rgba(255,255,255,.2)"/>
+                        <!-- chữ hp khối, trắng -->
+                        <text x="1" y="26" text-anchor="middle" font-family="'Arial Black','Segoe UI',Arial,sans-serif" font-weight="900" font-size="72" letter-spacing="-5" fill="#fff">hp</text>
+                    </g>
+                    <!-- vài lá cỏ phủ mép trước logo → khắc chìm vào đất -->
+                    <g stroke="url(#tc-blade-grad)" stroke-width="2.2" stroke-linecap="round" fill="none">
+                        <path d="M -40 13 q -2 -8 -3 -15"/>
+                        <path d="M -35 14 q 1 -9 2 -16"/>
+                        <path d="M 34 14 q 2 -8 4 -15"/>
+                        <path d="M 40 13 q 0 -9 0 -16"/>
+                    </g>
+                </g>
 
                 <!-- cụm cỏ đu đưa quanh mặt đất -->
                 <g>
@@ -761,7 +790,7 @@
         renderTop();
         applyDecorVisibility();   // 💎 KPI cập nhật theo state (totalDiamond đổi mỗi tick)
         renderDecorRows();
-        updateTopPetNames();      // 🐾 tên người TOP trên con vật + ẩn/hiện theo bảng top
+        syncPets();               // 🐾 thú TOP: dựng lại khi hình đổi (chim cất cánh / đổi loài) + refresh tên/vị trí
         checkKpiUnlocks();
     }
     function renderTop() {
@@ -836,11 +865,55 @@
         if (defs && window.HpTrongCayPets) { defs.innerHTML = window.HpTrongCayPets.DEFS; tcPetDefsInjected = true; }
     }
     const TC_PETS = [];
-    let tcPetRAF = 0, tcPetLast = 0;
+    let tcPetRAF = 0, tcPetLast = 0, tcPetSig = '';
+    const TC_PET_MEDALS = ['🥇', '🥈', '🥉'];
     function petMediaHtml(media) {
         return /\.(webm|mp4)(\?|#|$)/i.test(media)
             ? `<video class="tc-pet-media" src="${esc(media)}" autoplay loop muted playsinline></video>`
             : `<img class="tc-pet-media" src="${esc(media)}" alt="">`;
+    }
+    // 🐾 Dữ liệu thú TOP từ state.top — server gắn treeIcon/treeX/treeHeight/birdIcon cho user có CÂY OWNED.
+    //    Thứ tự ưu tiên hình thú: (1) 🦅 CHIM bay nếu đã tặng quà-bay + cây cao đủ ngưỡng → ảnh = icon quà bay;
+    //    (2) mode 'treeIcon' → ảnh = icon quà cây; (3) mặc định → con vật cấu hình (mascot/media) theo hạng.
+    function topPetData() {
+        const P = window.HpTrongCayPets; if (!P) return [];
+        const d = config.display || {};
+        const requireTree = d.petRequireTree !== false;
+        const mode = d.petKindMode === 'treeIcon' ? 'treeIcon' : 'preset';
+        const flyFrac = clamp(Number(d.birdFlyHeightPercent) || 55, 0, 100) / 100;
+        const tops = (Array.isArray(d.topPets) && d.topPets.length) ? d.topPets : P.defaultTopPets();
+        let top = Array.isArray(state.top) ? state.top : [];
+        if (!top.length && isEdit) top = [{ nickname: 'Người Top 1' }, { nickname: 'Người Top 2' }, { nickname: 'Người Top 3' }];
+        const out = [];
+        for (let rank = 0; rank < 3; rank++) {
+            const u = top[rank];
+            const cfgPet = tops[rank] || tops[0] || { kind: 'cat', media: '' };
+            const hasTree = !!(u && u.treeIcon);
+            const eligible = !!u && (!requireTree || hasTree || isEdit);
+            let visual;
+            const birdReady = !!(u && u.birdIcon && hasTree && (Number(u.treeHeight) || 0) >= (Number(u.maxH) || 100) * flyFrac);
+            if (birdReady) visual = { type: 'bird', img: u.birdIcon, flyer: true };
+            else if (mode === 'treeIcon' && hasTree) visual = { type: 'icon', img: u.treeIcon, flyer: false };
+            else { const meta = P.META[cfgPet.kind]; visual = { type: 'preset', kind: cfgPet.kind, media: cfgPet.media || '', flyer: !!(meta && meta.flyer) }; }
+            out.push({ rank, eligible, visual, nickname: (u && u.nickname) || '', treeX: (u && u.treeX != null) ? Number(u.treeX) : null });
+        }
+        return out;
+    }
+    // Chữ ký hình thú: chỉ đổi khi CẤU TRÚC con vật đổi (kind/ảnh/chim-bay/eligible) → mới dựng lại.
+    // Tên/ẩn-hiện/vị-trí-theo-cây cập nhật rẻ mỗi tick ở updateTopPetNames (giữ roam mượt).
+    function petSignature() {
+        const P = window.HpTrongCayPets; if (!P) return '';
+        const d = config.display || {};
+        if (d.showPets === false) return 'off';
+        const parts = ['m' + (d.petKindMode === 'treeIcon' ? 'I' : 'P'), 'r' + (d.petRequireTree !== false ? 1 : 0), 's' + Math.round(Number(d.petScale) || 100)];
+        const decor = Array.isArray(d.decorPets) ? d.decorPets : P.defaultDecorPets();
+        decor.forEach(p => parts.push('d:' + ((p && p.enabled !== false && p.kind) ? (p.kind + '|' + (p.media || '')) : '-')));
+        topPetData().forEach(pd => {
+            if (!pd.eligible) { parts.push('t:none'); return; }
+            const v = pd.visual;
+            parts.push('t:' + v.type + '|' + (v.img || '') + '|' + (v.kind || '') + '|' + (v.media || '') + '|' + (v.flyer ? 'f' : 'g'));
+        });
+        return parts.join(';');
     }
     function buildPets() {
         if (!$petList || !window.HpTrongCayPets) return;
@@ -848,47 +921,72 @@
         TC_PETS.length = 0;
         $petList.innerHTML = '';
         const d = config.display || {};
+        tcPetSig = petSignature();
         if (d.showPets === false) return;
         ensurePetDefs();
         const P = window.HpTrongCayPets;
         const scale = clamp(Number(d.petScale) || 100, 40, 220) / 100;
-        // tạo 1 con: kind + {topRank?, media?}. topRank != null → có nhãn tên, ẩn tới khi có user TOP đó.
-        const mk = (kind, opts) => {
-            const meta = P.META[kind]; if (!meta) return;
-            const media = String(opts.media || '').trim();
-            const inner = media ? petMediaHtml(media) : (P.ART[kind] || '');
-            const isTop = opts.topRank != null;
+        // tạo 1 con. spec: { topRank?, homeX?, kind?, media?, img?, flyer }. topRank != null → có nhãn tên.
+        const mk = (spec) => {
+            const isTop = spec.topRank != null;
+            let size, inner, hopper = false, slither = false, baseY, speed;
+            if (spec.img) {                       // 🦅 chim bay / icon quà cây → ảnh thật
+                size = spec.flyer ? 96 : 86;
+                baseY = spec.flyer ? (spec.flyAlt != null ? spec.flyAlt : 58) : 92;
+                speed = spec.flyer ? 13 : 8;
+                inner = `<img class="tc-pet-media" src="${esc(spec.img)}" alt="">`;
+            } else {
+                const meta = P.META[spec.kind]; if (!meta) return;
+                size = meta.size; speed = meta.speed;
+                baseY = (spec.flyer && spec.flyAlt != null) ? spec.flyAlt : meta.baseY;   // chim được giao độ cao riêng
+                hopper = !!meta.hopper; slither = !!meta.slither;
+                inner = String(spec.media || '').trim() ? petMediaHtml(spec.media) : (P.ART[spec.kind] || '');
+            }
+            const flyer = !!spec.flyer;
             const el = document.createElement('div');
-            el.className = 'tc-pet' + (meta.hopper ? ' hopper' : '') + (meta.flyer ? ' flyer' : '') + (meta.slither ? ' slither' : '') + (isTop ? ' top' : '');
-            el.style.setProperty('--pw', (meta.size * scale).toFixed(1) + 'px');
+            el.className = 'tc-pet' + (hopper ? ' hopper' : '') + (flyer ? ' flyer' : '') + (slither ? ' slither' : '') + (isTop ? ' top' : '');
+            el.style.setProperty('--pw', (size * scale).toFixed(1) + 'px');
             el.innerHTML = (isTop ? '<div class="tc-pet-name"></div>' : '') + `<div class="tc-pet-shadow"></div><div class="tc-pet-face"><div class="tc-pet-walk">${inner}</div></div>`;
-            const x = 12 + Math.random() * 76;
+            const home = (spec.homeX != null && isFinite(spec.homeX)) ? clamp(spec.homeX, 6, 94) : null;
+            const x = home != null ? clamp(home + (Math.random() * 16 - 8), 6, 94) : (12 + Math.random() * 76);
             el.style.left = x.toFixed(2) + '%';
-            el.style.top = meta.baseY + '%';
-            if (isTop) el.style.display = 'none';   // chờ có người TOP mới hiện
+            el.style.top = baseY + '%';
             $petList.appendChild(el);
-            TC_PETS.push({ el, face: el.querySelector('.tc-pet-face'), nameEl: el.querySelector('.tc-pet-name'), x, tx: x, dir: 1, speed: meta.speed, moving: false, paused: 500 + Math.random() * 2000, topRank: isTop ? opts.topRank : null, flyer: !!meta.flyer });
+            TC_PETS.push({ el, face: el.querySelector('.tc-pet-face'), nameEl: el.querySelector('.tc-pet-name'), x, tx: x, homeX: home, dir: 1, speed, moving: false, paused: 500 + Math.random() * 2000, topRank: isTop ? spec.topRank : null, flyer });
         };
+        // Mỗi con chim 1 độ cao riêng → đàn chim nhiều user trông tự nhiên (không xếp 1 hàng ngang).
         const decor = Array.isArray(d.decorPets) ? d.decorPets : P.defaultDecorPets();
-        decor.forEach(p => { if (p && p.enabled !== false && p.kind) mk(p.kind, { media: p.media }); });
-        const tops = Array.isArray(d.topPets) ? d.topPets : P.defaultTopPets();
-        tops.forEach((p, rank) => { if (rank < 3 && p && p.kind) mk(p.kind, { topRank: rank, media: p.media }); });
+        let decorFly = 0;
+        decor.forEach(p => {
+            if (!(p && p.enabled !== false && p.kind)) return;
+            const fly = !!(P.META[p.kind] && P.META[p.kind].flyer);
+            mk({ kind: p.kind, media: p.media, flyer: fly, flyAlt: fly ? (50 + (decorFly++ % 3) * 8) : undefined });   // 50 / 58 / 66 %
+        });
+        topPetData().forEach(pd => {
+            if (!pd.eligible) return;
+            const v = pd.visual;
+            mk({ topRank: pd.rank, homeX: pd.treeX, kind: v.kind, media: v.media, img: v.img, flyer: v.flyer, flyAlt: v.flyer ? (44 + pd.rank * 9) : undefined });   // TOP1 cao nhất → 44 / 53 / 62 %
+        });
         updateTopPetNames();
         if (TC_PETS.length) { tcPetLast = (typeof performance !== 'undefined' ? performance.now() : Date.now()); tcPetRAF = requestAnimationFrame(petTick); }
     }
-    // Cập nhật nhãn tên + ẩn/hiện con vật TOP theo state.top (không dựng lại → giữ vị trí roam).
+    // Mỗi state tick: dựng lại CHỈ KHI chữ ký hình thú đổi (hiếm); còn lại chỉ refresh tên/vị trí.
+    function syncPets() {
+        if (petSignature() !== tcPetSig) buildPets();
+        else updateTopPetNames();
+    }
+    // Cập nhật nhãn tên + ẩn/hiện + tâm roam (theo cây của user) cho thú TOP — không dựng lại.
     function updateTopPetNames() {
         if (!TC_PETS.some(p => p.topRank != null)) return;
-        const medals = ['🥇', '🥈', '🥉'];
-        let top = Array.isArray(state.top) ? state.top : [];
-        if (!top.length && isEdit) top = [{ nickname: 'Người Top 1' }, { nickname: 'Người Top 2' }, { nickname: 'Người Top 3' }];
+        const data = topPetData();
         const showPets = (config.display || {}).showPets !== false;
         TC_PETS.forEach(pet => {
             if (pet.topRank == null) return;
-            const u = top[pet.topRank];
-            if (u && showPets) {
+            const pd = data[pet.topRank];
+            if (pd && pd.eligible && showPets) {
                 pet.el.style.display = '';
-                if (pet.nameEl) pet.nameEl.textContent = medals[pet.topRank] + ' ' + (u.nickname || 'Ẩn danh');
+                if (pet.nameEl) pet.nameEl.textContent = TC_PET_MEDALS[pet.topRank] + ' ' + (pd.nickname || 'Ẩn danh');
+                if (pd.treeX != null && isFinite(pd.treeX)) pet.homeX = clamp(pd.treeX, 6, 94);
             } else {
                 pet.el.style.display = 'none';
             }
@@ -900,8 +998,15 @@
             if (pet.paused > 0) {
                 pet.paused -= dt * 1000;
                 if (pet.moving) { pet.moving = false; pet.el.classList.remove('moving'); }
-                // Chim BAY: tuần tra qua lại 2 đầu (đang ở nửa nào → bay sang đầu kia). Con khác: điểm ngẫu nhiên.
-                if (pet.paused <= 0) pet.tx = pet.flyer ? (pet.x < 50 ? 80 + Math.random() * 8 : 6 + Math.random() * 8) : (8 + Math.random() * 80);
+                // Có cây (homeX): lượn/đi quanh CÂY CỦA HỌ. Không có (thú trang trí): cả màn.
+                if (pet.paused <= 0) {
+                    if (pet.homeX != null) {
+                        const lo = clamp(pet.homeX - 18, 5, 95), hi = clamp(pet.homeX + 18, 5, 95);
+                        pet.tx = pet.flyer ? (pet.x < pet.homeX ? hi : lo) : (lo + Math.random() * (hi - lo));
+                    } else {
+                        pet.tx = pet.flyer ? (pet.x < 50 ? 80 + Math.random() * 8 : 6 + Math.random() * 8) : (8 + Math.random() * 80);
+                    }
+                }
                 continue;
             }
             const dx = pet.tx - pet.x, adx = Math.abs(dx);
@@ -1470,6 +1575,22 @@
         { c0: '#ffe0e6', c1: '#ff6b8a', c2: '#d6336c', glow: 'rgba(255,110,140,.7)' },   // đỏ hồng
         { c0: '#eafdd6', c1: '#9be84f', c2: '#3fae27', glow: 'rgba(160,235,90,.7)' }     // xanh lá
     ];
+    // 🦋 Mỗi cây/hoa giữ 1 bộ đếm "chỗ đậu" → bướm cùng đậu 1 cây toả đều theo nan quạt, KHÔNG đè nhau.
+    const TC_BF_SLOT = {};
+    function bfTakeSlot(key) { const n = (TC_BF_SLOT[key] = (TC_BF_SLOT[key] || 0) + 1) - 1; return n; }
+    function bfFreeSlot(key) { if (TC_BF_SLOT[key] > 0) TC_BF_SLOT[key]--; }
+    // slot → ô trong LƯỚI quanh tán (7 cột × nhiều hàng) → đông mấy cũng KHÔNG đè nhau.
+    function bfSpread(slot) {
+        const COLS = 7, COLW = 30, ROWH = 23;                    // 7 cột cách 30px (~±90px), hàng cách 23px
+        const col = slot % COLS, row = Math.floor(slot / COLS);
+        // xen kẽ thứ tự cột (giữa → ngoài) cho tự nhiên: 3,2,4,1,5,0,6
+        const order = [3, 2, 4, 1, 5, 0, 6];
+        const c = order[col] != null ? order[col] : col;
+        const half = (row % 2) * 0.5;                            // hàng lẻ dịch nửa cột → nằm xen kẽ, không chồng lên hàng trên
+        const x = (c - (COLS - 1) / 2 + half) * COLW + (Math.random() * 6 - 3);
+        const y = row * ROWH + (Math.random() * 5);              // hàng dưới lệch xuống → không cùng vạch ngang
+        return { x, y };
+    }
     function spawnButterfly(b) {
         if (config.display.showButterflies === false || !b || (!b.avatar && !b.evolved)) return;
         const el = document.createElement('div');
@@ -1478,8 +1599,7 @@
         const targetPlant = (state.plants || []).find(p => p.id === b.plantId);
         // BẦY ĐÀN: mỗi con đậu ở MỘT vị trí khác nhau trong VÒM TÁN TRÊN của cây (quanh ngọn,
         // toả ngang + xuống một đoạn) → nhìn như cả đàn bám tán, KHÔNG sà xuống gốc/đất.
-        const spreadX = (Math.random() * 2 - 1) * 60;        // lệch ngang ±60px (quanh ngọn)
-        let target;
+        let target, bfKey = 'mid';
         // Bướm phải ĐẬU LÊN ICON CÂY XANH (vòm lá trên ngọn) — KHÔNG sà xuống thân/đất.
         // Nếu plantId/flowerId không khớp (lệch nhịp state) thì chọn một cây/hoa ĐANG HIỆN
         // làm đích thay vì rơi về điểm mặc định dưới thấp.
@@ -1489,24 +1609,29 @@
             if (live.length) plant = live[Math.floor(Math.random() * live.length)];
         }
         if (plant) {
+            bfKey = 'p:' + plant.id;
+            const sp = bfSpread(bfTakeSlot(bfKey));
             const m = plantMeta(plant);
             // Bám SÁT vòm lá quanh icon trên ngọn: dải hẹp ôm đỉnh (từ hơi trên ngọn xuống một
             // chút), KHÔNG còn cộng dồn tới 150px khiến bướm tụt xuống giữa thân như "rơi xuống đất".
-            const band = Math.min(m.stemH * 0.18, 54);
-            target = { x: m.cx + spreadX, y: m.topY - 14 + Math.random() * band };
+            target = { x: m.cx + sp.x, y: m.topY - 14 + sp.y + Math.random() * 6 };
         } else {
             let flower = targetFlower;
             if (!flower && Array.isArray(state.flowers) && state.flowers.length) {
                 flower = state.flowers[Math.floor(Math.random() * state.flowers.length)];
             }
             if (flower) {
+                bfKey = 'f:' + flower.id;
+                const sp = bfSpread(bfTakeSlot(bfKey));
                 const fp = flowerPoint(flower);
-                target = { x: fp.x + spreadX, y: fp.y - Math.random() * 28 };
+                target = { x: fp.x + sp.x, y: fp.y - Math.random() * 24 + sp.y };
             } else {
+                const sp = bfSpread(bfTakeSlot('mid'));
                 // Không còn cây/icon nào → đậu ở vùng tán giữa khung (vẫn TRÊN cao, không xuống đất).
-                target = { x: 490 + spreadX, y: 360 + (Math.random() * 2 - 1) * 50 };
+                target = { x: 490 + sp.x, y: 360 + sp.y + (Math.random() * 2 - 1) * 30 };
             }
         }
+        el._bfKey = bfKey;
         el.style.setProperty('--from-x', (b.fromX || -10) + '%');
         el.style.setProperty('--from-y', (b.fromY || 45) + '%');
         el.style.setProperty('--mid-x', (b.midX || 50) + '%');
@@ -1560,7 +1685,7 @@
                 setTimeout(() => clearInterval(hv), (b.wanderMs || 28000));
             }
         }, dur + 40);
-        setTimeout(() => el.remove(), dur + (b.wanderMs || 28000));
+        setTimeout(() => { bfFreeSlot(el._bfKey); el.remove(); }, dur + (b.wanderMs || 28000));
     }
     function spawnHealMotes(target, count) {
         const rect = $garden.getBoundingClientRect();
