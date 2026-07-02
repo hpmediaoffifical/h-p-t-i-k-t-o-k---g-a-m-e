@@ -633,7 +633,7 @@
                 ${checkRow('🐾 Hiện thú cưng', 'showPets', d.showPets !== false)}
                 ${d.showPets !== false ? `
                     ${displayNum('Kích thước thú cưng', 'petScale', d.petScale == null ? 100 : d.petScale, 40, 200, 5, '%')}
-                    ${checkRow('🌳 Chỉ hiện thú khi user ĐÃ trồng cây + đang TOP 3 💎', 'petRequireTree', d.petRequireTree !== false)}
+                    ${checkRow('🌳 Khi bật Chọn cây: chỉ hiện thú nếu user ĐÃ trồng cây + TOP 3 💎', 'petRequireTree', d.petRequireTree !== false)}
                     <div class="tc-seg-field"><label>🎭 Kiểu hình thú TOP</label>
                         <div class="tc-seg" data-pet-mode-seg>
                             <button type="button" class="tc-seg-btn ${d.petKindMode !== 'treeIcon' ? 'active' : ''}" data-pet-mode-val="preset"><span class="tc-seg-ico">🐾</span><span>Con vật cấu hình</span></button>

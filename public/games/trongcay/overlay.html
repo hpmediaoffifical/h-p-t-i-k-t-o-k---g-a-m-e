@@ -878,7 +878,9 @@
     function topPetData() {
         const P = window.HpTrongCayPets; if (!P) return [];
         const d = config.display || {};
-        const requireTree = d.petRequireTree !== false;
+        // petRequireTree chỉ có nghĩa khi bật Chọn cây. Nếu Chọn cây tắt thì không có cây
+        // owned để match, khiến thú TOP có tên bị ẩn và chỉ còn thú trang trí không tên.
+        const requireTree = d.petRequireTree !== false && config.chooseTreeEnabled === true;
         const mode = d.petKindMode === 'treeIcon' ? 'treeIcon' : 'preset';
         const flyFrac = clamp(Number(d.birdFlyHeightPercent) || 55, 0, 100) / 100;
         const tops = (Array.isArray(d.topPets) && d.topPets.length) ? d.topPets : P.defaultTopPets();
