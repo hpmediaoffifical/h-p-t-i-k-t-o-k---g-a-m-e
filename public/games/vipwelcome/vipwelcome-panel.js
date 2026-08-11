@@ -79,7 +79,11 @@
                 if (!el) continue;
                 let text = '';
                 let cls = 'vw-rule-status';
-                if (s.status === 'idle') {
+                if (s.detectedButNotPlayed) {
+                    // VIP đã vào phòng nhưng effect KHÔNG phát (cấu hình sai) — cảnh báo đỏ.
+                    text = '⚠ VIP đã vào phòng nhưng KHÔNG phát được! Kiểm tra: nhóm (profile) có BẬT? rule có ✓? có chọn media? trigger = "Vào phòng"?';
+                    cls += ' status-error';
+                } else if (s.status === 'idle') {
                     text = '⏳ Chưa thấy user trong phiên — sẵn sàng fire khi user xuất hiện';
                     cls += ' status-idle';
                 } else if (s.status === 'fired') {
@@ -433,10 +437,36 @@
         });
     }
 
+    // Đồng bộ giao diện nút power theo cfg.enabled (BẬT = xanh "ĐANG CHẠY").
+    function syncPowerBtn() {
+        const btn = $('#vipwelcome-power');
+        if (!btn) return;
+        const on = cfg && cfg.enabled !== false;
+        btn.classList.toggle('on', on);
+        btn.classList.toggle('off', !on);
+        const ico = btn.querySelector('.hp-power-ico');
+        const txt = btn.querySelector('.hp-power-text');
+        if (ico) ico.textContent = on ? '▶' : '⏹';
+        if (txt) txt.textContent = on ? 'ĐANG CHẠY' : 'ĐÃ TẮT';
+        btn.title = on
+            ? 'Đang chạy — bấm để TẮT (dừng ngay video đang phát + xoá hàng đợi + không nhận sự kiện mới)'
+            : 'Đã tắt — bấm để BẬT lại';
+    }
+
     function wireToolbar() {
-        $('#vipwelcome-enabled')?.addEventListener('change', async (e) => {
-            cfg.enabled = !!e.target.checked;
+        // Công tắc BẬT/TẮT gộp: 1 nút vừa là trạng thái vừa dừng ngay khi tắt.
+        $('#vipwelcome-power')?.addEventListener('click', async () => {
+            const turningOff = (cfg.enabled !== false); // đang chạy → bấm để tắt
+            cfg.enabled = !turningOff;
+            syncPowerBtn();
             await persistConfig();
+            if (turningOff) {
+                // Tắt = dừng phát + xoá hàng đợi ngay (server reset playback state).
+                await fetch('/api/games/vipwelcome/trigger', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'stop' })
+                });
+            }
         });
     }
 
@@ -448,13 +478,6 @@
             const ok = window.hpCopyText ? await window.hpCopyText(url) : false;
             if (ok) flashOk('Đã copy link OBS overlay VIP');
             else flashWarn('Copy thất bại — link: ' + url);
-        });
-        $('#vipwelcome-btn-stop')?.addEventListener('click', async () => {
-            await fetch('/api/games/vipwelcome/trigger', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'stop' })
-            });
-            flashOk('Đã dừng + xoá hàng đợi');
         });
         $('#vipwelcome-btn-reload')?.addEventListener('click', async () => {
             await fetch('/api/games/vipwelcome/trigger', {
@@ -502,7 +525,7 @@
 
     function render() {
         if (!cfg) return;
-        $('#vipwelcome-enabled') && ($('#vipwelcome-enabled').checked = cfg.enabled !== false);
+        syncPowerBtn();
         renderProfileChips();
         renderUserRulesTab();
         renderGlobalTab();
@@ -948,11 +971,11 @@
             </div>
             <div class="vw-setting-block">
                 <div class="vw-setting-title">⏱️ Hàng đợi &amp; chống spam</div>
-                <label class="vw-inline">Tối đa item chờ <input type="number" min="1" max="100" step="1" id="vw-set-qmax" value="${q.maxLen || 20}" /></label>
+                <label class="vw-inline">Tối đa item chờ <input type="number" min="1" max="500" step="1" id="vw-set-qmax" value="${q.maxLen || 50}" /></label>
                 <label class="vw-inline">Cooldown / user (giây) — chỉ áp dụng cho Lên cấp <input type="number" min="0" step="5" id="vw-set-cooldown" value="${q.perUserCooldownSec || 60}" /></label>
-                <label class="vw-inline">Khoảng cách phát (ms) <input type="number" min="0" step="50" id="vw-set-gap" value="${q.perItemMinMs ?? 200}" /></label>
+                <label class="vw-inline">Khoảng cách giữa 2 lượt (ms) <input type="number" min="0" step="50" id="vw-set-gap" value="${q.perItemMinMs ?? 200}" /></label>
                 <label class="vw-inline">🔁 Vắng mặt N giây = vào lại <input type="number" min="10" max="600" step="5" id="vw-set-rejoin" value="${q.rejoinThresholdSec || 60}" /></label>
-                <div class="vw-hint">💡 <b>Vắng mặt N giây = vào lại</b>: user không xuất hiện trong N giây → coi như rời phòng → khi quay lại sẽ fire effect LẠI. Cài 60s (mặc định) phù hợp với tốc độ TikTok cập nhật danh sách (~30s/lần).</div>
+                <div class="vw-hint">💡 Hàng đợi phát <b>nối tiếp theo danh sách</b>: mỗi lượt chào phát XONG mới tới lượt sau (không chồng, không sót). <b>Tối đa item chờ</b> = số người đang xếp hàng tối đa (đông quá thì bỏ bớt người CŨ nhất). <b>Khoảng cách giữa 2 lượt</b> = nghỉ giữa 2 clip. <b>Vắng mặt N giây = vào lại</b>: user biến mất N giây → quay lại sẽ chào LẠI.</div>
             </div>
         `;
         // Wire
@@ -971,7 +994,7 @@
         $('#vw-set-showtext')?.addEventListener('change', (e) => { cfg.display.showText = !!e.target.checked; schedulePersist(); });
         $('#vw-set-showavatar')?.addEventListener('change', (e) => { cfg.display.showAvatar = !!e.target.checked; schedulePersist(); });
         $('#vw-set-textpos')?.addEventListener('change', (e) => { cfg.display.textPosition = e.target.value; schedulePersist(); });
-        $('#vw-set-qmax')?.addEventListener('input', (e) => { cfg.queue.maxLen = Math.max(1, parseInt(e.target.value, 10) || 20); schedulePersist(); });
+        $('#vw-set-qmax')?.addEventListener('input', (e) => { cfg.queue.maxLen = Math.max(1, Math.min(500, parseInt(e.target.value, 10) || 50)); schedulePersist(); });
         $('#vw-set-cooldown')?.addEventListener('input', (e) => { cfg.queue.perUserCooldownSec = Math.max(0, parseInt(e.target.value, 10) || 0); schedulePersist(); });
         $('#vw-set-gap')?.addEventListener('input', (e) => { cfg.queue.perItemMinMs = Math.max(0, parseInt(e.target.value, 10) || 0); schedulePersist(); });
         $('#vw-set-rejoin')?.addEventListener('input', (e) => { cfg.queue.rejoinThresholdSec = Math.max(10, Math.min(600, parseInt(e.target.value, 10) || 60)); schedulePersist(); });

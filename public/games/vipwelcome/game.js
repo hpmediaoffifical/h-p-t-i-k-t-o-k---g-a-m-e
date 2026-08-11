@@ -39,7 +39,7 @@
                 mediaUrl: '', mediaName: '', mediaType: '',
                 volume: 100,
                 message: 'Chào mừng {nickname} (cấp {level}) đã ghé phòng!',
-                minLevel: 30,
+                minLevel: 20,
                 requireVerified: false
             },
             globalGift: {
@@ -47,7 +47,7 @@
                 mediaUrl: '', mediaName: '', mediaType: '',
                 volume: 100,
                 message: 'Chúc mừng {nickname} vừa lên cấp {level}!',
-                minLevel: 30,
+                minLevel: 20,
                 requireVerified: false
             }
         };
@@ -59,7 +59,7 @@
             enabled: true,
             activeProfileId: p.id,
             profiles: [p],
-            queue: { maxLen: 20, perUserCooldownSec: 60, perItemMinMs: 200, rejoinThresholdSec: 60 },
+            queue: { maxLen: 50, perUserCooldownSec: 60, perItemMinMs: 200, rejoinThresholdSec: 60 },
             display: { scale: 100, xPercent: 50, yPercent: 50, showText: true, textPosition: 'bottom', labelStyle: 'goldpink', showAvatar: true }
         };
     }

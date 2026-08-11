@@ -6,6 +6,8 @@ const { app, BrowserWindow, Menu, Tray, shell, nativeImage, dialog, ipcMain, glo
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const https = require('https');
+const { spawn } = require('child_process');
 
 const PORT = process.env.PORT || 3000;
 const APP_URL = `http://localhost:${PORT}`;
@@ -13,7 +15,6 @@ const APP_NAME = 'HP Action LIVE';
 
 let mainWindow = null;
 let splashWindow = null;
-let soundfxWindow = null;
 let quickLaunchWindow = null;
 let tray = null;
 let serverStarted = false;
@@ -182,9 +183,9 @@ function createMainWindow() {
 
     // Hyperlinks trỏ ra ngoài → mở bằng trình duyệt mặc định
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-        // /soundfx → mở cửa sổ soundboard nổi riêng (always-on-top, resize)
+        // /soundfx → mở app HP SoundEffects.exe (WPF) đóng gói kèm
         if (url === `${APP_URL}/soundfx` || url.startsWith(`${APP_URL}/soundfx`)) {
-            openSoundfxWindow();
+            openSoundfxApp();
             return { action: 'deny' };
         }
         // /quick-launch → cửa sổ điều khiển nhanh tách rời (always-on-top)
@@ -259,7 +260,7 @@ function buildTray() {
         tray = new Tray(getIcon().resize({ width: 16, height: 16 }));
         const contextMenu = Menu.buildFromTemplate([
             { label: 'Mở HP Action LIVE', click: showMainWindow },
-            { label: '🔊 Mở Sound Effects', click: () => openSoundfxWindow() },
+            { label: '🔊 Mở Sound Effects', click: () => openSoundfxApp() },
             { label: 'Mở overlay OBS trong trình duyệt', click: () => shell.openExternal(`${APP_URL}/overlay/thuytinh`) },
             { type: 'separator' },
             { label: 'Thoát', click: () => fullQuit() }
@@ -408,13 +409,6 @@ function actualFullQuit() {
     try { flushCaroPreviewPrefs(); } catch (e) {}
     try { flushGiftListPrefs(); } catch (e) {}
     try { flushNhietDoPinPrefs(); } catch (e) {}
-    try {
-        // SoundFX lưu qua server (settings.win) → nhờ server ghi đồng bộ bounds sống
-        if (soundfxWindow && !soundfxWindow.isDestroyed() && typeof global.__sfxFlushWin === 'function') {
-            const b = soundfxWindow.getBounds();
-            global.__sfxFlushWin({ x: b.x, y: b.y, w: b.width, h: b.height, alwaysOnTop: soundfxWindow.isAlwaysOnTop() });
-        }
-    } catch (e) {}
 
     // === Tier 1: Đóng Socket.IO (disconnect mọi OBS client) ===
     try {
@@ -510,77 +504,152 @@ function clampBoundsToVisible(x, y, width, height) {
 }
 
 // ============================================================
-// 🔊 SoundFX — cửa sổ soundboard nổi, always-on-top, resize có giới hạn
+// 🔊 SoundFX — mở app HP SoundEffects (WPF). Cài từ GitHub khi chưa có.
 // ============================================================
-async function loadSfxWinPrefs() {
-    // Đọc bounds đã lưu từ soundfx.json (server lưu qua /api/soundfx/config)
-    try {
-        const j = await new Promise((resolve) => {
-            http.get(`${APP_URL}/api/soundfx/library`, (res) => {
-                let d = ''; res.on('data', c => d += c);
-                res.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve(null); } });
-            }).on('error', () => resolve(null));
-        });
-        return (j && j.settings && j.settings.win) ? j.settings.win : {};
-    } catch { return {}; }
+// KHÔNG bundle app vào installer (nhẹ hơn ~33MB). Bấm 🎵:
+//   - Đã cài (%LocalAppData%\HP SoundEffects) → mở luôn.
+//   - Chưa cài → tải bản cài từ GitHub (link ẩn trong main process, không lộ ra UI)
+//     → chạy installer bình thường (Inno Setup, cài %LocalAppData%, không cần admin)
+//     → mở app. Sau đó app TỰ CẬP NHẬT qua UpdateChecker riêng của nó — HP Action LIVE
+//     không cần quản lý version. Installer giữ nguyên DB.sqlite/Settings.ini khi update.
+const SFX_MANIFEST_URL =
+    'https://raw.githubusercontent.com/hpmediaoffifical/HP-SoundEffects-Releases/main/version.json';
+let _sfxBusy = false;
+function getSoundfxPaths() {
+    const localAppData = process.env.LOCALAPPDATA
+        || path.join(app.getPath('home'), 'AppData', 'Local');
+    const dir = path.join(localAppData, 'HP SoundEffects');
+    return { dir, exe: path.join(dir, 'HP SoundEffects.exe') };
 }
-async function openSoundfxWindow() {
-    if (soundfxWindow && !soundfxWindow.isDestroyed()) {
-        soundfxWindow.show(); soundfxWindow.focus(); return;
+function launchSoundfxExe() {
+    const { dir, exe } = getSoundfxPaths();
+    try {
+        // WPF có Mutex single-instance: chạy lần 2 tự đưa cửa sổ đang mở lên trước.
+        const child = spawn(exe, [], { cwd: dir, detached: true, stdio: 'ignore' });
+        child.on('error', (err) => {
+            try { dialog.showErrorBox('HP SoundEffects', 'Không mở được app:\n' + err.message); } catch (_) {}
+        });
+        child.unref();
+    } catch (e) {
+        try { dialog.showErrorBox('HP SoundEffects', 'Lỗi khi mở app:\n' + e.message); } catch (_) {}
     }
-    const win = await loadSfxWinPrefs();
-    const opts = {
-        width: 480,
-        height: 760,
-        resizable: false,
-        maximizable: false,
-        fullscreenable: false,
-        title: 'HP Media — Sound Effects',
-        icon: getIcon(),
-        backgroundColor: '#ffffff',
-        alwaysOnTop: win.alwaysOnTop !== false,
-        autoHideMenuBar: true,
-        skipTaskbar: false,
-        show: false,
-        webPreferences: {
-            contextIsolation: true,
-            sandbox: false,
-            preload: path.join(__dirname, 'sfx-preload.js')
-        }
-    };
-    Object.assign(opts, clampBoundsToVisible(win.x, win.y, opts.width, opts.height));
-    soundfxWindow = new BrowserWindow(opts);
-    soundfxWindow.loadURL(`${APP_URL}/soundfx`);
-    soundfxWindow.once('ready-to-show', () => soundfxWindow.show());
-    soundfxWindow.on('closed', () => { soundfxWindow = null; unregisterSfxHotkeys(); });
-    soundfxWindow.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url); return { action: 'deny' };
+}
+// GET JSON (chống cache) — dùng để đọc version.json.
+function sfxFetchJson(url) {
+    return new Promise((resolve, reject) => {
+        const bust = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+        https.get(bust, { headers: { 'User-Agent': 'HP-Action-LIVE', 'Cache-Control': 'no-cache' } }, (res) => {
+            if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode)); }
+            let d = ''; res.on('data', c => d += c);
+            res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(e); } });
+        }).on('error', reject);
     });
 }
-ipcMain.on('sfx:setAlwaysOnTop', (e, on) => {
-    if (soundfxWindow && !soundfxWindow.isDestroyed()) soundfxWindow.setAlwaysOnTop(!!on);
-});
-ipcMain.on('sfx:close', () => {
-    if (soundfxWindow && !soundfxWindow.isDestroyed()) soundfxWindow.close();
-});
-ipcMain.on('sfx:getBounds', (e) => {
+// Tải file, tự đi theo redirect của GitHub. onProgress(percent|null).
+function sfxDownload(url, dest, onProgress, redirects = 0) {
+    return new Promise((resolve, reject) => {
+        if (redirects > 6) return reject(new Error('Quá nhiều redirect'));
+        const req = https.get(url, { headers: { 'User-Agent': 'HP-Action-LIVE' } }, (res) => {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                res.resume();
+                return resolve(sfxDownload(res.headers.location, dest, onProgress, redirects + 1));
+            }
+            if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode)); }
+            const total = parseInt(res.headers['content-length'] || '0', 10);
+            let got = 0;
+            const out = fs.createWriteStream(dest);
+            res.on('data', (c) => { got += c.length; if (onProgress) onProgress(total ? Math.round(got * 100 / total) : null); });
+            res.pipe(out);
+            out.on('finish', () => out.close(() => resolve(dest)));
+            out.on('error', reject);
+        });
+        req.on('error', reject);
+        req.setTimeout(60000, () => req.destroy(new Error('Hết thời gian tải')));
+    });
+}
+// Cửa sổ nhỏ báo tiến trình tải (self-contained, main tự cập nhật qua executeJavaScript).
+function makeSfxProgressWindow() {
+    const w = new BrowserWindow({
+        width: 380, height: 160, resizable: false, minimizable: false, maximizable: false,
+        fullscreenable: false, title: 'HP SoundEffects', icon: getIcon(),
+        alwaysOnTop: true, autoHideMenuBar: true, backgroundColor: '#ffffff',
+        parent: (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : undefined,
+        webPreferences: { contextIsolation: true }
+    });
+    const html = '<!doctype html><meta charset=utf-8>'
+        + '<body style="font-family:Segoe UI,system-ui;margin:0;padding:20px 22px;background:#fff;color:#222">'
+        + '<div style="font-size:14px;font-weight:600;margin-bottom:14px">Đang tải HP SoundEffects…</div>'
+        + '<div style="height:10px;background:#eee;border-radius:6px;overflow:hidden">'
+        + '<div id="bar" style="height:100%;width:0;background:#e11d48;transition:width .2s"></div></div>'
+        + '<div id="pct" style="font-size:12px;color:#666;margin-top:10px">Đang kết nối…</div></body>';
+    w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    return w;
+}
+async function downloadAndInstallSoundfx() {
+    if (_sfxBusy) return;
+    _sfxBusy = true;
+    let progWin = null;
     try {
-        const b = soundfxWindow && !soundfxWindow.isDestroyed() ? soundfxWindow.getBounds() : null;
-        e.returnValue = b ? { x: b.x, y: b.y, w: b.width, h: b.height } : null;
-    } catch { e.returnValue = null; }
-});
-ipcMain.on('sfx:setBounds', (e, b) => {
-    if (soundfxWindow && !soundfxWindow.isDestroyed() && b) {
-        try { soundfxWindow.setBounds({
-            x: b.x ?? soundfxWindow.getBounds().x,
-            y: b.y ?? soundfxWindow.getBounds().y,
-            width: b.w ?? soundfxWindow.getBounds().width,
-            height: b.h ?? soundfxWindow.getBounds().height
-        }); } catch {}
+        const { response } = await dialog.showMessageBox(
+            (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : undefined, {
+            type: 'question', buttons: ['Tải & cài ngay', 'Để sau'], defaultId: 0, cancelId: 1,
+            title: 'HP SoundEffects', message: 'Chưa cài HP SoundEffects.',
+            detail: 'Tải bản mới nhất và cài đặt ngay bây giờ?'
+        });
+        if (response !== 0) return;
+
+        const info = await sfxFetchJson(SFX_MANIFEST_URL);
+        if (!info || !info.url) throw new Error('Không lấy được thông tin bản cài (version.json).');
+
+        const setupPath = path.join(app.getPath('temp'), 'HP-SoundEffects-Setup.exe');
+        try { if (fs.existsSync(setupPath)) fs.unlinkSync(setupPath); } catch (_) {}
+
+        progWin = makeSfxProgressWindow();
+        let ready = false;
+        progWin.webContents.on('did-finish-load', () => { ready = true; });
+
+        await sfxDownload(info.url, setupPath, (pct) => {
+            try {
+                if (!progWin || progWin.isDestroyed()) return;
+                progWin.setProgressBar(pct == null ? 2 : pct / 100); // 2 = indeterminate
+                if (ready) progWin.webContents.executeJavaScript(
+                    "(function(){var b=document.getElementById('bar'),p=document.getElementById('pct');"
+                    + "if(b)b.style.width='" + (pct == null ? 40 : pct) + "%';"
+                    + "if(p)p.textContent='" + (pct == null ? 'Đang tải…' : pct + '%') + "';})()"
+                ).catch(() => {});
+            } catch (_) {}
+        });
+
+        try { if (progWin && !progWin.isDestroyed()) progWin.close(); } catch (_) {}
+        progWin = null;
+
+        // Chạy installer bình thường (wizard hiện, cài %LocalAppData%, không cần admin).
+        await new Promise((resolve) => {
+            const inst = spawn(setupPath, [], { detached: false, stdio: 'ignore' });
+            inst.on('error', () => resolve());
+            inst.on('exit', () => resolve());
+        });
+
+        const { exe } = getSoundfxPaths();
+        if (fs.existsSync(exe)) launchSoundfxExe();
+        else dialog.showMessageBox((mainWindow && !mainWindow.isDestroyed()) ? mainWindow : undefined, {
+            type: 'info', title: 'HP SoundEffects',
+            message: 'Cài đặt chưa hoàn tất.', detail: 'Sau khi cài xong, bấm nút 🎵 lần nữa để mở.'
+        });
+    } catch (e) {
+        try { if (progWin && !progWin.isDestroyed()) progWin.close(); } catch (_) {}
+        try { dialog.showErrorBox('HP SoundEffects', 'Không tải/cài được:\n' + e.message); } catch (_) {}
+    } finally {
+        _sfxBusy = false;
     }
-});
+}
+function openSoundfxApp() {
+    const { exe } = getSoundfxPaths();
+    if (fs.existsSync(exe)) { launchSoundfxExe(); return; }
+    downloadAndInstallSoundfx();
+}
 // Main app mở SoundFX qua IPC
-ipcMain.on('open-soundfx', () => openSoundfxWindow());
+ipcMain.on('open-soundfx', () => openSoundfxApp());
 
 // ============================================================
 // 🚀 Quick Launch — cửa sổ điều khiển nhanh tách rời, always-on-top
@@ -974,45 +1043,6 @@ ipcMain.on('gift-list:close', () => {
 });
 ipcMain.on('open-gift-list', () => openGiftListWindow());
 
-// 📂 Chọn file audio từ máy
-ipcMain.handle('sfx:pickAudio', async () => {
-    try {
-        const r = await dialog.showOpenDialog(soundfxWindow || mainWindow, {
-            title: 'Chọn file âm thanh',
-            properties: ['openFile'],
-            filters: [{ name: 'Âm thanh', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'] }]
-        });
-        if (r.canceled || !r.filePaths[0]) return null;
-        const p = r.filePaths[0];
-        return { path: p, name: path.basename(p).replace(/\.[a-z0-9]+$/i, '') };
-    } catch { return null; }
-});
-
-// ⌨️ Global shortcuts — hoạt động MỌI NƠI (không cần focus cửa sổ soundfx)
-let _registeredAccels = [];
-function unregisterSfxHotkeys() {
-    for (const a of _registeredAccels) { try { globalShortcut.unregister(a); } catch (_) {} }
-    _registeredAccels = [];
-}
-ipcMain.on('sfx:registerHotkeys', (e, payload) => {
-    unregisterSfxHotkeys();
-    if (!payload || !payload.enabled) return;
-    const sendFire = (data) => {
-        if (soundfxWindow && !soundfxWindow.isDestroyed()) {
-            soundfxWindow.webContents.send('sfx:hotkeyFired', data);
-        }
-    };
-    const reg = (accel, data) => {
-        if (!accel) return;
-        try {
-            if (globalShortcut.register(accel, () => sendFire(data))) _registeredAccels.push(accel);
-        } catch (_) {}
-    };
-    for (const it of (payload.sounds || [])) reg(it.accel, { soundId: it.soundId });
-    if (payload.play) reg(payload.play, { action: 'play' });
-    if (payload.stop) reg(payload.stop, { action: 'stop' });
-});
-
 app.whenReady().then(async () => {
     startServer();
     createSplash();
@@ -1164,7 +1194,7 @@ function applyBancungHotkeys(cfg) {
 }
 global.__bancungApplyHotkeys = applyBancungHotkeys;
 
-app.on('before-quit', () => { isQuitting = true; try { unregisterSfxHotkeys(); unregisterBancungHotkeys(); } catch (_) {} });
+app.on('before-quit', () => { isQuitting = true; try { unregisterBancungHotkeys(); } catch (_) {} });
 app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch (_) {} });
 app.on('window-all-closed', () => {
     // Theo behavior cũ: macOS auto-quit, Windows giữ ở tray.

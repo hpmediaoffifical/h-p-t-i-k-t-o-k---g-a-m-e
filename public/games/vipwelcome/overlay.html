@@ -255,7 +255,10 @@
         }
 
         function playMedia(p) {
-            if (!p || !p.mediaUrl) { playing = false; advanceQueue(); return; }
+            // Báo server đã phát xong lượt này → server gửi lượt kế (drain serial theo ack).
+            let acked = false;
+            const ack = () => { if (acked) return; acked = true; try { socket.emit('vipwelcome:done', { seq: p && p.seq }); } catch (e) {} };
+            if (!p || !p.mediaUrl) { ack(); playing = false; advanceQueue(); return; }
             const isVideo = (p.mediaType === 'video') || /\.(mp4|webm|mov)(\?|$)/i.test(p.mediaUrl);
             const vol = Math.max(0, Math.min(1, (p.volume ?? 100) / 100));
             // Show label nếu config showText và payload có message
@@ -275,15 +278,15 @@
                     player.play().catch(() => {});
                 });
                 player.muted = false;
-                player.onended = () => { clearPlayer(); playing = false; advanceQueue(); };
-                player.onerror = () => { clearPlayer(); playing = false; advanceQueue(); };
+                player.onended = () => { clearPlayer(); ack(); playing = false; advanceQueue(); };
+                player.onerror = () => { clearPlayer(); ack(); playing = false; advanceQueue(); };
             } else {
                 clearPlayer();
                 audioOnly.src = p.mediaUrl;
                 audioOnly.volume = vol;
                 audioOnly.play().catch(() => {});
-                audioOnly.onended = () => { playing = false; advanceQueue(); };
-                audioOnly.onerror = () => { playing = false; advanceQueue(); };
+                audioOnly.onended = () => { ack(); playing = false; advanceQueue(); };
+                audioOnly.onerror = () => { ack(); playing = false; advanceQueue(); };
             }
         }
 

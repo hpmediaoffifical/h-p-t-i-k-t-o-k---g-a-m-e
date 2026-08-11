@@ -61,6 +61,28 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json({ limit: '5mb' }));
 
+// 13 events PK TikTok — metadata tĩnh, dùng chung cho default + normalize.
+// `auto`: sự kiện này CÓ tín hiệu thật từ TikTok Live để tự fire hay không.
+//   - true  → server auto-detect được (theo schema tiktok-live-connector v2).
+//   - false → TikTok KHÔNG gửi dữ liệu phân biệt được → chỉ chạy tay / phím tắt.
+// `hotkey`: tổ hợp phím bấm nhanh (chuẩn hoá, vd 'alt+1'); app.js bắt global.
+// Khai báo TRƯỚC GAMES vì makeDefaultPkTiktokConfig() được gọi ngay khi dựng GAMES.
+const PKTIKTOK_EVENT_DEFS = [
+    { key: 'start',    label: 'BẮT ĐẦU PK',           emoji: '🚀', desc: 'Đếm ngược khi bắt đầu trận',            auto: true,  hotkey: 'alt+1' },
+    { key: 'mission',  label: 'NHIỆM VỤ XUẤT HIỆN',   emoji: '📋', desc: 'Popup nhiệm vụ bonus',                  auto: true,  hotkey: 'alt+2' },
+    { key: 'x2',       label: 'X2 ĐIỂM (Speed)',      emoji: '⚡', desc: 'Bonus mission unlock nhân 2',            auto: true,  hotkey: 'alt+3' },
+    { key: 'x3',       label: 'X3 ĐIỂM (Speed mạnh)', emoji: '🔥', desc: 'Bonus mission unlock nhân 3',            auto: true,  hotkey: 'alt+4' },
+    { key: 'glove',    label: 'ITEM Găng Tay',        emoji: '🥊', desc: 'Boosting Glove — critical strike x5',   auto: true,  hotkey: 'alt+5' },
+    { key: 'mist',     label: 'ITEM Sương Mù',        emoji: '🌫️', desc: 'Magic Mist — TikTok không báo, chạy tay / phím tắt', auto: false, hotkey: 'alt+6' },
+    { key: 'hammer',   label: 'ITEM Búa Choáng',      emoji: '🔨', desc: 'Stun Hammer — TikTok không báo, chạy tay / phím tắt', auto: false, hotkey: 'alt+7' },
+    { key: 'time',     label: 'ITEM Thêm Giờ',        emoji: '⏱️', desc: 'Time-Maker — TikTok không báo, chạy tay / phím tắt',  auto: false, hotkey: 'alt+8' },
+    { key: 'warn10s',  label: '10 GIÂY CUỐI',         emoji: '⚠️', desc: 'Đồng hồ chuyển đỏ',                      auto: true,  hotkey: 'alt+9' },
+    { key: 'lead',     label: 'ĐANG DẪN ĐIỂM',        emoji: '📈', desc: 'Đội nhà > đội đối thủ',                 auto: true,  hotkey: 'alt+0' },
+    { key: 'behind',   label: 'ĐANG THUA ĐIỂM',       emoji: '📉', desc: 'Đội nhà < đội đối thủ',                 auto: true,  hotkey: 'alt+q' },
+    { key: 'win',      label: 'KẾT QUẢ: THẮNG',       emoji: '🏆', desc: 'Vinh quang chiến thắng',                auto: true,  hotkey: 'alt+w' },
+    { key: 'lose',     label: 'KẾT QUẢ: THUA',        emoji: '💔', desc: 'Thất bại',                             auto: true,  hotkey: 'alt+e' },
+];
+
 // ====== Game registry ======
 const GAMES = {
     thuytinh: {
@@ -171,30 +193,45 @@ const GAMES = {
 
 // 13 events default — đồng bộ với HpGame.pktiktok.defaultConfig() trong client engine.
 function makeDefaultPkTiktokConfig() {
-    const defs = [
-        { key: 'start',    label: 'BẮT ĐẦU PK',           emoji: '🚀', desc: 'Đếm ngược khi bắt đầu trận' },
-        { key: 'mission',  label: 'NHIỆM VỤ XUẤT HIỆN',   emoji: '📋', desc: 'Popup nhiệm vụ bonus' },
-        { key: 'x2',       label: 'X2 ĐIỂM (Speed)',      emoji: '⚡', desc: 'Bonus mission unlock nhân 2' },
-        { key: 'x3',       label: 'X3 ĐIỂM (Speed mạnh)', emoji: '🔥', desc: 'Bonus mission unlock nhân 3' },
-        { key: 'glove',    label: 'ITEM Găng Tay',        emoji: '🥊', desc: 'Boosting Glove — 30% chance x5' },
-        { key: 'mist',     label: 'ITEM Sương Mù',        emoji: '🌫️', desc: 'Magic Mist phủ đối thủ' },
-        { key: 'hammer',   label: 'ITEM Búa Choáng',      emoji: '🔨', desc: 'Stun Hammer trong victory lap' },
-        { key: 'time',     label: 'ITEM Thêm Giờ',        emoji: '⏱️', desc: 'Time-Maker' },
-        { key: 'warn10s',  label: '10 GIÂY CUỐI',         emoji: '⚠️', desc: 'Đồng hồ chuyển đỏ' },
-        { key: 'lead',     label: 'ĐANG DẪN ĐIỂM',        emoji: '📈', desc: 'Đội nhà > đội đối thủ' },
-        { key: 'behind',   label: 'ĐANG THUA ĐIỂM',       emoji: '📉', desc: 'Đội nhà < đội đối thủ' },
-        { key: 'win',      label: 'KẾT QUẢ: THẮNG',       emoji: '🏆', desc: 'Vinh quang chiến thắng' },
-        { key: 'lose',     label: 'KẾT QUẢ: THUA',        emoji: '💔', desc: 'Thất bại' },
-    ];
     return {
         enabled: true,
         autoBindPkDuo: true,
-        events: defs.map(d => ({
+        events: PKTIKTOK_EVENT_DEFS.map(d => ({
             ...d, mediaUrl: '', mediaName: '', mediaType: '',
             volume: 100, playbackRate: 1.0, interruptCurrent: true, enabled: true,
         })),
         display: { scale: 100, xPercent: 50, yPercent: 50, showLabel: false },
     };
+}
+// Rebuild events từ PKTIKTOK_EVENT_DEFS: metadata tĩnh (label/emoji/desc/auto/hotkey) LUÔN
+// lấy từ code, dữ liệu người dùng (media/volume/enabled/rules) giữ nguyên. Đảm bảo config cũ
+// đã lưu trên đĩa (thiếu auto/hotkey, hoặc còn key đã bỏ) được chuẩn hoá về đúng schema.
+function normalizePkTiktokConfig(cfg) {
+    cfg = cfg || {};
+    const prevEvents = Array.isArray(cfg.events) ? cfg.events : [];
+    cfg.events = PKTIKTOK_EVENT_DEFS.map(def => {
+        const u = prevEvents.find(e => e && e.key === def.key) || {};
+        return {
+            key: def.key,
+            label: def.label,
+            emoji: def.emoji,
+            desc: def.desc,
+            auto: def.auto,
+            hotkey: def.hotkey,
+            mediaUrl: u.mediaUrl || '',
+            mediaName: u.mediaName || '',
+            mediaType: u.mediaType || '',
+            volume: u.volume != null ? u.volume : 100,
+            playbackRate: u.playbackRate || 1.0,
+            interruptCurrent: u.interruptCurrent !== false,
+            enabled: u.enabled !== false,
+            topContributorRules: Array.isArray(u.topContributorRules) ? u.topContributorRules : [],
+        };
+    });
+    if (cfg.enabled === undefined) cfg.enabled = true;
+    if (cfg.autoBindPkDuo === undefined) cfg.autoBindPkDuo = true;
+    cfg.display = { scale: 100, xPercent: 50, yPercent: 50, showLabel: false, ...(cfg.display || {}) };
+    return cfg;
 }
 
 // VIP Welcome — default config: nhiều "Nhóm hồ sơ" (profiles) — mỗi nhóm có tên + bật/tắt riêng.
@@ -1094,6 +1131,49 @@ if (appConfig.liveTranslate.manualStartVersion !== 1) {
     appConfig.liveTranslate.manualStartVersion = 1;
 }
 appConfig.creatorCaption = sanitizeCreatorCaptionConfig(appConfig.creatorCaption || {});
+
+// ====== SEED media PK cho bản cài mới ======
+// Bản đóng gói: userData/data/pktiktok-assets trống khi cài mới → PK không có âm/video.
+// Copy media mẫu từ seed/ (bundle qua extraResources, dò bằng bundledResourcePath) rồi gán
+// sẵn 13 sự kiện nếu config PK còn TRẮNG media. Non-destructive: chỉ copy file thiếu, chỉ gán
+// khi CHƯA có event nào có media → không đụng máy user đã tự gán.
+function seedPktiktokMediaIfNeeded() {
+    try {
+        const seedDir = bundledResourcePath('seed', 'pktiktok-assets');
+        if (!seedDir || !fs.existsSync(seedDir)) return;
+        const destDir = path.join(DATA_DIR, 'pktiktok-assets');
+        if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+        for (const fn of fs.readdirSync(seedDir)) {
+            const dest = path.join(destDir, fn);
+            if (!fs.existsSync(dest)) {
+                try { fs.copyFileSync(path.join(seedDir, fn), dest); } catch (e) {}
+            }
+        }
+        const pk = appConfig.games && appConfig.games.pktiktok;
+        if (!pk || !Array.isArray(pk.events)) return;
+        if (pk.events.some(e => e && e.mediaUrl)) return; // user đã có media → giữ nguyên
+        const manifestPath = bundledResourcePath('seed', 'pktiktok-seed.json');
+        if (!manifestPath || !fs.existsSync(manifestPath)) return;
+        const seed = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        const byKey = new Map((Array.isArray(seed) ? seed : []).map(s => [s.key, s]));
+        let seeded = 0;
+        for (const ev of pk.events) {
+            const s = byKey.get(ev.key);
+            if (!s || !s.mediaFile) continue;
+            if (!fs.existsSync(path.join(destDir, s.mediaFile))) continue; // chỉ gán khi file thật đã có
+            ev.mediaUrl = `/api/games/pktiktok/asset/${s.mediaFile}`;
+            ev.mediaName = s.mediaName || ev.mediaName || '';
+            ev.mediaType = s.mediaType || ev.mediaType || '';
+            if (typeof s.volume === 'number') ev.volume = s.volume;
+            seeded++;
+        }
+        if (seeded) console.log(`[pktiktok] Seed media bản cài mới: gán ${seeded} sự kiện.`);
+    } catch (e) {
+        console.warn('[pktiktok] seed media lỗi (bỏ qua):', e.message);
+    }
+}
+seedPktiktokMediaIfNeeded();
+
 saveAppConfig();
 
 // ====== Live Translate MVP ======
@@ -2287,8 +2367,15 @@ function attachConnectionEvents(conn) {
     function drainPkAutoNow() {
         if (pkAutoQueue.length === 0) { pkAutoDrainTimer = null; return; }
         const item = pkAutoQueue.shift();
-        console.log(`[pktiktok] AUTO emit → ${item.key} (reason: ${item.reason})`);
-        io.emit('pktiktok:autoTrigger', item);
+        // Server emit thẳng 'pktiktok:play' (không đi vòng qua panel client) → auto chạy kể cả
+        // khi app đang ở màn hình khác. Vẫn phát 'pktiktok:autoTrigger' để panel ghi Log (chỉ log).
+        const r = (global.__pktiktokEmitPlay || (() => ({ ok: false, error: 'emit_fn_missing' })))(item.key, 'auto');
+        if (r.ok) {
+            console.log(`[pktiktok] AUTO emit → ${item.key} (reason: ${item.reason})`);
+        } else {
+            console.log(`[pktiktok] AUTO skip → ${item.key} (reason: ${item.reason}) — ${r.error}`);
+        }
+        io.emit('pktiktok:autoTrigger', { ...item, played: r.ok, error: r.ok ? undefined : r.error });
         pkAutoDrainTimer = setTimeout(drainPkAutoNow, PK_AUTO_DRAIN_GAP_MS);
     }
     function clearPkAutoQueue() {
@@ -2371,34 +2458,18 @@ function attachConnectionEvents(conn) {
         return out;
     }
 
+    // GĂNG TAY (glove) = Boosting Glove / critical strike x5 — TÍN HIỆU THẬT theo schema
+    // tiktok-live-connector v2: WebcastGiftMessage.matchInfo { critical, multiplierValue }.
+    // KHÔNG dùng matchInfo.effectCardInUse: cờ đó bật cho MỌI loại effect card (kể cả Sương Mù,
+    // Búa Choáng...) nên sẽ báo nhầm là glove. Chỉ nhận diện đúng đòn chí mạng x5.
+    // Các item Sương Mù / Búa Choáng / Thêm Giờ: TikTok KHÔNG gửi field phân biệt được trong
+    // webcast protocol → không auto-detect (chỉ chạy tay / phím tắt), đã bỏ code dò-chữ vì nó
+    // không bao giờ khớp và chỉ tạo cảm giác "có auto" giả.
     function detectPkItemFromGift(data) {
         const matchInfo = data?.matchInfo || {};
-        if (matchInfo.effectCardInUse || String(matchInfo.critical || '') === '1' || Number(matchInfo.multiplierValue || 0) >= 5) {
+        if (String(matchInfo.critical || '') === '1' || Number(matchInfo.multiplierValue || 0) >= 5) {
             return 'glove';
         }
-        return detectPkItemFromAny(data);
-    }
-
-    function detectPkItemFromAny(data) {
-        const text = collectTextFields({
-            giftId: data?.giftId ?? data?.gift?.gift_id ?? data?.giftDetails?.giftId,
-            giftName: data?.giftDetails?.giftName || data?.gift?.name || data?.giftName,
-            describe: data?.describe,
-            label: data?.label,
-            displayType: data?.displayType,
-            monitorExtra: data?.monitorExtra,
-            extendedGiftInfo: data?.extendedGiftInfo,
-            prompts: data?.prompts,
-            tips: data?.tips,
-            subType: data?.subType,
-            messageType: data?.messageType,
-            data
-        }).join(' ').toLowerCase();
-        if (!text) return '';
-        if (/critical\s*strike|boost(?:ing)?\s*glove|boxing\s*glove|\bglove\b|g[aă]ng\s*tay/.test(text)) return 'glove';
-        if (/magic\s*mist|\bmist\b|\bfog\b|s[uư]ơng\s*m[uù]/.test(text)) return 'mist';
-        if (/stun\s*hammer|\bhammer\b|b[uú]a\s*(cho[aá]ng|ho[aá]ng)/.test(text)) return 'hammer';
-        if (/time[-\s]*maker|add\s*time|extra\s*time|th[eê]m\s*gi[oờ]|\btime\b/.test(text)) return 'time';
         return '';
     }
 
@@ -2415,18 +2486,6 @@ function attachConnectionEvents(conn) {
         if (pkItemGiftSeen.has(dedupeKey)) return;
         pkItemGiftSeen.set(dedupeKey, now);
         pkAutoEnqueue(key, `gift_item (${key}, giftId=${giftId || 'unknown'}, user=@${uniqueId || 'unknown'})`);
-    }
-
-    function maybeTriggerPkItemFromLinkEvent(data, source) {
-        const key = detectPkItemFromAny(data);
-        if (!key) return;
-        const now = Date.now();
-        prunePkItemSeen(now);
-        const battleId = data?.battleId || data?.channelId || data?.common?.roomId || '';
-        const dedupeKey = [source, key, battleId, data?.messageType || '', data?.subType || ''].join(':');
-        if (pkItemGiftSeen.has(dedupeKey) && now - pkItemGiftSeen.get(dedupeKey) < 10_000) return;
-        pkItemGiftSeen.set(dedupeKey, now);
-        pkAutoEnqueue(key, `${source}_item (${key})`);
     }
 
     function detectPkBonusMultiplier(data) {
@@ -2589,16 +2648,42 @@ function attachConnectionEvents(conn) {
             // Lưu interval handle để clear khi PK end
             pkTimers.push({ _isInterval: true, _handle: periodicCheck });
         } else if (action === 5 /* FINISH */ || action === 6 /* CUT_SHORT */) {
-            // Determine win/lose
-            let resultKey = 'win';
-            if (pkLastScoreSnap && pkHostTeamIndex >= 0) {
+            // Xác định win/lose — ưu tiên kết quả CHÍNH THỨC do TikTok gửi kèm FINISH:
+            //   1) teamBattleResult[].result  (Result enum: 0=WIN, 1=LOSE, 2=DRAW) khớp team của host.
+            //   2) battleResult{userId → {result}} khớp userId của host.
+            //   3) Fallback: so điểm snapshot gần nhất.
+            // (Trước đây chỉ có (3) — kém chính xác khi TikTok có luật hoà/xử riêng.)
+            let resultKey = null;
+            const ownerId = String(currentHostUserId || '');
+            const mapResult = (r) => (Number(r) === 1 ? 'lose' : 'win'); // 0 WIN / 2 DRAW → coi là 'win'
+            try {
+                const tbr = Array.isArray(data?.teamBattleResult) ? data.teamBattleResult : [];
+                if (ownerId && tbr.length) {
+                    const hostTeam = tbr.find(t => (Array.isArray(t?.teamUsers) ? t.teamUsers : [])
+                        .some(u => String(u?.userId || u?.userIdStr || u?.id || '') === ownerId));
+                    if (hostTeam && hostTeam.result != null) {
+                        resultKey = mapResult(hostTeam.result);
+                        console.log(`[pktiktok] PK FINISH: teamBattleResult host result=${hostTeam.result} → ${resultKey}`);
+                    }
+                }
+                if (!resultKey && ownerId && data?.battleResult && typeof data.battleResult === 'object') {
+                    const br = data.battleResult[ownerId];
+                    if (br && br.result != null) {
+                        resultKey = mapResult(br.result);
+                        console.log(`[pktiktok] PK FINISH: battleResult host result=${br.result} → ${resultKey}`);
+                    }
+                }
+            } catch (e) { console.error('[pktiktok] FINISH result parse error:', e); }
+            if (!resultKey && pkLastScoreSnap && pkHostTeamIndex >= 0) {
                 const hostScore = pkLastScoreSnap[pkHostTeamIndex] || 0;
                 const others = pkLastScoreSnap.filter((_, i) => i !== pkHostTeamIndex);
                 const maxOther = Math.max(0, ...others);
                 resultKey = hostScore >= maxOther ? 'win' : 'lose';
-                console.log(`[pktiktok] PK FINISH: host=${hostScore} vs max_opp=${maxOther} → ${resultKey}`);
-            } else {
-                console.log(`[pktiktok] PK FINISH: no score data → default 'win' (action=${action})`);
+                console.log(`[pktiktok] PK FINISH: score fallback host=${hostScore} vs max_opp=${maxOther} → ${resultKey}`);
+            }
+            if (!resultKey) {
+                resultKey = 'win';
+                console.log(`[pktiktok] PK FINISH: no result/score data → default 'win' (action=${action})`);
             }
             // Detect TOP 1 contributor và lưu thông tin để rule check khi emit
             const sorted = [...pkGiftDuringMatch.values()].sort((a, b) => b.totalDiamond - a.totalDiamond);
@@ -2664,15 +2749,11 @@ function attachConnectionEvents(conn) {
     });
     conn.on(WebcastEvent.LINK_MIC_METHOD, (data) => {
         try {
-            maybeTriggerPkItemFromLinkEvent(data, 'linkmic_method');
+            // Chỉ dùng để canh lịch cảnh báo 10s cuối nếu có duration; KHÔNG dò item (không có
+            // field phân biệt item trong sự kiện này).
             if (!pkWarn10sScheduled) scheduleWarn10s(data, 'linkmic_method');
             console.log(`[pktiktok] LINK_MIC_METHOD messageType=${data?.messageType} subType=${data?.subType || ''} duration=${data?.duration || ''}`);
         } catch (e) { console.error('[pktiktok] linkMicMethod parse error:', e); }
-    });
-    conn.on(WebcastEvent.LINK_MESSAGE, (data) => {
-        try {
-            maybeTriggerPkItemFromLinkEvent(data, 'link_message');
-        } catch (e) { console.error('[pktiktok] linkMessage parse error:', e); }
     });
 }
 
@@ -3049,6 +3130,7 @@ async function connectToUser(username) {
     currentUsername = username.replace(/^@/, '').trim();
     // Reset session-scoped state cho VIP Welcome + Live stats
     resetVipSession();
+    warmVipSessionFromPersistent();   // pre-warm VIP đã cấu hình từ cache đĩa
     resetLiveStats();
     // Log VIP Welcome config — user xem để verify rules đã load đúng từ disk
     try {
@@ -3433,6 +3515,7 @@ app.get('/api/games', (req, res) => {
 app.get('/api/games/:id/config', (req, res) => {
     const g = GAMES[req.params.id];
     if (!g) return res.status(404).json({ ok: false, error: 'Không tìm thấy game' });
+    if (g.id === 'pktiktok') appConfig.games.pktiktok = normalizePkTiktokConfig(appConfig.games.pktiktok);
     res.json(appConfig.games[g.id]);
 });
 
@@ -3448,6 +3531,9 @@ app.post('/api/games/:id/config', (req, res) => {
         incoming.display = { ...prevConfig.display, ...incoming.display };
     }
     appConfig.games[g.id] = { ...appConfig.games[g.id], ...incoming };
+    if (g.id === 'pktiktok') {
+        appConfig.games.pktiktok = normalizePkTiktokConfig(appConfig.games.pktiktok);
+    }
     if (g.id === 'vipwelcome') {
         appConfig.games.vipwelcome = migrateVipWelcomeConfig(appConfig.games.vipwelcome);
     }
@@ -3479,8 +3565,7 @@ app.post('/api/games/:id/config', (req, res) => {
         if (g.id === 'pktiktok') {
             io.emit('pktiktok:stop', { ts: Date.now(), reason: 'gameDisabled' });
         } else if (g.id === 'vipwelcome') {
-            vipWelcomeQueue = [];
-            if (vipWelcomeDrainTimer) { clearTimeout(vipWelcomeDrainTimer); vipWelcomeDrainTimer = null; }
+            resetVipPlaybackState();
             io.emit('vipwelcome:stop', { ts: Date.now(), reason: 'gameDisabled' });
             io.emit('vipwelcome:queue', { size: 0 });
         } else if (g.id === 'votecomment') {
@@ -6817,56 +6902,68 @@ app.get('/api/games/timer/asset/:fn', (req, res) => {
     res.sendFile(p);
 });
 
-// Trigger 1 event PK TikTok — server đọc config event, build payload, emit cho mọi overlay
-// client (cả OBS browser source). Trả lại payload cho panel để hiển thị log.
+// Build payload + emit 'pktiktok:play' cho mọi overlay client (cả OBS browser source).
+// Dùng CHUNG cho 3 nguồn fire: bấm tay (panel), phím tắt (app.js), và AUTO (server tự phát
+// hiện event PK). Trước đây auto phải đi vòng qua panel client nên chỉ chạy khi panel đang mở;
+// nay server emit thẳng → auto chạy kể cả khi app đang ở màn hình khác / panel chưa mở.
+function pktiktokEmitPlay(key, source) {
+    const cfg = appConfig.games.pktiktok;
+    if (!cfg) return { ok: false, error: 'pktiktok config missing' };
+    if (cfg.enabled === false) return { ok: false, error: 'pkfx_disabled' };
+    const ev = (cfg.events || []).find(e => e.key === key);
+    if (!ev) return { ok: false, error: 'event_not_found' };
+    if (ev.enabled === false) return { ok: false, error: 'event_disabled' };
+    if (!ev.mediaUrl) return { ok: false, error: 'no_media' };
+    // Top-contributor user override (chỉ áp dụng cho phase win/lose khi PK kết thúc)
+    let media = { url: ev.mediaUrl, type: ev.mediaType || '', name: '' };
+    let topUser = null;
+    const isResultPhase = (key === 'win' || key === 'lose');
+    if (isResultPhase && pkLastTopContributor && Array.isArray(ev.topContributorRules) && ev.topContributorRules.length > 0) {
+        const top = pkLastTopContributor;
+        const topUidLower = String(top.uniqueId || '').toLowerCase().replace(/^@/, '');
+        const rule = ev.topContributorRules.find(r => {
+            const ruleUid = String(r.uniqueId || '').toLowerCase().replace(/^@/, '').trim();
+            return ruleUid && ruleUid === topUidLower && r.mediaUrl;
+        });
+        if (rule) {
+            media.url = rule.mediaUrl;
+            media.type = rule.mediaType || '';
+            media.name = rule.mediaName || '';
+            topUser = top;
+            console.log(`[pktiktok] TOP 1 rule MATCH for @${top.uniqueId} → override media to ${rule.mediaUrl}`);
+        } else {
+            console.log(`[pktiktok] TOP 1 @${top.uniqueId} không có rule riêng → dùng default media`);
+        }
+    }
+    const payload = {
+        key,
+        label: ev.label,
+        emoji: ev.emoji,
+        mediaUrl: media.url,
+        mediaType: media.type || guessMediaType(media.url),
+        volume: ev.volume == null ? 100 : ev.volume,
+        playbackRate: ev.playbackRate || 1.0,
+        interruptCurrent: ev.interruptCurrent !== false,
+        showLabel: !!(cfg.display && cfg.display.showLabel),
+        source: source || 'manual',
+        topUser: topUser ? { uniqueId: topUser.uniqueId, nickname: topUser.nickname, totalDiamond: topUser.totalDiamond } : null,
+        ts: Date.now(),
+    };
+    io.emit('pktiktok:play', payload);
+    return { ok: true, payload };
+}
+// Expose cho auto-drain nằm trong attachConnectionEvents (khác scope).
+global.__pktiktokEmitPlay = pktiktokEmitPlay;
+
+// Trigger 1 event PK TikTok — bấm tay từ panel hoặc phím tắt từ app.js.
 // Path /trigger (KHÔNG /cmd) để tránh đụng generic route /api/games/:id/cmd ở line ~1014.
 app.post('/api/games/pktiktok/trigger', (req, res) => {
     const cfg = appConfig.games.pktiktok;
     if (!cfg) return res.status(404).json({ ok: false, error: 'pktiktok config missing' });
     const { type, key, source } = req.body || {};
     if (type === 'trigger') {
-        if (cfg.enabled === false) return res.json({ ok: false, error: 'pkfx_disabled' });
-        const ev = (cfg.events || []).find(e => e.key === key);
-        if (!ev) return res.json({ ok: false, error: 'event_not_found' });
-        if (ev.enabled === false) return res.json({ ok: false, error: 'event_disabled' });
-        if (!ev.mediaUrl) return res.json({ ok: false, error: 'no_media' });
-        // Top-contributor user override (chỉ áp dụng cho phase win/lose/mission khi PK kết thúc)
-        let media = { url: ev.mediaUrl, type: ev.mediaType || '', name: '' };
-        let topUser = null;
-        const isResultPhase = (key === 'win' || key === 'lose');
-        if (isResultPhase && pkLastTopContributor && Array.isArray(ev.topContributorRules) && ev.topContributorRules.length > 0) {
-            const top = pkLastTopContributor;
-            const topUidLower = String(top.uniqueId || '').toLowerCase().replace(/^@/, '');
-            const rule = ev.topContributorRules.find(r => {
-                const ruleUid = String(r.uniqueId || '').toLowerCase().replace(/^@/, '').trim();
-                return ruleUid && ruleUid === topUidLower && r.mediaUrl;
-            });
-            if (rule) {
-                media.url = rule.mediaUrl;
-                media.type = rule.mediaType || '';
-                media.name = rule.mediaName || '';
-                topUser = top;
-                console.log(`[pktiktok] TOP 1 rule MATCH for @${top.uniqueId} → override media to ${rule.mediaUrl}`);
-            } else {
-                console.log(`[pktiktok] TOP 1 @${top.uniqueId} không có rule riêng → dùng default media`);
-            }
-        }
-        const payload = {
-            key,
-            label: ev.label,
-            emoji: ev.emoji,
-            mediaUrl: media.url,
-            mediaType: media.type || guessMediaType(media.url),
-            volume: ev.volume == null ? 100 : ev.volume,
-            playbackRate: ev.playbackRate || 1.0,
-            interruptCurrent: ev.interruptCurrent !== false,
-            showLabel: !!(cfg.display && cfg.display.showLabel),
-            source: source || 'manual',
-            topUser: topUser ? { uniqueId: topUser.uniqueId, nickname: topUser.nickname, totalDiamond: topUser.totalDiamond } : null,
-            ts: Date.now(),
-        };
-        io.emit('pktiktok:play', payload);
-        return res.json({ ok: true, payload });
+        const r = pktiktokEmitPlay(key, source || 'manual');
+        return res.json(r.ok ? { ok: true, payload: r.payload } : { ok: false, error: r.error });
     }
     if (type === 'stop') {
         io.emit('pktiktok:stop', { ts: Date.now() });
@@ -6919,6 +7016,14 @@ let vipWelcomeQueue = [];                // [{ payload, ts }]
 let vipWelcomeLastEmitTs = 0;            // mốc emit gần nhất (rate-limit perItemMinMs)
 let vipWelcomeDrainTimer = null;
 let vipWelcomeRecentLog = [];            // 50 entry gần nhất cho panel hiển thị
+// === Playback-synced drain (serial theo danh sách, không chồng/không sót) ===
+// Server gửi 1 item → chờ overlay báo 'vipwelcome:done' → mới gửi item kế. Nhờ vậy
+// hàng đợi chạy đúng thứ tự, mỗi lượt chào phát xong mới tới lượt sau, panel "Hàng đợi (N)"
+// phản ánh đúng số đang chờ. Có fallback timer phòng overlay đóng/treo giữa chừng.
+let vipWelcomePlaying = false;           // đang chờ overlay phát xong 1 item
+let vipWelcomePlaySeq = 0;               // seq tăng mỗi lần phát — chống ack cũ (stale)
+let vipWelcomePlayFallbackTimer = null;  // overlay không ack (đóng/crash) → tự advance
+const VIP_PLAY_FALLBACK_MS = 20000;      // clip chào ngắn (2-6s); 20s là dư an toàn
 
 // === Session-scoped state ===
 let vipSessionLastLevel = new Map();    // uniqueId(lower) → last seen level
@@ -6936,6 +7041,8 @@ let vipSessionUserIdToUid = new Map();  // userId(string) → uniqueId
 let vipSessionUidToUserId = new Map();  // uniqueId(lower) → userId
 // Fire counter per ruleId — chỉ count session, reset khi resetSession/reconnect
 let vipSessionRuleFireCount = new Map();   // ruleId (vd "user:r1abc") → count
+// Đã cảnh báo "không rule khớp / profile tắt" cho uid nào — log 1 lần/phiên, chống spam
+let vipSessionWarnedNoMatch = new Set();    // uniqueId(lower)
 
 const DEFAULT_REJOIN_THRESHOLD_SEC = 60;
 
@@ -6954,6 +7061,95 @@ function resetVipSession() {
     vipSessionUserIdToUid.clear();
     vipSessionUidToUserId.clear();
     vipSessionRuleFireCount.clear();
+    vipSessionWarnedNoMatch.clear();
+}
+
+// ===== Persistent userId↔uniqueId map (pre-warm VIP đã cấu hình) =====
+// TikTok đôi khi gửi MEMBER chỉ có userId (thiếu uniqueId). Lần ĐẦU user vào phòng
+// trong phiên, cache session rỗng → JOIN bị skip → "lúc nhận lúc không". Lưu mapping
+// ra đĩa để phiên sau nạp lại: khách quen (VIP) resolve được ngay từ userId mà không
+// cần chờ họ chat/like trước.
+const VIPWELCOME_USERMAP_FILE = path.join(DATA_DIR, 'vipwelcome-usermap.json');
+const VIPWELCOME_USERMAP_MAX = 3000;   // cap entry — giữ file nhỏ, chống phình vô hạn
+let persistentUserIdToUid = new Map();   // userId(string) → uniqueId
+let vipUsermapSaveTimer = null;
+let vipUsermapDirty = false;
+
+function loadPersistentUserMap() {
+    try {
+        if (!fs.existsSync(VIPWELCOME_USERMAP_FILE)) return;
+        const raw = JSON.parse(fs.readFileSync(VIPWELCOME_USERMAP_FILE, 'utf8'));
+        const entries = Array.isArray(raw?.entries) ? raw.entries : [];
+        for (const e of entries) {
+            if (e && e.userId && e.uniqueId) persistentUserIdToUid.set(String(e.userId), String(e.uniqueId));
+        }
+        console.log(`[vipwelcome] Nạp persistent userId↔uniqueId map: ${persistentUserIdToUid.size} entry`);
+    } catch (e) {
+        console.warn('[vipwelcome] Load usermap lỗi (bỏ qua):', e.message);
+    }
+}
+
+function schedulePersistUserMapSave() {
+    vipUsermapDirty = true;
+    if (vipUsermapSaveTimer) return;
+    vipUsermapSaveTimer = setTimeout(() => {
+        vipUsermapSaveTimer = null;
+        if (!vipUsermapDirty) return;
+        vipUsermapDirty = false;
+        try {
+            // Cap size — xoá entry cũ nhất (Map giữ thứ tự chèn)
+            while (persistentUserIdToUid.size > VIPWELCOME_USERMAP_MAX) {
+                const oldest = persistentUserIdToUid.keys().next().value;
+                persistentUserIdToUid.delete(oldest);
+            }
+            const entries = [];
+            for (const [userId, uniqueId] of persistentUserIdToUid) entries.push({ userId, uniqueId });
+            fs.writeFileSync(VIPWELCOME_USERMAP_FILE, JSON.stringify({ savedAt: new Date().toISOString(), entries }));
+        } catch (e) {
+            console.warn('[vipwelcome] Save usermap lỗi:', e.message);
+        }
+    }, 8000);
+}
+
+loadPersistentUserMap();
+
+// Pre-warm: nạp mapping của các VIP ĐÃ CẤU HÌNH từ persistent map vào session cache
+// → MEMBER lần đầu chỉ có userId vẫn resolve ra đúng VIP ngay, không cần chờ họ chat.
+function warmVipSessionFromPersistent() {
+    const cfg = appConfig.games.vipwelcome;
+    if (!cfg) return 0;
+    const wanted = new Set();   // uniqueId(lower) của mọi userRule trong mọi profile
+    for (const p of (cfg.profiles || [])) {
+        for (const r of (p.userRules || [])) {
+            const u = String(r.uniqueId || '').replace(/^@/, '').toLowerCase().trim();
+            if (u) wanted.add(u);
+        }
+    }
+    if (wanted.size === 0) return 0;
+    let warmed = 0;
+    for (const [userId, uniqueId] of persistentUserIdToUid) {
+        const uidLower = String(uniqueId).toLowerCase();
+        if (wanted.has(uidLower) && !vipSessionUserIdToUid.has(userId)) {
+            vipSessionUserIdToUid.set(userId, uniqueId);
+            vipSessionUidToUserId.set(uidLower, userId);
+            warmed++;
+        }
+    }
+    if (warmed > 0) console.log(`[vipwelcome] 🔥 Pre-warm ${warmed}/${wanted.size} VIP đã cấu hình từ cache đĩa (resolve userId→uniqueId ngay khi vào phòng).`);
+    else console.log(`[vipwelcome] Pre-warm: ${wanted.size} VIP cấu hình, chưa có mapping đĩa (sẽ tự học sau lần đầu họ xuất hiện).`);
+    return warmed;
+}
+
+// Uniqueid này có phải VIP đã cấu hình (tồn tại trong userRule của profile nào đó)?
+function isConfiguredVipUid(uidLower) {
+    const cfg = appConfig.games.vipwelcome;
+    if (!cfg || !uidLower) return false;
+    for (const p of (cfg.profiles || [])) {
+        for (const r of (p.userRules || [])) {
+            if (String(r.uniqueId || '').replace(/^@/, '').toLowerCase().trim() === uidLower) return true;
+        }
+    }
+    return false;
 }
 
 // Ghi nhớ mapping userId ↔ uniqueId từ bất kỳ event nào có cả 2 field
@@ -6966,12 +7162,18 @@ function rememberUserMapping(userId, uniqueId) {
         vipSessionUidToUserId.set(uid.toLowerCase(), id);
         console.log(`[vipwelcome] Cache userId↔uniqueId: ${id} ↔ @${uid}`);
     }
+    // Persist ra đĩa (pre-warm phiên sau). Ghi khi mới hoặc uniqueId đổi.
+    if (persistentUserIdToUid.get(id) !== uid) {
+        persistentUserIdToUid.set(id, uid);
+        schedulePersistUserMapSave();
+    }
 }
 
-// Thử resolve uniqueId khi event chỉ có userId (vd: MEMBER event đôi khi thiếu uniqueId)
+// Thử resolve uniqueId khi event chỉ có userId (vd: MEMBER event đôi khi thiếu uniqueId).
+// Fallback sang persistent map → khách quen resolve được ngay cả ở phiên mới.
 function resolveUniqueIdFromUserId(userId) {
     if (!userId) return null;
-    return vipSessionUserIdToUid.get(String(userId)) || null;
+    return vipSessionUserIdToUid.get(String(userId)) || persistentUserIdToUid.get(String(userId)) || null;
 }
 
 // Fire 'join' với 3 nhánh:
@@ -7009,24 +7211,34 @@ function maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, sourc
         return;   // user vẫn đang trong phòng — không fire lại
     }
 
-    // Clear drop-out marker khi fire
-    if (leftSeqAt) vipSessionLeftSeqAt.delete(k);
-    vipSessionLastFireAt.set(k, now);
-
     const note = isRejoinByDropOut
         ? `(REJOIN qua seq drop-and-return — bypass threshold)`
         : isRejoinByTime
         ? `(REJOIN sau ${Math.round(sinceLastSeen / 1000)}s vắng mặt — threshold ${thresholdMs / 1000}s)`
         : '(lần đầu trong phiên)';
-    console.log(`[vipwelcome] JOIN fired (source=${source}): @${uniqueId} "${nickname || ''}" (cấp ${level || 0}, verified=${!!verified}) ${note}`);
+    let enqueued = 0;
     try {
-        handleVipWelcomeEvent('join', {
+        enqueued = handleVipWelcomeEvent('join', {
             uniqueId, nickname,
             level: Number(level) || 0,
             profilePicture: profilePicture || '',
             verified: !!verified
-        });
+        }) || 0;
     } catch (e) { console.error('[vipwelcome] join handler error:', e); }
+
+    // CHỈ đánh dấu "đã fire" (khoá re-fire) khi THẬT SỰ có effect được đẩy vào queue.
+    // Trước đây set lastFireAt vô điều kiện → nếu rule không khớp (profile tắt / sai ID),
+    // user bị coi là "đã fire" vĩnh viễn → chặn mọi lần vào sau → "ra vào vẫn không chạy".
+    if (enqueued > 0) {
+        if (leftSeqAt) vipSessionLeftSeqAt.delete(k);
+        vipSessionLastFireAt.set(k, now);
+        console.log(`[vipwelcome] JOIN fired (source=${source}): @${uniqueId} "${nickname || ''}" (cấp ${level || 0}, verified=${!!verified}) ${note} — ${enqueued} effect enqueued`);
+    } else if (isConfiguredVipUid(k) && !vipSessionWarnedNoMatch.has(k)) {
+        // Chỉ cảnh báo cho VIP ĐÃ cấu hình (viewer thường không có rule → im lặng, tránh nhiễu log).
+        // Log 1 lần/phiên/user — chống spam vì gate mở lại mỗi event khi chưa fire.
+        vipSessionWarnedNoMatch.add(k);
+        console.log(`[vipwelcome] ⚠ VIP @${uniqueId} vào phòng ${note} NHƯNG không phát được. Kiểm tra: profile có BẬT? rule có ✓? có media? trigger = "Vào phòng"?`);
+    }
 }
 
 function pruneVipCooldown() {
@@ -7066,20 +7278,44 @@ function pushVipWelcomeLog(entry) {
     io.emit('vipwelcome:log', entry);
 }
 
+// Số overlay OBS/preview đang kết nối (join room 'overlay' khi subscribe).
+function vipOverlayCount() {
+    try { return io.sockets.adapter.rooms.get('overlay')?.size || 0; } catch (e) { return 0; }
+}
+
+// Reset toàn bộ state phát (dùng khi stop / clearQueue / tắt game): xoá queue + huỷ chờ ack.
+function resetVipPlaybackState() {
+    vipWelcomeQueue = [];
+    vipWelcomePlaying = false;
+    vipWelcomePlaySeq++;   // vô hiệu hoá mọi ack đang treo
+    if (vipWelcomeDrainTimer) { clearTimeout(vipWelcomeDrainTimer); vipWelcomeDrainTimer = null; }
+    if (vipWelcomePlayFallbackTimer) { clearTimeout(vipWelcomePlayFallbackTimer); vipWelcomePlayFallbackTimer = null; }
+}
+
+// Overlay báo đã phát xong (hoặc lỗi) 1 item → tới lượt item kế. Chống ack cũ bằng seq.
+function vipWelcomeOnItemDone(seq) {
+    if (!vipWelcomePlaying) return;
+    if (seq != null && Number(seq) !== vipWelcomePlaySeq) return;   // ack của item cũ — bỏ qua
+    if (vipWelcomePlayFallbackTimer) { clearTimeout(vipWelcomePlayFallbackTimer); vipWelcomePlayFallbackTimer = null; }
+    vipWelcomePlaying = false;
+    if (vipWelcomeQueue.length > 0) scheduleVipDrain();
+}
+
 function scheduleVipDrain() {
     if (vipWelcomeDrainTimer) return;
+    if (vipWelcomePlaying) return;             // đang phát → chờ overlay ack, không drain chồng
+    if (vipWelcomeQueue.length === 0) return;
     const cfg = appConfig.games.vipwelcome || {};
-    // KHÔNG còn floor 500ms — user có thể set 0 nếu muốn emit tức thì.
-    // Overlay đã có queue nội bộ + play serial → server không cần pace cao.
-    const minGap = Math.max(0, (cfg.queue?.perItemMinMs) ?? 200);
-    const delay = Math.max(0, vipWelcomeLastEmitTs + minGap - Date.now());
+    // Khoảng nghỉ nhỏ giữa 2 lượt chào (cho overlay reset khung hình). User chỉnh được.
+    const gap = Math.max(0, (cfg.queue?.perItemMinMs) ?? 200);
     vipWelcomeDrainTimer = setTimeout(() => {
         vipWelcomeDrainTimer = null;
         drainVipQueueOne();
-    }, delay);
+    }, gap);
 }
 
 function drainVipQueueOne() {
+    if (vipWelcomePlaying) return;             // an toàn kép — chưa phát xong item trước
     if (vipWelcomeQueue.length === 0) return;
     const item = vipWelcomeQueue.shift();
     vipWelcomeLastEmitTs = Date.now();
@@ -7094,8 +7330,11 @@ function drainVipQueueOne() {
             console.log(`[vipwelcome] ⚠ MEDIA FILE MISSING khi drain: ${filePath} — overlay sẽ không phát được. Tải lại file vào rule "${item.payload.ruleLabel}".`);
         }
     }
+    const seq = ++vipWelcomePlaySeq;
+    item.payload.seq = seq;                    // overlay echo lại seq này khi phát xong
+    const overlays = vipOverlayCount();
     // Verbose drain log
-    console.log(`[vipwelcome] 🎬 DRAIN → overlay: rule="${item.payload.ruleLabel}" user=@${item.payload.user?.uniqueId || '?'} mediaUrl=${item.payload.mediaUrl} type=${item.payload.mediaType} (file ok: ${mediaExists})`);
+    console.log(`[vipwelcome] 🎬 DRAIN → overlay: rule="${item.payload.ruleLabel}" user=@${item.payload.user?.uniqueId || '?'} mediaUrl=${item.payload.mediaUrl} type=${item.payload.mediaType} (file ok: ${mediaExists}, overlays: ${overlays}, còn chờ: ${vipWelcomeQueue.length})`);
     // Count fire per rule (chỉ khi media tồn tại — coi như đã thật sự phát)
     if (mediaExists && item.payload.ruleId) {
         vipSessionRuleFireCount.set(item.payload.ruleId, (vipSessionRuleFireCount.get(item.payload.ruleId) || 0) + 1);
@@ -7112,12 +7351,25 @@ function drainVipQueueOne() {
         level: item.payload.user?.level || 0,
         mediaUrl: item.payload.mediaUrl
     });
-    if (vipWelcomeQueue.length > 0) scheduleVipDrain();
+    if (overlays > 0) {
+        // Có overlay → CHỜ nó báo phát xong (serial thật). Fallback nếu overlay chết giữa chừng.
+        vipWelcomePlaying = true;
+        vipWelcomePlayFallbackTimer = setTimeout(() => {
+            vipWelcomePlayFallbackTimer = null;
+            console.log(`[vipwelcome] ⚠ Overlay không báo phát xong sau ${VIP_PLAY_FALLBACK_MS / 1000}s (đóng/treo?) — tự chuyển lượt kế.`);
+            vipWelcomePlaying = false;
+            if (vipWelcomeQueue.length > 0) scheduleVipDrain();
+        }, VIP_PLAY_FALLBACK_MS);
+    } else {
+        // KHÔNG có overlay → không giữ hàng đợi (tránh ứ đọng rồi phát dồn khi overlay mở lại).
+        // Flush nhanh phần còn lại theo nhịp gap.
+        if (vipWelcomeQueue.length > 0) scheduleVipDrain();
+    }
 }
 
 function enqueueVipWelcomePayload(payload, priority) {
     const cfg = appConfig.games.vipwelcome || {};
-    const maxLen = Math.max(1, cfg.queue?.maxLen || 20);
+    const maxLen = Math.max(1, cfg.queue?.maxLen || 50);
     if (priority) {
         // User-specific rule: PUSH TO FRONT để drain trước global → user VIP nhận hiệu ứng tức thì
         vipWelcomeQueue.unshift({ payload, ts: Date.now(), priority: true });
@@ -7165,9 +7417,10 @@ function guessMediaType(url) {
     return '';
 }
 
+// Trả về true nếu ĐÃ đẩy 1 payload vào queue; false nếu bỏ qua (no media / cooldown).
 function checkAndEnqueueVip(opts) {
     const { ruleId, source, ruleLabel, eventType, media, messageTemplate, user, gift } = opts;
-    if (!media || !media.mediaUrl) return;
+    if (!media || !media.mediaUrl) return false;
     // Cooldown CHỈ áp dụng cho gift/Lên cấp (chống spam tặng quà liên tục).
     // Với 'join': KHÔNG dùng cooldown ở đây — vì maybeFireFirstSeenJoin đã có
     // rejoin threshold (30s) làm gatekeeper. User vào lại sau 30s phải fire lại.
@@ -7184,7 +7437,7 @@ function checkAndEnqueueVip(opts) {
                     uniqueId: user.uniqueId, nickname: user.nickname,
                     level: user.level || 0
                 });
-                return;
+                return false;
             }
             vipWelcomeCooldown.set(k, Date.now() + cooldownMs);
         }
@@ -7196,12 +7449,15 @@ function checkAndEnqueueVip(opts) {
     // Forward rule's labelStyle override (nếu có) qua media object → buildVipPayload
     const mediaWithStyle = { ...media, labelStyle: media.labelStyle || '' };
     enqueueVipWelcomePayload(buildVipPayload({ source, ruleId, ruleLabel, eventType, media: mediaWithStyle, message, user, gift }), priority);
+    return true;
 }
 
 function handleVipWelcomeEvent(eventType, evt) {
     const cfg = appConfig.games.vipwelcome;
-    if (!cfg || cfg.enabled === false) return;
+    if (!cfg || cfg.enabled === false) return 0;
     pruneVipCooldown();
+    let enqueuedCount = 0;              // số effect thật sự đẩy vào queue
+    let matchedButDisabledProfile = false;   // có rule khớp nhưng profile đang TẮT
     const userInfo = {
         uniqueId: evt.uniqueId, nickname: evt.nickname,
         level: evt.level || 0, profilePicture: evt.profilePicture,
@@ -7231,7 +7487,15 @@ function handleVipWelcomeEvent(eventType, evt) {
     // Iterate qua TẤT CẢ profiles có enabled=true — nhiều người dùng chung máy có thể bật nhóm
     // của mình song song. Mỗi profile namespace ruleId riêng để cooldown không đè chéo.
     for (const profile of (cfg.profiles || [])) {
-        if (profile.enabled === false) continue;
+        if (profile.enabled === false) {
+            // Chẩn đoán: profile TẮT nhưng chứa userRule khớp user này → VIP sẽ không được chào.
+            if (eventType === 'join') {
+                for (const rule of (profile.userRules || [])) {
+                    if (vipWelcomeMatchesUserRule(rule, { eventType, ...evt }).matched) { matchedButDisabledProfile = true; break; }
+                }
+            }
+            continue;
+        }
         const pfx = 'p:' + profile.id + ':';
         const profileLabel = profile.name || 'Nhóm';
         // 1. User-specific rules trong profile này
@@ -7256,7 +7520,7 @@ function handleVipWelcomeEvent(eventType, evt) {
                 continue;
             }
             console.log(`[vipwelcome] User rule MATCH for @${evt.uniqueId}: rule="${profileLabel}/@${rule.uniqueId}" trigger=${rule.trigger}`);
-            checkAndEnqueueVip({
+            if (checkAndEnqueueVip({
                 ruleId: pfx + 'user:' + rule.id,
                 source: 'userRule',
                 ruleLabel: `[${profileLabel}] @${rule.uniqueId}`,
@@ -7265,7 +7529,7 @@ function handleVipWelcomeEvent(eventType, evt) {
                 messageTemplate: rule.message,
                 user: userInfo,
                 gift: giftInfo
-            });
+            })) enqueuedCount++;
         }
         // 2. Global rule (toàn bộ user) — có thể filter theo verified (tích xanh)
         if (eventType === 'join') {
@@ -7273,7 +7537,7 @@ function handleVipWelcomeEvent(eventType, evt) {
             if (g && g.enabled && g.mediaUrl
                 && (userInfo.level || 0) >= (g.minLevel || 0)
                 && (!g.requireVerified || userInfo.verified)) {
-                checkAndEnqueueVip({
+                if (checkAndEnqueueVip({
                     ruleId: pfx + 'global:join',
                     source: 'globalJoin',
                     ruleLabel: `[${profileLabel}] Tất cả user${g.requireVerified ? ' ✓' : ''} (Vào phòng)`,
@@ -7281,7 +7545,7 @@ function handleVipWelcomeEvent(eventType, evt) {
                     media: g,
                     messageTemplate: g.message,
                     user: userInfo
-                });
+                })) enqueuedCount++;
             }
         } else if (eventType === 'gift') {
             const g = profile.globalGift;
@@ -7290,7 +7554,7 @@ function handleVipWelcomeEvent(eventType, evt) {
                 && leveledUp
                 && (userInfo.level || 0) >= (g.minLevel || 0)
                 && (!g.requireVerified || userInfo.verified)) {
-                checkAndEnqueueVip({
+                if (checkAndEnqueueVip({
                     ruleId: pfx + 'global:gift',
                     source: 'globalGift',
                     ruleLabel: `[${profileLabel}] Tất cả user${g.requireVerified ? ' ✓' : ''} (Lên cấp)`,
@@ -7299,10 +7563,19 @@ function handleVipWelcomeEvent(eventType, evt) {
                     messageTemplate: g.message,
                     user: userInfo,
                     gift: giftInfo
-                });
+                })) enqueuedCount++;
             }
         }
     }
+    // Cảnh báo 1 lần/phiên: rule khớp nhưng profile TẮT nên không chào được.
+    if (eventType === 'join' && enqueuedCount === 0 && matchedButDisabledProfile && evt.uniqueId) {
+        const wk = String(evt.uniqueId).toLowerCase();
+        if (!vipSessionWarnedNoMatch.has(wk)) {
+            vipSessionWarnedNoMatch.add(wk);
+            console.log(`[vipwelcome] ⚠ VIP @${evt.uniqueId} CÓ rule khớp NHƯNG profile đang TẮT → không chào. Bật profile chứa rule này trong panel.`);
+        }
+    }
+    return enqueuedCount;
 }
 
 // Trigger API — panel gọi để test 1 rule (manual / test-all / stop / clear queue).
@@ -7357,14 +7630,13 @@ app.post('/api/games/vipwelcome/trigger', (req, res) => {
         return res.json({ ok: true });
     }
     if (type === 'stop') {
-        vipWelcomeQueue = [];
-        if (vipWelcomeDrainTimer) { clearTimeout(vipWelcomeDrainTimer); vipWelcomeDrainTimer = null; }
+        resetVipPlaybackState();
         io.emit('vipwelcome:stop', { ts: Date.now() });
         io.emit('vipwelcome:queue', { size: 0 });
         return res.json({ ok: true });
     }
     if (type === 'clearQueue') {
-        vipWelcomeQueue = [];
+        resetVipPlaybackState();
         io.emit('vipwelcome:queue', { size: 0 });
         return res.json({ ok: true });
     }
@@ -7426,11 +7698,15 @@ app.get('/api/games/vipwelcome/user-status', (req, res) => {
             // Fire count cho rule này — namespace "p:<profileId>:user:<ruleId>"
             const fireCountKey = 'p:' + profile.id + ':user:' + rule.id;
             const fireCount = vipSessionRuleFireCount.get(fireCountKey) || 0;
+            // Đã phát hiện VIP vào phòng nhưng KHÔNG phát được effect (profile tắt / rule tắt /
+            // thiếu media...) → panel cảnh báo để user sửa cấu hình.
+            const detectedButNotPlayed = vipSessionWarnedNoMatch.has(uid);
             out[rule.id] = {
                 uniqueId: rule.uniqueId,
                 profileId: profile.id,
                 profileName: profile.name,
                 status,
+                detectedButNotPlayed,
                 inSeq,
                 droppedOutOfSeq: !!leftSeqAt,
                 secondsSinceFire,
@@ -7459,19 +7735,8 @@ app.get('/api/games/vipwelcome/queue', (req, res) => {
     });
 });
 
-// ====== 🔊 SoundFX module — soundboard streamer ======
-try {
-    const { createSoundfxModule } = require('./soundfx-server.js');
-    const soundfx = createSoundfxModule(DATA_DIR);
-    // Cho Electron main gọi lúc thoát app để chốt bounds cửa sổ SoundFX (đồng bộ, bỏ debounce).
-    try { global.__sfxFlushWin = soundfx.flushWin; } catch (_) {}
-    app.use('/api/soundfx', soundfx.router);
-    app.get('/soundfx', (req, res) =>
-        res.sendFile(path.join(__dirname, 'public', 'soundfx', 'soundfx.html')));
-    console.log('[soundfx] module mounted at /soundfx');
-} catch (e) {
-    console.warn('[soundfx] không mount được:', e.message);
-}
+// ====== 🔊 SoundFX — đã chuyển sang app HP SoundEffects.exe (WPF) ======
+// Module soundboard web cũ đã gỡ bỏ; Electron main mở app WPF độc lập qua nút 🎵.
 
 // ====== 🎬 OBS Bridge — REST API ======
 // Tab "Hiệu ứng OBS" trong Cài đặt gọi các endpoint này để config + test.
@@ -8190,6 +8455,9 @@ io.on('connection', (socket) => {
     // Use case: user mở game lần đầu → OBS source bị cache → emit để OBS tự reload
     socket.on('overlay:reload', (data) => { socket.broadcast.emit('overlay:reload', data || {}); });
 
+    // VIP Welcome — overlay báo đã phát xong 1 lượt chào → server gửi lượt kế (serial thật).
+    socket.on('vipwelcome:done', (data) => { vipWelcomeOnItemDone(data?.seq); });
+
     // LEVEL QUEST sync — lab broadcasts cfg/state; cache + relay tới mọi overlay
     socket.on('levelquest:cfg',   (data) => { relayCache.levelquest.cfg   = data; socket.broadcast.emit('levelquest:cfg',   data); });
     socket.on('levelquest:state', (data) => { relayCache.levelquest.state = data; socket.broadcast.emit('levelquest:state', data); });
@@ -8239,7 +8507,12 @@ io.on('connection', (socket) => {
     // Dịch Thuật LIVE: speaker đóng OBS → bầu lại instance kế tiếp làm speaker.
     // Lúc 'disconnect' socket đã rời mọi room nên assignTranslateSpeaker() chỉ tính các
     // overlay còn lại. Gọi vô điều kiện cũng an toàn (room rỗng → no-op).
-    socket.on('disconnect', () => { assignTranslateSpeaker(); });
+    socket.on('disconnect', () => {
+        assignTranslateSpeaker();
+        // Overlay cuối cùng rời đi giữa lúc đang chờ ack → đừng treo 20s, chuyển lượt ngay
+        // (không còn overlay để phát → flush nhanh phần còn lại).
+        if (vipWelcomePlaying && vipOverlayCount() === 0) vipWelcomeOnItemDone(vipWelcomePlaySeq);
+    });
 });
 
 httpServer.listen(PORT, async () => {

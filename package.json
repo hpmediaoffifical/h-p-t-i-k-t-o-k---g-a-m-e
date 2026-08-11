@@ -33,8 +33,6 @@
     "files": [
       "electron-main.js",
       "server.js",
-      "soundfx-server.js",
-      "sfx-preload.js",
       "quick-launch-preload.js",
       "caro-preview-preload.js",
       "hpkey/**/*",
@@ -54,6 +52,10 @@
       {
         "from": "tools",
         "to": "tools"
+      },
+      {
+        "from": "seed",
+        "to": "seed"
       }
     ],
     "win": {

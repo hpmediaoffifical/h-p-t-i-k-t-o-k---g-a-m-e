@@ -57,11 +57,17 @@
         wireUploadSettings();
         renderGrid();
 
-        // Socket: nhận event auto-bind (nếu future có PK Đôi engine trong cùng project)
+        // Socket: server đã emit 'pktiktok:play' THẲNG cho overlay khi auto-detect PK event.
+        // Ở đây panel CHỈ ghi Log (không trigger lại — tránh phát 2 lần).
         if (socket) {
             socket.on('pktiktok:autoTrigger', (data) => {
-                if (!cfg?.autoBindPkDuo) return;
-                game.trigger(data?.key, { source: 'auto' });
+                const ev = cfg?.events?.find(e => e.key === data?.key);
+                if (!ev) return;
+                logTrigger({
+                    key: data.key, label: ev.label, emoji: ev.emoji,
+                    source: 'auto',
+                    note: data?.played === false ? `(bỏ qua: ${data?.error || 'lỗi'})` : '',
+                });
             });
         }
 
@@ -80,7 +86,14 @@
             const settingsBtn = isResultPhase
                 ? `<button type="button" class="pkfx-settings-btn" data-pkfx-settings title="Cài effect riêng theo TOP 1 user tặng quà trong PK">⚙${userRulesCount > 0 ? `<span class="pkfx-rules-badge">${userRulesCount}</span>` : ''}</button>`
                 : '';
-            return `<div class="pkfx-card${ev.enabled === false ? ' disabled' : ''}${hasFile ? ' has-file' : ''}" data-pkfx-key="${ev.key}">
+            // Nhãn AUTO / TAY: sự kiện auto=false → TikTok không gửi dữ liệu, chỉ chạy tay/phím tắt.
+            const autoBadge = ev.auto === false
+                ? `<span class="pkfx-auto-badge manual" title="TikTok không gửi dữ liệu để tự nhận diện item này — chỉ chạy tay (TEST) hoặc bằng phím tắt.">✋ TAY</span>`
+                : `<span class="pkfx-auto-badge" title="Tự động phát khi phát hiện sự kiện PK thật từ TikTok Live.">⚡ AUTO</span>`;
+            const hkBadge = ev.hotkey
+                ? `<span class="pkfx-hotkey-badge" title="Phím tắt: bấm khi cửa sổ app đang mở để phát nhanh sự kiện này">${escapeHtml(formatHotkey(ev.hotkey))}</span>`
+                : '';
+            return `<div class="pkfx-card${ev.enabled === false ? ' disabled' : ''}${hasFile ? ' has-file' : ''}${ev.auto === false ? ' manual-only' : ''}" data-pkfx-key="${ev.key}">
                 <div class="pkfx-card-head">
                     <span class="pkfx-card-emoji">${ev.emoji || '🎬'}</span>
                     <div class="pkfx-card-title">${escapeHtml(ev.label)}</div>
@@ -89,6 +102,7 @@
                         <input type="checkbox" data-pkfx-toggle ${ev.enabled === false ? '' : 'checked'} />
                     </label>
                 </div>
+                <div class="pkfx-card-badges">${autoBadge}${hkBadge}</div>
                 <div class="pkfx-card-desc">${escapeHtml(ev.desc || '')}</div>
                 <div class="pkfx-card-file" title="${escapeHtml(fileName)}">
                     ${hasFile
@@ -321,10 +335,38 @@
         }
     }
 
+    // Đồng bộ giao diện nút power theo cfg.enabled (BẬT = xanh "ĐANG CHẠY").
+    function syncPowerBtn() {
+        const btn = $('#pktiktok-power');
+        if (!btn) return;
+        const on = cfg && cfg.enabled !== false;
+        btn.classList.toggle('on', on);
+        btn.classList.toggle('off', !on);
+        const ico = btn.querySelector('.hp-power-ico');
+        const txt = btn.querySelector('.hp-power-text');
+        if (ico) ico.textContent = on ? '▶' : '⏹';
+        if (txt) txt.textContent = on ? 'ĐANG CHẠY' : 'ĐÃ TẮT';
+        btn.title = on
+            ? 'Đang chạy — bấm để TẮT (dừng ngay video đang phát + không nhận sự kiện mới)'
+            : 'Đã tắt — bấm để BẬT lại';
+    }
+
     function wireToolbar() {
-        $('#pktiktok-enabled')?.addEventListener('change', async (e) => {
-            cfg.enabled = !!e.target.checked;
+        // Công tắc BẬT/TẮT gộp: 1 nút vừa là trạng thái vừa dừng ngay khi tắt.
+        $('#pktiktok-power')?.addEventListener('click', async () => {
+            const turningOff = (cfg.enabled !== false); // đang chạy → bấm để tắt
+            cfg.enabled = !turningOff;
+            syncPowerBtn();
             await persistConfig();
+            if (turningOff) {
+                // Tắt = dừng luôn video đang phát trên overlay (không để phát mồ côi).
+                game.stopAll?.();
+                fetch('/api/games/pktiktok/trigger', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'stop' }),
+                }).catch(() => {});
+            }
         });
         $('#pktiktok-autobind')?.addEventListener('change', async (e) => {
             cfg.autoBindPkDuo = !!e.target.checked;
@@ -334,14 +376,6 @@
             cfg.display = cfg.display || {};
             cfg.display.showLabel = !!e.target.checked;
             await persistConfig();
-        });
-        $('#pktiktok-btn-stop')?.addEventListener('click', () => {
-            game.stopAll();
-            fetch('/api/games/pktiktok/trigger', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'stop' }),
-            }).catch(() => {});
         });
         $('#pktiktok-btn-clear-all')?.addEventListener('click', async () => {
             if (!confirm('Xoá TẤT CẢ file media của 13 sự kiện?')) return;
@@ -358,7 +392,7 @@
             }
         });
         // Initial UI sync
-        if ($('#pktiktok-enabled')) $('#pktiktok-enabled').checked = cfg.enabled !== false;
+        syncPowerBtn();
         if ($('#pktiktok-autobind')) $('#pktiktok-autobind').checked = cfg.autoBindPkDuo !== false;
         if ($('#pktiktok-show-label')) $('#pktiktok-show-label').checked = !!cfg.display?.showLabel;
     }
@@ -392,7 +426,7 @@
         div.className = 'pkfx-log-line';
         const time = new Date().toLocaleTimeString('vi-VN');
         const src = p.source === 'auto' ? '🤖' : (p.source === 'test-all' ? '🧪' : '👤');
-        div.textContent = `${time} ${src} ${p.emoji} ${p.label}`;
+        div.textContent = `${time} ${src} ${p.emoji} ${p.label}${p.note ? ' ' + p.note : ''}`;
         host.insertBefore(div, host.firstChild);
         while (host.children.length > 50) host.removeChild(host.lastChild);
     }
@@ -442,5 +476,12 @@
         return String(s || '')
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    // 'alt+1' → 'Alt+1' cho dễ đọc trên card.
+    function formatHotkey(hk) {
+        return String(hk || '').split('+').map(part => {
+            const p = part.trim();
+            return p ? p.charAt(0).toUpperCase() + p.slice(1) : p;
+        }).join('+');
     }
 })();

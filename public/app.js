@@ -862,6 +862,54 @@
         }
     }
 
+    // ===== Phím tắt PK toàn cục =====
+    // Bấm nhanh MỌI sự kiện PK (nhất là item chỉ chạy tay: Sương Mù / Búa Choáng / Thêm Giờ) kể cả
+    // khi đang ở màn hình game khác — miễn cửa sổ app đang focus và con trỏ không ở trong ô nhập.
+    // Map phím tắt đọc từ engine (window.HpGame.pktiktok.eventDefs) → đồng bộ với card panel.
+    (function registerPkTiktokHotkeys() {
+        function tokenToCode(tok) {
+            if (/^[0-9]$/.test(tok)) return 'Digit' + tok;
+            if (/^[a-z]$/i.test(tok)) return 'Key' + tok.toUpperCase();
+            return tok;
+        }
+        function buildMap() {
+            const map = new Map();
+            try {
+                const defs = (window.HpGame && window.HpGame.pktiktok && window.HpGame.pktiktok.eventDefs)
+                    ? window.HpGame.pktiktok.eventDefs() : [];
+                for (const d of defs) {
+                    if (!d.hotkey) continue;
+                    const parts = String(d.hotkey).toLowerCase().split('+').map(s => s.trim());
+                    const main = parts.find(p => !['alt', 'ctrl', 'shift'].includes(p));
+                    if (!main) continue;
+                    const sig = [parts.includes('ctrl') ? 'c' : '', parts.includes('alt') ? 'a' : '', parts.includes('shift') ? 's' : '', tokenToCode(main)].join('|');
+                    map.set(sig, d.key);
+                }
+            } catch (e) {}
+            return map;
+        }
+        let hkMap = buildMap();
+        if (hkMap.size === 0) setTimeout(() => { hkMap = buildMap(); }, 1500);
+        document.addEventListener('keydown', (e) => {
+            if (e.repeat) return;
+            if (!(e.altKey || e.ctrlKey)) return;   // phím tắt luôn có modifier
+            const t = e.target;
+            const tag = (t && t.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select' || (t && t.isContentEditable)) return;
+            const sig = [e.ctrlKey ? 'c' : '', e.altKey ? 'a' : '', e.shiftKey ? 's' : '', e.code].join('|');
+            const key = hkMap.get(sig);
+            if (!key) return;
+            e.preventDefault();
+            fetch('/api/games/pktiktok/trigger', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'trigger', key, source: 'hotkey' }),
+            }).then(r => r.json()).then(j => {
+                if (!j.ok) console.warn('[pktiktok] hotkey', key, '→', j.error);
+            }).catch(() => {});
+        });
+    })();
+
     // ===== Thuytinh game =====
     function openThuytinh(game) {
         showView('view-thuytinh');
@@ -2701,7 +2749,7 @@
             });
         });
     }
-    // 🔊 Mở SoundFX — Electron bắt /soundfx → cửa sổ nổi; trình duyệt → tab mới
+    // 🔊 Mở SoundFX — Electron bắt /soundfx qua setWindowOpenHandler → mở app HP SoundEffects.exe (WPF)
     document.getElementById('btn-open-soundfx')?.addEventListener('click', () => {
         window.open('/soundfx', '_blank');
     });

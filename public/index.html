@@ -1216,10 +1216,9 @@
                     </div>
                     <div class="overlay-bar">
                         <input id="vipwelcome-overlay-url" type="text" readonly hidden />
-                        <label class="pktiktok-switch" title="Bật / Tắt toàn bộ game"><input id="vipwelcome-enabled" type="checkbox" checked /><span>Bật</span></label>
+                        <button id="vipwelcome-power" class="hp-power on" title="Đang chạy — bấm để TẮT (dừng ngay video đang phát + xoá hàng đợi + không nhận sự kiện mới)"><span class="hp-power-ico">▶</span><span class="hp-power-text">ĐANG CHẠY</span></button>
                         <button id="vipwelcome-btn-copy" class="primary small" title="Copy URL overlay OBS">📋 Copy link</button>
                         <button id="vipwelcome-btn-reload" class="ghost small" title="Buộc OBS browser source reload — dùng khi đổi style mà overlay vẫn hiện cũ (do cache)">🔄 Reload overlay</button>
-                        <button id="vipwelcome-btn-stop" class="danger small" title="Dừng phát + xoá hàng đợi ngay">⏹ DỪNG</button>
                     </div>
                 </header>
 
@@ -1312,8 +1311,8 @@
                     </div>
                     <div class="overlay-bar">
                         <input id="pktiktok-overlay-url" type="text" readonly hidden />
+                        <button id="pktiktok-power" class="hp-power on" title="Đang chạy — bấm để TẮT (dừng ngay video đang phát + không nhận sự kiện mới)"><span class="hp-power-ico">▶</span><span class="hp-power-text">ĐANG CHẠY</span></button>
                         <button id="pktiktok-btn-copy" class="primary small" title="Copy URL overlay OBS">📋 Copy link</button>
-                        <button id="pktiktok-btn-stop" class="danger small" title="Dừng phát ngay">⏹ DỪNG</button>
                     </div>
                 </header>
 
@@ -1321,8 +1320,7 @@
                     <div class="col col-left">
                         <div class="card pktiktok-card">
                             <div class="pktiktok-toolbar">
-                                <label class="pktiktok-switch" title="Bật hiệu ứng PK"><input id="pktiktok-enabled" type="checkbox" checked /><span>Bật PK</span></label>
-                                <label class="pktiktok-switch" title="Tự động fire theo TikTok event PK match (BETA — auto-detect: start / mission / 10s cuối / win/lose). Mở Console (Ctrl+Shift+I) để xem log [pktiktok] khi PK chạy. Phase x2/x3/items hiện chưa auto — phải test thủ công."><input id="pktiktok-autobind" type="checkbox" checked /><span>Auto bind (BETA)</span></label>
+                                <label class="pktiktok-switch" title="Tự động phát theo sự kiện PK thật từ TikTok Live. Card gắn nhãn ⚡AUTO là có tín hiệu thật (start / nhiệm vụ / x2 / x3 / găng tay / 10s cuối / dẫn / thua / thắng-thua). Card ✋TAY (Sương Mù / Búa Choáng / Thêm Giờ): TikTok không gửi dữ liệu nên chỉ chạy tay hoặc bằng phím tắt. Mở Console (Ctrl+Shift+I) xem log [pktiktok]."><input id="pktiktok-autobind" type="checkbox" checked /><span>Auto bind</span></label>
                                 <label class="pktiktok-switch" title="Hiện chữ trên overlay khi fire"><input id="pktiktok-show-label" type="checkbox" /><span>Hiện chữ</span></label>
                                 <span class="pktiktok-toolbar-spacer"></span>
                                 <span id="pktiktok-stats" class="pktiktok-stats">0/13</span>

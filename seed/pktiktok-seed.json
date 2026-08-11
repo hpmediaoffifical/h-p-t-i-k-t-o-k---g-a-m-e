@@ -1,0 +1,93 @@
+[
+  {
+    "key": "start",
+    "mediaFile": "mp48418nx48ybi.mp3",
+    "mediaName": "bắt đầu pk.mp3",
+    "mediaType": "audio",
+    "volume": 100
+  },
+  {
+    "key": "mission",
+    "mediaFile": "mp4844ko4f4uqc.mp3",
+    "mediaName": "nv trước nhân điểm.mp3",
+    "mediaType": "audio",
+    "volume": 100
+  },
+  {
+    "key": "x2",
+    "mediaFile": "mp484aissup7mk.mp3",
+    "mediaName": "x2.mp3",
+    "mediaType": "audio",
+    "volume": 100
+  },
+  {
+    "key": "x3",
+    "mediaFile": "mp484cjjdxdg78.mp3",
+    "mediaName": "x3.mp3",
+    "mediaType": "audio",
+    "volume": 100
+  },
+  {
+    "key": "glove",
+    "mediaFile": "mp8pyntpqemp9e.webm",
+    "mediaName": "Găng X5.webm",
+    "mediaType": "video",
+    "volume": 100
+  },
+  {
+    "key": "mist",
+    "mediaFile": "mp484joomkmm0c.mp3",
+    "mediaName": "sương mù.mp3",
+    "mediaType": "audio",
+    "volume": 100
+  },
+  {
+    "key": "hammer",
+    "mediaFile": "mp484puzz801xi.mp3",
+    "mediaName": "búa.mp3",
+    "mediaType": "audio",
+    "volume": 100
+  },
+  {
+    "key": "time",
+    "mediaFile": "mp484rzzzwfi3y.mp3",
+    "mediaName": "đồng hồ thêm giờ.mp3",
+    "mediaType": "audio",
+    "volume": 100
+  },
+  {
+    "key": "warn10s",
+    "mediaFile": "mp484uhziu5ysd.mp3",
+    "mediaName": "10s cuối.mp3",
+    "mediaType": "audio",
+    "volume": 100
+  },
+  {
+    "key": "lead",
+    "mediaFile": "mp484xhbwkunnx.mp3",
+    "mediaName": "thắng điểm.mp3",
+    "mediaType": "audio",
+    "volume": 100
+  },
+  {
+    "key": "behind",
+    "mediaFile": "mp484ysxoe8e1y.mp3",
+    "mediaName": "thua điểm.mp3",
+    "mediaType": "audio",
+    "volume": 100
+  },
+  {
+    "key": "win",
+    "mediaFile": "msoemyydiqyi08.mp3",
+    "mediaName": "chien-thang-tran.mp3",
+    "mediaType": "audio",
+    "volume": 100
+  },
+  {
+    "key": "lose",
+    "mediaFile": "msoeki76eetnll.mp3",
+    "mediaName": "thua-tran.mp3",
+    "mediaType": "audio",
+    "volume": 100
+  }
+]

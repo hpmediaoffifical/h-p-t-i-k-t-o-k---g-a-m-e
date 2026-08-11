@@ -29,20 +29,23 @@
 
     window.HpGame = window.HpGame || {};
 
+    // `auto`: sự kiện CÓ tín hiệu thật từ TikTok Live để tự fire (theo schema
+    //   tiktok-live-connector v2). false → TikTok không gửi field phân biệt → chỉ chạy tay/phím tắt.
+    // `hotkey`: tổ hợp phím bấm nhanh (chuẩn hoá 'alt+1'…). app.js bắt global khi cửa sổ app focus.
     const EVENT_DEFS = [
-        { key: 'start',    label: 'BẮT ĐẦU PK',           emoji: '🚀', desc: 'Đếm ngược khi bắt đầu trận' },
-        { key: 'mission',  label: 'NHIỆM VỤ XUẤT HIỆN',   emoji: '📋', desc: 'Popup nhiệm vụ bonus' },
-        { key: 'x2',       label: 'X2 ĐIỂM (Speed)',      emoji: '⚡', desc: 'Bonus mission unlock nhân 2' },
-        { key: 'x3',       label: 'X3 ĐIỂM (Speed mạnh)', emoji: '🔥', desc: 'Bonus mission unlock nhân 3' },
-        { key: 'glove',    label: 'ITEM Găng Tay',        emoji: '🥊', desc: 'Boosting Glove — 30% chance x5' },
-        { key: 'mist',     label: 'ITEM Sương Mù',        emoji: '🌫️', desc: 'Magic Mist phủ đối thủ' },
-        { key: 'hammer',   label: 'ITEM Búa Choáng',      emoji: '🔨', desc: 'Stun Hammer trong victory lap' },
-        { key: 'time',     label: 'ITEM Thêm Giờ',        emoji: '⏱️', desc: 'Time-Maker' },
-        { key: 'warn10s',  label: '10 GIÂY CUỐI',         emoji: '⚠️', desc: 'Đồng hồ chuyển đỏ' },
-        { key: 'lead',     label: 'ĐANG DẪN ĐIỂM',        emoji: '📈', desc: 'Đội nhà > đội đối thủ' },
-        { key: 'behind',   label: 'ĐANG THUA ĐIỂM',       emoji: '📉', desc: 'Đội nhà < đội đối thủ' },
-        { key: 'win',      label: 'KẾT QUẢ: THẮNG',       emoji: '🏆', desc: 'Vinh quang chiến thắng' },
-        { key: 'lose',     label: 'KẾT QUẢ: THUA',        emoji: '💔', desc: 'Thất bại' },
+        { key: 'start',    label: 'BẮT ĐẦU PK',           emoji: '🚀', desc: 'Đếm ngược khi bắt đầu trận',            auto: true,  hotkey: 'alt+1' },
+        { key: 'mission',  label: 'NHIỆM VỤ XUẤT HIỆN',   emoji: '📋', desc: 'Popup nhiệm vụ bonus',                  auto: true,  hotkey: 'alt+2' },
+        { key: 'x2',       label: 'X2 ĐIỂM (Speed)',      emoji: '⚡', desc: 'Bonus mission unlock nhân 2',            auto: true,  hotkey: 'alt+3' },
+        { key: 'x3',       label: 'X3 ĐIỂM (Speed mạnh)', emoji: '🔥', desc: 'Bonus mission unlock nhân 3',            auto: true,  hotkey: 'alt+4' },
+        { key: 'glove',    label: 'ITEM Găng Tay',        emoji: '🥊', desc: 'Boosting Glove — critical strike x5',   auto: true,  hotkey: 'alt+5' },
+        { key: 'mist',     label: 'ITEM Sương Mù',        emoji: '🌫️', desc: 'Magic Mist — TikTok không báo, chạy tay / phím tắt', auto: false, hotkey: 'alt+6' },
+        { key: 'hammer',   label: 'ITEM Búa Choáng',      emoji: '🔨', desc: 'Stun Hammer — TikTok không báo, chạy tay / phím tắt', auto: false, hotkey: 'alt+7' },
+        { key: 'time',     label: 'ITEM Thêm Giờ',        emoji: '⏱️', desc: 'Time-Maker — TikTok không báo, chạy tay / phím tắt',  auto: false, hotkey: 'alt+8' },
+        { key: 'warn10s',  label: '10 GIÂY CUỐI',         emoji: '⚠️', desc: 'Đồng hồ chuyển đỏ',                      auto: true,  hotkey: 'alt+9' },
+        { key: 'lead',     label: 'ĐANG DẪN ĐIỂM',        emoji: '📈', desc: 'Đội nhà > đội đối thủ',                 auto: true,  hotkey: 'alt+0' },
+        { key: 'behind',   label: 'ĐANG THUA ĐIỂM',       emoji: '📉', desc: 'Đội nhà < đội đối thủ',                 auto: true,  hotkey: 'alt+q' },
+        { key: 'win',      label: 'KẾT QUẢ: THẮNG',       emoji: '🏆', desc: 'Vinh quang chiến thắng',                auto: true,  hotkey: 'alt+w' },
+        { key: 'lose',     label: 'KẾT QUẢ: THUA',        emoji: '💔', desc: 'Thất bại',                             auto: true,  hotkey: 'alt+e' },
     ];
 
     function defaultConfig() {
@@ -54,6 +57,8 @@
                 label: d.label,
                 emoji: d.emoji,
                 desc: d.desc,
+                auto: d.auto,
+                hotkey: d.hotkey,
                 mediaUrl: '',     // /api/games/pktiktok/asset/<filename> sau upload
                 mediaName: '',    // tên gốc do user upload
                 mediaType: '',    // 'video' | 'audio'
@@ -164,11 +169,29 @@
         for (const k of Object.keys(patch || {})) {
             const v = patch[k];
             if (k === 'events' && Array.isArray(v)) {
-                // Merge từng event theo key (giữ thứ tự EVENT_DEFS)
+                // Merge từng event theo key (giữ thứ tự EVENT_DEFS). Metadata tĩnh
+                // (label/emoji/desc/auto/hotkey) LUÔN lấy từ EVENT_DEFS — không cho config cũ
+                // ghi đè, tránh trôi lệch khi ta đổi mô tả / phím tắt trong code.
                 out.events = EVENT_DEFS.map(def => {
-                    const baseEv = (base.events || []).find(e => e.key === def.key) || { key: def.key, label: def.label, emoji: def.emoji };
+                    const baseEv = (base.events || []).find(e => e.key === def.key) || {};
                     const patchEv = v.find(e => e.key === def.key) || {};
-                    return { ...baseEv, ...patchEv, key: def.key, label: baseEv.label || def.label, emoji: baseEv.emoji || def.emoji };
+                    const m = { ...baseEv, ...patchEv };
+                    return {
+                        key: def.key,
+                        label: def.label,
+                        emoji: def.emoji,
+                        desc: def.desc,
+                        auto: def.auto,
+                        hotkey: def.hotkey,
+                        mediaUrl: m.mediaUrl || '',
+                        mediaName: m.mediaName || '',
+                        mediaType: m.mediaType || '',
+                        volume: m.volume != null ? m.volume : 100,
+                        playbackRate: m.playbackRate || 1.0,
+                        interruptCurrent: m.interruptCurrent !== false,
+                        enabled: m.enabled !== false,
+                        topContributorRules: Array.isArray(m.topContributorRules) ? m.topContributorRules : [],
+                    };
                 });
             } else if (v && typeof v === 'object' && !Array.isArray(v)) {
                 out[k] = { ...(base[k] || {}), ...v };
