@@ -405,7 +405,24 @@ function createSoundfxModule(DATA_DIR) {
         res.sendFile(path.join(__dirname, 'public', 'soundfx', 'soundfx.html'));
     });
 
-    return { router, loadLibrary, clientLibrary };
+    // Ghi ĐỒNG BỘ ngay bounds cửa sổ vào settings.win (bỏ qua debounce) — gọi lúc app thoát.
+    // KHÔNG gọi loadLibrary() ở đây: lúc thoát nếu _libCache chưa nạp, loadLibrary có thể kích hoạt
+    // migrate DB.sqlite (nặng, có thể vượt 200ms trước app.exit → mất ghi). Dùng cache nếu có; nếu chưa
+    // có thì đọc file hiện tại; vẫn chưa có (chưa từng chạy) → bỏ qua an toàn, KHÔNG migrate lúc thoát.
+    function flushWin(bounds) {
+        try {
+            if (!_libCache) {
+                if (!fs.existsSync(SOUNDFX_FILE)) return;
+                _libCache = JSON.parse(fs.readFileSync(SOUNDFX_FILE, 'utf8'));
+            }
+            _libCache.settings = _libCache.settings || {};
+            _libCache.settings.win = Object.assign({}, _libCache.settings.win, bounds || {});
+            clearTimeout(_saveTimer);
+            fs.writeFileSync(SOUNDFX_FILE, JSON.stringify(_libCache, null, 2), 'utf8');
+        } catch (e) { /* swallow */ }
+    }
+
+    return { router, loadLibrary, clientLibrary, flushWin };
 }
 
 // ===== Helpers =====

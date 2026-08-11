@@ -854,7 +854,8 @@
         // ===== Bố cục Dọc / Ngang =====
         const layoutBtn = document.getElementById('btn-layout');
         const LAYOUT_KEY = 'hp-ql-layout';
-        function applyLayout(mode) {
+        // Chỉ đổi GIAO DIỆN (class + nút) — không đụng kích thước/vị trí cửa sổ.
+        function applyLayoutCss(mode) {
             const ngang = mode === 'ngang';
             document.body.classList.toggle('layout-ngang', ngang);
             if (layoutBtn) {
@@ -862,13 +863,19 @@
                 layoutBtn.title = ngang ? 'Đang NGANG — bấm để chuyển Dọc' : 'Đang DỌC — bấm để chuyển Ngang';
                 layoutBtn.classList.toggle('is-on', ngang);
             }
-            // Resize cửa sổ ÔM SÁT nội dung: đặt bề rộng trước → đo chiều cao thật của card → set lại.
-            // Tự nhỏ nhất khi nội dung 1 dòng, tự to khi card cao hơn (2-3 dòng).
-            const w = ngang ? 760 : 340;
-            const setSize = (ww, hh) => {
-                try { if (ipc?.setSize) ipc.setSize(ww, hh); else window.resizeTo(ww, hh); } catch (_) {}
+        }
+        // Ôm sát CHIỀU CAO theo nội dung, GIỮ bề rộng w (main truyền bề rộng đã khôi phục
+        // của bố cục → đổi qua lại vẫn đúng size; main đã tự đặt vị trí nên đây không động x/y).
+        function fitHeight(w) {
+            const ngang = document.body.classList.contains('layout-ngang');
+            // Có w (main khôi phục theo slot) → dùng; KHÔNG có → GIỮ bề rộng cửa sổ hiện tại
+            // (Electron đã mở đúng slot width) thay vì ép về default → tránh reset bề rộng ngoài ý muốn.
+            const curW = Math.round(window.outerWidth || window.innerWidth || (ngang ? 760 : 380));
+            const ww = Math.max(320, (Number.isFinite(w) && w > 0) ? Math.round(w) : curW);
+            const setSize = (a, b) => {
+                try { if (ipc?.setSize) ipc.setSize(a, b); else window.resizeTo(a, b); } catch (_) {}
             };
-            setSize(w, ngang ? 240 : 600);   // bước 1: đặt bề rộng trước để layout reflow/wrap đúng
+            setSize(ww, ngang ? 240 : 600);   // bước 1: đặt bề rộng trước để layout reflow/wrap đúng
             // bước 2: chờ cửa sổ đổi bề rộng & reflow xong → đo ĐÁY thấp nhất của card thật → fit chiều cao
             clearTimeout(window.__qlFitTimer);
             window.__qlFitTimer = setTimeout(() => {
@@ -885,10 +892,11 @@
                     const padB = parseFloat(getComputedStyle(main).paddingBottom || 0) || 0;
                     let h = Math.round(bottom + padB + footer.offsetHeight + 6);
                     h = Math.max(150, Math.min(h, 940));   // ôm sát; cap để không tràn màn hình (dọc nhiều game → cuộn)
-                    setSize(w, h);
+                    setSize(ww, h);
                 } catch (_) {}
             }, 90);
         }
+        function applyLayout(mode, w) { applyLayoutCss(mode); fitHeight(w); }
         // Nguồn CHUẨN: query param ?layout=... do Electron truyền lúc mở (đọc đồng bộ, không race IPC).
         // Fallback: localStorage. → mở lại luôn đúng chế độ đã lưu, không tự về Dọc.
         const _qpLayout = new URLSearchParams(location.search).get('layout');
@@ -896,20 +904,26 @@
             ? _qpLayout
             : (localStorage.getItem(LAYOUT_KEY) === 'ngang' ? 'ngang' : 'doc');
         localStorage.setItem(LAYOUT_KEY, curLayout);
-        applyLayout(curLayout);
-        // Backup: nếu Electron còn gửi initLayout qua IPC thì vẫn áp (phòng trường hợp khác)
-        ipc?.onInitLayout?.((mode) => {
-            const m = mode === 'ngang' ? 'ngang' : 'doc';
-            if (m === curLayout) return;
-            curLayout = m;
-            localStorage.setItem(LAYOUT_KEY, curLayout);
-            applyLayout(curLayout);
-        });
+        applyLayoutCss(curLayout);
+        // Ôm sát chiều cao NGAY theo bề rộng cửa sổ hiện tại (Electron đã mở đúng slot width).
+        // → KHÔNG phụ thuộc IPC 'applyLayout' có kịp/được nhận hay không (chống race lúc mở cửa sổ:
+        //   nếu message tới trước khi listener đăng ký xong sẽ mất → cửa sổ kẹt ở chiều cao thô).
+        fitHeight();
+        // Electron: main bắn 'applyLayout' khi ĐỔI bố cục (đổi bề rộng slot) → renderer áp width mới + ôm sát.
+        // Mở bằng trình duyệt thường (không ipc): đã ôm sát ở trên, không cần thêm.
+        if (ipc?.onApplyLayout) {
+            ipc.onApplyLayout(({ mode, w }) => {
+                curLayout = mode === 'ngang' ? 'ngang' : 'doc';
+                localStorage.setItem(LAYOUT_KEY, curLayout);
+                applyLayout(curLayout, w);
+            });
+        }
         layoutBtn?.addEventListener('click', () => {
             curLayout = curLayout === 'ngang' ? 'doc' : 'ngang';
             localStorage.setItem(LAYOUT_KEY, curLayout);
-            ipc?.setLayout?.(curLayout);   // lưu bền vào prefs → mở lại giữ đúng chế độ
-            applyLayout(curLayout);
+            applyLayoutCss(curLayout);          // đổi giao diện ngay cho mượt
+            if (ipc?.setLayout) ipc.setLayout(curLayout);   // main lưu+khôi phục vị trí/size → bắn applyLayout
+            else fitHeight();                   // không có Electron → tự ôm sát
         });
 
         // Khi user KÉO TAY đổi bề rộng → card tự wrap (CSS) → tự đo lại & ôm sát chiều cao (không thừa/đè).

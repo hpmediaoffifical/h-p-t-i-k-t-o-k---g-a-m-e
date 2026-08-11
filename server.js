@@ -7463,6 +7463,8 @@ app.get('/api/games/vipwelcome/queue', (req, res) => {
 try {
     const { createSoundfxModule } = require('./soundfx-server.js');
     const soundfx = createSoundfxModule(DATA_DIR);
+    // Cho Electron main gọi lúc thoát app để chốt bounds cửa sổ SoundFX (đồng bộ, bỏ debounce).
+    try { global.__sfxFlushWin = soundfx.flushWin; } catch (_) {}
     app.use('/api/soundfx', soundfx.router);
     app.get('/soundfx', (req, res) =>
         res.sendFile(path.join(__dirname, 'public', 'soundfx', 'soundfx.html')));
