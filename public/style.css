@@ -936,7 +936,16 @@ button.mini { padding: 2px 8px; font-size: 11px; }
 }
 .game-header h2 { margin: 0 0 4px; font-size: 20px; }
 .game-sub { font-size: 13px; color: #8b93a8; }
-.overlay-bar { min-width: 380px; }
+/* Thanh công cụ header — chuẩn chung cho MỌI game. Thứ tự nút thống nhất:
+   [vận hành: BẮT ĐẦU / công tắc] → [📋 Link OBS] → [phụ trợ: Sửa/Reload/Reset] → [💾 Lưu] */
+.overlay-bar {
+    min-width: 380px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
 .overlay-res-select {
     background: #131722;
     color: #c8cee0;
@@ -5941,7 +5950,7 @@ body.game-caro #caught-popup {
 /* ===========================================================
    Vote Bình Luận panel
    =========================================================== */
-.votecomment-view .game-header .overlay-bar { gap: 8px; display: flex; align-items: center; }
+/* (canh lề dùng chung ở .overlay-bar) */
 .votecomment-body {
     padding: 16px;
     display: flex;
@@ -6285,7 +6294,7 @@ body.game-caro #caught-popup {
    Biểu Cảm Nhiệt Độ (nhietdo) — Panel styles
    Namespace: .nd-*
    ============================================================ */
-.nhietdo-view .overlay-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* (canh lề dùng chung ở .overlay-bar) */
 .nd-url-input {
     background: #11131a; color: #aaa; border: 1px solid #2a2e3a;
     border-radius: 6px; padding: 4px 8px; font-size: 12px; width: 240px;
@@ -6414,11 +6423,7 @@ img.nd-gift-icon { background: #11131a; border-radius: 4px; }
 }
 /* Header: tách 2 nhóm rõ ràng (điều khiển phiên | công cụ overlay) thay vì dồn 1 cục */
 .trongcay-view .tc-overlay-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
+    /* canh lề kế thừa .overlay-bar — chỉ giữ min-width:0 để 2 nhóm nút co được */
     min-width: 0;
 }
 .trongcay-view .tc-bar-group {
@@ -7200,9 +7205,7 @@ img.nd-gift-icon { background: #11131a; border-radius: 4px; }
 .nd-tt-name { color: #fff; font-weight: 700; }
 .nd-tt-deg { color: #ff8e3a; font-weight: 900; text-align: right; }
 
-/* Session status pill + button container layout */
-.nhietdo-view .overlay-bar,
-.bancung-view .overlay-bar { flex-wrap: wrap; }
+/* (canh lề dùng chung ở .overlay-bar) */
 
 /* ============ BẮN CUNG — compact tab strip ============ */
 .bancung-body {

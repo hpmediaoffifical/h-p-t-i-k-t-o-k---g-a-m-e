@@ -142,7 +142,7 @@
         $('#tc-btn-copy')?.addEventListener('click', async () => {
             const url = window.buildOverlayURL ? window.buildOverlayURL('/overlay/trongcay') : (location.origin + '/overlay/trongcay');
             const ok = window.hpCopyText ? await window.hpCopyText(url) : false;
-            toast(ok ? 'Đã copy link OBS' : ('Copy thất bại: ' + url), ok ? 'success' : 'warn');
+            toast(ok ? '✓ Đã copy link OBS' : ('Copy thất bại — link: ' + url), ok ? 'success' : 'warn');
         });
         $('#tc-btn-reload')?.addEventListener('click', () => { socket && socket.emit('overlay:reload', { gameId: 'trongcay' }); toast('Đã reload overlay', 'success'); });
         $('#tc-btn-popout-edit')?.addEventListener('click', () => openPopoutWindow(true));

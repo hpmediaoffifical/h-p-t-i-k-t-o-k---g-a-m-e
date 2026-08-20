@@ -135,7 +135,7 @@
         const url = (window.buildOverlayURL ? window.buildOverlayURL('/overlay/nhietdo') : (location.origin + '/overlay/nhietdo'));
         $('#nd-btn-copy')?.addEventListener('click', async () => {
             const ok = window.hpCopyText ? await window.hpCopyText(url) : false;
-            ok ? toastOk('Đã copy link OBS: ' + url) : toastWarn('Copy thất bại — link: ' + url);
+            ok ? toastOk('✓ Đã copy link OBS') : toastWarn('Copy thất bại — link: ' + url);
         });
         $('#nd-btn-reload')?.addEventListener('click', () => {
             socket && socket.emit('overlay:reload');

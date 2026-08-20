@@ -476,7 +476,7 @@
         if (inp) inp.value = url;
         $('#vipwelcome-btn-copy')?.addEventListener('click', async () => {
             const ok = window.hpCopyText ? await window.hpCopyText(url) : false;
-            if (ok) flashOk('Đã copy link OBS overlay VIP');
+            if (ok) flashOk('✓ Đã copy link OBS');
             else flashWarn('Copy thất bại — link: ' + url);
         });
         $('#vipwelcome-btn-reload')?.addEventListener('click', async () => {

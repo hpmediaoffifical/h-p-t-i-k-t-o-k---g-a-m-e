@@ -2498,7 +2498,7 @@
         const ok = await copyText(url);
         const t = dom.btnCopyOverlay.textContent;
         dom.btnCopyOverlay.textContent = ok ? '✓ Đã copy' : 'Copy lỗi';
-        if (!ok) flashTriggerToast('Không copy tự động được. Link: ' + url);
+        if (!ok) flashTriggerToast('Copy thất bại — link: ' + url);
         setTimeout(() => dom.btnCopyOverlay.textContent = t, 1500);
     });
     // (Nút "↗ Mở" đã bỏ — user dùng Copy link + paste vào OBS browser source)
@@ -3298,6 +3298,8 @@
     const btnTranslateSave = document.getElementById('btn-translate-save');
     const btnTranslateCopy = document.getElementById('btn-translate-copy');
     const btnCopyDashboard = document.getElementById('btn-copy-dashboard');
+    const btnTranslateCopyHdr = document.getElementById('btn-translate-copy-hdr');
+    const btnCcCopyHdr = document.getElementById('btn-cc-copy-hdr');
     const btnBackupExport = document.getElementById('btn-backup-export');
     const btnBackupImport = document.getElementById('btn-backup-import');
     const backupImportFile = document.getElementById('backup-import-file');
@@ -3527,13 +3529,13 @@
         refreshTranslateOverlayUrl();
         const url = ltOverlayUrl?.value || buildOverlayURL('/overlay/translate');
         const ok = await copyText(url);
-        if (ok) setTranslateStatus('Đã copy link OBS dịch', 'ok');
-        else setTranslateStatus('Không copy tự động được. Link: ' + url, 'err');
+        if (ok) setTranslateStatus('✓ Đã copy link OBS Dịch', 'ok');
+        else setTranslateStatus('Copy thất bại — link: ' + url, 'err');
     }
     async function copyDashboardOverlayUrl() {
         const url = buildOverlayURL('/overlay/dashboard');
         const ok = await copyText(url);
-        setTranslateStatus(ok ? 'Đã copy link OBS dashboard' : 'Không copy tự động được. Link: ' + url, ok ? 'ok' : 'err');
+        setTranslateStatus(ok ? '✓ Đã copy link OBS Dashboard' : 'Copy thất bại — link: ' + url, ok ? 'ok' : 'err');
     }
     async function exportBackupConfig() {
         try {
@@ -4026,7 +4028,7 @@
     async function copyCreatorCaptionOverlayUrl() {
         const url = buildOverlayURL('/overlay/creator-caption');
         const ok = await copyText(url);
-        setCreatorCaptionStatus(ok ? 'Đã copy link OBS phụ đề' : 'Không copy tự động được. Link: ' + url, ok ? 'ok' : 'err');
+        setCreatorCaptionStatus(ok ? '✓ Đã copy link OBS Phụ đề' : 'Copy thất bại — link: ' + url, ok ? 'ok' : 'err');
     }
     async function testCreatorCaption() {
         try {
@@ -4051,6 +4053,10 @@
     btnTranslateSave?.addEventListener('click', saveLiveTranslateConfig);
     btnTranslateCopy?.addEventListener('click', copyTranslateOverlayUrl);
     btnCopyDashboard?.addEventListener('click', copyDashboardOverlayUrl);
+    // Bản sao trên header Dịch Thuật LIVE — gom cả 3 link OBS vào 1 chỗ dễ thấy,
+    // không phải mở popup FAB mới copy được (2 nút trong popup vẫn giữ nguyên).
+    btnTranslateCopyHdr?.addEventListener('click', copyTranslateOverlayUrl);
+    btnCcCopyHdr?.addEventListener('click', copyCreatorCaptionOverlayUrl);
     btnBackupExport?.addEventListener('click', exportBackupConfig);
     btnBackupImport?.addEventListener('click', () => backupImportFile?.click());
     backupImportFile?.addEventListener('change', () => importBackupConfig(backupImportFile.files?.[0]));

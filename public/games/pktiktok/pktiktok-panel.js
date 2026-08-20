@@ -403,7 +403,7 @@
         if (inp) inp.value = url;
         $('#pktiktok-btn-copy')?.addEventListener('click', async () => {
             const ok = window.hpCopyText ? await window.hpCopyText(url) : false;
-            if (ok) flashOk('Đã copy link OBS overlay PK TikTok');
+            if (ok) flashOk('✓ Đã copy link OBS');
             else flashWarn('Copy thất bại — link: ' + url);
         });
     }

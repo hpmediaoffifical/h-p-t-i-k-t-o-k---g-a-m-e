@@ -2023,7 +2023,7 @@
         if (inp) inp.value = url;
         $('#caro-btn-copy').addEventListener('click', async () => {
             const ok = window.hpCopyText ? await window.hpCopyText(url) : false;
-            if (ok) flashOk('Đã copy link OBS overlay Caro');
+            if (ok) flashOk('✓ Đã copy link OBS');
             else flashWarn('Copy thất bại — link: ' + url);
         });
         // POPOUT — cửa sổ Overlay Review trong suốt + frameless.

@@ -111,8 +111,8 @@
                         <h2>🎯 LEVEL QUEST</h2>
                         <div class="game-sub">Quest bar Liên Quân-style cho NPC creator — overlay OBS riêng (prototype)</div>
                     </div>
-                    <div class="overlay-bar" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                        <button class="primary small" id="btn-lq-copy" onclick="lqCopyOverlay(this)">📋 Copy URL Overlay</button>
+                    <div class="overlay-bar">
+                        <button class="primary small" id="btn-lq-copy" onclick="lqCopyOverlay(this)" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
                         <button class="ghost small" onclick="window.open('/_prototype/level-quest.html?mode=overlay','_blank','width=1080,height=400')">🪟 Mở overlay preview</button>
                         <button class="ghost small" onclick="document.getElementById('lq-frame').contentWindow.location.reload()" title="Reload prototype">↻ Reload</button>
                     </div>
@@ -120,8 +120,8 @@
                       // Copy với fallback cho Electron / iframe context (clipboard API có thể fail im lặng)
                       function lqCopyOverlay(btn){
                         const url = location.origin + '/_prototype/level-quest.html?mode=overlay';
-                        const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(()=>btn.textContent='📋 Copy URL Overlay', 1500); };
-                        const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(()=>btn.textContent='📋 Copy URL Overlay', 1500); };
+                        const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(()=>btn.textContent='📋 Link OBS', 1500); };
+                        const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(()=>btn.textContent='📋 Link OBS', 1500); };
                         if (navigator.clipboard && navigator.clipboard.writeText) {
                           navigator.clipboard.writeText(url).then(done).catch(()=>{
                             // Fallback: execCommand
@@ -153,8 +153,8 @@
                         <h2>⏱ THỜI GIAN</h2>
                         <div class="game-sub">Đếm lùi / đếm tới · 9 giao diện · Quà tặng ± thời gian (3 chế độ)</div>
                     </div>
-                    <div class="overlay-bar" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                        <button class="primary small" id="btn-timer-copy" onclick="timerCopyOverlay(this)">📋 Copy URL Overlay</button>
+                    <div class="overlay-bar">
+                        <button class="primary small" id="btn-timer-copy" onclick="timerCopyOverlay(this)" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
                         <button class="ghost small" onclick="window.open('/_prototype/timer.html?mode=overlay','_blank','width=900,height=420')" title="Preview window — gọn hơn để theo dõi">🪟 Mở preview window</button>
                         <button class="ghost small" onclick="document.getElementById('timer-frame').contentWindow.location.reload()" title="Reload prototype">↻ Reload</button>
                     </div>
@@ -163,8 +163,8 @@
                       // Fallback execCommand cho Electron / iframe context (clipboard API có thể fail im lặng).
                       function timerCopyOverlay(btn){
                         const url = location.origin + '/_prototype/timer.html?mode=overlay';
-                        const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(()=>btn.textContent='📋 Copy URL Overlay', 1500); };
-                        const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(()=>btn.textContent='📋 Copy URL Overlay', 1500); };
+                        const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(()=>btn.textContent='📋 Link OBS', 1500); };
+                        const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(()=>btn.textContent='📋 Link OBS', 1500); };
                         if (navigator.clipboard && navigator.clipboard.writeText) {
                           navigator.clipboard.writeText(url).then(done).catch(()=>{
                             try {
@@ -197,13 +197,13 @@
                     </div>
                     <div class="overlay-bar">
                         <input id="overlay-url" type="text" readonly hidden />
-                        <button id="btn-reset-session-top" class="ghost small" title="Reset session: clear hũ + reset stats / leaderboard / mục tiêu">↺ HŨ MỚI</button>
-                        <button id="btn-toggle-thuytinh-preview" class="ghost small" title="Ẩn/hiện preview hũ để giảm lag — khi cần config thì bật lại">🙈 Ẩn preview</button>
+                        <button id="btn-copy-overlay" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
                         <select id="overlay-resolution-select" class="overlay-res-select" title="HD: OBS Source 1080×1920 (mặc định). 4K: OBS Source 2160×3840 + Ctrl+F để fit canvas → text sắc nét hơn">
                             <option value="hd">📺 HD 1080</option>
                             <option value="4k">🖥 4K 2160x3840</option>
                         </select>
-                        <button id="btn-copy-overlay" class="primary small" title="Copy URL overlay OBS vào clipboard">📋 Overlay OBS</button>
+                        <button id="btn-toggle-thuytinh-preview" class="ghost small" title="Ẩn/hiện preview hũ để giảm lag — khi cần config thì bật lại">🙈 Ẩn preview</button>
+                        <button id="btn-reset-session-top" class="ghost small" title="Reset session: clear hũ + reset stats / leaderboard / mục tiêu">↺ HŨ MỚI</button>
                         <button id="btn-save-all" class="primary small" title="Lưu mọi cài đặt ngay lập tức">💾 Lưu tất cả</button>
                     </div>
                 </header>
@@ -547,9 +547,9 @@
                     </div>
                     <div class="overlay-bar">
                         <input id="caro-overlay-url" type="text" readonly hidden />
+                        <button id="caro-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
+                        <button id="caro-btn-popout" class="ghost small" title="Mở cửa sổ Overlay Review trong suốt để OBS dùng Window Capture bắt sắc nét hơn link Browser Source">🪟 Overlay Review</button>
                         <button id="caro-btn-reset-round-header" class="danger small" title="Xoá bàn cờ và chơi lại hiệp này (không đổi tỉ số)">🔁 Reset hiệp</button>
-                        <button id="caro-btn-popout" class="primary small" title="Mở cửa sổ Overlay Review trong suốt để OBS dùng Window Capture bắt sắc nét hơn link Browser Source">🪟 Overlay Review</button>
-                        <button id="caro-btn-copy" class="primary small" title="Copy URL overlay OBS">📋 Copy link</button>
                         <button id="caro-btn-save" class="primary small" title="Lưu cài đặt Caro">💾 Lưu cài đặt</button>
                     </div>
                 </header>
@@ -1217,7 +1217,7 @@
                     <div class="overlay-bar">
                         <input id="vipwelcome-overlay-url" type="text" readonly hidden />
                         <button id="vipwelcome-power" class="hp-power on" title="Đang chạy — bấm để TẮT (dừng ngay video đang phát + xoá hàng đợi + không nhận sự kiện mới)"><span class="hp-power-ico">▶</span><span class="hp-power-text">ĐANG CHẠY</span></button>
-                        <button id="vipwelcome-btn-copy" class="primary small" title="Copy URL overlay OBS">📋 Copy link</button>
+                        <button id="vipwelcome-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
                         <button id="vipwelcome-btn-reload" class="ghost small" title="Buộc OBS browser source reload — dùng khi đổi style mà overlay vẫn hiện cũ (do cache)">🔄 Reload overlay</button>
                     </div>
                 </header>
@@ -1312,7 +1312,7 @@
                     <div class="overlay-bar">
                         <input id="pktiktok-overlay-url" type="text" readonly hidden />
                         <button id="pktiktok-power" class="hp-power on" title="Đang chạy — bấm để TẮT (dừng ngay video đang phát + không nhận sự kiện mới)"><span class="hp-power-ico">▶</span><span class="hp-power-text">ĐANG CHẠY</span></button>
-                        <button id="pktiktok-btn-copy" class="primary small" title="Copy URL overlay OBS">📋 Copy link</button>
+                        <button id="pktiktok-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
                     </div>
                 </header>
 
@@ -1348,8 +1348,8 @@
                     </div>
                     <div class="overlay-bar">
                         <label class="vc-switch" title="Bật / Tắt toàn bộ game"><input id="vc-cfg-enabled" type="checkbox" checked /><span>Bật</span></label>
-                        <button id="vc-btn-popout" class="primary small" title="Mở overlay ra cửa sổ riêng để theo dõi trên PC — vị trí và kích thước tự lưu cho lần sau">🪟 Mở overlay PC</button>
-                        <button id="vc-btn-copy" class="ghost small" title="Copy URL overlay cho OBS">📋 Copy link OBS</button>
+                        <button id="vc-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
+                        <button id="vc-btn-popout" class="ghost small" title="Mở overlay ra cửa sổ riêng để theo dõi trên PC — vị trí và kích thước tự lưu cho lần sau">🪟 Mở overlay PC</button>
                         <button id="vc-btn-reload" class="ghost small" title="Buộc overlay reload (test layout mới)">🔄 Reload</button>
                     </div>
                 </header>
@@ -1480,7 +1480,7 @@
                         <button id="nd-btn-session" class="primary small" title="Bắt đầu phiên — overlay nhận quà + hiển thị">▶ BẮT ĐẦU</button>
                         <span id="nd-session-status" class="nd-session-status">⏸ Sẵn sàng</span>
                         <span class="nd-bar-spacer"></span>
-                        <button id="nd-btn-copy" class="ghost small" title="Copy URL overlay cho OBS">📋 Copy link</button>
+                        <button id="nd-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
                         <button id="nd-btn-popout-edit" class="ghost small" title="Mở overlay chế độ sửa — kéo chuột chỉnh vị trí thanh nhiệt, cuộn để zoom">✏ Sửa Overlay</button>
                         <button id="nd-btn-reload" class="ghost small" title="Buộc overlay reload">🔄 Reload</button>
                         <button id="nd-btn-reset" class="danger small" title="Reset nhiệt độ + xoá top contributor">↺ Reset nhiệt</button>
@@ -1518,7 +1518,7 @@
                         <button id="bc-btn-session" class="primary small" title="Bắt đầu phiên — overlay nhận quà + hiển thị">▶ BẮT ĐẦU</button>
                         <span id="bc-session-status" class="nd-session-status">⏸ Sẵn sàng</span>
                         <span class="nd-bar-spacer"></span>
-                        <button id="bc-btn-copy" class="ghost small" title="Copy URL overlay cho OBS">📋 Copy link</button>
+                        <button id="bc-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
                         <button id="bc-btn-popout-edit" class="ghost small" title="Mở overlay chế độ sửa — kéo chuột để chỉnh vị trí hàng tim + bow widget, cuộn để zoom">✏ Sửa Overlay</button>
                         <button id="bc-btn-reload" class="ghost small" title="Buộc overlay reload">🔄 Reload</button>
                         <button id="bc-btn-reset" class="danger small" title="Reset máu về full">↺ Reset máu</button>
@@ -1568,7 +1568,7 @@
                             <label class="toggle-row" title="Bật/tắt game Trồng Cây"><input type="checkbox" id="tc-cfg-enabled" checked><span>Bật game</span></label>
                         </div>
                         <div class="tc-bar-group tc-bar-tools">
-                            <button id="tc-btn-copy" class="ghost small" title="Copy URL overlay cho OBS">📋 Copy link</button>
+                            <button id="tc-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
                             <button id="tc-btn-popout-edit" class="ghost small" title="Mở overlay chế độ sửa — kéo cây để chỉnh vị trí, cuộn để zoom">✏ Sửa Overlay</button>
                             <button id="tc-btn-reload" class="ghost small" title="Buộc overlay reload">🔄 Reload</button>
                             <button id="tc-btn-reset" class="danger small" title="Reset cây, hoa và bướm">↺ Reset vườn</button>
@@ -1600,7 +1600,9 @@
                         <div class="game-sub">Dịch bình luận LIVE, đọc bình luận, và phụ đề giọng Creator cho OBS.</div>
                     </div>
                     <div class="overlay-bar">
-                        <button id="btn-copy-dashboard" class="primary small" title="Copy URL dashboard tổng hợp cho OBS">Copy OBS Dashboard</button>
+                        <button id="btn-copy-dashboard" class="primary small" title="Copy link overlay OBS dashboard tổng hợp vào clipboard">📋 Link OBS Dashboard</button>
+                        <button id="btn-translate-copy-hdr" class="primary small" title="Copy link overlay OBS dịch bình luận vào clipboard">📋 Link OBS Dịch</button>
+                        <button id="btn-cc-copy-hdr" class="primary small" title="Copy link overlay OBS phụ đề giọng Creator vào clipboard">📋 Link OBS Phụ đề</button>
                         <button id="btn-backup-export" class="ghost small" title="Tải file backup cấu hình game và overlay">Export backup</button>
                         <button id="btn-backup-import" class="ghost small" title="Import file backup cấu hình">Import backup</button>
                         <input id="backup-import-file" type="file" accept="application/json,.json" hidden />
@@ -2009,7 +2011,7 @@
         <div class="comments-popup-head">
             <span>🌐 Dịch bình luận</span>
             <div class="head-actions">
-                <button id="btn-translate-copy" class="ghost mini">Copy OBS</button>
+                <button id="btn-translate-copy" class="ghost mini" title="Copy link overlay OBS dịch bình luận vào clipboard">📋 Link OBS</button>
                 <button id="translate-close" class="modal-close" title="Đóng">✕</button>
             </div>
         </div>
@@ -2104,7 +2106,7 @@
         <div class="comments-popup-head">
             <span>🎙️ Phụ đề giọng Creator</span>
             <div class="head-actions">
-                <button id="btn-cc-copy" class="ghost mini" title="Copy OBS">Copy OBS</button>
+                <button id="btn-cc-copy" class="ghost mini" title="Copy link overlay OBS phụ đề giọng Creator vào clipboard">📋 Link OBS</button>
                 <button id="creator-caption-close" class="modal-close" title="Đóng">✕</button>
             </div>
         </div>
