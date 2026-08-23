@@ -1,0 +1,11 @@
+{
+  "id": "canh-bao-vang",
+  "name": "Cảnh báo vàng",
+  "kind": "tui",
+  "count": 1,
+  "ext": "png",
+  "source": [
+    128,
+    128
+  ]
+}

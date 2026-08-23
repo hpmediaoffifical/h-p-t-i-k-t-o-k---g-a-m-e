@@ -14,7 +14,7 @@
     let topList = [];
     let rescueModalEl = null;
     let rescueModalIndex = null;
-    let skinCatalog = { hat: [], thung: [] };
+    let skinCatalog = { hat: [], thung: [], tui: [] };
     const $ = (selector, root = document) => root.querySelector(selector);
     const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
     const esc = value => String(value == null ? '' : value).replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]);
@@ -52,6 +52,9 @@
         currentTab = tab;
         $$('.nl-tab', root()).forEach(button => button.classList.toggle('active', button.dataset.nlTab === tab));
         $$('.nl-pane', root()).forEach(pane => pane.classList.toggle('active', pane.dataset.nlPane === tab));
+        // Ô xem trước bảng quà scale theo bề ngang thật của nó. Pane đang ẩn thì bề ngang
+        // đo ra 0 và sân khấu co về vô hình, nên phải đo LẠI đúng lúc pane vừa hiện ra.
+        if (tab === 'giftboard') renderBoardPreview();
     }
 
     // Trần của thanh "Dọc" đổi theo cỡ thùng (thùng to hơn thì phải đứng cao hơn mới
@@ -78,10 +81,18 @@
         return `<label class="nhatla-range-row"><span><b>${label}</b><small>${help || ''}</small></span><input type="range" min="${min}" max="${max}" value="${value}" data-display-range="${key}"><output>${value}${suffix}</output></label>`;
     }
 
+    // Cùng khuôn với rangeRow nhưng đọc/ghi cfg.bags. Không gộp làm một hàm nhận tên khối:
+    // hai nhóm này đi hai đường relay khác nhau (display vs bags) nên handler cũng phải khác,
+    // gộp lại rồi vẫn phải tách ở chỗ nghe sự kiện.
+    function bagsRangeRow(label, key, min, max, suffix, help) {
+        const value = Math.round(Number(cfg.bags[key]) || 0);
+        return `<label class="nhatla-range-row"><span><b>${label}</b><small>${help || ''}</small></span><input type="range" min="${min}" max="${max}" value="${value}" data-bags-range="${key}"><output>${value}${suffix}</output></label>`;
+    }
+
     async function loadSkinCatalog() {
         try {
             const data = await (await fetch('/api/nhatla/skins', { cache: 'no-store' })).json();
-            skinCatalog = { hat: data.hat || [], thung: data.thung || [] };
+            skinCatalog = { hat: data.hat || [], thung: data.thung || [], tui: data.tui || [] };
         } catch (e) {
             // Danh mục rỗng thì skinPicker() không vẽ thẻ nào — panel vẫn dùng được đủ các
             // mục còn lại thay vì hiện một ô chọn trống rỗng.
@@ -100,6 +111,29 @@
     function skinNote(skin) {
         if (skin.kind === 'hat') return `<em>${skin.count} ảnh · cỡ chuẩn ${skin.baseSize}px</em>`;
         return '<em>chớp sáng tự động khi bỏ lá</em>';
+    }
+
+    // Ảnh túi cố tình KHÔNG dùng skinPicker(): thẻ to như bộ lá/thùng sẽ chiếm hết thẻ Túi
+    // nợ vốn đã dài, mà đây chỉ là một icon nhỏ xíu trên overlay. Đổi lấy một nút hiện ảnh
+    // đang dùng, bấm mới xổ hàng ảnh ra chọn.
+    function bagSkinPicker() {
+        const list = skinCatalog.tui || [];
+        if (!list.length) return '';
+        const current = list.find(s => s.id === cfg.display.bagSkin) || list[0];
+        return `
+            <div class="nhatla-bagskin">
+                <button id="nl-bag-skin" class="nhatla-bagskin-now" title="Bấm để đổi ảnh túi" aria-expanded="false">
+                    <img src="${esc(skinThumb(current))}" alt="">
+                    <span>Ảnh túi: <b>${esc(current.name || current.id)}</b></span>
+                    <i>▾</i>
+                </button>
+                <div id="nl-bag-skin-list" class="nhatla-bagskin-list" hidden>
+                    ${list.map(skin => `
+                        <button class="nhatla-bagskin-item${skin.id === current.id ? ' selected' : ''}" data-bag-skin="${esc(skin.id)}" title="${esc(skin.name || skin.id)}">
+                            <img src="${esc(skinThumb(skin))}" alt="" loading="lazy">
+                        </button>`).join('')}
+                </div>
+            </div>`;
     }
 
     function skinPicker(kind, key, title, help) {
@@ -139,8 +173,29 @@
             </div>
             <div class="nhatla-card">
                 <h3>🍂 Nhịp lá rơi</h3>
+                ${rangeRow('Đầy màn hình khi đạt trần', 'pileFillPercent', 30, 100, '%', 'Đủ <b>Số lá tối đa</b> ở dưới thì đống lá cao bằng ngần này màn hình — lá tự chồng thưa hay khít cho vừa mốc đó, không phải chỉnh tay. Đặt trần càng thấp thì lá càng phải nằm thưa, dưới ~700 lá sẽ bắt đầu nhìn thủng xuống nền')}
                 <label class="nhatla-number-row">Số lá tối đa trên màn hình <input id="nl-max-leaves" type="number" min="50" max="20000" value="${Math.round(cfg.drop.maxLeaves)}"></label>
                 <label class="nhatla-number-row">Khoảng cách khi rơi nhiều lá (ms) <input id="nl-spawn-gap" type="number" min="0" max="2000" value="${Math.round(cfg.drop.spawnGapMs)}"></label>
+            </div>
+            <div class="nhatla-card">
+                <h3>🗑 Túi nợ</h3>
+                <p class="nhatla-muted">Lá vượt quá <b>Số lá tối đa trên màn hình</b> ở trên không rơi thêm mà được đóng thành từng bọc rác đen chờ sẵn. Idol dọn sạch màn hình thì bọc kế tiếp tự bung ra, đổ lá xuống rồi biến khỏi danh sách. Đây là cần gạt chống lag mạnh nhất: máy chỉ bao giờ vẽ đúng số lá bạn cho phép, dù có nhận về bao nhiêu quà.</p>
+                ${bagSkinPicker()}
+                <label class="toggle-row nhatla-toggle"><input id="nl-bags-enabled" type="checkbox" ${cfg.bags.enabled !== false ? 'checked' : ''}><span>Bật túi nợ</span></label>
+                <label class="toggle-row nhatla-toggle"><input id="nl-bags-show" type="checkbox" ${cfg.bags.showList !== false ? 'checked' : ''}><span>Hiện danh sách túi trên overlay</span></label>
+                <label class="nhatla-number-row">Số lá mỗi túi <input id="nl-bags-size" type="number" min="100" max="20000" value="${Math.round(cfg.bags.size)}"></label>
+                <label class="nhatla-number-row">Bung túi khi màn hình còn ≤ <input id="nl-bags-open" type="number" min="0" max="${Math.max(0, Math.round(cfg.drop.maxLeaves) - 1)}" value="${Math.round(cfg.bags.openAtLeaves)}"> lá</label>
+                <label class="nhatla-number-row">Khoảng cách khi đổ túi (ms) <input id="nl-bags-pour" type="number" min="0" max="200" value="${Math.round(cfg.bags.pourGapMs)}"></label>
+                <label class="nhatla-number-row">Vẽ tối đa bao nhiêu túi <input id="nl-bags-icons" type="number" min="1" max="40" value="${Math.round(cfg.bags.maxIcons)}"></label>
+                <label class="nhatla-number-row">Xếp túi
+                    <select id="nl-bags-orient">
+                        <option value="horizontal" ${cfg.bags.orientation !== 'vertical' ? 'selected' : ''}>Ngang</option>
+                        <option value="vertical" ${cfg.bags.orientation === 'vertical' ? 'selected' : ''}>Dọc</option>
+                    </select>
+                </label>
+                ${bagsRangeRow('Ngang', 'xPercent', 0, 95, '%', 'Kéo trực tiếp được trong Review hoặc cửa sổ Overlay')}
+                ${bagsRangeRow('Dọc', 'yPercent', 0, 95, '%', 'Kéo trực tiếp được trong Review hoặc cửa sổ Overlay')}
+                ${bagsRangeRow('Kích thước', 'scale', 30, 300, '%', 'Phóng cả cụm túi lẫn chữ đếm')}
             </div>`;
         $$('.nhatla-skin-grid', $('#nl-display-pane')).forEach(grid => grid.addEventListener('click', event => {
             const button = event.target.closest('[data-skin-id]');
@@ -167,8 +222,64 @@
             socket?.emit('nhatla:transient', { type: 'display', display: { ...cfg.display } });
             save();
         });
-        $('#nl-max-leaves').addEventListener('change', event => { cfg.drop.maxLeaves = game.clamp(event.target.value, 50, 20000); save(); });
+        $('#nl-max-leaves').addEventListener('change', event => {
+            cfg.drop.maxLeaves = game.clamp(event.target.value, 50, 20000);
+            // Ngưỡng bung túi phải nhỏ hơn trần màn hình, nếu không điều kiện bung luôn đúng
+            // ngay cả lúc màn hình đang đầy — kho xả thẳng ra, mất sạch tác dụng chống lag.
+            // Sửa tại chỗ thuộc tính max thay vì renderDisplay() vì lý do như syncBinYMax().
+            const open = $('#nl-bags-open');
+            open.max = Math.max(0, cfg.drop.maxLeaves - 1);
+            if (Number(open.value) > Number(open.max)) {
+                open.value = open.max;
+                cfg.bags.openAtLeaves = Number(open.max);
+            }
+            save();
+        });
         $('#nl-spawn-gap').addEventListener('change', event => { cfg.drop.spawnGapMs = game.clamp(event.target.value, 0, 2000); save(); });
+        // Toạ độ/cỡ đi đường transient cho overlay nhúc nhích ngay theo thanh trượt; số lá mỗi
+        // túi và ngưỡng bung cũng đi đường đó vì overlay cần đếm lại số túi tức thì.
+        const relayBags = () => socket?.emit('nhatla:transient', { type: 'bags', bags: { ...cfg.bags } });
+        $$('[data-bags-range]', $('#nl-display-pane')).forEach(input => input.addEventListener('input', () => {
+            cfg.bags[input.dataset.bagsRange] = Number(input.value);
+            input.nextElementSibling.textContent = input.value + '%';
+            relayBags();
+            save();
+        }));
+        $('#nl-bags-enabled').addEventListener('change', event => { cfg.bags.enabled = event.target.checked; relayBags(); save(); });
+        $('#nl-bags-show').addEventListener('change', event => { cfg.bags.showList = event.target.checked; relayBags(); save(); });
+        $('#nl-bags-size').addEventListener('change', event => { cfg.bags.size = game.clamp(event.target.value, 100, 20000); relayBags(); save(); });
+        $('#nl-bags-open').addEventListener('change', event => { cfg.bags.openAtLeaves = game.clamp(event.target.value, 0, Math.max(0, cfg.drop.maxLeaves - 1)); relayBags(); save(); });
+        $('#nl-bags-pour').addEventListener('change', event => { cfg.bags.pourGapMs = game.clamp(event.target.value, 0, 200); relayBags(); save(); });
+        $('#nl-bags-icons').addEventListener('change', event => { cfg.bags.maxIcons = game.clamp(event.target.value, 1, 40); relayBags(); save(); });
+        $('#nl-bags-orient').addEventListener('change', event => { cfg.bags.orientation = event.target.value; relayBags(); save(); });
+        bindBagSkinPicker();
+    }
+
+    function bindBagSkinPicker() {
+        const button = $('#nl-bag-skin');
+        const list = $('#nl-bag-skin-list');
+        if (!button || !list) return;
+        button.addEventListener('click', () => {
+            list.hidden = !list.hidden;
+            button.setAttribute('aria-expanded', String(!list.hidden));
+        });
+        list.addEventListener('click', event => {
+            const item = event.target.closest('[data-bag-skin]');
+            if (!item) return;
+            list.hidden = true;
+            button.setAttribute('aria-expanded', 'false');
+            if (item.classList.contains('selected')) return;
+            cfg.display.bagSkin = item.dataset.bagSkin;
+            // Cập nhật tại chỗ thay vì renderDisplay(): vẽ lại cả thẻ Túi nợ chỉ để đổi một
+            // cái ảnh sẽ ném người dùng về đầu danh sách, mà thẻ này nằm cuối tab.
+            const skin = (skinCatalog.tui || []).find(s => s.id === item.dataset.bagSkin);
+            $('img', button).src = skinThumb(skin);
+            $('b', button).textContent = skin.name || skin.id;
+            $$('[data-bag-skin]', list).forEach(el => el.classList.toggle('selected', el === item));
+            // Cùng lý do với hai bộ skin kia: id là chuỗi, đường transient chỉ relay được số
+            // nên phải đi POST /config để server broadcast cho overlay đổi ảnh ngay.
+            save(true);
+        });
     }
 
     function renderGifts() {
@@ -179,11 +290,12 @@
                 <p class="nhatla-muted">Quà không có rule riêng tự tính theo coin. Vẫn có thể thêm quà riêng để chỉnh số lá theo ý.</p>
                 <label class="nhatla-number-row">Quà không nằm trong danh sách: <input id="nl-coins-per-leaf" type="number" min="0" max="5000" value="${Math.round(cfg.coinsPerLeaf)}"> 💎 = 1 lá</label>
                 <p class="nhatla-muted">Nhập <b>0</b>: không ghi nhận lá. Nhập <b>1</b>: 1 💎 = 1 lá. Nhập <b>5</b>: 5 💎 = 1 lá.</p>
-                <div class="nhatla-gift-head"><span>Quà TikTok</span><span>Số lá rơi</span><span></span></div>
+                <div class="nhatla-gift-head"><span>Quà TikTok</span><span>Số lá rơi</span><span></span><span></span></div>
                 <div id="nl-gift-rules">${rules.map((rule, index) => `
                     <div class="nhatla-gift-rule" data-rule="${index}">
                         <button class="nhatla-gift-select ${rule.giftId ? 'selected' : ''}" data-rule-select title="Chọn quà TikTok">${giftButtonMarkup(rule)}</button>
                         <input data-rule-count type="number" min="0" max="5000" value="${Math.round(Number(rule.count) || 1)}">
+                        <button class="ghost tiny" data-rule-test title="Thả thử đúng số lá của dòng này — test hoặc bù lá cho người chơi khi lag">🍂</button>
                         <button class="danger tiny" data-rule-remove title="Xóa quà">×</button>
                     </div>`).join('')}</div>
                 <div class="nhatla-actions"><button id="nl-add-rule" class="ghost small">+ Thêm quà</button><button id="nl-sync-coin-rules" class="ghost small">↻ Đồng bộ theo 💎</button><button id="nl-save-rules" class="primary small">💾 Lưu quà</button></div>
@@ -210,12 +322,21 @@
             cfg.giftRules.splice(Number(event.currentTarget.closest('[data-rule]').dataset.rule), 1);
             renderGifts(); save(true);
         }));
-        $('#nl-test-gift').addEventListener('click', () => {
-            fetch('/api/games/nhatla/cmd', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ cmd: 'drop', payload: { count: Number($('#nl-test-count').value) || 1 } })
-            }).catch(() => {});
-        });
+        // Thả thử ngay trên từng dòng quà: đọc số lá đang gõ trong ô (chưa cần bấm Lưu quà) nên
+        // vừa dùng để test rule mới, vừa bù lá tay cho người chơi khi LIVE lag mất quà.
+        $$('[data-rule-test]', $('#nl-gift-rules')).forEach(button => button.addEventListener('click', event => {
+            const row = event.currentTarget.closest('[data-rule]');
+            dropLeaves(Number($('[data-rule-count]', row).value));
+        }));
+        $('#nl-test-gift').addEventListener('click', () => dropLeaves(Number($('#nl-test-count').value)));
+    }
+
+    function dropLeaves(count) {
+        const total = game.clamp(count, 1, 5000);
+        fetch('/api/games/nhatla/cmd', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cmd: 'drop', payload: { count: total } })
+        }).catch(() => {});
     }
 
     function renderEffects() {
@@ -494,7 +615,7 @@
                             <span class="nhatla-rescue-text"><b>${esc(action.name)}</b><small>${esc(RESCUE_META[action.type].label)}</small></span>
                             <span class="nhatla-rescue-gear">⚙</span>
                         </button>
-                        <button class="nhatla-gift-select ${action.giftId ? 'selected' : ''}" data-rescue-gift title="Chọn quà TikTok">${giftButtonMarkup(action)}</button>
+                        <button class="nhatla-gift-select nhatla-gift-compact ${action.giftId ? 'selected' : ''}" data-rescue-gift title="${action.giftId ? `Quà kích hoạt: ${esc(action.giftName || 'Quà TikTok')} — bấm để đổi` : 'Chọn quà TikTok'}">${giftButtonMarkup(action, true)}</button>
                         ${hotkeyCell('rescue', index, action)}
                         <button class="ghost small" data-rescue-test title="Chạy thử ngay">▶</button>
                         <button class="danger tiny" data-rescue-remove title="Xoá hành động">×</button>
@@ -631,10 +752,12 @@
         $('[data-rescue-modal-test]', body).addEventListener('click', () => sendRescueAction(action));
     }
 
-    function giftButtonMarkup(rule) {
-        if (!rule?.giftId) return '<span class="nhatla-gift-placeholder">🎁 Chọn quà</span>';
+    // compact = chỉ icon + số kim cương (dòng Giải cứu đã có tên hành động riêng, tên quà chỉ tổ chật).
+    function giftButtonMarkup(rule, compact) {
+        if (!rule?.giftId) return `<span class="nhatla-gift-placeholder">🎁${compact ? '' : ' Chọn quà'}</span>`;
         const icon = rule.giftImage ? `<img src="${esc(rule.giftImage)}" alt="" onerror="this.remove()">` : '<span class="nhatla-gift-icon">🎁</span>';
-        return `${icon}<span class="nhatla-gift-name">${esc(rule.giftName || 'Quà TikTok')}</span><span class="nhatla-gift-coin">${Math.round(Number(rule.diamond) || 0)} 💎</span>`;
+        const name = compact ? '' : `<span class="nhatla-gift-name">${esc(rule.giftName || 'Quà TikTok')}</span>`;
+        return `${icon}${name}<span class="nhatla-gift-coin">${Math.round(Number(rule.diamond) || 0)} 💎</span>`;
     }
 
     function readRules() {
@@ -825,6 +948,227 @@
         $('#nl-top-reset').addEventListener('click', () => fetch('/api/nhatla/top/reset', { method: 'POST' }).catch(() => {}));
     }
 
+    /* ====================================================================
+       📋 BẢNG QUÀ
+       ====================================================================
+       Bảng hiện ở overlay RIÊNG /overlay/nhatla-gifts (browser source thứ hai
+       trong OBS) — xem ghi chú giftBoard trong game.js về lý do không nhét
+       chung với overlay lá.
+
+       Tab này KHÔNG có danh sách quà riêng: nó soi lại ba nguồn đã gán quà
+       sẵn ở các tab khác. Mỗi dòng cho sửa nhãn hiển thị và hai công tắc:
+         👁  boardHidden — chỉ giấu khỏi bảng, quà VẪN kích hoạt bình thường
+         ⏻  enabled     — tắt hẳn, quà không kích hoạt gì nữa (dùng khi quà lỗi)
+       ==================================================================== */
+
+    // Ba nguồn quà, kèm cách suy ra nhãn mặc định khi người dùng chưa đặt nhãn riêng.
+    function boardGroups() {
+        return [
+            {
+                key: 'rule', title: '🍂 Quà rơi lá', list: cfg.giftRules || [],
+                autoLabel: rule => (Number(rule.count) > 0 ? `${Math.round(rule.count)} lá` : '(chưa đặt số lá)')
+            },
+            {
+                key: 'effect', title: '✨ Hiệu ứng', list: cfg.effects.effectGifts || [],
+                autoLabel: rule => rule.name || rule.giftName || '(chưa đặt tên)'
+            },
+            {
+                key: 'rescue', title: '🛟 Giải cứu', list: cfg.rescue.actions || [],
+                autoLabel: action => action.name || '(chưa đặt tên)'
+            }
+        ];
+    }
+
+    function boardRangeRow(label, key, min, max, help) {
+        const value = Math.round(Number(cfg.giftBoard[key]) || 0);
+        return `<label class="nhatla-range-row"><span><b>${label}</b><small>${help || ''}</small></span><input type="range" min="${min}" max="${max}" value="${value}" data-board-range="${key}"><output>${value}%</output></label>`;
+    }
+
+    function boardOverlayUrl() {
+        return window.buildOverlayURL
+            ? window.buildOverlayURL('/overlay/nhatla-gifts')
+            : `${location.origin}/overlay/nhatla-gifts`;
+    }
+
+    // Đẩy thẳng sang overlay bảng, không đợi save() (debounce 260ms). Gửi kèm entries đã
+    // tính sẵn vì server chưa có config mới trên đĩa lúc người dùng còn đang gõ.
+    function relayBoard() {
+        socket?.emit('nhatla:transient', {
+            type: 'giftboard',
+            giftBoard: { ...cfg.giftBoard },
+            entries: game.giftBoardEntries(cfg)
+        });
+    }
+
+    // Vẽ lại RIÊNG ô xem trước. Gọi hàm này thay vì renderGiftBoard() sau mỗi phím gõ —
+    // vẽ lại cả pane sẽ thay luôn ô input đang có con trỏ, mất focus giữa chừng.
+    function renderBoardPreview() {
+        const host = $('#nl-board-preview');
+        if (!host) return;
+        const entries = game.giftBoardEntries(cfg);
+        game.giftBoardPaint($('#nl-board-preview-board'), cfg, entries);
+        // Sân khấu xem trước là bản 1080×1920 thu nhỏ, nhờ vậy vị trí và cỡ chữ trong ô
+        // khớp đúng tỉ lệ với bảng thật trên OBS.
+        //
+        // Chặn theo CHIỀU CAO chứ không chỉ theo bề ngang: sân khấu cao 1920, vừa hết bề
+        // ngang một cột panel ~940px là ô cao hơn 1600px — cao hơn cả màn hình, phải cuộn
+        // mãi mới thấy bảng nằm ở góc trên. PREVIEW_MAX_H giữ ô luôn liếc một cái là thấy.
+        //
+        // Đo bề ngang của THẺ CHA, không đo chính `host`: bên dưới có gán lại width cho
+        // host, đo lại chính nó là lần vẽ sau ăn theo lần trước rồi co dần về 0.
+        const PREVIEW_MAX_H = 460;
+        const avail = host.parentElement?.clientWidth || 320;
+        const scale = Math.min(avail / 1080, PREVIEW_MAX_H / 1920);
+        $('#nl-board-preview-stage').style.transform = `scale(${scale})`;
+        host.style.width = `${Math.round(1080 * scale)}px`;
+        host.style.height = `${Math.round(1920 * scale)}px`;
+        $('#nl-board-empty').hidden = entries.length > 0;
+    }
+
+    function renderGiftBoard() {
+        const board = cfg.giftBoard;
+        const scroll = board.autoScroll;
+        const groups = boardGroups();
+        const rows = groups.map(group => {
+            if (!group.list.length) return '';
+            return `<div class="nhatla-board-group"><h4>${group.title}</h4>${group.list.map((item, index) => {
+                const auto = group.autoLabel(item);
+                const off = item.enabled === false;
+                const hidden = item.boardHidden === true;
+                return `<div class="nhatla-board-row ${off ? 'is-off' : ''}" data-board-src="${group.key}" data-board-index="${index}">
+                    <img class="nhatla-board-ico" src="${esc(item.giftImage || '/hp-logo.png')}" alt="" onerror="this.onerror=null;this.src='/hp-logo.png'">
+                    <span class="nhatla-board-gift" title="${esc(item.giftName || 'Chưa gán quà')}">${esc(item.giftName || '— chưa gán quà —')}</span>
+                    <input class="nhatla-board-label" data-board-label type="text" maxlength="60" value="${esc(item.label || '')}" placeholder="${esc(auto)}" title="Tên người xem thấy trên bảng. Để trống thì dùng: ${esc(auto)}">
+                    <button class="ghost tiny ${hidden ? '' : 'is-on'}" data-board-eye title="${hidden ? 'Đang ẩn khỏi bảng — bấm để hiện lại' : 'Đang hiện trên bảng — bấm để ẩn (quà vẫn chạy)'}">${hidden ? '🙈' : '👁'}</button>
+                    <button class="ghost tiny ${off ? '' : 'is-on'}" data-board-power title="${off ? 'Đã TẮT HẲN — quà không kích hoạt gì. Bấm để bật lại' : 'Đang chạy — bấm để TẮT HẲN (quà lỗi thì dùng cái này)'}">${off ? '⭘' : '⏻'}</button>
+                </div>`;
+            }).join('')}</div>`;
+        }).join('');
+
+        $('#nl-giftboard-pane').innerHTML = `
+            <div class="nhatla-card">
+                <h3>📋 Bảng quà cho người xem</h3>
+                <p class="nhatla-muted">Bảng liệt kê <b>icon + tên</b> những quà đang có tác dụng, để người xem biết tặng gì thì được gì. Bảng chạy ở <b>browser source riêng</b> trong OBS nên không làm nặng overlay lá.</p>
+                <label class="toggle-row nhatla-toggle"><input id="nl-board-enabled" type="checkbox" ${board.enabled !== false ? 'checked' : ''}><span>Bật bảng quà</span></label>
+                <div class="nhatla-actions">
+                    <button id="nl-board-copy" class="primary small">📋 COPY link bảng quà</button>
+                    <button id="nl-board-open" class="ghost small">🪟 Mở thử</button>
+                </div>
+                <p class="nhatla-muted">Dán link vào OBS → <b>Nguồn → Trình duyệt</b>, cỡ <b>1080 × 1920</b>, nền trong suốt.</p>
+            </div>
+            <div class="nhatla-card">
+                <h3>🎨 Kiểu hiển thị</h3>
+                <label class="nhatla-number-row">Xếp thẻ
+                    <select id="nl-board-layout">
+                        <option value="vertical" ${board.layout === 'vertical' ? 'selected' : ''}>Dọc — xếp chồng từ trên xuống</option>
+                        <option value="horizontal" ${board.layout === 'horizontal' ? 'selected' : ''}>Ngang — xếp hàng từ trái sang</option>
+                    </select>
+                </label>
+                <label class="nhatla-number-row">Chữ nằm
+                    <select id="nl-board-namepos">
+                        <option value="right" ${board.namePos === 'right' ? 'selected' : ''}>Bên phải icon</option>
+                        <option value="left" ${board.namePos === 'left' ? 'selected' : ''}>Bên trái icon</option>
+                        <option value="bottom" ${board.namePos === 'bottom' ? 'selected' : ''}>Dưới icon</option>
+                        <option value="top" ${board.namePos === 'top' ? 'selected' : ''}>Trên icon</option>
+                    </select>
+                </label>
+                <label class="toggle-row nhatla-toggle"><input id="nl-board-diamond" type="checkbox" ${board.showDiamond === true ? 'checked' : ''}><span>Hiện giá quà (💎)</span></label>
+                ${boardRangeRow('Cỡ tổng thể', 'scale', 40, 250, 'Phóng to/thu nhỏ cả bảng')}
+                ${boardRangeRow('Cỡ icon', 'iconScale', 40, 250, 'Riêng ảnh quà')}
+                ${boardRangeRow('Cỡ chữ', 'nameScale', 40, 250, 'Riêng phần chữ')}
+                ${boardRangeRow('Giãn cách', 'gap', 0, 400, 'Khoảng hở giữa hai thẻ')}
+                ${boardRangeRow('Ngang', 'xPercent', 0, 92, 'Tính từ mép trái overlay')}
+                ${boardRangeRow('Dọc', 'yPercent', 0, 92, 'Tính từ mép trên overlay')}
+            </div>
+            <div class="nhatla-card">
+                <h3>🎞 Cuộn tự động</h3>
+                <p class="nhatla-muted">Nhiều quà quá thì cho danh sách chạy vòng thay vì kéo dài hết màn hình.</p>
+                <label class="toggle-row nhatla-toggle"><input id="nl-board-scroll" type="checkbox" ${scroll.enabled ? 'checked' : ''}><span>Bật cuộn</span></label>
+                <label class="nhatla-number-row">Hiện mấy thẻ một lúc <input id="nl-board-visible" type="number" min="2" max="30" value="${Math.round(scroll.visibleCount)}"></label>
+                <label class="nhatla-number-row">Chiều chạy
+                    <select id="nl-board-dir">
+                        <option value="up" ${scroll.direction === 'up' ? 'selected' : ''}>Lên</option>
+                        <option value="down" ${scroll.direction === 'down' ? 'selected' : ''}>Xuống</option>
+                        <option value="left" ${scroll.direction === 'left' ? 'selected' : ''}>Sang trái</option>
+                        <option value="right" ${scroll.direction === 'right' ? 'selected' : ''}>Sang phải</option>
+                    </select>
+                </label>
+                <label class="nhatla-number-row">Mỗi thẻ trôi hết vòng trong <input id="nl-board-speed" type="number" min="0.5" max="20" step="0.5" value="${scroll.speed}"> giây</label>
+            </div>
+            <div class="nhatla-card">
+                <h3>👀 Xem trước</h3>
+                <p class="nhatla-muted">Đúng bằng những gì OBS đang hiện. Sửa tên bên dưới là đổi ngay ở đây <b>và</b> trên OBS.</p>
+                <div id="nl-board-preview" class="nhatla-board-preview">
+                    <div id="nl-board-preview-stage" class="nlb-stage">
+                        <div id="nl-board-preview-board" class="nlb-board"></div>
+                    </div>
+                </div>
+                <div id="nl-board-empty" class="nhatla-muted" hidden>Chưa có quà nào để hiện. Gán quà ở tab <b>🎁 Quà chỉ định</b>, <b>✨ Hiệu ứng</b> hoặc <b>🛟 Giải cứu</b> trước.</div>
+            </div>
+            <div class="nhatla-card">
+                <h3>🎁 Quà trên bảng</h3>
+                <p class="nhatla-muted"><b>👁</b> chỉ giấu khỏi bảng — quà <b>vẫn chạy</b> bình thường. <b>⏻</b> tắt hẳn — quà không kích hoạt gì nữa, dùng khi quà bị lỗi.</p>
+                ${rows || '<div class="nhatla-muted">Chưa gán quà nào.</div>'}
+            </div>`;
+
+        renderBoardPreview();
+
+        // ── Thanh trượt & lựa chọn: relay ngay cho OBS bám theo tay, save() có debounce ──
+        $$('[data-board-range]', $('#nl-giftboard-pane')).forEach(input => input.addEventListener('input', () => {
+            cfg.giftBoard[input.dataset.boardRange] = Number(input.value);
+            input.nextElementSibling.textContent = input.value + '%';
+            renderBoardPreview(); relayBoard(); save();
+        }));
+        const pick = (id, apply) => $(id).addEventListener('change', event => {
+            apply(event.target);
+            renderBoardPreview(); relayBoard(); save();
+        });
+        pick('#nl-board-enabled', el => { cfg.giftBoard.enabled = el.checked; });
+        pick('#nl-board-diamond', el => { cfg.giftBoard.showDiamond = el.checked; });
+        pick('#nl-board-layout', el => { cfg.giftBoard.layout = el.value; });
+        pick('#nl-board-namepos', el => { cfg.giftBoard.namePos = el.value; });
+        pick('#nl-board-scroll', el => { cfg.giftBoard.autoScroll.enabled = el.checked; });
+        pick('#nl-board-dir', el => { cfg.giftBoard.autoScroll.direction = el.value; });
+        pick('#nl-board-visible', el => { cfg.giftBoard.autoScroll.visibleCount = game.clamp(el.value, 2, 30); });
+        pick('#nl-board-speed', el => { cfg.giftBoard.autoScroll.speed = game.clamp(el.value, 0.5, 20); });
+
+        $('#nl-board-copy').addEventListener('click', async event => {
+            const button = event.currentTarget;
+            const ok = window.hpCopyText ? await window.hpCopyText(boardOverlayUrl()) : false;
+            const old = button.dataset.label || button.textContent;
+            button.dataset.label = old;
+            button.textContent = ok ? '✓ Đã copy' : 'Copy thất bại';
+            setTimeout(() => { if (button.isConnected) button.textContent = old; }, 1400);
+        });
+        $('#nl-board-open').addEventListener('click', () => window.open('/overlay/nhatla-gifts', 'hp-nhatla-board'));
+
+        // ── Từng dòng quà ──
+        const itemAt = element => {
+            const row = element.closest('[data-board-src]');
+            const group = boardGroups().find(entry => entry.key === row.dataset.boardSrc);
+            return { row, item: group.list[Number(row.dataset.boardIndex)] };
+        };
+        // 'input' chứ không phải 'change': người dùng gõ tới đâu OBS đổi tới đó, đúng yêu
+        // cầu "sửa tên là tự đổi trong app và OBS". Chỉ vẽ lại ô xem trước, KHÔNG vẽ lại cả
+        // pane — vẽ lại pane sẽ thay chính ô đang gõ và cướp mất con trỏ.
+        $$('[data-board-label]', $('#nl-giftboard-pane')).forEach(input => input.addEventListener('input', event => {
+            itemAt(event.currentTarget).item.label = event.currentTarget.value.slice(0, 60);
+            renderBoardPreview(); relayBoard(); save();
+        }));
+        $$('[data-board-eye]', $('#nl-giftboard-pane')).forEach(button => button.addEventListener('click', event => {
+            const { item } = itemAt(event.currentTarget);
+            item.boardHidden = !item.boardHidden;
+            renderGiftBoard(); relayBoard(); save(true);
+        }));
+        $$('[data-board-power]', $('#nl-giftboard-pane')).forEach(button => button.addEventListener('click', event => {
+            const { item } = itemAt(event.currentTarget);
+            item.enabled = item.enabled === false;
+            // save(true) không debounce: tắt hẳn thường là lúc quà đang bắn lỗi trên sóng,
+            // chậm 260ms là thêm một lượt hiệu ứng hỏng nữa lọt ra.
+            renderGiftBoard(); relayBoard(); save(true);
+        }));
+    }
+
     function bindShell() {
         $$('.nl-tab', root()).forEach(button => button.addEventListener('click', () => setTab(button.dataset.nlTab)));
         $('#nl-cfg-enabled').addEventListener('change', event => { cfg.enabled = event.target.checked; save(true); });
@@ -843,7 +1187,7 @@
             if (gameId !== 'nhatla') return;
             cfg = game.normalizeConfig(config);
             $('#nl-cfg-enabled').checked = cfg.enabled;
-            renderDisplay(); renderGifts(); renderEffects(); renderRescue(); renderTopDonors();
+            renderDisplay(); renderGifts(); renderEffects(); renderRescue(); renderTopDonors(); renderGiftBoard();
         });
         socket?.on('nhatla:top', data => {
             topList = Array.isArray(data?.list) ? data.list : [];
@@ -863,7 +1207,7 @@
         // vào skins/ hoặc thêm ảnh vào thư mục Tuỳ chỉnh trên Desktop.
         await loadSkinCatalog();
         $('#nl-cfg-enabled').checked = cfg.enabled;
-        renderDisplay(); renderGifts(); renderEffects(); renderRescue(); renderTopDonors(); setTab(currentTab);
+        renderDisplay(); renderGifts(); renderEffects(); renderRescue(); renderTopDonors(); renderGiftBoard(); setTab(currentTab);
         // Bảng TOP sống trong RAM server; mở lại tab giữa buổi phải kéo về chứ không đợi quà kế tiếp.
         fetch('/api/nhatla/top').then(r => r.json()).then(data => {
             topList = Array.isArray(data?.list) ? data.list : [];

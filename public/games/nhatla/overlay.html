@@ -25,6 +25,13 @@
            đống mà không phải chỉnh z-index thủ công. Nhưng ĐỪNG trông đợi nó gánh hiệu năng —
            đòn bẩy thật là số lá tĩnh trong vùng bị quét (xem startGust). */
         #nl-air { position: absolute; inset: 0; background: transparent !important; will-change: transform; pointer-events: none; }
+        /* Lá ĐANG CẦM TRÊN TAY có layer riêng nằm trên thùng rác (80000) và các bảng số
+           (88000–90000), chỉ dưới bàn tay (100000). Không có layer này thì lá nằm trong
+           #nl-pile / #nl-air — cả hai đều có will-change nên tự tạo stacking context, và
+           z-index 99999 đặt trên chiếc lá chỉ có tác dụng BÊN TRONG layer đó. Kết quả là
+           đưa lá vào thùng thì lá chui xuống dưới mặt thùng, mất hẳn cảm giác cầm lá
+           thả vào. Layer này chỉ chứa đúng một chiếc lá tại một thời điểm. */
+        #nl-drag { position: absolute; inset: 0; z-index: 95000; background: transparent !important; pointer-events: none; }
         /* KHÔNG đặt filter/will-change lên .nl-leaf. Hai thuộc tính này nhân theo số lá:
            mỗi lá thành một layer GPU riêng kèm blur phải tính lại mỗi frame. Đo lúc 3000 lá
            cùng bay: có filter+will-change = 497ms/frame, bỏ đi = 44ms/frame (nhanh hơn 11 lần).
@@ -121,6 +128,30 @@
         #nl-top-fly-row .nl-top-resize { bottom: 0; }
         #nl-top-board { position: absolute; left: 62%; top: 6%; z-index: 88000; display: flex; flex-direction: column; gap: .35em; padding: .7em .85em; border-radius: 1em; color: #fff9de; background: rgba(24, 16, 8, .68); border: .07em solid rgba(255, 223, 145, .62); box-shadow: 0 .18em .5em rgba(0, 0, 0, .32); font-size: 26px; cursor: none; touch-action: none; }
         #nl-top-board[hidden] { display: none; }
+        /* ── DANH SÁCH TÚI NỢ ────────────────────────────────────────────────────────
+           Mọi số đo bên trong tính bằng `em` và cỡ chữ gốc do JS đặt theo bags.scale, nên
+           một phép ghi font-size là phóng to/thu nhỏ cả cụm — khỏi phải sờ tới từng túi.
+           Cả cụm nằm ngoài luồng render lá (không có phần tử nào trong #nl-air/#nl-pile)
+           nên không góp một byte nào vào chi phí mỗi frame của đám lá. */
+        #nl-bags { position: absolute; left: 4%; top: 6%; z-index: 88000; display: flex; align-items: center; gap: .3em; font-size: 26px; cursor: none; touch-action: none; }
+        #nl-bags[hidden] { display: none; }
+        #nl-bags.nl-bags-vertical { flex-direction: column; }
+        .nl-bag { flex: none; width: 2.4em; height: 2.4em; object-fit: contain; filter: drop-shadow(0 .12em .18em rgba(0, 0, 0, .55)); transform-origin: 50% 100%; }
+        /* Túi đang gom dở: phình dần theo --fill (0→1) để nhìn ra "sắp đầy một túi nữa".
+           Chỉ là 1 phép ghi CSS var mỗi lần đếm lại, không dựng lại DOM — xem renderBags(). */
+        .nl-bag-part { opacity: calc(.34 + var(--fill, 0) * .66); transform: scale(calc(.56 + var(--fill, 0) * .44)); }
+        /* Túi vừa bị bung: nảy lên rồi tan. Chạy hoàn toàn bằng compositor (transform +
+           opacity), không đụng layout, nên bung túi giữa lúc 6000 lá đang rơi cũng không
+           cướp frame nào của đám lá. */
+        .nl-bag-burst { animation: nl-bag-burst .5s ease-out forwards; }
+        @keyframes nl-bag-burst {
+            0% { transform: scale(1); opacity: 1; }
+            35% { transform: scale(1.35) rotate(-8deg); opacity: 1; filter: brightness(1.8) drop-shadow(0 0 .5em rgba(255, 228, 103, .9)); }
+            100% { transform: scale(.2) translateY(1.2em); opacity: 0; }
+        }
+        .nl-bag-more, .nl-bag-count { flex: none; color: #fff9de; text-shadow: 0 .08em .16em rgba(0, 0, 0, .85); font-weight: 700; white-space: nowrap; }
+        .nl-bag-more { font-size: 1.05em; }
+        .nl-bag-count { font-size: .78em; opacity: .92; padding: .12em .5em; border-radius: 1em; background: rgba(24, 16, 8, .68); border: .07em solid rgba(255, 223, 145, .55); }
         #nl-top-board .nl-top-title { font-weight: 900; letter-spacing: .02em; text-shadow: 0 .07em .07em rgba(0, 0, 0, .8); }
         #nl-top-board .nl-top-card { background: rgba(0, 0, 0, .3); border-width: .06em; box-shadow: none; }
         #nl-top-board .nl-top-empty { opacity: .72; font-weight: 700; font-size: .82em; }
@@ -155,8 +186,10 @@
         <div id="nl-air"></div>
         <div id="nl-hud" title="Kéo để đổi vị trí bảng số lượng">🍂 Tổng số lá: <b id="nl-total">0</b><br>🧹 Tổng số dọn: <b id="nl-cleaned">0</b><br>🍃 Còn lại: <b id="nl-remaining">0</b></div>
         <div id="nl-top-board" title="Kéo để đổi vị trí bảng TOP" hidden></div>
+        <div id="nl-bags" title="Kéo để đổi vị trí danh sách túi nợ" hidden></div>
         <div id="nl-top-fly-lane" hidden><div id="nl-top-fly-row"></div></div>
         <img id="nl-bin" src="/games/nhatla/skins/thung/mac-dinh/01.png" draggable="false" alt="Thùng rác" />
+        <div id="nl-drag"></div>
         <div id="nl-hand-wrap"><img id="nl-hand" src="/games/nhatla/assets/hp-bantay.png" draggable="false" alt="" /></div>
         <video id="nl-effect-fx" src="/games/nhatla/assets/fx/tom.webm" playsinline preload="auto" aria-hidden="true"></video>
         <div id="nl-effect-editor" hidden><span class="nl-effect-editor-label"></span><i class="nl-effect-resize tl" data-resize-corner></i><i class="nl-effect-resize tr" data-resize-corner></i><i class="nl-effect-resize bl" data-resize-corner></i><i class="nl-effect-resize br" data-resize-corner></i></div>
@@ -171,6 +204,7 @@
         const root = $('nl-root');
         const pile = $('nl-pile');
         const air = $('nl-air');
+        const dragLayer = $('nl-drag');
         const bin = $('nl-bin');
         const hand = $('nl-hand');
         const handWrap = $('nl-hand-wrap');
@@ -178,6 +212,7 @@
         const effectEditor = $('nl-effect-editor');
         const hud = $('nl-hud');
         const topBoard = $('nl-top-board');
+        const bagsEl = $('nl-bags');
         const topFlyLane = $('nl-top-fly-lane');
         const topFlyRow = $('nl-top-fly-row');
         const cleanedEl = $('nl-cleaned');
@@ -198,9 +233,11 @@
         // bộ). Chúng trỏ vào bộ đã commit trong repo nên chắc chắn có file.
         const FALLBACK_HAT = { id: 'la-mua-thu', name: 'Lá mùa thu', dir: '/games/nhatla/skins/hat/la-mua-thu', count: 12, ext: 'png', baseSize: 110 };
         const FALLBACK_BIN = { id: 'mac-dinh', name: 'Thùng mặc định', dir: '/games/nhatla/skins/thung/mac-dinh', ext: 'png', baseWidth: 260, flashMs: 720 };
-        let skinCatalog = { hat: [], thung: [] };
+        const FALLBACK_BAG = { id: 'mac-dinh', name: 'Túi đen mặc định', dir: '/games/nhatla/skins/tui/mac-dinh', ext: 'png' };
+        let skinCatalog = { hat: [], thung: [], tui: [] };
         let hatSkin = FALLBACK_HAT;
         let binSkin = FALLBACK_BIN;
+        let bagSkin = FALLBACK_BAG;
         // Một timer duy nhất cho cả nhịp chớp nháy: dọn liên tục nhiều lá thì lần cuối gia
         // hạn lần trước, thay vì timer cũ trả ảnh về giữa nhịp của timer mới.
         let binFlashTimer = null;
@@ -238,6 +275,9 @@
         let topFlyDragging = null;
         let topFlyResizing = null;
         let pendingTopSave = null;
+        let bagsDragging = null;
+        let bagsResizing = null;
+        let pendingBagsSave = null;
         let activePointerId = null;
         let lastFrame = performance.now();
         let saveBinTimer = null;
@@ -384,6 +424,7 @@
                 pumpPendingActions(now);
                 updateAutoClean(now, dt);
                 updateLeafAnimations(now, dt);
+                pourBagIfDue();
             }
             return window.__nlPerf();
         };
@@ -521,6 +562,111 @@
             // Còn lại = lá đang vẽ + lá nằm trong kho. Không còn buộc bằng số phần tử DOM.
             remainingEl.textContent = (leaves.length + backlog).toLocaleString('vi-VN');
             hud.style.display = cfg.display.showHud === false ? 'none' : '';
+            renderBags();
+        }
+
+        // Ảnh túi rác lấy từ bộ skin đang chọn (skins/tui/<id>/01.png). SVG dưới đây là bản
+        // dự phòng cuối cùng để tính năng không bao giờ hiện ô ảnh vỡ nếu file bị xoá.
+        function bagImageUrl() {
+            return `${bagSkin.dir}/01.${bagSkin.ext || 'png'}`;
+        }
+        const BAG_FALLBACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+            '<defs><radialGradient id="g" cx="38%" cy="30%" r="75%">' +
+            '<stop offset="0" stop-color="#5a5a5e"/><stop offset="55%" stop-color="#2b2b2f"/>' +
+            '<stop offset="1" stop-color="#101012"/></radialGradient></defs>' +
+            '<path d="M50 20c-4-7-13-9-15-4 6 1 9 5 10 8-6-3-13 0-12 4 4-3 9-2 12 0-14 6-23 22-23 40 0 16 15 22 28 22s28-6 28-22c0-18-9-34-23-40 3-2 8-3 12 0 1-4-6-7-12-4 1-3 4-7 10-8-2-5-11-3-15 4z" fill="url(%23g)" stroke="#000" stroke-width="1.5"/>' +
+            '<path d="M32 45c4 10 3 24-1 34M62 44c5 11 5 25 1 35M47 40c-1 14-1 34 1 44" stroke="#7d7d84" stroke-width="1.6" fill="none" opacity=".55" stroke-linecap="round"/>' +
+            '</svg>'
+        );
+
+        // Số ẢNH túi đang có trong DOM. Chỉ dựng lại danh sách khi con số này đổi — refreshHud
+        // chạy MỖI FRAME lúc lá đang rơi, dựng lại DOM ở đó là tự tay tạo ra cái lag mà cả
+        // tính năng này sinh ra để tránh. Đặt -1 để lần gọi đầu luôn dựng.
+        let bagIconCount = -1;
+        let bagHasPart = false;
+        let bagPartEl = null;
+        let bagMoreEl = null;
+        let bagCountEl = null;
+
+        function renderBags() {
+            const b = cfg.bags || {};
+            const show = b.enabled !== false && b.showList !== false;
+            bagsEl.hidden = !show;
+            if (!show) return;
+            const size = bagSize();
+            const full = Math.floor(backlog / size);
+            const partial = backlog - full * size;
+            const total = full + (partial > 0 ? 1 : 0);
+            const icons = Math.min(total, Math.max(1, Number(b.maxIcons) || 10));
+            if (icons !== bagIconCount || (partial > 0) !== bagHasPart) {
+                buildBagIcons(icons, partial > 0);
+                bagIconCount = icons;
+                bagHasPart = partial > 0;
+            }
+            // Túi đang gom: một phép ghi CSS var, compositor lo phần còn lại.
+            if (bagPartEl) bagPartEl.style.setProperty('--fill', (partial / size).toFixed(3));
+            if (bagMoreEl) bagMoreEl.textContent = total > icons ? `+${(total - icons).toLocaleString('vi-VN')}` : '';
+            if (bagCountEl) bagCountEl.textContent = backlog > 0 ? `${backlog.toLocaleString('vi-VN')} lá` : '';
+        }
+
+        function buildBagIcons(icons, hasPart) {
+            // Núm kéo cỡ bị dựng lại cùng danh sách nên phải gắn listener một lần rồi giữ
+            // tham chiếu — xem bagsResizeEl bên dưới, nó được append lại chứ không tạo mới.
+            bagsResizeEl.remove();
+            bagsEl.textContent = '';
+            bagPartEl = null;
+            const frag = document.createDocumentFragment();
+            for (let i = 0; i < icons; i++) {
+                const img = document.createElement('img');
+                img.className = 'nl-bag';
+                img.src = bagImageUrl();
+                img.draggable = false;
+                img.alt = '';
+                img.addEventListener('error', () => { img.src = BAG_FALLBACK; }, { once: true });
+                // Túi đang gom dở luôn là túi CUỐI hàng: nó là túi mới nhất, chưa đóng miệng.
+                if (hasPart && i === icons - 1) {
+                    img.classList.add('nl-bag-part');
+                    bagPartEl = img;
+                }
+                frag.appendChild(img);
+            }
+            bagMoreEl = document.createElement('b');
+            bagMoreEl.className = 'nl-bag-more';
+            frag.appendChild(bagMoreEl);
+            bagCountEl = document.createElement('b');
+            bagCountEl.className = 'nl-bag-count';
+            frag.appendChild(bagCountEl);
+            bagsEl.appendChild(frag);
+            bagsEl.appendChild(bagsResizeEl);
+        }
+
+        // Túi vừa bung: cho một BẢN SAO của túi đầu hàng nảy lên rồi tan. Phải là bản sao chứ
+        // không phải phần tử thật, vì phần tử thật bị renderBags() thay ngay sau đó — animation
+        // gắn lên nó sẽ đứt giữa chừng. Trả về bản sao để người gọi tự chọn lúc gắn vào DOM.
+        // position:absolute nên nó không chen vào hàng flex và không đẩy mấy túi còn lại.
+        function makeBagGhost() {
+            const first = bagsEl.querySelector('.nl-bag');
+            if (!first || bagsEl.hidden) return null;
+            const ghost = first.cloneNode();
+            ghost.classList.remove('nl-bag-part');
+            ghost.classList.add('nl-bag-burst');
+            ghost.style.removeProperty('--fill');
+            ghost.style.position = 'absolute';
+            ghost.style.left = `${first.offsetLeft}px`;
+            ghost.style.top = `${first.offsetTop}px`;
+            ghost.style.pointerEvents = 'none';
+            setTimeout(() => ghost.remove(), 520);
+            return ghost;
+        }
+
+        function applyBagsLayout() {
+            const b = cfg.bags || {};
+            bagsEl.style.left = `${b.xPercent}%`;
+            bagsEl.style.top = `${b.yPercent}%`;
+            // Một phép ghi font-size phóng cả cụm: mọi số đo bên trong tính bằng em.
+            bagsEl.style.fontSize = `${26 * (Number(b.scale) || 100) / 100}px`;
+            bagsEl.classList.toggle('nl-bags-vertical', b.orientation === 'vertical');
         }
 
         // Ảnh trong một bộ luôn đánh số 01, 02, … nên suy ra được đường dẫn từ count trong
@@ -548,14 +694,24 @@
         function applySkins() {
             hatSkin = pickSkin('hat', cfg.display.hatSkin, FALLBACK_HAT);
             binSkin = pickSkin('thung', cfg.display.binSkin, FALLBACK_BIN);
+            const previousBagId = bagSkin.id;
+            bagSkin = pickSkin('tui', cfg.display.bagSkin, FALLBACK_BAG);
             leafUrls = skinFrames(hatSkin);
             bin.src = `${binSkin.dir}/01.${binSkin.ext || 'png'}`;
             bin.style.setProperty('--bin-flash', `${Number(binSkin.flashMs) || 720}ms`);
+            // Đổi ảnh tại chỗ thay vì gọi buildBagIcons(): số túi không đổi nên dựng lại cả
+            // hàng chỉ để đổi src là phí, mà còn thổi bay túi đang gom dở (class nl-bag-part
+            // và biến --fill nằm trên chính phần tử đó).
+            if (bagSkin.id !== previousBagId) {
+                const url = bagImageUrl();
+                for (const img of bagsEl.querySelectorAll('.nl-bag')) img.src = url;
+            }
 
             // Người dùng vừa thả một bộ mới vào đĩa rồi chọn ngay: danh mục trong tab này
             // chưa có id đó nên vừa lùi về bộ khác. Nạp lại danh mục đúng một lần rồi áp lại,
             // thay vì bắt họ reload overlay. catalogRetried chặn vòng lặp khi id thật sự sai.
-            const missing = hatSkin.id !== cfg.display.hatSkin || binSkin.id !== cfg.display.binSkin;
+            const missing = hatSkin.id !== cfg.display.hatSkin || binSkin.id !== cfg.display.binSkin
+                || bagSkin.id !== cfg.display.bagSkin;
             if (missing && !catalogRetried) {
                 catalogRetried = true;
                 loadSkinCatalog().then(applySkins);
@@ -598,11 +754,11 @@
         // Bàn tay chỉ được phép biến mất khi không còn lý do nào giữ nó lại — kể cả
         // lúc đang sưng mà người dùng không cầm lá và không rê chuột.
         function handShouldStay() {
-            return !!(dragging || binDragging || hudDragging || topBoardDragging || topBoardResizing || remoteHandTarget || handHitActive);
+            return !!(dragging || binDragging || hudDragging || topBoardDragging || topBoardResizing || bagsDragging || bagsResizing || remoteHandTarget || handHitActive);
         }
 
         function handIsClosed() {
-            return !!(dragging || binDragging || hudDragging || topBoardDragging || topBoardResizing || remoteHandTarget?.closed);
+            return !!(dragging || binDragging || hudDragging || topBoardDragging || topBoardResizing || bagsDragging || bagsResizing || remoteHandTarget?.closed);
         }
 
         function renderHandImage() {
@@ -687,6 +843,11 @@
         const topFlyResizeEl = document.createElement('i');
         topFlyResizeEl.className = 'nl-top-resize';
         topFlyResizeEl.title = 'Kéo để đổi cỡ chữ bay';
+        // Cùng lý do cho danh sách túi nợ: buildBagIcons() xoá sạch phần tử con mỗi lần số
+        // túi đổi, nên núm phải sống ngoài vòng đó rồi được append lại.
+        const bagsResizeEl = document.createElement('i');
+        bagsResizeEl.className = 'nl-top-resize';
+        bagsResizeEl.title = 'Kéo để đổi cỡ danh sách túi';
 
         function topCardEl(entry) {
             const card = document.createElement('div');
@@ -825,6 +986,7 @@
         function applyConfig(next) {
             const previousUnit = hatUnit();
             const previousHatId = hatSkin.id;
+            const previousLiftUnit = pileLiftUnit();
             cfg = game.normalizeConfig(next);
             applySkins();
             // So bằng ĐƠN VỊ CỠ HẠT chứ không riêng mức Kích thước, nên đổi bộ giữa chừng
@@ -844,11 +1006,16 @@
                     else if (leaf.state !== 'returning' && leaf.state !== 'collecting') leafTransform(leaf);
                 }
             }
+            restretchPile(pileLiftUnit() / previousLiftUnit, unitFactor);
             document.body.classList.toggle('nl-stopped', cfg.enabled === false);
             applyBinPosition();
             applyHandSize();
             applyHudPosition();
             applyTopDonors();
+            applyBagsLayout();
+            // Đổi số lá mỗi túi hoặc trần số ảnh là số túi phải đếm lại từ đầu — ép renderBags
+            // dựng lại thay vì tin vào bộ đếm cũ.
+            bagIconCount = -1;
             refreshHud();
             renderEffectEditor();
         }
@@ -903,6 +1070,68 @@
         const PILE_KERNEL = [1, .9, .72, .5, .3];
         const PILE_LIFT_MIN = .042, PILE_LIFT_MAX = .055;
 
+        // Hai hằng số trên cho ĐỐNG ĐẶC NHẤT, tức cũng là đống THẤP NHẤT với cùng số lá:
+        // 1000 lá chỉ dâng được một dải mỏng sát đáy. Hệ số dưới đây nhân thêm vào để đống
+        // dâng tới đúng mức người dùng muốn — và nó được TÍNH RA chứ không chỉnh tay.
+        //
+        // Suy ngược từ mô hình: mỗi lá cộng `size × lift × PILE_KERNEL[d]` vào 9 cột quanh
+        // chỗ nó đáp, tức tổng "khối" một lá bơm vào là size × lift × Σkernel. Lá rơi rải đều
+        // trên bề ngang (xem spawnLeaf) nên chia đều cho COLS cột:
+        //
+        //     bề cao trung bình sau N lá = N × sizeTB × liftTB × Σkernel / COLS
+        //
+        // Đặt bằng chiều cao đích rồi rút ra hệ số. Nhờ vậy đổi maxLeaves, đổi Kích thước lá
+        // hay đổi bộ ảnh rơi (lá 110px ↔ tuyết 44px) đều tự cân lại, không phải dò tay.
+        const PILE_KERNEL_SUM = PILE_KERNEL.reduce((sum, v, i) => sum + (i ? 2 * v : v), 0);
+        const PILE_LIFT_AVG = (PILE_LIFT_MIN + PILE_LIFT_MAX) / 2;
+        // spawnLeaf lấy size = hatUnit() × rand(.72, 1.18) — trung bình .95 lần đơn vị cỡ hạt.
+        const PILE_SIZE_AVG = .95;
+        // Chặn trên đặt tại chỗ mỗi hạt nâng đúng BẰNG THÂN NÓ: lift = size × LIFT_AVG × factor,
+        // nên lift = size ứng với factor ≈ 1/.0485 ≈ 20.6. Quá mức đó là hạt nâng nhiều hơn cả
+        // bề cao của chính nó, tức chồng lên nhau không còn chạm nhau — đống hoá đám bụi lơ
+        // lửng. Lấy tròn 20.
+        //
+        // ĐỪNG hạ số này xuống cho "an toàn": hạt càng nhỏ càng cần factor cao (tuyết 44px cần
+        // ~17.9 ở 600 hạt, trong khi lá 110px chỉ cần ~6.9). Chặn ở 14 như bản đầu là tuyết
+        // luôn đụng trần, và vì factor nằm trong hệ số giãn đống nên bấm đổi lá ↔ tuyết là
+        // đống nhảy 0.807 lần mỗi lượt — sai lệch tích luỹ, đổi qua đổi lại vài lần thì đống
+        // tụt hẳn. Chặn phải đủ cao để cả hai bộ ảnh nằm trong vùng tính được.
+        const PILE_FACTOR_MIN = .25, PILE_FACTOR_MAX = 20;
+        // Lá nằm NHÔ LÊN khỏi mặt đống: floorAt đặt tâm lá ở stack − size×.28, mép trên còn
+        // cao hơn nửa thân nữa. Cái nhìn thấy là mép trên, nên bề cao đống cần nhỏ hơn đích
+        // đúng bằng khoản này — bỏ qua thì đống vống lên quá đầu màn hình.
+        const PILE_LEAF_CROWN = .28 + .5;
+        // Mặt đống lồi lõm chứ không phẳng: lá rơi ngẫu nhiên nên mặt thật nhỉnh hơn mức trung
+        // bình công thức tính ra. Không suy được bằng đại số — nó là độ tản của phân bố chỗ
+        // đáp, chỉ đo mới ra. Đo bằng cách thả đủ maxLeaves lá rồi chia màn 20 cột, lấy mép
+        // trên cao nhất mỗi cột: với đích 90% thì 500 lá ra 90.2%, 1000 lá ra 93.0%.
+        const PILE_ROUGHNESS = 1.05;
+
+        function pileFactor() {
+            const fill = clamp(Number(cfg?.display?.pileFillPercent) || 90, 30, 100) / 100;
+            const maxLeaves = Math.max(1, Number(cfg?.drop?.maxLeaves) || 1);
+            const size = hatUnit() * PILE_SIZE_AVG;
+            // + PILE_BASE_SINK vì đáy đống nằm khuất dưới mép: phải dâng thêm bấy nhiêu thì
+            // phần NHÌN THẤY mới đạt đúng tỉ lệ người dùng đặt.
+            const target = fill * viewport.height + PILE_BASE_SINK - size * PILE_LEAF_CROWN;
+            const perLeaf = size * PILE_LIFT_AVG * PILE_KERNEL_SUM / COLS;
+            if (!(target > 0) || !(perLeaf > 0)) return PILE_FACTOR_MIN;
+            return clamp(target / (maxLeaves * perLeaf * PILE_ROUGHNESS), PILE_FACTOR_MIN, PILE_FACTOR_MAX);
+        }
+
+        // Bề cao MỘT LÁ cộng vào đống = leaf.size × rand(LIFT_MIN, LIFT_MAX) × pileFactor(),
+        // mà leaf.size tỉ lệ thuận hatUnit(). Vậy hệ số thật là TÍCH của hai thứ, không phải
+        // riêng pileFactor.
+        //
+        // Phân biệt này chỉ lộ ra lúc đổi bộ ảnh rơi: pileFactor tỉ lệ nghịch cỡ hạt nên đổi
+        // lá 110px sang tuyết 44px là nó vọt 2.57 lần, trong khi TÍCH gần như đứng yên (1.03).
+        // Lấy nhầm tỉ số pileFactor mà giãn đống thì heights[] phình 2.57 lần, đống vọt quá
+        // đỉnh màn hình, lá đang nằm bị đẩy lên kẹt hết vào chặn trên — và vì chặn làm mất
+        // thông tin nên đổi ngược lại cũng không về chỗ cũ được nữa.
+        function pileLiftUnit() {
+            return hatUnit() * pileFactor();
+        }
+
         function stackHeightAt(x) {
             const column = getColumn(x);
             let height = 0;
@@ -920,7 +1149,7 @@
 
         function addToPile(leaf) {
             const column = getColumn(leaf.x);
-            const lift = leaf.size * rand(PILE_LIFT_MIN, PILE_LIFT_MAX, leaf.random);
+            const lift = leaf.size * rand(PILE_LIFT_MIN, PILE_LIFT_MAX, leaf.random) * pileFactor();
             applyPileLift(column, lift, 1, viewport.height + leaf.size);
             // Nhớ đúng phần đống mà lá này cộng vào, để lúc nó rời đống rơi tự do thì trả
             // lại bấy nhiêu. Không có bước này, một lá rơi đi rơi lại sẽ thổi cột đống cao dần
@@ -956,6 +1185,35 @@
             return Math.min(y, viewport.height - size * (.5 - PILE_MAX_SINK_RATIO));
         }
 
+        // Đổi trần lá / độ đầy / bộ ảnh rơi lúc đống đã nằm sẵn trên màn: nếu hệ số mới chỉ áp
+        // cho lá MỚI thì người đang chỉnh không thấy gì cho tới lượt quà sau, không cách nào
+        // canh được mức ưng ý. Giãn luôn đống đang có — mọi đại lượng trong mô hình đều tuyến
+        // tính theo lift nên nhân k là đủ: heights[] (mặt đống), leaf.pile.lift (phần phải hoàn
+        // lại khi lá rời đống — sai chỗ này là đống phình vĩnh viễn) và bề cao mỗi lá đang đứng
+        // so với đáy đống.
+        // sizeRatio = mức cỡ hạt vừa đổi, vì người gọi đã nhân leaf.size TRƯỚC khi vào đây.
+        // Phải chia ngược ra cỡ CŨ mới suy đúng bề cao đống lúc lá đáp — lấy cỡ mới thì lệch
+        // (cỡ_cũ − cỡ_mới)×.28, đổi lá sang tuyết là hụt ~18px.
+        function restretchPile(k, sizeRatio = 1) {
+            const stretch = k > 0 ? k : 1;
+            if (Math.abs(stretch - 1) < 1e-6 && Math.abs(sizeRatio - 1) < 1e-6) return;
+            for (let i = 0; i < COLS; i++) heights[i] *= stretch;
+            for (const leaf of leaves) {
+                if (leaf.pile) leaf.pile.lift *= stretch;
+                if (leaf.state !== 'resting') continue;
+                const oldSize = sizeRatio ? leaf.size / sizeRatio : leaf.size;
+                // base − y − size*.28 chính là bề cao đống ngay dưới lá lúc nó đáp (xem floorAt).
+                const depth = viewport.height + PILE_BASE_SINK - leaf.y - oldSize * .28;
+                if (!(depth > 0)) continue;
+                leaf.y = Math.max(leaf.size * .25, Math.min(
+                    viewport.height + PILE_BASE_SINK - depth * stretch - leaf.size * .28,
+                    viewport.height - leaf.size * (.5 - PILE_MAX_SINK_RATIO)
+                ));
+                leafTransform(leaf);
+            }
+            scheduleStateSync();
+        }
+
         function renderCap() {
             return Number(cfg.drop.maxLeaves) || 6000;
         }
@@ -987,6 +1245,11 @@
 
         // Đống vơi đi thì rút lá từ kho ra bù, giữ mặt đống luôn đầy.
         function refillFromBacklog() {
+            // Chế độ TÚI NỢ khoá hẳn đường bù nhỏ giọt này: kho chỉ được mở NGUYÊN TÚI một
+            // lần, lúc màn hình đã vơi (xem pourBagIfDue). Bù 1:1 ở đây sẽ ghim số lá đang vẽ
+            // đứng mãi ở trần maxLeaves — máy gánh mức tải cao nhất suốt buổi, và số túi
+            // không bao giờ trừ đi được vì kho vơi cùng nhịp với lá được dọn.
+            if (cfg.bags?.enabled) return;
             if (backlog <= 0) return;
             if (leaves.length + spawnQueue.length >= renderCap()) return;
             backlog--;
@@ -995,6 +1258,45 @@
             spawnQueue.push({ key: `refill-${++refillSeq}`, at: 0, fromBacklog: true });
         }
         let refillSeq = 0;
+
+        // ── TÚI NỢ ──────────────────────────────────────────────────────────────────
+        // Kho lá (`backlog`) được chia lô theo bags.size và vẽ ra thành mấy bọc rác đen.
+        // Idol dọn sạch màn hình thì bọc kế tiếp bung ra, đổ lá xuống rồi biến mất khỏi
+        // danh sách. Đây là phần THẤY ĐƯỢC của cơ chế chống lag vốn đã chạy ngầm từ trước.
+        let pourSeq = 0;
+
+        function bagSize() {
+            return Math.max(100, Number(cfg.bags?.size) || 1000);
+        }
+
+        function pourBagIfDue() {
+            if (!cfg.enabled || !cfg.bags?.enabled || backlog <= 0) return;
+            // Hàng chờ chưa cạn nghĩa là túi trước còn đang đổ dở — đổ chồng túi thứ hai vào
+            // là mất luôn nhịp "hết túi này mới sang túi khác" mà cả tính năng dựa vào.
+            if (spawnQueue.length) return;
+            if (leaves.length > (Number(cfg.bags.openAtLeaves) || 0)) return;
+            // Chặn thêm bằng trần render: ai đặt túi 5000 lá trong khi màn hình chỉ chứa 2000
+            // thì phần dư sẽ bị removeOldestIfNeeded() đá ngược về kho ngay lúc vừa sinh ra —
+            // đổ rồi thu lại, vừa phí vừa làm số túi nhấp nháy.
+            const room = Math.max(0, renderCap() - leaves.length);
+            const take = Math.min(bagSize(), backlog, room);
+            if (take <= 0) return;
+            // Dựng bản sao để nổ TRƯỚC khi trừ kho, vì nó chép lại đúng cái túi sắp biến mất.
+            // Nhưng chỉ GẮN vào DOM sau refreshHud() ở cuối hàm: refreshHud dựng lại danh sách
+            // bằng textContent = '' nên gắn sớm là bản sao bị xoá ngay trong cùng một nhịp,
+            // animation không bao giờ chạy được một khung hình nào.
+            const ghost = makeBagGhost();
+            backlog -= take;
+            const gap = Number(cfg.bags.pourGapMs) || 0;
+            const now = performance.now();
+            // fromBacklog: lá CŨ được đưa ra vẽ lại, không phải lá mới rơi xuống — không tăng
+            // totalDropped, nếu không mỗi lần bung túi lại thổi phồng "Tổng số lá".
+            for (let i = 0; i < take; i++) {
+                spawnQueue.push({ key: `bag-${++pourSeq}-${i}`, at: now + i * gap, fromBacklog: true });
+            }
+            refreshHud();
+            if (ghost) bagsEl.appendChild(ghost);
+        }
 
         // sink != null nghĩa là đang sinh theo lô: chèn vào fragment và để người gọi lo
         // refreshHud một lần cho cả lô.
@@ -1100,6 +1402,22 @@
             scheduleStateSync();
         }
 
+        // Nhấc lá lên tay: chuyển sang layer #nl-drag để lá luôn nằm TRÊN thùng rác.
+        // Dùng chung cho cả lượt kéo tại chỗ lẫn lượt kéo nhận qua socket, nhờ vậy OBS và
+        // khung review thấy đúng thứ tự lớp như người đang cầm.
+        function liftLeafToHand(leaf) {
+            if (leaf.el.parentNode !== dragLayer) dragLayer.appendChild(leaf.el);
+        }
+
+        // Tay đang cầm lá thì thùng rác phải TRƠ hoàn toàn: không bấm, không kéo, không cướp
+        // được pointer capture. Chốt bằng pointer-events chứ không thêm một câu if trong
+        // bin.onpointerdown, vì trình duyệt vẫn gửi được pointerdown thứ hai (chạm hai ngón,
+        // hoặc chuột mất capture lúc OBS đổi scene). Khi đó câu if hết tác dụng, thùng nhảy
+        // theo tay và lượt kéo lá bị huỷ giữa chừng — đúng cảnh "tự thả lá ra".
+        function setBinInert(inert) {
+            bin.style.pointerEvents = inert ? 'none' : '';
+        }
+
         function startLeafDrag(event, leaf) {
             if (!canEdit() || activePointerId != null || leaf.state !== 'resting' || binDragging) return;
             event.preventDefault();
@@ -1112,7 +1430,9 @@
             leaf.el.classList.remove('resting');
             leaf.el.classList.add('dragging');
             leaf.el.style.zIndex = 99999;
+            liftLeafToHand(leaf);
             dragging = leaf;
+            setBinInert(true);
             moveHand(event);
             renderHandImage();
             relayHand(true);
@@ -1196,6 +1516,7 @@
         function releaseLeafFromEffect(leaf) {
             if (dragging !== leaf || leaf.state !== 'dragging') return;
             dragging = null;
+            setBinInert(false);
             releaseRootPointer();
             renderHandImage();
             // Đang sưng mà buông lá: chèn nhịp bung xoè để thấy rõ khoảnh khắc tay mở ra.
@@ -1282,6 +1603,8 @@
             leaf.z = ++zIndex;
             leaf.el.style.zIndex = leaf.z;
             leaf.el.classList.remove('dragging', 'resting');
+            // Rời tay là rời layer cầm tay: lá rơi tự do phải chui lại xuống dưới thùng rác.
+            if (leaf.el.parentNode !== air) air.appendChild(leaf.el);
             leafTransform(leaf);
         }
 
@@ -1299,18 +1622,54 @@
                 return 'fall';
             }
             leaf.state = 'returning';
+            // Dán về chỗ cũ cũng là rời tay: trả lá xuống layer không khí ngay, nếu không nó
+            // bay về đống mà vẫn nằm đè lên thùng rác suốt 340ms.
+            if (leaf.el.parentNode !== air) air.appendChild(leaf.el);
             leaf.returnStart = performance.now();
             leaf.returnFrom = { x: leaf.x, y: leaf.y, rotation: leaf.rotation };
             leaf.returnTo = origin;
             return 'return';
         }
 
-        function binContains(x, y) {
+        // VÙNG NHẬN LÁ = MIỆNG TÚI, không phải cả ảnh thùng. Bề ngang lấy gần trọn ảnh vì
+        // miệng túi phình rộng bằng vành thùng; bề dọc cắt ở 52% vì từ đó xuống là thân thùng
+        // kín — thả lá vào thân thì đúng ra phải rơi xuống đất, không chui vào được.
+        const BIN_MOUTH = { insetX: .10, insetTop: .04, insetBottom: .48 };
+
+        function binMouthRect() {
             const rect = bin.getBoundingClientRect();
-            const insetX = rect.width * .17;
-            const insetTop = rect.height * .08;
-            const insetBottom = rect.height * .42;
-            return x >= rect.left + insetX && x <= rect.right - insetX && y >= rect.top + insetTop && y <= rect.bottom - insetBottom;
+            const insetX = rect.width * BIN_MOUTH.insetX;
+            return {
+                left: rect.left + insetX,
+                right: rect.right - insetX,
+                top: rect.top + rect.height * BIN_MOUTH.insetTop,
+                bottom: rect.bottom - rect.height * BIN_MOUTH.insetBottom
+            };
+        }
+
+        function binContains(x, y) {
+            const r = binMouthRect();
+            return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+        }
+
+        // Toạ độ màn hình của tâm lá. Lá bám con trỏ theo ĐÚNG chỗ đã cầm (leaf.offsetX/Y),
+        // nên cầm ở mép là thân lá lệch khỏi con trỏ tới nửa chiều lá — mức Kích thước 400%
+        // cho lá ~440px thì lệch cả trăm pixel.
+        function leafClientPoint(leaf) {
+            const stage = root.getBoundingClientRect();
+            return {
+                x: stage.left + leaf.x * (stage.width / STAGE.width || 1),
+                y: stage.top + leaf.y * (stage.height / STAGE.height || 1)
+            };
+        }
+
+        // Người dùng ngắm CHIẾC LÁ vào miệng thùng chứ không ngắm con trỏ — bản cũ chỉ hỏi
+        // con trỏ nên lá nằm gọn trong miệng thùng vẫn bị tính trượt rồi rơi ra sau thùng.
+        // Nhận cả hai cách ngắm: con trỏ trong miệng, hoặc tâm lá trong miệng.
+        function binAcceptsLeaf(leaf, pointerX, pointerY) {
+            if (binContains(pointerX, pointerY)) return true;
+            const point = leafClientPoint(leaf);
+            return binContains(point.x, point.y);
         }
 
         function receiveLeaf(leaf, sharedTarget) {
@@ -1837,6 +2196,9 @@
                         leaf.el.classList.remove('dragging');
                         leaf.el.classList.add('resting');
                         leaf.el.style.zIndex = leaf.returnTo.z;
+                        // Về tới chỗ cũ thì nhập lại đống lá tĩnh, nếu không nó ở lại layer
+                        // không khí và bị vẽ lại mỗi frame mãi mãi.
+                        if (leaf.el.parentNode !== pile) pile.appendChild(leaf.el);
                         leafTransform(leaf);
                     }
                 } else if (leaf.state === 'collecting') {
@@ -1888,6 +2250,10 @@
             updateAutoClean(now, dt);
             updateRemoteMotion(dt, now);
             updateLeafAnimations(now, dt);
+            // Đặt SAU updateLeafAnimations: lá được dọn xong bị gỡ khỏi mảng trong hàm đó,
+            // nên tới đây leaves.length đã là con số thật của frame này. Gọi trước thì lá
+            // cuối cùng vừa bay vào thùng vẫn còn được đếm và túi trễ mất một frame.
+            pourBagIfDue();
             if (perfOn) {
                 // Bỏ frame đầu và frame sau khi tab bị treo: rawDelta khổng lồ sẽ kéo lệch
                 // p95 mà không phản ánh chi phí render thật.
@@ -1924,7 +2290,7 @@
             lastHandAt = now;
             socket.emit('nhatla:transient', {
                 type: 'hand', x: handPoint.x, y: handPoint.y,
-                closed: !!(dragging || binDragging || hudDragging || topBoardDragging || topBoardResizing)
+                closed: !!(dragging || binDragging || hudDragging || topBoardDragging || topBoardResizing || bagsDragging || bagsResizing)
             });
         }
 
@@ -1970,6 +2336,33 @@
             boardYPercent: cfg.topDonors.boardYPercent
         });
 
+        // Danh sách túi nợ nằm ở khối config riêng (cfg.bags) nên có cặp relay/persist riêng,
+        // y hệt lý do bảng TOP phải tách khỏi relayDragPosition().
+        function persistBags(fields) {
+            if (!canEdit()) return;
+            pendingBagsSave = { ...(pendingBagsSave || {}), ...fields };
+            clearTimeout(saveBagsTimer);
+            saveBagsTimer = setTimeout(() => {
+                const bags = pendingBagsSave;
+                pendingBagsSave = null;
+                fetch('/api/games/nhatla/config', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bags })
+                }).catch(() => {});
+            }, 250);
+        }
+        let saveBagsTimer = null;
+
+        function relayBags(fields, force = false) {
+            if (!canEdit()) return;
+            const now = performance.now();
+            if (!socket?.connected || (!force && now - lastTransientAt < 16)) return;
+            lastTransientAt = now;
+            socket.emit('nhatla:transient', { type: 'bags', bags: fields });
+        }
+
+        const bagsPos = () => ({ xPercent: cfg.bags.xPercent, yPercent: cfg.bags.yPercent });
+
         function relayDragPosition(type, force = false) {
             if (!canEdit()) return;
             const now = performance.now();
@@ -2007,6 +2400,7 @@
             if (dragging) {
                 const leaf = dragging;
                 dragging = null;
+                setBinInert(false);
                 relayLeafDrag(leaf, 'leafEnd', returnLeaf(leaf));
                 changed = true;
             }
@@ -2032,6 +2426,18 @@
                 topBoardResizing = null;
                 relayTopDonors({ boardScale: cfg.topDonors.boardScale }, true);
                 persistTopDonors({ boardScale: cfg.topDonors.boardScale });
+                changed = true;
+            }
+            if (bagsDragging) {
+                bagsDragging = null;
+                relayBags(bagsPos(), true);
+                persistBags(bagsPos());
+                changed = true;
+            }
+            if (bagsResizing) {
+                bagsResizing = null;
+                relayBags({ scale: cfg.bags.scale }, true);
+                persistBags({ scale: cfg.bags.scale });
                 changed = true;
             }
             if (topFlyDragging || topFlyResizing) {
@@ -2083,6 +2489,17 @@
                 applyTopDonorsLayout();
                 relayTopDonors({ boardScale: cfg.topDonors.boardScale });
             }
+            if (bagsDragging) {
+                cfg.bags.xPercent = clamp(point.x / viewport.width * 100 - bagsDragging.x, 0, 95);
+                cfg.bags.yPercent = clamp(point.y / viewport.height * 100 - bagsDragging.y, 0, 95);
+                applyBagsLayout();
+                relayBags(bagsPos());
+            }
+            if (bagsResizing) {
+                cfg.bags.scale = scaleFromDrag(bagsResizing, point, 30, 300);
+                applyBagsLayout();
+                relayBags({ scale: cfg.bags.scale });
+            }
             if (topFlyDragging) {
                 cfg.topDonors.flyYPercent = clamp(point.y / viewport.height * 100 - topFlyDragging.y, 0, 92);
                 applyTopDonorsLayout();
@@ -2101,9 +2518,10 @@
             if (dragging) {
                 const leaf = dragging;
                 dragging = null;
+                setBinInert(false);
                 renderHandImage();
                 relayHand(true);
-                if (binContains(event.clientX, event.clientY)) {
+                if (binAcceptsLeaf(leaf, event.clientX, event.clientY)) {
                     const collectTo = receiveLeaf(leaf);
                     relayLeafDrag(leaf, 'leafEnd', 'collect', collectTo);
                 } else {
@@ -2137,6 +2555,20 @@
                 relayHand(true);
                 relayTopDonors({ boardScale: cfg.topDonors.boardScale }, true);
                 persistTopDonors({ boardScale: cfg.topDonors.boardScale });
+            }
+            if (bagsDragging) {
+                bagsDragging = null;
+                renderHandImage();
+                relayHand(true);
+                relayBags(bagsPos(), true);
+                persistBags(bagsPos());
+            }
+            if (bagsResizing) {
+                bagsResizing = null;
+                renderHandImage();
+                relayHand(true);
+                relayBags({ scale: cfg.bags.scale }, true);
+                persistBags({ scale: cfg.bags.scale });
             }
             if (topFlyDragging || topFlyResizing) {
                 topFlyDragging = null;
@@ -2191,6 +2623,36 @@
                 x: point.x / viewport.width * 100 - cfg.topDonors.boardXPercent,
                 y: point.y / viewport.height * 100 - cfg.topDonors.boardYPercent
             };
+            moveHand(event);
+            renderHandImage();
+            relayHand(true);
+            captureRootPointer(event.pointerId);
+        });
+
+        bagsEl.addEventListener('pointerdown', event => {
+            if (!canEdit() || activePointerId != null) return;
+            // Núm đổi cỡ nằm TRONG danh sách nên pointerdown trên núm cũng nổi lên tới đây.
+            // Không lọc ra thì kéo núm hoá thành kéo cả cụm, không bao giờ resize được.
+            if (event.target === bagsResizeEl) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (dragging || binDragging || hudDragging || topBoardDragging) return;
+            const point = toStagePoint(event);
+            bagsDragging = {
+                x: point.x / viewport.width * 100 - cfg.bags.xPercent,
+                y: point.y / viewport.height * 100 - cfg.bags.yPercent
+            };
+            moveHand(event);
+            renderHandImage();
+            relayHand(true);
+            captureRootPointer(event.pointerId);
+        });
+
+        bagsResizeEl.addEventListener('pointerdown', event => {
+            if (!canEditLayout || !canEdit() || activePointerId != null) return;
+            event.preventDefault();
+            event.stopPropagation();
+            bagsResizing = beginTopResize(bagsEl, toStagePoint(event), cfg.bags.scale);
             moveHand(event);
             renderHandImage();
             relayHand(true);
@@ -2338,7 +2800,7 @@
         async function loadSkinCatalog() {
             try {
                 const data = await (await fetch('/api/nhatla/skins', { cache: 'no-store' })).json();
-                skinCatalog = { hat: data.hat || [], thung: data.thung || [] };
+                skinCatalog = { hat: data.hat || [], thung: data.thung || [], tui: data.tui || [] };
             } catch (e) {
                 // Giữ nguyên danh mục cũ: mất mạng nội bộ một nhịp không đáng để đống hạt
                 // đang chạy bị ném về bộ mặc định.
@@ -2415,6 +2877,14 @@
                 // chờ hết chu kỳ cũ (có thể tới 10 phút) mới thấy giá trị mới có tác dụng.
                 applyTopDonors({ restartFly: true });
             }
+            if (data?.type === 'bags' && data.bags && typeof data.bags === 'object') {
+                cfg.bags = game.normalizeConfig({ ...cfg, bags: { ...cfg.bags, ...data.bags } }).bags;
+                applyBagsLayout();
+                // Đổi số lá mỗi túi / trần số ảnh là số túi đổi theo — ép đếm lại thay vì
+                // để bộ đếm cũ giữ nguyên danh sách cho tới lần dọn lá kế tiếp.
+                bagIconCount = -1;
+                renderBags();
+            }
             if (data?.type === 'leaf') {
                 const leaf = leaves.find(item => item.id === data.leafId);
                 if (!leaf || leaf.state === 'collecting') return;
@@ -2428,6 +2898,7 @@
                 leaf.el.classList.remove('resting');
                 leaf.el.classList.add('dragging');
                 leaf.el.style.zIndex = 99999;
+                liftLeafToHand(leaf);
             }
             if (data?.type === 'leafEnd') {
                 const leaf = leaves.find(item => item.id === data.leafId);
@@ -2469,12 +2940,16 @@
             else runEffectSequence(rule, repeat, true);
         }
         socket.on('nhatla:effect', data => {
+            if (!cfg.enabled) return;
             const rule = findEffectRule(data?.effectId);
             if (!rule) return;
             receiveEffectGift(rule, data.targetSocketId, data.repeat);
         });
         socket.on('gameCmd', ({ gameId, cmd, payload, seq }) => {
             if (gameId !== 'nhatla') return;
+            // Tắt game = ngưng mọi lệnh sinh/thổi lá. Chừa clear/reset vì đó là lệnh DỌN,
+            // phải chạy được cả lúc tắt để sân khấu sạch (cùng quy ước với overlay Hũ Thủy Tinh).
+            if (!cfg.enabled && cmd !== 'clear' && cmd !== 'reset') return;
             if (cmd === 'clear' || cmd === 'reset') clearLeaves();
             if (cmd === 'drop') spawnLeaves(payload?.count || 1, `cmd-${seq || Date.now()}`);
             if (cmd === 'autoClean') startAutoClean(payload?.durationMs, payload?.leavesPerSec, payload?.seed);

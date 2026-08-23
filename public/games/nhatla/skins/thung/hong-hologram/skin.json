@@ -1,0 +1,13 @@
+{
+  "id": "hong-hologram",
+  "name": "Hồng hologram",
+  "kind": "thung",
+  "count": 1,
+  "ext": "png",
+  "source": [
+    200,
+    231
+  ],
+  "baseWidth": 260,
+  "flashMs": 720
+}

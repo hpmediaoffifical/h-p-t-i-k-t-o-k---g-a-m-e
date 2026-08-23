@@ -1,0 +1,11 @@
+{
+  "id": "cong-nghe-xanh",
+  "name": "Công nghệ xanh",
+  "kind": "tui",
+  "count": 1,
+  "ext": "png",
+  "source": [
+    128,
+    128
+  ]
+}

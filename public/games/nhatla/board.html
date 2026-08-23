@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HP Nhặt Lá — Bảng quà</title>
+    <link rel="stylesheet" href="/games/nhatla/board.css" />
+    <style>
+        * { box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: rgba(0, 0, 0, 0) !important; }
+        body { user-select: none; }
+        /* Sân khấu neo góc trên-trái rồi scale — y hệt #nl-root của overlay chính, nên
+           đặt hai browser source chồng nhau là toạ độ % của bảng khớp đúng với đống lá. */
+        #nlb-stage { position: fixed; left: 0; top: 0; }
+    </style>
+</head>
+<body>
+    <div id="nlb-stage" class="nlb-stage">
+        <div id="nlb-board" class="nlb-board"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/games/nhatla/game.js"></script>
+    <script>
+    (function () {
+        'use strict';
+        /* ========================================================================
+           BẢNG QUÀ — overlay OBS riêng (/overlay/nhatla-gifts)
+           ========================================================================
+           Trang này CỐ TÌNH nhẹ: không có engine lá, không requestAnimationFrame,
+           không đo DOM mỗi frame. Cuộn chạy bằng CSS animation nên compositor lo,
+           JS chỉ chạy khi config đổi. Đó là lý do bảng tách khỏi overlay chính —
+           chi tiết xem ghi chú giftBoard trong game.js.
+
+           BA nguồn dữ liệu vào, theo thứ tự nhanh dần:
+             1. GET /api/games/nhatla/config     — lúc mở trang (và mỗi lần reconnect)
+             2. socket 'gameConfig'              — sau khi panel bấm lưu (debounce 260ms)
+             3. socket 'nhatla:transient' giftboard — TỨC THÌ trong lúc người dùng còn
+                đang gõ tên / kéo thanh trượt, mang theo entries panel tính sẵn
+           ======================================================================== */
+        const STAGE = { width: 1080, height: 1920 };
+        const game = window.HpGame.nhatla;
+        const stage = document.getElementById('nlb-stage');
+        const boardEl = document.getElementById('nlb-board');
+
+        let config = game.normalizeConfig({});
+        // entries do transient đẩy sang. Giữ RIÊNG khỏi config vì nó là ảnh chụp tạm trong
+        // lúc người dùng còn đang gõ; gameConfig thật về là xoá đi, quay lại tự tính từ
+        // config — nếu không, bấm huỷ xong bảng vẫn kẹt ở bản nháp.
+        let liveEntries = null;
+        let giftIndex = {};   // giftId → {image} lấy từ sheet, vá cho rule thiếu ảnh
+
+        function fitStage() {
+            const scale = Math.min(innerWidth / STAGE.width, innerHeight / STAGE.height);
+            stage.style.transform = `scale(${scale})`;
+            stage.style.left = `${Math.max(0, (innerWidth - STAGE.width * scale) / 2)}px`;
+            stage.style.top = `${Math.max(0, (innerHeight - STAGE.height * scale) / 2)}px`;
+        }
+
+        // Bộ vẽ nằm trong game.js, dùng chung với ô xem trước của panel.
+        function render() {
+            game.giftBoardPaint(
+                boardEl, config,
+                liveEntries || game.giftBoardEntries(config),
+                entry => entry.image || giftIndex[String(entry.giftId)]?.image || ''
+            );
+        }
+
+        function applyConfig(raw) {
+            config = game.normalizeConfig(raw || {});
+            liveEntries = null;   // config thật về → bỏ bản nháp transient
+            render();
+        }
+
+        // ===== SOCKET =====
+        const socket = window.io({ transports: ['websocket', 'polling'] });
+        socket.on('connect', () => {
+            socket.emit('subscribe', 'overlay');
+            // Kéo lại config mỗi lần nối lại, không chỉ lần đầu: mất mạng giữa buổi thì
+            // các gameConfig phát trong lúc đứt đã trôi mất, bảng sẽ đứng ở bản cũ.
+            fetch('/api/games/nhatla/config')
+                .then(response => response.json())
+                .then(data => applyConfig(data?.config || data))
+                .catch(() => {});
+        });
+        socket.on('gameConfig', ({ gameId, config: incoming }) => {
+            if (gameId === 'nhatla') applyConfig(incoming);
+        });
+        socket.on('nhatla:transient', data => {
+            if (!data || data.type !== 'giftboard') return;
+            if (data.giftBoard) {
+                config.giftBoard = game.normalizeGiftBoard(
+                    { ...config.giftBoard, ...data.giftBoard,
+                      autoScroll: { ...config.giftBoard.autoScroll, ...(data.giftBoard.autoScroll || {}) } },
+                    game.defaultConfig().giftBoard
+                );
+            }
+            if (Array.isArray(data.entries)) liveEntries = data.entries;
+            render();
+        });
+        socket.on('gameDisabled', ({ gameId }) => {
+            if (gameId !== 'nhatla') return;
+            config.enabled = false;
+            render();
+        });
+        socket.on('gameEnabled', ({ gameId }) => {
+            if (gameId !== 'nhatla') return;
+            config.enabled = true;
+            render();
+        });
+        // Danh sách quà về sau khi bảng đã vẽ → vá ảnh cho rule lưu thiếu giftImage
+        // (rule tạo tay từ bản cũ, hoặc icon TikTok đổi URL).
+        socket.on('giftSheet', list => {
+            if (!Array.isArray(list)) return;
+            giftIndex = {};
+            for (const gift of list) if (gift?.id) giftIndex[String(gift.id)] = gift;
+            render();
+        });
+        socket.on('overlay:reload', data => {
+            if (!data?.gameId || data.gameId === 'nhatla') location.reload();
+        });
+
+        fetch('/api/gifts')
+            .then(response => response.json())
+            .then(list => {
+                if (!Array.isArray(list)) return;
+                for (const gift of list) if (gift?.id) giftIndex[String(gift.id)] = gift;
+                render();
+            })
+            .catch(() => {});
+
+        addEventListener('resize', fitStage);
+        fitStage();
+        render();
+    })();
+    </script>
+</body>
+</html>

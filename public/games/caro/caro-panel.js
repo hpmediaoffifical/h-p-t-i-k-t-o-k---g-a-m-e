@@ -2155,8 +2155,14 @@
             pushState();
         });
 
-        // Gift listener — registration phase
-        socket.on('gift', handleGiftEvent);
+        // Gift listener — registration phase.
+        // Chặn ở ĐÂY chứ không trong handleGiftEvent: nút "Chạy thử" cũng gọi hàm đó và vẫn
+        // phải bấm được lúc đang chỉnh cấu hình. Thiếu chốt này thì tắt Caro xong quà thật
+        // vẫn ghi danh người chơi / mua gợi ý — giống listener chat ngay phía trên.
+        socket.on('gift', (g) => {
+            if (cfg && cfg.enabled === false) return;
+            handleGiftEvent(g);
+        });
 
         // Gift sheet load → fill selects
         socket.on('giftSheet', (list) => {

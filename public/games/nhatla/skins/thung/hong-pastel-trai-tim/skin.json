@@ -1,0 +1,13 @@
+{
+  "id": "hong-pastel-trai-tim",
+  "name": "Hồng pastel trái tim",
+  "kind": "thung",
+  "count": 1,
+  "ext": "png",
+  "source": [
+    200,
+    231
+  ],
+  "baseWidth": 260,
+  "flashMs": 720
+}

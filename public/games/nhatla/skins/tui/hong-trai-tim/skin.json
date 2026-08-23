@@ -1,0 +1,11 @@
+{
+  "id": "hong-trai-tim",
+  "name": "Hồng trái tim",
+  "kind": "tui",
+  "count": 1,
+  "ext": "png",
+  "source": [
+    128,
+    128
+  ]
+}

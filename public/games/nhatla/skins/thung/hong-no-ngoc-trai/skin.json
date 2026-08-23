@@ -1,0 +1,13 @@
+{
+  "id": "hong-no-ngoc-trai",
+  "name": "Hồng nơ ngọc trai",
+  "kind": "thung",
+  "count": 1,
+  "ext": "png",
+  "source": [
+    200,
+    231
+  ],
+  "baseWidth": 260,
+  "flashMs": 720
+}

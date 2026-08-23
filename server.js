@@ -338,9 +338,10 @@ function makeDefaultNhatLaConfig() {
         display: {
             hatSkin: 'la-mua-thu', // bộ ảnh hạt rơi (skins/hat/<id>/) — lá, tuyết, …
             binSkin: 'mac-dinh',   // bộ ảnh thùng rác (skins/thung/<id>/)
-            leafScale: 100,       // % kích thước hạt (base lấy theo skin.json:baseSize)
+            leafScale: 120,       // % kích thước hạt (base lấy theo skin.json:baseSize)
             handScale: 50,        // % kích thước bàn tay chuột
             binScale: 100,        // % kích thước thùng rác (base lấy theo skin.json:baseWidth)
+            pileFillPercent: 90,  // % màn hình đống lá dâng tới khi đủ drop.maxLeaves (overlay tự suy ra độ chồng)
             // Bốn toạ độ dưới đây chốt theo bố cục đã chạy live thật ở v1.7.0: thùng lệch phải
             // và hơi cao hơn đáy, bảng đếm nằm nửa trên bên phải — chừa trọn góc trái cho
             // khung camera. Số lẻ là vị trí kéo tay trên overlay, không phải số bịa.
@@ -354,8 +355,23 @@ function makeDefaultNhatLaConfig() {
         drop: {
             minFallSec: 3.2,      // thời gian rơi tối thiểu của 1 lá
             maxFallSec: 6.5,
-            spawnGapMs: 60,       // khoảng cách giữa các lá khi 1 quà rơi nhiều lá
-            maxLeaves: 6000       // trần số lá render (chống lag)
+            spawnGapMs: 300,      // khoảng cách giữa các lá khi 1 quà rơi nhiều lá
+            maxLeaves: 600        // trần số lá render (chống lag)
+        },
+        // TÚI NỢ: lá vượt drop.maxLeaves dồn vào kho thay vì vẽ thêm. Khối này vẽ kho đó ra
+        // thành mấy bọc rác đen và quyết định lúc nào xả. Xem chú thích đầy đủ ở
+        // public/games/nhatla/game.js — đây chỉ là bản sao mặc định cho config lần đầu.
+        bags: {
+            enabled: true,
+            size: 600,            // số lá mỗi túi — khớp maxLeaves: đầy màn hình = đầy một túi
+            openAtLeaves: 0,      // màn hình còn ≤ ngần này lá thì bung túi kế tiếp
+            pourGapMs: 6,         // giãn cách khi xả túi (khác drop.spawnGapMs)
+            showList: true,
+            orientation: 'horizontal', // 'horizontal' | 'vertical'
+            xPercent: 4,
+            yPercent: 6,
+            scale: 100,           // % cỡ ảnh túi
+            maxIcons: 10          // trần SỐ ẢNH vẽ ra, dư thì gộp thành "+N"
         },
         effects: {
             // Mỗi quà có thể kích hoạt một WEBM với thời gian buông lá riêng.
@@ -395,8 +411,8 @@ function makeDefaultNhatLaConfig() {
         // người vận hành — combo dồn dập thì chỉ gia hạn thêm giờ, không chồng nhiều lượt.
         autoClean: {
             enabled: true,
-            durationMs: 5000,     // thời gian một lượt cứu
-            leavesPerSec: 40,     // tốc độ nhặt
+            durationMs: 2000,     // thời gian một lượt cứu
+            leavesPerSec: 20,     // tốc độ nhặt → 2s × 20 = 40 lá một lượt
             gifts: []             // [{ id, giftId, giftName }] — quà kích hoạt
         },
         // GIẢI CỨU: danh sách phẳng, MỖI hành động = 1 quà + 1 bộ thông số RIÊNG.
@@ -425,6 +441,23 @@ function makeDefaultNhatLaConfig() {
             boardXPercent: 62,
             boardYPercent: 6,
             boardScale: 100
+        },
+        // BẢNG QUÀ cho người xem — phải khớp TỪNG SỐ với defaultConfig() trong
+        // public/games/nhatla/game.js, lệch là panel và overlay vẽ hai kiểu khác nhau lúc
+        // chưa có config lưu. Bảng vẽ ở overlay riêng /overlay/nhatla-gifts; xem ghi chú
+        // dài trong game.js về lý do tách khỏi overlay chính.
+        giftBoard: {
+            enabled: true,
+            layout: 'vertical',
+            namePos: 'right',
+            scale: 100,
+            iconScale: 100,
+            gap: 80,
+            nameScale: 100,
+            showDiamond: false,
+            xPercent: 2,
+            yPercent: 2,
+            autoScroll: { enabled: false, visibleCount: 6, direction: 'up', speed: 2 }
         },
         giftRules: [],            // [{ id, giftId, giftName, count }] — quà chỉ định rơi N lá
         coinsPerLeaf: 1,          // quà không có rule: N coin = 1 lá (0 = bỏ qua)
@@ -3053,12 +3086,18 @@ const NHATLA_EFFECT_MAX_REPEAT = 20;
 const NHATLA_ACTION_MAX_REPEAT = 20;
 
 function findNhatLaEffectGift(giftId, giftName) {
+    // Công tắc game TẮT thì không quà nào được bắn hiệu ứng — trước đây chỉ kiểm tra
+    // rule.enabled (công tắc từng quà) nên tắt cả game vẫn thấy WEBM chạy trên OBS.
+    if (appConfig.games?.nhatla?.enabled === false) return null;
     const effects = appConfig.games?.nhatla?.effects || {};
     const rules = Array.isArray(effects.effectGifts) ? effects.effectGifts : effects.tomGifts;
     if (!Array.isArray(rules)) return null;
     const id = String(giftId == null ? '' : giftId);
     const name = String(giftName || '').trim().toLowerCase();
-    return rules.find(rule => rule && (
+    // enabled === false = người dùng tắt hẳn rule (thường vì file WEBM lỗi). Điều kiện này
+    // phải giống hệt effectGiftForGift() trong public/games/nhatla/game.js — server không
+    // nạp file đó nên hai bản song song, quên một bên là công tắc chỉ ăn nửa đường.
+    return rules.find(rule => rule && rule.enabled !== false && (
         (id && String(rule.giftId || '') === id) ||
         (name && String(rule.giftName || '').trim().toLowerCase() === name)
     )) || null;
@@ -3115,6 +3154,9 @@ function migrateNhatLaRescue(cfg) {
 // Công tắc tắt CẢ LOẠI vẫn nằm ở ba khối cũ (wind/tornado/autoClean .enabled).
 function rescueActionForGift(giftId, giftName) {
     const cfg = appConfig.games?.nhatla;
+    // Cùng lý do với findNhatLaEffectGift: tắt game phải chặn trước cả công tắc từng hành động,
+    // nếu không quà thật vẫn thổi gió / lốc / tự nhặt trên overlay khi Nhặt Lá đang tắt.
+    if (cfg?.enabled === false) return null;
     const actions = cfg?.rescue?.actions;
     if (!Array.isArray(actions)) return null;
     const id = String(giftId == null ? '' : giftId);
@@ -3184,7 +3226,10 @@ function nhatLaLeavesForGift(cfg, giftId, giftName, coinValue, repeatCount) {
         (id && String(r.giftId || '') === id) ||
         (name && String(r.giftName || '').toLowerCase() === name.toLowerCase())
     ));
+    // Rule bị TẮT trả 0 luôn, KHÔNG rơi xuống tỉ lệ coinsPerLeaf bên dưới — nếu để rơi
+    // xuống thì lá vẫn xuống, chỉ khác số lượng, nhìn như công tắc hỏng.
     if (rule) {
+        if (rule.enabled === false) return 0;
         const c = parseInt(rule.count, 10);
         return isFinite(c) && c > 0 ? c * repeat : 0;
     }
@@ -3904,6 +3949,20 @@ app.post('/api/games/:id/config', (req, res) => {
     }
     if (g.id === 'nhatla' && incoming.rescue && prevConfig.rescue) {
         incoming.rescue = { ...prevConfig.rescue, ...incoming.rescue };
+    }
+    // Danh sách túi nợ kéo thả ngay trên overlay chỉ POST 2-3 field toạ độ/cỡ — merge nông
+    // ở dưới sẽ thay nguyên khối bags bằng mảnh đó, mất cả size lẫn ngưỡng mở túi.
+    if (g.id === 'nhatla' && incoming.bags && prevConfig.bags) {
+        incoming.bags = { ...prevConfig.bags, ...incoming.bags };
+    }
+    // Tab Bảng quà POST từng phần (kéo 1 thanh trượt là 1 field) — merge nông ở dưới sẽ
+    // thay nguyên khối giftBoard bằng mảnh vừa gửi, mất hết phần còn lại.
+    if (g.id === 'nhatla' && incoming.giftBoard && prevConfig.giftBoard) {
+        incoming.giftBoard = {
+            ...prevConfig.giftBoard,
+            ...incoming.giftBoard,
+            autoScroll: { ...prevConfig.giftBoard.autoScroll, ...(incoming.giftBoard.autoScroll || {}) }
+        };
     }
     appConfig.games[g.id] = { ...appConfig.games[g.id], ...incoming };
     if (g.id === 'pktiktok') {
@@ -4689,18 +4748,25 @@ app.get('/overlay/trongcay', (req, res) => {
 app.get('/overlay/nhatla', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'nhatla', 'overlay.html'));
 });
+// BẢNG QUÀ đi browser source RIÊNG, không nằm trong overlay trên. Overlay chính có lúc
+// giữ tới drop.maxLeaves = 6000 phần tử DOM; nhét thêm một bảng chạy marquee vào cùng
+// document là bắt chung luồng compositor với đống lá. Tách ra thì OBS cấp cho bảng một
+// tiến trình render riêng, và người dùng đặt bảng ở đâu trên scene cũng được.
+app.get('/overlay/nhatla-gifts', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'nhatla', 'board.html'));
+});
 
 // ── NHẶT LÁ: BỘ SKIN ───────────────────────────────────────────────────────────
-// Hai chiều độc lập nhau: 'hat' là bộ ảnh hạt rơi (lá, tuyết…), 'thung' là bộ ảnh
-// thùng rác. Tách ra để phối tự do — tuyết + thùng Ông già Noel chẳng hạn — thay vì
-// nhân bản một gói Noel cho mỗi cái thùng.
+// Ba chiều độc lập nhau: 'hat' là bộ ảnh hạt rơi (lá, tuyết…), 'thung' là bộ ảnh thùng
+// rác, 'tui' là bộ ảnh túi nợ. Tách ra để phối tự do — tuyết + thùng Ông già Noel chẳng
+// hạn — thay vì nhân bản một gói Noel cho mỗi cái thùng.
 //
 // Mỗi bộ là một thư mục con chứa skin.json + ảnh đánh số 01.png tăng dần. Ảnh đi
 // thẳng qua express.static nên KHÔNG có route serve ảnh riêng ở đây; overlay tự ghép
 // '/games/nhatla/skins/<kind>/<id>/01.png'. Thêm bộ mới = thả thư mục, không sửa code.
 // Xem tools/build-nhatla-skins.py để biết cách sinh thư mục cho đúng chuẩn.
 const NHATLA_SKINS_DIR = path.join(__dirname, 'public', 'games', 'nhatla', 'skins');
-const NHATLA_SKIN_KINDS = ['hat', 'thung'];
+const NHATLA_SKIN_KINDS = ['hat', 'thung', 'tui'];
 
 function readNhatLaSkins(kind) {
     const root = path.join(NHATLA_SKINS_DIR, kind);
@@ -8990,7 +9056,7 @@ io.on('connection', (socket) => {
     });
     // Relay thao tác đang kéo ở 30fps — không ghi disk, để OBS chạy cùng nhịp review.
     socket.on('nhatla:transient', (data) => {
-        if (!data || !['bin', 'hud', 'topdonors', 'leaf', 'leafEnd', 'hand', 'effect', 'dragStart', 'display'].includes(data.type)) return;
+        if (!data || !['bin', 'hud', 'topdonors', 'leaf', 'leafEnd', 'hand', 'effect', 'dragStart', 'display', 'bags', 'giftboard'].includes(data.type)) return;
         // Thanh trượt panel + kéo bảng TOP trên overlay: relay ngay để mọi view khớp nhau,
         // config thật vẫn đi đường POST /config có debounce.
         if (data.type === 'topdonors') {
@@ -9017,9 +9083,75 @@ io.on('connection', (socket) => {
             nhatLaActiveDragSocketId = socket.id;
             return;
         }
+        if (data.type === 'bags') {
+            const limits = {
+                size: [100, 20000], openAtLeaves: [0, 20000], pourGapMs: [0, 200],
+                xPercent: [0, 95], yPercent: [0, 95], scale: [30, 300], maxIcons: [1, 40]
+            };
+            const bags = {};
+            for (const [key, [min, max]] of Object.entries(limits)) {
+                const value = Number(data.bags?.[key]);
+                if (Number.isFinite(value)) bags[key] = Math.max(min, Math.min(max, value));
+            }
+            for (const key of ['enabled', 'showList']) {
+                if (typeof data.bags?.[key] === 'boolean') bags[key] = data.bags[key];
+            }
+            if (data.bags?.orientation === 'vertical' || data.bags?.orientation === 'horizontal') bags.orientation = data.bags.orientation;
+            if (!Object.keys(bags).length) return;
+            socket.broadcast.emit('nhatla:transient', { sourceId: socket.id, type: 'bags', bags });
+            return;
+        }
+        // BẢNG QUÀ. Khác các nhánh trên ở chỗ relay CẢ `entries` — mảng {icon, nhãn} panel
+        // đã tính sẵn bằng giftBoardEntries(). Nhờ vậy sửa tên một quà là overlay bảng vẽ
+        // lại ngay, không phải đợi POST /config (debounce 260ms) rồi mới có gameConfig về.
+        // Server không tự tính entries được: nó chưa nạp game.js, và config lúc này còn là
+        // bản CŨ trên đĩa vì người dùng vẫn đang gõ.
+        if (data.type === 'giftboard') {
+            const limits = {
+                scale: [40, 250], iconScale: [40, 250], gap: [0, 400], nameScale: [40, 250],
+                xPercent: [0, 92], yPercent: [0, 92]
+            };
+            const giftBoard = {};
+            for (const [key, [min, max]] of Object.entries(limits)) {
+                const value = Number(data.giftBoard?.[key]);
+                if (Number.isFinite(value)) giftBoard[key] = Math.max(min, Math.min(max, value));
+            }
+            for (const key of ['enabled', 'showDiamond']) {
+                if (typeof data.giftBoard?.[key] === 'boolean') giftBoard[key] = data.giftBoard[key];
+            }
+            if (['vertical', 'horizontal'].includes(data.giftBoard?.layout)) giftBoard.layout = data.giftBoard.layout;
+            if (['top', 'bottom', 'left', 'right'].includes(data.giftBoard?.namePos)) giftBoard.namePos = data.giftBoard.namePos;
+            const scroll = data.giftBoard?.autoScroll;
+            if (scroll && typeof scroll === 'object') {
+                const out = {};
+                if (typeof scroll.enabled === 'boolean') out.enabled = scroll.enabled;
+                const visible = Number(scroll.visibleCount);
+                if (Number.isFinite(visible)) out.visibleCount = Math.max(2, Math.min(30, visible));
+                const speed = Number(scroll.speed);
+                if (Number.isFinite(speed)) out.speed = Math.max(0.5, Math.min(20, speed));
+                if (['up', 'down', 'left', 'right'].includes(scroll.direction)) out.direction = scroll.direction;
+                if (Object.keys(out).length) giftBoard.autoScroll = out;
+            }
+            // entries đi qua đây là dữ liệu do client dựng — cắt ngắn mọi chuỗi và chặn trần
+            // số phần tử để một panel lỗi không bơm được payload khổng lồ sang mọi overlay.
+            let entries = null;
+            if (Array.isArray(data.entries)) {
+                entries = data.entries.slice(0, 200).map(item => ({
+                    key: String(item?.key || '').slice(0, 120),
+                    giftId: String(item?.giftId || '').slice(0, 40),
+                    giftName: String(item?.giftName || '').slice(0, 80),
+                    image: String(item?.image || '').slice(0, 500),
+                    diamond: Math.max(0, Math.min(1000000, Number(item?.diamond) || 0)),
+                    label: String(item?.label || '').slice(0, 200)
+                }));
+            }
+            if (!Object.keys(giftBoard).length && !entries) return;
+            socket.broadcast.emit('nhatla:transient', { sourceId: socket.id, type: 'giftboard', giftBoard, entries });
+            return;
+        }
         if (data.type === 'display') {
             const limits = {
-                leafScale: [30, 400], handScale: [30, 400], binScale: [30, 400],
+                leafScale: [30, 400], handScale: [30, 400], binScale: [30, 400], pileFillPercent: [30, 100],
                 // binYPercent nới tới 100 vì thùng được phép hạ xuống thò 1/3 dưới mép overlay.
                 // Trần CHÍNH XÁC phụ thuộc cỡ thùng nên do client chốt (binYMaxPercent trong
                 // public/games/nhatla/game.js); ở đây chỉ chặn số rác đi qua đường relay.

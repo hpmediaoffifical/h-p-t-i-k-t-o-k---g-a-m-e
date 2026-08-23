@@ -1,0 +1,11 @@
+{
+  "id": "thien-ha-tim",
+  "name": "Thiên hà tím",
+  "kind": "tui",
+  "count": 1,
+  "ext": "png",
+  "source": [
+    128,
+    128
+  ]
+}

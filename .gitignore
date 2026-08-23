@@ -37,3 +37,7 @@ _extracted_thuytinh/
 
 # HP KEY - khong commit secret
 hpkey/secret.local.js
+
+# Python bytecode — tools/build-nhatla-skins.py sinh ra mỗi lần chạy
+__pycache__/
+*.pyc

@@ -1,0 +1,11 @@
+{
+  "id": "mac-dinh",
+  "name": "Túi đen mặc định",
+  "kind": "tui",
+  "count": 1,
+  "ext": "png",
+  "source": [
+    128,
+    128
+  ]
+}

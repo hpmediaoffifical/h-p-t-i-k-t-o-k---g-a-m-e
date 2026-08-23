@@ -12,11 +12,12 @@ QUY ƯỚC (đọc kỹ trước khi làm bộ mới):
 
   skins/hat/<id>/     01.png … NN.png   ảnh VUÔNG, hạt rơi — ảnh gốc lấy từ --src
   skins/thung/<id>/   01.png            ĐÚNG MỘT ảnh thùng — bỏ thẳng vào đây rồi chạy script
+  skins/tui/<id>/     01.png            ĐÚNG MỘT ảnh túi rác — y hệt bộ thùng, khung nhỏ hơn
 
 Hai loại lấy ảnh gốc khác đường vì lý do thực tế: bộ hạt có hàng chục file nên để ngoài
-Desktop cho dễ vẽ, còn bộ thùng chỉ một file nên đặt luôn vào thư mục đích, script chuẩn
-hoá tại chỗ. Thêm bộ thùng mới = tạo thư mục, copy 1 file PNG tên 01.png, chạy script —
-không phải khai báo gì trong file này (trừ tên hiển thị đẹp ở BIN_NAMES).
+Desktop cho dễ vẽ, còn bộ thùng/túi chỉ một file nên đặt luôn vào thư mục đích, script
+chuẩn hoá tại chỗ. Thêm bộ thùng/túi mới = tạo thư mục, copy 1 file PNG tên 01.png, chạy
+script — không phải khai báo gì trong file này (trừ tên hiển thị đẹp ở STATIC_KINDS).
 
 Ảnh hạt phải vuông vì engine định vị lá bằng `translate(x - size/2, y - size/2)`,
 tức là nó đã coi mỗi hạt là một ô vuông size×size. Ảnh gốc lá 80×48 khiến tâm thật
@@ -61,7 +62,17 @@ HAT_SKINS = [
         'bundled': ['la'],
     },
     {
-        'id': 'noel-tuyet', 'name': 'Tuyết Noel', 'target': 64, 'baseSize': 44,
+        # baseSize chốt theo DIỆN TÍCH PHỦ chứ không phải bề ngang: đo alpha trên khung vuông
+        # được lá 17.6%, tuyết 21.1% (bông tuyết hình sao nhưng toả rộng hơn chiếc lá nhồi
+        # trong khung). Muốn một bông phủ bằng một lá thì cạnh = √(.176×110² / .211) ≈ 100.
+        #
+        # Bản đầu để 44 cho đúng "tuyết thì phải nhỏ", nhưng từ khi độ chồng tự tính theo
+        # maxLeaves thì cỡ hạt quyết định luôn đống DÀY hay THỦNG: 44px phủ kém lá 5.2 lần,
+        # nên cùng 600 hạt mà đống lá thì kín còn đống tuyết nhìn như bụi lơ lửng.
+        #
+        # target 128 (không phải 64) vì baseSize 100 mà ảnh gốc chỉ 64 là trình duyệt phóng
+        # lên, mờ. Ảnh gốc có sẵn 256px nên 128 vẫn là thu nhỏ, giữ nguyên độ nét.
+        'id': 'noel-tuyet', 'name': 'Tuyết Noel', 'target': 128, 'baseSize': 100,
         'src': ['Noel', 'tuyet'], 'match': r'^tuyet_\d+\.png$',
     },
 ]
@@ -80,6 +91,13 @@ BIN_CANVAS = (200, 231)   # khung chuẩn mọi bộ thùng, khớp bộ mặc �
 BIN_BASE_WIDTH = 260      # px hiển thị ở mức Kích thước 100%
 BIN_FLASH_MS = 720        # khớp @keyframes nl-bin-receive trong overlay.html
 
+# Túi rác vẽ ở 2.4em của cụm túi nợ — mức Kích thước 100% ra khoảng 62px, kéo hết cỡ 300%
+# mới tới ~187px. Khung 128 vuông là đủ nét ở mức thường dùng mà vẫn giữ file ~20KB: cụm
+# túi có thể vẽ tới 40 icon một lúc nên mỗi KB ở đây nhân lên 40 lần. Không có baseWidth
+# như bộ thùng vì cụm túi đo hoàn toàn bằng em (xem #nl-bags trong overlay.html) — cỡ do
+# thanh Kích thước của Túi nợ quyết định, bộ ảnh không được phép chen vào.
+BAG_CANVAS = (128, 128)
+
 # Tên hiển thị trong panel. Id nào không có ở đây thì lấy tên thư mục viết hoa chữ đầu,
 # nên bỏ sót cũng không sao — chỉ là tên xấu hơn.
 BIN_NAMES = {
@@ -93,6 +111,39 @@ BIN_NAMES = {
     'sinh-thai': 'Sinh thái',
     'hoang-gia-tim-vang': 'Hoàng gia tím vàng',
     'arcade-retro': 'Arcade retro',
+    # Nhóm hồng/pastel cho host nữ.
+    'hong-pastel-trai-tim': 'Hồng pastel trái tim',
+    'hong-no-ngoc-trai': 'Hồng nơ ngọc trai',
+    'hong-chrome-gon-song': 'Hồng chrome gợn sóng',
+    'hong-caro-thoi-trang': 'Hồng caro thời trang',
+    'hong-trang-sao': 'Hồng trăng sao',
+    'hong-dau-tay': 'Hồng dâu tây',
+    'hong-hologram': 'Hồng hologram',
+    'hoa-anh-dao': 'Hoa anh đào',
+    'lavender-buom': 'Lavender bươm bướm',
+    'meo-de-thuong': 'Mèo dễ thương',
+    'ngoc-trai-dai-duong': 'Ngọc trai đại dương',
+}
+
+BAG_NAMES = {
+    'mac-dinh': 'Túi đen mặc định',
+    'hong-trai-tim': 'Hồng trái tim',
+    'cong-nghe-xanh': 'Công nghệ xanh',
+    'canh-bao-vang': 'Cảnh báo vàng',
+    'sinh-thai-xanh-la': 'Sinh thái xanh lá',
+    'thien-ha-tim': 'Thiên hà tím',
+}
+
+# Hai loại bộ "một ảnh, chuẩn hoá tại chỗ" dùng chung hết đường code, chỉ khác khung ảnh
+# và mấy khoá thừa trong manifest. Thêm loại thứ ba = thêm một dòng ở đây.
+STATIC_KINDS = {
+    'thung': {
+        'canvas': BIN_CANVAS, 'names': BIN_NAMES,
+        'manifest': {'baseWidth': BIN_BASE_WIDTH, 'flashMs': BIN_FLASH_MS},
+    },
+    'tui': {
+        'canvas': BAG_CANVAS, 'names': BAG_NAMES, 'manifest': {},
+    },
 }
 
 
@@ -178,17 +229,19 @@ def build_hat(skin, src_root):
     return (manifest, total_in, total_out), None
 
 
-def build_bin(skin, src_root):
-    """Chuẩn hoá TẠI CHỖ: ảnh gốc chính là skins/thung/<id>/01.png. Không xoá thư mục như
+def build_static(skin, src_root):
+    """Chuẩn hoá TẠI CHỖ: ảnh gốc chính là skins/<kind>/<id>/01.png. Không xoá thư mục như
     bộ hạt, vì xoá là mất luôn ảnh gốc."""
-    out_dir = os.path.join(SKINS_DIR, 'thung', skin['id'])
+    kind = skin['kind']
+    spec = STATIC_KINDS[kind]
+    out_dir = os.path.join(SKINS_DIR, kind, skin['id'])
     idle = os.path.join(out_dir, '01.png')
     if not os.path.isfile(idle):
         return None, f"thiếu ảnh: {idle}"
 
     total_in = os.path.getsize(idle)
     with Image.open(idle) as img:
-        normalized = fit_canvas(img, BIN_CANVAS)
+        normalized = fit_canvas(img, spec['canvas'])
     total_out = save(normalized, idle)
 
     # Dọn ảnh 02 của bản cũ. Để lại thì chỉ tổ tốn chỗ và làm hoạ sĩ tưởng còn phải vẽ nó.
@@ -198,25 +251,27 @@ def build_bin(skin, src_root):
         os.remove(stale)
 
     manifest = {
-        'id': skin['id'], 'name': skin['name'], 'kind': 'thung',
-        'count': 1, 'ext': 'png', 'source': list(BIN_CANVAS),
-        'baseWidth': BIN_BASE_WIDTH, 'flashMs': BIN_FLASH_MS,
+        'id': skin['id'], 'name': skin['name'], 'kind': kind,
+        'count': 1, 'ext': 'png', 'source': list(spec['canvas']),
+        **spec['manifest'],
     }
     write_manifest(out_dir, manifest)
     return (manifest, total_in, total_out, removed), None
 
 
-def discover_bin_skins():
-    """Quét skins/thung/ thay vì khai báo tay: thả thư mục có 01.png là thành một bộ."""
+def discover_static_skins(kind):
+    """Quét skins/<kind>/ thay vì khai báo tay: thả thư mục có 01.png là thành một bộ."""
+    names_map = STATIC_KINDS[kind]['names']
     try:
-        names = sorted(os.listdir(os.path.join(SKINS_DIR, 'thung')))
+        names = sorted(os.listdir(os.path.join(SKINS_DIR, kind)))
     except FileNotFoundError:
         return []
     skins = []
     for sid in names:
-        if not os.path.isfile(os.path.join(SKINS_DIR, 'thung', sid, '01.png')):
+        if not os.path.isfile(os.path.join(SKINS_DIR, kind, sid, '01.png')):
             continue
-        skins.append({'id': sid, 'name': BIN_NAMES.get(sid, sid.replace('-', ' ').capitalize())})
+        skins.append({'id': sid, 'kind': kind,
+                      'name': names_map.get(sid, sid.replace('-', ' ').capitalize())})
     return skins
 
 
@@ -245,7 +300,9 @@ def main():
 
     wanted = set(args.only)
     failures = []
-    for kind, skins, builder in (('hat', HAT_SKINS, build_hat), ('thung', discover_bin_skins(), build_bin)):
+    jobs = [('hat', HAT_SKINS, build_hat)]
+    jobs += [(kind, discover_static_skins(kind), build_static) for kind in STATIC_KINDS]
+    for kind, skins, builder in jobs:
         for skin in skins:
             if wanted and skin['id'] not in wanted:
                 continue

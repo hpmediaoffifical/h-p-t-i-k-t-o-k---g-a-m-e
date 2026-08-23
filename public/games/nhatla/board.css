@@ -1,0 +1,190 @@
+/* ============================================================
+   HP Nhặt Lá — Bảng quà (kiểu dáng dùng chung)
+   ============================================================
+   File này nạp ở HAI nơi:
+     1. board.html  — overlay OBS thật (/overlay/nhatla-gifts)
+     2. index.html  — ô xem trước trong tab "📋 Bảng quà" của panel
+   Cùng một file nên xem trước và OBS không bao giờ vẽ lệch nhau. Sửa ở đây là
+   sửa cả hai; đừng chép lại luật nào sang public/style.css.
+
+   ĐƠN VỊ: px thuần, KHÔNG dùng cqw. Bảng luôn sống trong .nlb-stage cỡ cứng
+   1080×1920 rồi được transform:scale() ra cỡ thật, nên px bên trong tự co giãn
+   theo. Cách này đỡ phải khai báo container-type và cho panel thu nhỏ sân khấu
+   xuống vừa ô xem trước chỉ bằng một phép scale.
+
+   BỐN BIẾN điều khiển mọi kích thước, panel ghi thẳng vào .nlb-board:
+     --s   cỡ tổng thể     (giftBoard.scale     / 100)
+     --is  cỡ icon riêng   (giftBoard.iconScale / 100)
+     --ns  cỡ chữ riêng    (giftBoard.nameScale / 100)
+     --gp  giãn cách thẻ   (giftBoard.gap       / 100)
+   ============================================================ */
+
+/* Sân khấu cứng 1080×1920 — khớp #nl-root của overlay chính để toạ độ %
+   của bảng nằm đúng chỗ so với đống lá khi chồng hai browser source lên nhau. */
+.nlb-stage {
+    position: relative;
+    width: 1080px;
+    height: 1920px;
+    overflow: hidden;
+    transform-origin: top left;
+    background: transparent;
+}
+
+.nlb-board {
+    --s: 1;
+    --is: 1;
+    --ns: 1;
+    --gp: 0.8;
+    /* Giãn cách thật giữa hai thẻ. Tách ra thành biến riêng vì animation cuộn
+       phải trừ đi đúng một nửa con số này (xem .nlb-track bên dưới). */
+    --gap-px: calc(18px * var(--gp) * var(--s));
+    position: absolute;
+    display: flex;
+    align-items: flex-start;
+    gap: calc(10px * var(--s));
+    color: #fff;
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+.nlb-board.is-hidden { display: none; }
+.nlb-board.layout-vertical { flex-direction: column; }
+.nlb-board.layout-horizontal { flex-direction: row; }
+
+/* Viên đếm số quà — nằm NGOÀI .nlb-list nên không bị cuộn trôi mất. */
+.nlb-counter {
+    flex: 0 0 auto;
+    min-width: calc(38px * var(--s));
+    padding: calc(4px * var(--s)) calc(12px * var(--s));
+    border-radius: calc(999px * var(--s));
+    background: linear-gradient(135deg, rgba(255, 122, 46, 0.95), rgba(255, 61, 113, 0.95));
+    font-size: calc(22px * var(--s));
+    font-weight: 800;
+    line-height: 1.3;
+    text-align: center;
+    box-shadow: 0 calc(2px * var(--s)) calc(8px * var(--s)) rgba(0, 0, 0, 0.45);
+}
+
+.nlb-list {
+    display: flex;
+    gap: var(--gap-px);
+    overflow: hidden;
+}
+.nlb-board.layout-vertical .nlb-list { flex-direction: column; }
+.nlb-board.layout-horizontal .nlb-list { flex-direction: row; }
+
+/* ── THẺ QUÀ ────────────────────────────────────────────────────────────────
+   Dùng flexbox chứ không position:absolute như .tt-badge của Hũ Thủy Tinh.
+   Bảng kia phải viết đủ 8 tổ hợp (2 bố cục × 4 vị trí tên); ở đây namePos chỉ
+   đổi flex-direction nên còn đúng 4 dòng, và chữ dài tự đẩy chỗ thay vì đè icon. */
+.nlb-card {
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: calc(10px * var(--s));
+    padding: calc(10px * var(--s));
+    border-radius: calc(16px * var(--s));
+    border: calc(2px * var(--s)) solid rgba(255, 166, 77, 0.55);
+    background: rgba(18, 20, 28, 0.78);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 calc(3px * var(--s)) calc(10px * var(--s)) rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+}
+/* Tên bên phải/trái → thẻ nằm ngang, rộng. Tên trên/dưới → thẻ vuông, hẹp. */
+.nlb-card.name-right  { flex-direction: row; }
+.nlb-card.name-left   { flex-direction: row-reverse; }
+.nlb-card.name-bottom { flex-direction: column; }
+.nlb-card.name-top    { flex-direction: column-reverse; }
+.nlb-card.name-right,
+.nlb-card.name-left   { width: calc(370px * var(--s)); }
+.nlb-card.name-bottom,
+.nlb-card.name-top    { width: calc(210px * var(--s)); justify-content: center; }
+
+.nlb-ico {
+    flex: 0 0 auto;
+    width: calc(76px * var(--s) * var(--is));
+    height: calc(76px * var(--s) * var(--is));
+    object-fit: contain;
+    /* Icon quà TikTok là PNG nền trong, thả bóng nhẹ cho nổi trên nền video sáng. */
+    filter: drop-shadow(0 calc(2px * var(--s)) calc(4px * var(--s)) rgba(0, 0, 0, 0.55));
+}
+
+.nlb-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(2px * var(--s));
+}
+.nlb-card.name-bottom .nlb-text,
+.nlb-card.name-top .nlb-text { flex: 0 0 auto; width: 100%; align-items: center; }
+
+.nlb-name {
+    font-size: calc(26px * var(--s) * var(--ns));
+    font-weight: 800;
+    line-height: 1.2;
+    /* Nhãn gộp nhiều nguồn ("50 lá · Gió thổi bay lá") dễ dài — cắt ở 2 dòng
+       thay vì cho tràn ra làm cao thấp không đều nhau. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+    text-shadow: 0 calc(2px * var(--s)) calc(4px * var(--s)) rgba(0, 0, 0, 0.75);
+}
+.nlb-card.name-bottom .nlb-name,
+.nlb-card.name-top .nlb-name { text-align: center; }
+
+.nlb-diamond {
+    font-size: calc(19px * var(--s) * var(--ns));
+    font-weight: 700;
+    color: #ffd479;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+/* ── CUỘN TỰ ĐỘNG ───────────────────────────────────────────────────────────
+   .nlb-list bị chặn cỡ (JS đặt max-height/max-width theo visibleCount), bên
+   trong là .nlb-track chứa HAI bản danh sách nối nhau để vòng lặp liền mạch.
+
+   Vì sao trừ thêm --gap-px/2: track có 2n thẻ và 2n−1 khoảng cách, nên -50% chỉ
+   đúng bằng n thẻ + (n−0.5) khoảng — thiếu nửa khoảng so với một bản đầy đủ.
+   Không trừ bù thì mỗi vòng lặp bảng giật một nhịp nhỏ. */
+.nlb-track {
+    display: flex;
+    gap: var(--gap-px);
+    will-change: transform;
+}
+.nlb-board.layout-vertical .nlb-track { flex-direction: column; }
+.nlb-board.layout-horizontal .nlb-track { flex-direction: row; }
+
+.nlb-list.is-scrolling .nlb-track {
+    animation-duration: var(--scroll-duration, 20s);
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+}
+.nlb-list.is-scrolling.dir-up .nlb-track    { animation-name: nlb-scroll-up; }
+.nlb-list.is-scrolling.dir-down .nlb-track  { animation-name: nlb-scroll-down; }
+.nlb-list.is-scrolling.dir-left .nlb-track  { animation-name: nlb-scroll-left; }
+.nlb-list.is-scrolling.dir-right .nlb-track { animation-name: nlb-scroll-right; }
+
+@keyframes nlb-scroll-up {
+    from { transform: translateY(0); }
+    to   { transform: translateY(calc(-50% - var(--gap-px) / 2)); }
+}
+@keyframes nlb-scroll-down {
+    from { transform: translateY(calc(-50% - var(--gap-px) / 2)); }
+    to   { transform: translateY(0); }
+}
+@keyframes nlb-scroll-left {
+    from { transform: translateX(0); }
+    to   { transform: translateX(calc(-50% - var(--gap-px) / 2)); }
+}
+@keyframes nlb-scroll-right {
+    from { transform: translateX(calc(-50% - var(--gap-px) / 2)); }
+    to   { transform: translateX(0); }
+}
+
+/* Bảng rỗng: overlay OBS im lặng hoàn toàn, ô xem trước trong panel thì cần nói
+   cho người dùng biết vì sao trống — .nlb-empty chỉ hiện ở panel (xem style.css). */
+.nlb-empty { display: none; }
