@@ -28,7 +28,47 @@ Quy trình release từng phiên bản. **Distribution hai tầng:**
 | **Số version giữ** | 1 file mới nhất | Tất cả version (v1.0.0, v1.0.1, ..., v1.0.N) |
 | **Khi nào dùng** | Mọi update bình thường | Khi user gặp lỗi với v mới → admin cấp link v cũ |
 
-## Workflow release version mới
+## Cách release (dùng cái này)
+
+```powershell
+# 1. Sửa "version" trong package.json
+# 2. Viết ghi chú phát hành — user đọc đúng file này trong modal cập nhật
+#    release-notes\<version>.md
+# 3. Commit hết
+# 4. Xem trước, chưa đẩy gì:
+.\tools\release.ps1 -DryRun
+# 5. Chạy thật:
+.\tools\release.ps1
+```
+
+Script làm trọn 8 bước thủ công bên dưới trong một lệnh, **chạy lại được** — đứt giữa
+chừng thì chạy lại đi tiếp từ chỗ dở, không tạo tag hay release trùng.
+
+Cần trước một lần:
+
+```powershell
+$env:HP_ADMIN_TOKEN = "<token license.hpvn.media>"
+gh auth login
+```
+
+Hai chốt chặn script có mà làm tay không có:
+
+- **Soi ruột installer trước khi đẩy** (`tools/verify-build.js`) — đọc xuyên `app.asar`
+  bằng Electron thật, kiểm từng file ảnh của mỗi bộ skin và `hpkey/secret.local.js`.
+  Thiếu secret là máy cài mới không active được key nào; thiếu skin thì `server.js`
+  nuốt lỗi rồi trả mảng rỗng, khách mất sạch skin mà không báo gì.
+- **Đối chiếu SHA256** server bấm lại với bản local sau khi upload. Lệch nghĩa là file
+  hỏng đường truyền — publish tiếp là khách tải về file hỏng mà metadata vẫn bảo khớp.
+
+Script dừng ngay nếu working tree bẩn, thiếu ghi chú phát hành, thiếu `HP_ADMIN_TOKEN`,
+`gh` chưa đăng nhập, hoặc tag cùng số hiệu đã trỏ vào commit khác.
+
+> Script phải giữ **BOM UTF-8**. PowerShell 5.1 đọc `.ps1` không BOM theo ANSI, tiếng Việt
+> trong đó sẽ vỡ thành lỗi cú pháp.
+
+---
+
+## Các bước thủ công (script tự làm — giữ đây để tham chiếu khi debug)
 
 ### Bước 1: Bump version
 
