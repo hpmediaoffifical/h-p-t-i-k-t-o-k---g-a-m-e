@@ -27,12 +27,18 @@ const FILES = [
     ['public/index.html', 'giao diện app'],
     ['public/games/nhatla/overlay.html', 'overlay Nhặt Lá'],
     ['public/games/nhatla/game.js', 'engine helper Nhặt Lá'],
+    ['public/games/nhatla/board.html', 'overlay bảng quà Nhặt Lá'],
+    ['public/games/nhatla/board.css', 'kiểu dáng bảng quà — panel và overlay dùng chung'],
 ];
 
 // [thư mục, số bộ tối thiểu] — đọc bằng withFileTypes y như server.js.
+// Danh sách này phải khớp NHATLA_SKIN_KINDS trong server.js. Thiếu một chiều ở đây thì
+// installer rỗng bộ đó vẫn qua cửa: server.js nuốt lỗi rồi trả mảng rỗng, panel hiện ô
+// chọn trống mà không báo gì.
 const SKIN_DIRS = [
     ['public/games/nhatla/skins/hat', 1],
     ['public/games/nhatla/skins/thung', 1],
+    ['public/games/nhatla/skins/tui', 1],
 ];
 
 const problems = [];
