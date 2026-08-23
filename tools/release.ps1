@@ -26,9 +26,15 @@
     .\tools\release.ps1 -SkipBuild
 
 .NOTES
-    Cần trước:
-      $env:HP_ADMIN_TOKEN = "<token license.hpvn.media>"   (không bao giờ ghi vào file này)
-      gh auth login
+    Cần trước: gh auth login. HẾT.
+
+    KHÔNG cần admin token. Máy khách tự cập nhật qua GitHub Releases: server.js gọi
+    api.github.com/repos/<owner>/<repo>/releases/latest không kèm xác thực, đọc tag_name
+    rồi tải asset khớp /Setup.*\.exe$/. Xem khối AUTO-UPDATE trong server.js.
+
+    license.hpvn.media chỉ là NGUỒN DỰ PHÒNG, và chỉ được hỏi tới khi GitHub fail.
+    Script vẫn đẩy lên đó nếu tình cờ có $env:HP_ADMIN_TOKEN, còn không thì bỏ qua —
+    không phải lý do để chặn một bản phát hành.
 #>
 
 [CmdletBinding()]
@@ -43,6 +49,16 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $RepoRoot
 
 $BASE_URL = "https://license.hpvn.media"
+
+# Doc thang tu server.js chu khong chep lai: day la repo ma MAY KHACH goi toi de tim ban
+# moi. Chep tay vao day thi mai mot ai sua server.js ma quen sua cho nay, buoc xac nhan
+# cuoi script se soi nham repo va bao "xong" trong khi may khach chang thay gi.
+$serverJs = Get-Content (Join-Path $RepoRoot 'server.js') -Raw
+if ($serverJs -match "HP_GITHUB_REPO\s*\|\|\s*'([^']+)'") {
+    $repoSlug = $Matches[1]
+} else {
+    Die "Khong doc duoc GITHUB_REPO trong server.js — kiem tra khoi AUTO-UPDATE."
+}
 
 function Say    ($m) { Write-Host $m -ForegroundColor Cyan }
 function Good   ($m) { Write-Host "  OK   $m" -ForegroundColor Green }
@@ -95,10 +111,10 @@ $notes = Get-Content $NotesFile -Raw
 if ($notes.Trim().Length -lt 20) { Die "$NotesFile qua ngan, viet tu te vao." }
 Good "ghi chu $NotesFile ($($notes.Trim().Length) ky tu)"
 
-if (-not $env:HP_ADMIN_TOKEN) {
-    Die 'Thieu $env:HP_ADMIN_TOKEN. Chay: $env:HP_ADMIN_TOKEN = "<token>"'
-}
-Good "co HP_ADMIN_TOKEN"
+# Token KHONG bat buoc: kenh cap nhat that su la GitHub Releases (public, khong xac thuc).
+$hasToken = [bool]$env:HP_ADMIN_TOKEN
+if ($hasToken) { Good "co HP_ADMIN_TOKEN — se day ca len nguon du phong" }
+else { Warn "khong co HP_ADMIN_TOKEN — bo qua nguon du phong, may khach van cap nhat qua GitHub" }
 
 gh auth status | Out-Null
 if ($LASTEXITCODE -ne 0) { Die "gh chua dang nhap. Chay: gh auth login" }
@@ -173,29 +189,36 @@ if ($DryRun) {
     }
 }
 
-# ─── GITHUB RELEASE (kênh backup, admin dùng để rollback) ────────────────────
-Say "6/8  GitHub Release (kenh backup)"
+# ─── GITHUB RELEASE — ĐÂY LÀ BƯỚC LÀM MÁY KHÁCH THẤY BẢN MỚI ─────────────────
+# App goi api.github.com/.../releases/latest, doc tag_name, tim asset khop Setup*.exe.
+# Khong co buoc nay thi khong ai cap nhat duoc, du license-server co gi di nua.
+Say "6/8  GitHub Release (KENH CAP NHAT CHINH)"
 gh release view $TAG | Out-Null
 $releaseExists = ($LASTEXITCODE -eq 0)
 if ($releaseExists) {
     Skip "gh release create $TAG"
 } elseif ($DryRun) {
-    Would "gh release create $TAG (dinh kem $FILENAME)"
+    Would "gh release create $TAG (dinh kem $FILENAME + latest.yml)"
 } else {
     # --notes-file chu khong nhet ghi chu vao dong lenh: ghi chu nhieu dong nhet thang vao
     # tham so lam dong lenh dai loang ngoang, vua kho doc vua de vo cu phap.
-    gh release create $TAG $FILEPATH --title "$TAG" --notes-file $NotesFile
+    $assets = @($FILEPATH)
+    if (Test-Path "dist\latest.yml") { $assets += "dist\latest.yml" }
+    gh release create $TAG @assets --title "$TAG" --notes-file $NotesFile
     if ($LASTEXITCODE -ne 0) { Die "tao GitHub release that bai" }
     Good "da tao release $TAG kem installer"
 }
 
-# ─── UPLOAD LÊN LICENSE-SERVER (kênh chính, máy khách tự tải) ────────────────
-Say "7/8  Upload installer len $BASE_URL"
-$headersAuth = @{ "Authorization" = "Bearer $env:HP_ADMIN_TOKEN" }
-
-if ($DryRun) {
+# ─── NGUỒN DỰ PHÒNG (bỏ qua nếu không có token) ──────────────────────────────
+# server.js chi hoi toi $BASE_URL khi GitHub fail. Khong co token thi bo qua han —
+# thieu nguon du phong khong phai ly do chan mot ban phat hanh.
+Say "7/8  Nguon du phong $BASE_URL"
+if (-not $hasToken) {
+    Skip "upload + publish metadata (khong co HP_ADMIN_TOKEN)"
+} elseif ($DryRun) {
     Would "POST $BASE_URL/admin/api/upload-installer  ($FILENAME)"
 } else {
+    $headersAuth = @{ "Authorization" = "Bearer $env:HP_ADMIN_TOKEN" }
     $bytes = [IO.File]::ReadAllBytes((Resolve-Path $FILEPATH))
     $up = Invoke-RestMethod -Uri "$BASE_URL/admin/api/upload-installer" -Method Post `
         -Headers ($headersAuth + @{ "X-Filename" = $FILENAME; "Content-Type" = "application/octet-stream" }) `
@@ -207,40 +230,48 @@ if ($DryRun) {
         Die "SHA256 server ($($up.sha256)) khac local ($SHA256) — file loi duong truyen, DUNG lai."
     }
     Good "upload xong, sha256 khop"
+
+    $publishBody = @{
+        version  = $VERSION
+        filename = $FILENAME
+        sha256   = $SHA256
+        size     = $SIZE
+        notes    = $notes
+    } | ConvertTo-Json
+    $pub = Invoke-RestMethod -Uri "$BASE_URL/admin/api/publish-version" -Method Post `
+        -Headers ($headersAuth + @{ "Content-Type" = "application/json" }) -Body $publishBody
+    if (-not $pub.ok) { Die "publish tra ve: $($pub | ConvertTo-Json -Compress)" }
+    Good "publish metadata version=$($pub.info.version)"
 }
 
-# ─── PUBLISH METADATA — bước làm máy khách thấy modal ────────────────────────
-Say "8/8  Publish metadata (tu day may khach thay modal cap nhat)"
+# ─── XÁC NHẬN BẰNG ĐÚNG API MÀ MÁY KHÁCH GỌI ─────────────────────────────────
+# Doc nguoc tu api.github.com chu khong tin vao ma tra ve cua gh: day moi la thu may
+# khach that su thay. Bat duoc ca truong hop release tao ra nhung quen dinh kem .exe —
+# luc do app bao co ban moi roi khong tai duoc gi.
+Say "8/8  Xac nhan may khach nhin thay $TAG"
 if ($DryRun) {
-    Would "POST $BASE_URL/admin/api/publish-version  version=$VERSION"
+    Would "GET api.github.com/repos/$repoSlug/releases/latest"
     Write-Host ""
     Say "DRY RUN xong — chua day gi. Bo -DryRun de chay that."
     exit 0
 }
 
-$publishBody = @{
-    version  = $VERSION
-    filename = $FILENAME
-    sha256   = $SHA256
-    size     = $SIZE
-    notes    = $notes
-} | ConvertTo-Json
+Start-Sleep -Seconds 3
+$ghApi = Invoke-RestMethod -Uri "https://api.github.com/repos/$repoSlug/releases/latest" -TimeoutSec 30
+$liveTag = $ghApi.tag_name
+$setup = $ghApi.assets | Where-Object { $_.name -match 'Setup.*\.exe$' } | Select-Object -First 1
 
-$pub = Invoke-RestMethod -Uri "$BASE_URL/admin/api/publish-version" -Method Post `
-    -Headers ($headersAuth + @{ "Content-Type" = "application/json" }) -Body $publishBody
-if (-not $pub.ok) { Die "publish tra ve: $($pub | ConvertTo-Json -Compress)" }
-Good "publish version=$($pub.info.version)"
-
-# Doc nguoc lai tu API cong khai — day moi la thu may khach that su nhin thay.
-Start-Sleep -Seconds 2
-$live = Invoke-RestMethod -Uri "$BASE_URL/api/version" -TimeoutSec 30
-if ($live.version -ne $VERSION) {
-    Warn "API /api/version dang tra '$($live.version)', khong phai '$VERSION' — kiem tra lai server."
+if ($liveTag -ne $TAG) {
+    Warn "releases/latest dang tra '$liveTag', khong phai '$TAG'. Neu release vua tao la draft/prerelease thi may khach se KHONG thay."
 } else {
-    Good "/api/version da tra $VERSION"
+    Good "releases/latest = $liveTag"
 }
+if (-not $setup) {
+    Die "Release $TAG KHONG co asset nao khop Setup*.exe — app se bao co ban moi nhung khong tai duoc gi."
+}
+Good "asset $($setup.name) ($([math]::Round($setup.size/1MB,1)) MB)"
 
 Write-Host ""
 Write-Host "XONG — $TAG da phat hanh. May khach mo app se thay modal cap nhat." -ForegroundColor Magenta
-Write-Host "  Kiem tra:  $BASE_URL/api/version" -ForegroundColor Gray
-Write-Host "  Backup  :  gh release view $TAG --web" -ForegroundColor Gray
+Write-Host "  Kenh chinh:  https://api.github.com/repos/$repoSlug/releases/latest" -ForegroundColor Gray
+Write-Host "  Xem release: gh release view $TAG --web" -ForegroundColor Gray
