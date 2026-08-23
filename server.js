@@ -173,6 +173,14 @@ const GAMES = {
         overlayPath: '/overlay/trongcay',
         defaultConfig: makeDefaultTrongCayConfig()
     },
+    nhatla: {
+        id: 'nhatla',
+        name: 'Nhặt Lá',
+        description: 'Quà tặng → lá khô rơi ngẫu nhiên chồng chất đầy màn hình. NPC kéo lá bỏ thùng rác để dọn.',
+        icon: '🍂',
+        overlayPath: '/overlay/nhatla',
+        defaultConfig: makeDefaultNhatLaConfig()
+    },
     'level-quest': {
         id: 'level-quest',
         name: 'LEVEL QUEST',
@@ -318,6 +326,109 @@ function makeDefaultVoteCommentConfig() {
             xPercent: 50,
             yPercent: 50
         }
+    };
+}
+
+// ====== Nhặt Lá — defaults ======
+// Overlay tương tác trực tiếp: quà → lá rơi ngẫu nhiên chồng chất; NPC kéo lá bỏ thùng rác.
+// display.* là % để sau này chốt size chỉ cần khóa giá trị mặc định (leafScale/handScale/binScale).
+function makeDefaultNhatLaConfig() {
+    return {
+        enabled: true,
+        display: {
+            hatSkin: 'la-mua-thu', // bộ ảnh hạt rơi (skins/hat/<id>/) — lá, tuyết, …
+            binSkin: 'mac-dinh',   // bộ ảnh thùng rác (skins/thung/<id>/)
+            leafScale: 100,       // % kích thước hạt (base lấy theo skin.json:baseSize)
+            handScale: 50,        // % kích thước bàn tay chuột
+            binScale: 100,        // % kích thước thùng rác (base lấy theo skin.json:baseWidth)
+            // Bốn toạ độ dưới đây chốt theo bố cục đã chạy live thật ở v1.7.0: thùng lệch phải
+            // và hơi cao hơn đáy, bảng đếm nằm nửa trên bên phải — chừa trọn góc trái cho
+            // khung camera. Số lẻ là vị trí kéo tay trên overlay, không phải số bịa.
+            binXPercent: 67,      // vị trí thùng rác ngang (%)
+            binYPercent: 72.6,    // vị trí thùng rác dọc (%) — tính theo tâm ảnh
+            hudXPercent: 66.3,    // vị trí bảng Tổng số lá/Tổng số dọn
+            hudYPercent: 14.1,
+            showHud: true,        // hiện bộ đếm "Đã dọn / Còn lại"
+            reviewEditMode: true  // review nhúng cho kéo thùng/HUD ngay, khỏi bật thêm nút
+        },
+        drop: {
+            minFallSec: 3.2,      // thời gian rơi tối thiểu của 1 lá
+            maxFallSec: 6.5,
+            spawnGapMs: 60,       // khoảng cách giữa các lá khi 1 quà rơi nhiều lá
+            maxLeaves: 6000       // trần số lá render (chống lag)
+        },
+        effects: {
+            // Mỗi quà có thể kích hoạt một WEBM với thời gian buông lá riêng.
+            effectGifts: []
+        },
+        // Gió cục bộ: thổi tung một vùng lá quanh một điểm (curl-noise).
+        // maxLeaves là cần gạt THẨM MỸ chứ không phải hiệu năng — đo được giảm 600 xuống 300
+        // gần như không đổi frame time. Muốn nhẹ máy thì giảm drop.maxLeaves.
+        wind: {
+            enabled: true,
+            radius: 420,          // px bán kính vùng gió
+            strength: 640,        // px/s vận tốc gió tại tâm
+            turbulence: 55,       // % nhiễu xoáy trộn vào luồng thẳng
+            durationMs: 1500,     // thời gian một cơn
+            maxLeaves: 600,       // số lá cuốn lên mỗi cơn
+            drag: 32,             // /10 = độ bám gió của lá
+            lift: 35,             // % lực nâng theo vận tốc góc
+            direction: 'random',  // 'left' | 'right' | 'random'
+            windGifts: []         // [{ id, giftId, giftName }] — quà kích hoạt gió
+        },
+        // LỐC XOÁY: gom lá quay tròn quanh trục rồi bốc lên.
+        // inward phải đủ lớn so với spin, nếu không lá loe ra thay vì gom vào — lý do số học
+        // và số đo cụ thể nằm trong public/games/nhatla/game.js.
+        tornado: {
+            enabled: true,
+            radius: 380,          // px bán kính vùng xoáy
+            spin: 800,            // px/s vận tốc quay tại rìa
+            inward: 1000,         // px/s lực hút vào tâm
+            lift: 380,            // px/s lực bốc lên
+            durationMs: 3200,
+            maxLeaves: 700,
+            drift: 90,            // px/s lốc trườn ngang qua sân
+            gifts: []             // [{ id, giftId, giftName }] — quà kích hoạt lốc
+        },
+        // HÀNH ĐỘNG CỨU: quà chỉ định bật chế độ tự nhặt lá trong N giây. Lá gần thùng nhất
+        // bay vào trước nên nhìn như thùng đang hút lá. Dành cho lúc đống lá ngập quá tay
+        // người vận hành — combo dồn dập thì chỉ gia hạn thêm giờ, không chồng nhiều lượt.
+        autoClean: {
+            enabled: true,
+            durationMs: 5000,     // thời gian một lượt cứu
+            leavesPerSec: 40,     // tốc độ nhặt
+            gifts: []             // [{ id, giftId, giftName }] — quà kích hoạt
+        },
+        // GIẢI CỨU: danh sách phẳng, MỖI hành động = 1 quà + 1 bộ thông số RIÊNG.
+        // Ba khối wind/tornado/autoClean ở trên vẫn giữ: làm MẪU thông số cho hành động mới,
+        // làm công tắc tắt cả loại, và giữ wind.drag/wind.lift (vật lý chung của lá).
+        rescue: {
+            actions: []       // [{ id, type, icon, name, enabled, giftId, giftName, hotkey, params }]
+        },
+        // TOP NGƯỜI TẶNG LÁ: server cộng dồn số lá theo BUỔI LIVE (in-memory, không ghi disk),
+        // reset khi bấm Xoá hết lá hoặc nút Reset TOP. Overlay có 2 kiểu hiện độc lập:
+        // chữ bay ngang màn hình lâu lâu một lượt, và bảng đứng thường trực.
+        topDonors: {
+            enabled: true,
+            count: 5,             // TOP mấy người
+            minLeaves: 1,         // dưới ngưỡng này không vào bảng
+            flyEnabled: true,
+            // Chốt theo bố cục đã chạy live thật: 'solo' xoay vòng từng người, chữ nhỏ (48%)
+            // bay ngang giữa màn hình trong 4s rồi nghỉ 31s. Cả tràng 'train' chữ to choán
+            // hết overlay nên chỉ hợp lúc demo, không hợp buổi live dài.
+            flyMode: 'solo',      // 'train' = cả TOP nối đuôi 1 lượt | 'solo' = xoay vòng từng người
+            flyIntervalSec: 31,   // giãn cách giữa 2 lượt bay
+            flyDurationSec: 4,    // thời gian bay hết chiều ngang
+            flyYPercent: 48,
+            flyScale: 48,
+            boardEnabled: false,
+            boardXPercent: 62,
+            boardYPercent: 6,
+            boardScale: 100
+        },
+        giftRules: [],            // [{ id, giftId, giftName, count }] — quà chỉ định rơi N lá
+        coinsPerLeaf: 1,          // quà không có rule: N coin = 1 lá (0 = bỏ qua)
+        defaultLeavesPerGift: 0   // legacy fallback, giữ để config cũ không lỗi
     };
 }
 
@@ -1098,6 +1209,25 @@ if (appConfig.games.bancung) {
 if (appConfig.games.nhietdo) {
     const def = makeDefaultNhietDoConfig();
     appConfig.games.nhietdo.display = { ...def.display, ...(appConfig.games.nhietdo.display || {}) };
+}
+if (appConfig.games.nhatla) {
+    const def = makeDefaultNhatLaConfig();
+    appConfig.games.nhatla.display = { ...def.display, ...(appConfig.games.nhatla.display || {}) };
+    appConfig.games.nhatla.drop = { ...def.drop, ...(appConfig.games.nhatla.drop || {}) };
+    appConfig.games.nhatla.effects = { ...def.effects, ...(appConfig.games.nhatla.effects || {}) };
+    // Config lưu từ bản trước v1.7.1 chưa có khối wind — merge để panel không đọc undefined.
+    appConfig.games.nhatla.wind = { ...def.wind, ...(appConfig.games.nhatla.wind || {}) };
+    // Tương tự cho khối autoClean (hành động CỨU) thêm ở bản sau.
+    appConfig.games.nhatla.autoClean = { ...def.autoClean, ...(appConfig.games.nhatla.autoClean || {}) };
+    appConfig.games.nhatla.tornado = { ...def.tornado, ...(appConfig.games.nhatla.tornado || {}) };
+    // Khối TOP người tặng lá thêm ở bản sau — merge để panel không đọc undefined.
+    appConfig.games.nhatla.topDonors = { ...def.topDonors, ...(appConfig.games.nhatla.topDonors || {}) };
+    // GIẢI CỨU: phải chuyển NGAY Ở SERVER lúc khởi động, không được chờ panel.
+    // normalizeConfig (public/games/nhatla/game.js) cũng biết chuyển, nhưng đó là file CLIENT
+    // — server không nạp. Ai không mở tab Nhặt Lá thì config trên đĩa mãi ở dạng cũ, trong khi
+    // đường phát quà đã chuyển hẳn sang cfg.rescue.actions, nên TOÀN BỘ quà gió/lốc/cứu đang
+    // cài sẽ lặng lẽ ngừng chạy. Chuyển ở đây thì bật app lên là đúng ngay.
+    migrateNhatLaRescue(appConfig.games.nhatla);
 }
 if (appConfig.games.trongcay) {
     const def = makeDefaultTrongCayConfig();
@@ -2917,6 +3047,209 @@ function refreshUnknownGiftsFromTikTok() {
     return { ok: true, updated, total: Object.keys(unknownGifts).length };
 }
 
+// Trần số lượt WEBM cho một combo. Overlay cũng tự clamp lại cùng con số này.
+const NHATLA_EFFECT_MAX_REPEAT = 20;
+// Trần số lượt cho gió / lốc / cứu. Khớp với ACTION_MAX_REPEAT trong overlay.html.
+const NHATLA_ACTION_MAX_REPEAT = 20;
+
+function findNhatLaEffectGift(giftId, giftName) {
+    const effects = appConfig.games?.nhatla?.effects || {};
+    const rules = Array.isArray(effects.effectGifts) ? effects.effectGifts : effects.tomGifts;
+    if (!Array.isArray(rules)) return null;
+    const id = String(giftId == null ? '' : giftId);
+    const name = String(giftName || '').trim().toLowerCase();
+    return rules.find(rule => rule && (
+        (id && String(rule.giftId || '') === id) ||
+        (name && String(rule.giftName || '').trim().toLowerCase() === name)
+    )) || null;
+}
+
+// ===== GIẢI CỨU =====
+// Chuyển config cũ sang danh sách phẳng: mỗi quà trong wind.windGifts / tornado.gifts /
+// autoClean.gifts thành MỘT hành động, kế thừa đúng thông số của khối nó thuộc về nên người
+// dùng không thấy khác gì. Xong thì dọn rỗng danh sách cũ — để lại là quà bắn hai lần.
+// Chỉ chạy khi cfg.rescue chưa có, nên gọi lại bao nhiêu lần cũng không nhân bản.
+// Song song với migrateRescue() bên game.js; sửa một bên nhớ sửa bên kia.
+function migrateNhatLaRescue(cfg) {
+    if (!cfg || (cfg.rescue && typeof cfg.rescue === 'object')) return;
+    // Khoá thông số hợp lệ theo từng loại — phải khớp RESCUE_LIMITS bên game.js.
+    // Để BÊN TRONG hàm chứ không phải const ở module scope: hàm này được gọi từ khối backfill
+    // gần đầu file (~dòng 1224), mà function declaration thì được hoisted còn `const` thì
+    // không — const khai báo phía dưới sẽ còn trong vùng chết và app chết ngay lúc khởi động.
+    const PARAM_KEYS = {
+        wind: ['radius', 'strength', 'turbulence', 'durationMs', 'maxLeaves'],
+        tornado: ['radius', 'spin', 'inward', 'lift', 'durationMs', 'maxLeaves', 'drift'],
+        autoClean: ['durationMs', 'leavesPerSec']
+    };
+    const preset = { wind: '🌬', tornado: '🌪', autoClean: '🧹' };
+    const presetName = { wind: 'Gió thổi bay lá', tornado: 'Lốc xoáy gom lá', autoClean: 'Tự nhặt lá' };
+    const actions = [];
+    const take = (list, type, block) => {
+        if (!Array.isArray(list)) return;
+        const params = {};
+        for (const key of PARAM_KEYS[type]) params[key] = block?.[key];
+        if (type === 'wind') params.direction = block?.direction || 'random';
+        for (const rule of list) {
+            if (!rule) continue;
+            actions.push({
+                id: String(rule.id || `rescue-${actions.length}-${Date.now()}`),
+                type, icon: preset[type], name: presetName[type], enabled: true,
+                giftId: String(rule.giftId || ''), giftName: String(rule.giftName || ''),
+                giftImage: String(rule.giftImage || ''), diamond: Number(rule.diamond) || 0,
+                hotkey: String(rule.hotkey || ''), params: { ...params }
+            });
+        }
+    };
+    take(cfg.wind?.windGifts, 'wind', cfg.wind);
+    take(cfg.tornado?.gifts, 'tornado', cfg.tornado);
+    take(cfg.autoClean?.gifts, 'autoClean', cfg.autoClean);
+    if (cfg.wind) cfg.wind.windGifts = [];
+    if (cfg.tornado) cfg.tornado.gifts = [];
+    if (cfg.autoClean) cfg.autoClean.gifts = [];
+    cfg.rescue = { actions };
+    if (actions.length) console.log(`[nhatla] Đã chuyển ${actions.length} quà gió/lốc/cứu sang GIẢI CỨU`);
+}
+
+// Bản song song của rescueActionForGift() trong public/games/nhatla/game.js — server không nạp
+// file client nên phải có bản riêng; sửa một bên nhớ sửa bên kia.
+// Công tắc tắt CẢ LOẠI vẫn nằm ở ba khối cũ (wind/tornado/autoClean .enabled).
+function rescueActionForGift(giftId, giftName) {
+    const cfg = appConfig.games?.nhatla;
+    const actions = cfg?.rescue?.actions;
+    if (!Array.isArray(actions)) return null;
+    const id = String(giftId == null ? '' : giftId);
+    const name = String(giftName || '').trim().toLowerCase();
+    const hit = actions.find(action => action && action.enabled !== false && (
+        (id && String(action.giftId || '') === id) ||
+        (name && String(action.giftName || '').trim().toLowerCase() === name)
+    ));
+    if (!hit) return null;
+    const block = hit.type === 'autoClean' ? cfg.autoClean : hit.type === 'tornado' ? cfg.tornado : cfg.wind;
+    return block?.enabled === false ? null : hit;
+}
+
+// Thông số đi KÈM payload chứ không để overlay tự đọc khối config chung — đó chính là thứ
+// cho phép hai quà cùng loại chạy hai bộ thông số khác nhau. Overlay vốn đã ưu tiên options
+// rồi mới fallback về cfg (xem startGust/startTornado/startAutoClean) nên không phải đụng
+// vào vật lý. Vị trí + seed vẫn do server chốt một lần, cùng lý do makeNhatLaGustPayload.
+function nhatLaRescueCmd(action, repeat = 1) {
+    const p = action.params || {};
+    const times = Math.max(1, parseInt(repeat, 10) || 1);
+    if (action.type === 'wind') {
+        const dir = p.direction || 'random';
+        return ['wind', {
+            x: Math.round(120 + Math.random() * 840),
+            dir: dir === 'random' ? (Math.random() < .5 ? 'left' : 'right') : dir,
+            seed: Math.floor(Math.random() * 1e9),
+            radius: p.radius, strength: p.strength, turbulence: p.turbulence,
+            durationMs: p.durationMs, maxLeaves: p.maxLeaves,
+            repeat: times
+        }];
+    }
+    if (action.type === 'tornado') {
+        return ['tornado', {
+            x: Math.round(200 + Math.random() * 680),
+            dir: Math.random() < .5 ? 'left' : 'right',
+            seed: Math.floor(Math.random() * 1e9),
+            radius: p.radius, spin: p.spin, inward: p.inward, lift: p.lift,
+            durationMs: p.durationMs, maxLeaves: p.maxLeaves, drift: p.drift,
+            repeat: times
+        }];
+    }
+    // Cứu là hiệu ứng THEO THỜI LƯỢNG chứ không phải theo lượt phát: chạy 10 lượt nối nhau
+    // đúng bằng một lượt dài gấp 10. Nhân sẵn ở đây thay vì bắt overlay xếp hàng.
+    return ['autoClean', {
+        durationMs: Math.max(500, Math.min(60000, (Number(p.durationMs) || 5000) * times)),
+        leavesPerSec: Math.max(1, Math.min(500, Number(p.leavesPerSec) || 40)),
+        seed: Math.floor(Math.random() * 1e9)
+    }];
+}
+
+// ===== 🏆 TOP người tặng lá =====
+// Cộng dồn theo BUỔI LIVE và chỉ giữ trong RAM: reset khi bấm Xoá hết lá hoặc nút Reset TOP,
+// và tự mất khi tắt app — đúng ý "bảng xếp hạng của buổi live này", không phải bảng vàng vĩnh viễn.
+// Đếm ở server chứ không ở overlay vì overlay OBS reload là mất sạch, mà lại có tới 2-3 view
+// (OBS + review + preview) cùng nghe gameGift nên mỗi view sẽ tự đếm ra một con số khác nhau.
+let nhatLaDonors = new Map();
+let nhatLaTopTimer = null;
+
+// Bản sao của leavesForGift() trong public/games/nhatla/game.js — phải khớp từng nhánh,
+// nếu lệch thì số lá trên bảng TOP không bằng số lá thật sự rơi xuống.
+function nhatLaLeavesForGift(cfg, giftId, giftName, coinValue, repeatCount) {
+    if (!cfg || !Array.isArray(cfg.giftRules)) return 0;
+    const id = String(giftId == null ? '' : giftId);
+    const name = String(giftName || '');
+    const repeat = Math.max(1, parseInt(repeatCount, 10) || 1);
+    const rule = cfg.giftRules.find(r => r && (
+        (id && String(r.giftId || '') === id) ||
+        (name && String(r.giftName || '').toLowerCase() === name.toLowerCase())
+    ));
+    if (rule) {
+        const c = parseInt(rule.count, 10);
+        return isFinite(c) && c > 0 ? c * repeat : 0;
+    }
+    const coins = Math.max(0, Math.round(Number(coinValue) || 0)) * repeat;
+    const perLeaf = Number(cfg.coinsPerLeaf);
+    return perLeaf > 0 ? Math.floor(coins / perLeaf) : 0;
+}
+
+function nhatLaTopList(count) {
+    const cfg = appConfig.games?.nhatla?.topDonors || {};
+    const n = Math.max(1, Math.min(10, parseInt(count ?? cfg.count, 10) || 5));
+    const min = Math.max(0, Number(cfg.minLeaves) || 0);
+    return [...nhatLaDonors.values()]
+        .filter(d => d.leaves >= min)
+        .sort((a, b) => (b.leaves - a.leaves) || (a.firstAt - b.firstAt))
+        .slice(0, n)
+        .map((d, index) => ({
+            rank: index + 1,
+            uniqueId: d.uniqueId,
+            nickname: d.nickname || d.uniqueId || 'Ẩn danh',
+            avatar: d.avatar || '',
+            leaves: d.leaves,
+            gifts: d.gifts
+        }));
+}
+
+function emitNhatLaTop(immediate) {
+    if (nhatLaTopTimer) {
+        if (!immediate) return;
+        clearTimeout(nhatLaTopTimer);
+        nhatLaTopTimer = null;
+    }
+    const send = () => {
+        nhatLaTopTimer = null;
+        io.emit('nhatla:top', { list: nhatLaTopList(), total: nhatLaDonors.size, ts: Date.now() });
+    };
+    // Combo quà dồn dập có thể bắn hàng chục event/giây; bảng TOP không cần nhanh hơn 1Hz.
+    if (immediate) return send();
+    nhatLaTopTimer = setTimeout(send, 1000);
+}
+
+function nhatLaTrackDonor(gift) {
+    const cfg = appConfig.games?.nhatla;
+    if (!cfg || cfg.enabled === false) return;
+    const leaves = nhatLaLeavesForGift(cfg, gift.giftId, gift.giftName, gift.coinValue ?? gift.diamondCount, gift.repeatCount);
+    if (leaves <= 0) return;
+    const uid = String(gift.uniqueId || gift.userId || gift.nickname || '').toLowerCase();
+    if (!uid) return;
+    const now = Date.now();
+    const d = nhatLaDonors.get(uid) || {
+        uniqueId: gift.uniqueId || '', nickname: '', avatar: '', leaves: 0, gifts: 0, firstAt: now
+    };
+    if (gift.nickname) d.nickname = gift.nickname;
+    if (gift.profilePicture) d.avatar = gift.profilePicture;
+    d.leaves += leaves;
+    d.gifts += Math.max(1, parseInt(gift.repeatCount, 10) || 1);
+    nhatLaDonors.set(uid, d);
+    emitNhatLaTop();
+}
+
+function nhatLaResetDonors() {
+    nhatLaDonors = new Map();
+    emitNhatLaTop(true);
+}
+
 function emitGift(g) {
     rememberLiveTranslateUser(liveTranslateRecentGifts, g);
     const sheetItem = giftMap[String(g.giftId)] || null;
@@ -2935,6 +3268,30 @@ function emitGift(g) {
     // Push to all game overlays
     io.to('overlay').emit('gameGift', enriched);
     io.to('preview').emit('gameGift', enriched);
+    // Ghi nhận TOP người tặng lá kể cả khi bảng đang tắt — bật lên là có sẵn số liệu buổi live,
+    // không bắt người vận hành phải nhớ bật trước khi có quà.
+    try { nhatLaTrackDonor(enriched); } catch (e) { console.warn('[nhatla] track donor fail:', e.message); }
+    const nhatLaEffect = findNhatLaEffectGift(enriched.giftId, enriched.giftName);
+    if (nhatLaEffect?.id) {
+        // Quà streak đã gộp chờ repeatEnd ở trên, nên tới đây repeatCount là TỔNG số lượt
+        // của combo. Gửi kèm để overlay phát đủ từng lượt nối nhau; chặn trần để combo
+        // x500 không khoá hiệu ứng hàng phút.
+        const repeat = Math.max(1, Math.min(NHATLA_EFFECT_MAX_REPEAT, parseInt(enriched.repeatCount, 10) || 1));
+        // Server chọn rule một lần; target là đúng overlay đang giữ lá (nếu có).
+        io.emit('nhatla:effect', { effectId: String(nhatLaEffect.id), targetSocketId: nhatLaActiveDragSocketId || null, repeat });
+    }
+    // Tặng 1 lần chạy 1 lượt; combo x10 chạy đủ 10 lượt NỐI NHAU (overlay tự giãn nhịp).
+    // Quà streak đã gộp chờ repeatEnd ở trên nên repeatCount tới đây là TỔNG số lượt combo.
+    // Chặn trần vì combo x500 chạy đủ sẽ khoá sân khấu hàng chục phút, quà của người tặng
+    // sau không còn chỗ hiện.
+    const nhatLaRepeat = Math.max(1, Math.min(NHATLA_ACTION_MAX_REPEAT, parseInt(enriched.repeatCount, 10) || 1));
+    // Một quà = một hành động giải cứu (danh sách phẳng cfg.rescue.actions), thông số lấy
+    // từ chính hành động đó nên hai quà cùng loại chạy được hai kiểu khác nhau.
+    const rescueAction = rescueActionForGift(enriched.giftId, enriched.giftName);
+    if (rescueAction) {
+        const [cmd, payload] = nhatLaRescueCmd(rescueAction, nhatLaRepeat);
+        io.emit('gameCmd', { gameId: 'nhatla', cmd, payload, seq: ++_cmdSeq });
+    }
     // Track total diamond cho stats card
     const diamond = Number(enriched.coinValue) || 0;
     const repeat = Number(g.repeatCount) || 1;
@@ -3527,8 +3884,26 @@ app.post('/api/games/:id/config', (req, res) => {
     // Deep-merge display sub-object cho game server-authoritative — phòng case partial POST
     // (panel chỉ gửi subset of display fields). Whoever posts last wins per-field.
     const incoming = req.body || {};
-    if ((g.id === 'nhietdo' || g.id === 'bancung' || g.id === 'trongcay') && incoming.display && prevConfig.display) {
+    if ((g.id === 'nhietdo' || g.id === 'bancung' || g.id === 'trongcay' || g.id === 'nhatla') && incoming.display && prevConfig.display) {
         incoming.display = { ...prevConfig.display, ...incoming.display };
+    }
+    // Nhặt Lá giữ config từng effect khi UI chỉ cập nhật một thuộc tính (vd. số giây TOM).
+    if (g.id === 'nhatla' && incoming.effects && prevConfig.effects) {
+        incoming.effects = { ...prevConfig.effects, ...incoming.effects };
+    }
+    // Cùng lý do cho khối gió: panel chỉnh 1 thanh trượt không được xoá mất danh sách quà gió.
+    if (g.id === 'nhatla' && incoming.wind && prevConfig.wind) {
+        incoming.wind = { ...prevConfig.wind, ...incoming.wind };
+    }
+    if (g.id === 'nhatla' && incoming.tornado && prevConfig.tornado) {
+        incoming.tornado = { ...prevConfig.tornado, ...incoming.tornado };
+    }
+    // Bảng TOP kéo thả trên overlay chỉ POST 2 field toạ độ — đừng nuốt mất phần còn lại.
+    if (g.id === 'nhatla' && incoming.topDonors && prevConfig.topDonors) {
+        incoming.topDonors = { ...prevConfig.topDonors, ...incoming.topDonors };
+    }
+    if (g.id === 'nhatla' && incoming.rescue && prevConfig.rescue) {
+        incoming.rescue = { ...prevConfig.rescue, ...incoming.rescue };
     }
     appConfig.games[g.id] = { ...appConfig.games[g.id], ...incoming };
     if (g.id === 'pktiktok') {
@@ -3552,6 +3927,11 @@ app.post('/api/games/:id/config', (req, res) => {
         try { banCungApplyConfigToState(appConfig.games.bancung); } catch (e) {}
         try { global.__bancungApplyHotkeys?.(appConfig.games.bancung); } catch (e) {}
         broadcastBanCungState({ immediate: true });
+    }
+    if (g.id === 'nhatla') {
+        try { global.__nhatlaApplyHotkeys?.(appConfig.games.nhatla); } catch (e) {}
+        // Đổi "TOP mấy" hoặc ngưỡng lá tối thiểu → đẩy lại danh sách ngay, đừng đợi quà kế tiếp.
+        emitNhatLaTop(true);
     }
     if (g.id === 'trongcay') {
         try { trongCayApplyConfigToState(appConfig.games.trongcay); } catch (e) {}
@@ -3596,6 +3976,10 @@ app.post('/api/games/:id/config', (req, res) => {
 // app POST state → server cache + broadcast tới room 'overlay' → OBS gọi loadState → render lại.
 const GAME_STATE_FILE = path.join(DATA_DIR, 'game-state.json');
 let gameStateCache = {};
+// Sau lệnh clear Nhặt Lá, chặn snapshot cũ từ tab/OBS gửi trễ ghi đè trạng thái trống.
+let nhatLaStateLockedUntil = 0;
+// Một drag lá chỉ có một owner tại một thời điểm để effect biết đúng overlay nào cần buông lá.
+let nhatLaActiveDragSocketId = null;
 function loadGameStateCache() {
     try {
         if (fs.existsSync(GAME_STATE_FILE)) {
@@ -3626,13 +4010,24 @@ function scheduleSaveGameState() {
     }, 1500);
 }
 loadGameStateCache();
+// Nhặt Lá là game realtime, KHÔNG khôi phục lá qua lần restart. Snapshot cũ có thể nằm
+// giữa animation và tạo lá "kẹt" không thể kéo, nên luôn xóa triệt để khi server khởi động.
+gameStateCache.nhatla = { totalDropped: 0, cleaned: 0, leaves: [] };
+saveGameStateNow();
+const NHATLA_STARTUP_CLEAR_UNTIL = Date.now() + 30000;
+// Browser Source cũ có thể reconnect vài giây sau server và gửi timer snapshot tồn đọng.
+// Trong toàn bộ startup window chỉ server được phép giữ state trống.
+nhatLaStateLockedUntil = NHATLA_STARTUP_CLEAR_UNTIL;
 
 app.post('/api/games/:id/state', (req, res) => {
     const g = GAMES[req.params.id];
     if (!g) return res.status(404).json({ ok: false, error: 'Không tìm thấy game' });
     gameStateCache[g.id] = req.body || {};
-    if (req.query.flush === '1' || req.body?._flush === true) saveGameStateNow();
-    else scheduleSaveGameState();   // persist to disk debounced
+    // Nhặt Lá chỉ giữ state trong RAM của phiên hiện tại (không save snapshot lá xuống disk).
+    if (g.id !== 'nhatla') {
+        if (req.query.flush === '1' || req.body?._flush === true) saveGameStateNow();
+        else scheduleSaveGameState();
+    }
     // Live broadcast tới room 'overlay' (KHÔNG echo về 'preview' để tránh ghi đè edits đang gõ)
     io.to('overlay').emit('gameStateSnapshot', { gameId: g.id, state: gameStateCache[g.id] });
     res.json({ ok: true });
@@ -4218,8 +4613,30 @@ function applyAuthoritativeGameCmdState(gameId, cmd, payload) {
 app.post('/api/games/:id/cmd', (req, res) => {
     const g = GAMES[req.params.id];
     if (!g) return res.status(404).json({ ok: false, error: 'Không tìm thấy game' });
-    const { cmd, payload } = req.body || {};
+    const { cmd } = req.body || {};
+    let payload = req.body?.payload;
     if (!cmd) return res.status(400).json({ ok: false, error: 'Thiếu cmd' });
+    if (g.id === 'nhatla' && (cmd === 'clear' || cmd === 'reset')) {
+        const emptyState = { totalDropped: 0, cleaned: 0, leaves: [] };
+        nhatLaStateLockedUntil = Date.now() + 1800;
+        gameStateCache.nhatla = emptyState;
+        saveGameStateNow();
+        // Phát trước gameCmd để mọi review/OBS bỏ ngay snapshot cũ đang hiển thị.
+        io.emit('nhatla:state', { sourceId: 'server-clear', state: emptyState });
+        // Xoá sạch lá thì bảng TOP cũng phải về 0 — nếu không, "còn lại 0 lá" mà TOP vẫn
+        // ghi 5000 lá thì người xem không hiểu con số đang đếm cái gì.
+        nhatLaResetDonors();
+    }
+    // Test effect phải tới đúng overlay đang nắm lá, không để một view khác chỉ phát WEBM.
+    if (g.id === 'nhatla' && cmd === 'effect' && nhatLaActiveDragSocketId) {
+        payload = { ...(payload || {}), targetSocketId: nhatLaActiveDragSocketId };
+    }
+    // Tự nhặt lá bốc điểm hút ngẫu nhiên. Server chốt seed MỘT LẦN để OBS và khung review
+    // hút đúng cùng những chiếc lá ở cùng những chỗ; nếu để mỗi view tự bốc thì người vận
+    // hành thấy một đằng, người xem thấy một nẻo.
+    if (g.id === 'nhatla' && cmd === 'autoClean') {
+        payload = { ...(payload || {}), seed: Math.floor(Math.random() * 1e9) };
+    }
     const authoritativeState = applyAuthoritativeGameCmdState(g.id, cmd, payload);
     const seq = ++_cmdSeq;
     io.emit('gameCmd', { gameId: g.id, cmd, payload: payload || null, seq });
@@ -4237,6 +4654,9 @@ app.post('/api/games/:id/test-gift', (req, res) => {
     emitGift({
         uniqueId: body.uniqueId || 'tester',
         nickname: body.nickname || 'HP Media',
+        // Overlay nào vẽ avatar người tặng (TOP Nhặt Lá, bướm Trồng Cây…) thì quà test
+        // cũng phải chở được avatar, nếu không chạy thử chỉ ra thẻ trống.
+        profilePicture: body.profilePicture || '',
         giftId: testGift.giftId,
         giftName: testGift.giftName,
         giftPicture: testGift.giftImage,
@@ -4265,6 +4685,82 @@ app.get('/overlay/votecomment', (req, res) => {
 });
 app.get('/overlay/trongcay', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'trongcay', 'overlay.html'));
+});
+app.get('/overlay/nhatla', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'nhatla', 'overlay.html'));
+});
+
+// ── NHẶT LÁ: BỘ SKIN ───────────────────────────────────────────────────────────
+// Hai chiều độc lập nhau: 'hat' là bộ ảnh hạt rơi (lá, tuyết…), 'thung' là bộ ảnh
+// thùng rác. Tách ra để phối tự do — tuyết + thùng Ông già Noel chẳng hạn — thay vì
+// nhân bản một gói Noel cho mỗi cái thùng.
+//
+// Mỗi bộ là một thư mục con chứa skin.json + ảnh đánh số 01.png tăng dần. Ảnh đi
+// thẳng qua express.static nên KHÔNG có route serve ảnh riêng ở đây; overlay tự ghép
+// '/games/nhatla/skins/<kind>/<id>/01.png'. Thêm bộ mới = thả thư mục, không sửa code.
+// Xem tools/build-nhatla-skins.py để biết cách sinh thư mục cho đúng chuẩn.
+const NHATLA_SKINS_DIR = path.join(__dirname, 'public', 'games', 'nhatla', 'skins');
+const NHATLA_SKIN_KINDS = ['hat', 'thung'];
+
+function readNhatLaSkins(kind) {
+    const root = path.join(NHATLA_SKINS_DIR, kind);
+    let entries = [];
+    try {
+        entries = fs.readdirSync(root, { withFileTypes: true }).filter(e => e.isDirectory());
+    } catch (e) {
+        return [];
+    }
+    const skins = [];
+    for (const entry of entries) {
+        // Bộ nào thiếu/hỏng skin.json thì bỏ qua hẳn: thà không hiện trong danh sách
+        // còn hơn cho chọn rồi overlay không biết baseSize mà vẽ.
+        try {
+            const manifest = JSON.parse(fs.readFileSync(path.join(root, entry.name, 'skin.json'), 'utf8'));
+            skins.push({ ...manifest, id: entry.name, kind, dir: `/games/nhatla/skins/${kind}/${entry.name}` });
+        } catch (e) {
+            console.warn(`[nhatla] Bỏ qua skin ${kind}/${entry.name}:`, e.message);
+        }
+    }
+    return skins.sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id), 'vi'));
+}
+
+app.get('/api/nhatla/skins', (req, res) => {
+    const out = { ok: true };
+    for (const kind of NHATLA_SKIN_KINDS) out[kind] = readNhatLaSkins(kind);
+    res.json(out);
+});
+
+// 🏆 TOP người tặng lá — namespace /api/nhatla/* để không đụng route generic /api/games/:id/*.
+app.get('/api/nhatla/top', (req, res) => {
+    res.json({ ok: true, list: nhatLaTopList(req.query.count), total: nhatLaDonors.size });
+});
+app.post('/api/nhatla/top/reset', (req, res) => {
+    nhatLaResetDonors();
+    res.json({ ok: true });
+});
+
+const NHATLA_ASSETS_DIR = path.join(DATA_DIR, 'nhatla-assets');
+if (!fs.existsSync(NHATLA_ASSETS_DIR)) fs.mkdirSync(NHATLA_ASSETS_DIR, { recursive: true });
+app.post('/api/games/nhatla/upload',
+    express.raw({ limit: '40mb', type: () => true }),
+    (req, res) => {
+        const ext = String(req.query.ext || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        if (ext !== 'webm') return res.status(400).json({ ok: false, error: 'Chỉ nhận file WEBM' });
+        if (!req.body || !req.body.length) return res.status(400).json({ ok: false, error: 'empty_body' });
+        const filename = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}.webm`;
+        try {
+            fs.writeFileSync(path.join(NHATLA_ASSETS_DIR, filename), req.body);
+            res.json({ ok: true, url: `/api/games/nhatla/asset/${filename}`, filename });
+        } catch (e) {
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    }
+);
+app.get('/api/games/nhatla/asset/:file', (req, res) => {
+    const filename = String(req.params.file || '').replace(/[^a-z0-9._-]/gi, '');
+    const filePath = path.join(NHATLA_ASSETS_DIR, filename);
+    if (!fs.existsSync(filePath)) return res.status(404).end();
+    res.sendFile(filePath);
 });
 app.get('/overlay/translate', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'overlay', 'translate.html'));
@@ -6721,6 +7217,7 @@ setInterval(banCungRegenTick, 500);
 // Init state from config + register global hotkeys at startup
 try { banCungApplyConfigToState(appConfig.games.bancung || makeDefaultBanCungConfig()); } catch (e) {}
 setTimeout(() => { try { global.__bancungApplyHotkeys?.(appConfig.games.bancung); } catch (e) {} }, 1500);
+setTimeout(() => { try { global.__nhatlaApplyHotkeys?.(appConfig.games.nhatla); } catch (e) {} }, 1500);
 try {
     const cfg0 = appConfig.games.bancung || makeDefaultBanCungConfig();
     const init = cfg0.initialHearts != null ? Number(cfg0.initialHearts) : banCungState.maxHp;
@@ -8437,6 +8934,11 @@ io.on('connection', (socket) => {
     socket.emit('votecomment:state', voteCommentSnapshot());
     socket.emit('nhietdo:state', nhietDoSnapshot());
     socket.emit('bancung:state', banCungSnapshot());
+    // Browser Source cũ reconnect trong lúc app vừa restart cũng phải xóa DOM lá cũ.
+    if (Date.now() < NHATLA_STARTUP_CLEAR_UNTIL) {
+        socket.emit('gameCmd', { gameId: 'nhatla', cmd: 'clear', payload: null, seq: 0 });
+        socket.emit('nhatla:state', { sourceId: 'server-startup-clear', state: gameStateCache.nhatla });
+    }
     // LEVEL QUEST + TIMER snapshot — overlay mở SAU lab nhận state ngay, không phải
     // Reset OBS mới buộc lab broadcast lại
     if (relayCache.levelquest.cfg)   socket.emit('levelquest:cfg',   relayCache.levelquest.cfg);
@@ -8477,6 +8979,70 @@ io.on('connection', (socket) => {
     // Cửa sổ Khởi động nhanh listen để cập nhật chip "Đang chạy" / "Sẵn sàng".
     socket.on('quickLaunch:status', (data) => { socket.broadcast.emit('quickLaunch:status', data); });
 
+    // Nhặt Lá: trạng thái lá nằm ở client để animation mượt, nhưng phải mirror giữa
+    // overlay OBS và khung review. Server giữ snapshot mới nhất để review mở sau cũng nạp lại.
+    socket.on('nhatla:state', (data) => {
+        if (Date.now() < nhatLaStateLockedUntil) return;
+        const state = data?.state;
+        if (!state || !Array.isArray(state.leaves) || state.leaves.length > 20000) return;
+        gameStateCache.nhatla = state;
+        io.emit('nhatla:state', { sourceId: socket.id, state });
+    });
+    // Relay thao tác đang kéo ở 30fps — không ghi disk, để OBS chạy cùng nhịp review.
+    socket.on('nhatla:transient', (data) => {
+        if (!data || !['bin', 'hud', 'topdonors', 'leaf', 'leafEnd', 'hand', 'effect', 'dragStart', 'display'].includes(data.type)) return;
+        // Thanh trượt panel + kéo bảng TOP trên overlay: relay ngay để mọi view khớp nhau,
+        // config thật vẫn đi đường POST /config có debounce.
+        if (data.type === 'topdonors') {
+            const limits = {
+                count: [1, 10], minLeaves: [0, 100000],
+                flyIntervalSec: [5, 600], flyDurationSec: [4, 60],
+                flyYPercent: [0, 92], flyScale: [40, 250],
+                boardXPercent: [0, 92], boardYPercent: [0, 92], boardScale: [40, 250]
+            };
+            const topDonors = {};
+            for (const [key, [min, max]] of Object.entries(limits)) {
+                const value = Number(data.topDonors?.[key]);
+                if (Number.isFinite(value)) topDonors[key] = Math.max(min, Math.min(max, value));
+            }
+            for (const key of ['enabled', 'flyEnabled', 'boardEnabled']) {
+                if (typeof data.topDonors?.[key] === 'boolean') topDonors[key] = data.topDonors[key];
+            }
+            if (data.topDonors?.flyMode === 'solo' || data.topDonors?.flyMode === 'train') topDonors.flyMode = data.topDonors.flyMode;
+            if (!Object.keys(topDonors).length) return;
+            socket.broadcast.emit('nhatla:transient', { sourceId: socket.id, type: 'topdonors', topDonors });
+            return;
+        }
+        if (data.type === 'dragStart') {
+            nhatLaActiveDragSocketId = socket.id;
+            return;
+        }
+        if (data.type === 'display') {
+            const limits = {
+                leafScale: [30, 400], handScale: [30, 400], binScale: [30, 400],
+                // binYPercent nới tới 100 vì thùng được phép hạ xuống thò 1/3 dưới mép overlay.
+                // Trần CHÍNH XÁC phụ thuộc cỡ thùng nên do client chốt (binYMaxPercent trong
+                // public/games/nhatla/game.js); ở đây chỉ chặn số rác đi qua đường relay.
+                binXPercent: [5, 95], binYPercent: [5, 100], hudXPercent: [0, 90], hudYPercent: [0, 90]
+            };
+            const display = {};
+            for (const [key, [min, max]] of Object.entries(limits)) {
+                const value = Number(data.display?.[key]);
+                if (Number.isFinite(value)) display[key] = Math.max(min, Math.min(max, value));
+            }
+            if (typeof data.display?.showHud === 'boolean') display.showHud = data.display.showHud;
+            if (!Object.keys(display).length) return;
+            socket.broadcast.emit('nhatla:transient', { sourceId: socket.id, type: 'display', display });
+            return;
+        }
+        if (data.type === 'leafEnd' && nhatLaActiveDragSocketId === socket.id) nhatLaActiveDragSocketId = null;
+        if (data.type === 'effect' && (typeof data.effectId !== 'string' || data.effectId.length > 120)) return;
+        socket.broadcast.emit('nhatla:transient', { sourceId: socket.id, ...data });
+    });
+    socket.on('disconnect', () => {
+        if (nhatLaActiveDragSocketId === socket.id) nhatLaActiveDragSocketId = null;
+    });
+
     socket.on('subscribe', (roomName) => {
         if (typeof roomName === 'string' && roomName.length < 32) {
             socket.join(roomName);
@@ -8500,6 +9066,8 @@ io.on('connection', (socket) => {
                 socket.emit('nhietdo:state', nhietDoSnapshot());
                 // Bắn Cung: state riêng (in-memory)
                 socket.emit('bancung:state', banCungSnapshot());
+                // Nhặt Lá: bảng TOP nằm ở RAM server, overlay reload giữa buổi phải nạp lại.
+                socket.emit('nhatla:top', { list: nhatLaTopList(), total: nhatLaDonors.size, ts: Date.now() });
             }
         }
     });

@@ -1593,6 +1593,47 @@
                 </div>
             </section>
 
+            <!-- ============ GAME VIEW: Nhặt Lá ============ -->
+            <section id="view-nhatla" class="view game-view nhatla-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🍂 Nhặt Lá</h2>
+                    </div>
+                    <div class="overlay-bar">
+                        <label class="toggle-row" title="Bật/tắt game Nhặt Lá"><input id="nl-cfg-enabled" type="checkbox" checked><span>Bật game</span></label>
+                        <button id="nl-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 COPY</button>
+                        <button id="nl-btn-preview" class="ghost small" title="Mở cửa sổ overlay trong suốt để kéo lá trực tiếp hoặc Window Capture trong OBS">🪟 Overlay</button>
+                        <button id="nl-btn-drop" class="ghost small" title="Thả 1 lá để kiểm tra overlay">🍂 Test</button>
+                        <button id="nl-btn-clear" class="danger small" title="Xóa tất cả lá đang có trên overlay">↺ Xóa</button>
+                        <button id="nl-btn-reload" class="ghost small" title="Buộc overlay reload để nhận ảnh lá vừa thêm">🔄 Reload</button>
+                        <button id="nl-btn-save" class="primary small" title="Lưu cấu hình ngay">💾 Lưu</button>
+                    </div>
+                </header>
+                <div class="game-body nhatla-body">
+                    <div id="nl-review-workspace" class="nhatla-review-workspace">
+                        <div id="nl-review-shell" class="nhatla-review-shell">
+                            <iframe id="nl-review-frame" src="/overlay/nhatla?review=1" title="Nhặt Lá overlay review" tabindex="-1"></iframe>
+                        </div>
+                    </div>
+                    <div class="nhatla-settings-column">
+                        <div class="nhatla-tabs">
+                            <button class="nhatla-tab nl-tab active" data-nl-tab="display">🎨 Kích thước &amp; vị trí</button>
+                            <button class="nhatla-tab nl-tab" data-nl-tab="gifts">🎁 Quà chỉ định</button>
+                            <button class="nhatla-tab nl-tab" data-nl-tab="effects">✨ Hiệu ứng</button>
+                            <button class="nhatla-tab nl-tab" data-nl-tab="rescue">🛟 Giải cứu</button>
+                            <button class="nhatla-tab nl-tab" data-nl-tab="topdonors">🏆 TOP tặng lá</button>
+                        </div>
+                        <div class="nhatla-panes">
+                            <div class="nhatla-pane nl-pane active" data-nl-pane="display" id="nl-display-pane"></div>
+                            <div class="nhatla-pane nl-pane" data-nl-pane="gifts" id="nl-gifts-pane"></div>
+                            <div class="nhatla-pane nl-pane" data-nl-pane="effects" id="nl-effects-pane"></div>
+                            <div class="nhatla-pane nl-pane" data-nl-pane="rescue" id="nl-rescue-pane"></div>
+                            <div class="nhatla-pane nl-pane" data-nl-pane="topdonors" id="nl-topdonors-pane"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <section id="view-live-translate" class="view game-view live-translate-view">
                 <header class="game-header">
                     <div>
@@ -2457,6 +2498,8 @@
     <script src="/games/bancung/bancung-panel.js"></script>
     <script src="/games/trongcay/game.js"></script>
     <script src="/games/trongcay/trongcay-panel.js"></script>
+    <script src="/games/nhatla/game.js"></script>
+    <script src="/games/nhatla/nhatla-panel.js"></script>
     <script src="/app.js"></script>
 </body>
 </html>

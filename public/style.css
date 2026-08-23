@@ -8902,3 +8902,170 @@ details.card > .obse-collapse-body { padding: 0 16px 16px; }
     0% { transform: scale(1.08); background: rgba(34,197,94,0.3); }
     100% { transform: scale(1); }
 }
+
+/* ====== Nhặt Lá ====== */
+.nhatla-body { display: grid; grid-template-columns: minmax(360px, 460px) minmax(420px, 1fr); align-items: start; gap: 14px; padding: 12px; overflow: auto; }
+.nhatla-review-workspace { position: sticky; top: 0; width: 100%; aspect-ratio: 9 / 16; align-self: start; overflow: hidden; border: 1px solid #30394a; border-radius: 10px; background: repeating-conic-gradient(#111723 0 25%, #151b27 0 50%) 50% / 24px 24px; }
+.nhatla-review-shell { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; border: 0; border-radius: inherit; background: transparent; box-shadow: none; }
+.nhatla-review-shell iframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; }
+.nhatla-settings-column { min-width: 0; max-height: 770px; overflow: auto; padding-right: 3px; }
+.nhatla-view .overlay-bar { justify-content: flex-end; gap: 6px; max-width: 760px; }
+.nhatla-view .overlay-bar .small { padding: 7px 10px; white-space: nowrap; }
+.nhatla-tabs { display: flex; flex-wrap: wrap; gap: 5px; border-bottom: 1px solid #2a2e3a; }
+.nhatla-tab { padding: 10px 14px; color: #9da6bc; border: 0; border-bottom: 2px solid transparent; background: transparent; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.nhatla-tab:hover { color: #f8e7b3; }
+.nhatla-tab.active { color: #ffdb72; border-bottom-color: #ffca44; background: rgba(255, 194, 66, .08); }
+.nhatla-panes { width: 100%; max-width: 980px; }
+.nhatla-pane { display: none; flex-direction: column; gap: 12px; }
+.nhatla-pane.active { display: flex; }
+.nhatla-card { padding: 15px 17px; border: 1px solid #30394a; border-radius: 10px; background: #171c27; }
+.nhatla-card h3 { margin: 0 0 6px; color: #f7df9d; font-size: 15px; }
+/* button.danger và button.tiny KHÔNG có định nghĩa toàn cục trong file này — trước đây 5 nút ×
+   của panel rơi hết về `button {}` mặc định: không khai báo background nên ăn nền trắng của
+   trình duyệt, lại còn padding 8px 14px làm nút phình tràn khỏi ô lưới 30px dành cho nó.
+   Khai báo tại đây, giới hạn trong .nhatla-view để không đụng các view khác vốn đã có override
+   riêng (.pkfx-card-actions, .vc-row-line, .trongcay-view). */
+.nhatla-view button.danger {
+    color: #ffb4b4; border: 1px solid rgba(239, 68, 68, .38);
+    background: rgba(239, 68, 68, .12);
+}
+.nhatla-view button.danger:hover:not(:disabled) {
+    color: #fff; border-color: rgba(239, 68, 68, .72); background: rgba(239, 68, 68, .3);
+}
+/* Nút × là ô vuông đúng bề rộng cột lưới — dùng grid canh tâm nên ký tự × không lệch
+   theo line-height của font như khi để padding tự căn. */
+.nhatla-view button.tiny {
+    display: grid; place-items: center;
+    width: 30px; height: 30px; padding: 0;
+    border-radius: 7px; font-size: 15px; line-height: 1;
+}
+.nhatla-muted { margin: 0 0 12px; color: #8f9aae; font-size: 12px; line-height: 1.45; }
+/* Lưới chọn bộ skin (ảnh rơi + thùng rác). Ảnh mẫu nằm trên nền carô vì cả hai loại đều là
+   PNG trong suốt — để nền tối trơn thì bông tuyết trắng gần như tàng hình. */
+.nhatla-skin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+.nhatla-skin { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 8px; border: 1px solid #30394a; border-radius: 9px; background: #10141d; color: #cbd4e6; cursor: pointer; text-align: center; }
+.nhatla-skin:hover { border-color: #4b5a75; background: #161c28; }
+.nhatla-skin.selected { border-color: #f7df9d; background: #221f16; color: #f7df9d; }
+.nhatla-skin img { width: 56px; height: 56px; object-fit: contain; border-radius: 6px; background-color: #232a38; background-image: linear-gradient(45deg, #1b212c 25%, transparent 25%, transparent 75%, #1b212c 75%), linear-gradient(45deg, #1b212c 25%, transparent 25%, transparent 75%, #1b212c 75%); background-size: 12px 12px; background-position: 0 0, 6px 6px; }
+.nhatla-skin b { font-size: 12.5px; line-height: 1.25; }
+.nhatla-skin em { color: #8f9aae; font-size: 10.5px; font-style: normal; line-height: 1.3; }
+.nhatla-skin .nhatla-skin-warn { color: #f0a24b; }
+.nhatla-range-row { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(150px, 2fr) 60px; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.nhatla-range-row:last-child { border-bottom: 0; }
+.nhatla-range-row span { display: flex; flex-direction: column; gap: 2px; color: #d9e0ed; font-size: 13px; }
+.nhatla-range-row small { color: #808ba0; font-size: 11px; font-weight: 400; }
+.nhatla-range-row output { color: #ffda6f; font-weight: 800; text-align: right; }
+.nhatla-range-row input[type="range"] { width: 100%; accent-color: #f3b940; }
+.nhatla-number-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; color: #d9e0ed; font-size: 13px; }
+.nhatla-number-row input, .nhatla-gift-rule input, .nhatla-actions input { min-width: 80px; padding: 7px 9px; color: #eaf0fa; border: 1px solid #354056; border-radius: 6px; background: #101520; font: inherit; }
+.nhatla-toggle { margin-top: 10px; }
+.nhatla-number-row select { min-width: 80px; padding: 7px 9px; color: #eaf0fa; border: 1px solid #354056; border-radius: 6px; background: #101520; font: inherit; }
+/* 🛟 GIẢI CỨU — mỗi dòng là 1 quà + 1 bộ thông số riêng, ⚙ mở popup của đúng dòng đó */
+/* FLEX-WRAP chứ không phải lưới cột cứng. Panel chia đôi với khung Review nên vùng nội dung
+   card chỉ còn ~449px, trong khi một hàng đủ 6 cột cứng cần tối thiểu 598px — đo được nút ×
+   bị đẩy lòi ra ngoài 151px. Cho quà + phím tắt tự rớt xuống dòng dưới khi hẹp thì không bao
+   giờ tràn, ở màn rộng vẫn nằm gọn một hàng. */
+.nhatla-rescue-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin: 7px 0; padding: 8px 10px;
+    border: 1px solid #2b3446; border-radius: 9px; background: #131926;
+}
+.nhatla-rescue-row > .nhatla-rescue-name { flex: 1 1 190px; min-width: 0; }
+.nhatla-rescue-row > .nhatla-gift-select { flex: 1 1 150px; min-width: 0; }
+.nhatla-rescue-row > .nhatla-hk { flex: 1 1 108px; min-width: 0; }
+/* Tắt riêng một hành động: mờ đi để phân biệt ngay với dòng đang chạy, nhưng vẫn đọc được. */
+.nhatla-rescue-row.off { opacity: .45; }
+.nhatla-rescue-on { display: grid; place-items: center; }
+.nhatla-rescue-on input { width: 15px; height: 15px; accent-color: #f3b940; cursor: pointer; }
+.nhatla-rescue-name {
+    display: grid; grid-template-columns: 26px minmax(0, 1fr) 16px; align-items: center; gap: 9px;
+    width: 100%; padding: 7px 10px; text-align: left;
+    color: #e6edfa; border: 1px solid #354056; border-radius: 8px; background: #101520;
+}
+.nhatla-rescue-name:hover { border-color: #f3b940; background: #141b28; }
+.nhatla-rescue-ico { font-size: 18px; line-height: 1; }
+.nhatla-rescue-text { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.nhatla-rescue-text b { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.nhatla-rescue-text small { color: #808ba0; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.nhatla-rescue-gear { color: #8f9aae; font-size: 13px; }
+.nhatla-rescue-name:hover .nhatla-rescue-gear { color: #f3b940; }
+.nhatla-rescue-master { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.06); }
+/* Popup thông số — dùng lại khung của bảng chọn quà cho đồng bộ, chỉ hẹp lại. */
+.nhatla-rescue-modal { max-width: 560px; }
+.nhatla-rescue-modal-body { overflow-y: auto; max-height: 70vh; padding: 4px 2px; }
+.nhatla-rescue-idrow { padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.nhatla-rescue-icons { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.nhatla-rescue-icon-pick {
+    width: 34px; height: 34px; padding: 0; font-size: 17px; line-height: 1;
+    border: 1px solid #354056; border-radius: 8px; background: #101520;
+}
+.nhatla-rescue-icon-pick:hover { border-color: #f3b940; background: #141b28; }
+.nhatla-rescue-icon-pick.on { border-color: #f3b940; background: rgba(243,185,64,.16); }
+
+/* 🏆 TOP người tặng lá — bảng xem lại trong panel (không phải bảng trên overlay) */
+.nhatla-top-list { display: flex; flex-direction: column; gap: 6px; }
+.nhatla-top-row { display: grid; grid-template-columns: 28px 26px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 9px; border: 1px solid #2b3446; border-radius: 8px; background: #101520; }
+.nhatla-top-rank { font-size: 15px; text-align: center; }
+.nhatla-top-ava { position: relative; display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border-radius: 50%; background: #232c3c; font-size: 12px; }
+.nhatla-top-ava img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.nhatla-top-name { overflow: hidden; color: #e6edfa; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.nhatla-top-leaves { color: #ffda6f; font-size: 13px; font-style: normal; font-weight: 800; }
+.nhatla-gift-head, .nhatla-gift-rule { display: grid; grid-template-columns: minmax(180px, 1fr) 85px 30px; gap: 7px; align-items: center; }
+.nhatla-gift-head { margin: 12px 0 5px; color: #8f9aae; font-size: 11px; font-weight: 700; }
+.nhatla-gift-rule { margin: 6px 0; }
+.nhatla-gift-rule input { width: 100%; min-width: 0; }
+/* Dòng quà của Gió / Lốc / Cứu có thêm cột phím tắt nên phải 4 cột, không dùng lưới 3 cột
+   mặc định ở trên (nếu không ô phím tắt bị đẩy tràn ra ngoài card). */
+.nhatla-gift-head.has-hotkey, .nhatla-gift-rule.has-hotkey { grid-template-columns: minmax(150px, 1fr) 128px 72px 30px; }
+.nhatla-hk { display: flex; align-items: center; gap: 4px; color: #8f9aae; font-size: 12px; }
+.nhatla-hk input { width: 100%; min-width: 0; padding: 7px 8px; color: #eaf0fa; border: 1px solid #354056; border-radius: 6px; background: #101520; font: inherit; font-size: 12px; }
+.nhatla-effect-head, .nhatla-effect-gift { display: grid; grid-template-columns: 94px minmax(130px, 210px) 88px 30px; justify-content: start; gap: 7px; align-items: center; }
+.nhatla-effect-head { margin: 12px 0 5px; color: #8f9aae; font-size: 11px; font-weight: 700; }
+.nhatla-effect-gift { margin: 6px 0; }
+.nhatla-effect-gift > input, .nhatla-effect-gift label input { width: 100%; min-width: 0; padding: 7px 9px; color: #eaf0fa; border: 1px solid #354056; border-radius: 6px; background: #101520; font: inherit; }
+.nhatla-effect-gift label { display: flex; align-items: center; gap: 4px; }
+.nhatla-effect-gift label small { color: #8f9aae; font-size: 11px; }
+.nhatla-effect-gift-select { width: 94px; justify-content: center; }
+.nhatla-effect-gift-select img, .nhatla-effect-gift-select .nhatla-gift-icon { margin: 0; }
+.nhatla-effect-media { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 0 0 12px; padding: 8px; border: 1px solid rgba(255,255,255,.06); border-radius: 7px; background: #111723; }
+.nhatla-effect-media > span { min-width: 120px; max-width: 260px; overflow: hidden; color: #aeb8cb; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.nhatla-effect-media > label.ghost { cursor: pointer; }
+.nhatla-effect-lock { color: #b8c3d7; font-size: 12px; white-space: nowrap; cursor: pointer; }
+.nhatla-effect-lock input { margin: 0 3px 0 0; vertical-align: middle; }
+.nhatla-effect-hotkey { display: flex; align-items: center; gap: 4px; min-width: 190px; padding: 4px 7px; color: #b8c3d7; border: 1px solid #354056; border-radius: 6px; background: #101520; font-size: 12px; white-space: nowrap; }
+.nhatla-effect-hotkey input { width: 150px; padding: 4px 7px; color: #ffda6f; border: 1px solid #596982; border-radius: 4px; background: #171f2d; font: 700 12px inherit; text-align: center; }
+.nhatla-gift-select { display: flex; align-items: center; min-width: 0; gap: 8px; padding: 6px 8px; color: #dce5f3; border: 1px dashed #46516a; border-radius: 7px; background: #111723; font: inherit; text-align: left; cursor: pointer; }
+.nhatla-gift-select:hover, .nhatla-gift-select.selected { border-style: solid; border-color: #f4be46; background: rgba(244,190,70,.09); }
+.nhatla-gift-select img, .nhatla-gift-icon { width: 34px; height: 34px; flex: 0 0 34px; object-fit: contain; }
+.nhatla-gift-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; }
+.nhatla-gift-coin { color: #ffd66b; font-size: 11px; font-style: normal; white-space: nowrap; }
+.nhatla-gift-placeholder { color: #a5afc2; font-size: 12px; }
+.nhatla-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.nhatla-giftpicker-backdrop { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0,0,0,.7); }
+.nhatla-giftpicker-backdrop[hidden] { display: none; }
+.nhatla-giftpicker-modal { display: flex; flex-direction: column; width: min(700px, 100%); max-height: min(780px, 90vh); padding: 14px; border: 1px solid #46516a; border-radius: 12px; background: #171c27; box-shadow: 0 22px 70px rgba(0,0,0,.65); }
+.nhatla-giftpicker-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; color: #f7df9d; }
+.nhatla-giftpicker-search { width: 100%; padding: 10px; color: #eaf0fa; border: 1px solid #354056; border-radius: 7px; background: #101520; font: inherit; }
+.nhatla-giftpicker-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; overflow: auto; margin-top: 12px; padding-right: 2px; }
+.nhatla-picker-gift { display: grid; grid-template-columns: 42px minmax(0, 1fr); grid-template-rows: 1fr 1fr; align-items: center; gap: 0 8px; padding: 8px; color: #eaf0fa; border: 1px solid #30394a; border-radius: 8px; background: #101520; font: inherit; text-align: left; cursor: pointer; }
+.nhatla-picker-gift:hover { border-color: #f4be46; background: rgba(244,190,70,.1); }
+.nhatla-picker-gift img, .nhatla-picker-gift > span { grid-row: 1 / 3; width: 40px; height: 40px; object-fit: contain; font-size: 28px; }
+.nhatla-picker-gift b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.nhatla-picker-gift em { color: #ffd66b; font-size: 11px; font-style: normal; }
+.nhatla-giftpicker-empty { grid-column: 1 / -1; padding: 25px; color: #9da6bc; text-align: center; }
+@media (max-width: 680px) {
+    .nhatla-range-row { grid-template-columns: 1fr 70px; }
+    .nhatla-range-row input[type="range"] { grid-column: 1 / -1; grid-row: 2; }
+    .nhatla-gift-head { display: none; }
+    .nhatla-gift-rule { grid-template-columns: minmax(0, 1fr) 65px 28px; }
+    .nhatla-gift-head.has-hotkey, .nhatla-gift-rule.has-hotkey { grid-template-columns: minmax(0, 1fr) 96px 58px 28px; }
+    .nhatla-effect-head { display: none; }
+    .nhatla-effect-gift { grid-template-columns: 78px minmax(0, 1fr) 68px 28px; }
+    .nhatla-effect-gift-select { width: 78px; }
+    .nhatla-effect-media > span { flex-basis: 100%; }
+}
+@media (max-width: 1100px) {
+    .nhatla-body { grid-template-columns: 1fr; }
+    .nhatla-review-workspace { position: relative; width: min(100%, 480px); }
+    .nhatla-settings-column { max-height: none; overflow: visible; }
+}

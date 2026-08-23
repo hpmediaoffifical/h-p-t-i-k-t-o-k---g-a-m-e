@@ -212,6 +212,12 @@ function createMainWindow() {
             openNhietDoPopoutWindow({ pin, edit });
             return { action: 'deny' };
         }
+        // /overlay/nhatla?preview=1 → overlay 1080×1920 trong suốt, kéo lá trực tiếp.
+        // OBS có thể Window Capture cửa sổ này thay cho Browser Source URL.
+        if (url.startsWith(`${APP_URL}/overlay/nhatla`) && url.includes('preview=1')) {
+            openNhatLaPreviewWindow();
+            return { action: 'deny' };
+        }
         if (url.startsWith(APP_URL)) {
             return { action: 'allow' };
         }
@@ -938,6 +944,210 @@ ipcMain.on('caro-preview:close', () => {
 ipcMain.on('open-caro-preview', () => openCaroPreviewWindow());
 
 // ============================================================
+// 🍂 Nhặt Lá — cửa sổ desktop tương tác cho canvas 1080×1920
+// ============================================================
+let nhatLaPreviewWindow = null;
+let nhatLaPreviewToolbarWindow = null;
+let nhatLaPreviewSaveTimer = null;
+let nhatLaPreviewDragOrigin = null;
+let nhatLaPreviewIsClosing = false;
+let nhatLaPreviewPrefs = null;
+function getNhatLaPreviewPrefsPath() {
+    try { return path.join(app.getPath('userData'), 'data', 'nhatla-preview.json'); }
+    catch { return null; }
+}
+function loadNhatLaPreviewPrefs() {
+    if (nhatLaPreviewPrefs) return { ...nhatLaPreviewPrefs };
+    try {
+        const prefsPath = getNhatLaPreviewPrefsPath();
+        nhatLaPreviewPrefs = prefsPath && fs.existsSync(prefsPath)
+            ? (JSON.parse(fs.readFileSync(prefsPath, 'utf8')) || {})
+            : {};
+    } catch { nhatLaPreviewPrefs = {}; }
+    return { ...nhatLaPreviewPrefs };
+}
+function saveNhatLaPreviewPrefs(bounds) {
+    nhatLaPreviewPrefs = { ...loadNhatLaPreviewPrefs(), ...(bounds || {}) };
+    if (nhatLaPreviewSaveTimer) clearTimeout(nhatLaPreviewSaveTimer);
+    nhatLaPreviewSaveTimer = setTimeout(() => {
+        try {
+            const prefsPath = getNhatLaPreviewPrefsPath();
+            if (!prefsPath) return;
+            const dir = path.dirname(prefsPath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(prefsPath, JSON.stringify(nhatLaPreviewPrefs, null, 2), 'utf8');
+        } catch {}
+    }, 250);
+}
+function nhatLaPreviewState() {
+    const prefs = loadNhatLaPreviewPrefs();
+    return { pinned: prefs.pinned === true, locked: prefs.locked === true };
+}
+function saveCurrentNhatLaPreviewBounds() {
+    if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed()) return;
+    try {
+        const b = nhatLaPreviewWindow.getBounds();
+        saveNhatLaPreviewPrefs({ ...loadNhatLaPreviewPrefs(), x: b.x, y: b.y, w: b.width, h: b.height });
+    } catch {}
+}
+function syncNhatLaPreviewToolbar() {
+    if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed() || !nhatLaPreviewToolbarWindow || nhatLaPreviewToolbarWindow.isDestroyed()) return;
+    try {
+        const b = nhatLaPreviewWindow.getBounds();
+        const workArea = screen.getDisplayMatching(b).workArea;
+        const barHeight = 42;
+        nhatLaPreviewToolbarWindow.setBounds({
+            x: b.x,
+            y: Math.max(workArea.y, b.y - barHeight - 4),
+            width: b.width,
+            height: barHeight
+        });
+        nhatLaPreviewToolbarWindow.webContents.send('nhatla-preview:state', nhatLaPreviewState());
+    } catch {}
+}
+function setNhatLaPreviewPinned(pinned) {
+    if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed()) return;
+    try {
+        nhatLaPreviewWindow.setAlwaysOnTop(!!pinned, pinned ? 'floating' : 'normal');
+        if (nhatLaPreviewToolbarWindow && !nhatLaPreviewToolbarWindow.isDestroyed()) nhatLaPreviewToolbarWindow.setAlwaysOnTop(!!pinned, pinned ? 'floating' : 'normal');
+        saveNhatLaPreviewPrefs({ ...loadNhatLaPreviewPrefs(), pinned: !!pinned });
+        syncNhatLaPreviewToolbar();
+    } catch {}
+}
+function setNhatLaPreviewLocked(locked) {
+    if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed()) return;
+    try {
+        nhatLaPreviewWindow.setMovable(!locked);
+        nhatLaPreviewWindow.setResizable(!locked);
+        saveNhatLaPreviewPrefs({ ...loadNhatLaPreviewPrefs(), locked: !!locked });
+        syncNhatLaPreviewToolbar();
+    } catch {}
+}
+function openNhatLaPreviewWindow() {
+    if (nhatLaPreviewWindow && !nhatLaPreviewWindow.isDestroyed()) {
+        if (!nhatLaPreviewToolbarWindow || nhatLaPreviewToolbarWindow.isDestroyed()) {
+            nhatLaPreviewWindow.once('closed', () => openNhatLaPreviewWindow());
+            nhatLaPreviewWindow.close();
+            return;
+        }
+        nhatLaPreviewWindow.show();
+        nhatLaPreviewToolbarWindow.show();
+        nhatLaPreviewWindow.focus();
+        syncNhatLaPreviewToolbar();
+        return;
+    }
+    nhatLaPreviewIsClosing = false;
+    const prefs = loadNhatLaPreviewPrefs();
+    const area = screen.getPrimaryDisplay().workArea;
+    // Default 9:16 vừa laptop. Nội dung overlay tự scale từ stage gốc 1080×1920.
+    const defaultHeight = Math.min(900, Math.max(480, area.height - 110));
+    const maxHeight = Math.max(480, Math.min(area.height - 50, Math.floor((area.width - 50) * 16 / 9)));
+    // Chỉ lưu chiều cao làm nguồn; prefs cũ từ cửa sổ có titlebar có thể không đúng 9:16.
+    const height = Math.max(480, Math.min(parseInt(prefs.h, 10) || defaultHeight, maxHeight));
+    const width = Math.round(height * 9 / 16);
+    const opts = {
+        width,
+        height,
+        minWidth: 270,
+        minHeight: 480,
+        useContentSize: true,
+        resizable: true,
+        movable: true,
+        maximizable: false,
+        title: 'HP Nhặt Lá — Overlay Canvas',
+        icon: getIcon(),
+        backgroundColor: '#00000000',
+        transparent: true,
+        // Canvas này là mục duy nhất OBS Window Capture cần chọn: không titlebar, không toolbar.
+        frame: false,
+        hasShadow: false,
+        skipTaskbar: false,
+        show: false,
+        webPreferences: { contextIsolation: true, sandbox: false }
+    };
+    Object.assign(opts, clampBoundsToVisible(prefs.x, prefs.y, width, height));
+    nhatLaPreviewWindow = new BrowserWindow(opts);
+    // Resize tại góc trái/phải dưới vẫn giữ chuẩn 9:16 tương ứng canvas 1080×1920.
+    nhatLaPreviewWindow.setAspectRatio(9 / 16);
+    nhatLaPreviewWindow.loadURL(`${APP_URL}/overlay/nhatla?preview=1`);
+    nhatLaPreviewToolbarWindow = new BrowserWindow({
+        width,
+        height: 42,
+        frame: false,
+        transparent: true,
+        resizable: false,
+        movable: false,
+        focusable: true,
+        skipTaskbar: true,
+        hasShadow: false,
+        show: false,
+        webPreferences: {
+            contextIsolation: true,
+            sandbox: false,
+            preload: path.join(__dirname, 'nhatla-preview-toolbar-preload.js')
+        }
+    });
+    nhatLaPreviewToolbarWindow.loadURL(`${APP_URL}/games/nhatla/preview-toolbar.html`);
+    nhatLaPreviewWindow.once('ready-to-show', () => {
+        const state = nhatLaPreviewState();
+        setNhatLaPreviewPinned(state.pinned);
+        setNhatLaPreviewLocked(state.locked);
+        nhatLaPreviewWindow.show();
+        syncNhatLaPreviewToolbar();
+        nhatLaPreviewToolbarWindow?.show();
+    });
+    nhatLaPreviewToolbarWindow.once('ready-to-show', syncNhatLaPreviewToolbar);
+    nhatLaPreviewWindow.on('moved', () => { saveCurrentNhatLaPreviewBounds(); syncNhatLaPreviewToolbar(); });
+    nhatLaPreviewWindow.on('resize', () => { saveCurrentNhatLaPreviewBounds(); syncNhatLaPreviewToolbar(); });
+    nhatLaPreviewWindow.on('close', () => {
+        nhatLaPreviewIsClosing = true;
+        nhatLaPreviewDragOrigin = null;
+        saveCurrentNhatLaPreviewBounds();
+        if (nhatLaPreviewToolbarWindow && !nhatLaPreviewToolbarWindow.isDestroyed()) nhatLaPreviewToolbarWindow.close();
+    });
+    nhatLaPreviewWindow.on('closed', () => {
+        nhatLaPreviewWindow = null;
+        nhatLaPreviewToolbarWindow = null;
+        nhatLaPreviewIsClosing = false;
+    });
+    nhatLaPreviewToolbarWindow.on('closed', () => {
+        nhatLaPreviewDragOrigin = null;
+        if (!nhatLaPreviewIsClosing && nhatLaPreviewWindow && !nhatLaPreviewWindow.isDestroyed()) nhatLaPreviewWindow.close();
+    });
+    nhatLaPreviewWindow.webContents.setWindowOpenHandler(({ url }) => {
+        shell.openExternal(url);
+        return { action: 'deny' };
+    });
+}
+
+ipcMain.on('nhatla-preview:dragStart', () => {
+    if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed() || nhatLaPreviewState().locked) return;
+    try { nhatLaPreviewDragOrigin = nhatLaPreviewWindow.getBounds(); } catch {}
+});
+ipcMain.on('nhatla-preview:dragMove', (_event, payload) => {
+    if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed() || !nhatLaPreviewDragOrigin || nhatLaPreviewState().locked) return;
+    const origin = nhatLaPreviewDragOrigin;
+    const dx = Number(payload?.dx) || 0;
+    const dy = Number(payload?.dy) || 0;
+    const safe = clampBoundsToVisible(origin.x + dx, origin.y + dy, origin.width, origin.height);
+    // Khóa đúng size gốc trong lúc kéo thanh, tránh DPI/aspect ratio làm canvas nở hoặc trôi.
+    try {
+        nhatLaPreviewWindow.setBounds({
+            x: safe.x ?? origin.x + dx,
+            y: safe.y ?? origin.y + dy,
+            width: origin.width,
+            height: origin.height
+        });
+    } catch {}
+});
+ipcMain.on('nhatla-preview:dragEnd', () => { nhatLaPreviewDragOrigin = null; saveCurrentNhatLaPreviewBounds(); });
+ipcMain.on('nhatla-preview:togglePin', () => setNhatLaPreviewPinned(!nhatLaPreviewState().pinned));
+ipcMain.on('nhatla-preview:toggleLock', () => setNhatLaPreviewLocked(!nhatLaPreviewState().locked));
+ipcMain.on('nhatla-preview:close', () => {
+    if (nhatLaPreviewWindow && !nhatLaPreviewWindow.isDestroyed()) nhatLaPreviewWindow.close();
+});
+
+// ============================================================
 // 📦 Danh sách quà — cửa sổ tách rời, ghim trên cùng
 // ============================================================
 // User mở để test quà mọi game mà KHÔNG cần ở lại tab Hũ Thủy Tinh. Click 1 quà →
@@ -1194,7 +1404,107 @@ function applyBancungHotkeys(cfg) {
 }
 global.__bancungApplyHotkeys = applyBancungHotkeys;
 
-app.on('before-quit', () => { isQuitting = true; try { unregisterBancungHotkeys(); } catch (_) {} });
+// ============================================================
+// NHẶT LÁ — global test hotkeys cho từng hiệu ứng quà.
+// UI ghi nhận trực tiếp tổ hợp người dùng bấm (vd Control+Shift+1, Alt+Q, F6).
+// ============================================================
+let _nhatlaAccels = [];
+function unregisterNhatLaHotkeys() {
+    for (const accel of _nhatlaAccels) { try { globalShortcut.unregister(accel); } catch (_) {} }
+    _nhatlaAccels = [];
+}
+async function nhatLaCmd(cmd, payload) {
+    try {
+        const fetch = require('node-fetch');
+        await fetch(`${APP_URL}/api/games/nhatla/cmd`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cmd, payload: payload || null })
+        });
+    } catch (e) { console.warn('[nhatla-hotkey] api fail:', e.message); }
+}
+
+// Mỗi tính năng khai báo: lấy danh sách quà ở đâu, và một phím tắt sẽ bắn lệnh gì.
+// Thêm tính năng mới chỉ cần thêm một dòng vào bảng này, không phải viết lại vòng đăng ký.
+// Toạ độ do MAIN PROCESS bốc rồi gửi kèm, không để overlay tự random — nếu không overlay
+// và cửa sổ preview mỗi bên dựng một trường khác nhau, hai màn hình lệch hẳn nhau.
+const NHATLA_HOTKEY_SOURCES = [
+    {
+        label: 'effect',
+        list: cfg => cfg?.effects?.effectGifts,
+        cmd: rule => ['effect', { effectId: rule.id }]
+    },
+    // GIẢI CỨU gộp gió + lốc + tự nhặt vào MỘT danh sách phẳng, mỗi hành động mang thông số
+    // riêng. Trước đây ba nguồn tách rời và cmd() lấy thông số từ khối chung của cfg, nên hai
+    // phím tắt cùng loại buộc phải chạy y hệt nhau. Giờ đọc thẳng từ action.params.
+    // Công tắc tắt cả loại vẫn nằm ở ba khối cũ; kiểm tra theo type của từng hành động.
+    {
+        label: 'rescue',
+        list: cfg => cfg?.rescue?.actions,
+        cmd: (action, cfg) => {
+            const p = action?.params || {};
+            const type = action?.type;
+            const block = type === 'autoClean' ? cfg?.autoClean : type === 'tornado' ? cfg?.tornado : cfg?.wind;
+            if (action?.enabled === false || block?.enabled === false) return [null, null];
+            if (type === 'tornado') {
+                return ['tornado', {
+                    x: Math.round(200 + Math.random() * 680),
+                    dir: Math.random() < .5 ? 'left' : 'right',
+                    seed: Math.floor(Math.random() * 1e9),
+                    radius: p.radius, spin: p.spin, inward: p.inward, lift: p.lift,
+                    durationMs: p.durationMs, maxLeaves: p.maxLeaves, drift: p.drift
+                }];
+            }
+            if (type === 'autoClean') {
+                return ['autoClean', { durationMs: p.durationMs, leavesPerSec: p.leavesPerSec }];
+            }
+            const dir = p.direction || 'random';
+            return ['wind', {
+                x: Math.round(120 + Math.random() * 840),
+                dir: dir === 'random' ? (Math.random() < .5 ? 'left' : 'right') : dir,
+                seed: Math.floor(Math.random() * 1e9),
+                radius: p.radius, strength: p.strength, turbulence: p.turbulence,
+                durationMs: p.durationMs, maxLeaves: p.maxLeaves
+            }];
+        }
+    }
+];
+
+function applyNhatLaHotkeys(cfg) {
+    unregisterNhatLaHotkeys();
+    if (cfg?.enabled === false) return;
+    // Phím trùng nhau thì phím đăng ký TRƯỚC thắng. Báo ra log thay vì im lặng bỏ qua,
+    // vì người dùng gán trùng sẽ thấy "phím không ăn" mà không hiểu vì sao.
+    const taken = new Map();
+    for (const source of NHATLA_HOTKEY_SOURCES) {
+        if (source.enabled && !source.enabled(cfg)) continue;
+        const rules = Array.isArray(source.list(cfg)) ? source.list(cfg) : [];
+        for (const rule of rules) {
+            let accel = String(rule?.hotkey || '').trim();
+            // Config cũ chỉ lưu 1 phím, trước đây được tự thêm Ctrl+Shift.
+            if (/^[a-z0-9]$/i.test(accel)) accel = `Control+Shift+${accel.toUpperCase()}`;
+            if (!accel) continue;
+            if (source.label === 'effect' && !rule?.id) continue;
+            if (taken.has(accel)) {
+                console.warn(`[nhatla-hotkey] "${accel}" trùng: ${taken.get(accel)} giữ, bỏ qua ${source.label}`);
+                continue;
+            }
+            try {
+                const ok = globalShortcut.register(accel, () => {
+                    // cmd() trả [null, null] khi hành động (hoặc cả loại) đang tắt — phím vẫn
+                    // giữ chỗ nhưng không bắn lệnh, thay vì phải đăng ký/gỡ lại mỗi lần bật tắt.
+                    const [cmd, payload] = source.cmd(rule, cfg);
+                    if (cmd) nhatLaCmd(cmd, payload);
+                });
+                if (ok) { _nhatlaAccels.push(accel); taken.set(accel, source.label); }
+                else console.warn('[nhatla-hotkey] accelerator unavailable:', accel);
+            } catch (e) { console.warn('[nhatla-hotkey] register fail:', accel, e.message); }
+        }
+    }
+    if (_nhatlaAccels.length) console.log(`[nhatla] global hotkeys registered: ${_nhatlaAccels.join(', ')}`);
+}
+global.__nhatlaApplyHotkeys = applyNhatLaHotkeys;
+
+app.on('before-quit', () => { isQuitting = true; try { unregisterBancungHotkeys(); unregisterNhatLaHotkeys(); } catch (_) {} });
 app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch (_) {} });
 app.on('window-all-closed', () => {
     // Theo behavior cũ: macOS auto-quit, Windows giữ ở tray.

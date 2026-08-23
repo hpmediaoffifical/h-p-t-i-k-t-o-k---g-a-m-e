@@ -1,0 +1,10 @@
+{
+  "id": "la-mua-thu",
+  "name": "Lá mùa thu",
+  "kind": "hat",
+  "count": 12,
+  "ext": "png",
+  "source": 80,
+  "baseSize": 110,
+  "lowRes": true
+}

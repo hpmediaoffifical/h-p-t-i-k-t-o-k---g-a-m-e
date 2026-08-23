@@ -763,10 +763,12 @@
         currentGame = game;
         highlightActiveGame(gameId);
         // Body class: dùng để CSS ẩn/hiện FAB/popup theo game
-        document.body.classList.remove('game-thuytinh', 'game-caro', 'game-pktiktok', 'game-vipwelcome', 'game-votecomment', 'game-nhietdo', 'game-bancung', 'game-trongcay', 'game-liveTranslate');
+        document.body.classList.remove('game-thuytinh', 'game-caro', 'game-pktiktok', 'game-vipwelcome', 'game-votecomment', 'game-nhietdo', 'game-bancung', 'game-trongcay', 'game-nhatla', 'game-liveTranslate');
         document.body.classList.add('game-' + gameId);
-        // Auto-reload OBS overlay của game này — tránh cache stale khi user mới mở game
-        try { socket && socket.emit('overlay:reload', { gameId }); } catch (e) {}
+        // Nhặt Lá giữ batch lá đang chạy trong RAM; chỉ reload thủ công khi cần nạp asset mới.
+        if (gameId !== 'nhatla') {
+            try { socket && socket.emit('overlay:reload', { gameId }); } catch (e) {}
+        }
         // Đóng các popup Hũ khi rời sang game khác (tránh popup mở treo)
         if (gameId !== 'thuytinh') {
             document.getElementById('police-popup')?.setAttribute('hidden', '');
@@ -780,6 +782,7 @@
         else if (gameId === 'nhietdo') openNhietDo(game);
         else if (gameId === 'bancung') openBanCung(game);
         else if (gameId === 'trongcay') openTrongCay(game);
+        else if (gameId === 'nhatla') openNhatLa(game);
         else if (gameId === 'liveTranslate') openLiveTranslateView();
         else if (gameId === 'level-quest') showView('view-level-quest');
         else if (gameId === 'timer') showView('view-timer');
@@ -818,6 +821,15 @@
             window.HpTrongCayPanel.open(socket);
         } else {
             console.error('[trongcay] HpTrongCayPanel chưa load');
+        }
+    }
+
+    function openNhatLa(game) {
+        if (!window.__giftSheet) window.__giftSheet = giftSheet;
+        if (window.HpNhatLaPanel && typeof window.HpNhatLaPanel.open === 'function') {
+            window.HpNhatLaPanel.open(socket);
+        } else {
+            console.error('[nhatla] HpNhatLaPanel chưa load');
         }
     }
 

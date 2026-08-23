@@ -1,0 +1,2574 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HP Nhặt Lá — Overlay</title>
+    <style>
+        * { box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: rgba(0, 0, 0, 0) !important; }
+        body { font-family: "Segoe UI", Arial, sans-serif; user-select: none; }
+        /* Logic luôn chạy trên sân khấu 1080×1920. Preview nhỏ chỉ scale sân khấu này,
+           vì vậy Browser Source OBS vẫn luôn nhận đúng bản 1080×1920 sắc nét. */
+        #nl-root { position: fixed; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; cursor: none; touch-action: none; transform-origin: top left; background: transparent !important; }
+        /* will-change ở ĐÂY, trên đúng một phần tử bọc — không phải trên từng lá.
+           Không có dòng này, cả đống lá nằm chung layer gốc (#nl-root đang scale) và bị
+           raster lại mỗi frame, nên chi phí tăng thẳng theo số lá: đo được 1460 lá = 22ms/frame
+           dù chỉ 4 lá đang bay. Gom đống lá thành một layer riêng thì nó raster đúng một lần
+           rồi chỉ blit texture: cũng 1500 lá còn 4.2ms/frame, bằng đúng lúc ẩn hết lá đi. */
+        #nl-pile { position: absolute; inset: 0; background: transparent !important; will-change: transform; }
+        /* Lá ĐANG BAY nằm ở layer riêng, tách khỏi đống lá tĩnh.
+           Kỳ vọng ban đầu là tách layer sẽ cứu được phần lớn chi phí, nhưng ĐO RA THÌ KHÔNG:
+           600 lá bay trên đống 1800 chỉ đi từ 21ms xuống 19.3ms (~8%). Chrome vẫn raster lại
+           đống lá trong vùng bẩn dù nó đã ở layer riêng có will-change.
+           Vẫn giữ vì đúng về mặt kiến trúc, cải thiện nhẹ và ổn định, lại cho lá bay nổi trên
+           đống mà không phải chỉnh z-index thủ công. Nhưng ĐỪNG trông đợi nó gánh hiệu năng —
+           đòn bẩy thật là số lá tĩnh trong vùng bị quét (xem startGust). */
+        #nl-air { position: absolute; inset: 0; background: transparent !important; will-change: transform; pointer-events: none; }
+        /* KHÔNG đặt filter/will-change lên .nl-leaf. Hai thuộc tính này nhân theo số lá:
+           mỗi lá thành một layer GPU riêng kèm blur phải tính lại mỗi frame. Đo lúc 3000 lá
+           cùng bay: có filter+will-change = 497ms/frame, bỏ đi = 44ms/frame (nhanh hơn 11 lần).
+           Bóng đổ chỉ giữ cho lá đang cầm trên tay — đúng một lá, và đó cũng là lá duy nhất
+           mà bóng thật sự nhìn thấy được. */
+        .nl-leaf { position: absolute; left: 0; top: 0; width: var(--leaf-size); height: auto; object-fit: contain; pointer-events: none; transform-origin: 50% 50%; }
+        .nl-leaf.resting { pointer-events: auto; cursor: none; }
+        .nl-leaf.dragging { filter: drop-shadow(0 15px 10px rgba(0, 0, 0, .48)); will-change: transform; }
+        #nl-bin { position: absolute; left: 50%; top: 62%; width: 260px; height: auto; transform: translate(-50%, -50%); transform-origin: 50% 50%; cursor: none; z-index: 80000; filter: drop-shadow(0 10px 9px rgba(0, 0, 0, .35)); touch-action: none; }
+        /* --bin-flash do JS ghi theo skin.json:flashMs, để nhịp phóng-thu của CSS luôn khớp
+           đúng lúc JS trả ảnh thùng về khung thường. */
+        #nl-bin.nl-receive { animation: nl-bin-receive var(--bin-flash, .72s) ease-out; }
+        @keyframes nl-bin-receive { 0% { transform: translate(-50%, -50%) scale(1); } 20% { transform: translate(-50%, -50%) scale(1.13); filter: brightness(1.45) drop-shadow(0 0 22px rgba(255, 228, 103, .95)); } 52% { transform: translate(-50%, -50%) scale(.95); } 100% { transform: translate(-50%, -50%) scale(1); } }
+        /* Bàn tay tách 2 lớp: wrapper giữ VỊ TRÍ (JS ghi transform mỗi frame theo con trỏ),
+           img giữ DIỄN HOẠT (scale/rotate). Nếu để chung một phần tử thì animation bị
+           transform bám chuột ghi đè mất, hiệu ứng bị đánh sẽ không bao giờ thấy. */
+        #nl-hand-wrap { position: absolute; left: 0; top: 0; z-index: 100000; opacity: 0; pointer-events: none; transform: translate(0, 0); transition: opacity .14s ease; will-change: transform, opacity; }
+        #nl-hand { display: block; width: 96px; height: auto; transform-origin: 17% 13%; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, .28)); will-change: transform, filter; }
+        /* Đang sưng: viền phát sáng đỏ cam để đọc rõ trên nền stream bất kể ảnh nền. */
+        #nl-hand.nl-hit { filter: drop-shadow(0 0 15px rgba(255, 96, 68, .82)) drop-shadow(0 4px 4px rgba(0, 0, 0, .34)); }
+        /* Bị đánh: nảy giật 1 nhịp mạnh rồi chuyển sang nhịp phập phồng giữ liên tục. */
+        #nl-hand.nl-anim-hit { animation: nl-hand-hit .44s cubic-bezier(.22, .9, .26, 1.18) both, nl-hand-throb .78s ease-in-out .44s infinite; }
+        /* Buông lá lúc đang sưng: bung xoè một nhịp rồi trở lại phập phồng. */
+        #nl-hand.nl-anim-release { animation: nl-hand-release .3s cubic-bezier(.34, 1.4, .64, 1) both, nl-hand-throb .78s ease-in-out .3s infinite; }
+        /* Hết hiệu ứng: xẹp về tay thường, hụt qua 1 nhịp cho có sức nặng. */
+        #nl-hand.nl-anim-recover { animation: nl-hand-recover .38s cubic-bezier(.34, 1.56, .64, 1) both; }
+        @keyframes nl-hand-hit {
+            0%   { transform: scale(1) rotate(0deg); }
+            12%  { transform: scale(1.44) rotate(-14deg); }
+            28%  { transform: scale(1.14) rotate(10deg); }
+            44%  { transform: scale(1.32) rotate(-7deg); }
+            60%  { transform: scale(1.1) rotate(5deg); }
+            78%  { transform: scale(1.2) rotate(-2deg); }
+            100% { transform: scale(1.1) rotate(0deg); }
+        }
+        @keyframes nl-hand-throb {
+            0%, 100% { transform: scale(1.1) rotate(0deg); }
+            50%      { transform: scale(1.19) rotate(1.5deg); }
+        }
+        @keyframes nl-hand-release {
+            0%   { transform: scale(1.1) rotate(0deg); }
+            38%  { transform: scale(1.34) rotate(8deg); }
+            100% { transform: scale(1.1) rotate(0deg); }
+        }
+        @keyframes nl-hand-recover {
+            0%   { transform: scale(1.16); }
+            55%  { transform: scale(.93); }
+            100% { transform: scale(1); }
+        }
+        #nl-effect-fx { position: absolute; left: 0; top: 0; width: 150px; height: auto; pointer-events: none; z-index: 100001; opacity: 0; filter: drop-shadow(0 5px 5px rgba(0, 0, 0, .35)); }
+        #nl-effect-fx.playing { opacity: 1; }
+        #nl-effect-editor { position: absolute; z-index: 110000; width: 180px; height: 120px; transform: translate(-50%, -50%); border: 3px dashed #ffd45d; border-radius: 12px; background: rgba(24, 16, 8, .3); color: #fff2bd; font-size: 16px; font-weight: 800; text-align: center; text-shadow: 0 2px 2px #000; cursor: move; pointer-events: none; touch-action: none; }
+        #nl-effect-editor .nl-effect-editor-label { display: grid; width: 100%; height: 100%; place-items: center; padding: 10px; }
+        .nl-effect-resize { position: absolute; z-index: 1; width: 18px; height: 18px; border: 2px solid #fff4c4; border-radius: 50%; background: #e89c2d; box-shadow: 0 1px 4px rgba(0,0,0,.8); }
+        .nl-effect-resize.tl { left: -10px; top: -10px; cursor: nwse-resize; }
+        .nl-effect-resize.tr { right: -10px; top: -10px; cursor: nesw-resize; }
+        .nl-effect-resize.bl { bottom: -10px; left: -10px; cursor: nesw-resize; }
+        .nl-effect-resize.br { right: -10px; bottom: -10px; cursor: nwse-resize; }
+        body.nl-review #nl-effect-editor:not([hidden]) { pointer-events: auto; cursor: move; touch-action: none; }
+        #nl-hud { position: absolute; left: 8%; top: 5%; z-index: 90000; min-width: 270px; padding: 13px 17px; border-radius: 15px; color: #fff9de; background: rgba(24, 16, 8, .68); border: 2px solid rgba(255, 223, 145, .62); font-size: clamp(20px, 2.15vw, 34px); font-weight: 800; line-height: 1.45; text-shadow: 0 2px 2px rgba(0, 0, 0, .75); box-shadow: 0 5px 15px rgba(0, 0, 0, .32); cursor: none; touch-action: none; }
+        #nl-hud b { color: #ffd765; }
+        /* ===== 🏆 TOP người tặng lá =====
+           Mọi kích thước tính bằng em để một cần gạt "Cỡ chữ" đổi được cả thẻ. KHÔNG dùng
+           transform:scale() cho hàng bay: transform không đổi bề rộng layout, mà quỹ đạo bay
+           lại chốt ở translateX(-100%) = đúng bề rộng thật của hàng — scale vào là lệch ngay. */
+        .nl-top-card { display: inline-flex; align-items: center; gap: .55em; padding: .42em .95em .42em .5em; border-radius: 2em; color: #fff9de; background: rgba(24, 16, 8, .74); border: .08em solid rgba(255, 223, 145, .62); box-shadow: 0 .18em .5em rgba(0, 0, 0, .42); white-space: nowrap; }
+        .nl-top-card.r1 { border-color: rgba(255, 213, 74, .95); background: rgba(60, 38, 4, .8); }
+        .nl-top-card.r2 { border-color: rgba(217, 226, 238, .82); }
+        .nl-top-card.r3 { border-color: rgba(226, 158, 96, .82); }
+        .nl-top-medal { font-size: 1.15em; line-height: 1; }
+        /* Ô avatar LUÔN tồn tại kể cả khi không có ảnh: thiếu ô thì các dòng trên bảng đứng
+           thụt thò không thẳng hàng. Chiếc lá nằm dưới làm nền, ảnh phủ lên trên — avatar
+           TikTok chết (CDN lỗi/hết hạn) thì chỉ cần bỏ ảnh đi là lộ lá, không đổi kích thước. */
+        .nl-top-ava { position: relative; display: inline-flex; width: 1.85em; height: 1.85em; flex: none; align-items: center; justify-content: center; border-radius: 50%; background: rgba(0, 0, 0, .45); border: .07em solid rgba(255, 223, 145, .55); font-size: .82em; }
+        .nl-top-ava img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+        .nl-top-name { max-width: 9em; overflow: hidden; text-overflow: ellipsis; font-weight: 800; text-shadow: 0 .07em .07em rgba(0, 0, 0, .8); }
+        .nl-top-leaves { font-weight: 900; color: #ffd765; text-shadow: 0 .07em .07em rgba(0, 0, 0, .8); }
+        /* Làn bay chiếm trọn chiều ngang sân khấu; #nl-top-fly-row mới là thứ WAAPI kéo đi. */
+        #nl-top-fly-lane { position: absolute; left: 0; top: 20%; z-index: 89000; width: 100%; overflow: hidden; pointer-events: none; }
+        #nl-top-fly-row { position: relative; display: inline-flex; align-items: center; gap: .7em; padding: .3em 0; font-family: inherit; font-size: 30px; will-change: transform; }
+        #nl-top-fly-lane[hidden] { display: none; }
+        /* Núm kéo đổi cỡ CHỈ hiện ở khung Review và cửa sổ Overlay của người vận hành:
+           Browser Source OBS không bao giờ mang class nl-editable nên người xem không thấy núm.
+           Núm nằm ngoài luồng (position:absolute) nên không cộng vào bề rộng layout của hàng —
+           quỹ đạo bay chốt ở translateX(-100%) vẫn đúng bằng bề rộng thật của mấy tấm thẻ. */
+        .nl-top-resize { position: absolute; right: -.45em; bottom: -.45em; z-index: 3; display: none; width: .8em; height: .8em; border: .09em solid #fff4c4; border-radius: 50%; background: #e89c2d; box-shadow: 0 1px 4px rgba(0, 0, 0, .8); cursor: nwse-resize; }
+        body.nl-editable .nl-top-resize { display: block; }
+        /* Hàng chữ bay nhận chuột để kéo cao thấp — nắm vào là dừng bay, nhả ra bay tiếp. */
+        body.nl-editable #nl-top-fly-row { pointer-events: auto; cursor: grab; }
+        body.nl-editable #nl-top-fly-row.nl-top-grabbed { cursor: grabbing; }
+        /* Núm trên HÀNG BAY không được thò xuống dưới: làn bay đang overflow:hidden, mà độ thò
+           tính bằng em nên ở cỡ chữ 250% nó tụt ra ngoài đáy làn và bị cắt mất. Ép bottom:0 để
+           núm luôn nằm trong làn ở MỌI cỡ chữ. Bảng đứng không bị kẹp nên vẫn cho thò ra. */
+        #nl-top-fly-row .nl-top-resize { bottom: 0; }
+        #nl-top-board { position: absolute; left: 62%; top: 6%; z-index: 88000; display: flex; flex-direction: column; gap: .35em; padding: .7em .85em; border-radius: 1em; color: #fff9de; background: rgba(24, 16, 8, .68); border: .07em solid rgba(255, 223, 145, .62); box-shadow: 0 .18em .5em rgba(0, 0, 0, .32); font-size: 26px; cursor: none; touch-action: none; }
+        #nl-top-board[hidden] { display: none; }
+        #nl-top-board .nl-top-title { font-weight: 900; letter-spacing: .02em; text-shadow: 0 .07em .07em rgba(0, 0, 0, .8); }
+        #nl-top-board .nl-top-card { background: rgba(0, 0, 0, .3); border-width: .06em; box-shadow: none; }
+        #nl-top-board .nl-top-empty { opacity: .72; font-weight: 700; font-size: .82em; }
+        body.nl-stopped #nl-root { display: none; }
+        /* App đã tắt: giấu sạch giao diện game khỏi scene OBS (thùng rác, bảng số, lá).
+           Tự bỏ class này khi socket nối lại nên người dùng không phải bấm Làm mới. */
+        body.nl-offline #nl-root { display: none; }
+        /* Canvas Review không mở thao tác bố cục từ vùng trống, nhưng root phải nhận pointer
+           để kéo vật thể và relay bàn tay không bị đứt khi con trỏ rời khỏi vật thể. */
+        body.nl-review { cursor: default; }
+        body.nl-review #nl-root { cursor: default; pointer-events: auto; touch-action: none; }
+        body.nl-review #nl-root * { cursor: default; pointer-events: none; touch-action: auto; }
+        /* Review giữ khung cố định, chỉ mở thao tác trực tiếp với vật thể trong sân chơi. */
+        body.nl-review #nl-root .nl-leaf.resting,
+        body.nl-review #nl-root #nl-bin,
+        body.nl-review #nl-root #nl-hud,
+        body.nl-review #nl-root #nl-hud *,
+        body.nl-review #nl-root #nl-top-board,
+        body.nl-review #nl-root #nl-top-board * { cursor: none; pointer-events: auto; touch-action: none; }
+        body.nl-review #nl-root #nl-top-fly-row,
+        body.nl-review #nl-root #nl-top-fly-row * { pointer-events: auto; touch-action: none; }
+        body.nl-review #nl-root .nl-top-resize { cursor: nwse-resize; }
+        body.nl-review #nl-root #nl-top-fly-row { cursor: grab; }
+        body.nl-review #nl-root #nl-top-fly-row.nl-top-grabbed { cursor: grabbing; }
+        body.nl-review #nl-root #nl-effect-editor:not([hidden]) { pointer-events: auto; cursor: move; touch-action: none; }
+        body.nl-review #nl-root #nl-effect-editor:not([hidden]) * { pointer-events: auto; }
+    </style>
+</head>
+<body>
+    <main id="nl-root" aria-label="Nhặt lá overlay">
+        <div id="nl-pile"></div>
+        <div id="nl-air"></div>
+        <div id="nl-hud" title="Kéo để đổi vị trí bảng số lượng">🍂 Tổng số lá: <b id="nl-total">0</b><br>🧹 Tổng số dọn: <b id="nl-cleaned">0</b><br>🍃 Còn lại: <b id="nl-remaining">0</b></div>
+        <div id="nl-top-board" title="Kéo để đổi vị trí bảng TOP" hidden></div>
+        <div id="nl-top-fly-lane" hidden><div id="nl-top-fly-row"></div></div>
+        <img id="nl-bin" src="/games/nhatla/skins/thung/mac-dinh/01.png" draggable="false" alt="Thùng rác" />
+        <div id="nl-hand-wrap"><img id="nl-hand" src="/games/nhatla/assets/hp-bantay.png" draggable="false" alt="" /></div>
+        <video id="nl-effect-fx" src="/games/nhatla/assets/fx/tom.webm" playsinline preload="auto" aria-hidden="true"></video>
+        <div id="nl-effect-editor" hidden><span class="nl-effect-editor-label"></span><i class="nl-effect-resize tl" data-resize-corner></i><i class="nl-effect-resize tr" data-resize-corner></i><i class="nl-effect-resize bl" data-resize-corner></i><i class="nl-effect-resize br" data-resize-corner></i></div>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/games/nhatla/game.js"></script>
+    <script>
+    (() => {
+        'use strict';
+        const $ = id => document.getElementById(id);
+        const root = $('nl-root');
+        const pile = $('nl-pile');
+        const air = $('nl-air');
+        const bin = $('nl-bin');
+        const hand = $('nl-hand');
+        const handWrap = $('nl-hand-wrap');
+        const effectFx = $('nl-effect-fx');
+        const effectEditor = $('nl-effect-editor');
+        const hud = $('nl-hud');
+        const topBoard = $('nl-top-board');
+        const topFlyLane = $('nl-top-fly-lane');
+        const topFlyRow = $('nl-top-fly-row');
+        const cleanedEl = $('nl-cleaned');
+        const totalEl = $('nl-total');
+        const remainingEl = $('nl-remaining');
+        const game = window.HpGame.nhatla;
+        const OPEN_HAND = '/games/nhatla/assets/hp-bantay.png';
+        const CLOSED_HAND = '/games/nhatla/assets/hp-taynamla.png';
+        const HIT_OPEN_HAND = '/games/nhatla/assets/hp-bantay-danh.png';
+        const HIT_CLOSED_HAND = '/games/nhatla/assets/hp-taynamla-danh.png';
+        const DEFAULT_EFFECT_MEDIA = '/games/nhatla/assets/fx/tom.webm';
+        // ── BỘ SKIN ────────────────────────────────────────────────────────────
+        // Ảnh hạt rơi và ảnh thùng rác đều do skin.json quyết định, không còn hằng số
+        // đường dẫn nào ở đây. Danh mục nạp một lần từ /api/nhatla/skins rồi tra tại chỗ,
+        // nên đổi bộ trong panel là ăn ngay, không phải fetch lại.
+        //
+        // Hai bộ dưới đây là phao cứu sinh khi fetch hỏng (server chưa lên, mất mạng nội
+        // bộ). Chúng trỏ vào bộ đã commit trong repo nên chắc chắn có file.
+        const FALLBACK_HAT = { id: 'la-mua-thu', name: 'Lá mùa thu', dir: '/games/nhatla/skins/hat/la-mua-thu', count: 12, ext: 'png', baseSize: 110 };
+        const FALLBACK_BIN = { id: 'mac-dinh', name: 'Thùng mặc định', dir: '/games/nhatla/skins/thung/mac-dinh', ext: 'png', baseWidth: 260, flashMs: 720 };
+        let skinCatalog = { hat: [], thung: [] };
+        let hatSkin = FALLBACK_HAT;
+        let binSkin = FALLBACK_BIN;
+        // Một timer duy nhất cho cả nhịp chớp nháy: dọn liên tục nhiều lá thì lần cuối gia
+        // hạn lần trước, thay vì timer cũ trả ảnh về giữa nhịp của timer mới.
+        let binFlashTimer = null;
+        let catalogRetried = false;
+        const COLS = 90;
+        const STAGE = { width: 1080, height: 1920 };
+        const isReview = new URLSearchParams(location.search).has('review');
+        // Núm kéo là thứ NHÌN THẤY ĐƯỢC, khác hẳn kéo-để-di-chuyển vốn bật ở mọi view.
+        // Chỉ hai cửa sổ của người vận hành mới được hiện: khung Review nhúng (?review=1)
+        // và cửa sổ Overlay rời (?preview=1). Browser Source OBS không mang tham số nào
+        // trong hai cái đó, nên người xem stream không bao giờ thấy chấm cam.
+        const canEditLayout = isReview || new URLSearchParams(location.search).has('preview');
+        let cfg = game.defaultConfig();
+        let leafUrls = skinFrames(FALLBACK_HAT);
+        let leaves = [];
+        let heights = new Array(COLS).fill(0);
+        let zIndex = 1;
+        let totalDropped = 0;
+        let cleaned = 0;
+        // KHO LÁ: số lá đã ghi nhận nhưng chưa được vẽ ra. Đống lá chỉ vẽ tối đa maxLeaves
+        // (đo được: 6000 lá là kín đặc 97.9% toàn màn hình 1080×1920, chạy 150fps). Quà tặng
+        // vượt quá ngưỡng đó không vẽ thêm nữa mà dồn vào kho, nhờ vậy "Còn lại" hiện được
+        // vài chục nghìn mà máy vẫn chỉ gánh 6000 phần tử. Dọn được lá nào thì rút một lá từ
+        // kho ra bù vào, nên đống lúc nào cũng đầy — đúng cách app Douyin làm.
+        let backlog = 0;
+        let dragging = null;
+        let binDragging = null;
+        let hudDragging = null;
+        let topBoardDragging = null;
+        let topList = [];
+        let topFlyTimer = null;
+        let topFlyAnim = null;
+        let topSoloIndex = 0;
+        let topBoardResizing = null;
+        let topFlyDragging = null;
+        let topFlyResizing = null;
+        let pendingTopSave = null;
+        let activePointerId = null;
+        let lastFrame = performance.now();
+        let saveBinTimer = null;
+        let saveTopBoardTimer = null;
+        let stateSyncTimer = null;
+        let effectPlaybackToken = 0;
+        let activeEffect = null;
+        let handHitActive = false;
+        let editingEffectId = null;
+        let effectEditorPointerId = null;
+        let effectEditorResize = false;
+        let lastTransientAt = 0;
+        let lastHandAt = 0;
+        let handHideTimer = null;
+        let handHitReleaseTimer = null;
+        let handHitUntil = 0;
+        let lastHandPunchAt = 0;
+        let offlineClearTimer = null;
+        let wasOffline = false;
+        let effectSequenceRule = null;
+        let effectSequenceLeft = 0;
+        let effectSequenceHit = false;
+        let effectSequenceTimer = null;
+        // Trần số lượt WEBM cho một combo — khớp NHATLA_EFFECT_MAX_REPEAT bên server.
+        const EFFECT_MAX_REPEAT = 20;
+        // Giữ tay sưng tối thiểu bấy nhiêu sau MỖI cú đánh, kể cả khi WEBM ngắn hơn.
+        const HAND_HIT_MIN_HOLD = 520;
+        // Nhớ bàn tay có đang ẩn trước lúc bị đánh không, để sau khi hết sưng trả về đúng
+        // trạng thái cũ thay vì kẹt hiện vĩnh viễn trên OBS.
+        let handWasHidden = true;
+        // Chưa ai rê chuột thì vẫn phải có toạ độ hợp lý: quà tới lúc đó bàn tay sưng
+        // hiện giữa sân khấu, không nhảy về góc trên trái (0, 0).
+        let handPoint = { x: 540, y: 960 };
+        let remoteHandTarget = null;
+        let remoteHandAt = 0;
+        const remoteLeafTargets = new Map();
+        const viewport = STAGE;
+        let stageScale = 1;
+
+        const rand = (min, max, random = Math.random) => min + random() * (max - min);
+        const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+        const smoothToward = (current, target, dt) => current + (target - current) * (1 - Math.exp(-24 * dt));
+
+        // ── Thước đo hiệu năng ─────────────────────────────────────────────────
+        // Bật bằng ?perf=1. Đo HAI đại lượng khác nhau, đừng lẫn:
+        //   frame = khoảng cách giữa 2 lần rAF, tức đã gồm cả layout/paint/composite
+        //           của trình duyệt. Đây mới là con số so được với "44ms/3000 lá".
+        //   js    = thời gian chạy trong tick(). Nếu js nhỏ mà frame lớn thì nút thắt
+        //           nằm ở khâu render của trình duyệt, sửa thuật toán JS vô ích.
+        // Lấy p95 chứ không chỉ trung bình: giật là do frame xấu nhất, không phải trung bình.
+        const perfOn = new URLSearchParams(location.search).has('perf');
+        const PERF_WINDOW = 120;
+        const perf = { frame: [], js: [], moving: 0, el: null, lastPaint: 0 };
+
+        function perfPush(list, value) {
+            list.push(value);
+            if (list.length > PERF_WINDOW) list.shift();
+        }
+
+        function perfStat(list) {
+            if (!list.length) return { avg: 0, p95: 0, max: 0 };
+            let sum = 0, max = 0;
+            for (const v of list) { sum += v; if (v > max) max = v; }
+            const sorted = [...list].sort((a, b) => a - b);
+            return { avg: sum / list.length, p95: sorted[Math.floor(sorted.length * .95)] || 0, max };
+        }
+
+        // Trả về snapshot thuần dữ liệu để đọc được từ ngoài (preview_eval / console),
+        // nhờ vậy đo được bằng script thay vì nhìn mắt rồi đoán.
+        window.__nlPerf = () => {
+            // Đếm ngay tại đây chứ KHÔNG đọc perf.moving: biến đó chỉ được tick() cập nhật
+            // khi bật ?perf, nên trên overlay/preview thường nó đứng yên ở 0 và khiến người
+            // đọc tưởng không có lá nào chuyển động.
+            let moving = 0;
+            for (let i = 0; i < leaves.length; i++) if (leaves[i].state !== 'resting') moving++;
+            return {
+                frame: perfStat(perf.frame),
+                js: perfStat(perf.js),
+                fps: perf.frame.length ? 1000 / (perfStat(perf.frame).avg || 1) : 0,
+                leaves: leaves.length,
+                moving,
+                samples: perf.frame.length
+            };
+        };
+        window.__nlPerfReset = () => { perf.frame.length = 0; perf.js.length = 0; return true; };
+        // Trường độ cao của đống. Lá nằm sai chỗ hầu như luôn là do heights[] lệch, mà nhìn
+        // màn hình thì không phân biệt được "đống cao thật" với "đống phình vì thiếu hoàn trả".
+        window.__nlHeights = () => ({
+            sum: Math.round(heights.reduce((a, b) => a + b, 0)),
+            max: Math.round(Math.max(...heights)),
+            leaves: leaves.length
+        });
+
+        function perfPaint(now) {
+            if (!perfOn) return;
+            if (!perf.el) {
+                perf.el = document.createElement('div');
+                perf.el.style.cssText = 'position:fixed;left:8px;top:8px;z-index:2147483647;font:12px/1.45 Consolas,monospace;'
+                    + 'background:rgba(0,0,0,.72);color:#7CFC9B;padding:8px 10px;border-radius:6px;white-space:pre;pointer-events:none';
+                document.body.appendChild(perf.el);
+            }
+            if (now - perf.lastPaint < 250) return;
+            perf.lastPaint = now;
+            const f = perfStat(perf.frame), j = perfStat(perf.js);
+            const fps = 1000 / (f.avg || 1);
+            perf.el.style.color = f.p95 > 16.7 ? (f.p95 > 33 ? '#FF6B6B' : '#FFD166') : '#7CFC9B';
+            perf.el.textContent =
+                `frame avg ${f.avg.toFixed(1)}ms  p95 ${f.p95.toFixed(1)}ms  max ${f.max.toFixed(1)}ms\n`
+                + `js    avg ${j.avg.toFixed(2)}ms  p95 ${j.p95.toFixed(2)}ms\n`
+                + `fps   ${fps.toFixed(1)}   lá ${leaves.length}  đang động ${perf.moving}`;
+        }
+
+        // Benchmark lặp lại được: thả N lá bay CÙNG LÚC, bỏ qua spawnGapMs và hàng đợi
+        // SPAWN_PER_FRAME — mục tiêu là đo lúc N lá ĐANG BAY, không phải đo lúc sinh dần.
+        // Chèn qua fragment đúng như đường nhanh của pumpSpawnQueue để so sánh công bằng.
+        // Seed cố định -> mỗi lần chạy ra cùng phân bố, số đo lặp lại được.
+        window.__nlBench = (count = 1000, seed = 'bench') => {
+            const sink = document.createDocumentFragment();
+            for (let i = 0; i < count; i++) spawnLeaf(`${seed}-${i}`, sink);
+            pile.appendChild(sink);
+            refreshHud();
+            perf.frame.length = 0; perf.js.length = 0;
+            return { spawned: count, leaves: leaves.length };
+        };
+        window.__nlClear = () => { clearLeaves(); return leaves.length; };
+        // Thổi gió tại một điểm; trả về số lá thực sự được đánh thức (đã chặn trần).
+        window.__nlWind = (x = 540, y = 1700, opts) => startGust(x, y, opts || {});
+        // Lốc xoáy; y bỏ trống để tự bám mặt đống.
+        window.__nlTornado = (x = 540, y, opts) => startTornado(x, y, opts || {});
+        // Chạy mô phỏng KHÔNG qua requestAnimationFrame.
+        // Cần thiết vì khi cửa sổ bị ẩn (tab nền, hoặc OBS chưa bật source) trình duyệt dừng
+        // hẳn rAF — lá đứng chôn chân và mọi phép kiểm thử tự động đọc ra 0, dễ hiểu nhầm là
+        // code hỏng. Truyền mốc thời gian TƯƠNG LAI để bao thời gian của gió/lốc tiến đúng
+        // nhịp thay vì giậm chân tại chỗ.
+        // Phải gọi ĐÚNG những gì tick() gọi, theo đúng thứ tự. Bản đầu chỉ chạy
+        // updateLeafAnimations nên autoClean không bao giờ nhúc nhích, khiến bài kiểm thử
+        // "gió + lốc + cứu chạy song song" báo sai rằng cứu không hoạt động.
+        window.__nlStep = (frames = 60, dtMs = 16.7) => {
+            const base = performance.now();
+            const dt = dtMs / 1000;
+            for (let i = 1; i <= frames; i++) {
+                const now = base + i * dtMs;
+                pumpSpawnQueue(now);
+                pumpPendingActions(now);
+                updateAutoClean(now, dt);
+                updateLeafAnimations(now, dt);
+            }
+            return window.__nlPerf();
+        };
+        // Thống kê hình học của đám lá đang bay — kiểm chứng "gom vào tâm" bằng SỐ, không bằng mắt.
+        window.__nlSpread = (cx = 540) => {
+            // Đo ĐỘ TÁN NGANG quanh trục lốc, không đo khoảng cách tới một điểm cố định:
+            // lá trong lốc vừa gom vào vừa bốc lên, nên khoảng cách tới điểm cố định bị chiều
+            // cao làm nhiễu và có thể TĂNG dù lá đang gom lại — đọc ra kết luận ngược.
+            let n = 0, sumDx = 0, minY = 1e9, maxY = -1e9;
+            for (const leaf of leaves) {
+                if (leaf.state !== 'blown') continue;
+                n++;
+                sumDx += Math.abs(leaf.x - cx);
+                if (leaf.y < minY) minY = leaf.y;
+                if (leaf.y > maxY) maxY = leaf.y;
+            }
+            return n ? { n, avgDx: +(sumDx / n).toFixed(1), minY: Math.round(minY), maxY: Math.round(maxY) } : { n: 0 };
+        };
+
+        // Mỗi gameGift/gameCmd mang cùng seed tới review và OBS. Vì vậy hai bên tạo đúng
+        // cùng ID, ảnh, vị trí và physics; không cần snapshot "đóng băng" lá giữa lúc rơi.
+        function makeSeededRandom(seed) {
+            let value = 2166136261;
+            const text = String(seed);
+            for (let i = 0; i < text.length; i++) value = Math.imul(value ^ text.charCodeAt(i), 16777619);
+            return () => {
+                value += 0x6D2B79F5;
+                let t = value;
+                t = Math.imul(t ^ (t >>> 15), t | 1);
+                t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        }
+
+        if (isReview) document.body.classList.add('nl-review');
+        if (canEditLayout) document.body.classList.add('nl-editable');
+
+        function canEdit() {
+            return true;
+        }
+
+        // Rect của một phần tử quy về toạ độ sân khấu 1080×1920 — cùng cách quy đổi như
+        // toStagePoint để điểm neo lúc kéo đổi cỡ và con trỏ nằm chung một hệ trục.
+        function toStageRect(el) {
+            const stage = root.getBoundingClientRect();
+            const scaleX = stage.width / STAGE.width || 1;
+            const scaleY = stage.height / STAGE.height || 1;
+            const rect = el.getBoundingClientRect();
+            return {
+                left: (rect.left - stage.left) / scaleX,
+                top: (rect.top - stage.top) / scaleY,
+                width: rect.width / scaleX,
+                height: rect.height / scaleY
+            };
+        }
+
+        // Kéo núm = nhân tỉ lệ theo KHOẢNG CÁCH tới điểm neo, không phải cộng delta thô.
+        // Nhờ vậy kéo ra gấp đôi khoảng cách thì chữ to gấp đôi, đúng cảm giác "nắm góc
+        // kéo cho vừa" bất kể đang ở cỡ nào và khung Review đang thu nhỏ bao nhiêu.
+        //
+        // vertical=true đo THEO CHIỀU DỌC từ mép trên thay vì đường chéo từ góc trái-trên.
+        // Bắt buộc phải vậy với HÀNG BAY: nó trượt ngang nên gần như lúc nào mép trái cũng
+        // nằm ngoài sân khấu (đo thực tế: hàng rộng 693px đứng ở x = 1080..1773). Mà
+        // toStagePoint() KẸP con trỏ về [0..1080] còn toStageRect() thì không kẹp, nên neo và
+        // con trỏ rơi vào hai khoảng toạ độ khác nhau — tỉ lệ ra số vô nghĩa (kéo 1.5x đo được
+        // 54% thay vì 150%). Mép TRÊN thì luôn nằm trong sân khấu vì flyYPercent đã kẹp 0..92,
+        // mà chiều cao hàng tỉ lệ thẳng với cỡ chữ, nên đo dọc vừa đủ vừa đúng.
+        // Bảng đứng không dính lỗi này (boardX/YPercent cũng kẹp 0..92) nên vẫn kéo chéo.
+        function resizeDistance(state, point) {
+            return state.vertical
+                ? Math.abs(point.y - state.anchorY)
+                : Math.hypot(point.x - state.anchorX, point.y - state.anchorY);
+        }
+
+        function scaleFromDrag(state, point, min, max) {
+            return clamp(Math.round(state.startScale * resizeDistance(state, point) / state.startDist), min, max);
+        }
+
+        function beginTopResize(el, point, startScale, vertical) {
+            const rect = toStageRect(el);
+            const state = {
+                anchorX: rect.left, anchorY: rect.top, vertical: !!vertical,
+                startScale: Number(startScale) || 100, startDist: 1
+            };
+            // Neo tối thiểu 8px: nắm ngay sát mép thì tỉ lệ chia cho ~0 sẽ bắn cỡ chữ lên trần.
+            state.startDist = Math.max(8, resizeDistance(state, point));
+            return state;
+        }
+
+        function captureRootPointer(pointerId) {
+            activePointerId = pointerId;
+            try { root.setPointerCapture(pointerId); } catch (e) {}
+        }
+
+        function releaseRootPointer(pointerId = activePointerId) {
+            if (pointerId == null) return;
+            if (pointerId === activePointerId) activePointerId = null;
+            try {
+                if (root.hasPointerCapture?.(pointerId)) root.releasePointerCapture(pointerId);
+            } catch (e) {}
+        }
+
+        function isActivePointer(event) {
+            return activePointerId == null || event.pointerId === activePointerId;
+        }
+
+        function fitStage() {
+            stageScale = Math.min(innerWidth / STAGE.width, innerHeight / STAGE.height);
+            const drawWidth = STAGE.width * stageScale;
+            const drawHeight = STAGE.height * stageScale;
+            root.style.left = `${Math.max(0, (innerWidth - drawWidth) / 2)}px`;
+            root.style.top = `${Math.max(0, (innerHeight - drawHeight) / 2)}px`;
+            root.style.transform = `scale(${stageScale})`;
+        }
+
+        function toStagePoint(event) {
+            const rect = root.getBoundingClientRect();
+            // Lấy scale từ rect sau transform thay vì cache resize: chính xác cả khi popup
+            // vừa resize, khi Electron làm tròn pixel, và khi review iframe đang scale.
+            const scaleX = rect.width / STAGE.width || 1;
+            const scaleY = rect.height / STAGE.height || 1;
+            return {
+                x: clamp((event.clientX - rect.left) / scaleX, 0, STAGE.width),
+                y: clamp((event.clientY - rect.top) / scaleY, 0, STAGE.height)
+            };
+        }
+
+        function leafTransform(leaf, x = leaf.x, y = leaf.y, scale = 1, rotation = leaf.rotation) {
+            leaf.el.style.transform = `translate3d(${x - leaf.size / 2}px, ${y - leaf.size / 2}px, 0) rotate(${rotation}deg) scale(${scale})`;
+        }
+
+        function refreshHud() {
+            cleanedEl.textContent = cleaned.toLocaleString('vi-VN');
+            totalEl.textContent = totalDropped.toLocaleString('vi-VN');
+            // Còn lại = lá đang vẽ + lá nằm trong kho. Không còn buộc bằng số phần tử DOM.
+            remainingEl.textContent = (leaves.length + backlog).toLocaleString('vi-VN');
+            hud.style.display = cfg.display.showHud === false ? 'none' : '';
+        }
+
+        // Ảnh trong một bộ luôn đánh số 01, 02, … nên suy ra được đường dẫn từ count trong
+        // skin.json — server không cần liệt kê từng tên file.
+        function skinFrames(skin) {
+            const count = Math.max(1, Number(skin?.count) || 1);
+            const ext = skin?.ext || 'png';
+            return Array.from({ length: count }, (_, i) => `${skin.dir}/${String(i + 1).padStart(2, '0')}.${ext}`);
+        }
+
+        function pickSkin(kind, id, fallback) {
+            const list = skinCatalog[kind] || [];
+            // Bộ được chọn có thể đã bị xoá khỏi đĩa: lùi về bộ đầu danh sách rồi mới tới
+            // phao cứu sinh, để overlay không bao giờ hiện ô ảnh vỡ.
+            return list.find(s => s.id === id) || list[0] || fallback;
+        }
+
+        // Đơn vị cỡ hạt = baseSize của bộ đang dùng × mức Kích thước. Gộp hai thứ vào MỘT số
+        // để lúc đổi bộ (lá 110px ↔ tuyết 44px) đống hạt đang nằm trên màn cũng co giãn theo
+        // đúng một đường code với lúc kéo thanh Kích thước.
+        function hatUnit() {
+            return (Number(hatSkin.baseSize) || 110) * cfg.display.leafScale / 100;
+        }
+
+        function applySkins() {
+            hatSkin = pickSkin('hat', cfg.display.hatSkin, FALLBACK_HAT);
+            binSkin = pickSkin('thung', cfg.display.binSkin, FALLBACK_BIN);
+            leafUrls = skinFrames(hatSkin);
+            bin.src = `${binSkin.dir}/01.${binSkin.ext || 'png'}`;
+            bin.style.setProperty('--bin-flash', `${Number(binSkin.flashMs) || 720}ms`);
+
+            // Người dùng vừa thả một bộ mới vào đĩa rồi chọn ngay: danh mục trong tab này
+            // chưa có id đó nên vừa lùi về bộ khác. Nạp lại danh mục đúng một lần rồi áp lại,
+            // thay vì bắt họ reload overlay. catalogRetried chặn vòng lặp khi id thật sự sai.
+            const missing = hatSkin.id !== cfg.display.hatSkin || binSkin.id !== cfg.display.binSkin;
+            if (missing && !catalogRetried) {
+                catalogRetried = true;
+                loadSkinCatalog().then(applySkins);
+            } else if (!missing) {
+                catalogRetried = false;
+            }
+        }
+
+        // Trần dọc do game.binYMaxPercent() quyết định (thùng thò tối đa 1/3 xuống dưới mép).
+        function binYMax() {
+            return game.binYMaxPercent(cfg.display.binScale);
+        }
+
+        // Mọi đường đặt vị trí thùng — kéo tay, thanh trượt panel, relay từ view khác — đều
+        // đi qua đây, nên kẹp trần Ở ĐÂY là kẹp đúng một chỗ. Ghi ngược lại vào cfg để số
+        // relay/lưu xuống config luôn là số thùng đang thật sự đứng.
+        function applyBinPosition() {
+            cfg.display.binYPercent = clamp(cfg.display.binYPercent, 5, binYMax());
+            bin.style.left = `${cfg.display.binXPercent}%`;
+            bin.style.top = `${cfg.display.binYPercent}%`;
+            bin.style.width = `${(Number(binSkin.baseWidth) || 260) * cfg.display.binScale / 100}px`;
+        }
+
+        function applyHandSize() {
+            hand.style.width = `${96 * cfg.display.handScale / 100}px`;
+            positionHand();
+        }
+
+        function positionHand(point = handPoint) {
+            const handWidth = 96 * cfg.display.handScale / 100;
+            handWrap.style.transform = `translate(${point.x - handWidth * .16}px, ${point.y - handWidth * .1}px)`;
+        }
+
+        function showHand() {
+            handWasHidden = false;
+            clearTimeout(handHideTimer);
+            handWrap.style.opacity = '1';
+        }
+
+        // Bàn tay chỉ được phép biến mất khi không còn lý do nào giữ nó lại — kể cả
+        // lúc đang sưng mà người dùng không cầm lá và không rê chuột.
+        function handShouldStay() {
+            return !!(dragging || binDragging || hudDragging || topBoardDragging || topBoardResizing || remoteHandTarget || handHitActive);
+        }
+
+        function handIsClosed() {
+            return !!(dragging || binDragging || hudDragging || topBoardDragging || topBoardResizing || remoteHandTarget?.closed);
+        }
+
+        function renderHandImage() {
+            hand.src = handHitActive
+                ? (handIsClosed() ? HIT_CLOSED_HAND : HIT_OPEN_HAND)
+                : (handIsClosed() ? CLOSED_HAND : OPEN_HAND);
+        }
+
+        // Gỡ hết class animation rồi ép reflow, nếu không trình duyệt coi là cùng một
+        // animation đang chạy và bỏ qua lần phát lại (đánh liên tiếp sẽ mất nhịp giật).
+        function playHandAnim(name) {
+            hand.classList.remove('nl-anim-hit', 'nl-anim-release', 'nl-anim-recover');
+            if (!name) return;
+            void hand.offsetWidth;
+            hand.classList.add(name);
+        }
+
+        // Hiện bàn tay nhưng vẫn nhớ trạng thái ẩn/hiện trước đó, để sau khi hết sưng
+        // trả về đúng như cũ (OBS không có chuột thì phải ẩn lại).
+        function revealHandKeepingMemory() {
+            const wasHidden = handWasHidden;
+            positionHand();
+            showHand();
+            handWasHidden = wasHidden;
+        }
+
+        function markHandHit() {
+            const now = performance.now();
+            // Combo/spam: mỗi cú đánh đẩy dài thêm thời gian sưng, không để nhịp xẹp của
+            // cú trước cắt ngang giữa loạt.
+            handHitUntil = Math.max(handHitUntil, now + HAND_HIT_MIN_HOLD);
+            clearTimeout(handHitReleaseTimer);
+            if (!handHitActive) {
+                handHitActive = true;
+                hand.classList.add('nl-hit');
+                renderHandImage();
+            }
+            revealHandKeepingMemory();
+            // Nảy lại cho TỪNG cú đánh, kể cả khi tay đang sưng sẵn. Chặn dưới 90ms để
+            // loạt combo dày thành nhịp rung đều thay vì đứng hình giữa keyframe.
+            if (now - lastHandPunchAt > 90) {
+                lastHandPunchAt = now;
+                playHandAnim('nl-anim-hit');
+            }
+        }
+
+        function clearHandHit() {
+            clearTimeout(handHitReleaseTimer);
+            const wait = handHitUntil - performance.now();
+            // Video xong nhưng combo còn đang tới: giữ sưng, hẹn kiểm tra lại.
+            if (wait > 0) {
+                handHitReleaseTimer = setTimeout(clearHandHit, wait + 16);
+                return;
+            }
+            if (!handHitActive) return;
+            handHitActive = false;
+            hand.classList.remove('nl-hit');
+            renderHandImage();
+            playHandAnim('nl-anim-recover');
+            clearTimeout(handHideTimer);
+            // Chờ hết nhịp xẹp rồi mới ẩn, và chỉ ẩn nếu trước lúc bị đánh nó vốn đang ẩn.
+            handHideTimer = setTimeout(() => {
+                if (handWasHidden && !handShouldStay()) handWrap.style.opacity = '0';
+            }, 420);
+        }
+
+        function applyHudPosition() {
+            hud.style.left = `${cfg.display.hudXPercent}%`;
+            hud.style.top = `${cfg.display.hudYPercent}%`;
+        }
+
+        // ===== 🏆 TOP người tặng lá =====
+        // Danh sách do SERVER chốt (xem nhatLaTopList trong server.js) — overlay chỉ vẽ.
+        // Overlay OBS reload giữa buổi vẫn nhận lại đủ qua 'nhatla:top' lúc subscribe.
+        const TOP_MEDALS = ['🥇', '🥈', '🥉'];
+        // Hai núm kéo dựng MỘT LẦN rồi gắn lại sau mỗi lần vẽ: renderTopBoard và runTopFly
+        // đều xoá sạch phần tử con, nếu tạo núm bên trong thì listener kéo mất theo mỗi lần
+        // danh sách đổi (mỗi lượt quà mới là hỏng).
+        const topBoardResizeEl = document.createElement('i');
+        topBoardResizeEl.className = 'nl-top-resize';
+        topBoardResizeEl.title = 'Kéo để đổi cỡ bảng TOP';
+        const topFlyResizeEl = document.createElement('i');
+        topFlyResizeEl.className = 'nl-top-resize';
+        topFlyResizeEl.title = 'Kéo để đổi cỡ chữ bay';
+
+        function topCardEl(entry) {
+            const card = document.createElement('div');
+            card.className = `nl-top-card r${entry.rank}`;
+            const medal = document.createElement('span');
+            medal.className = 'nl-top-medal';
+            medal.textContent = TOP_MEDALS[entry.rank - 1] || `#${entry.rank}`;
+            card.appendChild(medal);
+            const ava = document.createElement('span');
+            ava.className = 'nl-top-ava';
+            ava.textContent = '🍂';
+            if (entry.avatar) {
+                const img = document.createElement('img');
+                img.src = entry.avatar;
+                img.alt = '';
+                img.draggable = false;
+                // Ảnh chết thì bỏ hẳn ảnh, ô vẫn nguyên kích thước nên thẻ không co giật
+                // giữa lúc đang bay ngang màn hình.
+                img.addEventListener('error', () => img.remove());
+                ava.appendChild(img);
+            }
+            card.appendChild(ava);
+            const name = document.createElement('span');
+            name.className = 'nl-top-name';
+            name.textContent = entry.nickname || 'Ẩn danh';
+            card.appendChild(name);
+            const leaves = document.createElement('span');
+            leaves.className = 'nl-top-leaves';
+            leaves.textContent = `${Number(entry.leaves || 0).toLocaleString('vi-VN')} 🍂`;
+            card.appendChild(leaves);
+            return card;
+        }
+
+        function topDonorsOn() {
+            return cfg.topDonors?.enabled !== false && cfg.enabled !== false;
+        }
+
+        function renderTopBoard() {
+            const on = topDonorsOn() && cfg.topDonors?.boardEnabled === true;
+            topBoard.hidden = !on;
+            if (!on) return;
+            topBoard.textContent = '';
+            const title = document.createElement('div');
+            title.className = 'nl-top-title';
+            title.textContent = `🏆 TOP ${cfg.topDonors.count} TẶNG LÁ`;
+            topBoard.appendChild(title);
+            if (!topList.length) {
+                const empty = document.createElement('div');
+                empty.className = 'nl-top-empty';
+                empty.textContent = 'Chưa có ai tặng lá';
+                topBoard.appendChild(empty);
+            } else {
+                for (const entry of topList) topBoard.appendChild(topCardEl(entry));
+            }
+            topBoard.appendChild(topBoardResizeEl);
+        }
+
+        function applyTopDonorsLayout() {
+            const top = cfg.topDonors || {};
+            topBoard.style.left = `${top.boardXPercent}%`;
+            topBoard.style.top = `${top.boardYPercent}%`;
+            topBoard.style.fontSize = `${26 * (Number(top.boardScale) || 100) / 100}px`;
+            topFlyLane.style.top = `${top.flyYPercent}%`;
+            topFlyRow.style.fontSize = `${30 * (Number(top.flyScale) || 100) / 100}px`;
+        }
+
+        function stopTopFly() {
+            clearTimeout(topFlyTimer);
+            topFlyTimer = null;
+            topFlyAnim?.cancel();
+            topFlyAnim = null;
+            topFlyLane.hidden = true;
+            topFlyRow.textContent = '';
+        }
+
+        function scheduleTopFly() {
+            clearTimeout(topFlyTimer);
+            topFlyTimer = null;
+            if (!topDonorsOn() || cfg.topDonors?.flyEnabled === false) return;
+            const gapMs = Math.max(5, Number(cfg.topDonors.flyIntervalSec) || 45) * 1000;
+            topFlyTimer = setTimeout(runTopFly, gapMs);
+        }
+
+        // Bấm "Bay thử ngay" lúc chưa ai tặng thì phải thấy được bố cục, nếu không người vận
+        // hành tưởng nút hỏng. Tên gắn nhãn rõ là hàng mẫu để không nhầm với số liệu thật.
+        function topDemoList() {
+            const count = Math.max(1, Math.min(5, Number(cfg.topDonors?.count) || 5));
+            return Array.from({ length: count }, (unused, index) => ({
+                rank: index + 1, nickname: `Người xem mẫu ${index + 1}`, avatar: '',
+                leaves: (count - index) * 250
+            }));
+        }
+
+        function runTopFly({ demo = false } = {}) {
+            topFlyTimer = null;
+            if (!topDonorsOn() || cfg.topDonors?.flyEnabled === false) return;
+            const source = topList.length ? topList : (demo ? topDemoList() : []);
+            // Chưa ai tặng thì im lặng chờ lượt sau, không bay một hàng rỗng qua màn hình.
+            if (!source.length) return scheduleTopFly();
+            // 'solo' xoay vòng từng người nên phải kẹp lại mỗi lượt: danh sách co lại
+            // (đổi TOP mấy, reset giữa buổi) là con trỏ cũ trỏ ra ngoài mảng ngay.
+            const entries = cfg.topDonors.flyMode === 'solo'
+                ? [source[topSoloIndex % source.length]]
+                : source;
+            if (cfg.topDonors.flyMode === 'solo') topSoloIndex = (topSoloIndex + 1) % source.length;
+            topFlyRow.textContent = '';
+            for (const entry of entries) topFlyRow.appendChild(topCardEl(entry));
+            topFlyRow.appendChild(topFlyResizeEl);
+            topFlyLane.hidden = false;
+            const durationMs = Math.max(4, Number(cfg.topDonors.flyDurationSec) || 14) * 1000;
+            // WAAPI chứ không phải rAF thủ công: hàng thẻ chạy trên compositor nên không
+            // giành frame budget với vòng lặp vật lý của đống lá (đã đo tới 6000 phần tử).
+            // Điểm đầu = mép phải sân khấu, điểm cuối = -100% BỀ RỘNG HÀNG → khuất hẳn dù dài bao nhiêu.
+            topFlyAnim = topFlyRow.animate(
+                [{ transform: `translateX(${topFlyLane.clientWidth}px)` }, { transform: 'translateX(-100%)' }],
+                { duration: durationMs, easing: 'linear', fill: 'forwards' }
+            );
+            topFlyAnim.onfinish = () => {
+                topFlyAnim = null;
+                topFlyLane.hidden = true;
+                topFlyRow.textContent = '';
+                scheduleTopFly();
+            };
+        }
+
+        function applyTopDonors({ restartFly = false } = {}) {
+            applyTopDonorsLayout();
+            renderTopBoard();
+            const flyOn = topDonorsOn() && cfg.topDonors?.flyEnabled !== false;
+            if (!flyOn) return stopTopFly();
+            // Đang bay dở thì để nó bay nốt — cắt ngang giữa màn hình nhìn như lỗi overlay.
+            if (topFlyAnim) return;
+            if (restartFly || !topFlyTimer) scheduleTopFly();
+        }
+
+        function applyConfig(next) {
+            const previousUnit = hatUnit();
+            const previousHatId = hatSkin.id;
+            cfg = game.normalizeConfig(next);
+            applySkins();
+            // So bằng ĐƠN VỊ CỠ HẠT chứ không riêng mức Kích thước, nên đổi bộ giữa chừng
+            // (lá 110px sang tuyết 44px) thì đống hạt đang có cũng thu nhỏ theo thay vì để
+            // lại một đống lá to đùng mang ảnh bông tuyết.
+            const unitFactor = previousUnit ? hatUnit() / previousUnit : 1;
+            // Hai bộ có thể trùng baseSize (unitFactor === 1) mà vẫn khác ảnh, nên phải hỏi
+            // riêng: đổi bộ là đống hạt cũ đổi ảnh luôn, khỏi phải dọn sạch rồi rơi lại.
+            const hatChanged = hatSkin.id !== previousHatId;
+            if (unitFactor !== 1 || hatChanged) {
+                for (const leaf of leaves) {
+                    if (hatChanged) leaf.el.src = leafUrls[Math.floor(leaf.random() * leafUrls.length)] || leafUrls[0];
+                    if (unitFactor === 1) continue;
+                    leaf.size *= unitFactor;
+                    leaf.el.style.setProperty('--leaf-size', `${leaf.size}px`);
+                    if (leaf.state === 'dragging') leafTransform(leaf, leaf.x, leaf.y, .72);
+                    else if (leaf.state !== 'returning' && leaf.state !== 'collecting') leafTransform(leaf);
+                }
+            }
+            document.body.classList.toggle('nl-stopped', cfg.enabled === false);
+            applyBinPosition();
+            applyHandSize();
+            applyHudPosition();
+            applyTopDonors();
+            refreshHud();
+            renderEffectEditor();
+        }
+
+        function renderEffectEditor() {
+            const rule = editingEffectId && findEffectRule(editingEffectId);
+            const editable = isReview && rule && rule.followHand === false && !rule.positionLocked;
+            effectEditor.hidden = !editable;
+            if (!editable) return;
+            const scale = rule.scale / 100;
+            effectEditor.style.width = `${180 * scale}px`;
+            effectEditor.style.height = `${120 * scale}px`;
+            effectEditor.style.left = `${rule.positionXPercent}%`;
+            effectEditor.style.top = `${rule.positionYPercent}%`;
+            effectEditor.querySelector('.nl-effect-editor-label').textContent = '';
+        }
+
+        function persistEffectPosition() {
+            fetch('/api/games/nhatla/config', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ effects: { effectGifts: cfg.effects.effectGifts } })
+            }).catch(() => {});
+        }
+
+        function cancelEffectEditorDrag() {
+            if (effectEditorPointerId == null) return;
+            const pointerId = effectEditorPointerId;
+            effectEditorPointerId = null;
+            effectEditorResize = false;
+            try {
+                if (effectEditor.hasPointerCapture?.(pointerId)) effectEditor.releasePointerCapture(pointerId);
+            } catch (e) {}
+            persistEffectPosition();
+        }
+
+        function getColumn(x) {
+            return clamp(Math.floor(x / Math.max(1, viewport.width) * COLS), 0, COLS - 1);
+        }
+
+        // ĐỘ KHÍT của đống lá do đúng hai hằng số dưới đây quyết định.
+        //
+        // PILE_KERNEL rải lực nâng ra ±4 cột (~96px) cho khớp bề ngang thật của một chiếc lá
+        // (~104px). Bản cũ rải ±2 cột (~48px) — hẹp hơn nửa chiếc lá — nên mặt đống lởm chởm
+        // từng mấu thay vì phẳng đều như thảm.
+        //
+        // PILE_LIFT_* là phần bề cao mà mỗi lá cộng vào đống. Đây mới là con số quyết định
+        // "khít hay thưa": nâng càng nhiều thì đống cao càng nhanh nhưng càng ít lá trên mỗi
+        // đơn vị diện tích, nhìn thủng lỗ. Bản cũ dùng .27–.37 → đo được chỉ 69% đặc, tức
+        // 31% diện tích là lỗ nhìn xuyên qua nền. Theo mô hình phủ Poisson
+        // (độ đặc = 1 − e^(−λ), λ = tổng diện tích lá / diện tích đống), muốn đạt ~99% đặc thì
+        // mỗi lá chỉ được cộng ~353px² thay vì 1310px² — nhỏ hơn 3.72 lần.
+        const PILE_KERNEL = [1, .9, .72, .5, .3];
+        const PILE_LIFT_MIN = .042, PILE_LIFT_MAX = .055;
+
+        function stackHeightAt(x) {
+            const column = getColumn(x);
+            let height = 0;
+            for (let i = Math.max(0, column - 2); i <= Math.min(COLS - 1, column + 2); i++) height = Math.max(height, heights[i]);
+            return height;
+        }
+
+        function applyPileLift(column, lift, sign, cap) {
+            const reach = PILE_KERNEL.length - 1;
+            for (let i = Math.max(0, column - reach); i <= Math.min(COLS - 1, column + reach); i++) {
+                const amount = lift * PILE_KERNEL[Math.abs(i - column)] * sign;
+                heights[i] = clamp(heights[i] + amount, 0, cap);
+            }
+        }
+
+        function addToPile(leaf) {
+            const column = getColumn(leaf.x);
+            const lift = leaf.size * rand(PILE_LIFT_MIN, PILE_LIFT_MAX, leaf.random);
+            applyPileLift(column, lift, 1, viewport.height + leaf.size);
+            // Nhớ đúng phần đống mà lá này cộng vào, để lúc nó rời đống rơi tự do thì trả
+            // lại bấy nhiêu. Không có bước này, một lá rơi đi rơi lại sẽ thổi cột đống cao dần
+            // và lá mới bắt đầu "đứng" lơ lửng giữa màn hình.
+            leaf.pile = { column, lift };
+        }
+
+        function refundPile(leaf) {
+            if (!leaf.pile) return;
+            applyPileLift(leaf.pile.column, leaf.pile.lift, -1, viewport.height + leaf.size);
+            leaf.pile = null;
+        }
+
+        // Đáy đống chìm xuống dưới mép dưới màn hình. Lớp lá đầu tiên bao giờ cũng thưa vì
+        // chưa có lá nào bên dưới để chồng lên — đo được chỉ 65% đặc trong khi thân đống đạt
+        // 98%. Để nguyên thì luôn có một dải thủng lỗ chạy dọc đáy khung hình. Cho cả vùng
+        // thưa đó nằm khuất dưới mép, phần nhìn thấy bắt đầu từ chỗ lá đã chồng đủ dày.
+        const PILE_BASE_SINK = 95;
+        // Nhưng lúc đống CÒN MỎNG thì mức chìm đó nuốt trọn cả chiếc lá: đo thực tế lá 88.1px
+        // nằm ở tâm y=1990.3, mép trên 1946.3 — dưới hẳn đáy sân khấu 1920, nên thả vài trăm
+        // lá đầu tiên là không thấy gì trên cả khung Review lẫn OBS. Phải chất tới
+        // stackHeight ≥ 114px lá mới lọt hẳn vào khung.
+        // Chốt chặn dưới đây cho phép chìm nhiều nhất 1/3 thân lá. Hai mối lo không đụng nhau
+        // vì chúng tách theo ĐỘ DÀY đống: đống mỏng thì chốt giữ lá trong khung, đống dày
+        // (stackHeight ≥ 85px) thì giá trị tự nhiên đã nhỏ hơn chốt nên chốt tự nhả, trả về
+        // đúng hành vi cũ và vẫn giấu được lớp đáy thưa. Chuyển tiếp liên tục, không bậc nhảy.
+        const PILE_MAX_SINK_RATIO = 1 / 3;
+
+        // Mặt đống ngay dưới một điểm: chỗ lá sẽ nằm khi chạm đáy.
+        function floorAt(x, size) {
+            const y = viewport.height + PILE_BASE_SINK - stackHeightAt(x) - size * .28;
+            // size * (.5 − 1/3) = size/6: nửa thân lá trừ đi phần được phép chìm.
+            return Math.min(y, viewport.height - size * (.5 - PILE_MAX_SINK_RATIO));
+        }
+
+        function renderCap() {
+            return Number(cfg.drop.maxLeaves) || 6000;
+        }
+
+        // Chỉ dò lá nằm yên trong một cửa sổ nhỏ ở đầu mảng. Lá cũ nhất luôn ở đầu, nên bình
+        // thường trúng ngay phần tử đầu tiên. Nếu cả cửa sổ không có lá nào nằm yên thì quét
+        // nốt phần còn lại cũng vô ích — lấy luôn lá đầu mảng. Bản cũ dùng leaves.find() quét
+        // toàn mảng mỗi lần sinh lá: khi thả hàng chục nghìn lá lúc chưa lá nào kịp đáp, nó
+        // thành O(n²) và treo hẳn tab.
+        const EVICT_SCAN = 64;
+
+        function removeOldestIfNeeded() {
+            const max = renderCap();
+            while (leaves.length >= max) {
+                let oldest = null;
+                const limit = Math.min(EVICT_SCAN, leaves.length);
+                for (let i = 0; i < limit; i++) {
+                    if (leaves[i].state === 'resting') { oldest = leaves[i]; break; }
+                }
+                oldest = oldest || leaves[0];
+                if (!oldest) break;
+                // Lá bị đẩy ra để nhường chỗ KHÔNG phải là lá đã được dọn — nó chỉ thôi được
+                // vẽ. Đẩy vào kho để tổng số không hụt đi; nếu xoá thẳng thì "Còn lại" tụt dần
+                // trong khi người xem chưa dọn lá nào.
+                backlog++;
+                removeLeaf(oldest, false);
+            }
+        }
+
+        // Đống vơi đi thì rút lá từ kho ra bù, giữ mặt đống luôn đầy.
+        function refillFromBacklog() {
+            if (backlog <= 0) return;
+            if (leaves.length + spawnQueue.length >= renderCap()) return;
+            backlog--;
+            // Lá từ kho là lá cũ được đưa ra vẽ, không phải lá mới rơi xuống: không tăng
+            // totalDropped, nếu không mỗi lần dọn lại thổi phồng "Tổng số lá".
+            spawnQueue.push({ key: `refill-${++refillSeq}`, at: 0, fromBacklog: true });
+        }
+        let refillSeq = 0;
+
+        // sink != null nghĩa là đang sinh theo lô: chèn vào fragment và để người gọi lo
+        // refreshHud một lần cho cả lô.
+        function spawnLeaf(seedKey, sink, fromBacklog) {
+            if (!cfg.enabled) return;
+            removeOldestIfNeeded();
+            const random = makeSeededRandom(seedKey || `${Date.now()}-${Math.random()}`);
+            const size = hatUnit() * rand(.72, 1.18, random);
+            const x = rand(size * .25, Math.max(size * .25 + 1, viewport.width - size * .25), random);
+            const el = document.createElement('img');
+            el.className = 'nl-leaf';
+            el.src = leafUrls[Math.floor(random() * leafUrls.length)] || leafUrls[0];
+            el.draggable = false;
+            el.style.setProperty('--leaf-size', `${size}px`);
+            const leaf = {
+                id: `leaf-${String(seedKey || Date.now())}`,
+                el, size, x, y: -size, startX: x,
+                rotation: rand(0, 360, random), spin: rand(-28, 28, random),
+                sway: rand(14, 58, random), swaySpeed: rand(1.4, 3.2, random), swayPhase: 0,
+                velocity: rand(85, 145, random), random, state: 'falling', z: ++zIndex,
+                original: null, pile: null, fallCount: 0
+            };
+            el.style.zIndex = leaf.z;
+            leafTransform(leaf);
+            el.addEventListener('pointerdown', event => startLeafDrag(event, leaf));
+            // Lá mới sinh ra là đang RƠI -> vào layer không khí, không đụng layer đống lá.
+            (sink || air).appendChild(el);
+            leaves.push(leaf);
+            // Lá rút từ kho là lá cũ được đưa ra vẽ lại, không phải lá mới rơi xuống.
+            if (!fromBacklog) totalDropped++;
+            if (!sink) {
+                refreshHud();
+                scheduleStateSync();
+            }
+        }
+
+        // Mỗi lá sinh ra là một lần chèn DOM. Trước đây 1000 lá = 1000 setTimeout nổ cùng
+        // một macrotask, kéo theo 1000 lần chèn + 1000 lần refreshHud trong đúng một frame,
+        // nên tab đứng hình vài giây rồi lá mới hiện. Giờ xếp hàng và bơm theo frame:
+        // gom vào DocumentFragment (1 lần chèn DOM/frame) và chặn trần số lá mỗi frame.
+        const SPAWN_PER_FRAME = 40;
+        let spawnQueue = [];
+
+        function spawnLeaves(count, batchKey) {
+            count = clamp(parseInt(count, 10) || 0, 0, 5000);
+            const gap = Number(cfg.drop.spawnGapMs) || 0;
+            const base = batchKey || Date.now();
+            const now = performance.now();
+            for (let i = 0; i < count; i++) spawnQueue.push({ key: `${base}-${i}`, at: now + i * gap });
+        }
+
+        // Trình duyệt ngừng chạy requestAnimationFrame khi trang bị ẩn (OBS ẩn source hoặc
+        // đổi scene, overlay nằm ở tab nền). Nếu chỉ bơm theo rAF thì lá xếp hàng vô hạn rồi
+        // đổ ập một cục lúc hiện lại. Timer này là đồng hồ dự phòng, chỉ chạy khi bị ẩn.
+        // Lúc ẩn không có gì được vẽ nên cho ngân sách lớn hơn để hàng chờ không bị ùn.
+        const SPAWN_PER_TICK_HIDDEN = 400;
+        setInterval(() => {
+            if (document.hidden) pumpSpawnQueue(performance.now(), SPAWN_PER_TICK_HIDDEN);
+        }, 100);
+
+        function pumpSpawnQueue(now, budget = SPAWN_PER_FRAME) {
+            if (!spawnQueue.length) return;
+            let taken = 0;
+            let sink = null;
+            while (spawnQueue.length && taken < budget && spawnQueue[0].at <= now) {
+                if (!sink) sink = document.createDocumentFragment();
+                const item = spawnQueue.shift();
+                spawnLeaf(item.key, sink, item.fromBacklog);
+                taken++;
+            }
+            if (!sink) return;
+            air.appendChild(sink);
+            refreshHud();
+            scheduleStateSync();
+        }
+
+        function settleLeaf(leaf) {
+            leaf.state = 'resting';
+            leaf.el.classList.add('resting');
+            leaf.y = Math.max(leaf.size * .25, floorAt(leaf.x, leaf.size));
+            leaf.rotation += rand(-15, 15, leaf.random);
+            leaf.z = ++zIndex;
+            leaf.el.style.zIndex = leaf.z;
+            addToPile(leaf);
+            leafTransform(leaf);
+            // Đáp xuống rồi thì chuyển sang layer đống lá và từ đó không bao giờ bị vẽ lại nữa.
+            // Đây là bước khiến lá nằm yên gần như miễn phí (đo được ~0.2µs/lá/frame).
+            if (leaf.el.parentNode !== pile) pile.appendChild(leaf.el);
+            // Chỉ sync sau khi physics đã ổn định. Không bao giờ snapshot lá giữa lúc rơi.
+            scheduleStateSync();
+        }
+
+        function removeLeaf(leaf, updateHud = true) {
+            const index = leaves.indexOf(leaf);
+            if (index >= 0) leaves.splice(index, 1);
+            // Lá rời sân khấu thì phải trả lại phần độ cao nó đã cộng vào đống. Thiếu bước này
+            // thì mỗi lá bỏ vào thùng để lại một khoảng nâng vĩnh viễn: dọn càng nhiều, mặt
+            // đống ảo càng phình trong khi lá thật biến mất, và lá mới bắt đầu đứng lơ lửng
+            // trên khoảng không. refundPile tự bỏ qua nếu lá đã được trả trước đó.
+            refundPile(leaf);
+            leaf.el.remove();
+            if (updateHud) refreshHud();
+            scheduleStateSync();
+        }
+
+        function startLeafDrag(event, leaf) {
+            if (!canEdit() || activePointerId != null || leaf.state !== 'resting' || binDragging) return;
+            event.preventDefault();
+            event.stopPropagation();
+            leaf.state = 'dragging';
+            leaf.original = { x: leaf.x, y: leaf.y, z: leaf.z, rotation: leaf.rotation };
+            const point = toStagePoint(event);
+            leaf.offsetX = point.x - leaf.x;
+            leaf.offsetY = point.y - leaf.y;
+            leaf.el.classList.remove('resting');
+            leaf.el.classList.add('dragging');
+            leaf.el.style.zIndex = 99999;
+            dragging = leaf;
+            moveHand(event);
+            renderHandImage();
+            relayHand(true);
+            socket?.emit('nhatla:transient', { type: 'dragStart', leafId: leaf.id });
+            leafTransform(leaf, leaf.x, leaf.y, .72);
+            captureRootPointer(event.pointerId);
+        }
+
+        function findEffectRule(id) {
+            return cfg.effects.effectGifts.find(rule => rule.id === id) || null;
+        }
+
+        function placeEffect(rule, point) {
+            const size = 150 * cfg.display.handScale / 100 * rule.scale / 100;
+            effectFx.style.width = `${size}px`;
+            if (rule.followHand !== false) {
+                effectFx.style.left = '0';
+                effectFx.style.top = '0';
+                effectFx.style.transform = `translate(${point.x - size * .72}px, ${point.y - size * .78}px)`;
+            } else {
+                effectFx.style.left = `${rule.positionXPercent}%`;
+                effectFx.style.top = `${rule.positionYPercent}%`;
+                effectFx.style.transform = 'translate(-50%, -50%)';
+            }
+        }
+
+        function followActiveEffect(point) {
+            // Không có hiệu ứng đang chạy thì không có gì để bám theo tay. Nếu để
+            // optional-chaining rơi vào nhánh true, mỗi lần di chuột sẽ ném TypeError và
+            // cắt luôn phần còn lại của moveHand (đổi ảnh tay, relay socket, pointer capture).
+            if (activeEffect && activeEffect.rule.followHand !== false) placeEffect(activeEffect.rule, point);
+        }
+
+        function playEffect(rule, point, hitHand, onFinished) {
+            const token = ++effectPlaybackToken;
+            const source = rule.mediaUrl || DEFAULT_EFFECT_MEDIA;
+            activeEffect = { rule, token };
+            const finish = () => {
+                if (token !== effectPlaybackToken) return;
+                effectFx.classList.remove('playing');
+                activeEffect = null;
+                if (hitHand) clearHandHit();
+                onFinished?.();
+            };
+            const start = () => {
+                if (token !== effectPlaybackToken) return;
+                placeEffect(rule, point);
+                // Combo/spam: nếu WEBM đang chạy dở CÙNG nguồn thì để nó chạy tiếp. Trước
+                // đây mỗi cú đánh đều gán currentTime = 0 nên video kẹt vĩnh viễn ở khung 0
+                // và người xem không thấy hiệu ứng nào cả.
+                const stillRunning = effectFx.getAttribute('src') === source
+                    && !effectFx.paused && !effectFx.ended && effectFx.currentTime > .05;
+                effectFx.onended = finish;
+                effectFx.onerror = finish;
+                if (!stillRunning) {
+                    effectFx.classList.remove('playing');
+                    try { effectFx.currentTime = 0; } catch (e) {}
+                }
+                effectFx.classList.add('playing');
+                effectFx.muted = false;
+                effectFx.volume = 1;
+                if (hitHand) markHandHit();
+                if (stillRunning) return;
+                const played = effectFx.play();
+                if (played?.catch) played.catch(finish);
+            };
+            if (effectFx.getAttribute('src') !== source) {
+                effectFx.onloadedmetadata = start;
+                effectFx.onerror = finish;
+                effectFx.src = source;
+                effectFx.load();
+            } else start();
+        }
+
+        function relayEffect(rule, point, hitHand) {
+            if (isReview) return;
+            if (!socket?.connected) return;
+            socket.emit('nhatla:transient', { type: 'effect', effectId: rule.id, x: point.x, y: point.y, hitHand: !!hitHand });
+        }
+
+        function releaseLeafFromEffect(leaf) {
+            if (dragging !== leaf || leaf.state !== 'dragging') return;
+            dragging = null;
+            releaseRootPointer();
+            renderHandImage();
+            // Đang sưng mà buông lá: chèn nhịp bung xoè để thấy rõ khoảnh khắc tay mở ra.
+            if (handHitActive) playHandAnim('nl-anim-release');
+            const action = returnLeaf(leaf);
+            relayHand(true);
+            relayLeafDrag(leaf, 'leafEnd', action);
+        }
+
+        function stopEffectSequence() {
+            clearTimeout(effectSequenceTimer);
+            effectSequenceRule = null;
+            effectSequenceLeft = 0;
+        }
+
+        // Combo x10 phát WEBM 10 lượt NỐI NHAU: lượt kế chỉ bắt đầu khi lượt trước kết thúc,
+        // nên video không bị cắt ngang. Bàn tay giữ sưng liên tục nhờ handHitUntil được
+        // markHandHit() gia hạn ở mỗi lượt.
+        function runEffectSequence(rule, times, hitHand) {
+            stopEffectSequence();
+            effectSequenceRule = rule;
+            effectSequenceHit = !!hitHand;
+            effectSequenceLeft = clamp(parseInt(times, 10) || 1, 1, EFFECT_MAX_REPEAT);
+            playNextEffectInSequence();
+        }
+
+        function playNextEffectInSequence() {
+            const rule = effectSequenceRule;
+            if (!rule || effectSequenceLeft <= 0) return stopEffectSequence();
+            effectSequenceLeft--;
+            playEffect(rule, handPoint, effectSequenceHit, () => {
+                if (effectSequenceRule !== rule) return;
+                // Giãn tối thiểu 40ms: nếu WEBM lỗi/không phát được thì finish() gọi lại ngay
+                // lập tức, không có nhịp này cả combo sẽ cháy hết trong vài mili-giây.
+                clearTimeout(effectSequenceTimer);
+                effectSequenceTimer = setTimeout(playNextEffectInSequence, 40);
+            });
+        }
+
+        function triggerEffectGift(rule, options = {}) {
+            const leaf = dragging;
+            const runEffect = () => {
+                const holdingLeaf = dragging === leaf && leaf?.state === 'dragging';
+                // Không cầm lá vẫn bị đánh: đổi sang bàn tay sưng, nhưng không có gì để thả.
+                runEffectSequence(rule, options.repeat, true);
+                if (options.relay !== false) relayEffect(rule, handPoint, true);
+                // Chỉ có MỘT chiếc lá trong tay nên dù combo còn chạy tiếp, lá vẫn buông
+                // đúng một lần theo cú đánh đầu tiên.
+                if (holdingLeaf) {
+                    if (rule.releaseAfterMs <= 0) releaseLeafFromEffect(leaf);
+                    else setTimeout(() => releaseLeafFromEffect(leaf), rule.releaseAfterMs);
+                }
+            };
+            // WEBM luôn chạy ngay; thời gian cấu hình chỉ quyết định lúc buông lá.
+            runEffect();
+        }
+
+        // Lá đang lơ lửng rõ rệt trên mặt đống thì buông tay là phải rơi tự do: thả hụt
+        // thùng rác, bị hiệu ứng đánh rời tay, hay kéo lên rồi thả đều tính như nhau.
+        // Lá chỉ nhấc lên khỏi đống một chút (hoặc nằm sát đất) vẫn dán về đúng chỗ cũ,
+        // giữ nguyên bố cục đống lá đã xếp.
+        function shouldFreeFall(leaf) {
+            return leaf.y < floorAt(leaf.x, leaf.size) - leaf.size * .6;
+        }
+
+        function dropLeafFreely(leaf) {
+            refundPile(leaf);
+            leaf.original = null;
+            leaf.fallCount = (leaf.fallCount || 0) + 1;
+            // Seed theo id + số lần rơi: OBS và khung review dựng đúng cùng một đường rơi
+            // mà không cần gói tin nào mô tả physics.
+            const random = makeSeededRandom(`${leaf.id}:fall:${leaf.fallCount}`);
+            leaf.random = random;
+            leaf.state = 'falling';
+            leaf.startX = leaf.x;
+            // Rơi từ tay thì bắt đầu chậm và đảo nhẹ, khác hẳn lá mới sinh trên đỉnh màn hình.
+            leaf.velocity = rand(30, 80, random);
+            leaf.sway = rand(8, 26, random);
+            leaf.swaySpeed = rand(1.2, 2.6, random);
+            leaf.spin = rand(-46, 46, random);
+            // Neo pha sway về 0 tại thời điểm buông, nếu không lá nảy ngang một nhịp
+            // ngay khoảnh khắc rời tay.
+            leaf.swayPhase = performance.now() / 1000 * leaf.swaySpeed;
+            leaf.z = ++zIndex;
+            leaf.el.style.zIndex = leaf.z;
+            leaf.el.classList.remove('dragging', 'resting');
+            leafTransform(leaf);
+        }
+
+        // allowFall=false cho các view nhận lệnh qua socket: bên thả đã chốt kết quả rồi,
+        // view kia không được tự tính lại theo đống lá của riêng nó.
+        function returnLeaf(leaf, allowFall = true) {
+            if (allowFall && shouldFreeFall(leaf)) {
+                dropLeafFreely(leaf);
+                return 'fall';
+            }
+            const origin = leaf.original;
+            // Mất chỗ cũ (view này lỡ gói kéo lá) thì thà cho rơi tự do còn hơn kẹt lơ lửng.
+            if (!origin) {
+                dropLeafFreely(leaf);
+                return 'fall';
+            }
+            leaf.state = 'returning';
+            leaf.returnStart = performance.now();
+            leaf.returnFrom = { x: leaf.x, y: leaf.y, rotation: leaf.rotation };
+            leaf.returnTo = origin;
+            return 'return';
+        }
+
+        function binContains(x, y) {
+            const rect = bin.getBoundingClientRect();
+            const insetX = rect.width * .17;
+            const insetTop = rect.height * .08;
+            const insetBottom = rect.height * .42;
+            return x >= rect.left + insetX && x <= rect.right - insetX && y >= rect.top + insetTop && y <= rect.bottom - insetBottom;
+        }
+
+        function receiveLeaf(leaf, sharedTarget) {
+            const rect = bin.getBoundingClientRect();
+            const stageRect = root.getBoundingClientRect();
+            const scaleX = stageRect.width / STAGE.width || 1;
+            const scaleY = stageRect.height / STAGE.height || 1;
+            const target = sharedTarget && Number.isFinite(Number(sharedTarget.x)) && Number.isFinite(Number(sharedTarget.y))
+                ? { x: clamp(Number(sharedTarget.x), 0, STAGE.width), y: clamp(Number(sharedTarget.y), 0, STAGE.height) }
+                : {
+                    x: (rect.left + rect.width / 2 - stageRect.left) / scaleX,
+                    y: (rect.top + rect.height * .3 - stageRect.top) / scaleY
+                };
+            leaf.state = 'collecting';
+            leaf.collectStart = performance.now();
+            leaf.collectFrom = { x: leaf.x, y: leaf.y, rotation: leaf.rotation };
+            leaf.collectTo = target;
+            // Lá bay vào thùng cũng là lá đang động -> tách khỏi layer đống lá, nếu không
+            // mỗi lá gom sẽ bắt cả đống bên dưới raster lại theo.
+            if (leaf.el.parentNode !== air) air.appendChild(leaf.el);
+            // Bỏ .resting: lá đang bay vào thùng không còn là mục tiêu bấm được nữa.
+            leaf.el.classList.remove('resting');
+            leaf.el.style.pointerEvents = 'none';
+            cleaned++;
+            // Đống vừa vơi một chỗ: rút ngay một lá từ kho ra bù, giữ mặt đống luôn đầy như
+            // Douyin thay vì thủng dần theo số lá đã dọn.
+            refillFromBacklog();
+            // Chớp sáng hoàn toàn bằng CSS (@keyframes nl-bin-receive), không đổi ảnh. Bỏ
+            // class rồi đọc offsetWidth là ép trình duyệt tính lại layout, nhờ vậy gắn class
+            // lại sẽ chạy animation TỪ ĐẦU — thiếu bước này thì lá thứ hai rơi vào lúc đang
+            // chớp sẽ không chớp thêm lần nữa.
+            bin.classList.remove('nl-receive');
+            void bin.offsetWidth;
+            bin.classList.add('nl-receive');
+            clearTimeout(binFlashTimer);
+            binFlashTimer = setTimeout(() => bin.classList.remove('nl-receive'), Number(binSkin.flashMs) || 720);
+            refreshHud();
+            return target;
+        }
+
+        // ── GIÓ CỤC BỘ (curl-noise) ────────────────────────────────────────────
+        // Nền lý thuyết: Bridson, "Curl-Noise for Procedural Fluid Flow", SIGGRAPH 2007.
+        // https://www.cs.ubc.ca/~rbridson/docs/bridson-siggraph2007-curlnoise.pdf
+        //
+        // Vì sao KHÔNG lấy thẳng noise làm vận tốc: trường noise thô không divergence-free,
+        // nó có "máng" (sinks) và lá sẽ trôi dồn cục vào đó rồi đứng im — nhìn ra ngay là giả.
+        // Cách đúng: lấy CURL của một potential. Trong 2D potential chỉ là một hàm vô hướng ψ
+        // và v = (∂ψ/∂y, −∂ψ/∂x). Do đồng nhất thức ∇·∇× ≡ 0 nên trường này tự động
+        // không nguồn không máng, không cần sửa gì thêm.
+        //
+        // Vì sao nhân biên độ vào ψ CHỨ KHÔNG nhân vào vận tốc: muốn gió chỉ thổi trong một
+        // vùng thì phải làm v = ∇×(A·ψ). Nhân A vào vận tốc sau khi lấy curl sẽ phá mất tính
+        // divergence-free vừa dựng được. Đây đúng là cách bài báo dựng demo "gust quanh con trỏ".
+        const WIND_NOISE_SCALE = 0.0045;              // 1 ô nhiễu ≈ 220px
+        const WIND_CURL_EPS = 6;                      // px, bước sai phân trung tâm
+        // Đạo hàm của ψ có bậc ~ (biên độ / kích thước ô) = 0.5 * WIND_NOISE_SCALE.
+        // Nhân hằng số này để đưa curl về thang ~1 trước khi nhân với strength.
+        // Chỉ là hằng số nên KHÔNG phá divergence-free, mà vẫn giữ nguyên biến thiên
+        // không gian do A tạo ra.
+        const WIND_CURL_GAIN = 2 / WIND_NOISE_SCALE;
+        const WIND_GRAVITY = 245;                     // khớp gia tốc rơi của state 'falling'
+        let gusts = [];
+
+        function windHash(ix, iy, seed) {
+            let h = Math.imul(ix | 0, 374761393) ^ Math.imul(iy | 0, 668265263) ^ Math.imul(seed | 0, 1274126177);
+            h = Math.imul(h ^ (h >>> 13), 1274126177);
+            return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+        }
+
+        // Value noise với nội suy quintic. Quintic (không phải linear) là bắt buộc: ta lấy
+        // ĐẠO HÀM của trường này, mà nội suy tuyến tính cho đạo hàm gãy khúc -> gió giật cục.
+        function windNoise(x, y, seed) {
+            const ix = Math.floor(x), iy = Math.floor(y);
+            const fx = x - ix, fy = y - iy;
+            const ux = fx * fx * fx * (fx * (fx * 6 - 15) + 10);
+            const uy = fy * fy * fy * (fy * (fy * 6 - 15) + 10);
+            const a = windHash(ix, iy, seed), b = windHash(ix + 1, iy, seed);
+            const c = windHash(ix, iy + 1, seed), d = windHash(ix + 1, iy + 1, seed);
+            const top = a + (b - a) * ux;
+            const bot = c + (d - c) * ux;
+            return top + (bot - top) * uy;
+        }
+
+        // A(x): suy giảm trơn theo bán kính. Dùng smoothstep để đạo hàm liên tục ở mép vùng,
+        // nếu cắt cứng thì lá ở rìa bị giật nảy khi vượt qua ranh giới.
+        function gustFalloff(gust, x, y) {
+            const dx = x - gust.x, dy = y - gust.y;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            const q = clamp(1 - d / gust.radius, 0, 1);
+            return q * q * (3 - 2 * q);
+        }
+
+        // ψ_total = A(x)·ψ_noise(x) — biên độ nhân vào POTENTIAL, đúng công thức bài báo.
+        function gustPotential(gust, x, y, t) {
+            const a = gustFalloff(gust, x, y);
+            if (a <= 0) return 0;
+            return a * (windNoise(x * WIND_NOISE_SCALE + t * .35, y * WIND_NOISE_SCALE, gust.seed) - .5);
+        }
+
+        // Bao thời gian của một cơn gió: lên nhanh, giữ, tắt dần.
+        function gustEnvelope(t) {
+            if (t <= 0 || t >= 1) return 0;
+            if (t < .15) return t / .15;
+            if (t < .55) return 1;
+            return 1 - (t - .55) / .45;
+        }
+
+        // ── LỐC XOÁY ───────────────────────────────────────────────────────────
+        // Bridson đưa ra primitive xoáy dạng đóng:
+        //     ψ_vort(x) = f(‖x−x₀‖/R) · (R²−‖x−x₀‖²)/2 · ω
+        // Điểm quan trọng: potential là ĐA THỨC BẬC 2 theo bán kính, KHÔNG có 1/r. Lấy curl
+        // phần bậc 2 ra v = (−ω·dy, ω·dx) — quay như vật rắn, vận tốc hữu hạn và bằng 0 ngay
+        // tại tâm. Mô hình xoáy 1/r cổ điển thì lực → ∞ khi lá chạm tâm, hạt bắn văng khỏi
+        // màn hình; ở đây KHÔNG cần clamp hay epsilon để chặn — nó ổn định do bản chất công thức.
+        //
+        // Tham số hoá bằng vận tốc TẠI RÌA (spin, px/s) thay vì ω: v_tt = ω·r với ω = spin/R
+        // nên v_tt = spin·r/R, mà vector tiếp tuyến đơn vị là (−dy/r, dx/r). Nhân vào thì r
+        // triệt tiêu sạch: (−spin·dy/R, spin·dx/R). Không còn phép chia cho r nào.
+        let tornadoes = [];
+
+        function tornadoAt(x, y, now, out) {
+            for (let i = 0; i < tornadoes.length; i++) {
+                const t = tornadoes[i];
+                const age = (now - t.start) / t.duration;
+                if (age <= 0 || age >= 1) continue;
+                // Lốc trườn ngang để quét được nhiều lá, không đứng chôn chân một chỗ.
+                const cx = t.x + t.driftX * (now - t.start) / 1000;
+                const dx = x - cx, dy = y - t.y;
+                const R = t.radius;
+                const r2 = dx * dx + dy * dy;
+                if (r2 >= R * R) continue;
+                const r = Math.sqrt(r2);
+                const q = 1 - r / R;
+                const fall = q * q * (3 - 2 * q);          // smoothstep cho mép vùng mượt
+                const env = age < .18 ? age / .18 : age > .72 ? (1 - age) / .28 : 1;
+                const k = fall * env;
+                // 1. Quay tròn — không chia cho r, hữu hạn tại tâm.
+                out.x += -t.spin * dy / R * k;
+                out.y += t.spin * dx / R * k;
+                // 2. Hút vào tâm. Đây là SINK CỐ Ý: "gom lá" đúng nghĩa là phá tính
+                //    divergence-free — ngược hẳn mục đích của curl-noise bên phần gió.
+                //    Hệ số core tắt dần ở lõi để lá tới sát tâm không rung qua lại.
+                if (r > 1e-3) {
+                    const core = Math.min(1, r / (R * .12));
+                    const pull = t.inward * k * core / r;
+                    out.x -= dx * pull;
+                    out.y -= dy * pull;
+                }
+                // 3. Bốc lên (y âm là hướng lên).
+                out.y -= t.lift * k;
+            }
+        }
+
+        // ── Combo nhiều lượt ───────────────────────────────────────────────────
+        // Tặng 1 lần chạy 1 lượt; combo x10 chạy đủ 10 lượt NỐI NHAU chứ không chồng chất
+        // cùng lúc — 10 cơn gió nổ đồng thời thì thổi sạch đống lá trong một khoảnh khắc và
+        // người xem không kịp thấy gì. Giãn đúng bằng thời lượng một cơn nên lượt sau bắt đầu
+        // khi lượt trước vừa tắt.
+        //
+        // Trần lượt khớp với NHATLA_ACTION_MAX_REPEAT bên server: combo x500 mà chạy đủ thì
+        // hiệu ứng khoá hàng chục phút, quà của người sau không còn chỗ hiện.
+        // Lịch lượt chạy trong VÒNG LẶP FRAME, không dùng setTimeout.
+        // Lý do là hành vi thật của trình duyệt: trang ẩn thì setTimeout bị đóng băng hoàn
+        // toàn — đo được là timer đặt 600ms trong iframe ẩn KHÔNG BAO GIỜ chạy, nên combo
+        // x3 chỉ nổ đúng lượt đầu rồi im. Bám theo cùng đồng hồ với physics thì lượt kế
+        // luôn tới đúng nhịp, và kiểm thử tự động qua __nlStep() cũng chạy được.
+        const ACTION_MAX_REPEAT = 20;
+        let pendingActions = [];
+
+        function queueActionRepeats(times, gapMs, run) {
+            const n = clamp(parseInt(times, 10) || 1, 1, ACTION_MAX_REPEAT);
+            const gap = Math.max(120, Number(gapMs) || 1000);
+            const base = performance.now();
+            run(0);
+            for (let i = 1; i < n; i++) pendingActions.push({ at: base + i * gap, index: i, run });
+        }
+
+        function pumpPendingActions(now) {
+            if (!pendingActions.length) return;
+            // Chỉ chạy MỘT lượt mỗi frame. Sau một quãng treo dài (OBS ẩn source, máy ngủ)
+            // có thể tới hạn cùng lúc cả chục lượt; bắn hết trong một frame thì thành đúng
+            // cái "chồng chất cùng lúc" mà cơ chế này sinh ra để tránh.
+            let due = -1;
+            for (let i = 0; i < pendingActions.length; i++) {
+                if (pendingActions[i].at <= now) { due = i; break; }
+            }
+            if (due < 0) return;
+            const action = pendingActions.splice(due, 1)[0];
+            action.run(action.index);
+        }
+
+        function clearActionRepeats() {
+            pendingActions = [];
+        }
+
+        // Lá còn nằm trong vùng lốc thì CHƯA được đáp xuống. Không có chốt này, nửa dưới của
+        // vòng xoay có vy > 0 nên vừa chạm mặt đống là lá đáp luôn: đo được 311 lá bị cuốn
+        // lên chỉ còn 22 lá sau 2 giây, cơn lốc tan ngay trước mắt người xem.
+        function insideTornado(x, y, now) {
+            for (let i = 0; i < tornadoes.length; i++) {
+                const t = tornadoes[i];
+                const age = (now - t.start) / t.duration;
+                if (age <= 0 || age >= 1) continue;
+                const cx = t.x + t.driftX * (now - t.start) / 1000;
+                const dx = x - cx, dy = y - t.y;
+                if (dx * dx + dy * dy < t.radius * t.radius) return true;
+            }
+            return false;
+        }
+
+        const windVec = { x: 0, y: 0 };
+
+        function windAt(x, y, now) {
+            windVec.x = 0; windVec.y = 0;
+            // Lá trong lốc dùng chung state 'blown' và chung đường vật lý với gió:
+            // cùng steering, cùng trọng lực, cùng lực nâng theo vận tốc góc.
+            if (tornadoes.length) tornadoAt(x, y, now, windVec);
+            for (let i = 0; i < gusts.length; i++) {
+                const gust = gusts[i];
+                const env = gustEnvelope((now - gust.start) / gust.duration);
+                if (env <= 0) continue;
+                const fall = gustFalloff(gust, x, y);
+                if (fall <= 0) continue;
+                const t = (now - gust.start) / 1000;
+                // 1. Luồng thẳng: phần đẩy lá BAY ĐI theo hướng cơn gió.
+                //    Curl noise thuần chỉ xoáy tại chỗ, không có dịch chuyển tổng thể.
+                windVec.x += gust.dirX * gust.strength * fall * env;
+                windVec.y += gust.dirY * gust.strength * fall * env;
+                // 2. Nhiễu xoáy: curl của (A·ψ), cho lá tản ra tự nhiên thay vì bay thành khối.
+                if (gust.turbulence > 0) {
+                    const e = WIND_CURL_EPS;
+                    const dpdy = (gustPotential(gust, x, y + e, t) - gustPotential(gust, x, y - e, t)) / (2 * e);
+                    const dpdx = (gustPotential(gust, x + e, y, t) - gustPotential(gust, x - e, y, t)) / (2 * e);
+                    const scale = WIND_CURL_GAIN * gust.strength * gust.turbulence * env;
+                    windVec.x += dpdy * scale;
+                    windVec.y += -dpdx * scale;
+                }
+            }
+            return windVec;
+        }
+
+        // Khởi động một cơn gió tại (x, y).
+        //
+        // CẨN THẬN với maxLeaves ở đây: nó KHÔNG phải cần gạt hiệu năng, dù trực giác nói vậy.
+        // Đo thật trên máy dev (Chrome, stage 1080×1920, cùng cơn gió, chỉ đổi trần):
+        //     300 lá bay trên đống 1800 = 19.15 ms/frame
+        //     600 lá bay trên đống 1800 = 19.30 ms/frame   <- giảm nửa số lá, không đổi gì
+        // Trong khi đó, đổi KÍCH THƯỚC ĐỐNG lại đổi hẳn:
+        //     555 lá bay trên đống ~145 =  7.96 ms/frame
+        //     620 lá rơi trên sân trống =  7.57 ms/frame
+        // Nguyên nhân: lá bay tản khắp sân nên vùng bẩn phủ gần hết màn hình, và mọi lá TĨNH
+        // nằm trong vùng đó đều phải vẽ lại. Chi phí do SỐ LÁ TĨNH BỊ QUÉT QUA quyết định,
+        // gần như độc lập với số lá đang bay.
+        // => Muốn nhẹ thì giảm cfg.drop.maxLeaves (đống lá), không phải giảm trần này.
+        // => maxLeaves ở đây chỉ là cần gạt THẨM MỸ: gió cuốn cả mảng hay chỉ vài chiếc.
+        // y bỏ trống (null/NaN) = tự bám MẶT ĐỐNG tại cột x.
+        // Đừng truyền một y cố định sát đáy: đống lá cao dần theo thời gian, lá nằm ở
+        // y ~950 khi đống dày, nên gió nhắm y~1780 sẽ hụt hoàn toàn và không cuốn được gì.
+        // stackHeightAt() suy ra từ cùng tập lá trên mọi client nên overlay và preview
+        // vẫn ra cùng một điểm — không phá đồng bộ.
+        function startGust(x, y, options = {}) {
+            const wind = cfg.wind || {};
+            if (wind.enabled === false) return 0;
+            const radius = Number(options.radius) || Number(wind.radius) || 420;
+            if (!isFinite(y)) y = viewport.height - stackHeightAt(x) - radius * .15;
+            const cap = clamp(parseInt(options.maxLeaves ?? wind.maxLeaves, 10) || 600, 1, 4000);
+            // Hướng gió: NẰM NGANG hơi chếch lên, không phải thổi dựng đứng.
+            // Bản đầu lấy gốc -π/2 (thẳng lên) nên lá bị bắn vọt lên gần hết chiều cao sân
+            // khấu, trông như vụ nổ chứ không phải cơn gió. Nghiêng 10–29° cho lá trườn đi
+            // ngang rồi mới rơi xuống — đúng dáng gió thổi qua đống lá khô.
+            let dirX, dirY;
+            if (options.angle != null) {
+                const angle = Number(options.angle);
+                dirX = Math.cos(angle); dirY = Math.sin(angle);
+            } else {
+                const tilt = rand(.18, .5);                       // radian chếch lên
+                const side = options.dir === 'left' ? -1 : 1;
+                dirX = side * Math.cos(tilt);
+                dirY = -Math.sin(tilt);                           // âm = hướng lên
+            }
+            const gust = {
+                x, y, radius,
+                dirX, dirY,
+                strength: Number(options.strength) || Number(wind.strength) || 640,
+                turbulence: clamp((Number(options.turbulence ?? wind.turbulence) || 0) / 100, 0, 1),
+                duration: Number(options.durationMs) || Number(wind.durationMs) || 1500,
+                start: performance.now(),
+                seed: (options.seed != null ? Number(options.seed) : Math.floor(Math.random() * 1e9)) | 0
+            };
+
+            // Chọn lá trong bán kính, gần tâm trước. Chỉ lấy lá đang nằm yên: lá đang rơi,
+            // đang kéo hay đang bay vào thùng thì để yên, tránh giành quyền điều khiển.
+            const candidates = [];
+            const r2 = radius * radius;
+            for (let i = 0; i < leaves.length; i++) {
+                const leaf = leaves[i];
+                if (leaf.state !== 'resting') continue;
+                const dx = leaf.x - x, dy = leaf.y - y;
+                const d2 = dx * dx + dy * dy;
+                if (d2 <= r2) candidates.push({ leaf, d2 });
+            }
+            if (!candidates.length) return 0;
+            if (candidates.length > cap) candidates.sort((a, b) => a.d2 - b.d2);
+            const take = Math.min(cap, candidates.length);
+
+            for (let i = 0; i < take; i++) {
+                const leaf = candidates[i].leaf;
+                refundPile(leaf);                       // trả lại độ cao đã cộng vào đống
+                leaf.state = 'blown';
+                leaf.el.classList.remove('resting');
+                // Cú hẩy ban đầu để lá bật khỏi đống ngay, thay vì ì ra chờ gió ngấm.
+                // Phần dựng đứng phải NHẸ: lá chỉ cần nhấc khỏi mặt đống rồi để luồng ngang
+                // cuốn đi. Bản đầu cộng thêm tới 190px/s hướng lên nên lá vọt lên quá cao.
+                const kick = .35 + .35 * (1 - candidates[i].d2 / r2);
+                leaf.vx = gust.dirX * gust.strength * kick;
+                leaf.vy = gust.dirY * gust.strength * kick - rand(20, 80, leaf.random);
+                leaf.z = ++zIndex;
+                leaf.el.style.zIndex = leaf.z;
+                air.appendChild(leaf.el);   // rời đống lá -> lên layer không khí
+            }
+            gusts.push(gust);
+            // Dọn cơn đã tắt; giữ mảng ngắn vì windAt() duyệt nó cho MỖI lá MỖI frame.
+            gusts = gusts.filter(g => performance.now() - g.start < g.duration);
+            return take;
+        }
+
+        // Khởi động lốc xoáy tại (x, y). y bỏ trống = bám mặt đống như startGust.
+        // Lá bị cuốn dùng chung state 'blown' nên không cần thêm nhánh vật lý nào.
+        function startTornado(x, y, options = {}) {
+            const conf = cfg.tornado || {};
+            if (conf.enabled === false) return 0;
+            const radius = Number(options.radius) || Number(conf.radius) || 380;
+            if (!isFinite(x)) x = viewport.width / 2;
+            // Tâm lốc nâng lên khỏi mặt đống một chút để lá bị cuốn từ dưới lên,
+            // thay vì nửa vùng xoáy nằm chìm dưới đáy sân khấu.
+            if (!isFinite(y)) y = viewport.height - stackHeightAt(x) - radius * .45;
+            const cap = clamp(parseInt(options.maxLeaves ?? conf.maxLeaves, 10) || 700, 1, 4000);
+            const drift = Number(options.drift ?? conf.drift ?? 90);
+            const tornado = {
+                x, y, radius,
+                spin: Number(options.spin) || Number(conf.spin) || 900,
+                inward: Number(options.inward ?? conf.inward ?? 220),
+                lift: Number(options.lift ?? conf.lift ?? 260),
+                duration: Number(options.durationMs) || Number(conf.durationMs) || 3200,
+                driftX: (options.dir === 'left' ? -1 : options.dir === 'right' ? 1 : (Math.random() < .5 ? -1 : 1)) * drift,
+                start: performance.now()
+            };
+
+            // Vùng tuyển lá là VỆT QUÉT của tâm lốc, không phải một hình tròn tĩnh: lá nằm
+            // trên đường lốc sắp đi qua cũng phải được đánh thức sẵn, nếu không nó nằm ì
+            // tại chỗ trong lúc tâm lốc lướt ngang qua đầu.
+            //
+            // Phải là hình con nhộng (khoảng cách tới ĐOẠN THẲNG quét), đừng dùng hộp chữ
+            // nhật: bốn góc hộp nằm ngoài vùng xoáy tới 1.41×R, nên lá ở góc bị đánh thức
+            // rồi rơi lại vô nghĩa. Đo được lúc dùng hộp: 381 lá bị đánh thức nhưng chỉ ~181
+            // thật sự bị cuốn — nửa còn lại chỉ tạo nhiễu và tốn hiệu năng.
+            const endX = x + tornado.driftX * tornado.duration / 1000;
+            const loX = Math.min(x, endX), hiX = Math.max(x, endX);
+            const r2max = radius * radius;
+            const candidates = [];
+            for (let i = 0; i < leaves.length; i++) {
+                const leaf = leaves[i];
+                if (leaf.state !== 'resting') continue;
+                // Drift chỉ theo phương ngang nên "chiếu lên đoạn thẳng" rút gọn thành clamp x.
+                const dx = leaf.x - clamp(leaf.x, loX, hiX);
+                const dy = leaf.y - y;
+                const d2 = dx * dx + dy * dy;
+                if (d2 > r2max) continue;
+                candidates.push({ leaf, d2 });
+            }
+            if (!candidates.length) return 0;
+            if (candidates.length > cap) candidates.sort((a, b) => a.d2 - b.d2);
+            const take = Math.min(cap, candidates.length);
+            for (let i = 0; i < take; i++) {
+                const leaf = candidates[i].leaf;
+                refundPile(leaf);
+                leaf.state = 'blown';
+                leaf.el.classList.remove('resting');
+                leaf.vx = 0;
+                leaf.vy = -rand(30, 120, leaf.random);   // hẩy nhẹ cho bật khỏi đống
+                leaf.z = ++zIndex;
+                leaf.el.style.zIndex = leaf.z;
+                air.appendChild(leaf.el);
+            }
+            tornadoes.push(tornado);
+            tornadoes = tornadoes.filter(t => performance.now() - t.start < t.duration);
+            return take;
+        }
+
+        // ====== HÀNH ĐỘNG CỨU: tự nhặt lá ======
+        // Quà chỉ định bật chế độ này trong N giây. Mỗi lượt hút bốc một ĐIỂM NGẪU NHIÊN trên
+        // sân rồi lấy chiếc lá gần điểm đó nhất, nên đống vơi đều khắp mặt thay vì bị gặm dần
+        // một góc quanh thùng rác.
+        //
+        // Chọn theo điểm chứ không bốc thẳng chỉ số mảng là có chủ ý: hai view có thể lệch nhau
+        // vài chiếc (một bên đang cầm lá trên tay), bốc theo chỉ số thì cái lệch đó đẩy hai bên
+        // hút hai bộ lá khác hẳn. Lấy lá gần một điểm thì bộ lá lệch chút vẫn ra gần như cùng
+        // kết quả. Seed do server chốt nên mọi view bốc đúng cùng dãy điểm.
+        //
+        // Số lá dọn được tính theo THỜI GIAN THỰC nên khớp nhau dù fps mỗi view khác nhau.
+        let autoCleanUntil = 0;
+        let autoCleanRate = 40;
+        let autoCleanDebt = 0;
+        let autoCleanRandom = makeSeededRandom('autoclean');
+        // Trần mỗi frame: tốc độ cao kết hợp một frame dài (máy khựng) sẽ dồn cả trăm lá vào
+        // đúng một frame, gây giật ngay lúc đang cần cứu.
+        const AUTO_CLEAN_MAX_PER_FRAME = 64;
+
+        function startAutoClean(durationMs, leavesPerSec, seed) {
+            const now = performance.now();
+            // Combo x50 không mở 50 lượt song song — mỗi lượt chỉ nối thêm giờ.
+            autoCleanUntil = Math.max(autoCleanUntil, now) + clamp(Number(durationMs) || 5000, 500, 60000);
+            autoCleanRate = clamp(Number(leavesPerSec) || 40, 1, 500);
+            if (seed != null) autoCleanRandom = makeSeededRandom(`autoclean:${seed}`);
+        }
+
+        // Lá gần một điểm bất kỳ nhất. Bỏ qua lá đang bay/đang cầm: chỉ hút lá đã nằm yên.
+        function nearestRestingLeaf(px, py) {
+            let best = null, bestD = Infinity;
+            for (let i = 0; i < leaves.length; i++) {
+                const leaf = leaves[i];
+                if (leaf.state !== 'resting') continue;
+                const dx = leaf.x - px, dy = leaf.y - py;
+                const d = dx * dx + dy * dy;
+                if (d < bestD) { bestD = d; best = leaf; }
+            }
+            return best;
+        }
+
+        function updateAutoClean(now, dt) {
+            if (now >= autoCleanUntil) { autoCleanDebt = 0; return; }
+            autoCleanDebt += autoCleanRate * dt;
+            let take = Math.min(Math.floor(autoCleanDebt), AUTO_CLEAN_MAX_PER_FRAME);
+            if (take <= 0) return;
+            autoCleanDebt -= take;
+            while (take-- > 0) {
+                // Điểm hút rải khắp sân. Lấy lá GẦN NHẤT nên điểm rơi vào chỗ trống vẫn hút
+                // được lá mép ngoài — đó cũng là lý do đống vơi đều thay vì thủng lỗ giữa.
+                const leaf = nearestRestingLeaf(
+                    autoCleanRandom() * STAGE.width,
+                    autoCleanRandom() * STAGE.height
+                );
+                // Hết lá nằm yên thì thôi, và xoá luôn phần lẻ để không dồn nợ chờ lá mới rơi.
+                if (!leaf) { autoCleanDebt = 0; break; }
+                receiveLeaf(leaf);
+            }
+        }
+
+        window.__nlAutoClean = (ms = 5000, rate = 40, seed = 1) => { startAutoClean(ms, rate, seed); return { until: autoCleanUntil, rate: autoCleanRate }; };
+
+        function updateLeafAnimations(now, dt) {
+            // Duyệt ngược trên chính mảng thay vì copy `[...leaves]`: bản copy 1000 phần tử
+            // mỗi frame là 60k mảng rác/giây, đủ để GC gây khựng. Đi ngược nên settleLeaf /
+            // removeLeaf splice giữa vòng lặp vẫn không nhảy sót phần tử nào.
+            for (let i = leaves.length - 1; i >= 0; i--) {
+                const leaf = leaves[i];
+                if (leaf.state === 'resting') continue;
+                if (leaf.state === 'falling') {
+                    leaf.velocity += 245 * dt;
+                    leaf.y += leaf.velocity * dt;
+                    leaf.x = clamp(leaf.startX + Math.sin(now / 1000 * leaf.swaySpeed - (leaf.swayPhase || 0)) * leaf.sway, leaf.size * .2, viewport.width - leaf.size * .2);
+                    leaf.rotation += leaf.spin * dt;
+                    const floor = floorAt(leaf.x, leaf.size);
+                    if (leaf.y >= floor) {
+                        leaf.y = floor;
+                        settleLeaf(leaf);
+                    } else {
+                        leafTransform(leaf);
+                    }
+                } else if (leaf.state === 'blown') {
+                    const wind = windAt(leaf.x, leaf.y, now);
+                    // Lái theo công thức steering kinh điển (Nature of Code): lực = vận tốc
+                    // mong muốn − vận tốc hiện tại. Hệ số drag chính là "độ nhẹ" của lá:
+                    // cao thì lá bám gió gần như tức thì, thấp thì lá ì như hòn sỏi.
+                    // clamp về 1 để dt lớn (frame rớt) không làm hệ số vọt quá đà rồi rung.
+                    const k = Math.min(1, (Number(cfg.wind?.drag) || 32) / 10 * dt);
+                    leaf.vx += (wind.x - leaf.vx) * k;
+                    leaf.vy += (wind.y - leaf.vy) * k;
+                    leaf.vy += WIND_GRAVITY * dt;
+                    // Lực nâng theo VẬN TỐC GÓC, không phải theo vận tốc tịnh tiến.
+                    // Andersen, Pesavento & Wang (J. Fluid Mech. 2005) đo trên tấm phẳng rơi
+                    // ở Re~10³ — đúng chế độ "chiếc lá rơi trong không khí" — và kết luận lực
+                    // nâng bị chi phối bởi số hạng tỉ lệ ω; phần theo vận tốc tịnh tiến chỉ
+                    // gánh ~5% trọng lực khi lộn vòng. Chính số hạng ω này tạo cú "hẫng lên"
+                    // ở cuối mỗi nhịp đảo cánh — thứ khiến mắt tin đó là lá thật.
+                    // https://dragonfly.tam.cornell.edu/publications/S002211200500594Xa.pdf
+                    leaf.vy -= Math.abs(leaf.spin) * (Number(cfg.wind?.lift) || 35) / 100 * .4 * dt;
+                    leaf.x += leaf.vx * dt;
+                    leaf.y += leaf.vy * dt;
+                    // Lá lật nhanh hơn khi bay nhanh hơn.
+                    leaf.spin = clamp(leaf.vx * .75, -900, 900);
+                    leaf.rotation += leaf.spin * dt;
+                    const half = leaf.size * .2;
+                    if (leaf.x < half) { leaf.x = half; leaf.vx = Math.abs(leaf.vx) * .35; }
+                    else if (leaf.x > viewport.width - half) { leaf.x = viewport.width - half; leaf.vx = -Math.abs(leaf.vx) * .35; }
+                    const floor = floorAt(leaf.x, leaf.size);
+                    // Chỉ cho đáp khi đang đi XUỐNG. Không có điều kiện này, lá vừa bị hẩy lên
+                    // từ mặt đống sẽ bị bắt lại ngay ở frame đầu và cơn gió thành vô hình.
+                    if (leaf.y >= floor && leaf.vy >= 0) {
+                        if (tornadoes.length && insideTornado(leaf.x, leaf.y, now)) {
+                            // Còn trong lốc: trượt và nảy nhẹ trên mặt đống thay vì đáp hẳn,
+                            // để vòng xoáy giữ được lá suốt thời gian cơn lốc sống.
+                            leaf.y = floor;
+                            leaf.vy = -Math.abs(leaf.vy) * .25;
+                            leafTransform(leaf);
+                        } else {
+                            leaf.y = floor;
+                            leaf.startX = leaf.x;
+                            leaf.vx = 0; leaf.vy = 0;
+                            settleLeaf(leaf);
+                        }
+                    } else {
+                        leafTransform(leaf);
+                    }
+                } else if (leaf.state === 'returning') {
+                    const t = clamp((now - leaf.returnStart) / 340, 0, 1);
+                    const ease = 1 - Math.pow(1 - t, 3);
+                    leaf.x = leaf.returnFrom.x + (leaf.returnTo.x - leaf.returnFrom.x) * ease;
+                    leaf.y = leaf.returnFrom.y + (leaf.returnTo.y - leaf.returnFrom.y) * ease;
+                    leaf.rotation = leaf.returnFrom.rotation + (leaf.returnTo.rotation - leaf.returnFrom.rotation) * ease;
+                    leafTransform(leaf, leaf.x, leaf.y, .72 + .28 * ease);
+                    if (t >= 1) {
+                        leaf.state = 'resting';
+                        leaf.el.classList.remove('dragging');
+                        leaf.el.classList.add('resting');
+                        leaf.el.style.zIndex = leaf.returnTo.z;
+                        leafTransform(leaf);
+                    }
+                } else if (leaf.state === 'collecting') {
+                    const t = clamp((now - leaf.collectStart) / 330, 0, 1);
+                    const ease = 1 - Math.pow(1 - t, 3);
+                    leaf.x = leaf.collectFrom.x + (leaf.collectTo.x - leaf.collectFrom.x) * ease;
+                    leaf.y = leaf.collectFrom.y + (leaf.collectTo.y - leaf.collectFrom.y) * ease;
+                    leaf.rotation = leaf.collectFrom.rotation + 180 * ease;
+                    leafTransform(leaf, leaf.x, leaf.y, 1 - .86 * ease);
+                    leaf.el.style.opacity = String(1 - t);
+                    if (t >= 1) removeLeaf(leaf);
+                }
+            }
+        }
+
+        // OBS nhận toạ độ qua socket theo packet, còn render chạy mỗi frame.
+        // Nội suy ở đây loại bỏ cảm giác "nhảy từng nấc" mà vẫn giữ stage native 1080×1920.
+        function updateRemoteMotion(dt, now) {
+            if (remoteHandTarget) {
+                if (now - remoteHandAt > 350) {
+                    remoteHandTarget = null;
+                    hideLocalHand();
+                } else {
+                    handPoint.x = smoothToward(handPoint.x, remoteHandTarget.x, dt);
+                    handPoint.y = smoothToward(handPoint.y, remoteHandTarget.y, dt);
+                    positionHand();
+                    renderHandImage();
+                    showHand();
+                    followActiveEffect(handPoint);
+                }
+            }
+            remoteLeafTargets.forEach((target, leafId) => {
+                const leaf = leaves.find(item => item.id === leafId);
+                if (!leaf || leaf.state === 'collecting') return remoteLeafTargets.delete(leafId);
+                leaf.x = smoothToward(leaf.x, target.x, dt);
+                leaf.y = smoothToward(leaf.y, target.y, dt);
+                leaf.rotation = smoothToward(leaf.rotation, target.rotation, dt);
+                leafTransform(leaf, leaf.x, leaf.y, .72);
+            });
+        }
+
+        function tick(now) {
+            const rawDelta = now - lastFrame;
+            const dt = Math.min(.05, rawDelta / 1000);
+            lastFrame = now;
+            const jsStart = perfOn ? performance.now() : 0;
+            pumpSpawnQueue(now);
+            pumpPendingActions(now);
+            updateAutoClean(now, dt);
+            updateRemoteMotion(dt, now);
+            updateLeafAnimations(now, dt);
+            if (perfOn) {
+                // Bỏ frame đầu và frame sau khi tab bị treo: rawDelta khổng lồ sẽ kéo lệch
+                // p95 mà không phản ánh chi phí render thật.
+                if (rawDelta > 0 && rawDelta < 500) perfPush(perf.frame, rawDelta);
+                perfPush(perf.js, performance.now() - jsStart);
+                let moving = 0;
+                for (let i = 0; i < leaves.length; i++) if (leaves[i].state !== 'resting') moving++;
+                perf.moving = moving;
+                perfPaint(now);
+            }
+            requestAnimationFrame(tick);
+        }
+
+        function moveHand(event) {
+            const point = toStagePoint(event);
+            handPoint = point;
+            positionHand(point);
+            showHand();
+            followActiveEffect(point);
+            return point;
+        }
+
+        function hideLocalHand() {
+            if (!handShouldStay()) {
+                handWasHidden = true;
+                handWrap.style.opacity = '0';
+            }
+        }
+
+        function relayHand(force) {
+            if (!canEdit()) return;
+            const now = performance.now();
+            if (!socket?.connected || (!force && now - lastHandAt < 16)) return;
+            lastHandAt = now;
+            socket.emit('nhatla:transient', {
+                type: 'hand', x: handPoint.x, y: handPoint.y,
+                closed: !!(dragging || binDragging || hudDragging || topBoardDragging || topBoardResizing)
+            });
+        }
+
+        function persistOverlayPositions() {
+            if (!canEdit()) return;
+            clearTimeout(saveBinTimer);
+            saveBinTimer = setTimeout(() => {
+                fetch('/api/games/nhatla/config', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ display: { ...cfg.display } })
+                }).catch(() => {});
+            }, 250);
+        }
+
+        // Bảng TOP nằm ở khối config riêng chứ không phải display, nên có đường relay/persist
+        // riêng — nhét chung vào relayDragPosition() sẽ kéo theo cả 4 field thùng rác + HUD.
+        // Gộp field đang chờ thay vì ghi đè: kéo bảng xong resize ngay trong vòng 250ms thì
+        // lần hẹn sau sẽ huỷ lần trước, và vị trí vừa kéo bị mất nếu không cộng dồn ở đây.
+        function persistTopDonors(fields) {
+            if (!canEdit()) return;
+            pendingTopSave = { ...(pendingTopSave || {}), ...fields };
+            clearTimeout(saveTopBoardTimer);
+            saveTopBoardTimer = setTimeout(() => {
+                const topDonors = pendingTopSave;
+                pendingTopSave = null;
+                fetch('/api/games/nhatla/config', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ topDonors })
+                }).catch(() => {});
+            }, 250);
+        }
+
+        function relayTopDonors(fields, force = false) {
+            if (!canEdit()) return;
+            const now = performance.now();
+            if (!socket?.connected || (!force && now - lastTransientAt < 16)) return;
+            lastTransientAt = now;
+            socket.emit('nhatla:transient', { type: 'topdonors', topDonors: fields });
+        }
+
+        const topBoardPos = () => ({
+            boardXPercent: cfg.topDonors.boardXPercent,
+            boardYPercent: cfg.topDonors.boardYPercent
+        });
+
+        function relayDragPosition(type, force = false) {
+            if (!canEdit()) return;
+            const now = performance.now();
+            if (!socket?.connected || (!force && now - lastTransientAt < 16)) return;
+            lastTransientAt = now;
+            socket.emit('nhatla:transient', {
+                type,
+                binXPercent: cfg.display.binXPercent,
+                binYPercent: cfg.display.binYPercent,
+                hudXPercent: cfg.display.hudXPercent,
+                hudYPercent: cfg.display.hudYPercent
+            });
+        }
+
+        function relayLeafDrag(leaf, type, action, collectTo) {
+            if (!canEdit()) return;
+            const now = performance.now();
+            if (type === 'leaf' && (!socket?.connected || now - lastTransientAt < 16)) return;
+            lastTransientAt = now;
+            if (!socket?.connected) return;
+            const packet = {
+                type, action, leafId: leaf.id, x: leaf.x, y: leaf.y, rotation: leaf.rotation
+            };
+            // Kết thúc dọn dùng cùng điểm đích stage ở mọi cửa sổ, không phụ thuộc tỷ lệ preview.
+            if (type === 'leafEnd') {
+                packet.binXPercent = cfg.display.binXPercent;
+                packet.binYPercent = cfg.display.binYPercent;
+                if (collectTo) packet.collectTo = collectTo;
+            }
+            socket.emit('nhatla:transient', packet);
+        }
+
+        function cancelActiveDrag(pointerId = activePointerId) {
+            let changed = false;
+            if (dragging) {
+                const leaf = dragging;
+                dragging = null;
+                relayLeafDrag(leaf, 'leafEnd', returnLeaf(leaf));
+                changed = true;
+            }
+            if (binDragging) {
+                binDragging = null;
+                relayDragPosition('bin', true);
+                persistOverlayPositions();
+                changed = true;
+            }
+            if (hudDragging) {
+                hudDragging = null;
+                relayDragPosition('hud', true);
+                persistOverlayPositions();
+                changed = true;
+            }
+            if (topBoardDragging) {
+                topBoardDragging = null;
+                relayTopDonors(topBoardPos(), true);
+                persistTopDonors(topBoardPos());
+                changed = true;
+            }
+            if (topBoardResizing) {
+                topBoardResizing = null;
+                relayTopDonors({ boardScale: cfg.topDonors.boardScale }, true);
+                persistTopDonors({ boardScale: cfg.topDonors.boardScale });
+                changed = true;
+            }
+            if (topFlyDragging || topFlyResizing) {
+                topFlyDragging = null;
+                topFlyResizing = null;
+                releaseFlyRow();
+                relayTopDonors(topFlyLayout(), true);
+                persistTopDonors(topFlyLayout());
+                changed = true;
+            }
+            releaseRootPointer(pointerId);
+            if (changed) {
+                renderHandImage();
+                relayHand(true);
+            }
+            hideLocalHand();
+        }
+
+        root.addEventListener('pointermove', event => {
+            if (!canEdit() || !isActivePointer(event)) return;
+            const point = moveHand(event);
+            relayHand();
+            if (dragging) {
+                dragging.x = clamp(point.x - dragging.offsetX, dragging.size * .1, viewport.width - dragging.size * .1);
+                dragging.y = clamp(point.y - dragging.offsetY, dragging.size * .1, viewport.height - dragging.size * .1);
+                leafTransform(dragging, dragging.x, dragging.y, .72);
+                relayLeafDrag(dragging, 'leaf');
+            }
+            if (binDragging) {
+                cfg.display.binXPercent = clamp(point.x / viewport.width * 100, 5, 95);
+                cfg.display.binYPercent = clamp(point.y / viewport.height * 100, 5, binYMax());
+                applyBinPosition();
+                relayDragPosition('bin');
+            }
+            if (hudDragging) {
+                cfg.display.hudXPercent = clamp(point.x / viewport.width * 100 - hudDragging.x, 0, 90);
+                cfg.display.hudYPercent = clamp(point.y / viewport.height * 100 - hudDragging.y, 0, 90);
+                applyHudPosition();
+                relayDragPosition('hud');
+            }
+            if (topBoardDragging) {
+                cfg.topDonors.boardXPercent = clamp(point.x / viewport.width * 100 - topBoardDragging.x, 0, 92);
+                cfg.topDonors.boardYPercent = clamp(point.y / viewport.height * 100 - topBoardDragging.y, 0, 92);
+                applyTopDonorsLayout();
+                relayTopDonors(topBoardPos());
+            }
+            if (topBoardResizing) {
+                cfg.topDonors.boardScale = scaleFromDrag(topBoardResizing, point, 40, 250);
+                applyTopDonorsLayout();
+                relayTopDonors({ boardScale: cfg.topDonors.boardScale });
+            }
+            if (topFlyDragging) {
+                cfg.topDonors.flyYPercent = clamp(point.y / viewport.height * 100 - topFlyDragging.y, 0, 92);
+                applyTopDonorsLayout();
+                relayTopDonors({ flyYPercent: cfg.topDonors.flyYPercent });
+            }
+            if (topFlyResizing) {
+                cfg.topDonors.flyScale = scaleFromDrag(topFlyResizing, point, 40, 250);
+                applyTopDonorsLayout();
+                relayTopDonors({ flyScale: cfg.topDonors.flyScale });
+            }
+        });
+        root.addEventListener('pointerleave', () => { if (activePointerId == null) hideLocalHand(); });
+
+        root.addEventListener('pointerup', event => {
+            if (!canEdit() || !isActivePointer(event)) return;
+            if (dragging) {
+                const leaf = dragging;
+                dragging = null;
+                renderHandImage();
+                relayHand(true);
+                if (binContains(event.clientX, event.clientY)) {
+                    const collectTo = receiveLeaf(leaf);
+                    relayLeafDrag(leaf, 'leafEnd', 'collect', collectTo);
+                } else {
+                    relayLeafDrag(leaf, 'leafEnd', returnLeaf(leaf));
+                }
+            }
+            if (binDragging) {
+                binDragging = null;
+                renderHandImage();
+                relayHand(true);
+                relayDragPosition('bin', true);
+                persistOverlayPositions();
+            }
+            if (hudDragging) {
+                hudDragging = null;
+                renderHandImage();
+                relayHand(true);
+                relayDragPosition('hud', true);
+                persistOverlayPositions();
+            }
+            if (topBoardDragging) {
+                topBoardDragging = null;
+                renderHandImage();
+                relayHand(true);
+                relayTopDonors(topBoardPos(), true);
+                persistTopDonors(topBoardPos());
+            }
+            if (topBoardResizing) {
+                topBoardResizing = null;
+                renderHandImage();
+                relayHand(true);
+                relayTopDonors({ boardScale: cfg.topDonors.boardScale }, true);
+                persistTopDonors({ boardScale: cfg.topDonors.boardScale });
+            }
+            if (topFlyDragging || topFlyResizing) {
+                topFlyDragging = null;
+                topFlyResizing = null;
+                releaseFlyRow();
+                relayTopDonors(topFlyLayout(), true);
+                persistTopDonors(topFlyLayout());
+            }
+            releaseRootPointer(event.pointerId);
+        });
+
+        root.addEventListener('pointercancel', event => { if (isActivePointer(event)) cancelActiveDrag(event.pointerId); });
+        root.addEventListener('lostpointercapture', event => { if (isActivePointer(event)) cancelActiveDrag(event.pointerId); });
+        addEventListener('blur', () => { cancelActiveDrag(); cancelEffectEditorDrag(); hideLocalHand(); });
+        addEventListener('pagehide', () => { cancelActiveDrag(); cancelEffectEditorDrag(); hideLocalHand(); });
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) { cancelActiveDrag(); cancelEffectEditorDrag(); hideLocalHand(); }
+        });
+
+        bin.addEventListener('pointerdown', event => {
+            if (!canEdit() || activePointerId != null) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (dragging) return;
+            binDragging = true;
+            moveHand(event);
+            renderHandImage();
+            relayHand(true);
+            captureRootPointer(event.pointerId);
+        });
+
+        hud.addEventListener('pointerdown', event => {
+            if (!canEdit() || activePointerId != null) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (dragging || binDragging) return;
+            const point = toStagePoint(event);
+            hudDragging = { x: point.x / viewport.width * 100 - cfg.display.hudXPercent, y: point.y / viewport.height * 100 - cfg.display.hudYPercent };
+            moveHand(event);
+            renderHandImage();
+            relayHand(true);
+            captureRootPointer(event.pointerId);
+        });
+
+        topBoard.addEventListener('pointerdown', event => {
+            if (!canEdit() || activePointerId != null) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (dragging || binDragging || hudDragging) return;
+            const point = toStagePoint(event);
+            topBoardDragging = {
+                x: point.x / viewport.width * 100 - cfg.topDonors.boardXPercent,
+                y: point.y / viewport.height * 100 - cfg.topDonors.boardYPercent
+            };
+            moveHand(event);
+            renderHandImage();
+            relayHand(true);
+            captureRootPointer(event.pointerId);
+        });
+
+        // ===== Kéo núm đổi cỡ + kéo hàng chữ bay lên xuống =====
+        // Hàng chữ đang trôi ngang thì không nắm nổi, nên nắm vào là TẠM DỪNG lượt bay
+        // (WAAPI pause), nhả ra bay tiếp từ đúng chỗ đang dở. Muốn ngắm lâu thì cứ giữ tay.
+        function grabFlyRow() {
+            topFlyAnim?.pause();
+            topFlyRow.classList.add('nl-top-grabbed');
+        }
+
+        function releaseFlyRow() {
+            topFlyRow.classList.remove('nl-top-grabbed');
+            topFlyAnim?.play();
+        }
+
+        const topFlyLayout = () => ({
+            flyYPercent: cfg.topDonors.flyYPercent,
+            flyScale: cfg.topDonors.flyScale
+        });
+
+        topBoardResizeEl.addEventListener('pointerdown', event => {
+            if (!canEditLayout || !canEdit() || activePointerId != null) return;
+            event.preventDefault();
+            event.stopPropagation();
+            topBoardResizing = beginTopResize(topBoard, toStagePoint(event), cfg.topDonors.boardScale);
+            moveHand(event);
+            renderHandImage();
+            relayHand(true);
+            captureRootPointer(event.pointerId);
+        });
+
+        topFlyResizeEl.addEventListener('pointerdown', event => {
+            if (!canEditLayout || !canEdit() || activePointerId != null) return;
+            event.preventDefault();
+            event.stopPropagation();
+            grabFlyRow();
+            topFlyResizing = beginTopResize(topFlyRow, toStagePoint(event), cfg.topDonors.flyScale, true);
+            captureRootPointer(event.pointerId);
+        });
+
+        topFlyRow.addEventListener('pointerdown', event => {
+            if (!canEditLayout || !canEdit() || activePointerId != null) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const point = toStagePoint(event);
+            grabFlyRow();
+            topFlyDragging = { y: point.y / viewport.height * 100 - cfg.topDonors.flyYPercent };
+            captureRootPointer(event.pointerId);
+        });
+
+        function clearLeaves() {
+            cancelActiveDrag();
+            cancelEffectEditorDrag();
+            hideLocalHand();
+            // Xoá cả hàng chờ, nếu không lô đang bơm dở sẽ tiếp tục nhỏ lá xuống sau khi clear.
+            spawnQueue = [];
+            gusts = [];
+            tornadoes = [];
+            // Xoá hết mà còn lượt combo đang chờ thì lát nữa gió/lốc vẫn nổ trên sân trống.
+            clearActionRepeats();
+            // Đang cứu dở mà bấm Xoá hết thì dừng luôn, không để nó nhặt tiếp lá của đợt sau.
+            autoCleanUntil = 0;
+            autoCleanDebt = 0;
+            for (const leaf of leaves) leaf.el.remove();
+            leaves = [];
+            heights = new Array(COLS).fill(0);
+            totalDropped = 0;
+            cleaned = 0;
+            backlog = 0;
+            refreshHud();
+            scheduleStateSync();
+        }
+
+        function serializeState() {
+            return {
+                totalDropped,
+                cleaned,
+                // Snapshot chỉ chứa lá resting. Lá falling được tạo song song từ gameGift/gameCmd
+                // để luôn rơi tự do, không bị nạp lại thành một lá đứng yên trên đầu màn hình.
+                leaves: leaves.filter(leaf => leaf.state === 'resting').map(leaf => ({
+                    id: leaf.id, src: leaf.el.src, size: leaf.size, x: leaf.x, y: leaf.y,
+                    rotation: leaf.rotation, spin: leaf.spin, sway: leaf.sway, swaySpeed: leaf.swaySpeed,
+                    velocity: leaf.velocity, startX: leaf.startX, state: leaf.state === 'falling' ? 'falling' : 'resting'
+                }))
+            };
+        }
+
+        function scheduleStateSync() {
+            // Leaf state không còn được snapshot trong phiên live: review/OBS sinh cùng batch
+            // bằng seed nên physics luôn là nguồn sự thật. Giữ hàm no-op cho các call site clear/remove.
+            clearTimeout(stateSyncTimer);
+        }
+
+        function loadSharedState(state) {
+            // Chỉ chấp nhận state RỖNG từ server khi clear/startup. Bỏ qua state lá cũ để
+            // một snapshot trễ không bao giờ đặt lá đứng yên giữa màn hình nữa.
+            if (!state || !Array.isArray(state.leaves) || state.leaves.length) return;
+            // Tab đang render batch rơi của chính nó đã có animation chuẩn; không để snapshot
+            // tĩnh từ tab khác xóa/đóng băng batch đó.
+            if (leaves.some(leaf => leaf.state === 'falling')) return;
+            cancelActiveDrag();
+            remoteLeafTargets.clear();
+            for (const leaf of leaves) leaf.el.remove();
+            leaves = [];
+            heights = new Array(COLS).fill(0);
+            zIndex = 1;
+            backlog = 0;
+            totalDropped = Math.max(0, Number(state.totalDropped) || 0);
+            cleaned = Math.max(0, Number(state.cleaned) || 0);
+            state.leaves.forEach(data => {
+                const el = document.createElement('img');
+                const size = Math.max(20, Number(data.size) || 110);
+                const leaf = {
+                    id: data.id || `restored-${++zIndex}`, el, size,
+                    x: clamp(Number(data.x) || size / 2, 0, STAGE.width),
+                    y: clamp(Number(data.y) || size / 2, size * .25, STAGE.height - size * .2),
+                    startX: clamp(Number(data.startX) || Number(data.x) || size / 2, 0, STAGE.width),
+                    rotation: Number(data.rotation) || 0, spin: Number(data.spin) || 0,
+                    sway: Number(data.sway) || 0, swaySpeed: Number(data.swaySpeed) || 1,
+                    velocity: Number(data.velocity) || 100,
+                    // Snapshot là điểm đồng bộ, không khôi phục animation dở dang vì lá sẽ bị pointer-events:none.
+                    state: 'resting',
+                    z: ++zIndex, original: null
+                };
+                el.className = 'nl-leaf' + (leaf.state === 'resting' ? ' resting' : '');
+                el.src = data.src || leafUrls[0];
+                el.draggable = false;
+                el.style.setProperty('--leaf-size', `${size}px`);
+                el.style.zIndex = leaf.z;
+                el.addEventListener('pointerdown', event => startLeafDrag(event, leaf));
+                pile.appendChild(el);
+                leaves.push(leaf);
+                if (leaf.state === 'resting') addToPile(leaf);
+                leafTransform(leaf);
+            });
+            refreshHud();
+        }
+
+        // Danh mục skin đọc từ đĩa nên phải nạp lại mỗi lần reloadSettings: người dùng có
+        // thể vừa thả thêm một bộ mới, hoặc thêm ảnh vào thư mục Tuỳ chỉnh trên Desktop.
+        async function loadSkinCatalog() {
+            try {
+                const data = await (await fetch('/api/nhatla/skins', { cache: 'no-store' })).json();
+                skinCatalog = { hat: data.hat || [], thung: data.thung || [] };
+            } catch (e) {
+                // Giữ nguyên danh mục cũ: mất mạng nội bộ một nhịp không đáng để đống hạt
+                // đang chạy bị ném về bộ mặc định.
+            }
+        }
+
+        // Tách riêng khỏi initialize() vì còn được gọi lại lúc app bật lên sau khi tắt.
+        // Không được đụng tới requestAnimationFrame ở đây, gọi 2 lần là chạy 2 vòng lặp
+        // song song và mọi animation nhanh gấp đôi.
+        async function reloadSettings() {
+            // Danh mục phải có TRƯỚC khi applyConfig, vì applyConfig là chỗ tra id skin ra
+            // đường dẫn ảnh. Nạp ngược lại thì lần vẽ đầu luôn ra bộ mặc định rồi mới nhảy.
+            await loadSkinCatalog();
+            try {
+                const response = await fetch('/api/games/nhatla/config', { cache: 'no-store' });
+                applyConfig(await response.json());
+            } catch (e) { applyConfig(cfg); }
+        }
+
+        async function initialize() {
+            await reloadSettings();
+            requestAnimationFrame(tick);
+        }
+
+        const socket = window.io({ transports: ['websocket', 'polling'] });
+        socket.on('connect', () => {
+            clearTimeout(offlineClearTimer);
+            // Nhận gameGift thật và snapshot state mới nhất từ server.
+            socket.emit('subscribe', isReview ? 'preview' : 'overlay');
+            if (!wasOffline) return;
+            // App vừa bật lại: hiện lại giao diện và nạp lại cài đặt, vì người dùng có thể
+            // đã đổi vị trí thùng rác / cỡ lá / ảnh lá trong lúc overlay đang offline.
+            wasOffline = false;
+            document.body.classList.remove('nl-offline');
+            reloadSettings();
+        });
+        // Server chạy chung tiến trình với app, nên mất socket = app đã tắt. OBS phải tự ẩn
+        // sạch, nếu không thùng rác + bảng số + đống lá kẹt trên scene suốt lúc app đóng.
+        // Chờ 4s để bỏ qua reconnect chớp nhoáng lúc app restart.
+        socket.on('disconnect', () => {
+            clearTimeout(offlineClearTimer);
+            offlineClearTimer = setTimeout(() => {
+                if (socket.connected) return;
+                wasOffline = true;
+                stopEffectSequence();
+                handHitUntil = 0;
+                clearHandHit();
+                clearLeaves();
+                hideLocalHand();
+                document.body.classList.add('nl-offline');
+            }, 4000);
+        });
+        socket.on('gameConfig', ({ gameId, config }) => { if (gameId === 'nhatla') applyConfig(config); });
+        socket.on('gameStateSnapshot', ({ gameId, state }) => { if (gameId === 'nhatla') loadSharedState(state); });
+        socket.on('nhatla:state', ({ sourceId, state }) => { if (sourceId !== socket.id) loadSharedState(state); });
+        socket.on('nhatla:transient', data => {
+            if (data?.type === 'display' && data.display && typeof data.display === 'object') {
+                applyConfig({ ...cfg, display: { ...cfg.display, ...data.display } });
+            }
+            if (data?.type === 'bin') {
+                // Không nội suy vị trí thùng: lúc thả lá, mọi view phải có đúng một tâm thùng.
+                cfg.display.binXPercent = clamp(Number(data.binXPercent), 5, 95);
+                cfg.display.binYPercent = clamp(Number(data.binYPercent), 5, binYMax());
+                applyBinPosition();
+            }
+            if (data?.type === 'hud') {
+                cfg.display.hudXPercent = clamp(Number(data.hudXPercent), 0, 90);
+                cfg.display.hudYPercent = clamp(Number(data.hudYPercent), 0, 90);
+                applyHudPosition();
+            }
+            if (data?.type === 'topdonors' && data.topDonors && typeof data.topDonors === 'object') {
+                cfg.topDonors = game.normalizeConfig({ ...cfg, topDonors: { ...cfg.topDonors, ...data.topDonors } }).topDonors;
+                // Đổi giãn cách/kiểu bay từ panel phải tính lại đồng hồ ngay, nếu không phải
+                // chờ hết chu kỳ cũ (có thể tới 10 phút) mới thấy giá trị mới có tác dụng.
+                applyTopDonors({ restartFly: true });
+            }
+            if (data?.type === 'leaf') {
+                const leaf = leaves.find(item => item.id === data.leafId);
+                if (!leaf || leaf.state === 'collecting') return;
+                if (!leaf.original) leaf.original = { x: leaf.x, y: leaf.y, z: leaf.z, rotation: leaf.rotation };
+                leaf.state = 'dragging';
+                remoteLeafTargets.set(leaf.id, {
+                    x: clamp(Number(data.x), leaf.size * .1, STAGE.width - leaf.size * .1),
+                    y: clamp(Number(data.y), leaf.size * .1, STAGE.height - leaf.size * .1),
+                    rotation: Number(data.rotation) || leaf.rotation
+                });
+                leaf.el.classList.remove('resting');
+                leaf.el.classList.add('dragging');
+                leaf.el.style.zIndex = 99999;
+            }
+            if (data?.type === 'leafEnd') {
+                const leaf = leaves.find(item => item.id === data.leafId);
+                if (!leaf) return;
+                const target = remoteLeafTargets.get(leaf.id);
+                if (target) { leaf.x = target.x; leaf.y = target.y; leaf.rotation = target.rotation; }
+                remoteLeafTargets.delete(leaf.id);
+                if (Number.isFinite(Number(data.binXPercent)) && Number.isFinite(Number(data.binYPercent))) {
+                    cfg.display.binXPercent = clamp(Number(data.binXPercent), 5, 95);
+                    cfg.display.binYPercent = clamp(Number(data.binYPercent), 5, binYMax());
+                    applyBinPosition();
+                }
+                if (data.action === 'collect') receiveLeaf(leaf, data.collectTo);
+                // Bên thả đã quyết định rơi tự do hay dán về chỗ cũ; các view khác thi hành
+                // đúng quyết định đó thay vì tự tính lại theo đống lá của riêng mình.
+                else if (data.action === 'fall') dropLeafFreely(leaf);
+                else if (data.action === 'return') returnLeaf(leaf, false);
+            }
+            if (data?.type === 'effect') {
+                const rule = findEffectRule(data.effectId);
+                if (rule) playEffect(rule, { x: clamp(Number(data.x), 0, STAGE.width), y: clamp(Number(data.y), 0, STAGE.height) }, true);
+            }
+            if (data?.type === 'hand') {
+                remoteHandTarget = { x: clamp(Number(data.x), 0, STAGE.width), y: clamp(Number(data.y), 0, STAGE.height), closed: !!data.closed };
+                remoteHandAt = performance.now();
+            }
+        });
+        socket.on('gameGift', gift => {
+            if (!cfg.enabled) return;
+            const count = game.leavesForGift(cfg, gift?.giftId, gift?.giftName, gift?.coinValue || gift?.diamondCount, gift?.repeatCount);
+            if (count > 0) spawnLeaves(count, `gift-${gift?.ts || Date.now()}-${gift?.giftId || ''}-${gift?.repeatCount || 1}`);
+        });
+        // Quà thật và nút Chạy thử/phím tắt đi hai đường socket khác nhau nhưng phải xử lý
+        // y hệt nhau: view đang cầm lá chạy đủ luồng buông lá, mọi view còn lại (kể cả
+        // khung review và OBS) vẫn phát WEBM + bàn tay sưng để ba màn hình khớp nhau.
+        function receiveEffectGift(rule, targetSocketId, repeat) {
+            const isTarget = targetSocketId ? targetSocketId === socket.id : !!dragging;
+            if (isTarget) triggerEffectGift(rule, { relay: false, repeat });
+            else runEffectSequence(rule, repeat, true);
+        }
+        socket.on('nhatla:effect', data => {
+            const rule = findEffectRule(data?.effectId);
+            if (!rule) return;
+            receiveEffectGift(rule, data.targetSocketId, data.repeat);
+        });
+        socket.on('gameCmd', ({ gameId, cmd, payload, seq }) => {
+            if (gameId !== 'nhatla') return;
+            if (cmd === 'clear' || cmd === 'reset') clearLeaves();
+            if (cmd === 'drop') spawnLeaves(payload?.count || 1, `cmd-${seq || Date.now()}`);
+            if (cmd === 'autoClean') startAutoClean(payload?.durationMs, payload?.leavesPerSec, payload?.seed);
+            // Bay thử: bỏ qua đồng hồ đếm, bay ngay một lượt rồi trở lại nhịp bình thường.
+            if (cmd === 'topFly' && !topFlyAnim) { clearTimeout(topFlyTimer); runTopFly({ demo: true }); }
+            if (cmd === 'wind') {
+                // seed đi kèm lệnh để overlay và preview dựng CÙNG một trường nhiễu,
+                // nên hai bên thấy lá bay giống hệt nhau — cùng cơ chế seed như spawnLeaf.
+                const p = payload || {};
+                const gy = Number(p.y);
+                const baseSeed = p.seed != null ? Number(p.seed) : ((Number(seq) || Date.now()) & 0x7fffffff);
+                const gap = Number(p.durationMs) || Number(cfg.wind?.durationMs) || 1500;
+                queueActionRepeats(p.repeat, gap, i => {
+                    // Mỗi lượt lệch vị trí và seed theo chỉ số, nhưng suy ra từ seed gốc của
+                    // server nên overlay và preview vẫn ra y hệt nhau.
+                    const r = makeSeededRandom(`wind:${baseSeed}:${i}`);
+                    const gx = i === 0 && isFinite(Number(p.x))
+                        ? Number(p.x)
+                        : rand(120, viewport.width - 120, r);
+                    startGust(gx, gy, { ...p, seed: (baseSeed + i * 7919) & 0x7fffffff });
+                });
+            }
+            if (cmd === 'tornado') {
+                const p = payload || {};
+                const baseSeed = p.seed != null ? Number(p.seed) : ((Number(seq) || Date.now()) & 0x7fffffff);
+                const gap = Number(p.durationMs) || Number(cfg.tornado?.durationMs) || 3200;
+                queueActionRepeats(p.repeat, gap, i => {
+                    const r = makeSeededRandom(`torn:${baseSeed}:${i}`);
+                    const tx = i === 0 && isFinite(Number(p.x))
+                        ? Number(p.x)
+                        : rand(200, viewport.width - 200, r);
+                    startTornado(tx, Number(p.y), { ...p, dir: r() < .5 ? 'left' : 'right' });
+                });
+            }
+            if (cmd === 'effect') {
+                const rule = findEffectRule(payload?.effectId);
+                if (!rule) return;
+                receiveEffectGift(rule, payload?.targetSocketId, payload?.repeat);
+            }
+        });
+        socket.on('nhatla:top', data => {
+            topList = Array.isArray(data?.list) ? data.list : [];
+            // Bảng đứng cập nhật ngay; lượt bay đang chạy thì applyTopDonors bỏ qua và để nó
+            // bay nốt — thay thẻ giữa đường là tên đổi đột ngột ngay trước mắt người xem.
+            applyTopDonors();
+        });
+        socket.on('gameDisabled', ({ gameId }) => { if (gameId === 'nhatla') document.body.classList.add('nl-stopped'); });
+        socket.on('gameEnabled', ({ gameId }) => { if (gameId === 'nhatla') document.body.classList.remove('nl-stopped'); });
+        socket.on('overlay:reload', data => { if (!data?.gameId || data.gameId === 'nhatla') location.reload(); });
+
+        addEventListener('resize', () => {
+            fitStage();
+            applyBinPosition();
+        });
+        root.addEventListener('contextmenu', event => event.preventDefault());
+        addEventListener('message', event => {
+            if (event.origin !== location.origin || event.data?.type !== 'nhatla:effect-editor') return;
+            if (Array.isArray(event.data.effectGifts)) cfg.effects.effectGifts = event.data.effectGifts;
+            editingEffectId = event.data.effectId || null;
+            renderEffectEditor();
+        });
+        effectEditor.addEventListener('pointerdown', event => {
+            if (effectEditor.hidden) return;
+            event.preventDefault();
+            event.stopPropagation();
+            effectEditorPointerId = event.pointerId;
+            effectEditorResize = !!event.target.closest('[data-resize-corner]');
+            effectEditor.setPointerCapture?.(event.pointerId);
+        });
+        effectEditor.addEventListener('pointermove', event => {
+            if (event.pointerId !== effectEditorPointerId) return;
+            const rule = editingEffectId && findEffectRule(editingEffectId);
+            if (!rule) return;
+            const point = toStagePoint(event);
+            if (effectEditorResize) {
+                const centerX = rule.positionXPercent / 100 * STAGE.width;
+                const centerY = rule.positionYPercent / 100 * STAGE.height;
+                rule.scale = clamp(Math.hypot(point.x - centerX, point.y - centerY) / Math.hypot(90, 60) * 100, 20, 500);
+            } else {
+                rule.positionXPercent = clamp(point.x / STAGE.width * 100, 0, 100);
+                rule.positionYPercent = clamp(point.y / STAGE.height * 100, 0, 100);
+            }
+            renderEffectEditor();
+        });
+        const finishEffectEditorDrag = event => {
+            if (event.pointerId !== effectEditorPointerId) return;
+            cancelEffectEditorDrag();
+        };
+        effectEditor.addEventListener('pointerup', finishEffectEditorDrag);
+        effectEditor.addEventListener('pointercancel', finishEffectEditorDrag);
+        effectEditor.addEventListener('lostpointercapture', finishEffectEditorDrag);
+        fitStage();
+        initialize();
+    })();
+    </script>
+</body>
+</html>

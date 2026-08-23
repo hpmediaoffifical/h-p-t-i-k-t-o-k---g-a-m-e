@@ -1,0 +1,13 @@
+{
+  "id": "cong-nghiep-canh-bao",
+  "name": "Công nghiệp cảnh báo",
+  "kind": "thung",
+  "count": 1,
+  "ext": "png",
+  "source": [
+    200,
+    231
+  ],
+  "baseWidth": 260,
+  "flashMs": 720
+}
