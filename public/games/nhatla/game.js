@@ -690,6 +690,10 @@
             const c = parseInt(rule.count, 10);
             return isFinite(c) && c > 0 ? c * Math.max(1, parseInt(repeatCount, 10) || 1) : 0;
         }
+        // Quà đã gán riêng cho HIỆU ỨNG hoặc GIẢI CỨU là "quà chỉ định" của tính năng đó —
+        // không được rơi thêm lá theo tỉ lệ coinsPerLeaf, nếu không quà vừa kích hoạt tính
+        // năng vừa rơi lá trùng, sai ý người xem tặng để đổi lấy đúng MỘT hiệu ứng.
+        if (effectGiftForGift(cfg, giftId, giftName) || rescueActionForGift(cfg, giftId, giftName)) return 0;
         const coins = Math.max(0, Math.round(Number(coinValue) || 0)) * Math.max(1, parseInt(repeatCount, 10) || 1);
         const perLeaf = Number(cfg.coinsPerLeaf);
         return perLeaf > 0 ? Math.floor(coins / perLeaf) : 0;

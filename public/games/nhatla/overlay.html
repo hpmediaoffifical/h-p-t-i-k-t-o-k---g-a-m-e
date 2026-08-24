@@ -11,6 +11,12 @@
         /* Logic luôn chạy trên sân khấu 1080×1920. Preview nhỏ chỉ scale sân khấu này,
            vì vậy Browser Source OBS vẫn luôn nhận đúng bản 1080×1920 sắc nét. */
         #nl-root { position: fixed; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; cursor: none; touch-action: none; transform-origin: top left; background: transparent !important; }
+        /* Tấm phủ tối CHỈ nằm ở phần nền trong suốt (lộ desktop/OBS) — dưới CÙNG mọi lớp
+           khác (lá, thùng, HUD) nên chỉnh nút 🔅/🔆 không hề làm mờ đồ vật, chỉ giúp nền
+           phía sau đỡ chói/rối khi đang kéo định vị cửa sổ preview=1 trên desktop.
+           Cửa sổ overlay=BrowserWindow chỉ set biến --hp-preview-backdrop qua executeJavaScript
+           (electron-main.js), mặc định 0 = trong suốt hoàn toàn như trước khi có nút này. */
+        #nl-preview-backdrop { position: absolute; inset: 0; z-index: 0; background: rgba(0, 0, 0, var(--hp-preview-backdrop, 0)); pointer-events: none; }
         /* will-change ở ĐÂY, trên đúng một phần tử bọc — không phải trên từng lá.
            Không có dòng này, cả đống lá nằm chung layer gốc (#nl-root đang scale) và bị
            raster lại mỗi frame, nên chi phí tăng thẳng theo số lá: đo được 1460 lá = 22ms/frame
@@ -182,6 +188,7 @@
 </head>
 <body>
     <main id="nl-root" aria-label="Nhặt lá overlay">
+        <div id="nl-preview-backdrop"></div>
         <div id="nl-pile"></div>
         <div id="nl-air"></div>
         <div id="nl-hud" title="Kéo để đổi vị trí bảng số lượng">🍂 Tổng số lá: <b id="nl-total">0</b><br>🧹 Tổng số dọn: <b id="nl-cleaned">0</b><br>🍃 Còn lại: <b id="nl-remaining">0</b></div>

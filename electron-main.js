@@ -950,6 +950,7 @@ let nhatLaPreviewWindow = null;
 let nhatLaPreviewToolbarWindow = null;
 let nhatLaPreviewSaveTimer = null;
 let nhatLaPreviewDragOrigin = null;
+let nhatLaPreviewToolbarDragOrigin = null;
 let nhatLaPreviewIsClosing = false;
 let nhatLaPreviewPrefs = null;
 function getNhatLaPreviewPrefsPath() {
@@ -981,7 +982,11 @@ function saveNhatLaPreviewPrefs(bounds) {
 }
 function nhatLaPreviewState() {
     const prefs = loadNhatLaPreviewPrefs();
-    return { pinned: prefs.pinned === true, locked: prefs.locked === true };
+    const backdrop = Number(prefs.backdrop);
+    // backdrop: độ tối của TẤM PHỦ trên phần nền trong suốt (0 = trong suốt hoàn toàn, mặc
+    // định — giữ nguyên hành vi trước khi có nút này). KHÔNG phải opacity cả cửa sổ: đồ vật
+    // (lá/thùng/HUD) luôn giữ nguyên độ rõ, chỉ nền trống phía sau đổi độ tối.
+    return { pinned: prefs.pinned === true, locked: prefs.locked === true, backdrop: Number.isFinite(backdrop) ? backdrop : 0 };
 }
 function saveCurrentNhatLaPreviewBounds() {
     if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed()) return;
@@ -990,10 +995,13 @@ function saveCurrentNhatLaPreviewBounds() {
         saveNhatLaPreviewPrefs({ ...loadNhatLaPreviewPrefs(), x: b.x, y: b.y, w: b.width, h: b.height });
     } catch {}
 }
-function syncNhatLaPreviewToolbar() {
+// bounds: truyền sẵn khi gọi từ will-move/will-resize (bounds MỚI hệ điều hành SẮP áp,
+// chưa commit vào cửa sổ) để thanh kéo dời CÙNG NHỊP — không đợi cửa sổ overlay dời xong
+// rồi mới đuổi theo, tránh cảnh thanh kéo "tách rời" khỏi canvas một nhịp lúc kéo nhanh.
+function syncNhatLaPreviewToolbar(bounds) {
     if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed() || !nhatLaPreviewToolbarWindow || nhatLaPreviewToolbarWindow.isDestroyed()) return;
     try {
-        const b = nhatLaPreviewWindow.getBounds();
+        const b = bounds || nhatLaPreviewWindow.getBounds();
         const workArea = screen.getDisplayMatching(b).workArea;
         const barHeight = 42;
         nhatLaPreviewToolbarWindow.setBounds({
@@ -1004,6 +1012,25 @@ function syncNhatLaPreviewToolbar() {
         });
         nhatLaPreviewToolbarWindow.webContents.send('nhatla-preview:state', nhatLaPreviewState());
     } catch {}
+}
+// Bơm biến CSS --hp-preview-backdrop qua executeJavaScript thay vì BrowserWindow.setOpacity():
+// setOpacity() làm mờ NGUYÊN cửa sổ (kể cả lá/thùng/HUD đã render sẵn), đúng cái user báo
+// "tăng giảm độ đậm của nền chứ không phải đồ vật". executeJavaScript chỉ chỉnh riêng tấm phủ
+// #nl-preview-backdrop nằm DƯỚI CÙNG trong overlay.html — đồ vật luôn giữ nguyên độ rõ.
+function applyNhatLaPreviewBackdrop(value) {
+    if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed()) return;
+    try {
+        nhatLaPreviewWindow.webContents.executeJavaScript(
+            `document.documentElement.style.setProperty('--hp-preview-backdrop', ${JSON.stringify(String(value))})`
+        ).catch(() => {});
+    } catch {}
+}
+function setNhatLaPreviewBackdrop(value) {
+    if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed()) return;
+    const clamped = Math.min(1, Math.max(0, Number(value) || 0));
+    applyNhatLaPreviewBackdrop(clamped);
+    saveNhatLaPreviewPrefs({ ...loadNhatLaPreviewPrefs(), backdrop: clamped });
+    syncNhatLaPreviewToolbar();
 }
 function setNhatLaPreviewPinned(pinned) {
     if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed()) return;
@@ -1070,6 +1097,10 @@ function openNhatLaPreviewWindow() {
     // Resize tại góc trái/phải dưới vẫn giữ chuẩn 9:16 tương ứng canvas 1080×1920.
     nhatLaPreviewWindow.setAspectRatio(9 / 16);
     nhatLaPreviewWindow.loadURL(`${APP_URL}/overlay/nhatla?preview=1`);
+    // Bơm lại tấm phủ nền sau MỌI lần trang tải xong — kể cả lúc người xem bấm Reload overlay
+    // (socket 'overlay:reload'), không chỉ lần mở đầu tiên, nếu không giá trị đã chỉnh mất
+    // sạch sau reload dù prefs trên đĩa vẫn còn đúng.
+    nhatLaPreviewWindow.webContents.on('did-finish-load', () => applyNhatLaPreviewBackdrop(nhatLaPreviewState().backdrop));
     nhatLaPreviewToolbarWindow = new BrowserWindow({
         width,
         height: 42,
@@ -1096,12 +1127,28 @@ function openNhatLaPreviewWindow() {
         syncNhatLaPreviewToolbar();
         nhatLaPreviewToolbarWindow?.show();
     });
-    nhatLaPreviewToolbarWindow.once('ready-to-show', syncNhatLaPreviewToolbar);
-    nhatLaPreviewWindow.on('moved', () => { saveCurrentNhatLaPreviewBounds(); syncNhatLaPreviewToolbar(); });
+    nhatLaPreviewToolbarWindow.once('ready-to-show', () => syncNhatLaPreviewToolbar());
+    // will-move/will-resize bắn NGAY TRƯỚC KHI hệ điều hành thật sự dời/co cửa sổ (chỉ khi
+    // người dùng tự kéo viền/tiêu đề bằng OS — setBounds của ta trong dragMove KHÔNG bắn lại
+    // hai event này nên không tự đệ quy). Đồng bộ thanh kéo NGAY Ở ĐÂY thay vì đợi 'moved'/
+    // 'resize' bắn SAU: nếu đợi sau, hai cửa sổ vẽ lại ở hai frame khác nhau → thanh kéo
+    // "tách rời" khỏi canvas trong suốt một nhịp lúc kéo/co nhanh.
+    nhatLaPreviewWindow.on('will-move', (_event, newBounds) => {
+        if (nhatLaPreviewDragOrigin) return; // đang kéo qua thanh — dragMove đã tự dời song song rồi
+        syncNhatLaPreviewToolbar(newBounds);
+    });
+    nhatLaPreviewWindow.on('will-resize', (_event, newBounds) => syncNhatLaPreviewToolbar(newBounds));
+    // Trong lúc kéo (nhatLaPreviewDragOrigin != null), 2 cửa sổ đã được dời song song trực
+    // tiếp trong ipcMain 'dragMove' rồi — KHÔNG gọi lại syncNhatLaPreviewToolbar() ở đây nữa.
+    // Thanh kéo đang giữ pointer capture của chính cú kéo này; nếu để 'moved' của cửa sổ
+    // overlay dời tiếp cửa sổ thanh kéo giữa chừng, Windows mất capture khiến thanh kéo
+    // đứng hình một chỗ trong khi vùng overlay vẫn trôi theo chuột.
+    nhatLaPreviewWindow.on('moved', () => { saveCurrentNhatLaPreviewBounds(); if (!nhatLaPreviewDragOrigin) syncNhatLaPreviewToolbar(); });
     nhatLaPreviewWindow.on('resize', () => { saveCurrentNhatLaPreviewBounds(); syncNhatLaPreviewToolbar(); });
     nhatLaPreviewWindow.on('close', () => {
         nhatLaPreviewIsClosing = true;
         nhatLaPreviewDragOrigin = null;
+        nhatLaPreviewToolbarDragOrigin = null;
         saveCurrentNhatLaPreviewBounds();
         if (nhatLaPreviewToolbarWindow && !nhatLaPreviewToolbarWindow.isDestroyed()) nhatLaPreviewToolbarWindow.close();
     });
@@ -1112,6 +1159,7 @@ function openNhatLaPreviewWindow() {
     });
     nhatLaPreviewToolbarWindow.on('closed', () => {
         nhatLaPreviewDragOrigin = null;
+        nhatLaPreviewToolbarDragOrigin = null;
         if (!nhatLaPreviewIsClosing && nhatLaPreviewWindow && !nhatLaPreviewWindow.isDestroyed()) nhatLaPreviewWindow.close();
     });
     nhatLaPreviewWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -1122,7 +1170,11 @@ function openNhatLaPreviewWindow() {
 
 ipcMain.on('nhatla-preview:dragStart', () => {
     if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed() || nhatLaPreviewState().locked) return;
-    try { nhatLaPreviewDragOrigin = nhatLaPreviewWindow.getBounds(); } catch {}
+    try {
+        nhatLaPreviewDragOrigin = nhatLaPreviewWindow.getBounds();
+        nhatLaPreviewToolbarDragOrigin = (nhatLaPreviewToolbarWindow && !nhatLaPreviewToolbarWindow.isDestroyed())
+            ? nhatLaPreviewToolbarWindow.getBounds() : null;
+    } catch {}
 });
 ipcMain.on('nhatla-preview:dragMove', (_event, payload) => {
     if (!nhatLaPreviewWindow || nhatLaPreviewWindow.isDestroyed() || !nhatLaPreviewDragOrigin || nhatLaPreviewState().locked) return;
@@ -1130,19 +1182,39 @@ ipcMain.on('nhatla-preview:dragMove', (_event, payload) => {
     const dx = Number(payload?.dx) || 0;
     const dy = Number(payload?.dy) || 0;
     const safe = clampBoundsToVisible(origin.x + dx, origin.y + dy, origin.width, origin.height);
+    const nx = safe.x ?? origin.x + dx;
+    const ny = safe.y ?? origin.y + dy;
     // Khóa đúng size gốc trong lúc kéo thanh, tránh DPI/aspect ratio làm canvas nở hoặc trôi.
     try {
-        nhatLaPreviewWindow.setBounds({
-            x: safe.x ?? origin.x + dx,
-            y: safe.y ?? origin.y + dy,
-            width: origin.width,
-            height: origin.height
-        });
+        nhatLaPreviewWindow.setBounds({ x: nx, y: ny, width: origin.width, height: origin.height });
     } catch {}
+    // Dời thanh kéo CÙNG một lượng dịch chuyển thực (đã kẹp biên) ngay trong lần dragMove
+    // này, không đợi 'moved' của cửa sổ overlay dội lại — thanh kéo đang giữ pointer capture
+    // của chính cú kéo nên phải tự dời mình, nếu không sẽ đứng hình khi overlay đã trôi đi.
+    const toolbarOrigin = nhatLaPreviewToolbarDragOrigin;
+    if (toolbarOrigin && nhatLaPreviewToolbarWindow && !nhatLaPreviewToolbarWindow.isDestroyed()) {
+        try {
+            nhatLaPreviewToolbarWindow.setBounds({
+                x: toolbarOrigin.x + (nx - origin.x),
+                y: toolbarOrigin.y + (ny - origin.y),
+                width: toolbarOrigin.width,
+                height: toolbarOrigin.height
+            });
+        } catch {}
+    }
 });
-ipcMain.on('nhatla-preview:dragEnd', () => { nhatLaPreviewDragOrigin = null; saveCurrentNhatLaPreviewBounds(); });
+ipcMain.on('nhatla-preview:dragEnd', () => {
+    nhatLaPreviewDragOrigin = null;
+    nhatLaPreviewToolbarDragOrigin = null;
+    saveCurrentNhatLaPreviewBounds();
+    syncNhatLaPreviewToolbar();
+});
 ipcMain.on('nhatla-preview:togglePin', () => setNhatLaPreviewPinned(!nhatLaPreviewState().pinned));
 ipcMain.on('nhatla-preview:toggleLock', () => setNhatLaPreviewLocked(!nhatLaPreviewState().locked));
+// Bước 10%/lần, kẹp [0%,100%] trong setNhatLaPreviewBackdrop. 0% = trong suốt hoàn toàn
+// (mặc định, giữ nguyên hành vi trước khi có nút này) — không có sàn 20% như opacity cửa sổ
+// cũ vì đồ vật không hề mờ theo, chỉ nền trống phía sau đổi độ tối.
+ipcMain.on('nhatla-preview:backdropStep', (_event, delta) => setNhatLaPreviewBackdrop(nhatLaPreviewState().backdrop + (Number(delta) || 0)));
 ipcMain.on('nhatla-preview:close', () => {
     if (nhatLaPreviewWindow && !nhatLaPreviewWindow.isDestroyed()) nhatLaPreviewWindow.close();
 });

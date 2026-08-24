@@ -46,6 +46,26 @@
         // ★ Toggle ẩn/hiện preview thuytinh (giảm lag khi không cần thấy hũ animation)
         const previewBtn = document.getElementById('btn-toggle-thuytinh-preview');
         const gameBody = document.querySelector('#view-thuytinh .game-body');
+        // ★ Thanh trượt độ trong suốt preview — chỉ CSS opacity trên khung preview trong app,
+        // không đụng tới canvas/physics nên OBS overlay không bị ảnh hưởng gì.
+        const opacityCtrl = document.getElementById('thuytinh-opacity-ctrl');
+        const opacitySlider = document.getElementById('thuytinh-preview-opacity');
+        const stageFrame = document.getElementById('stage-frame');
+        const applyStageOpacity = (percent) => {
+            const pct = Math.min(100, Math.max(20, percent));
+            if (stageFrame) stageFrame.style.opacity = String(pct / 100);
+        };
+        if (opacitySlider && stageFrame) {
+            const savedOpacity = parseInt(localStorage.getItem('hp-thuytinh-preview-opacity'), 10);
+            const initialOpacity = Number.isFinite(savedOpacity) ? savedOpacity : 100;
+            opacitySlider.value = String(initialOpacity);
+            applyStageOpacity(initialOpacity);
+            opacitySlider.addEventListener('input', () => {
+                const val = parseInt(opacitySlider.value, 10) || 100;
+                applyStageOpacity(val);
+                localStorage.setItem('hp-thuytinh-preview-opacity', String(val));
+            });
+        }
         if (previewBtn && gameBody) {
             // Default: ẨN preview (giảm lag), localStorage nhớ user choice
             const isHidden = localStorage.getItem('hp-thuytinh-preview-hidden') !== 'false';
@@ -56,6 +76,8 @@
                 previewBtn.title = hidden
                     ? 'Preview đang ẩn — bấm để hiện khi cần config hũ position'
                     : 'Preview đang hiện — bấm để ẩn cho đỡ lag';
+                // Thanh trượt trong suốt vô nghĩa khi preview đang ẩn hẳn — giấu đi cho đỡ rối.
+                if (opacityCtrl) opacityCtrl.hidden = hidden;
             };
             if (isHidden) gameBody.classList.add('preview-hidden');
             updateUI();

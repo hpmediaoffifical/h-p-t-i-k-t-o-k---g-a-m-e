@@ -13,7 +13,10 @@
         button { width: 29px; height: 29px; padding: 0; color: #e9effb; border: 1px solid #47536a; border-radius: 7px; background: #171e2c; font: 15px/1 "Segoe UI Emoji", "Segoe UI", sans-serif; cursor: pointer; }
         button:hover { border-color: #ffd45d; background: #283249; }
         button.active { color: #10151e; border-color: #ffe08a; background: #ffd35b; }
+        button:disabled { opacity: .4; cursor: default; }
         #close:hover { color: #fff; border-color: #ff6262; background: #c82e40; }
+        #backdrop-group { display: flex; align-items: center; gap: 3px; }
+        #backdrop-value { min-width: 32px; font-size: 11px; color: #aeb9cc; text-align: center; }
     </style>
 </head>
 <body>
@@ -21,6 +24,11 @@
         <div id="drag" title="Kéo thanh này để di chuyển overlay. Kéo góc canvas để đổi cỡ theo tỉ lệ 9:16.">
             <b>🍂 Nhặt Lá</b><small>1080×1920 · kéo để di chuyển</small>
         </div>
+        <span id="backdrop-group" title="Chỉnh độ tối của NỀN phía sau (phần trong suốt) — không ảnh hưởng lá/thùng/HUD">
+            <button id="backdrop-down" title="Giảm độ tối nền — trong suốt hơn">🔅</button>
+            <span id="backdrop-value">0%</span>
+            <button id="backdrop-up" title="Tăng độ tối nền — thấy rõ chi tiết hơn">🔆</button>
+        </span>
         <button id="pin" title="Ghim nổi trên cùng">📌</button>
         <button id="lock" title="Khóa vị trí và kích thước">🔓</button>
         <button id="close" title="Đóng overlay review">×</button>
@@ -31,14 +39,27 @@
             const drag = document.getElementById('drag');
             const pin = document.getElementById('pin');
             const lock = document.getElementById('lock');
+            const backdropDown = document.getElementById('backdrop-down');
+            const backdropUp = document.getElementById('backdrop-up');
+            const backdropValue = document.getElementById('backdrop-value');
             let start = null;
             let dragPointerId = null;
             let locked = false;
+            // Chuột bắn pointermove nhanh hơn hẳn nhịp mà 2 cửa sổ native kịp setBounds+vẽ lại
+            // (mỗi lần dragMove là 2 lệnh setBounds đồng bộ). Gửi IPC không kìm tốc độ y hệt số
+            // pointermove làm hàng đợi dồn cục, kéo thấy khựng/lag. rAF chỉ gửi ĐÚNG 1 lần/khung
+            // hình bằng delta MỚI NHẤT — khớp đúng nhịp cửa sổ vẽ được, mượt hơn hẳn.
+            let pendingDx = 0, pendingDy = 0, dragFrame = null;
+            const flushDragFrame = () => {
+                dragFrame = null;
+                api?.moveDrag(pendingDx, pendingDy);
+            };
             const endDrag = event => {
                 if (dragPointerId == null || (event?.pointerId != null && event.pointerId !== dragPointerId)) return;
                 const pointerId = dragPointerId;
                 dragPointerId = null;
                 start = null;
+                if (dragFrame != null) { cancelAnimationFrame(dragFrame); dragFrame = null; }
                 try {
                     if (drag.hasPointerCapture?.(pointerId)) drag.releasePointerCapture(pointerId);
                 } catch (e) {}
@@ -54,7 +75,9 @@
             });
             drag.addEventListener('pointermove', event => {
                 if (!start || event.pointerId !== dragPointerId) return;
-                api?.moveDrag(event.screenX - start.x, event.screenY - start.y);
+                pendingDx = event.screenX - start.x;
+                pendingDy = event.screenY - start.y;
+                if (dragFrame == null) dragFrame = requestAnimationFrame(flushDragFrame);
             });
             drag.addEventListener('pointerup', endDrag);
             drag.addEventListener('pointercancel', endDrag);
@@ -64,6 +87,8 @@
             document.addEventListener('visibilitychange', () => { if (document.hidden) endDrag(); });
             pin.addEventListener('click', () => api?.togglePin());
             lock.addEventListener('click', () => api?.toggleLock());
+            backdropDown.addEventListener('click', () => api?.backdropStep(-0.1));
+            backdropUp.addEventListener('click', () => api?.backdropStep(0.1));
             document.getElementById('close').addEventListener('click', () => api?.close());
             api?.onState(state => {
                 locked = !!state.locked;
@@ -72,6 +97,10 @@
                 lock.classList.toggle('active', locked);
                 lock.textContent = locked ? '🔒' : '🔓';
                 drag.style.cursor = locked ? 'not-allowed' : 'move';
+                const backdrop = Number.isFinite(state.backdrop) ? state.backdrop : 0;
+                backdropValue.textContent = `${Math.round(backdrop * 100)}%`;
+                backdropDown.disabled = backdrop <= 1e-6;
+                backdropUp.disabled = backdrop >= 1 - 1e-6;
             });
         })();
     </script>

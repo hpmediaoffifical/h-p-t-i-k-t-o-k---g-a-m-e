@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('hpNhatLaPreviewToolbar', {
     endDrag: () => ipcRenderer.send('nhatla-preview:dragEnd'),
     togglePin: () => ipcRenderer.send('nhatla-preview:togglePin'),
     toggleLock: () => ipcRenderer.send('nhatla-preview:toggleLock'),
+    backdropStep: (delta) => ipcRenderer.send('nhatla-preview:backdropStep', delta),
     close: () => ipcRenderer.send('nhatla-preview:close'),
     onState: (callback) => {
         ipcRenderer.removeAllListeners('nhatla-preview:state');

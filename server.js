@@ -3233,6 +3233,10 @@ function nhatLaLeavesForGift(cfg, giftId, giftName, coinValue, repeatCount) {
         const c = parseInt(rule.count, 10);
         return isFinite(c) && c > 0 ? c * repeat : 0;
     }
+    // Song song với nhánh mới trong game.js: quà đã gán riêng cho HIỆU ỨNG hoặc GIẢI CỨU
+    // là "quà chỉ định" của tính năng đó — không tính thêm lá theo coinsPerLeaf, nếu không
+    // bảng TOP đếm lá cho quà chưa bao giờ thật sự rơi lá.
+    if (findNhatLaEffectGift(giftId, giftName) || rescueActionForGift(giftId, giftName)) return 0;
     const coins = Math.max(0, Math.round(Number(coinValue) || 0)) * repeat;
     const perLeaf = Number(cfg.coinsPerLeaf);
     return perLeaf > 0 ? Math.floor(coins / perLeaf) : 0;
