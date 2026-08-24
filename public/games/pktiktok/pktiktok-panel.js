@@ -377,6 +377,12 @@
             cfg.display.showLabel = !!e.target.checked;
             await persistConfig();
         });
+        $('#pktiktok-scale')?.addEventListener('input', (e) => {
+            cfg.display = cfg.display || {};
+            cfg.display.scale = +e.target.value;
+            $('#pktiktok-scale-v').textContent = e.target.value + '%';
+            schedulePersist();
+        });
         $('#pktiktok-btn-clear-all')?.addEventListener('click', async () => {
             if (!confirm('Xoá TẤT CẢ file media của 13 sự kiện?')) return;
             for (const ev of cfg.events) { ev.mediaUrl = ''; ev.mediaName = ''; ev.mediaType = ''; }
@@ -395,6 +401,11 @@
         syncPowerBtn();
         if ($('#pktiktok-autobind')) $('#pktiktok-autobind').checked = cfg.autoBindPkDuo !== false;
         if ($('#pktiktok-show-label')) $('#pktiktok-show-label').checked = !!cfg.display?.showLabel;
+        if ($('#pktiktok-scale')) {
+            const s = cfg.display?.scale || 100;
+            $('#pktiktok-scale').value = s;
+            $('#pktiktok-scale-v').textContent = s + '%';
+        }
     }
 
     function wireOverlayCopy() {

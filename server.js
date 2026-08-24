@@ -26,6 +26,11 @@ const { OBSSettings } = require('./lib/obs-settings');
 
 const PORT = process.env.PORT || 3000;
 
+// Domain giả trỏ về loopback (127.0.0.1) qua hosts file — cố định "hpaction.obs" cho mọi máy
+// (không suy từ tên máy, để URL giống nhau trên mọi cài đặt HP Action LIVE). Lý do đầy đủ +
+// phần tự thêm vào hosts file nằm ở lib/obs-host.js.
+const { OBS_HOST: OBS_LOCAL_HOST, isHostMapped } = require('./lib/obs-host');
+
 // === Mọi data source đi qua license-server (HP Media kiểm soát) ===
 // App không biết thông tin backend → installer .exe extract ra cũng không lộ gì.
 // PRODUCTION URL hardcoded — luôn dùng (không có fallback đọc trực tiếp data nguồn).
@@ -841,6 +846,7 @@ const appConfig = loadAppConfig();
 
 // ====== OBS Bridge — kết nối OBS Studio qua WebSocket để trigger Lua effects ======
 // License-gated: chỉ trigger nếu license activated.
+if (!appConfig.shareTokens) appConfig.shareTokens = {};   // { gameId: uuid } — link /overlay/shared/<uuid>
 if (!appConfig.obsBridge) {
     appConfig.obsBridge = {
         enabled: true,          // master ON/OFF "Hiệu ứng OBS" (đồng bộ với toggle ở 🎮 Thư viện Game)
@@ -4840,6 +4846,50 @@ app.get('/overlay/creator-caption', (req, res) => {
 });
 app.get('/overlay/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'overlay', 'dashboard.html'));
+});
+
+// ── LINK CHIA SẺ CHO TIKTOK LIVE STUDIO ─────────────────────────────────────
+// Token cố định (sinh 1 lần, lưu trong app-config.json) cho mỗi game, ẩn gameId thật đằng
+// sau /overlay/shared/<uuid> — giữ nguyên URL qua các lần mở app, khỏi phải dán lại Link
+// trong TikTok Studio mỗi lần. Không phải hàng rào bảo mật, chỉ để URL không lộ route nội bộ.
+function getOrCreateShareToken(gameId) {
+    if (!GAMES[gameId]) return null;
+    if (!appConfig.shareTokens[gameId]) {
+        appConfig.shareTokens[gameId] = crypto.randomUUID();
+        saveAppConfig();
+    }
+    return appConfig.shareTokens[gameId];
+}
+// Dùng bởi public/app.js — 1 lần lúc load trang, cache client-side để buildOverlayURL()
+// tự đổi mọi nút "📋 Link OBS" (mọi game) sang hpaction.obs mà không phải sửa từng panel.
+app.get('/api/overlay/share-links', (req, res) => {
+    const links = {};
+    for (const gameId of Object.keys(GAMES)) {
+        const token = getOrCreateShareToken(gameId);
+        if (token) links[gameId] = { token, overlayPath: GAMES[gameId].overlayPath };
+    }
+    res.json({ ok: true, host: OBS_LOCAL_HOST, port: PORT, mapped: isHostMapped(), links });
+});
+app.get('/api/games/:id/share-link', (req, res) => {
+    const gameId = req.params.id;
+    const token = getOrCreateShareToken(gameId);
+    if (!token) return res.status(404).json({ ok: false, error: 'unknown_game' });
+    res.json({
+        ok: true,
+        token,
+        url: `http://${OBS_LOCAL_HOST}:${PORT}/overlay/shared/${token}`,
+        localUrl: `http://localhost:${PORT}${GAMES[gameId].overlayPath}`,
+        // false = hosts file chưa map, link .obs sẽ không mở được -> UI nên bảo user dùng
+        // localUrl hoặc chạy lại bước thêm hosts.
+        hostMapped: isHostMapped()
+    });
+});
+app.get('/overlay/shared/:token', (req, res) => {
+    const gameId = Object.keys(appConfig.shareTokens).find(id => appConfig.shareTokens[id] === req.params.token);
+    if (!gameId || !GAMES[gameId]) return res.status(404).send('Link không hợp lệ hoặc đã đổi.');
+    const query = { ...req.query };
+    const qs = Object.keys(query).length ? '?' + new URLSearchParams(query).toString() : '';
+    res.redirect(GAMES[gameId].overlayPath + qs);
 });
 
 // ============================================================
@@ -9221,6 +9271,8 @@ io.on('connection', (socket) => {
 
 httpServer.listen(PORT, async () => {
     console.log(`[server] HP Action LIVE chạy tại http://localhost:${PORT}`);
+    console.log(`[server] Domain riêng cho TikTok Studio/OBS: http://${OBS_LOCAL_HOST}:${PORT}` +
+        (isHostMapped() ? ' (hosts file OK)' : ' (CHƯA map hosts file — link .obs chưa dùng được)'));
     try { await loadGiftSheet(); }
     catch (e) { console.warn('[server] Không tải được Google Sheet:', e.message); }
     await refreshCommentRulesSheet();

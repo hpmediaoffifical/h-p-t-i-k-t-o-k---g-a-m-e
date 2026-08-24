@@ -1325,6 +1325,66 @@ ipcMain.on('gift-list:close', () => {
 });
 ipcMain.on('open-gift-list', () => openGiftListWindow());
 
+// ============================================================
+// DOMAIN hpaction.obs — tự thêm vào hosts file
+// ============================================================
+// TikTok LIVE Studio chặn chuỗi "localhost"/"127.0.0.1" ở ô Link nguồn, nên overlay phải
+// được phục vụ dưới một hostname bình thường trỏ về loopback. Chi tiết ở lib/obs-host.js.
+//
+// Ghi hosts file cần Administrator => 1 popup UAC. Không ép: user bấm "No" thì ghi nhớ theo
+// version, bản sau (hoặc cài mới) mới hỏi lại, tránh phiền mỗi lần mở app. App vẫn chạy
+// bình thường qua localhost dù không có mapping.
+const OBS_HOST_PREFS_FILE = path.join(app.getPath('userData'), 'obs-host-prefs.json');
+function loadObsHostPrefs() {
+    try { return JSON.parse(fs.readFileSync(OBS_HOST_PREFS_FILE, 'utf8')); } catch { return {}; }
+}
+function saveObsHostPrefs(prefs) {
+    try { fs.writeFileSync(OBS_HOST_PREFS_FILE, JSON.stringify(prefs, null, 2)); } catch (e) {}
+}
+
+async function setupObsHostMapping() {
+    let obsHost;
+    try { obsHost = require('./lib/obs-host'); } catch (e) { return; }
+    if (obsHost.isHostMapped()) return;
+
+    const prefs = loadObsHostPrefs();
+    const version = app.getVersion();
+    if (prefs.declinedVersion === version) return;   // đã từ chối ở đúng bản này
+
+    const { response } = await dialog.showMessageBox(mainWindow, {
+        type: 'question',
+        buttons: ['Thiết lập ngay', 'Để sau'],
+        defaultId: 0,
+        cancelId: 1,
+        title: 'Bật link overlay cho TikTok LIVE Studio',
+        message: `Thiết lập địa chỉ ${obsHost.OBS_HOST} cho overlay?`,
+        detail: 'TikTok LIVE Studio không nhận link dạng "localhost". HP Action LIVE sẽ thêm '
+            + `một dòng vào file hosts của Windows để địa chỉ ${obsHost.OBS_HOST} trỏ về chính máy này.\n\n`
+            + 'Windows sẽ hỏi quyền Administrator. Thao tác này KHÔNG mở cổng nào ra internet — '
+            + 'overlay vẫn chỉ chạy nội bộ trên máy bạn.'
+    });
+    if (response !== 0) {
+        saveObsHostPrefs({ ...prefs, declinedVersion: version, declinedAt: new Date().toISOString() });
+        return;
+    }
+
+    const result = await obsHost.ensureHostMapping();
+    if (result.ok) {
+        saveObsHostPrefs({ ...prefs, declinedVersion: null, mappedAt: new Date().toISOString() });
+        dialog.showMessageBox(mainWindow, {
+            type: 'info',
+            title: 'Đã thiết lập xong',
+            message: `Địa chỉ ${obsHost.OBS_HOST} đã sẵn sàng.`,
+            detail: `Trong TikTok LIVE Studio, thêm nguồn "Link" và dán địa chỉ overlay dạng:\n\n`
+                + `http://${obsHost.OBS_HOST}:${PORT}/overlay/shared/...\n\n`
+                + 'Bấm nút chia sẻ ở mỗi game để lấy link đầy đủ.'
+        });
+    } else {
+        saveObsHostPrefs({ ...prefs, declinedVersion: version, lastError: result.error });
+        console.warn('[obs-host] Không thêm được mapping:', result.error);
+    }
+}
+
 app.whenReady().then(async () => {
     startServer();
     createSplash();
@@ -1337,6 +1397,7 @@ app.whenReady().then(async () => {
     }
     createMainWindow();
     buildTray();
+    setupObsHostMapping();
     // Auto-mở cửa sổ Khởi động nhanh sau khi main window sẵn sàng.
     // Mặc định BẬT. User có thể tắt qua prefs file (quick-launch.json: autoOpen: false).
     setTimeout(() => {

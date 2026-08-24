@@ -19,9 +19,27 @@
             }
         });
     }
+    // Cache 1 lần lúc load trang — có sẵn token .obs cho từng game trước khi user bấm bất kỳ
+    // nút "📋 Link OBS" nào (buildOverlayURL luôn được gọi đồng bộ từ các panel).
+    // TikTok LIVE Studio chặn thẳng "localhost" ở ô Link nguồn; hpaction.obs trỏ về loopback
+    // qua hosts file (xem lib/obs-host.js) nên qua được bộ lọc mà vẫn chạy nội bộ.
+    let obsShareInfo = null;
+    fetch('/api/overlay/share-links').then(r => r.ok ? r.json() : null).then(j => {
+        if (j && j.ok) obsShareInfo = j;
+    }).catch(() => {});
+
     function buildOverlayURL(pathOrFull) {
         if (!pathOrFull) return '';
-        let url = pathOrFull.startsWith('http') ? pathOrFull : (location.origin + pathOrFull);
+        let url;
+        if (pathOrFull.startsWith('http')) {
+            url = pathOrFull;
+        } else if (obsShareInfo && obsShareInfo.mapped) {
+            const shared = Object.values(obsShareInfo.links).find(l => l.overlayPath === pathOrFull);
+            const target = shared ? `/overlay/shared/${shared.token}` : pathOrFull;
+            url = `http://${obsShareInfo.host}:${obsShareInfo.port}${target}`;
+        } else {
+            url = location.origin + pathOrFull;
+        }
         const res = getOverlayResolution();
         if (res === '4k') {
             // Append ?res=4k (xử lý nếu URL đã có query khác)
@@ -6293,8 +6311,9 @@
         await loadGames();
         if (games.length) openGame(games[0].id);
         initSidebarToggle();
-        // Không tự kiểm tra/cài update khi đang vận hành bản chỉnh sửa tại chỗ.
-        // Người dùng vẫn có thể kiểm tra thủ công trong Cài đặt.
+        // CHỈ check 1 lần khi mở app — KHÔNG có setInterval định kỳ.
+        // Silent (không toast lỗi) để không làm phiền khi mạng chập chờn lúc mở app.
+        setTimeout(() => checkForUpdate(), 3000);
     }
 
     // ===== Sidebar toggle thu/mở =====

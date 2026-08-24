@@ -1329,6 +1329,11 @@
                             <div class="pktiktok-toolbar">
                                 <label class="pktiktok-switch" title="Tự động phát theo sự kiện PK thật từ TikTok Live. Card gắn nhãn ⚡AUTO là có tín hiệu thật (start / nhiệm vụ / x2 / x3 / găng tay / 10s cuối / dẫn / thua / thắng-thua). Card ✋TAY (Sương Mù / Búa Choáng / Thêm Giờ): TikTok không gửi dữ liệu nên chỉ chạy tay hoặc bằng phím tắt. Mở Console (Ctrl+Shift+I) xem log [pktiktok]."><input id="pktiktok-autobind" type="checkbox" checked /><span>Auto bind</span></label>
                                 <label class="pktiktok-switch" title="Hiện chữ trên overlay khi fire"><input id="pktiktok-show-label" type="checkbox" /><span>Hiện chữ</span></label>
+                                <span class="pktiktok-switch" title="Phóng to/nhỏ overlay trong khung OBS. Để OBS Browser Source ở HD 1080×1920 (nhẹ) rồi kéo lên >100% thường nét & mượt hơn set Source thẳng 4K.">
+                                    <span>Scale OBS</span>
+                                    <input type="range" id="pktiktok-scale" min="60" max="200" step="5" style="width:90px" />
+                                    <span id="pktiktok-scale-v">100%</span>
+                                </span>
                                 <span class="pktiktok-toolbar-spacer"></span>
                                 <span id="pktiktok-stats" class="pktiktok-stats">0/13</span>
                                 <button id="pktiktok-btn-test-all" class="ghost small" title="Phát thử lần lượt mọi event đã gán file">🧪 Test all</button>
