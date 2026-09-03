@@ -46,11 +46,29 @@
         .nl-leaf { position: absolute; left: 0; top: 0; width: var(--leaf-size); height: auto; object-fit: contain; pointer-events: none; transform-origin: 50% 50%; }
         .nl-leaf.resting { pointer-events: auto; cursor: none; }
         .nl-leaf.dragging { filter: drop-shadow(0 15px 10px rgba(0, 0, 0, .48)); will-change: transform; }
-        #nl-bin { position: absolute; left: 50%; top: 62%; width: 260px; height: auto; transform: translate(-50%, -50%); transform-origin: 50% 50%; cursor: none; z-index: 80000; filter: drop-shadow(0 10px 9px rgba(0, 0, 0, .35)); touch-action: none; }
+        /* brightness(1) saturate(1) là hai hàm ĐỆM CỐ Ý, không phải thừa: keyframe nhận lá
+           đổi cả ba hàm, mà filter chỉ nội suy được khi hai danh sách CÙNG số lượng và CÙNG
+           thứ tự loại hàm. Xoá hai cái này đi là danh sách nền còn mỗi drop-shadow, không
+           khớp với danh sách trong keyframe nữa, và chớp sáng lập tức quay lại kiểu bật/tắt
+           cứng như lỗi cũ (xem ghi chú ở @keyframes nl-bin-receive). */
+        #nl-bin { position: absolute; left: 50%; top: 62%; width: 260px; height: auto; transform: translate(-50%, -50%); transform-origin: 50% 50%; cursor: none; z-index: 80000; filter: brightness(1) saturate(1) drop-shadow(0 10px 9px rgba(0, 0, 0, .35)); touch-action: none; }
         /* --bin-flash do JS ghi theo skin.json:flashMs, để nhịp phóng-thu của CSS luôn khớp
            đúng lúc JS trả ảnh thùng về khung thường. */
         #nl-bin.nl-receive { animation: nl-bin-receive var(--bin-flash, .72s) ease-out; }
-        @keyframes nl-bin-receive { 0% { transform: translate(-50%, -50%) scale(1); } 20% { transform: translate(-50%, -50%) scale(1.13); filter: brightness(1.45) drop-shadow(0 0 22px rgba(255, 228, 103, .95)); } 52% { transform: translate(-50%, -50%) scale(.95); } 100% { transform: translate(-50%, -50%) scale(1); } }
+        /* HAI ĐIỀU KIỆN của cú chớp này, phá một cái là hỏng:
+           1. Danh sách filter phải KHỚP với danh sách nền của #nl-bin — cùng 3 hàm, cùng thứ
+              tự brightness → saturate → drop-shadow. Bản cũ chỉ có drop-shadow ở nền còn
+              keyframe là brightness + drop-shadow: hai danh sách lệch loại ở vị trí đầu nên
+              theo spec Filter Effects là KHÔNG nội suy được, trình duyệt chuyển sang chạy
+              RỜI RẠC. Đo trên Chromium: bật hẳn ở ~5%, tắt phựt ở ~50%, không có nhịp lên
+              xuống nào — nhìn ra đúng một cú chớp giật chứ không phải sáng dần.
+           2. brightness giữ ở 1.14. Bản cũ để 1.45, mà skin sáng (hồng/pastel/hologram) vốn
+              đã gần trần nên bị dồn kênh về 255: thùng hiện ra thành một khối TRẮNG, người
+              xem tưởng ảnh thùng biến mất. saturate(1.25) gánh phần "rực lên" thay cho
+              brightness — nó đẩy màu đậm hơn chứ không đẩy về trắng, nên skin nào cũng an toàn.
+           Quầng sáng gói gọn trong drop-shadow 16px ôm sát viền thùng, không phải một đĩa
+           sáng to phủ ra xung quanh. */
+        @keyframes nl-bin-receive { 0% { transform: translate(-50%, -50%) scale(1); } 20% { transform: translate(-50%, -50%) scale(1.13); filter: brightness(1.14) saturate(1.25) drop-shadow(0 0 16px rgba(255, 250, 230, .9)); } 52% { transform: translate(-50%, -50%) scale(.95); } 100% { transform: translate(-50%, -50%) scale(1); } }
         /* Bàn tay tách 2 lớp: wrapper giữ VỊ TRÍ (JS ghi transform mỗi frame theo con trỏ),
            img giữ DIỄN HOẠT (scale/rotate). Nếu để chung một phần tử thì animation bị
            transform bám chuột ghi đè mất, hiệu ứng bị đánh sẽ không bao giờ thấy. */
@@ -737,9 +755,10 @@
         // relay/lưu xuống config luôn là số thùng đang thật sự đứng.
         function applyBinPosition() {
             cfg.display.binYPercent = clamp(cfg.display.binYPercent, 5, binYMax());
+            const width = (Number(binSkin.baseWidth) || 260) * cfg.display.binScale / 100;
             bin.style.left = `${cfg.display.binXPercent}%`;
             bin.style.top = `${cfg.display.binYPercent}%`;
-            bin.style.width = `${(Number(binSkin.baseWidth) || 260) * cfg.display.binScale / 100}px`;
+            bin.style.width = `${width}px`;
         }
 
         function applyHandSize() {
@@ -1322,7 +1341,7 @@
                 id: `leaf-${String(seedKey || Date.now())}`,
                 el, size, x, y: -size, startX: x,
                 rotation: rand(0, 360, random), spin: rand(-28, 28, random),
-                sway: rand(14, 58, random), swaySpeed: rand(1.4, 3.2, random), swayPhase: 0,
+                sway: rand(14, 58, random), swaySpeed: rand(1.4, 3.2, random), age: 0,
                 velocity: rand(85, 145, random), random, state: 'falling', z: ++zIndex,
                 original: null, pile: null, fallCount: 0
             };
@@ -1604,9 +1623,10 @@
             leaf.sway = rand(8, 26, random);
             leaf.swaySpeed = rand(1.2, 2.6, random);
             leaf.spin = rand(-46, 46, random);
-            // Neo pha sway về 0 tại thời điểm buông, nếu không lá nảy ngang một nhịp
-            // ngay khoảnh khắc rời tay.
-            leaf.swayPhase = performance.now() / 1000 * leaf.swaySpeed;
+            // Neo pha sway về 0 tại thời điểm buông, nếu không lá nảy ngang một nhịp ngay
+            // khoảnh khắc rời tay. Với công thức bám tuổi thì "neo pha" chỉ là đặt lại đồng
+            // hồ riêng của chiếc lá — và cũng nhờ vậy mà mọi cửa sổ neo về đúng một mốc.
+            leaf.age = 0;
             leaf.z = ++zIndex;
             leaf.el.style.zIndex = leaf.z;
             leaf.el.classList.remove('dragging', 'resting');
@@ -2137,7 +2157,28 @@
                 if (leaf.state === 'falling') {
                     leaf.velocity += 245 * dt;
                     leaf.y += leaf.velocity * dt;
-                    leaf.x = clamp(leaf.startX + Math.sin(now / 1000 * leaf.swaySpeed - (leaf.swayPhase || 0)) * leaf.sway, leaf.size * .2, viewport.width - leaf.size * .2);
+                    // LẮC NGANG BÁM TUỔI CỦA LÁ, KHÔNG BÁM ĐỒNG HỒ — đây là điều kiện để ba
+                    // cửa sổ (Review trong app, popup Review, link OBS) vẽ lá trùng khít nhau.
+                    //
+                    // Bản cũ dùng sin(now / 1000 * swaySpeed) với now là performance.now() của
+                    // TỪNG TRANG. Hai sai số cộng vào nhau:
+                    //   1. performance.now() đếm từ lúc trang đó mở, ba cửa sổ mở lệch nhau
+                    //      bao nhiêu thì đồng hồ lệch đúng bấy nhiêu;
+                    //   2. nặng hơn — Y cộng dồn theo dt còn X đọc thẳng đồng hồ. Cửa sổ nào
+                    //      rớt frame hay bị ẩn (OBS đổi scene, tab nền) sẽ rơi chậm lại, tới
+                    //      sàn muộn hơn, và vì thế lấy sin ở PHA KHÁC lúc đáp.
+                    // Đo thực tế cùng một lô 10 lá: X lệch tới 60px, đống lá trên OBS dần khác
+                    // hẳn đống người vận hành đang nhìn trong app.
+                    //
+                    // leaf.age cộng dồn theo đúng dt đã dùng để đẩy Y, nên X và Y khoá chặt vào
+                    // nhau: cửa sổ rớt frame chỉ chạy CHẬM hơn chứ vẫn đi trọn một quỹ đạo, và
+                    // điểm đáp không đổi. swayPhase cũ thành thừa — neo pha lúc buông tay giờ
+                    // chỉ là đặt age về 0 (xem dropLeafFreely).
+                    // (leaf.age || 0): bản cũ cũng thủ thế như vậy với swayPhase. Lá khôi phục từ
+                    // snapshot không mang trường này, lỡ có đường nào đẩy nó sang falling mà quên đặt
+                    // lại thì cộng vào undefined ra NaN — lá biến mất khỏi màn hình chứ không chỉ lệch.
+                    leaf.age = (leaf.age || 0) + dt;
+                    leaf.x = clamp(leaf.startX + Math.sin(leaf.age * leaf.swaySpeed) * leaf.sway, leaf.size * .2, viewport.width - leaf.size * .2);
                     leaf.rotation += leaf.spin * dt;
                     const floor = floorAt(leaf.x, leaf.size);
                     if (leaf.y >= floor) {
@@ -2606,6 +2647,53 @@
             relayHand(true);
             captureRootPointer(event.pointerId);
         });
+
+        // ===== LĂN CHUỘT TRÊN THÙNG = ĐỔI CỠ TẠI CHỖ =====
+        // Kéo thùng đã đổi được VỊ TRÍ ngay trên overlay, nhưng CỠ thì vẫn phải quay về panel
+        // kéo thanh trượt rồi ngó sang xem vừa chưa — lăn ngay trên thùng bỏ hẳn vòng đi lại đó.
+        //
+        // NHÂN chứ không CỘNG: cộng 5% mỗi nấc thì ở cỡ 40% một nấc là +12,5% còn ở cỡ 300%
+        // chỉ là +1,7% — cùng một cú lăn mà lúc nhảy vọt lúc như không nhúc nhích. Nhân 1.06
+        // cho cảm giác đều nhau ở mọi cỡ, và ~12 nấc đi hết một lần gấp đôi.
+        //
+        // Math.sign(): chuột thường báo deltaY 100/120, chuột cao cấp và touchpad báo 1–3 hoặc
+        // số lẻ theo quán tính. Lấy dấu là mỗi nấc đúng một bước, không bị touchpad quét một
+        // phát phóng thùng kín màn hình.
+        const BIN_SCALE_STEP = 1.06;
+        bin.addEventListener('wheel', event => {
+            if (!canEdit()) return;
+            // Bắt buộc { passive: false } thì preventDefault mới ăn — nếu không, lăn trên thùng
+            // trong khung Review sẽ vừa đổi cỡ vừa cuộn trôi cả trang panel bên dưới.
+            event.preventDefault();
+            event.stopPropagation();
+            const next = cfg.display.binScale * (event.deltaY < 0 ? BIN_SCALE_STEP : 1 / BIN_SCALE_STEP);
+            // Làm tròn rồi mới kẹp, và ép đi ít nhất 1 đơn vị: ở cỡ nhỏ (30–33%) tích 1.06 rồi
+            // làm tròn có thể rơi lại đúng số cũ, thùng đứng im dù người dùng vẫn đang lăn.
+            const rounded = Math.round(next);
+            const stepped = rounded === Math.round(cfg.display.binScale)
+                ? Math.round(cfg.display.binScale) + (event.deltaY < 0 ? 1 : -1)
+                : rounded;
+            const value = clamp(stepped, 30, 400);
+            if (value === cfg.display.binScale) return;
+            cfg.display.binScale = value;
+            // Trần độ cao phụ thuộc cỡ thùng, nên applyBinPosition() phải chạy TRƯỚC lúc relay:
+            // thùng to lên ở sát mép dưới sẽ bị kéo lên, và các view khác cần con số đã kẹp.
+            applyBinPosition();
+            relayBinScale();
+            persistOverlayPositions();
+        }, { passive: false });
+
+        // Đi đường transient 'display' như thanh trượt bên panel (server kẹp binScale 30–400),
+        // nên mọi view — OBS, Review, preview — đổi cỡ ngay trong lúc lăn thay vì đợi 250ms
+        // của persistOverlayPositions() rồi mới thấy qua gameConfig.
+        function relayBinScale() {
+            if (!canEdit() || !socket?.connected) return;
+            lastTransientAt = performance.now();
+            socket.emit('nhatla:transient', {
+                type: 'display',
+                display: { binScale: cfg.display.binScale, binYPercent: cfg.display.binYPercent }
+            });
+        }
 
         hud.addEventListener('pointerdown', event => {
             if (!canEdit() || activePointerId != null) return;

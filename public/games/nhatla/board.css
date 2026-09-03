@@ -60,7 +60,10 @@
     font-weight: 800;
     line-height: 1.3;
     text-align: center;
-    box-shadow: 0 calc(2px * var(--s)) calc(8px * var(--s)) rgba(0, 0, 0, 0.45);
+    text-shadow: 0 calc(1px * var(--s)) calc(3px * var(--s)) rgba(0, 0, 0, 0.85);
+    box-shadow:
+        0 0 0 calc(1px * var(--s)) rgba(0, 0, 0, 0.6),
+        0 calc(2px * var(--s)) calc(8px * var(--s)) rgba(0, 0, 0, 0.55);
 }
 
 .nlb-list {
@@ -84,10 +87,17 @@
     gap: calc(10px * var(--s));
     padding: calc(10px * var(--s));
     border-radius: calc(16px * var(--s));
-    border: calc(2px * var(--s)) solid rgba(255, 166, 77, 0.55);
-    background: rgba(18, 20, 28, 0.78);
-    backdrop-filter: blur(6px);
-    box-shadow: 0 calc(3px * var(--s)) calc(10px * var(--s)) rgba(0, 0, 0, 0.45);
+    /* ĐỘ RÕ TRÊN LIVE: nền thẻ gần đặc (0.94) chứ không 0.78 như trước — video sáng lọt
+       qua 22% làm cả thẻ bạc màu, nhìn như bị mờ. Viền cam cũng kéo lên gần đặc, và thêm
+       một vòng tối 1px bọc ngoài để thẻ tách hẳn khỏi nền sáng.
+       KHÔNG dùng backdrop-filter: trong OBS trang này trong suốt hoàn toàn, sau lưng thẻ
+       không có gì để làm mờ nên bộ lọc chỉ tốn GPU và khiến ô xem trước ở panel đẹp hơn
+       overlay thật — hai bên phải giống nhau thì chỉnh mới có nghĩa. */
+    border: calc(2px * var(--s)) solid rgba(255, 176, 84, 0.95);
+    background: rgba(12, 14, 20, 0.94);
+    box-shadow:
+        0 0 0 calc(1px * var(--s)) rgba(0, 0, 0, 0.65),
+        0 calc(4px * var(--s)) calc(14px * var(--s)) rgba(0, 0, 0, 0.6);
     overflow: hidden;
 }
 /* Tên bên phải/trái → thẻ nằm ngang, rộng. Tên trên/dưới → thẻ vuông, hẹp. */
@@ -95,8 +105,11 @@
 .nlb-card.name-left   { flex-direction: row-reverse; }
 .nlb-card.name-bottom { flex-direction: column; }
 .nlb-card.name-top    { flex-direction: column-reverse; }
+/* Thẻ CO THEO CHỮ chứ không cắm cứng 370px: nhãn ngắn ("2 lá") mà thẻ vẫn kéo dài
+   hết cỡ thì bảng toàn khoảng trống, chiếm chỗ trên khung hình mà không nói thêm gì.
+   max-width giữ nguyên 370px cũ làm trần để nhãn dài vẫn xuống dòng đúng chỗ như trước. */
 .nlb-card.name-right,
-.nlb-card.name-left   { width: calc(370px * var(--s)); }
+.nlb-card.name-left   { width: max-content; max-width: calc(370px * var(--s)); }
 .nlb-card.name-bottom,
 .nlb-card.name-top    { width: calc(210px * var(--s)); justify-content: center; }
 
@@ -106,7 +119,7 @@
     height: calc(76px * var(--s) * var(--is));
     object-fit: contain;
     /* Icon quà TikTok là PNG nền trong, thả bóng nhẹ cho nổi trên nền video sáng. */
-    filter: drop-shadow(0 calc(2px * var(--s)) calc(4px * var(--s)) rgba(0, 0, 0, 0.55));
+    filter: drop-shadow(0 calc(2px * var(--s)) calc(5px * var(--s)) rgba(0, 0, 0, 0.8));
 }
 
 .nlb-text {
@@ -130,7 +143,14 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
     word-break: break-word;
-    text-shadow: 0 calc(2px * var(--s)) calc(4px * var(--s)) rgba(0, 0, 0, 0.75);
+    /* Viền chữ tối 4 hướng + một lớp bóng nhoè: chữ trắng đứng vững cả khi thẻ nằm đè
+       lên vùng video sáng chói. Một bóng đổ mảnh như trước không đủ, chữ bị nhoè vào nền. */
+    text-shadow:
+        0 calc(1px * var(--s)) 0 rgba(0, 0, 0, 0.9),
+        0 calc(-1px * var(--s)) 0 rgba(0, 0, 0, 0.9),
+        calc(1px * var(--s)) 0 0 rgba(0, 0, 0, 0.9),
+        calc(-1px * var(--s)) 0 0 rgba(0, 0, 0, 0.9),
+        0 calc(3px * var(--s)) calc(6px * var(--s)) rgba(0, 0, 0, 0.85);
 }
 .nlb-card.name-bottom .nlb-name,
 .nlb-card.name-top .nlb-name { text-align: center; }
@@ -141,6 +161,11 @@
     color: #ffd479;
     line-height: 1.2;
     white-space: nowrap;
+    text-shadow:
+        0 calc(1px * var(--s)) 0 rgba(0, 0, 0, 0.9),
+        calc(1px * var(--s)) 0 0 rgba(0, 0, 0, 0.9),
+        calc(-1px * var(--s)) 0 0 rgba(0, 0, 0, 0.9),
+        0 calc(2px * var(--s)) calc(5px * var(--s)) rgba(0, 0, 0, 0.85);
 }
 
 /* ── CUỘN TỰ ĐỘNG ───────────────────────────────────────────────────────────

@@ -381,9 +381,9 @@
     // Gom ba nguồn gán quà thành danh sách thẻ để vẽ bảng. Overlay bảng VÀ ô xem trước trong
     // panel đều gọi hàm này — một nguồn sự thật, không có chuyện hai bên vẽ lệch nhau.
     //
-    // GỘP THEO giftId: một quà có thể vừa nằm ở giftRules (rơi lá) vừa ở rescue.actions (gọi
-    // gió). Để nguyên là bảng ra hai thẻ cùng một icon, người xem tưởng hai quà khác nhau.
-    // Gộp lại thành một thẻ, nhãn nối bằng " · " → "50 lá · Gió thổi bay lá".
+    // GỘP THEO giftId: một quà có thể nằm ở nhiều nguồn cùng lúc (vd vừa gọi gió vừa chạy
+    // hiệu ứng). Để nguyên là bảng ra hai thẻ cùng một icon, người xem tưởng hai quà khác
+    // nhau. Gộp lại thành một thẻ, nhãn nối bằng " · " → "Gió thổi bay lá · Đánh tay".
     function giftBoardEntries(cfg) {
         const out = [];
         const byGift = new Map();   // giftId → entry đã tạo, để gộp
@@ -417,7 +417,11 @@
             out.push(entry);
         };
 
+        // Quà đã gán cho HIỆU ỨNG / GIẢI CỨU không rơi lá nữa (xem leavesForGift), nên dòng lá
+        // cũ còn sót lại của chính quà đó không được lên bảng: bảng hứa "50 lá" mà lá không rơi
+        // là bảng nói dối người xem đang cầm tiền.
         for (const rule of (Array.isArray(cfg?.giftRules) ? cfg.giftRules : [])) {
+            if (effectGiftForGift(cfg, rule?.giftId, rule?.giftName) || rescueActionForGift(cfg, rule?.giftId, rule?.giftName)) continue;
             const count = parseInt(rule?.count, 10);
             push('rule', rule, rule?.label || (count > 0 ? `${count} lá` : ''));
         }
@@ -676,6 +680,12 @@
     // Đếm số lá cho 1 gift event theo rules — trả về số lá rơi (0 = bỏ qua)
     function leavesForGift(cfg, giftId, giftName, coinValue, repeatCount) {
         if (!cfg || !Array.isArray(cfg.giftRules)) return 0;
+        // Quà đã gán cho HIỆU ỨNG hoặc GIẢI CỨU là "quà chỉ định tính năng" — người xem tặng để
+        // đổi lấy đúng MỘT tính năng, nên nó KHÔNG rơi lá. Chặn ở ĐẦU hàm chứ không phải sau
+        // khi tra giftRules: quà thường được gán lá trước rồi mới đổi sang tính năng, dòng lá
+        // cũ còn sót lại trong tab Quà chỉ định, và nếu để nó thắng thì quà vừa chạy tính năng
+        // vừa rơi lá trùng. Bảng quà cũng bỏ nhãn "N lá" của quà này (xem giftBoardEntries).
+        if (effectGiftForGift(cfg, giftId, giftName) || rescueActionForGift(cfg, giftId, giftName)) return 0;
         const id = String(giftId == null ? '' : giftId);
         const name = String(giftName || '');
         const rule = cfg.giftRules.find(r => r && (
@@ -690,10 +700,6 @@
             const c = parseInt(rule.count, 10);
             return isFinite(c) && c > 0 ? c * Math.max(1, parseInt(repeatCount, 10) || 1) : 0;
         }
-        // Quà đã gán riêng cho HIỆU ỨNG hoặc GIẢI CỨU là "quà chỉ định" của tính năng đó —
-        // không được rơi thêm lá theo tỉ lệ coinsPerLeaf, nếu không quà vừa kích hoạt tính
-        // năng vừa rơi lá trùng, sai ý người xem tặng để đổi lấy đúng MỘT hiệu ứng.
-        if (effectGiftForGift(cfg, giftId, giftName) || rescueActionForGift(cfg, giftId, giftName)) return 0;
         const coins = Math.max(0, Math.round(Number(coinValue) || 0)) * Math.max(1, parseInt(repeatCount, 10) || 1);
         const perLeaf = Number(cfg.coinsPerLeaf);
         return perLeaf > 0 ? Math.floor(coins / perLeaf) : 0;

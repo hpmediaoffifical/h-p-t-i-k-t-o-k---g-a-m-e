@@ -163,7 +163,7 @@
                 <h3>🎨 Kích thước vật thể</h3>
                 ${rangeRow('Lá khô', 'leafScale', 30, 400, '%', 'Kích thước toàn bộ lá rơi')}
                 ${rangeRow('Bàn tay chuột', 'handScale', 30, 400, '%', 'Tay mở / tay nắm khi kéo')}
-                ${rangeRow('Thùng rác', 'binScale', 30, 400, '%', 'Thùng rác kéo được ngay trên overlay')}
+                ${rangeRow('Thùng rác', 'binScale', 30, 400, '%', 'Kéo thùng để đổi chỗ, LĂN CHUỘT trên thùng để đổi cỡ — ngay trên Review hoặc cửa sổ Overlay')}
             </div>
             <div class="nhatla-card">
                 <h3>🗑 Vị trí thùng rác mặc định</h3>

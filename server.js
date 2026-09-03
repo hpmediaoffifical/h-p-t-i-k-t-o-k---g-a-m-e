@@ -3225,6 +3225,10 @@ let nhatLaTopTimer = null;
 // nếu lệch thì số lá trên bảng TOP không bằng số lá thật sự rơi xuống.
 function nhatLaLeavesForGift(cfg, giftId, giftName, coinValue, repeatCount) {
     if (!cfg || !Array.isArray(cfg.giftRules)) return 0;
+    // Song song với leavesForGift() bên game.js: quà đã gán cho HIỆU ỨNG hoặc GIẢI CỨU không
+    // rơi lá, và phải chặn ở ĐẦU hàm để dòng lá cũ còn sót trong giftRules không thắng.
+    // Bảng TOP đếm theo hàm này, đặt sai chỗ là TOP cộng lá cho quà chưa hề rơi lá.
+    if (findNhatLaEffectGift(giftId, giftName) || rescueActionForGift(giftId, giftName)) return 0;
     const id = String(giftId == null ? '' : giftId);
     const name = String(giftName || '');
     const repeat = Math.max(1, parseInt(repeatCount, 10) || 1);
@@ -3239,10 +3243,6 @@ function nhatLaLeavesForGift(cfg, giftId, giftName, coinValue, repeatCount) {
         const c = parseInt(rule.count, 10);
         return isFinite(c) && c > 0 ? c * repeat : 0;
     }
-    // Song song với nhánh mới trong game.js: quà đã gán riêng cho HIỆU ỨNG hoặc GIẢI CỨU
-    // là "quà chỉ định" của tính năng đó — không tính thêm lá theo coinsPerLeaf, nếu không
-    // bảng TOP đếm lá cho quà chưa bao giờ thật sự rơi lá.
-    if (findNhatLaEffectGift(giftId, giftName) || rescueActionForGift(giftId, giftName)) return 0;
     const coins = Math.max(0, Math.round(Number(coinValue) || 0)) * repeat;
     const perLeaf = Number(cfg.coinsPerLeaf);
     return perLeaf > 0 ? Math.floor(coins / perLeaf) : 0;
