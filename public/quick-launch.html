@@ -850,7 +850,14 @@
             }
         }
 
+        // ↺ của game có dữ liệu tích luỹ: 1 click là mất, không hoàn tác → hỏi trước (giống nút Ngắt kết nối).
+        const RESET_CONFIRM = {
+            nhatla:     'Xoá sạch lá đang có + bảng TOP người tặng của Nhặt Lá?\nKhông hoàn tác được.',
+            trongcay:   'Reset Trồng Cây — xoá vườn hiện tại + danh sách người đóng góp?\nKhông hoàn tác được.',
+            vipwelcome: 'Dừng video chào VIP đang phát + xoá hàng đợi chào?'
+        };
         function fireAction(g, action) {
+            if (action === 'reset' && RESET_CONFIRM[g.id] && !confirm(RESET_CONFIRM[g.id])) return;
             const card = gridEl.querySelector(`.card[data-game-id="${g.id}"]`);
             const isReset = action === 'reset';
             const btn = card?.querySelector(isReset ? '.btn-reset' : '.btn-toggle');

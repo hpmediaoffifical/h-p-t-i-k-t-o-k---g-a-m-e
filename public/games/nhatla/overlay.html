@@ -271,6 +271,11 @@
         const COLS = 90;
         const STAGE = { width: 1080, height: 1920 };
         const isReview = new URLSearchParams(location.search).has('review');
+        // Overlay mở từ máy khác trong LAN: server chỉ nhận POST /config (kéo vị trí) và các event
+        // socket ghi (nhatla:state/transient) khi có token — dán ?token=<token ở ⚙ Cài đặt> vào URL.
+        // Cùng máy (localhost / hpaction.obs) không cần.
+        const hpToken = new URLSearchParams(location.search).get('token') || '';
+        const jsonHeaders = () => (hpToken ? { 'Content-Type': 'application/json', 'X-HP-Token': hpToken } : { 'Content-Type': 'application/json' });
         // Núm kéo là thứ NHÌN THẤY ĐƯỢC, khác hẳn kéo-để-di-chuyển vốn bật ở mọi view.
         // Chỉ hai cửa sổ của người vận hành mới được hiện: khung Review nhúng (?review=1)
         // và cửa sổ Overlay rời (?preview=1). Browser Source OBS không mang tham số nào
@@ -1062,7 +1067,7 @@
 
         function persistEffectPosition() {
             fetch('/api/games/nhatla/config', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: jsonHeaders(),
                 body: JSON.stringify({ effects: { effectGifts: cfg.effects.effectGifts } })
             }).catch(() => {});
         }
@@ -2348,7 +2353,7 @@
             clearTimeout(saveBinTimer);
             saveBinTimer = setTimeout(() => {
                 fetch('/api/games/nhatla/config', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: jsonHeaders(),
                     body: JSON.stringify({ display: { ...cfg.display } })
                 }).catch(() => {});
             }, 250);
@@ -2366,7 +2371,7 @@
                 const topDonors = pendingTopSave;
                 pendingTopSave = null;
                 fetch('/api/games/nhatla/config', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: jsonHeaders(),
                     body: JSON.stringify({ topDonors })
                 }).catch(() => {});
             }, 250);
@@ -2395,7 +2400,7 @@
                 const bags = pendingBagsSave;
                 pendingBagsSave = null;
                 fetch('/api/games/nhatla/config', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: jsonHeaders(),
                     body: JSON.stringify({ bags })
                 }).catch(() => {});
             }, 250);
@@ -2921,7 +2926,7 @@
             requestAnimationFrame(tick);
         }
 
-        const socket = window.io({ transports: ['websocket', 'polling'] });
+        const socket = window.io({ transports: ['websocket', 'polling'], auth: hpToken ? { token: hpToken } : {} });
         socket.on('connect', () => {
             clearTimeout(offlineClearTimer);
             // Nhận gameGift thật và snapshot state mới nhất từ server.

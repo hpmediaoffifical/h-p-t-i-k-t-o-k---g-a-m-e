@@ -2433,9 +2433,9 @@
                     </div>
                 </section>
 
-                <!-- 🔗 Kết nối TikTok -->
-                <section class="settings-block">
-                    <div class="settings-block-title">🔗 Kết nối TikTok</div>
+                <!-- 🔧 Nâng cao — Kết nối TikTok (gập mặc định: API key + tự nối lại là cài đặt kỹ thuật, idol ít đụng) -->
+                <details class="settings-block st-adv">
+                    <summary class="settings-block-title">🔧 Nâng cao — Kết nối TikTok <span class="hint-inline">API key · tự nối lại</span></summary>
                     <label class="st-field">
                         <span class="st-k">Euler Stream API key <span class="hint-inline">(tuỳ chọn — ký kết nối ổn định hơn)</span></span>
                         <div class="st-input-row">
@@ -2445,15 +2445,15 @@
                     </label>
                     <div class="hint" id="st-sign-key-hint">Chưa có key: kết nối ẩn danh giới hạn 5 lượt/phút · 100 lượt/ngày.</div>
                     <label class="st-toggle"><input type="checkbox" id="st-auto-reconnect" checked /> <span>Tự kết nối lại khi rớt LIVE <span class="hint-inline">(giữ nguyên số liệu buổi live)</span></span></label>
-                </section>
+                </details>
 
                 <!-- 🖥 OBS & Overlay -->
                 <section class="settings-block">
                     <div class="settings-block-title">🖥 OBS &amp; Overlay</div>
                     <div class="st-grid">
-                        <div class="st-row"><span class="st-k">Độ phân giải overlay</span><span class="st-v"><select id="st-overlay-res" class="st-select"><option value="hd">HD 1080×1920</option><option value="4k">4K 2160×3840</option></select></span></div>
-                        <div class="st-row"><span class="st-k">Địa chỉ overlay</span><span class="st-v mono" id="st-overlay-host">—</span></div>
-                        <div class="st-row"><span class="st-k">TikTok LIVE Studio</span><span class="st-v" id="st-overlay-mapped">—</span></div>
+                        <div class="st-row"><span class="st-k">Độ phân giải</span><span class="st-v"><select id="st-overlay-res" class="st-select"><option value="hd">HD 1080×1920</option><option value="4k">4K 2160×3840</option></select></span></div>
+                        <div class="st-row"><span class="st-k">Địa chỉ</span><span class="st-v mono" id="st-overlay-host">—</span></div>
+                        <div class="st-row"><span class="st-k">LIVE Studio</span><span class="st-v" id="st-overlay-mapped">—</span></div>
                     </div>
                     <label class="st-toggle"><input type="checkbox" id="st-lan-access" /> <span>Cho máy khác trong mạng LAN mở overlay <span class="hint-inline">(cần khởi động lại app)</span></span></label>
                     <div class="hint" id="st-lan-hint"></div>

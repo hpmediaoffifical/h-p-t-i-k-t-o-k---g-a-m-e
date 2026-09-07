@@ -167,14 +167,31 @@ function isAllowedOriginHost(hostname) {
 // origin = header Origin (hoặc Referer khi thiếu Origin). Không có = client không phải trình duyệt
 // (curl, node-fetch từ electron-main, PowerShell) → cho qua; 'null' (sandbox / file://) → chặn.
 function originAllowed(origin) {
-    if (origin === undefined || origin === null || origin === '') return true;
+    if (origin === undefined || origin === null) return true;
     const s = String(origin);
-    if (s === 'null') return false;
+    if (s === '' || s === 'null') return false;   // Origin rỗng: trình duyệt thật không bao giờ gửi → không nới
     try { return isAllowedOriginHost(new URL(s).hostname); } catch (_) { return false; }
 }
 function tokenMatches(given, expected) {
     const a = Buffer.from(String(given || '')), b = Buffer.from(String(expected || ''));
     return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+// "Tin cậy" = từ chính máy này, hoặc máy LAN khi đã bật công tắc VÀ gửi đúng token. Dùng để che dữ liệu
+// nhạy cảm khi ĐỌC (token, mật khẩu OBS, key bản quyền) và gác các event socket GHI/điều khiển —
+// nếu không, máy LAN đọc token qua GET /api/settings rồi ghi thoải mái thì đòi token là vô nghĩa.
+function isTrustedRemote(remoteAddress, givenToken) {
+    if (isLoopbackIp(remoteAddress)) return true;
+    const n = networkConfig();
+    return n.lanAccess === true && tokenMatches(givenToken, n.token);
+}
+function requestIsTrusted(req) {
+    return isTrustedRemote(req && req.socket && req.socket.remoteAddress, req && req.headers && req.headers['x-hp-token']);
+}
+// Token qua io({ auth: { token } }) (overlay đọc ?token= trên URL), hoặc ?token= / header X-HP-Token của handshake.
+function socketIsTrusted(socket) {
+    const hs = (socket && socket.handshake) || {};
+    const given = (hs.auth && hs.auth.token) || (hs.query && hs.query.token) || (hs.headers && hs.headers['x-hp-token']);
+    return isTrustedRemote(hs.address, given);
 }
 
 const app = express();
@@ -1018,7 +1035,11 @@ function saveAppConfig() {
         fs.writeFileSync(path.join(CONFIG_BACKUP_DIR, 'app-config-autobackup.json'), JSON.stringify({ exportedAt: new Date().toISOString(), config: appConfig }, null, 2));
     } catch (e) { /* backup is best-effort */ }
 }
+// Đã có app-config.json = máy đang nâng cấp từ bản trước (phân biệt với cài mới khi thêm mặc định mới).
+const APP_CONFIG_EXISTED_AT_LOAD = fs.existsSync(CONFIG_FILE);
 const appConfig = loadAppConfig();
+if (!appConfig.games || typeof appConfig.games !== 'object') appConfig.games = {};   // file cấu hình cũ/tay thiếu 'games' → không sập
+if (!appConfig.license || typeof appConfig.license !== 'object') appConfig.license = { key: '', email: '' };
 
 // ====== OBS Bridge — kết nối OBS Studio qua WebSocket để trigger Lua effects ======
 // License-gated: chỉ trigger nếu license activated.
@@ -1480,7 +1501,13 @@ appConfig.creatorCaption = sanitizeCreatorCaptionConfig(appConfig.creatorCaption
 // ====== Mạng (⚙ Cài đặt → OBS & Overlay) ======
 // { lanAccess: false → chỉ 127.0.0.1; true → 0.0.0.0, máy khác chỉ ĐỌC, GHI cần header X-HP-Token = token }
 // Token 32 hex sinh 1 lần khi trống (lưu ngay để giữ nguyên qua các lần mở app).
-if (!appConfig.network || typeof appConfig.network !== 'object') appConfig.network = { lanAccess: false, token: '' };
+if (!appConfig.network || typeof appConfig.network !== 'object') {
+    // Nâng cấp từ bản chưa có mục network: giữ hành vi cũ (lắng nghe 0.0.0.0) để OBS trên PC stream
+    // khác không đen ngay sau khi cập nhật — GHI từ LAN giờ đã cần token nên vẫn an toàn hơn bản cũ.
+    // Cài mới → chỉ 127.0.0.1, bật "Cho máy khác trong LAN" ở ⚙ Cài đặt khi cần.
+    appConfig.network = { lanAccess: APP_CONFIG_EXISTED_AT_LOAD, token: '' };
+    if (APP_CONFIG_EXISTED_AT_LOAD) console.log('[server] Nâng cấp: giữ "Cho máy khác trong LAN" = BẬT như bản cũ — tắt trong ⚙ Cài đặt nếu OBS chạy cùng máy.');
+}
 appConfig.network.lanAccess = appConfig.network.lanAccess === true;
 if (!/^[0-9a-f]{32}$/i.test(String(appConfig.network.token || ''))) {
     appConfig.network.token = crypto.randomBytes(16).toString('hex');
@@ -2589,6 +2616,8 @@ function emitLiveStatsImmediate() {
 function broadcast(type, payload) { io.emit(type, payload); }
 function isTikTokLiveConnected() { return !!(connection && liveConnected); }
 
+// Chống spam toast: lib bắn ERROR cho cả lỗi decode message WebSocket lặp lại giữa buổi live.
+let lastTikTokErrorToast = { message: '', ts: 0 };
 function attachConnectionEvents(conn, lib) {
     const { WebcastEvent, ControlEvent } = lib;   // từ loadTikTokConnector() — không có biến toàn cục để tránh dùng trước khi nạp
     conn.on(ControlEvent.CONNECTED, (state) => {
@@ -2627,6 +2656,9 @@ function attachConnectionEvents(conn, lib) {
         // 2.4.4 bắn ERROR cho cả các bước fallback bình thường lúc connect (HTML → API → Euler) và cho các
         // connection thử-nghiệm trong vòng retry → chỉ đẩy toast lên UI cho connection đang dùng.
         if (conn !== connection) return;
+        const now = Date.now();
+        if (lastTikTokErrorToast.message === message && now - lastTikTokErrorToast.ts < 30000) return;
+        lastTikTokErrorToast = { message, ts: now };
         broadcast('error', { message });
     });
 
@@ -2728,7 +2760,12 @@ function attachConnectionEvents(conn, lib) {
     conn.on(WebcastEvent.SOCIAL, (data) => {
         const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
         rememberUserMapping(userId, uniqueId);
-        broadcast('social', { uniqueId, nickname, label: data?.label });
+        // v3 (2.4.4): WebcastSocialMessage không có data.label — dựng nhãn từ common.displayText
+        // (key pm_mt_msg_viewer = chia sẻ, *follow* = theo dõi) để UI không hiện '💗 <nick> ' trống.
+        const dtKey = String(data?.common?.displayText?.key || '').toLowerCase();
+        const dtPattern = String(data?.common?.displayText?.defaultPattern || '').replace(/{d+:[a-z_]+}/gi, '').trim();
+        const label = dtKey.includes('follow') ? 'đã theo dõi' : (dtKey.includes('share') || dtKey.includes('mt_msg')) ? 'đã chia sẻ LIVE' : dtPattern;
+        broadcast('social', { uniqueId, nickname, label });
         maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'social', verified, userId, extractTikTokUser(data));
     });
     // FOLLOW event
@@ -3765,17 +3802,23 @@ function classifyTikTokConnectError(err) {
     const name = String(err?.name || '');
     const msg = String(err?.message || err || '').toLowerCase();
     const is = (cls) => ctor === cls || name === cls;
-    if (is('UserOfflineError') || msg.includes("isn't online") || msg.includes('not online') || msg.includes('offline')) return 'offline';
-    if (is('SignatureRateLimitError') || msg.includes('rate limit') || msg.includes('too many connections') || /\b429\b/.test(msg)) return 'ratelimit';
-    if (is('AlreadyConnectedError') || is('AlreadyConnectingError') || msg.includes('already connect')) return 'busy';
-    if (is('PremiumFeatureError') || is('AuthenticatedWebSocketConnectionError') || msg.includes('premium feature')
-        || msg.includes('business plan') || msg.includes('cookie bundle') || msg.includes('authenticated ws')) return 'premium';
-    if (is('InvalidUniqueIdError') || msg.includes("invalid value for 'uniqueid'")) return 'invalid';
-    if (is('ConnectTimeoutError') || is('SignAPIError') || is('SignatureMissingTokensError')
-        || msg.includes('websocket') || msg.includes('unexpected server response') || msg.includes('not responding')
+    // Class là bằng chứng chắc nhất → xét trước. Đoán theo message chỉ khi class lạ, và lỗi mạng/sign-server
+    // xét TRƯỚC chữ 'offline' (message "sign server offline" là lỗi tạm, không phải user chưa LIVE).
+    if (is('UserOfflineError')) return 'offline';
+    if (is('SignatureRateLimitError')) return 'ratelimit';
+    if (is('AlreadyConnectedError') || is('AlreadyConnectingError')) return 'busy';
+    if (is('PremiumFeatureError') || is('AuthenticatedWebSocketConnectionError')) return 'premium';
+    if (is('InvalidUniqueIdError')) return 'invalid';
+    if (is('ConnectTimeoutError') || is('SignAPIError') || is('SignatureMissingTokensError')) return 'transient';
+    if (msg.includes('rate limit') || msg.includes('too many connections') || /\b429\b/.test(msg)) return 'ratelimit';
+    if (msg.includes('already connect')) return 'busy';
+    if (msg.includes('premium feature') || msg.includes('business plan') || msg.includes('cookie bundle') || msg.includes('authenticated ws')) return 'premium';
+    if (msg.includes("invalid value for 'uniqueid'")) return 'invalid';
+    if (msg.includes('websocket') || msg.includes('unexpected server response') || msg.includes('not responding')
         || msg.includes('timed out') || msg.includes('timeout') || msg.includes('sign server') || msg.includes('sign error')
         || msg.includes('failed to sign') || msg.includes('empty payload') || msg.includes('fetch failed')
         || msg.includes('econnreset') || msg.includes('econnrefused') || msg.includes('enotfound') || msg.includes('socket hang up')) return 'transient';
+    if (msg.includes("isn't online") || msg.includes('not online') || msg.includes('offline')) return 'offline';
     return 'other';
 }
 
@@ -4504,9 +4547,12 @@ app.get('/api/tiktok-user-avatar', async (req, res) => {
 });
 
 // ====== ⚙ Cài đặt chung ======
-function settingsSnapshot() {
+function settingsSnapshot(req) {
     const k = String(appConfig.tiktokSignApiKey || '');
     const n = networkConfig();
+    // Token là chìa khoá GHI từ LAN → chỉ trả cho máy này (hoặc client đã có token). Máy LAN gọi
+    // GET /api/settings không header thì thấy rỗng.
+    const showToken = n.lanAccess === true && requestIsTrusted(req);
     return {
         ok: true,
         tiktokSignApiKeySet: !!k,
@@ -4519,7 +4565,7 @@ function settingsSnapshot() {
             bindHost: BIND_HOST,                       // host ĐANG lắng nghe (chốt lúc khởi động)
             port: Number(PORT) || PORT,
             lanAddresses: lanAddresses(),
-            token: n.lanAccess === true ? String(n.token || '') : '',   // chỉ lộ khi đã bật LAN
+            token: showToken ? String(n.token || '') : '',   // chỉ lộ khi đã bật LAN + request tin cậy
             needsRestart: (n.lanAccess === true) !== NETWORK_LAN_ACCESS_AT_START,
             envOverride: HP_BIND_HOST_ENV
         },
@@ -4528,7 +4574,7 @@ function settingsSnapshot() {
         username: currentUsername || appConfig.lastUsername || ''
     };
 }
-app.get('/api/settings', (req, res) => res.json(settingsSnapshot()));
+app.get('/api/settings', (req, res) => res.json(settingsSnapshot(req)));
 app.post('/api/settings', (req, res) => {
     const b = req.body || {};
     let changed = false;
@@ -4545,7 +4591,7 @@ app.post('/api/settings', (req, res) => {
         if (n.lanAccess !== v) { n.lanAccess = v; changed = true; }
     }
     if (changed) saveAppConfig();
-    const snap = settingsSnapshot();
+    const snap = settingsSnapshot(req);
     // Đổi công tắc LAN chỉ có hiệu lực sau khi mở lại app (host bind chốt lúc khởi động).
     res.json(snap.network.needsRestart ? { ...snap, needsRestart: true } : snap);
 });
@@ -4862,6 +4908,14 @@ app.get('/api/last-user', (req, res) => {
 function licHwidShort() {
     try { return String(require('./hpkey/validate').getHWID() || '').slice(0, 10).toUpperCase(); } catch (e) { return ''; }
 }
+// Máy LAN (không token) không được đọc key bản quyền — chỉ app chính trên máy này cần key thật.
+app.get('/api/license/status', (req, res, next) => {
+    if (requestIsTrusted(req)) return next();
+    const mask = (k) => (k ? String(k).slice(0, 2) + '••••' : k);
+    const send = res.json.bind(res);
+    res.json = (body) => send(body && typeof body === 'object' ? { ...body, key: mask(body.key), savedKey: mask(body.savedKey) } : body);
+    next();
+});
 app.get('/api/license/status', async (req, res) => {
     const stored = appConfig.license || {};
     // Chỉ cần TỪNG có key đã lưu (kể cả khi bị revoke trước đó, activated=false)
@@ -8844,10 +8898,14 @@ app.get('/api/games/vipwelcome/queue', (req, res) => {
 // GET /api/obs-bridge/config — lấy config + status + queue hiện tại
 app.get('/api/obs-bridge/config', (req, res) => {
     const cfg = appConfig.obsBridge || {};
+    // Mật khẩu OBS WebSocket chỉ trả cho máy này (hoặc client LAN đã có token) — bind 0.0.0.0 mà
+    // trả nguyên văn thì mọi máy trong LAN đọc được.
+    const trusted = requestIsTrusted(req);
     res.json({
         enabled: cfg.enabled !== false,
         url: cfg.url || '',
-        password: cfg.password || '',
+        password: trusted ? (cfg.password || '') : '',
+        passwordSet: !!cfg.password,
         autoConnect: !!cfg.autoConnect,
         mapping: Array.isArray(cfg.mapping) ? cfg.mapping : [],
         groupsDisabled: Array.isArray(cfg.groupsDisabled) ? cfg.groupsDisabled : [],
@@ -9524,6 +9582,13 @@ function assignTranslateSpeaker() {
 }
 
 io.on('connection', (socket) => {
+    // Máy khác trong LAN (hoặc bind 0.0.0.0 qua HP_BIND_HOST) chỉ được NHẬN broadcast. Các event
+    // GHI/điều khiển (quickLaunch, overlay:reload, nhatla:state/transient, timer/levelquest,
+    // creatorCaption) chỉ nhận từ socket tin cậy: loopback, hoặc LAN đã bật + đúng token
+    // (overlay gắn ?token= vào URL → io({ auth: { token } })). Socket lạ: bỏ qua im lặng, không
+    // disconnect để overlay OBS trên máy đó vẫn xem được.
+    socket.data.trusted = socketIsTrusted(socket);
+    const onTrusted = (event, handler) => socket.on(event, (...args) => { if (socket.data.trusted === true) handler(...args); });
     // Default emits
     socket.emit('giftSheet', giftList);
     socket.emit('status', { connected: isTikTokLiveConnected(), username: currentUsername, roomId: currentRoomId });
@@ -9550,42 +9615,42 @@ io.on('connection', (socket) => {
     if (relayCache.timer.cfg)        socket.emit('timer:cfg',        relayCache.timer.cfg);
     if (relayCache.timer.state)      socket.emit('timer:state',      relayCache.timer.state);
 
-    socket.on('creatorCaption:speech', (payload) => {
+    onTrusted('creatorCaption:speech', (payload) => {
         processCreatorCaptionSpeech(payload).catch(e => console.warn('[creator-caption] translate failed:', e.message));
     });
-    socket.on('creatorCaption:debug', (payload) => {
+    onTrusted('creatorCaption:debug', (payload) => {
         io.emit('creatorCaption:debug', { ...(payload || {}), ts: Date.now() });
     });
 
     // Universal overlay reload — panel/app can force ALL OBS browser sources of a game to refresh
     // Use case: user mở game lần đầu → OBS source bị cache → emit để OBS tự reload
-    socket.on('overlay:reload', (data) => { socket.broadcast.emit('overlay:reload', data || {}); });
+    onTrusted('overlay:reload', (data) => { socket.broadcast.emit('overlay:reload', data || {}); });
 
     // VIP Welcome — overlay báo đã phát xong 1 lượt chào → server gửi lượt kế (serial thật).
     socket.on('vipwelcome:done', (data) => { vipWelcomeOnItemDone(data?.seq); });
 
     // LEVEL QUEST sync — lab broadcasts cfg/state; cache + relay tới mọi overlay
-    socket.on('levelquest:cfg',   (data) => { relayCache.levelquest.cfg   = data; socket.broadcast.emit('levelquest:cfg',   data); });
-    socket.on('levelquest:state', (data) => { relayCache.levelquest.state = data; socket.broadcast.emit('levelquest:state', data); });
+    onTrusted('levelquest:cfg',   (data) => { relayCache.levelquest.cfg   = data; socket.broadcast.emit('levelquest:cfg',   data); });
+    onTrusted('levelquest:state', (data) => { relayCache.levelquest.state = data; socket.broadcast.emit('levelquest:state', data); });
 
     // TIMER (THỜI GIAN) sync — lab broadcasts cfg/state; cache + relay tới overlay/preview
-    socket.on('timer:cfg',     (data) => { relayCache.timer.cfg   = data; socket.broadcast.emit('timer:cfg',   data); });
-    socket.on('timer:state',   (data) => { relayCache.timer.state = data; socket.broadcast.emit('timer:state', data); });
-    socket.on('timer:trigger', (data) => { socket.broadcast.emit('timer:trigger', data); });
+    onTrusted('timer:cfg',     (data) => { relayCache.timer.cfg   = data; socket.broadcast.emit('timer:cfg',   data); });
+    onTrusted('timer:state',   (data) => { relayCache.timer.state = data; socket.broadcast.emit('timer:state', data); });
+    onTrusted('timer:trigger', (data) => { socket.broadcast.emit('timer:trigger', data); });
 
     // 🚀 Quick Launch — cửa sổ rời emit lệnh start/stop → server forward tới app chính để
     // chạy logic thật của từng game (openRegistration cho caro, postMessage iframe cho
     // level-quest/timer, click translate-toggle cho liveTranslate, control endpoint cho
     // votecomment). Broadcast tới MỌI client (kể cả sender) để app chính phản hồi nếu nó
     // chính là nguồn phát; cửa sổ rời tự ignore (kiểm tra trong handler client).
-    socket.on('quickLaunch:cmd', (data) => { io.emit('quickLaunch:cmd', data); });
+    onTrusted('quickLaunch:cmd', (data) => { io.emit('quickLaunch:cmd', data); });
     // App chính broadcast trạng thái Đang chạy của caro + liveTranslate (heartbeat 2s + on-change).
     // Cửa sổ Khởi động nhanh listen để cập nhật chip "Đang chạy" / "Sẵn sàng".
-    socket.on('quickLaunch:status', (data) => { socket.broadcast.emit('quickLaunch:status', data); });
+    onTrusted('quickLaunch:status', (data) => { socket.broadcast.emit('quickLaunch:status', data); });
 
     // Nhặt Lá: trạng thái lá nằm ở client để animation mượt, nhưng phải mirror giữa
     // overlay OBS và khung review. Server giữ snapshot mới nhất để review mở sau cũng nạp lại.
-    socket.on('nhatla:state', (data) => {
+    onTrusted('nhatla:state', (data) => {
         if (Date.now() < nhatLaStateLockedUntil) return;
         const state = data?.state;
         if (!state || !Array.isArray(state.leaves) || state.leaves.length > 20000) return;
@@ -9593,7 +9658,7 @@ io.on('connection', (socket) => {
         io.emit('nhatla:state', { sourceId: socket.id, state });
     });
     // Relay thao tác đang kéo ở 30fps — không ghi disk, để OBS chạy cùng nhịp review.
-    socket.on('nhatla:transient', (data) => {
+    onTrusted('nhatla:transient', (data) => {
         if (!data || !['bin', 'hud', 'topdonors', 'leaf', 'leafEnd', 'hand', 'effect', 'dragStart', 'display', 'bags', 'giftboard'].includes(data.type)) return;
         // Thanh trượt panel + kéo bảng TOP trên overlay: relay ngay để mọi view khớp nhau,
         // config thật vẫn đi đường POST /config có debounce.
@@ -9753,6 +9818,12 @@ io.on('connection', (socket) => {
     });
 });
 
+httpServer.on('error', (e) => {
+    const hint = e.code === 'EADDRINUSE' ? ' — port đang bận (HP Action LIVE khác đang chạy?)'
+        : e.code === 'EADDRNOTAVAIL' ? ' — HP_BIND_HOST không phải IP của máy này' : '';
+    console.error(`[server] Không lắng nghe được ${BIND_HOST}:${PORT}: ${e.code || e.message}${hint}`);
+    throw e;   // giữ hành vi cũ (crash) nhưng đã có dòng log giải thích
+});
 httpServer.listen(PORT, BIND_HOST, async () => {
     if (BIND_HOST === '127.0.0.1' || BIND_HOST === 'localhost' || BIND_HOST === '::1') {
         console.log(`[server] Lắng nghe ${BIND_HOST} (chỉ máy này)`);

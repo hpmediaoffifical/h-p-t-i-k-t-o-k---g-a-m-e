@@ -586,6 +586,18 @@
         trongcay:   'Tắt game — XOÁ vườn hiện tại (muốn tạm dừng giữ vườn: dùng ⏸ ở cửa sổ Khởi động nhanh)',
         bancung:    'Tắt game — HP về đầy',
     };
+    // ⏹ TẮT của game mà server xoá dữ liệu khi enabled true→false → hỏi trước, tooltip thôi chưa đủ.
+    const QL_STOP_CONFIRM = {
+        trongcay: {
+            icon: '🌳', title: 'Tắt Trồng Cây?',
+            body: 'Tắt game sẽ <b>XOÁ vườn hiện tại</b> và danh sách người đóng góp — không hoàn tác được.<br><span style="color:#8b93a8">Muốn tạm dừng mà giữ vườn: dùng ⏸ trong cửa sổ Khởi động nhanh.</span>',
+            okLabel: 'Tắt & xoá vườn'
+        }
+    };
+    async function confirmQuickLaunchStop(g) {
+        const c = QL_STOP_CONFIRM[g.id];
+        return c ? hpConfirm({ ...c, cancelLabel: 'Huỷ', tone: 'danger' }) : true;
+    }
     function buildQuickLaunchCard(g) {
         const enabled = isGameEnabled(g);
         const card = document.createElement('div');
@@ -616,7 +628,7 @@
             // Đọc state HIỆN TẠI (g.config có thể đã đổi sau khi user vừa bấm) — KHÔNG dùng closure `enabled`
             const curOn = isGameEnabled(g);
             if (action === 'start' && !curOn) setGameEnabled(g, true);
-            else if (action === 'stop' && curOn) setGameEnabled(g, false);
+            else if (action === 'stop' && curOn) confirmQuickLaunchStop(g).then(ok => { if (ok && isGameEnabled(g)) setGameEnabled(g, false); });
         });
         return card;
     }
@@ -716,6 +728,9 @@
                 // start = mở phiên (sessionActive=true, server reload overlay OBS), stop = tạm dừng
                 // giữ vườn, reset = xoá vườn + người đóng góp (server.js POST /api/games/trongcay/control).
                 try {
+                    // Game đang TẮT ở Thư viện mà bấm ▶ → BẬT trước, nếu không thẻ vẫn "Đã TẮT" và user tưởng bấm không ăn.
+                    const gTc = games.find(x => x.id === 'trongcay');
+                    if (action === 'start' && gTc && !isGameEnabled(gTc)) { try { await setGameEnabled(gTc, true); } catch (e) {} }
                     await fetch('/api/games/trongcay/control', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -4471,7 +4486,7 @@
             const host = $id('st-overlay-host'); if (host) host.textContent = 'http://' + (s.overlay?.host || 'localhost') + ':' + (s.overlay?.port || 3000);
             const mapped = $id('st-overlay-mapped');
             if (mapped) {
-                mapped.textContent = s.overlay?.hostMapped ? '✓ hpaction.obs đã map — dán được vào LIVE Studio' : '⚠ Chưa map hosts — dùng localhost cho OBS';
+                mapped.textContent = s.overlay?.hostMapped ? '✓ Đã map — dùng được trong LIVE Studio' : '⚠ Chưa map — dùng localhost cho OBS';
                 mapped.className = 'st-v ' + (s.overlay?.hostMapped ? 'ok-text' : 'warn-text');
             }
             const net = s.network || null;
@@ -4484,7 +4499,8 @@
                 else if (net.lanAccess) {
                     const urls = (net.lanAddresses || []).map(ip => 'http://' + ip + ':' + port);
                     lh.textContent = 'LAN: ' + (urls.join(' · ') || 'không tìm thấy IPv4 LAN') + ' · token X-HP-Token: ' + (net.token || '—')
-                        + ' — máy khác dán http://<IP>:' + port + '/overlay/... vào OBS (lần đầu Windows Firewall hỏi → chọn Allow).';
+                        + ' — máy khác dán http://<IP>:' + port + '/overlay/... vào OBS (lần đầu Windows Firewall hỏi → chọn Allow).'
+                        + ' Máy đó chỉ XEM; muốn kéo vị trí/đồng bộ từ overlay ở máy đó thì thêm ?token=' + (net.token || '<token>') + ' vào URL.';
                 } else lh.textContent = 'Đang lắng nghe 127.0.0.1 — chỉ máy này mở được overlay.';
             }
             const gc = $id('gift-count-hint');

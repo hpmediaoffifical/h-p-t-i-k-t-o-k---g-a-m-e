@@ -9140,7 +9140,7 @@ details.card > .obse-collapse-body { padding: 0 16px 16px; }
 /* ============================================================
    ⚙ Cài đặt v2 — panel gọn, mỗi mục là 1 thẻ "khoá → giá trị"
    ============================================================ */
-.settings-popup { width: 440px; }
+.settings-popup { width: 460px; max-width: calc(100vw - 40px); }
 .settings-popup .settings-head-sub { margin-left: auto; margin-right: 10px; font-size: 11px; color: #8b93a8; font-weight: 600; }
 .settings-popup .settings-block-title { display: flex; align-items: center; }
 .st-pill { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .3px; text-transform: none; background: #1f2533; color: #cdd3e0; border: 1px solid #2c3243; }
@@ -9148,10 +9148,18 @@ details.card > .obse-collapse-body { padding: 0 16px 16px; }
 .st-pill.warn { background: rgba(245,158,11,.12); color: #fbbf24; border-color: rgba(245,158,11,.35); }
 .st-pill.bad  { background: rgba(239,68,68,.12);  color: #f87171; border-color: rgba(239,68,68,.35); }
 .st-grid { display: grid; grid-template-columns: 1fr; gap: 6px; background: #0e1118; border: 1px solid #232936; border-radius: 10px; padding: 10px 12px; }
-.st-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; min-height: 20px; }
+.st-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 10px; font-size: 12px; min-height: 20px; }
 .st-k { color: #8b93a8; font-weight: 600; white-space: nowrap; }
-.st-v { color: #e6e8ee; font-weight: 700; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.st-v.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; background: rgba(255,255,255,.04); padding: 1px 6px; border-radius: 4px; }
+.st-v { color: #e6e8ee; font-weight: 700; text-align: right; flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; line-height: 1.35; }
+.st-v.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; font-size: 11px; background: rgba(255,255,255,.04); padding: 1px 6px; border-radius: 4px; }
+/* Mục Nâng cao gập/mở */
+details.st-adv > summary { cursor: pointer; list-style: none; user-select: none; }
+details.st-adv > summary::-webkit-details-marker { display: none; }
+details.st-adv > summary::before { content: '▸'; display: inline-block; width: 14px; color: #8b93a8; }
+details.st-adv[open] > summary::before { content: '▾'; }
+details.st-adv:not([open]) > summary { margin-bottom: 0; }
+details.st-adv > .st-field { margin-top: 8px; }
+details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; letter-spacing: 0; font-weight: 500; }
 .st-v.new { color: #4ade80; }
 .st-v.role-admin { color: #c084fc; } .st-v.role-creator { color: #67e8f9; } .st-v.role-vip { color: #ffd166; }
 .st-v.ok-text { color: #4ade80; } .st-v.warn-text { color: #fbbf24; }

@@ -60,6 +60,12 @@
         // Socket: server đã emit 'pktiktok:play' THẲNG cho overlay khi auto-detect PK event.
         // Ở đây panel CHỈ ghi Log (không trigger lại — tránh phát 2 lần).
         if (socket) {
+            // Bật/tắt từ Khởi động nhanh hoặc ⏻ Thư viện → nút power trong panel đổi theo (trước đây lệch, bấm 2 lần mới về đúng).
+            socket.on('gameConfig', ({ gameId, config }) => {
+                if (gameId !== 'pktiktok' || !config || !cfg) return;
+                cfg.enabled = config.enabled !== false;
+                syncPowerBtn();
+            });
             socket.on('pktiktok:autoTrigger', (data) => {
                 const ev = cfg?.events?.find(e => e.key === data?.key);
                 if (!ev) return;

@@ -171,6 +171,11 @@
 
         // Socket listeners — log trigger realtime
         if (socket) {
+            socket.on('gameConfig', ({ gameId, config }) => {
+                if (gameId !== 'vipwelcome' || !config || !cfg) return;
+                cfg.enabled = config.enabled !== false;
+                syncPowerBtn();
+            });
             socket.on('vipwelcome:log', (entry) => addLogLine(entry));
             socket.on('vipwelcome:logCleared', () => {
                 const log = $('#vw-log');
@@ -869,7 +874,7 @@
         const g = profile[K.key];
         if (!g) { host.innerHTML = ''; return; }   // profile chưa normalize → không crash
         const titleEmoji = K.emoji;
-        const titleText = `[${profile.name}] TẤT CẢ USER — ${K.title}`;
+        const titleText = `[${escapeHtml(profile.name || '')}] TẤT CẢ USER — ${K.title}`;
         const styleOptions = ['<option value="">— Theo phong cách nhóm —</option>']
             .concat(LABEL_STYLE_DEFS.map(s => `<option value="${s.id}" ${g.labelStyle === s.id ? 'selected' : ''}>${s.emoji} ${escapeHtml(s.label)}</option>`))
             .join('');
