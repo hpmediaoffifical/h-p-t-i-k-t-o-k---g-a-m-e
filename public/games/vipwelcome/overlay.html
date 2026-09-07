@@ -240,6 +240,7 @@
             // Avatar — set src nếu có + showAvatar enabled từ config
             const showAvatar = currentCfg?.display?.showAvatar !== false;
             if (showAvatar && opts?.avatarUrl) {
+                avatarEl.onerror = () => { avatarEl.classList.remove('show'); avatarEl.removeAttribute('src'); };   // link CDN hết hạn → ẩn thay vì ô đen
                 avatarEl.src = opts.avatarUrl;
                 avatarEl.classList.add('show');
             } else {
@@ -296,10 +297,18 @@
             playing = true;
             playMedia(next);
         }
+        const CLIENT_QUEUE_MAX = 20;
+        const PLAY_WATCHDOG_MS = 25000;
+        let playWatchdog = null;
         function fire(payload) {
             if (!payload || !payload.mediaUrl) return;
+            if (queue.some(q => q.seq != null && q.seq === payload.seq)) return;   // server gửi lại cùng lượt → bỏ
             queue.push(payload);
+            while (queue.length > CLIENT_QUEUE_MAX) queue.shift();               // không phình vô hạn khi clip kẹt
             if (!playing) advanceQueue();
+            // Watchdog: clip không bắn onended/onerror (codec lỗi, file hỏng) → sau 25s tự sang lượt kế
+            clearTimeout(playWatchdog);
+            playWatchdog = setTimeout(() => { if (playing) { clearPlayer(); clearAudio(); playing = false; advanceQueue(); } }, PLAY_WATCHDOG_MS);
         }
 
         let offlineTimer = null;
@@ -328,6 +337,7 @@
                 applyDisplay();
             } catch (e) {}
             socket.emit('subscribe', 'overlay');
+            socket.emit('subscribe', 'overlay:vipwelcome');   // room riêng → server đếm đúng overlay VIP đang mở
         }
 
         socket.on('connect', () => {
@@ -358,6 +368,10 @@
         // Force reload — gửi từ app sau khi user đổi setting để OBS browser source cập nhật
         socket.on('vipwelcome:reload', () => {
             try { location.reload(true); } catch (e) { location.reload(); }
+        });
+        // Reload chung toàn app (mọi overlay khác đều nghe) — trước đây VIP là overlay duy nhất bỏ qua
+        socket.on('overlay:reload', (data) => {
+            if (!data || !data.gameId || data.gameId === 'vipwelcome') location.reload();
         });
 
         fetch('/api/games/vipwelcome/config').then(r => r.json()).then(cfg => {

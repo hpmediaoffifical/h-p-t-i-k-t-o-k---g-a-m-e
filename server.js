@@ -19,7 +19,90 @@ const { spawn } = require('child_process');
 const express = require('express');
 const { Server: SocketIOServer } = require('socket.io');
 const fetch = require('node-fetch');
-const { TikTokLiveConnection, WebcastEvent, ControlEvent } = require('tiktok-live-connector');
+// tiktok-live-connector 2.4.4 là gói ESM-only: Node ≥22.12/24 (và Electron 42, kể cả trong app.asar) require() được
+// đồng bộ; Node cũ ném ERR_REQUIRE_ESM → rơi về import() động. Mọi chỗ dùng đều đi qua loadTikTokConnector()
+// (memo hoá) — KHÔNG destructure toàn cục để không dùng trước khi nạp.
+// Lib 2.4.4 đọc timeout HTTP/WS từ env (webClientOptions.timeout bị bỏ qua) → đặt trước khi tạo connection.
+process.env.TIKTOK_CLIENT_TIMEOUT ||= '20000';
+process.env.WS_CONNECT_TIMEOUT_MS ||= '20000';
+let tlc = null;          // { TikTokLiveConnection, WebcastEvent, ControlEvent, errors, SignConfig, ... } sau khi nạp + vá route
+let tlcPromise = null;
+function requireTikTokConnectorSync() {
+    try { return require('tiktok-live-connector'); }
+    catch (e) {
+        const code = String((e && e.code) || '');
+        const msg = String((e && e.message) || '');
+        if (/ERR_REQUIRE_ESM|ERR_REQUIRE_ASYNC_MODULE|ERR_PACKAGE_PATH_NOT_EXPORTED/.test(code) || /require\(\) of ES Module/i.test(msg)) return null;
+        throw e;
+    }
+}
+// Vá 1 lần sau khi nạp: fetchAvailableGifts() của 2.4.4 KÝ request gift/list qua Euler (signTikTokUrl) — tier ẩn danh bị
+// từ chối ("requires a Business plan") → connect() với enableExtendedGiftInfo:true sẽ thất bại. TikTok vẫn trả gift/list
+// KHÔNG ký (≈700 quà, id là number, cùng shape lookupGiftFromTikTok đang đọc) → thay handler bằng bản không ký;
+// lỗi gift-list không được làm rớt kết nối (trả [] rồi đi tiếp).
+function finishTikTokConnector(m) {
+    const RouteConfig = m.RouteConfig;
+    const originalFetchRoomGifts = m.fetchRoomGiftsRoute || (RouteConfig && RouteConfig.fetchRoomGifts);
+    if (RouteConfig && !RouteConfig.__hpUnsignedGifts) {
+        RouteConfig.fetchRoomGifts = async ({ webClient, roomId = webClient?.roomId }) => {
+            if (!roomId) throw new Error('Missing roomId');
+            try {
+                const res = await webClient.getJsonObjectFromWebcastApi('gift/list/', { ...webClient.clientParams, room_id: roomId }, false);
+                const gifts = res?.data?.gifts;
+                if (Array.isArray(gifts) && gifts.length) return gifts;
+                console.warn(`[tiktok] gift/list không ký trả status_code=${res?.status_code ?? '?'} không có quà — thử bản ký`);
+            } catch (e) {
+                console.warn('[tiktok] gift/list không ký lỗi:', String(e?.message || e).split('\n')[0]);
+            }
+            try {
+                if (typeof originalFetchRoomGifts === 'function') {
+                    const gifts = await originalFetchRoomGifts({ webClient, roomId });
+                    if (Array.isArray(gifts)) return gifts;
+                }
+            } catch (e) {
+                console.warn('[tiktok] gift/list bản ký cũng lỗi (thường cần gói trả phí Euler) — bỏ qua, kết nối vẫn tiếp tục:', String(e?.message || e).split('\n')[0]);
+            }
+            return [];
+        };
+        RouteConfig.__hpUnsignedGifts = true;
+    }
+    return {
+        TikTokLiveConnection: m.TikTokLiveConnection,
+        WebcastEvent: m.WebcastEvent,
+        ControlEvent: m.ControlEvent,
+        RouteConfig,
+        SignConfig: m.SignConfig,
+        VERSION: m.VERSION || '',
+        errors: {
+            UserOfflineError: m.UserOfflineError,
+            ConnectTimeoutError: m.ConnectTimeoutError,
+            AlreadyConnectedError: m.AlreadyConnectedError,
+            AlreadyConnectingError: m.AlreadyConnectingError,
+            SignatureRateLimitError: m.SignatureRateLimitError,
+            SignAPIError: m.SignAPIError,
+            PremiumFeatureError: m.PremiumFeatureError,
+            InvalidUniqueIdError: m.InvalidUniqueIdError
+        },
+        raw: m
+    };
+}
+async function loadTikTokConnector() {
+    if (tlc) return tlc;
+    if (!tlcPromise) {
+        tlcPromise = (async () => {
+            let m = requireTikTokConnectorSync();
+            const how = m ? 'require' : 'import()';
+            if (!m) m = await import('tiktok-live-connector');
+            if (!m || typeof m.TikTokLiveConnection !== 'function') throw new Error('tiktok-live-connector nạp được nhưng thiếu TikTokLiveConnection');
+            tlc = finishTikTokConnector(m);
+            console.log(`[tiktok] tiktok-live-connector v${tlc.VERSION || '?'} đã nạp qua ${how} (node ${process.versions.node})`);
+            return tlc;
+        })().catch((e) => { tlcPromise = null; throw e; });
+    }
+    return tlcPromise;
+}
+// Nạp sớm lúc khởi động (không chặn listen) để log phiên bản + báo sớm nếu gói hỏng.
+loadTikTokConnector().catch((e) => console.error('[tiktok] KHÔNG nạp được tiktok-live-connector:', e?.message || e));
 const { OBSBridge } = require('./lib/obs-bridge');
 const { LuaSync } = require('./lib/lua-sync');
 const { OBSSettings } = require('./lib/obs-settings');
@@ -47,9 +130,78 @@ const CONFIG_BACKUP_DIR = path.join(DATA_DIR, 'config-backups');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
+// ====== Làm cứng mạng ======
+// Mặc định server chỉ lắng nghe 127.0.0.1 (appConfig.network.lanAccess=false). Khi bật "Cho máy khác
+// trong LAN" (⚙ Cài đặt) → bind 0.0.0.0; máy khác chỉ được ĐỌC (GET overlay + socket), muốn GHI
+// (POST/PUT/PATCH/DELETE) phải gửi header X-HP-Token = appConfig.network.token.
+// Mọi request GHI từ trình duyệt bị kiểm Origin (chống CSRF / DNS rebinding từ trang lạ).
+// Ghi đè host bind bằng biến môi trường HP_BIND_HOST (vd 0.0.0.0 hoặc ::) — luôn thắng config.
+const HP_BIND_HOST_ENV = String(process.env.HP_BIND_HOST || '').trim();
+const LOCAL_ORIGIN_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]', 'hpaction.obs', String(OBS_LOCAL_HOST).toLowerCase()]);
+function networkConfig() {
+    if (!appConfig.network || typeof appConfig.network !== 'object') appConfig.network = { lanAccess: false, token: '' };
+    return appConfig.network;
+}
+// IPv4 của máy này trong LAN (bỏ loopback/internal) — hiện ở ⚙ Cài đặt + allowlist Origin khi bật LAN.
+function lanAddresses() {
+    const out = [];
+    try {
+        for (const list of Object.values(os.networkInterfaces())) {
+            for (const a of (list || [])) {
+                if (!a.internal && (a.family === 'IPv4' || a.family === 4)) out.push(a.address);
+            }
+        }
+    } catch (_) {}
+    return out;
+}
+function isLoopbackIp(ip) {
+    const s = String(ip || '').replace(/^::ffff:/i, '');   // bind '::' → client IPv4 hiện dạng ::ffff:127.0.0.1
+    return s === '::1' || s.startsWith('127.');
+}
+function isAllowedOriginHost(hostname) {
+    const h = String(hostname || '').toLowerCase();
+    if (!h) return false;
+    if (LOCAL_ORIGIN_HOSTS.has(h) || /^127\.\d+\.\d+\.\d+$/.test(h)) return true;
+    return networkConfig().lanAccess === true && lanAddresses().includes(h);
+}
+// origin = header Origin (hoặc Referer khi thiếu Origin). Không có = client không phải trình duyệt
+// (curl, node-fetch từ electron-main, PowerShell) → cho qua; 'null' (sandbox / file://) → chặn.
+function originAllowed(origin) {
+    if (origin === undefined || origin === null || origin === '') return true;
+    const s = String(origin);
+    if (s === 'null') return false;
+    try { return isAllowedOriginHost(new URL(s).hostname); } catch (_) { return false; }
+}
+function tokenMatches(given, expected) {
+    const a = Buffer.from(String(given || '')), b = Buffer.from(String(expected || ''));
+    return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 const app = express();
 const httpServer = http.createServer(app);
-const io = new SocketIOServer(httpServer, { cors: { origin: '*' } });
+const io = new SocketIOServer(httpServer, {
+    cors: { origin: (origin, cb) => cb(null, originAllowed(origin)) },
+    // Gói cors chỉ set header (không bao giờ trả 403) và CORS không áp dụng cho WebSocket →
+    // allowRequest mới thật sự chặn handshake (polling lẫn websocket) từ trang lạ theo Origin.
+    allowRequest: (req, cb) => (originAllowed(req.headers.origin) ? cb(null, true) : cb('origin_not_allowed', false))
+});
+
+// Chống CSRF / DNS rebinding cho mọi request GHI — đặt TRƯỚC express.static/express.json và mọi
+// express.raw inline ở route upload. GET và /socket.io không bị chặn ở đây.
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+app.use((req, res, next) => {
+    if (!WRITE_METHODS.has(req.method) || req.path.startsWith('/socket.io')) return next();
+    const src = req.headers.origin !== undefined ? req.headers.origin : req.headers.referer;
+    if (!originAllowed(src)) return res.status(403).json({ ok: false, error: 'origin_not_allowed' });
+    // Máy khác trong LAN muốn GHI: phải bật "Cho máy khác trong LAN" + gửi header X-HP-Token (⚙ Cài đặt).
+    const remote = req.socket && req.socket.remoteAddress;
+    if (remote && !isLoopbackIp(remote)) {
+        const n = networkConfig();
+        if (n.lanAccess !== true) return res.status(403).json({ ok: false, error: 'lan_access_disabled' });
+        if (!tokenMatches(req.headers['x-hp-token'], n.token)) return res.status(403).json({ ok: false, error: 'token_required' });
+    }
+    next();
+});
 
 // Static files: tắt cache cho JS/CSS/HTML để Electron renderer luôn nhận file mới
 // sau khi app update (tránh tình trạng renderer cache code cũ → tính năng mới không hiện).
@@ -256,21 +408,38 @@ function makeDefaultVipWelcomeProfile(name) {
         name: name || 'Nhóm mặc định',
         enabled: true,
         userRules: [],          // [{ id, uniqueId, trigger, mediaUrl, mediaName, mediaType, volume, message, minLevel, minDiamond, enabled }]
+        // Rule "Tất cả user" — 4 điều kiện lọc phụ (requireTopUser / minFansLevel / requireSubscriber /
+        // requireFollowing) theo dữ liệu TikTok gửi kèm event; kiểm ở vipGlobalRulePasses. labelStyle '' = theo nhóm.
         globalJoin: {
             enabled: false,
             mediaUrl: '', mediaName: '', mediaType: '',
             volume: 100,
             message: 'Chào mừng {nickname} (cấp {level}) đã ghé phòng!',
+            labelStyle: '',
             minLevel: 30,
-            requireVerified: false    // Chỉ phát cho TikTok có tích xanh
+            requireVerified: false,   // Chỉ phát cho TikTok có tích xanh
+            requireTopUser: false, minFansLevel: 0, requireSubscriber: false, requireFollowing: false
         },
         globalGift: {
             enabled: false,
             mediaUrl: '', mediaName: '', mediaType: '',
             volume: 100,
             message: 'Chúc mừng {nickname} vừa lên cấp {level}!',
+            labelStyle: '',
             minLevel: 30,
-            requireVerified: false
+            requireVerified: false,
+            requireTopUser: false, minFansLevel: 0, requireSubscriber: false, requireFollowing: false
+        },
+        // Đăng ký kênh (MEMBER action=3) — minLevel 0 để không im lặng với người cấp thấp vừa sub.
+        globalSubscribe: {
+            enabled: false,
+            mediaUrl: '', mediaName: '', mediaType: '',
+            volume: 100,
+            message: 'Cảm ơn {nickname} đã đăng ký kênh! {sub}',
+            labelStyle: '',
+            minLevel: 0,
+            requireVerified: false,
+            requireTopUser: false, minFansLevel: 0, requireSubscriber: false, requireFollowing: false
         }
     };
 }
@@ -785,6 +954,7 @@ function migrateVipWelcomeConfig(cfg) {
             cfg.activeProfileId = cfg.profiles[0].id;
         }
         // Strip legacy minDiamond + minLevel khỏi user rules (user yêu cầu chỉ định ID = không cần level filter)
+        const defProfile = makeDefaultVipWelcomeProfile('');
         for (const p of cfg.profiles) {
             if (Array.isArray(p.userRules)) {
                 p.userRules = p.userRules.map(r => {
@@ -795,6 +965,11 @@ function migrateVipWelcomeConfig(cfg) {
             if (p.globalGift && 'minDiamond' in p.globalGift) {
                 const { minDiamond, ...rest } = p.globalGift;
                 p.globalGift = rest;
+            }
+            // Profile từ bản cũ thiếu globalSubscribe / các field lọc mới (requireTopUser, minFansLevel, labelStyle...)
+            // → merge default vào dưới giá trị đã lưu, để config trên đĩa đủ field ngay cả khi panel chưa lưu lại.
+            for (const key of ['globalJoin', 'globalGift', 'globalSubscribe']) {
+                p[key] = { ...defProfile[key], ...(p[key] && typeof p[key] === 'object' ? p[key] : {}) };
             }
         }
         // Auto-update perItemMinMs từ default cũ (2500) sang default mới (200) — user không
@@ -817,6 +992,7 @@ function migrateVipWelcomeConfig(cfg) {
         const { minDiamond, ...rest } = cfg.globalGift;
         def.globalGift = { ...def.globalGift, ...rest };
     }
+    if (cfg.globalSubscribe) def.globalSubscribe = { ...def.globalSubscribe, ...cfg.globalSubscribe };
     const out = makeDefaultVipWelcomeConfig();
     out.enabled = cfg.enabled !== false;
     out.profiles = [def];
@@ -1300,6 +1476,19 @@ if (appConfig.liveTranslate.manualStartVersion !== 1) {
     appConfig.liveTranslate.manualStartVersion = 1;
 }
 appConfig.creatorCaption = sanitizeCreatorCaptionConfig(appConfig.creatorCaption || {});
+
+// ====== Mạng (⚙ Cài đặt → OBS & Overlay) ======
+// { lanAccess: false → chỉ 127.0.0.1; true → 0.0.0.0, máy khác chỉ ĐỌC, GHI cần header X-HP-Token = token }
+// Token 32 hex sinh 1 lần khi trống (lưu ngay để giữ nguyên qua các lần mở app).
+if (!appConfig.network || typeof appConfig.network !== 'object') appConfig.network = { lanAccess: false, token: '' };
+appConfig.network.lanAccess = appConfig.network.lanAccess === true;
+if (!/^[0-9a-f]{32}$/i.test(String(appConfig.network.token || ''))) {
+    appConfig.network.token = crypto.randomBytes(16).toString('hex');
+    try { saveAppConfig(); } catch (e) { console.warn('[server] Không lưu được token mạng:', e.message); }
+}
+// Chốt host bind lúc khởi động — đổi công tắc LAN trong ⚙ Cài đặt chỉ có hiệu lực sau khi mở lại app.
+const NETWORK_LAN_ACCESS_AT_START = appConfig.network.lanAccess;
+const BIND_HOST = HP_BIND_HOST_ENV || (NETWORK_LAN_ACCESS_AT_START ? '0.0.0.0' : '127.0.0.1');
 
 // ====== SEED media PK cho bản cài mới ======
 // Bản đóng gói: userData/data/pktiktok-assets trống khi cài mới → PK không có âm/video.
@@ -1828,6 +2017,7 @@ function liveTranslateUserKeys(user) {
 function rememberLiveTranslateUser(map, user) {
     const now = Date.now();
     for (const key of liveTranslateUserKeys(user)) map.set(key, now);
+    pruneStaleMap(map, now, LIVE_TRANSLATE_PRIORITY_WINDOW_MS);
 }
 function wasLiveTranslateUserRecent(map, user) {
     const now = Date.now();
@@ -1880,6 +2070,7 @@ function shouldSpeakLiveTranslate(chat, cfg) {
         const now = Date.now();
         if (now - (liveTranslateLastSpoken.get(key) || 0) < cooldownMs) return false;
         liveTranslateLastSpoken.set(key, now);
+        pruneStaleMap(liveTranslateLastSpoken, now, Math.max(cooldownMs, 10 * 60 * 1000));
     }
     return true;
 }
@@ -2036,6 +2227,7 @@ function processLiveTranslateChat(chat) {
 // ====== Gift list loader (via license-server proxy) ======
 let giftMap = {};
 let giftList = [];
+let giftSheetLoadedAt = 0;   // thời điểm nạp danh sách quà gần nhất (hiện ở ⚙ Cài đặt)
 
 // ====== Gift list disk cache ======
 // Vì sao: trên 1 số PC, cả license-server (hp-license.nguyenvu.dev) lẫn fallback
@@ -2201,6 +2393,7 @@ async function loadGiftSheet() {
     // Sort theo Kim Cương ASC (thấp → cao). Áp dụng cho cả nguồn license-server
     // lẫn fallback Google Sheet trực tiếp.
     giftList = listFromServer.slice().sort((a, b) => (a.diamond || 0) - (b.diamond || 0));
+    giftSheetLoadedAt = Date.now();
     giftMap = {};
     for (const g of giftList) {
         if (g && g.id) giftMap[String(g.id)] = g;
@@ -2255,6 +2448,110 @@ let liveConnected = false;
 let currentRoomId = null;
 let currentHostUserId = '';   // owner.userId của room đang connect — dùng để identify host team trong PK
 let currentHostProfile = null;   // { uniqueId, nickname, profilePic, userId } — broadcast cho Caro avatar mode
+
+// ====== TikTok payload normalizers ======
+// Schema tiktok-live-connector v2: Image.url là MẢNG (nhiều CDN mirror). Gán thẳng vào <img src> thì
+// trình duyệt nhận chuỗi "url1,url2,url3" → avatar vỡ. Luôn đi qua hàm này để lấy link đầu tiên hợp lệ.
+function pickAvatarUrl(v, depth = 0) {
+    if (!v || depth > 3) return '';
+    if (typeof v === 'string') return /^(https?:)?\/\//i.test(v) || v.startsWith('/') || v.startsWith('data:') ? v : '';
+    if (Array.isArray(v)) { for (const x of v) { const s = pickAvatarUrl(x, depth + 1); if (s) return s; } return ''; }
+    if (typeof v === 'object') return pickAvatarUrl(v.url ?? v.urlList ?? v.url_list ?? v.uri ?? '', depth + 1);
+    return '';
+}
+// ID TikTok (userId/giftId/...) có thể là string, number hay bigint tuỳ bản lib; '0' là mặc định proto = không có.
+function tiktokIdToString(v) {
+    if (v == null || typeof v === 'object') return '';
+    const s = String(v).trim();
+    return (s === '' || s === '0' || s === 'NaN' || s === 'undefined') ? '' : s;
+}
+// giftId: v3 (2.4.4) là STRING (2.1.0 number) và cũng nằm ở data.gift.id → luôn về chuỗi.
+function getTikTokGiftId(data) {
+    return tiktokIdToString(data?.giftId) || tiktokIdToString(data?.gift?.id) || tiktokIdToString(data?.gift?.gift_id) || tiktokIdToString(data?.giftDetails?.giftId);
+}
+// Schema 2.4.4 (tiktok-live-proto v3) dùng TÊN THẬT của TikTok: user.id / displayId / avatarThumb / payGrade thay cho
+// userId / uniqueId / profilePicture / userHonor của 2.1.0. Đọc CẢ 2 dạng (cũ ?? mới) để không phụ thuộc bản lib.
+function normalizeTikTokUser(u, data) {
+    u = u || {};
+    return {
+        uniqueId: u.uniqueId || u.displayId || u.display_id || data?.uniqueId || '',
+        userId: tiktokIdToString(u.userId) || tiktokIdToString(u.idStr) || tiktokIdToString(u.id_str) || tiktokIdToString(u.id) || tiktokIdToString(data?.userId),
+        nickname: u.nickname || u.nickName || '',
+        level: Number(u.userHonor?.level ?? u.payGrade?.level ?? u.pay_grade?.level) || 0,
+        profilePicture: pickAvatarUrl(u.profilePicture || u.profilePictureUrl || u.avatarThumb || u.avatar_thumb || u.avatarMedium || u.avatarLarge),
+        verified: !!u.verified
+    };
+}
+// Rút các trường TikTok THẬT gửi kèm user (top gifter / fan club / subscriber / moderator / follow).
+// Trường nào TikTok không gửi thì về 0/false — không đoán. Dùng cho VIP Welcome + placeholder tin nhắn.
+// v3 đổi kiểu số → chuỗi (followStatus, followerCount, fansLevel) → luôn bọc Number().
+function extractTikTokUser(data) {
+    const u = data?.user || {};
+    const base = normalizeTikTokUser(u, data);
+    const followStatus = Number(u.followInfo?.followStatus ?? u.followStatus ?? 0) || 0;
+    const topUserNo = Number(data?.topUserNo) || 0;
+    return {
+        ...base,
+        isTopUser: !!data?.isTopUser || (topUserNo > 0 && topUserNo <= 3),   // WebcastMemberMessage.isTopUser/topUserNo
+        topUserNo,
+        fansLevel: Number(u.fansClubInfo?.fansLevel ?? u.fansClub?.data?.level ?? 0) || 0,
+        fansClubName: u.fansClubInfo?.fansClubName || u.fansClub?.data?.clubName || '',
+        isSubscriber: !!(u.subscribeInfo?.isSubscribe || u.isSubscribe || u.subscribeInfo?.isSubscribedToAnchor),
+        isModerator: !!(u.userAttr?.isAdmin || u.userAttr?.isSuperAdmin || data?.isSetToAdmin),
+        isFollowing: followStatus === 1 || followStatus === 2,
+        followStatus
+    };
+}
+// Dọn map "ai vừa làm gì" (translate/priority) — trước đây lớn mãi theo số viewer cả buổi.
+function pruneStaleMap(map, now, maxAgeMs, softCap = 3000) {
+    if (map.size < softCap) return;
+    for (const [k, ts] of map) if (now - ts > maxAgeMs) map.delete(k);
+}
+
+// ====== Tự kết nối lại khi rớt LIVE ======
+// Wi-Fi/TikTok rớt giữa buổi → trước đây app nằm im cho tới khi người dùng bấm Kết nối lại.
+// Backoff tăng dần để không đốt hạn mức ký WebSocket của Euler Stream (ẩn danh: 5 lượt/phút, 100/ngày).
+const RECONNECT_DELAYS_MS = [5000, 15000, 30000, 60000, 120000, 300000];
+const RECONNECT_MAX_ATTEMPTS = 12;
+let manualDisconnect = false;   // người dùng bấm Ngắt → không tự nối lại
+let streamEnded = false;        // TikTok báo LIVE kết thúc → không tự nối lại
+let reconnectTimer = null;
+let reconnectAttempt = 0;
+let reconnectDelayMs = 0;
+function cancelAutoReconnect() {
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+}
+function scheduleAutoReconnect() {
+    if (manualDisconnect || streamEnded || !currentUsername || connecting) return false;
+    if (appConfig.autoReconnect === false) return false;   // người dùng tắt trong ⚙ Cài đặt
+    if (reconnectTimer) return true;
+    if (reconnectAttempt >= RECONNECT_MAX_ATTEMPTS) {
+        console.warn(`[tiktok] Đã tự thử nối lại ${reconnectAttempt} lần không thành — dừng. Bấm Kết nối để thử lại.`);
+        return false;
+    }
+    reconnectDelayMs = RECONNECT_DELAYS_MS[Math.min(reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)];
+    reconnectAttempt++;
+    const attemptNo = reconnectAttempt;
+    reconnectTimer = setTimeout(async () => {
+        reconnectTimer = null;
+        if (manualDisconnect || streamEnded || !currentUsername) return;
+        console.log(`[tiktok] Tự kết nối lại lần ${attemptNo}/${RECONNECT_MAX_ATTEMPTS} → @${currentUsername}`);
+        broadcast('status', { connected: false, username: currentUsername, reconnecting: true, attempt: attemptNo, phase: 'connecting' });
+        try {
+            await connectToUser(currentUsername, { preserveSession: true, auto: true });
+            reconnectAttempt = 0;
+        } catch (e) {
+            const msg = String(e?.message || e || '');
+            console.warn(`[tiktok] Tự kết nối lại thất bại: ${msg}`);
+            // LIVE chưa bật lại → giãn thưa hơn (nhảy tới nấc 60s+), không cần dồn dập.
+            if (/isn't online|not online|offline/i.test(msg)) reconnectAttempt = Math.max(reconnectAttempt, 3);
+            const again = scheduleAutoReconnect();
+            broadcast('status', { connected: false, username: currentUsername, reconnecting: again, attempt: reconnectAttempt, nextInMs: again ? reconnectDelayMs : 0, error: msg });
+        }
+    }, reconnectDelayMs);
+    reconnectTimer.unref?.();
+    return true;
+}
 // Hook để emitGift gọi vào PK gift tracking (set bởi attachConnectionEvents khi PK active)
 let pktiktokTrackPkGift = null;
 // Lưu thông tin TOP 1 contributor khi PK kết thúc — dùng cho rule override
@@ -2266,10 +2563,11 @@ let liveStats = {
     totalLikes: 0,
     totalShares: 0,
     totalFollows: 0,
+    totalSubscribes: 0,
     followerCount: 0
 };
 function resetLiveStats() {
-    liveStats = { viewerCount: 0, totalDiamond: 0, totalLikes: 0, totalShares: 0, totalFollows: 0, followerCount: 0 };
+    liveStats = { viewerCount: 0, totalDiamond: 0, totalLikes: 0, totalShares: 0, totalFollows: 0, totalSubscribes: 0, followerCount: 0 };
     // 💎 LIVE mới → tổng 💎 về 0, nên baseline KPI Trồng Cây cũng phải về 0 (tránh mốc bị "âm" rồi clamp 0 cả buổi sau).
     if (typeof trongCayState !== 'undefined' && trongCayState) trongCayState.kpiBaseline = 0;
 }
@@ -2291,7 +2589,8 @@ function emitLiveStatsImmediate() {
 function broadcast(type, payload) { io.emit(type, payload); }
 function isTikTokLiveConnected() { return !!(connection && liveConnected); }
 
-function attachConnectionEvents(conn) {
+function attachConnectionEvents(conn, lib) {
+    const { WebcastEvent, ControlEvent } = lib;   // từ loadTikTokConnector() — không có biến toàn cục để tránh dùng trước khi nạp
     conn.on(ControlEvent.CONNECTED, (state) => {
         liveConnected = true;
         currentRoomId = state?.roomId;
@@ -2299,31 +2598,42 @@ function attachConnectionEvents(conn) {
         setLiveDashboardStatus(true, { username: currentUsername, roomId: currentRoomId });
         console.log(`[tiktok] Connected to roomId=${currentRoomId}`);
     });
-    conn.on(ControlEvent.DISCONNECTED, () => {
+    conn.on(ControlEvent.DISCONNECTED, (info) => {
+        // Các connection thử-nghiệm bị loại trong vòng retry cũng bắn DISCONNECTED → chỉ xử lý connection đang dùng.
+        if (conn !== connection) return;
         liveConnected = false;
-        broadcast('status', { connected: false, username: currentUsername });
+        resetPkState(); clearPkAutoQueue();   // rớt giữa trận PK: dừng timer lead/behind, xả queue auto
+        const willRetry = scheduleAutoReconnect();
+        broadcast('status', { connected: false, username: currentUsername, reason: 'disconnected', reconnecting: willRetry, attempt: reconnectAttempt, nextInMs: willRetry ? reconnectDelayMs : 0 });
         setLiveDashboardStatus(false, { username: currentUsername });
-        console.log('[tiktok] Disconnected');
+        console.log(`[tiktok] Disconnected (code=${info?.code ?? '?'})${willRetry ? ` — tự kết nối lại sau ${Math.round(reconnectDelayMs / 1000)}s` : ''}`);
     });
     conn.on(WebcastEvent.STREAM_END, () => {
+        if (conn !== connection) return;
         liveConnected = false;
+        streamEnded = true;
+        cancelAutoReconnect();
+        resetPkState(); clearPkAutoQueue();
         broadcast('status', { connected: false, username: currentUsername, reason: 'streamEnd' });
         setLiveDashboardStatus(false, { username: currentUsername });
+        console.log('[tiktok] LIVE đã kết thúc (streamEnd)');
     });
     conn.on(ControlEvent.ERROR, (err) => {
-        console.error('[tiktok] error:', err?.message || err);
-        broadcast('error', { message: err?.message || String(err) });
+        // Lib bắn { info, exception } (không phải Error) → err.message undefined, trước đây in ra '[object Object]'.
+        const exc = err?.exception;
+        const info = String(err?.info || '');
+        const message = String(exc?.message || err?.message || info || err || 'unknown').split('\n')[0];
+        console.error(`[tiktok] error${info ? ` (${info})` : ''}:`, message);
+        // 2.4.4 bắn ERROR cho cả các bước fallback bình thường lúc connect (HTML → API → Euler) và cho các
+        // connection thử-nghiệm trong vòng retry → chỉ đẩy toast lên UI cho connection đang dùng.
+        if (conn !== connection) return;
+        broadcast('error', { message });
     });
 
     conn.on(WebcastEvent.CHAT, (data) => {
         liveConnected = true;
-        const uniqueId = data?.user?.uniqueId;
-        const userId = data?.user?.userId;
-        const nickname = data?.user?.nickname;
-        const level = Number(data?.user?.userHonor?.level) || 0;
-        const profilePicture = data?.user?.profilePicture?.url || data?.user?.profilePictureUrl;
-        const verified = !!data?.user?.verified;
-        const comment = data?.comment;
+        const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
+        const comment = data?.comment ?? data?.content;   // v3 (2.4.4): content
         rememberUserMapping(userId, uniqueId);
         const chatPayload = {
             uniqueId, nickname,
@@ -2335,30 +2645,39 @@ function attachConnectionEvents(conn) {
         broadcast('chat', chatPayload);
         processLiveTranslateChat(chatPayload);
         // First-seen JOIN fallback + dedicated 'comment' trigger
-        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'chat', verified, userId);
-        try { handleVipWelcomeEvent('comment', { uniqueId, nickname, level, profilePicture, verified, comment }); } catch (e) {}
+        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'chat', verified, userId, extractTikTokUser(data));
+        try { handleVipWelcomeEvent('comment', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified, comment }); } catch (e) {}
         try { handleVoteCommentChat({ uniqueId, comment }); } catch (e) {}
         try { handleTrongCayChat({ uniqueId, nickname, profilePicture, comment }); } catch (e) {}
     });
 
     conn.on(WebcastEvent.GIFT, (data) => {
-        const giftType = data?.giftDetails?.giftType ?? data?.gift?.gift_type ?? data?.giftType;
+        // giftType 1 = quà có combo: TikTok bắn 1 message MỖI lần bấm + 1 message repeatEnd=1 chốt combo.
+        // Chỉ xử lý message chốt → 1 combo đếm 1 lần. Fallback extendedGiftInfo.type khi giftDetails thiếu
+        // (trước đây thiếu giftDetails → coi là không-combo → mỗi lần bấm đếm thêm 1 lần).
+        // v3 (2.4.4): data.gift = Gift {id, name, type, diamondCount, image}; 2.1.0: data.giftDetails {giftType, giftName, ...}.
+        // extendedGiftInfo ở 2.4.4 gần như không bao giờ gắn (so giftId string với id number) → chỉ là fallback cuối.
+        const giftType = data?.gift?.type ?? data?.giftDetails?.giftType ?? data?.extendedGiftInfo?.type ?? data?.gift?.gift_type ?? data?.giftType;
         const isStreak = Number(giftType) === 1;
-        maybeTriggerPkItemFromGift(data);
-        const repeatEnded = data?.repeatEnd ?? data?.repeat_end ?? data?.isStreakEnd ?? data?.is_streak_end;
+        const repeatEnded = data?.repeatEnd ?? data?.repeat_end ?? data?.isStreakEnd ?? data?.is_streak_end;   // v3: number 0/1, cũ: boolean
         if (isStreak && !repeatEnded) return;
-        rememberUserMapping(data?.user?.userId, data?.user?.uniqueId);
+        maybeTriggerPkItemFromGift(data);   // sau cổng streak → 1 combo = 1 lần xét găng tay (không lặp mỗi tick)
+        const tkUser = extractTikTokUser(data);
+        rememberUserMapping(tkUser.userId, tkUser.uniqueId);
+        const giftId = getTikTokGiftId(data);
+        const diamondRaw = data?.gift?.diamondCount ?? data?.giftDetails?.diamondCount ?? data?.gift?.diamond_count ?? data?.extendedGiftInfo?.diamond_count;
         emitGift({
-            uniqueId: data?.user?.uniqueId,
-            nickname: data?.user?.nickname,
-            userId: data?.user?.userId,
-            level: Number(data?.user?.userHonor?.level) || 0,
-            verified: !!data?.user?.verified,
-            profilePicture: data?.user?.profilePicture?.url || data?.user?.profilePictureUrl,
-            giftId: String(data?.giftId ?? data?.gift?.gift_id ?? data?.giftDetails?.giftId ?? ''),
-            giftName: data?.giftDetails?.giftName || data?.gift?.name || data?.giftName,
-            giftPicture: data?.giftDetails?.giftImage?.giftPictureUrl || data?.gift?.image?.url_list?.[0],
-            diamondCount: data?.giftDetails?.diamondCount ?? data?.gift?.diamond_count,
+            tkUser,
+            uniqueId: tkUser.uniqueId,
+            nickname: tkUser.nickname,
+            userId: tkUser.userId,
+            level: tkUser.level,
+            verified: tkUser.verified,
+            profilePicture: tkUser.profilePicture,
+            giftId,
+            giftName: data?.gift?.name || data?.giftDetails?.giftName || data?.giftName,
+            giftPicture: pickAvatarUrl(data?.gift?.image) || pickAvatarUrl(data?.giftDetails?.giftImage) || data?.giftDetails?.giftImage?.giftPictureUrl || pickAvatarUrl(data?.extendedGiftInfo?.image) || '',
+            diamondCount: (diamondRaw == null || diamondRaw === '') ? undefined : Number(diamondRaw),
             repeatCount: normalizeGiftRepeatCount(data),
             source: 'tiktok'
         });
@@ -2366,7 +2685,7 @@ function attachConnectionEvents(conn) {
         // ===== OBS Bridge — enqueue effect cho mỗi gift trong combo =====
         // Tặng 1x → enqueue 1; tặng 5x → enqueue 5; ... drain tuần tự theo cooldownMs.
         try {
-            const giftIdStr = String(data?.giftId ?? data?.gift?.gift_id ?? data?.giftDetails?.giftId ?? '');
+            const giftIdStr = giftId;
             const rc = normalizeGiftRepeatCount(data);
             obsBridgeEnqueueForGift(giftIdStr, rc);
         } catch (e) {
@@ -2376,110 +2695,101 @@ function attachConnectionEvents(conn) {
 
     conn.on(WebcastEvent.MEMBER, (data) => {
         // TikTok đôi khi strip user.uniqueId → fallback userId (numeric) + actionDescription
-        const uniqueId = data?.user?.uniqueId;
-        const userId = data?.user?.userId || data?.userId;   // MemberMessage có userId riêng
-        const nickname = data?.user?.nickname;
-        const level = Number(data?.user?.userHonor?.level) || 0;
-        const profilePicture = data?.user?.profilePicture?.url || data?.user?.profilePictureUrl;
-        const verified = !!data?.user?.verified;
+        // MemberMessage có userId riêng → normalizeTikTokUser đã fallback data.userId
+        const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
         const action = data?.action;     // 1=JOINED, 3=SUBSCRIBED
         const actionDesc = data?.actionDescription || '';
         rememberUserMapping(userId, uniqueId);
         rememberLiveTranslateUser(liveTranslateRecentMembers, { userId, uniqueId });
-        broadcast('member', { uniqueId, nickname, level, verified });
+        const tkUser = extractTikTokUser(data);
+        broadcast('member', { uniqueId, nickname, level, verified, action: Number(action) || 0, topUserNo: tkUser.topUserNo, fansLevel: tkUser.fansLevel, isSubscriber: tkUser.isSubscriber });
         // Verbose log — dump tất cả field hữu ích để user thấy TikTok gửi gì
         console.log(`[vipwelcome] MEMBER event raw: uniqueId="${uniqueId || ''}" userId="${userId || ''}" nickname="${nickname || ''}" level=${level} verified=${verified} action=${action} desc="${actionDesc}"`);
         // Primary join path — fire (resolve uniqueId từ cache nếu thiếu)
-        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'member', verified, userId);
+        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'member', verified, userId, tkUser);
+        // TikTok gửi MEMBER action=3 khi viewer ĐĂNG KÝ (subscribe) kênh — tín hiệu thật, trước đây chỉ log.
+        if (Number(action) === 3) {
+            liveStats.totalSubscribes = (liveStats.totalSubscribes || 0) + 1;
+            emitLiveStatsThrottled();
+            broadcast('subscribe', { uniqueId, nickname, level, verified });
+            try { handleVipWelcomeEvent('subscribe', { uniqueId: uniqueId || tkUser.uniqueId, nickname, level, profilePicture, verified, extra: tkUser }); } catch (e) {}
+        }
     });
     conn.on(WebcastEvent.LIKE, (data) => {
-        const uniqueId = data?.user?.uniqueId;
-        const userId = data?.user?.userId;
-        const nickname = data?.user?.nickname;
-        const level = Number(data?.user?.userHonor?.level) || 0;
-        const profilePicture = data?.user?.profilePicture?.url || data?.user?.profilePictureUrl;
-        const verified = !!data?.user?.verified;
-        const likeCount = data?.likeCount || 1;
+        const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
+        const likeCount = Number(data?.likeCount ?? data?.count) || 1;   // v3 (2.4.4): count
         rememberUserMapping(userId, uniqueId);
         broadcast('like', { uniqueId, nickname, likeCount });
         liveStats.totalLikes += likeCount; emitLiveStatsThrottled();
         // Fire 'join' fallback + dedicated 'like' trigger
-        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'like', verified, userId);
-        try { handleVipWelcomeEvent('like', { uniqueId, nickname, level, profilePicture, verified, likeCount }); } catch (e) {}
+        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'like', verified, userId, extractTikTokUser(data));
+        try { handleVipWelcomeEvent('like', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified, likeCount }); } catch (e) {}
     });
     conn.on(WebcastEvent.SOCIAL, (data) => {
-        const uniqueId = data?.user?.uniqueId;
-        const userId = data?.user?.userId;
-        const nickname = data?.user?.nickname;
-        const level = Number(data?.user?.userHonor?.level) || 0;
-        const profilePicture = data?.user?.profilePicture?.url || data?.user?.profilePictureUrl;
-        const verified = !!data?.user?.verified;
+        const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
         rememberUserMapping(userId, uniqueId);
         broadcast('social', { uniqueId, nickname, label: data?.label });
-        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'social', verified, userId);
+        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'social', verified, userId, extractTikTokUser(data));
     });
     // FOLLOW event
     conn.on(WebcastEvent.FOLLOW, (data) => {
-        const uniqueId = data?.user?.uniqueId;
-        const userId = data?.user?.userId;
-        const nickname = data?.user?.nickname;
-        const level = Number(data?.user?.userHonor?.level) || 0;
-        const profilePicture = data?.user?.profilePicture?.url || data?.user?.profilePictureUrl;
-        const verified = !!data?.user?.verified;
+        const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
         rememberUserMapping(userId, uniqueId);
         liveStats.totalFollows += 1; emitLiveStatsThrottled();
         console.log(`[vipwelcome] FOLLOW: @${uniqueId} "${nickname || ''}"`);
-        try { handleVipWelcomeEvent('follow', { uniqueId, nickname, level, profilePicture, verified }); } catch (e) {}
-        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'follow', verified, userId);
+        try { handleVipWelcomeEvent('follow', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified }); } catch (e) {}
+        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'follow', verified, userId, extractTikTokUser(data));
     });
     // SHARE event
     conn.on(WebcastEvent.SHARE, (data) => {
-        const uniqueId = data?.user?.uniqueId;
-        const userId = data?.user?.userId;
-        const nickname = data?.user?.nickname;
-        const level = Number(data?.user?.userHonor?.level) || 0;
-        const profilePicture = data?.user?.profilePicture?.url || data?.user?.profilePictureUrl;
-        const verified = !!data?.user?.verified;
+        const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
         rememberUserMapping(userId, uniqueId);
         liveStats.totalShares += 1; emitLiveStatsThrottled();
         console.log(`[vipwelcome] SHARE: @${uniqueId} "${nickname || ''}"`);
-        try { handleVipWelcomeEvent('share', { uniqueId, nickname, level, profilePicture, verified }); } catch (e) {}
-        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'share', verified, userId);
+        try { handleVipWelcomeEvent('share', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified }); } catch (e) {}
+        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'share', verified, userId, extractTikTokUser(data));
     });
     // ENVELOPE event — TikTok bao lì xì
     conn.on(WebcastEvent.ENVELOPE, (data) => {
-        const uniqueId = data?.user?.uniqueId || data?.envelopeInfo?.user?.uniqueId;
-        const userId = data?.user?.userId || data?.envelopeInfo?.user?.userId;
-        const nickname = data?.user?.nickname || data?.envelopeInfo?.user?.nickname;
-        const level = Number(data?.user?.userHonor?.level) || 0;
-        const profilePicture = data?.user?.profilePicture?.url || data?.user?.profilePictureUrl;
-        const verified = !!data?.user?.verified;
+        // WebcastEnvelopeMessage không có data.user — người gửi nằm ở envelopeInfo {sendUserId, sendUserName, sendUserAvatar}.
+        const env = data?.envelopeInfo || {};
+        const nu = normalizeTikTokUser(data?.user || env.user, data);
+        const uniqueId = nu.uniqueId;
+        const userId = nu.userId || tiktokIdToString(env.sendUserId);
+        const nickname = nu.nickname || env.sendUserName || '';
+        const level = nu.level;
+        const profilePicture = nu.profilePicture || pickAvatarUrl(env.sendUserAvatar);
+        const verified = nu.verified;
         rememberUserMapping(userId, uniqueId);
         console.log(`[vipwelcome] ENVELOPE (bao lì xì): @${uniqueId}`);
-        try { handleVipWelcomeEvent('envelope', { uniqueId, nickname, level, profilePicture, verified }); } catch (e) {}
-        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'envelope', verified, userId);
+        try { handleVipWelcomeEvent('envelope', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified }); } catch (e) {}
+        maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, 'envelope', verified, userId, extractTikTokUser(data));
     });
     conn.on(WebcastEvent.ROOM_USER, (data) => {
-        const v = data?.viewerCount ?? data?.totalUser;
-        broadcast('roomUser', { viewerCount: v });
-        if (typeof v === 'number') { liveStats.viewerCount = v; emitLiveStatsThrottled(); }
+        // v3 (2.4.4): total/totalUser là CHUỖI, ranks/seats thay ranksList/seatsList → bọc Number().
+        const rawViewer = data?.viewerCount ?? data?.total ?? data?.totalUser;
+        const vNum = (rawViewer == null || rawViewer === '') ? NaN : Number(rawViewer);
+        const viewerCount = Number.isFinite(vNum) ? vNum : undefined;
+        broadcast('roomUser', { viewerCount });
+        if (viewerCount != null) { liveStats.viewerCount = viewerCount; emitLiveStatsThrottled(); }
         try {
             const lists = [];
-            if (Array.isArray(data?.ranksList)) lists.push(...data.ranksList);
-            if (Array.isArray(data?.seatsList)) lists.push(...data.seatsList);
+            const ranks = data?.ranksList ?? data?.ranks;
+            const seats = data?.seatsList ?? data?.seats;
+            if (Array.isArray(ranks)) lists.push(...ranks);
+            if (Array.isArray(seats)) lists.push(...seats);
             // Build set uniqueId trong seq hiện tại
             const currentSeqSet = new Set();
             const contributorMeta = [];   // giữ thông tin user để fire
             for (const contributor of lists) {
                 const u = contributor?.user;
                 if (!u) continue;
-                const uniqueId = u.uniqueId;
-                const userId = u.userId;
+                const { uniqueId, userId } = normalizeTikTokUser(u);
                 rememberUserMapping(userId, uniqueId);
                 if (uniqueId) {
                     currentSeqSet.add(String(uniqueId).toLowerCase());
                 }
-                contributorMeta.push({ user: u, uniqueId, userId });
+                contributorMeta.push({ user: u, uniqueId, userId, rank: Number(contributor?.rank) || 0 });
             }
             // Detect DROP-OUT: user trong seq trước nhưng KHÔNG trong seq này → đánh dấu leftSeq
             for (const uid of vipSessionInLatestSeq) {
@@ -2493,13 +2803,12 @@ function attachConnectionEvents(conn) {
             // Fire (firstTime hoặc rejoin) cho từng user
             for (const meta of contributorMeta) {
                 const u = meta.user;
-                const level = Number(u.userHonor?.level) || 0;
-                const profilePicture = u.profilePicture?.url || u.profilePictureUrl;
-                const verified = !!u.verified;
-                maybeFireFirstSeenJoin(meta.uniqueId, u.nickname, level, profilePicture, 'roomUserSeq', verified, meta.userId);
+                const { nickname, level, profilePicture, verified } = normalizeTikTokUser(u);
+                maybeFireFirstSeenJoin(meta.uniqueId, nickname, level, profilePicture, 'roomUserSeq', verified, meta.userId,
+                    extractTikTokUser({ user: u, isTopUser: meta.rank > 0 && meta.rank <= 3, topUserNo: meta.rank }));
             }
             if (lists.length > 0) {
-                console.log(`[vipwelcome] ROOM_USER seq: viewer=${data?.viewerCount}, contributors=${lists.length}, seqSize=${currentSeqSet.size}`);
+                console.log(`[vipwelcome] ROOM_USER seq: viewer=${viewerCount ?? '?'}, contributors=${lists.length}, seqSize=${currentSeqSet.size}`);
             }
         } catch (e) { console.error('[vipwelcome] ROOM_USER process error:', e); }
     });
@@ -2521,15 +2830,24 @@ function attachConnectionEvents(conn) {
     let pkAutoQueue = [];
     let pkAutoDrainTimer = null;
     const PK_AUTO_DRAIN_GAP_MS = 3500;   // ~3.5s giữa các effect (đủ cho video ngắn)
+    const pkAutoLastEnqueueAt = new Map();
+    const PK_AUTO_SAME_KEY_GAP_MS = 4000;
     function pkAutoEnqueue(key, reason) {
         const cfg = appConfig.games?.pktiktok;
         if (!cfg || cfg.enabled === false || !cfg.autoBindPkDuo) return;
+        const now = Date.now();
+        // Dedupe: cùng phase vừa vào queue <4s (vd găng tay báo từ cả gift.matchInfo lẫn armies.triggerCriticalStrike)
+        if (now - (pkAutoLastEnqueueAt.get(key) || 0) < PK_AUTO_SAME_KEY_GAP_MS) {
+            console.log(`[pktiktok] AUTO skip dup "${key}" (<${PK_AUTO_SAME_KEY_GAP_MS}ms)`);
+            return;
+        }
         // Dedupe: nếu phase này đã ở cuối queue, skip
         if (pkAutoQueue.length > 0 && pkAutoQueue[pkAutoQueue.length - 1].key === key) {
             console.log(`[pktiktok] AUTO skip dup "${key}"`);
             return;
         }
-        pkAutoQueue.push({ key, reason, ts: Date.now() });
+        pkAutoLastEnqueueAt.set(key, now);
+        pkAutoQueue.push({ key, reason, ts: now });
         console.log(`[pktiktok] AUTO queued → ${key} (reason: ${reason}), queue=${pkAutoQueue.length}`);
         if (!pkAutoDrainTimer) drainPkAutoNow();
     }
@@ -2611,21 +2929,6 @@ function attachConnectionEvents(conn) {
         }
     }
 
-    function collectTextFields(value, out = []) {
-        if (value == null) return out;
-        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-            out.push(String(value));
-            return out;
-        }
-        if (Array.isArray(value)) {
-            for (const item of value) collectTextFields(item, out);
-            return out;
-        }
-        if (typeof value === 'object') {
-            for (const item of Object.values(value)) collectTextFields(item, out);
-        }
-        return out;
-    }
 
     // GĂNG TAY (glove) = Boosting Glove / critical strike x5 — TÍN HIỆU THẬT theo schema
     // tiktok-live-connector v2: WebcastGiftMessage.matchInfo { critical, multiplierValue }.
@@ -2643,31 +2946,23 @@ function attachConnectionEvents(conn) {
     }
 
     function maybeTriggerPkItemFromGift(data) {
+        if (!pkActive) return;   // găng tay chỉ có nghĩa trong trận PK — ngoài trận bỏ qua (trước đây bắn cả ngoài trận)
         const key = detectPkItemFromGift(data);
         if (!key) return;
         const now = Date.now();
         prunePkItemSeen(now);
-        const giftId = String(data?.giftId ?? data?.gift?.gift_id ?? data?.giftDetails?.giftId ?? '');
-        const uniqueId = data?.user?.uniqueId || data?.uniqueId || '';
-        const msgId = data?.msgId || data?.messageId || data?.common?.msgId || '';
-        const groupId = data?.groupId || data?.gift?.group_id || data?.monitorExtra?.log_id || '';
-        const dedupeKey = [key, giftId, uniqueId, groupId || msgId || Date.now()].join(':');
+        const giftId = getTikTokGiftId(data);
+        const uniqueId = normalizeTikTokUser(data?.user, data).uniqueId;
+        // groupId mặc định là chuỗi "0" (truthy) → trước đây mọi quà không-combo gộp chung 1 key và bị chặn oan;
+        // còn khi cả groupId lẫn msgId trống thì key dính Date.now() → không bao giờ dedupe. Sửa: ưu tiên groupId
+        // thật, rồi logId/msgId, cuối cùng gom theo cửa sổ 5s.
+        const groupId = String(data?.groupId || data?.gift?.group_id || '');
+        const logId = String(data?.logId || data?.common?.msgId || data?.msgId || '');
+        const uniq = (groupId && groupId !== '0') ? 'g' + groupId : (logId ? 'm' + logId : 't' + Math.floor(now / 5000));
+        const dedupeKey = [key, giftId, uniqueId, uniq].join(':');
         if (pkItemGiftSeen.has(dedupeKey)) return;
         pkItemGiftSeen.set(dedupeKey, now);
         pkAutoEnqueue(key, `gift_item (${key}, giftId=${giftId || 'unknown'}, user=@${uniqueId || 'unknown'})`);
-    }
-
-    function detectPkBonusMultiplier(data) {
-        const text = collectTextFields(data).join(' ').toLowerCase();
-        if (/x\s*3|3\s*x|nh[aâ]n\s*3|multiplier[^0-9]{0,12}3|score[^0-9]{0,12}3|speed[^0-9]{0,12}3/.test(text)) return 3;
-        if (/x\s*2|2\s*x|nh[aâ]n\s*2|multiplier[^0-9]{0,12}2|score[^0-9]{0,12}2|speed[^0-9]{0,12}2/.test(text)) return 2;
-        return 0;
-    }
-
-    function maybeTriggerPkBonus(data, reason) {
-        const multiplier = detectPkBonusMultiplier(data);
-        if (multiplier !== 2 && multiplier !== 3) return;
-        triggerPkBonus(multiplier, reason);
     }
 
     function triggerPkBonus(multiplier, reason) {
@@ -2680,17 +2975,22 @@ function attachConnectionEvents(conn) {
     function readRewardMultiple(data) {
         const direct = Number(
             data?.taskStart?.battleBonusConfig?.rewardPeriodConfig?.rewardMultiple ||
+            data?.start?.config?.rewardConfig?.rewardMultiple ||          // v3 (2.4.4): start.config.rewardConfig
             data?.battleBonusConfig?.rewardPeriodConfig?.rewardMultiple ||
+            data?.config?.rewardConfig?.rewardMultiple ||
             data?.rewardPeriodConfig?.rewardMultiple ||
+            data?.rewardConfig?.rewardMultiple ||
             0
         );
         if (direct === 2 || direct === 3) return direct;
-        return detectPkBonusMultiplier(data);
+        // KHÔNG dò chữ "x2"/"x3" trong toàn payload nữa: battleId/logId/monitorExtra là chuỗi dài rất dễ
+        // chứa "x2" giả → bắn nhầm. Chỉ tin field thật rewardPeriodConfig.rewardMultiple.
+        return 0;
     }
 
     function isTaskSettleSucceeded(data) {
-        const result = data?.taskSettle?.taskResult;
-        const rewardStatus = data?.rewardSettle?.status;
+        const result = data?.taskSettle?.taskResult ?? data?.taskSettle?.result;      // v3 (2.4.4): taskSettle.result
+        const rewardStatus = data?.rewardSettle?.status ?? data?.reward?.status;     // v3 (2.4.4): reward.status
         if (result === 0 || result === 2) return true;
         if (rewardStatus === 0) return true;
         return false;
@@ -2745,18 +3045,27 @@ function attachConnectionEvents(conn) {
     // Helper: extract teams + scores từ raw armies/battle data — log tất cả để debug
     function parseTeamsArmies(data) {
         const teams = [];
-        const raw = data?.teamArmies || data?.battleArmies || data?.battleItems || data?.teams || data?.armies || [];
-        const list = Array.isArray(raw) ? raw : Object.values(raw || {});
+        // ts-proto luôn tạo teamArmies: [] (mảng rỗng = truthy) → chuỗi || cũ dừng ngay ở đó và KHÔNG BAO GIỜ đọc
+        // tới map armies/battleItems của trận 1v1 → điểm luôn null → lead/behind không chạy, win/lose mất fallback.
+        const nonEmpty = (v) => !!v && (Array.isArray(v) ? v.length > 0 : (typeof v === 'object' && Object.keys(v).length > 0));
+        // v3 (2.4.4): LINK_MIC_BATTLE.armies / anchorsInfo là mảng wrapper [{key, value}] (map entry); LINK_MIC_ARMIES.armies là
+        // map anchorId → BattleUserArmies {userArmies[], hostscore (chữ s THƯỜNG), anchorIdStr}; teamArmies[].teamUser (cũ teamUsers).
+        const raw = [data?.teamArmies, data?.battleArmies, data?.battleItems, data?.teams, data?.armies, data?.anchorsInfo].find(nonEmpty) || [];
+        const unwrap = (x) => (x && typeof x === 'object' && x.key != null && x.value && typeof x.value === 'object') ? x.value : x;
+        const list = (Array.isArray(raw) ? raw : Object.values(raw || {})).map(unwrap);
         if (Array.isArray(list)) {
             for (let i = 0; i < list.length; i++) {
                 const t = list[i];
-                const score = Number(t?.teamTotalScore ?? t?.userArmies?.hostScore ?? t?.hostScore ?? t?.points ?? t?.totalScore ?? t?.score ?? t?.totalDiamondCount ?? t?.totalUserCount ?? 0);
+                const score = Number(t?.teamTotalScore ?? t?.userArmies?.hostScore ?? t?.userArmies?.hostscore ?? t?.hostScore ?? t?.hostscore ?? t?.points ?? t?.totalScore ?? t?.score ?? t?.totalDiamondCount ?? t?.totalUserCount ?? 0) || 0;
                 const linkedUsers = [t?.hostsList, t?.hosts, t?.userList]
                     .flatMap(v => Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []));
                 const anchorIds = [
                     t?.hostUserId, t?.anchorIdStr, t?.userArmies?.anchorIdStr, t?.hostUser?.userId, t?.hostUser?.id,
-                    ...(t?.teamUsers || []), ...linkedUsers
-                ].map(u => String(u?.userId || u?.id || u?.uniqueId || u || '')).filter(Boolean);
+                    t?.user?.userId, t?.user?.idStr, t?.user?.id,
+                    ...(t?.teamUsers || []), ...(t?.teamUser || []), ...linkedUsers
+                ].map(u => (u && typeof u === 'object')
+                    ? (tiktokIdToString(u.userIdStr) || tiktokIdToString(u.userId) || tiktokIdToString(u.id) || String(u.uniqueId || ''))
+                    : tiktokIdToString(u)).filter(Boolean);
                 teams.push({ index: i, score, anchorIds, raw: t });
             }
         }
@@ -2771,10 +3080,10 @@ function attachConnectionEvents(conn) {
 
     conn.on(WebcastEvent.LINK_MIC_BATTLE, (data) => {
         const action = data?.battleConfig?.battleAction ?? data?.action ?? null;
-        const battleStatus = data?.battleStatus;
+        const battleStatus = data?.battleStatus ?? data?.battleSettings?.status;
         const currentRound = data?.currentRound;
         console.log(`[pktiktok] LINK_MIC_BATTLE action=${action} status=${battleStatus} round=${currentRound} keys=${Object.keys(data || {}).join(',').slice(0,200)}`);
-        if (action === 4 /* OPEN */ || (action == null && !pkActive && (Array.isArray(data?.battleUsers) || data?.anchorInfo || data?.battleId))) {
+        if (action === 4 /* OPEN */ || (action == null && !pkActive && (Array.isArray(data?.battleUsers) || data?.anchorInfo || data?.anchorsInfo || data?.battleId))) {
             resetPkState();
             pkActive = true;
             pkStartTs = Date.now();
@@ -2828,15 +3137,18 @@ function attachConnectionEvents(conn) {
             try {
                 const tbr = Array.isArray(data?.teamBattleResult) ? data.teamBattleResult : [];
                 if (ownerId && tbr.length) {
-                    const hostTeam = tbr.find(t => (Array.isArray(t?.teamUsers) ? t.teamUsers : [])
-                        .some(u => String(u?.userId || u?.userIdStr || u?.id || '') === ownerId));
+                    const hostTeam = tbr.find(t => (Array.isArray(t?.teamUsers) ? t.teamUsers : Array.isArray(t?.teamUser) ? t.teamUser : [])   // v3: teamUser
+                        .some(u => (tiktokIdToString(u?.userIdStr) || tiktokIdToString(u?.userId) || tiktokIdToString(u?.id)) === ownerId));
                     if (hostTeam && hostTeam.result != null) {
                         resultKey = mapResult(hostTeam.result);
                         console.log(`[pktiktok] PK FINISH: teamBattleResult host result=${hostTeam.result} → ${resultKey}`);
                     }
                 }
                 if (!resultKey && ownerId && data?.battleResult && typeof data.battleResult === 'object') {
-                    const br = data.battleResult[ownerId];
+                    const brMap = data.battleResult;   // map userId → {result}; phòng khi lib trả dạng [{key, value}]
+                    const br = Array.isArray(brMap)
+                        ? (brMap.find(e => String(e?.key ?? '') === ownerId)?.value || brMap.find(e => String(e?.userId || '') === ownerId))
+                        : brMap[ownerId];
                     if (br && br.result != null) {
                         resultKey = mapResult(br.result);
                         console.log(`[pktiktok] PK FINISH: battleResult host result=${br.result} → ${resultKey}`);
@@ -2866,15 +3178,16 @@ function attachConnectionEvents(conn) {
                 console.log(`[pktiktok] PK FINISH: không có gift nào trong trận → không TOP 1`);
             }
             pkAutoEnqueue(resultKey, `battle_finish (action=${action})`);
-            // Delay reset state để khi emit còn dùng được pkLastTopContributor
-            setTimeout(() => { pkLastTopContributor = null; }, 10_000);
+            // Delay reset state để khi emit còn dùng được pkLastTopContributor. Queue auto drain 3.5s/item,
+            // trước đây 10s là hết hạn khi có ≥3 item xếp trước win/lose → rule TOP 1 im lặng rớt về media mặc định.
+            setTimeout(() => { pkLastTopContributor = null; }, 90_000);
             // Reset pkActive nhưng giữ data tracking
             pkActive = false;
             clearPkTimers();
         }
     });
     conn.on(WebcastEvent.LINK_MIC_BATTLE_TASK, (data) => {
-        const type = data?.battleTaskMessageType;
+        const type = data?.battleTaskMessageType ?? data?.taskMessageType;   // v3 (2.4.4): taskMessageType (giá trị giữ nguyên)
         const descText = data?.taskDescription || data?.description || data?.text || '';
         const rewardMultiple = readRewardMultiple(data);
         console.log(`[pktiktok] LINK_MIC_BATTLE_TASK type=${type} rewardMultiple=${rewardMultiple || '-'} pending=${pkPendingRewardMultiple || '-'} success=${isTaskSettleSucceeded(data)} keys=${Object.keys(data || {}).join(',').slice(0,200)}`);
@@ -3367,6 +3680,7 @@ function emitGift(g) {
     // VIP Welcome — kiểm tra rules khi user tặng quà
     try {
         handleVipWelcomeEvent('gift', {
+            extra: g.tkUser || null,
             uniqueId: g.uniqueId,
             nickname: g.nickname,
             level: Number(g.level) || 0,
@@ -3428,51 +3742,62 @@ function emitGift(g) {
 }
 
 function makeTikTokConnectOptions(extra = {}) {
-    return {
+    // API 2.4.4: wsClientHeaders / webClientHeaders / connectWithUniqueId đã bị bỏ → header đi qua wsClientOptions.headers
+    // (ws) và webClientOptions.headers (got); timeout HTTP/WS lấy từ env TIKTOK_CLIENT_TIMEOUT / WS_CONNECT_TIMEOUT_MS
+    // (đặt ở đầu file, lib bỏ qua webClientOptions.timeout). Không spread key lạ vào options.
+    const tiktokHeaders = { Origin: 'https://www.tiktok.com', Referer: 'https://www.tiktok.com/' };
+    const opts = {
         processInitialData: false,
-        enableExtendedGiftInfo: true,
+        enableExtendedGiftInfo: true,     // availableGifts — route gift/list đã vá thành bản không ký (finishTikTokConnector)
         fetchRoomInfoOnConnect: true,
-        wsClientHeaders: {
-            Origin: 'https://www.tiktok.com',
-            Referer: 'https://www.tiktok.com/',
-            ...(extra.wsClientHeaders || {})
-        },
-        webClientHeaders: {
-            Origin: 'https://www.tiktok.com',
-            Referer: 'https://www.tiktok.com/',
-            ...(extra.webClientHeaders || {})
-        },
-        wsClientOptions: { timeout: 20000, ...(extra.wsClientOptions || {}) },
-        webClientOptions: { timeout: 20000, ...(extra.webClientOptions || {}) },
-        ...extra
+        wsClientOptions: { headers: { ...tiktokHeaders, ...(extra.wsClientHeaders || {}) }, handshakeTimeout: 20000, ...(extra.wsClientOptions || {}) },
+        webClientOptions: { headers: { ...tiktokHeaders, ...(extra.webClientHeaders || {}) }, ...(extra.webClientOptions || {}) }
     };
+    if (extra.signApiKey) opts.signApiKey = extra.signApiKey;
+    return opts;
 }
 
-function hasTikTokMobileAuth() {
-    return !!(
-        process.env.TIKTOK_X_OAUTH_TOKEN ||
-        process.env.TIKTOK_OAUTH_TOKEN ||
-        process.env.TIKTOK_X_COOKIE_HEADER ||
-        process.env.TIKTOK_COOKIE_HEADER
-    );
+// Phân loại lỗi connect của tiktok-live-connector 2.4.4 — nhận diện bằng CẢ tên class (err.name của các ConnectError
+// vẫn là 'Error' nên phải dùng constructor.name) lẫn nội dung message. Trả về:
+//   offline | ratelimit | busy | premium | invalid | transient (được thử lại) | other
+function classifyTikTokConnectError(err) {
+    const ctor = String(err?.constructor?.name || '');
+    const name = String(err?.name || '');
+    const msg = String(err?.message || err || '').toLowerCase();
+    const is = (cls) => ctor === cls || name === cls;
+    if (is('UserOfflineError') || msg.includes("isn't online") || msg.includes('not online') || msg.includes('offline')) return 'offline';
+    if (is('SignatureRateLimitError') || msg.includes('rate limit') || msg.includes('too many connections') || /\b429\b/.test(msg)) return 'ratelimit';
+    if (is('AlreadyConnectedError') || is('AlreadyConnectingError') || msg.includes('already connect')) return 'busy';
+    if (is('PremiumFeatureError') || is('AuthenticatedWebSocketConnectionError') || msg.includes('premium feature')
+        || msg.includes('business plan') || msg.includes('cookie bundle') || msg.includes('authenticated ws')) return 'premium';
+    if (is('InvalidUniqueIdError') || msg.includes("invalid value for 'uniqueid'")) return 'invalid';
+    if (is('ConnectTimeoutError') || is('SignAPIError') || is('SignatureMissingTokensError')
+        || msg.includes('websocket') || msg.includes('unexpected server response') || msg.includes('not responding')
+        || msg.includes('timed out') || msg.includes('timeout') || msg.includes('sign server') || msg.includes('sign error')
+        || msg.includes('failed to sign') || msg.includes('empty payload') || msg.includes('fetch failed')
+        || msg.includes('econnreset') || msg.includes('econnrefused') || msg.includes('enotfound') || msg.includes('socket hang up')) return 'transient';
+    return 'other';
 }
 
 function isRetryableTikTokConnectError(err) {
-    const msg = String(err?.message || err || '').toLowerCase();
-    if (!msg) return false;
-    if (msg.includes("isn't online") || msg.includes('not online') || msg.includes('offline')) return false;
-    if (msg.includes('already connected') || msg.includes('already connecting')) return false;
-    return msg.includes('websocket') || msg.includes('unexpected server response') || msg.includes('not responding') || msg.includes('sign server') || msg.includes('fetch failed') || msg.includes('timeout');
+    return classifyTikTokConnectError(err) === 'transient';
 }
 
 function normalizeTikTokConnectError(err, attempts = []) {
-    const msg = String(err?.message || err || 'connect_failed');
+    const msg = String(err?.message || err || 'connect_failed').split('\n')[0];
     const tried = attempts.length ? ` (đã tự thử lại ${attempts.length} lần)` : '';
-    if (/unexpected server response:\s*200/i.test(msg)) {
-        return `TikTok trả HTTP 200 thay vì nâng cấp WebSocket — thường do sign-server (EulerStream) bị giới hạn lượt hoặc route TikTok chập chờn tạm thời${tried}. Hãy đợi ~30–60 giây rồi kết nối lại. Nếu bị thường xuyên, đặt EulerStream API key (biến môi trường TIKTOK_SIGN_API_KEY — lấy free tại eulerstream.com) để ký ổn định.`;
+    const kind = classifyTikTokConnectError(err);
+    if (kind === 'ratelimit') {
+        return 'Hết lượt ký kết nối (giới hạn 5 lượt/phút, 100/ngày khi chưa có API key) — đợi 1 phút hoặc thêm Euler Stream API key trong ⚙ Cài đặt';
     }
-    if (/websocket not responding/i.test(msg)) return `WebSocket TikTok không phản hồi trong thời gian chờ${tried}. Hãy thử kết nối lại sau ít giây.`;
-    if (attempts.length > 1) return `${msg} (đã thử ${attempts.length} đường kết nối)`;
+    if (kind === 'premium') {
+        return `Sign-server Euler Stream từ chối yêu cầu này (tính năng trả phí / thiếu phiên đăng nhập): ${msg}`;
+    }
+    if (/unexpected server response:\s*200/i.test(msg)) {
+        return `TikTok trả HTTP 200 thay vì nâng cấp WebSocket — thường do sign-server (EulerStream) bị giới hạn lượt hoặc route TikTok chập chờn tạm thời${tried}. Hãy đợi ~30–60 giây rồi kết nối lại. Nếu bị thường xuyên, thêm Euler Stream API key trong ⚙ Cài đặt (lấy free tại eulerstream.com) để ký ổn định.`;
+    }
+    if (/websocket not responding|timed out whilst connecting/i.test(msg)) return `WebSocket TikTok không phản hồi trong thời gian chờ${tried}. Hãy thử kết nối lại sau ít giây.`;
+    if (attempts.length > 1) return `${msg} (đã thử ${attempts.length} lần)`;
     return msg;
 }
 
@@ -3484,47 +3809,51 @@ function getTikTokSignApiKey() {
         || appConfig.tiktokSignApiKey
         || null;
 }
+// SignConfig của lib là singleton toàn cục và createEulerClient() cache instance → đổi key trong ⚙ Cài đặt phải ghi lại
+// apiKey + xoá cache trước mỗi lần connect, nếu không lib vẫn dùng key cũ (hoặc key đã xoá).
+function applyTikTokSignApiKey() {
+    const sc = tlc?.SignConfig;
+    if (!sc) return;
+    const key = getTikTokSignApiKey() || process.env.SIGN_API_KEY || undefined;
+    if (sc.apiKey !== key) { sc.apiKey = key; sc.cachedInstance = undefined; }
+}
 
 async function createTikTokConnectionWithFallback(username) {
+    const lib = await loadTikTokConnector();
+    applyTikTokSignApiKey();
     const signApiKey = getTikTokSignApiKey();
     const mk = (extra = {}) => makeTikTokConnectOptions({ ...(signApiKey ? { signApiKey } : {}), ...extra });
-    // Lỗi "unexpected server response: 200" / "websocket not responding" thường TẠM THỜI (sign-server
-    // ẩn danh bị rate-limit hoặc route TikTok chập chờn). Thử lại nhiều lần với backoff tăng dần →
-    // đa số tự khỏi sau vài giây. Trước đây chỉ thử 1 lần (web) nên user hay dính lỗi.
+    // Lỗi WebSocket / sign-server thường TẠM THỜI → thử lại tối đa 3 lần với backoff 2s/5s. Không thử nhiều hơn vì
+    // sign-server ẩn danh chỉ cho 5 lượt ký/phút — thử dồn dập chỉ đốt hạn mức rồi dính rate-limit.
+    // (2.4.4 bỏ connectWithUniqueId; useMobile cần session.cookie mà app không có → không còn nhánh mobile.)
     const attempts = [
         { label: 'web',         options: mk() },
         { label: 'web-retry-1', options: mk() },
-        { label: 'uniqueid',    options: mk({ connectWithUniqueId: true }) },
         { label: 'web-retry-2', options: mk() }
     ];
-    if (hasTikTokMobileAuth()) {
-        attempts.push(
-            { label: 'web-mobile-sign',      options: mk({ useMobile: true }) },
-            { label: 'uniqueid-mobile-sign', options: mk({ connectWithUniqueId: true, useMobile: true }) }
-        );
-    }
-    // Backoff (ms) trước mỗi lần thử kế tiếp — đủ dài để vượt cửa sổ rate-limit của sign-server.
-    const backoffs = [1500, 3000, 5000, 6000, 6000];
+    const backoffs = [2000, 5000];
     const errors = [];
     for (let i = 0; i < attempts.length; i++) {
         const attempt = attempts[i];
-        const conn = new TikTokLiveConnection(username, attempt.options);
-        attachConnectionEvents(conn);
+        const conn = new lib.TikTokLiveConnection(username, attempt.options);
+        attachConnectionEvents(conn, lib);
         try {
             console.log(`[tiktok] Connect attempt ${i + 1}/${attempts.length}: ${attempt.label}${signApiKey ? ' (signed)' : ''}`);
             const state = await conn.connect();
             if (i > 0) console.log(`[tiktok] ✓ Kết nối THÀNH CÔNG ở lần thử ${i + 1} (${attempt.label})`);
             return { conn, state, attempt: attempt.label, errors };
         } catch (err) {
-            const message = String(err?.message || err || 'connect_failed');
-            errors.push({ attempt: attempt.label, message });
-            console.warn(`[tiktok] Connect attempt failed (${attempt.label}): ${message}`);
+            const message = String(err?.message || err || 'connect_failed').split('\n')[0];
+            const kind = classifyTikTokConnectError(err);
+            errors.push({ attempt: attempt.label, message, kind });
+            console.warn(`[tiktok] Connect attempt failed (${attempt.label}, ${kind}${err?.constructor?.name ? ' ' + err.constructor.name : ''}): ${message}`);
             try { await conn.disconnect(); } catch (e) {}
-            // Lỗi không-thể-retry (user offline, đã kết nối) → dừng ngay; hoặc đã hết lần thử.
-            if (!isRetryableTikTokConnectError(err) || i === attempts.length - 1) {
+            // Lỗi không-thể-retry (user offline, rate-limit, đã kết nối, thiếu quyền) → dừng ngay; hoặc đã hết lần thử.
+            if (kind !== 'transient' || i === attempts.length - 1) {
                 const out = new Error(normalizeTikTokConnectError(err, errors));
                 out.cause = err;
                 out.attempts = errors;
+                out.kind = kind;
                 throw out;
             }
             const wait = backoffs[Math.min(i, backoffs.length - 1)];
@@ -3533,17 +3862,22 @@ async function createTikTokConnectionWithFallback(username) {
         }
     }
 }
-
-async function connectToUser(username) {
+async function connectToUser(username, opts = {}) {
     if (connecting) throw new Error('Đang kết nối, vui lòng chờ...');
-    if (connection) { try { await connection.disconnect(); } catch (e) {} connection = null; }
+    cancelAutoReconnect();
+    if (!opts.auto) { manualDisconnect = false; streamEnded = false; reconnectAttempt = 0; }
+    // Null trước rồi mới disconnect → handler DISCONNECTED của connection cũ thấy "không phải mình" và bỏ qua.
+    if (connection) { const old = connection; connection = null; try { await old.disconnect(); } catch (e) {} }
     liveConnected = false;
     connecting = true;
     currentUsername = username.replace(/^@/, '').trim();
-    // Reset session-scoped state cho VIP Welcome + Live stats
-    resetVipSession();
-    warmVipSessionFromPersistent();   // pre-warm VIP đã cấu hình từ cache đĩa
-    resetLiveStats();
+    const preserveSession = !!opts.preserveSession;   // tự nối lại giữa buổi → GIỮ stats/VIP session
+    if (!preserveSession) {
+        // Reset session-scoped state cho VIP Welcome + Live stats
+        resetVipSession();
+        warmVipSessionFromPersistent();   // pre-warm VIP đã cấu hình từ cache đĩa
+        resetLiveStats();
+    }
     // Log VIP Welcome config — user xem để verify rules đã load đúng từ disk
     try {
         const vw = appConfig.games.vipwelcome;
@@ -3566,30 +3900,31 @@ async function connectToUser(username) {
         const connected = await createTikTokConnectionWithFallback(currentUsername);
         connection = connected.conn;
         const state = connected.state;
-        console.log(`[tiktok] Connected via ${connected.attempt}`);
+        console.log(`[tiktok] Connected via ${connected.attempt}${preserveSession ? ' (tự nối lại — giữ nguyên số liệu buổi live)' : ''}`);
         liveConnected = true;
+        streamEnded = false;
         currentRoomId = state?.roomId;
         // Synthetic "host vào phòng" event — TikTok không fire MEMBER cho HOST tự kết nối live của mình.
-        const hostNickname = state?.roomInfo?.owner?.nickname || state?.roomInfo?.owner?.uniqueId || currentUsername;
-        const hostLevel = Number(state?.roomInfo?.owner?.userHonor?.level) || 0;
-        const hostPic = state?.roomInfo?.owner?.profilePicture?.url || '';
-        const hostVerified = !!state?.roomInfo?.owner?.verified;
-        currentHostUserId = String(
-            state?.roomInfo?.owner?.userId ||
-            state?.roomInfo?.owner?.idStr ||
-            state?.roomInfo?.owner?.id_str ||
-            state?.roomInfo?.owner?.id ||
-            state?.roomInfo?.owner_user_id_str ||
-            state?.roomInfo?.owner_user_id ||
-            ''
-        );
+        // roomInfo là envelope JSON của TikTok {data:{owner:{id_str, display_id, nickname, avatar_thumb, follow_info...}}, extra,
+        // status_code} (cả 2.1.0 lẫn 2.4.4) — trước đây đọc roomInfo.owner.* (camelCase) nên host luôn rỗng → PK không nhận
+        // ra team host. Đọc data.owner snake_case, giữ fallback camelCase.
+        const ri = state?.roomInfo || {};
+        const owner = ri?.data?.owner || ri?.owner || {};
+        const hostNickname = owner.nickname || owner.display_id || owner.displayId || owner.uniqueId || currentUsername;
+        const hostLevel = Number(owner.userHonor?.level ?? owner.payGrade?.level ?? owner.pay_grade?.level) || 0;
+        const hostPic = pickAvatarUrl(owner.profilePicture || owner.avatarThumb || owner.avatar_thumb || owner.avatar_medium || owner.avatarMedium) || '';
+        const hostVerified = !!owner.verified;
+        currentHostUserId = tiktokIdToString(owner.userId) || tiktokIdToString(owner.idStr) || tiktokIdToString(owner.id_str)
+            || tiktokIdToString(owner.id) || tiktokIdToString(ri?.data?.owner_user_id_str) || tiktokIdToString(ri?.data?.owner_user_id)
+            || tiktokIdToString(ri?.owner_user_id_str) || tiktokIdToString(ri?.owner_user_id) || '';
         // Lấy followerCount của HOST từ roomInfo
-        const followerCount = Number(state?.roomInfo?.owner?.followInfo?.followerCount) || 0;
+        const followerCount = Number(owner.followInfo?.followerCount ?? owner.follow_info?.follower_count) || 0;
+        console.log(`[tiktok] Host: @${owner.display_id || owner.displayId || currentUsername} "${hostNickname}" id=${currentHostUserId || '?'} followers=${followerCount}`);
         if (followerCount > 0) {
             liveStats.followerCount = followerCount;
             emitLiveStatsImmediate();
         }
-        setTimeout(() => {
+        if (!preserveSession) setTimeout(() => {
             maybeFireFirstSeenJoin(currentUsername, hostNickname, hostLevel, hostPic, 'hostConnect', hostVerified);
         }, 300);
         // Lưu host profile vào RAM + emit cho client (Caro panel cần để hiển thị avatar CREATOR)
@@ -4113,6 +4448,15 @@ app.get('/api/games/:id/state', (req, res) => {
 // Cache 6 giờ trong RAM tránh hit rate limit của tikwm.
 const _ttAvatarCache = new Map();   // username → { url, nickname, ts, error }
 const TT_AVATAR_TTL = 6 * 60 * 60 * 1000;
+const TT_AVATAR_CACHE_MAX = 500;
+function ttAvatarCacheSet(k, v) {
+    if (_ttAvatarCache.size >= TT_AVATAR_CACHE_MAX) {
+        const now = Date.now();
+        for (const [ck, e] of _ttAvatarCache) if (now - (e?.ts || 0) > TT_AVATAR_TTL) _ttAvatarCache.delete(ck);
+        if (_ttAvatarCache.size >= TT_AVATAR_CACHE_MAX) _ttAvatarCache.delete(_ttAvatarCache.keys().next().value);
+    }
+    _ttAvatarCache.set(k, v);
+}
 async function fetchTikTokAvatar(username) {
     const uname = String(username || '').toLowerCase().replace(/^@+/, '').trim();
     if (!uname) return { ok: false, error: 'empty_username' };
@@ -4129,12 +4473,12 @@ async function fetchTikTokAvatar(username) {
             headers: { 'User-Agent': 'Mozilla/5.0' }
         });
         if (!res.ok) {
-            _ttAvatarCache.set(uname, { error: `HTTP ${res.status}`, ts: Date.now() });
+            ttAvatarCacheSet(uname, { error: `HTTP ${res.status}`, ts: Date.now() });
             return { ok: false, error: `HTTP ${res.status}` };
         }
         const body = await res.json();
         if (body?.code !== 0 || !body?.data?.user) {
-            _ttAvatarCache.set(uname, { error: body?.msg || 'no_user', ts: Date.now() });
+            ttAvatarCacheSet(uname, { error: body?.msg || 'no_user', ts: Date.now() });
             return { ok: false, error: body?.msg || 'no_user' };
         }
         const u = body.data.user;
@@ -4142,13 +4486,13 @@ async function fetchTikTokAvatar(username) {
         const avatarUrl = u.avatarLarger || u.avatarMedium || u.avatarThumb || '';
         const nickname = u.nickname || u.uniqueId || uname;
         if (!avatarUrl) {
-            _ttAvatarCache.set(uname, { error: 'no_avatar', ts: Date.now() });
+            ttAvatarCacheSet(uname, { error: 'no_avatar', ts: Date.now() });
             return { ok: false, error: 'no_avatar' };
         }
-        _ttAvatarCache.set(uname, { url: avatarUrl, nickname, ts: Date.now() });
+        ttAvatarCacheSet(uname, { url: avatarUrl, nickname, ts: Date.now() });
         return { ok: true, avatarUrl, nickname };
     } catch (e) {
-        _ttAvatarCache.set(uname, { error: e.message, ts: Date.now() });
+        ttAvatarCacheSet(uname, { error: e.message, ts: Date.now() });
         return { ok: false, error: e.message };
     }
 }
@@ -4157,6 +4501,53 @@ app.get('/api/tiktok-user-avatar', async (req, res) => {
     if (!username) return res.status(400).json({ ok: false, error: 'username required' });
     const r = await fetchTikTokAvatar(username);
     res.json(r);
+});
+
+// ====== ⚙ Cài đặt chung ======
+function settingsSnapshot() {
+    const k = String(appConfig.tiktokSignApiKey || '');
+    const n = networkConfig();
+    return {
+        ok: true,
+        tiktokSignApiKeySet: !!k,
+        tiktokSignApiKeyMasked: k ? (k.slice(0, 4) + '••••' + k.slice(-4)) : '',
+        tiktokSignApiKeyFromEnv: !!(process.env.TIKTOK_SIGN_API_KEY || process.env.EULER_API_KEY),
+        autoReconnect: appConfig.autoReconnect !== false,
+        overlay: { host: OBS_LOCAL_HOST, port: PORT, hostMapped: isHostMapped() },
+        network: {
+            lanAccess: n.lanAccess === true,
+            bindHost: BIND_HOST,                       // host ĐANG lắng nghe (chốt lúc khởi động)
+            port: Number(PORT) || PORT,
+            lanAddresses: lanAddresses(),
+            token: n.lanAccess === true ? String(n.token || '') : '',   // chỉ lộ khi đã bật LAN
+            needsRestart: (n.lanAccess === true) !== NETWORK_LAN_ACCESS_AT_START,
+            envOverride: HP_BIND_HOST_ENV
+        },
+        gifts: { count: giftList.length, loadedAt: giftSheetLoadedAt },
+        connected: isTikTokLiveConnected(),
+        username: currentUsername || appConfig.lastUsername || ''
+    };
+}
+app.get('/api/settings', (req, res) => res.json(settingsSnapshot()));
+app.post('/api/settings', (req, res) => {
+    const b = req.body || {};
+    let changed = false;
+    if (Object.prototype.hasOwnProperty.call(b, 'tiktokSignApiKey')) {
+        const v = String(b.tiktokSignApiKey || '').trim().slice(0, 200);
+        if (v && !/^[A-Za-z0-9_\-.:]+$/.test(v)) return res.status(400).json({ ok: false, error: 'API key có ký tự lạ — dán lại từ eulerstream.com' });
+        appConfig.tiktokSignApiKey = v;   // '' = xoá key
+        changed = true;
+    }
+    if (Object.prototype.hasOwnProperty.call(b, 'autoReconnect')) { appConfig.autoReconnect = b.autoReconnect !== false; changed = true; }
+    if (Object.prototype.hasOwnProperty.call(b, 'lanAccess')) {
+        const n = networkConfig();
+        const v = b.lanAccess === true;
+        if (n.lanAccess !== v) { n.lanAccess = v; changed = true; }
+    }
+    if (changed) saveAppConfig();
+    const snap = settingsSnapshot();
+    // Đổi công tắc LAN chỉ có hiệu lực sau khi mở lại app (host bind chốt lúc khởi động).
+    res.json(snap.network.needsRestart ? { ...snap, needsRestart: true } : snap);
 });
 
 app.get('/api/version', (req, res) => {
@@ -4467,6 +4858,10 @@ app.get('/api/last-user', (req, res) => {
 });
 
 // ===== License gate API =====
+// Mã máy rút gọn (10 ký tự đầu của HWID) — chỉ để người dùng đọc cho HP Media khi cần hỗ trợ.
+function licHwidShort() {
+    try { return String(require('./hpkey/validate').getHWID() || '').slice(0, 10).toUpperCase(); } catch (e) { return ''; }
+}
 app.get('/api/license/status', async (req, res) => {
     const stored = appConfig.license || {};
     // Chỉ cần TỪNG có key đã lưu (kể cả khi bị revoke trước đó, activated=false)
@@ -4493,9 +4888,13 @@ app.get('/api/license/status', async (req, res) => {
                 activated: true,
                 key: result.key,
                 role: result.role || 'ADMIN',
+                allowedIds: result.allowedIds || [],
                 vip: result.vip,
                 expiry: result.expiry,
-                note: result.note
+                note: result.note,
+                lastValidated: appConfig.license.lastValidated,
+                activatedAt: stored.activatedAt || null,
+                hwidShort: licHwidShort()
             });
         }
         // Mất mạng + trước đó đã kích hoạt -> cho offline tối đa 24h
@@ -4506,10 +4905,14 @@ app.get('/api/license/status', async (req, res) => {
                     activated: true,
                     key: stored.key,
                     role: stored.role || 'ADMIN',
+                    allowedIds: stored.allowedIds || [],
                     vip: stored.vip || 'Thường',
                     expiry: stored.expiry || '',
                     offline: true,
-                    note: 'Offline grace period'
+                    note: 'Offline grace period',
+                    lastValidated: lastValid,
+                    activatedAt: stored.activatedAt || null,
+                    hwidShort: licHwidShort()
                 });
             }
         }
@@ -4640,8 +5043,12 @@ app.post('/api/connect', async (req, res) => {
 
 app.post('/api/disconnect', async (req, res) => {
     try {
-        if (connection) await connection.disconnect();
+        manualDisconnect = true;
+        cancelAutoReconnect();
+        reconnectAttempt = 0;
+        const old = connection;
         connection = null; liveConnected = false; currentUsername = null; currentRoomId = null;
+        if (old) await old.disconnect();
         broadcast('status', { connected: false });
         setLiveDashboardStatus(false, { username: '', roomId: '' });
         res.json({ ok: true });
@@ -4888,8 +5295,9 @@ app.get('/overlay/shared/:token', (req, res) => {
     const gameId = Object.keys(appConfig.shareTokens).find(id => appConfig.shareTokens[id] === req.params.token);
     if (!gameId || !GAMES[gameId]) return res.status(404).send('Link không hợp lệ hoặc đã đổi.');
     const query = { ...req.query };
-    const qs = Object.keys(query).length ? '?' + new URLSearchParams(query).toString() : '';
-    res.redirect(GAMES[gameId].overlayPath + qs);
+    const base = GAMES[gameId].overlayPath;
+    const qs = Object.keys(query).length ? (base.includes('?') ? '&' : '?') + new URLSearchParams(query).toString() : '';
+    res.redirect(base + qs);
 });
 
 // ============================================================
@@ -5044,8 +5452,13 @@ function voteCommentReset() {
     console.log(`[votecomment] RESET`);
 }
 
+// Chuẩn hoá tiếng Việt: NFD bỏ dấu, đ→d, gộp khoảng trắng, lower. "Đỏ", "đỏ", "do", "DO " đều = "do".
+// (Trước đây chỉ trim+lower → viewer gõ không dấu hoặc bàn phím gõ Unicode tổ hợp là trượt vote.)
 function normalizeVoteText(s) {
-    return String(s || '').trim().toLowerCase();
+    return String(s || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd').replace(/Đ/g, 'd')
+        .toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 function handleVoteCommentChat({ uniqueId, comment }) {
@@ -5055,8 +5468,10 @@ function handleVoteCommentChat({ uniqueId, comment }) {
     if (!uniqueId || !comment) return;
     const norm = normalizeVoteText(comment);
     if (!norm) return;
-    // Match: comment chuẩn hoá EQUAL với keyword chuẩn hoá (case-insensitive, trim)
-    const hit = voteCommentState.rows.find(r => r.keyword && normalizeVoteText(r.keyword) === norm);
+    // Match: ưu tiên comment == keyword; nếu không, keyword 1 từ đứng riêng trong comment ("vote 1", "1 nhé").
+    const tokens = norm.split(' ');
+    const hit = voteCommentState.rows.find(r => r.keyword && normalizeVoteText(r.keyword) === norm)
+        || voteCommentState.rows.find(r => { const k = r.keyword && normalizeVoteText(r.keyword); return k && !k.includes(' ') && tokens.includes(k); });
     if (!hit) return;
     hit.comments = (hit.comments | 0) + 1;
     voteCommentState.userLastRow[String(uniqueId).toLowerCase()] = hit.id;
@@ -5344,7 +5759,7 @@ function nhietDoDecayTick() {
     nhietDoLastDecayAt = now;
     if (nhietDoState.active === false) return;
     const cfg = appConfig.games?.nhietdo;
-    if (!cfg || cfg.enabled === false) return;
+    if (!cfg || cfg.enabled === false || cfg.sessionActive === false) return;   // phiên TẮT → giữ nguyên nhiệt
     const idleSec = nhietDoState.lastGiftAt ? (now - nhietDoState.lastGiftAt) / 1000 : Infinity;
     if (idleSec < (Number(cfg.idleSeconds) || 0)) return;
     if (nhietDoState.temp <= nhietDoState.tempMin) return;
@@ -5672,6 +6087,8 @@ function trongCayReset() {
     trongCayState.blooming = false;
     trongCayState.lastGiftAt = 0;
     trongCayChoosing.clear();
+    if (trongCayBurnTimer) { clearTimeout(trongCayBurnTimer); trongCayBurnTimer = null; }
+    trongCayBurnUntil = 0;
     trongCayState.updatedAt = Date.now();
     broadcastTrongCayState({ immediate: true });
 }
@@ -6371,14 +6788,13 @@ function trongCayCaterpillarBite(cat) {
     if (!plant) return false;
     if ((Number(plant.height) || 0) <= 1 && (Number(plant.fruits) || 0) <= 0) return false; // cây trụi rồi → đổi mục tiêu
     // ăn trái trên cây trước (icon/quả), rồi ăn lá (giảm chiều cao) + làm cây yếu (héo).
-    let ate = false;
-    if ((Number(plant.fruits) || 0) > 0 && Math.random() < 0.5) { plant.fruits = Math.max(0, plant.fruits - 1); ate = true; }
+    if ((Number(plant.fruits) || 0) > 0 && Math.random() < 0.5) plant.fruits = Math.max(0, plant.fruits - 1);
     plant.height = trongCayClamp((Number(plant.height) || 0) - bite, 0, Number(cfg.maxHeight) || 100);
     plant.wilt = trongCayClamp((Number(plant.wilt) || 0) + 5, 0, 100);
     if (plant.height <= 2) plant.ripe = false; // ăn trụi → không còn chín
     trongCayState.height = trongCayClamp(Math.max(0, ...(trongCayState.plants || []).map(p => Number(p.height) || 0)), 0, Number(cfg.maxHeight) || 100);
     io.emit('trongcay:catbite', { x: cat.x, plantId: plant.id, ts: Date.now() });
-    return true || ate;
+    return true;
 }
 // 🧴 Xịt thuốc: chọn chỗ NHIỀU SÂU nhất (ưu tiên), bảo vệ vùng đó, sâu trong vùng rụng thành xác.
 function trongCaySpray({ sprayGift } = {}) {
@@ -6987,6 +7403,7 @@ function banCungReset() {
     banCungState.sessionStartedAt = Date.now();
     banCungState.bowCharge = 0;
     if (banCungAutoReviveTimer) { clearTimeout(banCungAutoReviveTimer); banCungAutoReviveTimer = null; }
+    banCungClearBurstTimers();
     broadcastBanCungState({ immediate: true });
 }
 
@@ -7184,14 +7601,22 @@ function banCungDoShield(durationSec, contribUser) {
 //   1. delay theo burstDelayMs (shot 0 = ngay)
 //   2. emit 'bancung:shot' event cho overlay animate
 //   3. apply damage sau khi arrow hit (server delay = arrowDurationMs)
+const banCungBurstTimers = new Set();   // mọi setTimeout của loạt bắn — reset là huỷ sạch, mũi tên đang bay không "trúng" HP mới
+function banCungClearBurstTimers() {
+    for (const t of banCungBurstTimers) clearTimeout(t);
+    banCungBurstTimers.clear();
+}
 function banCungFireBurst(shotCount, contribUser, giftMeta) {
     const cfg = appConfig.games.bancung || makeDefaultBanCungConfig();
-    const burstDelay = Math.max(0, Number(cfg.display?.burstDelayMs) || 280);
     const arrowDur  = Math.max(100, Number(cfg.display?.arrowDurationMs) || 700);
-    const n = Math.max(1, Math.min(20, parseInt(shotCount, 10) || 1));
+    // Trước đây kẹt cứng 20 mũi → combo x50 sát thương y hệt x20. Giờ tối đa 60 mũi, combo lớn thì bắn dồn
+    // để cả loạt xong trong ~6s.
+    const n = Math.max(1, Math.min(60, parseInt(shotCount, 10) || 1));
+    const burstDelay = Math.min(Math.max(0, Number(cfg.display?.burstDelayMs) || 280), n > 20 ? Math.floor(6000 / n) : Infinity);
     for (let i = 0; i < n; i++) {
         const launchAt = i * burstDelay;
-        setTimeout(() => {
+        const tOuter = setTimeout(() => {
+            banCungBurstTimers.delete(tOuter);
             // Pre-check shield/dead status AT LAUNCH — overlay needs to know whether
             // to animate "hit and disappear" hoặc "fly through and pass" (shield deflect).
             const now0 = Date.now();
@@ -7205,7 +7630,8 @@ function banCungFireBurst(shotCount, contribUser, giftMeta) {
                 gift: giftMeta || null
             });
             // Apply damage when arrow lands (delayed by arrowDur)
-            setTimeout(() => {
+            const tInner = setTimeout(() => {
+                banCungBurstTimers.delete(tInner);
                 const flags = banCungApplyShotDamage(contribUser, giftMeta);
                 if (flags.dealt > 0) {
                     io.emit('bancung:hit', {
@@ -7225,7 +7651,9 @@ function banCungFireBurst(shotCount, contribUser, giftMeta) {
                 }
                 broadcastBanCungState({ immediate: true });
             }, arrowDur);
+            banCungBurstTimers.add(tInner);
         }, launchAt);
+        banCungBurstTimers.add(tOuter);
     }
 }
 
@@ -7265,15 +7693,21 @@ function handleBanCungGift({ uniqueId, nickname, profilePicture, giftId, giftNam
 
     const shieldHit = findInList(cfg.shieldGifts);
     if (shieldHit) {
-        const dur = Math.max(1, Number(shieldHit.durationSec) || 5) * repeat;
+        // Khiên × combo nhưng có trần (mặc định 60s, cfg.maxShieldSec) — combo x100 không còn = 500s bất tử
+        const dur = Math.min(Math.max(1, Number(shieldHit.durationSec) || 5) * repeat, Math.max(5, Number(cfg.maxShieldSec) || 60));
         banCungDoShield(dur, contribUser);
         return;
     }
     const reviveHit = findInList(cfg.reviveGifts);
-    if (reviveHit && banCungState.deadAt) {
-        // Hồi sinh với 50% HP × repeat (clamped)
-        const reviveHp = Math.min(banCungState.maxHp, Math.max(1, banCungState.maxHp * 0.5 * repeat));
-        banCungDoRevive(reviveHp, contribUser, false);
+    if (reviveHit) {
+        if (banCungState.deadAt) {
+            // Hồi sinh với 50% HP × repeat (clamped)
+            const reviveHp = Math.min(banCungState.maxHp, Math.max(1, banCungState.maxHp * 0.5 * repeat));
+            banCungDoRevive(reviveHp, contribUser, false);
+        } else {
+            // Còn sống mà tặng quà hồi sinh → coi như hồi máu nhẹ, KHÔNG rơi xuống nhánh bắn tự do thành mũi tên
+            banCungDoHeal(Math.max(0.5, banCungState.maxHp * 0.1) * Math.min(repeat, 5), contribUser);
+        }
         return;
     }
     const healHit = findInList(cfg.healGifts);
@@ -7567,6 +8001,7 @@ function pktiktokEmitPlay(key, source) {
         ts: Date.now(),
     };
     io.emit('pktiktok:play', payload);
+    if (isResultPhase && source === 'auto') pkLastTopContributor = null;   // đã dùng xong cho trận này
     return { ok: true, payload };
 }
 // Expose cho auto-drain nằm trong attachConnectionEvents (khác scope).
@@ -7797,7 +8232,7 @@ function resolveUniqueIdFromUserId(userId) {
 // (A) Lần đầu trong phiên → fire
 // (B) Drop-out seq → trở lại (mạnh) → fire ngay bypass threshold
 // (C) Time-based: vắng mặt > rejoinThresholdSec → fire
-function maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, source, verified, userId) {
+function maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, source, verified, userId, extra) {
     if (!uniqueId && userId) {
         const resolved = resolveUniqueIdFromUserId(userId);
         if (resolved) {
@@ -7838,8 +8273,9 @@ function maybeFireFirstSeenJoin(uniqueId, nickname, level, profilePicture, sourc
         enqueued = handleVipWelcomeEvent('join', {
             uniqueId, nickname,
             level: Number(level) || 0,
-            profilePicture: profilePicture || '',
-            verified: !!verified
+            profilePicture: pickAvatarUrl(profilePicture) || '',
+            verified: !!verified,
+            extra: extra || null
         }) || 0;
     } catch (e) { console.error('[vipwelcome] join handler error:', e); }
 
@@ -7878,9 +8314,27 @@ function vipWelcomeMatchesUserRule(rule, ctx) {
     return { matched: true, reason: 'ok' };
 }
 
+// Điều kiện phụ cho rule "Tất cả user" — dựa trên dữ liệu THẬT TikTok gửi kèm user.
+// Key mới (tuỳ chọn, panel có thể bật): requireTopUser, minFansLevel, requireSubscriber, requireFollowing.
+function vipGlobalRulePasses(g, userInfo) {
+    if (!g || !g.enabled || !g.mediaUrl) return false;
+    if ((userInfo.level || 0) < (g.minLevel || 0)) return false;
+    if (g.requireVerified && !userInfo.verified) return false;
+    if (g.requireTopUser && !userInfo.isTopUser) return false;
+    if ((Number(g.minFansLevel) || 0) > 0 && (userInfo.fansLevel || 0) < Number(g.minFansLevel)) return false;
+    if (g.requireSubscriber && !userInfo.isSubscriber) return false;
+    if (g.requireFollowing && !userInfo.isFollowing) return false;
+    return true;
+}
+
 function renderVipMessage(template, ctx) {
     if (!template) return '';
     return String(template)
+        .replace(/\{rank\}/g, ctx.topUserNo ? `TOP ${ctx.topUserNo}` : (ctx.isTopUser ? 'TOP' : ''))
+        .replace(/\{fans\}/g, ctx.fansLevel ? `Fan Lv${ctx.fansLevel}` : '')
+        .replace(/\{sub\}/g, ctx.isSubscriber ? '⭐ Sub' : '')
+        .replace(/\{mod\}/g, ctx.isModerator ? '🛡 Mod' : '')
+        .replace(/\{diamond\}/g, String(ctx.diamondCount || 0))
         .replace(/\{nickname\}/g, ctx.nickname || ctx.uniqueId || 'User')
         .replace(/\{uniqueId\}/g, ctx.uniqueId || '')
         .replace(/\{level\}/g, String(ctx.level || 0))
@@ -7896,8 +8350,10 @@ function pushVipWelcomeLog(entry) {
 }
 
 // Số overlay OBS/preview đang kết nối (join room 'overlay' khi subscribe).
+// Đếm ĐÚNG overlay Chào Mừng VIP (room riêng). Trước đây đếm room 'overlay' chung → mở overlay game khác
+// mà không mở VIP là server chờ ack 20s/lượt cho người không bao giờ trả lời.
 function vipOverlayCount() {
-    try { return io.sockets.adapter.rooms.get('overlay')?.size || 0; } catch (e) { return 0; }
+    try { return io.sockets.adapter.rooms.get('overlay:vipwelcome')?.size || 0; } catch (e) { return 0; }
 }
 
 // Reset toàn bộ state phát (dùng khi stop / clearQueue / tắt game): xoá queue + huỷ chờ ack.
@@ -8075,10 +8531,15 @@ function handleVipWelcomeEvent(eventType, evt) {
     pruneVipCooldown();
     let enqueuedCount = 0;              // số effect thật sự đẩy vào queue
     let matchedButDisabledProfile = false;   // có rule khớp nhưng profile đang TẮT
+    const x = evt.extra || {};
     const userInfo = {
         uniqueId: evt.uniqueId, nickname: evt.nickname,
-        level: evt.level || 0, profilePicture: evt.profilePicture,
-        verified: !!evt.verified
+        level: evt.level || 0, profilePicture: pickAvatarUrl(evt.profilePicture),
+        verified: !!evt.verified,
+        // Dữ liệu THẬT TikTok gửi kèm (xem extractTikTokUser) — dùng cho điều kiện rule + placeholder tin nhắn
+        isTopUser: !!x.isTopUser, topUserNo: Number(x.topUserNo) || 0,
+        fansLevel: Number(x.fansLevel) || 0, fansClubName: x.fansClubName || '',
+        isSubscriber: !!x.isSubscriber, isModerator: !!x.isModerator, isFollowing: !!x.isFollowing
     };
     const giftInfo = eventType === 'gift' ? {
         giftName: evt.giftName, giftPicture: evt.giftPicture,
@@ -8151,9 +8612,7 @@ function handleVipWelcomeEvent(eventType, evt) {
         // 2. Global rule (toàn bộ user) — có thể filter theo verified (tích xanh)
         if (eventType === 'join') {
             const g = profile.globalJoin;
-            if (g && g.enabled && g.mediaUrl
-                && (userInfo.level || 0) >= (g.minLevel || 0)
-                && (!g.requireVerified || userInfo.verified)) {
+            if (vipGlobalRulePasses(g, userInfo)) {
                 if (checkAndEnqueueVip({
                     ruleId: pfx + 'global:join',
                     source: 'globalJoin',
@@ -8167,10 +8626,7 @@ function handleVipWelcomeEvent(eventType, evt) {
         } else if (eventType === 'gift') {
             const g = profile.globalGift;
             // Global "Lên cấp": chỉ fire khi user thật sự lên cấp + level >= minLevel + (optional verified)
-            if (g && g.enabled && g.mediaUrl
-                && leveledUp
-                && (userInfo.level || 0) >= (g.minLevel || 0)
-                && (!g.requireVerified || userInfo.verified)) {
+            if (leveledUp && vipGlobalRulePasses(g, userInfo)) {
                 if (checkAndEnqueueVip({
                     ruleId: pfx + 'global:gift',
                     source: 'globalGift',
@@ -8180,6 +8636,20 @@ function handleVipWelcomeEvent(eventType, evt) {
                     messageTemplate: g.message,
                     user: userInfo,
                     gift: giftInfo
+                })) enqueuedCount++;
+            }
+        } else if (eventType === 'subscribe') {
+            // Đăng ký kênh (MEMBER action=3) — rule global tuỳ chọn profile.globalSubscribe
+            const g = profile.globalSubscribe;
+            if (vipGlobalRulePasses(g, userInfo)) {
+                if (checkAndEnqueueVip({
+                    ruleId: pfx + 'global:subscribe',
+                    source: 'globalSubscribe',
+                    ruleLabel: `[${profileLabel}] Tất cả user (Đăng ký kênh)`,
+                    eventType: 'subscribe',
+                    media: g,
+                    messageTemplate: g.message,
+                    user: userInfo
                 })) enqueuedCount++;
             }
         }
@@ -8201,7 +8671,8 @@ app.post('/api/games/vipwelcome/trigger', (req, res) => {
     if (!cfg) return res.status(404).json({ ok: false, error: 'vipwelcome config missing' });
     const { type, payload } = req.body || {};
     if (type === 'test') {
-        // payload: { profileId, ruleType:'user'|'globalJoin'|'globalGift', ruleId? }
+        // payload: { profileId, ruleType:'user'|'globalJoin'|'globalGift'|'globalSubscribe', ruleId?,
+        //            uniqueId?, nickname?, level?, verified?, isTopUser?, topUserNo?, fansLevel?, isSubscriber?, isModerator?, isFollowing?, diamondCount? }
         // profileId default = activeProfileId nếu không truyền
         const profileId = payload?.profileId || cfg.activeProfileId;
         const profile = (cfg.profiles || []).find(p => p.id === profileId);
@@ -8225,6 +8696,11 @@ app.post('/api/games/vipwelcome/trigger', (req, res) => {
             media = profile.globalGift; ruleLabel = `[${profileLabel}] Test: Global Gift`;
             eventType = 'gift';
             messageTemplate = profile.globalGift.message;
+        } else if (payload?.ruleType === 'globalSubscribe') {
+            if (!profile.globalSubscribe?.mediaUrl) return res.json({ ok: false, error: 'no_media' });
+            media = profile.globalSubscribe; ruleLabel = `[${profileLabel}] Test: Global Subscribe`;
+            eventType = 'subscribe';
+            messageTemplate = profile.globalSubscribe.message;
         } else {
             return res.json({ ok: false, error: 'unknown_ruleType' });
         }
@@ -8233,13 +8709,20 @@ app.post('/api/games/vipwelcome/trigger', (req, res) => {
             nickname: payload?.nickname || 'Người Thử',
             level: payload?.level || 99,
             verified: !!payload?.verified,
-            profilePicture: ''
+            profilePicture: '',
+            // Panel gửi kèm (fakeTestUserFields) → TEST hiện đúng {rank}{fans}{sub}{mod} như event thật
+            isTopUser: !!payload?.isTopUser, topUserNo: Number(payload?.topUserNo) || 0,
+            fansLevel: Number(payload?.fansLevel) || 0,
+            isSubscriber: !!payload?.isSubscriber || eventType === 'subscribe',
+            isModerator: !!payload?.isModerator, isFollowing: !!payload?.isFollowing
         };
+        const fakeDiamond = Number(payload?.diamondCount) || 0;
         const fakeGift = eventType === 'gift' ? {
             giftName: payload?.giftName || 'Quà thử', giftPicture: '',
+            diamondCount: fakeDiamond,
             repeatCount: 1
         } : null;
-        const message = renderVipMessage(messageTemplate, { ...fakeUser, giftName: fakeGift?.giftName });
+        const message = renderVipMessage(messageTemplate, { ...fakeUser, giftName: fakeGift?.giftName, diamondCount: fakeDiamond, repeatCount: fakeGift?.repeatCount });
         enqueueVipWelcomePayload(buildVipPayload({
             source: 'manual', ruleId: payload?.ruleId || '', ruleLabel,
             eventType, media, message, user: fakeUser, gift: fakeGift
@@ -9054,6 +9537,7 @@ io.on('connection', (socket) => {
     socket.emit('votecomment:state', voteCommentSnapshot());
     socket.emit('nhietdo:state', nhietDoSnapshot());
     socket.emit('bancung:state', banCungSnapshot());
+    socket.emit('trongcay:state', trongCaySnapshot());   // đồng nhất với nhietdo/bancung — popup Khởi động nhanh + overlay mở sau nhận ngay
     // Browser Source cũ reconnect trong lúc app vừa restart cũng phải xóa DOM lá cũ.
     if (Date.now() < NHATLA_STARTUP_CLEAR_UNTIL) {
         socket.emit('gameCmd', { gameId: 'nhatla', cmd: 'clear', payload: null, seq: 0 });
@@ -9269,7 +9753,13 @@ io.on('connection', (socket) => {
     });
 });
 
-httpServer.listen(PORT, async () => {
+httpServer.listen(PORT, BIND_HOST, async () => {
+    if (BIND_HOST === '127.0.0.1' || BIND_HOST === 'localhost' || BIND_HOST === '::1') {
+        console.log(`[server] Lắng nghe ${BIND_HOST} (chỉ máy này)`);
+    } else {
+        const lanUrls = lanAddresses().map(ip => `http://${ip}:${PORT}`).join(' ');
+        console.log(`[server] Lắng nghe ${BIND_HOST} (LAN: ${lanUrls || 'không tìm thấy IPv4 LAN'})${HP_BIND_HOST_ENV ? ' — theo HP_BIND_HOST' : ''}`);
+    }
     console.log(`[server] HP Action LIVE chạy tại http://localhost:${PORT}`);
     console.log(`[server] Domain riêng cho TikTok Studio/OBS: http://${OBS_LOCAL_HOST}:${PORT}` +
         (isHostMapped() ? ' (hosts file OK)' : ' (CHƯA map hosts file — link .obs chưa dùng được)'));

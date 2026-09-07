@@ -178,7 +178,7 @@
         }
         function fire(payload) {
             if (!payload || !payload.mediaUrl) return;
-            const sig = [payload.key, payload.mediaUrl, payload.source || '', payload.ts || ''].join('|');
+            const sig = [payload.key, payload.mediaUrl, payload.source || ''].join('|');   // bỏ ts: server stamp mới mỗi lần → dedupe cũ không bao giờ trúng
             const now = Date.now();
             if (sig === lastFireSig && now - lastFireAt < 1200) return;
             lastFireSig = sig;

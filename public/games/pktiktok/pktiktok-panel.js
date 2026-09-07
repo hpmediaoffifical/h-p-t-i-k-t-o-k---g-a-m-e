@@ -277,12 +277,6 @@
             });
         });
     }
-    let _topPersistTimer = null;
-    function schedulePersist() {
-        clearTimeout(_topPersistTimer);
-        _topPersistTimer = setTimeout(() => persistConfig().catch(() => {}), 500);
-    }
-
     function pickFileForEvent(key) {
         const inp = document.createElement('input');
         inp.type = 'file';

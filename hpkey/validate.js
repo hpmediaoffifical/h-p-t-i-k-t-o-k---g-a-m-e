@@ -56,8 +56,14 @@ function apiCall(action, extra) {
         let raw = '';
         res.on('data', (c) => (raw += c));
         res.on('end', () => {
-          try { resolve({ net: true, body: JSON.parse(raw) }); }
-          catch (_) { resolve({ net: true, body: {} }); }
+          // 5xx / Cloudflare challenge / HTML lỗi = server đang trục trặc, KHÔNG phải phán quyết về key
+          // → coi như mất mạng (net:false). Trước đây rơi vào 'revoked' và app tự tắt giữa LIVE.
+          if (res.statusCode >= 500 || res.statusCode === 429) return resolve({ net: false, status: res.statusCode });
+          try {
+            const body = JSON.parse(raw);
+            if (!body || typeof body !== 'object') return resolve({ net: false, status: res.statusCode });
+            resolve({ net: true, body });
+          } catch (_) { resolve({ net: false, status: res.statusCode, badBody: true }); }
         });
       }
     );
@@ -180,6 +186,10 @@ function startWatch(opts) {
   const onRevoked = opts.onRevoked;
   const sec = Math.max(15, Number(opts.intervalSec || cfg.RECHECK_SECONDS || 60));
   let busy = false;
+  let softFails = 0;
+  // Phán quyết RÕ RÀNG từ server → thu hồi ngay. Lỗi mơ hồ (body thiếu token, ts lệch...) phải lặp
+  // 3 lần liên tiếp (~3 phút) mới thu hồi — tránh 1 nhịp lỗi lẻ giết app giữa LIVE.
+  const HARD = new Set(['key_expired', 'revoked', 'device_revoked', 'device_limit_reached', 'key_not_found', 'invalid_key', 'key_disabled']);
   const timer = setInterval(async () => {
     if (busy) return;
     busy = true;
@@ -187,8 +197,12 @@ function startWatch(opts) {
       const key = (typeof getKey === 'function' ? getKey() : getKey) || '';
       if (!key) return;
       const r = await verifyKey(key);
-      if (r.ok || r._offline) return;
-      onRevoked(r.error || 'revoked');
+      if (r.ok || r._offline) { softFails = 0; return; }
+      const err = r.error || 'revoked';
+      if (HARD.has(err)) { onRevoked(err); return; }
+      softFails++;
+      if (softFails >= 3) { onRevoked(err); return; }
+      try { console.warn('[hpkey] verify lỗi tạm (' + err + ') lần ' + softFails + '/3 — chưa thu hồi'); } catch (_) {}
     } catch (_) { /* khong lam vo app */ }
     finally { busy = false; }
   }, sec * 1000);

@@ -28,7 +28,7 @@ Rồi **restart Node server** (`require()` cache file lúc startup).
 ## Kiến trúc nhanh
 
 - **Electron app** (`electron-main.js`) bọc Express server (`server.js`) chạy localhost:3000.
-- **TikTok Live Connector** (`tiktok-live-connector` v2) — kết nối realtime phòng LIVE qua `@username`.
+- **TikTok Live Connector** (`tiktok-live-connector` **2.4.4**, ESM-only) — kết nối realtime phòng LIVE qua `@username`. Nạp qua `loadTikTokConnector()` ở đầu `server.js` (require(esm) đồng bộ trên Node 24/Electron 42, fallback `import()`), KHÔNG `require` thẳng/destructure toàn cục. Hàm này vá `RouteConfig.fetchRoomGifts` thành bản gọi `gift/list` KHÔNG ký (bản ký cần gói trả phí Euler). Payload dùng tên thật của TikTok (proto v3: `user.id/displayId/avatarThumb/payGrade`, `chat.content`, `like.count`, `roomUser.total/ranks`, `gift.gift.*`, PK `battleSettings/anchorsInfo/hostscore/teamUser/taskMessageType`) → đọc payload qua `normalizeTikTokUser()/extractTikTokUser()/getTikTokGiftId()` (đọc cả tên cũ lẫn mới). Lỗi connect phân loại bằng `classifyTikTokConnectError()` (constructor.name + message); retry tối đa 3 lần (backoff 2s/5s) vì sign-server ẩn danh chỉ 5 lượt/phút.
 - **OBS overlays** transparent 1080×1920 — mỗi game 1 URL riêng (`/overlay/<gameId>`).
 - **Games hiện có:** `thuytinh` (hũ thủy tinh + vật lý Matter.js), `caro` (cờ caro tương tác), `pktiktok` (hiệu ứng PK), `vipwelcome` (chào VIP).
 - **License system:** v1.0.64+ dùng `hpvn.media/hpkey/api.php` (HMAC + RSA). Trước đó dùng `hp-license.nguyenvu.dev/activate`. Endpoint cũ vẫn còn cho gift-sheet + auto-update.

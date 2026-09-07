@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="vi">
 <head>
+    <script src="/lib/overlay-resolution.js"></script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>HP Nhặt Lá — Overlay</title>
@@ -1241,7 +1242,7 @@
         }
 
         function renderCap() {
-            return Number(cfg.drop.maxLeaves) || 6000;
+            return Number(cfg.drop.maxLeaves) || 600;   // khớp mặc định server (trước đây 6000 = gấp 10 lần)
         }
 
         // Chỉ dò lá nằm yên trong một cửa sổ nhỏ ở đầu mảng. Lá cũ nhất luôn ở đầu, nên bình

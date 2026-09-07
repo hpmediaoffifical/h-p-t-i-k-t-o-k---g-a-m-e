@@ -660,8 +660,14 @@ ipcMain.on('open-soundfx', () => openSoundfxApp());
 // ============================================================
 // 🚀 Quick Launch — cửa sổ điều khiển nhanh tách rời, always-on-top
 // ============================================================
-// Nhỏ gọn, pin-able, lưu bounds + alwaysOnTop qua phiên (file disk dưới userData).
-// User minimize main window → vẫn dùng được cửa sổ này để chạy nhanh nút Bắt đầu/Tắt.
+// Nhỏ gọn, pin-able. Prefs lưu trên disk dưới userData (quick-launch.json):
+//   { layout: 'doc'|'ngang', alwaysOnTop, autoOpen,
+//     doc:   { x, y, w, h, fit },      // slot bố cục DỌC
+//     ngang: { x, y, w, h, fit } }     // slot bố cục NGANG
+// Mỗi bố cục có slot RIÊNG → kéo chỉnh xong là tự lưu; đổi qua lại luôn về đúng vị trí + kích thước.
+// fit = true (mặc định): chiều cao tự ôm sát nội dung (renderer đo rồi setSize). Tự chuyển false
+// khi user kéo CHIỀU CAO bằng tay (will-resize chỉ bắn với resize thủ công) → từ đó chiều cao là
+// của user, không bị ép lại. Bật lại trong ⚙ Cài đặt của cửa sổ.
 function getQuickLaunchPrefsPath() {
     try { return path.join(app.getPath('userData'), 'data', 'quick-launch.json'); }
     catch { return null; }
@@ -677,54 +683,68 @@ function loadQuickLaunchPrefs() {
     return qlPrefsCache;
 }
 let qlSaveTimer = null;
+function writeQuickLaunchPrefsNow() {
+    try {
+        const p = getQuickLaunchPrefsPath();
+        if (!p || !qlPrefsCache) return;
+        const dir = path.dirname(p);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(p, JSON.stringify(qlPrefsCache, null, 2), 'utf8');
+    } catch (e) { /* swallow */ }
+}
 function saveQuickLaunchPrefs(patch) {
     const cur = loadQuickLaunchPrefs();
     qlPrefsCache = { ...cur, ...(patch || {}) };   // merge ngay vào cache
     // Debounce 250ms — move/resize emit liên tục, tránh ghi disk dồn dập
     if (qlSaveTimer) clearTimeout(qlSaveTimer);
-    qlSaveTimer = setTimeout(() => {
-        try {
-            const p = getQuickLaunchPrefsPath();
-            if (!p) return;
-            const dir = path.dirname(p);
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            fs.writeFileSync(p, JSON.stringify(qlPrefsCache, null, 2), 'utf8');
-        } catch (e) { /* swallow */ }
-    }, 250);
+    qlSaveTimer = setTimeout(() => { qlSaveTimer = null; writeQuickLaunchPrefsNow(); }, 250);
 }
-// Bounds lưu RIÊNG theo từng bố cục: prefs.doc / prefs.ngang = {x,y,w,h}.
-// qlLayout = bố cục đang dùng → persistBounds ghi vào đúng slot này.
+// qlLayout = bố cục đang dùng → mọi lần lưu bounds ghi vào đúng slot này.
 let qlLayout = 'doc';
 function qlDefaultSize(layout) {
-    return layout === 'ngang' ? { w: 760, h: 240 } : { w: 380, h: 560 };
+    return layout === 'ngang' ? { w: 760, h: 320 } : { w: 380, h: 560 };
 }
 function qlSlotOf(prefs, layout, useLegacy = false) {
     const s = prefs && prefs[layout];
     if (s && Number.isFinite(s.w) && Number.isFinite(s.h)) return { ...s };
     // Tương thích bản cũ (prefs phẳng {x,y,w,h}) → CHỈ mồi cho bố cục đang mở, không lây sang bố cục kia
-    if (useLegacy && Number.isFinite(prefs.w) && Number.isFinite(prefs.h)) {
+    if (useLegacy && prefs && Number.isFinite(prefs.w) && Number.isFinite(prefs.h)) {
         return { x: prefs.x, y: prefs.y, w: prefs.w, h: prefs.h };
     }
     return {};
 }
+function qlFitOf(prefs, layout) {
+    const s = prefs && prefs[layout];
+    return !(s && s.fit === false);   // chưa có slot / chưa từng kéo chiều cao → ôm sát
+}
+// Vá MỘT PHẦN slot của bố cục — giữ nguyên các trường còn lại (vd giữ fit khi chỉ cập nhật bounds).
+function qlPatchSlot(layout, patch) {
+    const prefs = loadQuickLaunchPrefs();
+    const cur = (prefs[layout] && typeof prefs[layout] === 'object') ? prefs[layout] : {};
+    saveQuickLaunchPrefs({ [layout]: { ...cur, ...(patch || {}) } });
+}
+function qlPersistBounds() {
+    if (!quickLaunchWindow || quickLaunchWindow.isDestroyed()) return;
+    try {
+        const b = quickLaunchWindow.getBounds();
+        qlPatchSlot(qlLayout, { x: b.x, y: b.y, w: b.width, h: b.height });
+    } catch {}
+}
 // Ghi ĐỒNG BỘ ngay (không debounce) — gọi lúc app thoát/đóng cửa sổ. Thoát app destroy()
 // cửa sổ (KHÔNG bắn 'close') rồi app.exit(0) sau 200ms → timer debounce 250ms không kịp chạy
-// → mất thay đổi cuối (vd bề rộng Ngang vừa kéo). Hàm này chốt bounds sống vào đúng slot rồi flush.
+// → mất thay đổi cuối. Hàm này chốt bounds sống vào đúng slot rồi flush.
 function flushQuickLaunchPrefs() {
-    try {
-        if (quickLaunchWindow && !quickLaunchWindow.isDestroyed()) {
-            const b = quickLaunchWindow.getBounds();
-            saveQuickLaunchPrefs({ [qlLayout]: { x: b.x, y: b.y, w: b.width, h: b.height } });
-        }
-    } catch {}
+    qlPersistBounds();
     if (qlSaveTimer) { clearTimeout(qlSaveTimer); qlSaveTimer = null; }
-    if (!qlPrefsCache) return;
+    writeQuickLaunchPrefsNow();
+}
+// Báo renderer áp bố cục: mode + bounds THẬT đang có + fit của slot đó.
+function qlSendApplyLayout(win, mode) {
     try {
-        const p = getQuickLaunchPrefsPath();
-        if (!p) return;
-        const dir = path.dirname(p);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(p, JSON.stringify(qlPrefsCache, null, 2), 'utf8');
+        const b = win.getBounds();
+        win.webContents.send('quick-launch:applyLayout', {
+            mode, w: b.width, h: b.height, fit: qlFitOf(loadQuickLaunchPrefs(), mode)
+        });
     } catch {}
 }
 function openQuickLaunchWindow() {
@@ -734,6 +754,7 @@ function openQuickLaunchWindow() {
     const prefs = loadQuickLaunchPrefs();
     qlLayout = prefs.layout === 'ngang' ? 'ngang' : 'doc';
     const slot = qlSlotOf(prefs, qlLayout, true);   // mở cửa sổ → cho phép mồi từ prefs bản cũ
+    const fit = qlFitOf(prefs, qlLayout);
     const def = qlDefaultSize(qlLayout);
     const opts = {
         width: Math.max(320, parseInt(slot.w, 10) || def.w),
@@ -759,28 +780,34 @@ function openQuickLaunchWindow() {
     };
     Object.assign(opts, clampBoundsToVisible(slot.x, slot.y, opts.width, opts.height));
     quickLaunchWindow = new BrowserWindow(opts);
-    // Truyền chế độ bố cục qua QUERY PARAM → renderer đọc đồng bộ lúc load (không bị race như IPC).
-    quickLaunchWindow.loadURL(`${APP_URL}/quick-launch?layout=${qlLayout}`);
-    quickLaunchWindow.once('ready-to-show', () => {
+    const win = quickLaunchWindow;
+    // Truyền bố cục + fit qua QUERY PARAM → renderer đọc đồng bộ lúc load (không bị race như IPC).
+    win.loadURL(`${APP_URL}/quick-launch?layout=${qlLayout}&fit=${fit ? 1 : 0}`);
+    win.once('ready-to-show', () => {
         // Báo renderer biết trạng thái Pin lúc khởi tạo để sync UI nút 📌
-        try { quickLaunchWindow.webContents.send('quick-launch:initPin', opts.alwaysOnTop); } catch {}
-        // Áp bố cục đã lưu + ôm sát chiều cao theo bề rộng đã khôi phục (giữ đúng vị trí)
-        try { quickLaunchWindow.webContents.send('quick-launch:applyLayout', { mode: qlLayout, w: opts.width }); } catch {}
-        quickLaunchWindow.show();
+        try { win.webContents.send('quick-launch:initPin', opts.alwaysOnTop); } catch {}
+        qlSendApplyLayout(win, qlLayout);
+        win.show();
     });
-    const persistBounds = () => {
-        if (!quickLaunchWindow || quickLaunchWindow.isDestroyed()) return;
+    // Mọi lần dời/đổi size (tay hay code) → chốt vào slot bố cục đang dùng → đổi qua lại không mất chỗ
+    win.on('moved',  qlPersistBounds);
+    win.on('resize', qlPersistBounds);
+    // User kéo TAY đổi CHIỀU CAO → bố cục hiện tại chuyển sang chiều cao cố định (fit=false).
+    // will-resize chỉ bắn khi resize thủ công (setSize/setBounds từ code KHÔNG bắn) → không nhầm với
+    // lần renderer tự ôm sát. Chỉ kéo bề rộng (chiều cao giữ nguyên) → vẫn ôm sát như cũ.
+    win.on('will-resize', (_e, newBounds) => {
         try {
-            const b = quickLaunchWindow.getBounds();
-            // Lưu bounds vào slot của bố cục đang dùng → đổi qua lại không mất vị trí/size
-            saveQuickLaunchPrefs({ [qlLayout]: { x: b.x, y: b.y, w: b.width, h: b.height } });
+            if (!newBounds || !win || win.isDestroyed()) return;
+            const cur = win.getBounds();
+            if (Math.abs((newBounds.height || cur.height) - cur.height) < 1) return;
+            if (!qlFitOf(loadQuickLaunchPrefs(), qlLayout)) return;   // đã tắt sẵn
+            qlPatchSlot(qlLayout, { fit: false });
+            win.webContents.send('quick-launch:fitChanged', { mode: qlLayout, fit: false });
         } catch {}
-    };
-    quickLaunchWindow.on('moved',  persistBounds);
-    quickLaunchWindow.on('resize', persistBounds);
-    quickLaunchWindow.on('close', () => { persistBounds(); flushQuickLaunchPrefs(); });
-    quickLaunchWindow.on('closed', () => { quickLaunchWindow = null; });
-    quickLaunchWindow.webContents.setWindowOpenHandler(({ url }) => {
+    });
+    win.on('close', () => { flushQuickLaunchPrefs(); });
+    win.on('closed', () => { quickLaunchWindow = null; });
+    win.webContents.setWindowOpenHandler(({ url }) => {
         shell.openExternal(url); return { action: 'deny' };
     });
 }
@@ -795,15 +822,14 @@ ipcMain.on('quick-launch:setLayout', (e, mode) => {
     const win = quickLaunchWindow;
     const alive = win && !win.isDestroyed();
     if (next === qlLayout) { saveQuickLaunchPrefs({ layout: next }); return; }
-    // 1) Lưu bounds của bố cục ĐANG dùng trước khi đổi
-    if (alive) {
-        try { const b = win.getBounds(); saveQuickLaunchPrefs({ [qlLayout]: { x: b.x, y: b.y, w: b.width, h: b.height } }); } catch {}
-    }
+    // 1) Chốt bounds của bố cục ĐANG dùng vào slot của nó
+    if (alive) qlPersistBounds();
     // 2) Chuyển bố cục
     qlLayout = next;
     saveQuickLaunchPrefs({ layout: next });
     if (!alive) return;
-    // 3) Khôi phục vị trí + bề rộng của bố cục mới (chiều cao để renderer ôm sát theo nội dung)
+    // 3) Khôi phục NGUYÊN slot bố cục mới (x, y, w, h). Chưa có slot → giữ vị trí hiện tại + size
+    //    mặc định; renderer sẽ ôm sát chiều cao (fit mặc định true).
     const slot = qlSlotOf(loadQuickLaunchPrefs(), next);
     const def = qlDefaultSize(next);
     const w = Math.max(320, parseInt(slot.w, 10) || def.w);
@@ -821,8 +847,8 @@ ipcMain.on('quick-launch:setLayout', (e, mode) => {
             width: w, height: h
         }, true);
     } catch {}
-    // renderer áp CSS + ôm sát chiều cao theo bề rộng w (không tự đổi vị trí)
-    try { win.webContents.send('quick-launch:applyLayout', { mode: next, w }); } catch {}
+    // renderer áp CSS; nếu slot đang fit thì ôm sát chiều cao theo bề rộng w (không tự đổi vị trí)
+    qlSendApplyLayout(win, next);
 });
 ipcMain.on('quick-launch:setSize', (e, size) => {
     if (!quickLaunchWindow || quickLaunchWindow.isDestroyed()) return;
@@ -830,6 +856,18 @@ ipcMain.on('quick-launch:setSize', (e, size) => {
     const h = Math.max(150, Math.round(Number(size?.h) || 0));
     if (!w || !h) return;
     try { quickLaunchWindow.setSize(w, h, true); } catch {}
+});
+// ⚙ Cài đặt trong cửa sổ: bật/tắt ôm sát chiều cao (theo bố cục đang dùng) + tự mở khi khởi động
+ipcMain.on('quick-launch:setFit', (e, on) => { qlPatchSlot(qlLayout, { fit: !!on }); });
+ipcMain.on('quick-launch:setAutoOpen', (e, on) => { saveQuickLaunchPrefs({ autoOpen: !!on }); });
+ipcMain.handle('quick-launch:getPrefs', () => {
+    const p = loadQuickLaunchPrefs();
+    return {
+        layout: qlLayout,
+        alwaysOnTop: p.alwaysOnTop !== false,
+        autoOpen: p.autoOpen !== false,
+        fit: qlFitOf(p, qlLayout)
+    };
 });
 ipcMain.on('quick-launch:close', () => {
     if (quickLaunchWindow && !quickLaunchWindow.isDestroyed()) quickLaunchWindow.close();

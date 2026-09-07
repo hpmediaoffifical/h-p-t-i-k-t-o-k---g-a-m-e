@@ -26,11 +26,18 @@
         { id: 'share',    emoji: '📤', label: 'Share LIVE' },
         { id: 'comment',  emoji: '💬', label: 'Comment' },
         { id: 'envelope', emoji: '🧧', label: 'Gửi bao lì xì' },
+        { id: 'subscribe', emoji: '⭐', label: 'Đăng ký kênh (Sub)' },
         { id: 'gift',     emoji: '🚀', label: 'Lên cấp (gift)' }
     ];
     function triggerLabel(id) {
         const t = TRIGGER_DEFS.find(x => x.id === id);
         return t ? `${t.emoji} ${t.label}` : id;
+    }
+    // Icon cho hàng đợi / log theo eventType (gift giữ 🎁 như cũ, subscribe → ⭐, join → 🚪)
+    function eventIcon(eventType) {
+        if (eventType === 'gift') return '🎁';
+        const t = TRIGGER_DEFS.find(x => x.id === eventType);
+        return t ? t.emoji : '🚪';
     }
 
     // 12 phong cách lời chúc — phải khớp với class style-* trong overlay.html
@@ -48,6 +55,15 @@
         { id: 'glass',    label: 'Kính mờ',     emoji: '🪟' },
         { id: 'cyber',    label: 'Cyber Punk',  emoji: '🤖' }
     ];
+
+    // Các rule "Tất cả user" của 1 profile: key trong profile, host card trong index.html,
+    // ruleType gửi lên /trigger, nhãn hiển thị. Thêm rule global mới = thêm 1 dòng ở đây
+    // (+ default trong game.js newProfile + <div id=host> trong index.html).
+    const GLOBAL_KINDS = {
+        join:      { key: 'globalJoin',      host: '#vw-global-join-card',      ruleType: 'globalJoin',      emoji: '🚪', title: 'Vào phòng',          testLabel: 'Tất cả vào phòng',    ph: 'VD: Chào {nickname} cấp {level}!' },
+        gift:      { key: 'globalGift',      host: '#vw-global-gift-card',      ruleType: 'globalGift',      emoji: '🚀', title: 'Lên cấp',            testLabel: 'Tất cả lên cấp',      ph: 'VD: Chúc mừng {nickname} lên cấp {level}!' },
+        subscribe: { key: 'globalSubscribe', host: '#vw-global-subscribe-card', ruleType: 'globalSubscribe', emoji: '⭐', title: 'Đăng ký kênh (Sub)', testLabel: 'Tất cả đăng ký kênh', ph: 'VD: Cảm ơn {nickname} đã đăng ký kênh! {sub}' }
+    };
 
     const $ = (sel, ctx = document) => ctx.querySelector(sel);
 
@@ -135,10 +151,14 @@
             if (Array.isArray(cfg.userRules)) p.userRules = cfg.userRules;
             if (cfg.globalJoin) Object.assign(p.globalJoin, cfg.globalJoin);
             if (cfg.globalGift) Object.assign(p.globalGift, cfg.globalGift);
+            if (cfg.globalSubscribe) Object.assign(p.globalSubscribe, cfg.globalSubscribe);
             cfg.profiles = [p];
             cfg.activeProfileId = p.id;
-            delete cfg.userRules; delete cfg.globalJoin; delete cfg.globalGift;
+            delete cfg.userRules; delete cfg.globalJoin; delete cfg.globalGift; delete cfg.globalSubscribe;
         }
+        // deepMerge ở trên KHÔNG đi vào mảng profiles → profile cũ (thiếu globalSubscribe hoặc các
+        // field lọc TOP/Fan/Sub/Follow) được fill default tại đây, không ghi đè giá trị đã có.
+        for (const p of cfg.profiles) normalizeProfile(p);
         // Ensure activeProfileId valid
         const ids = cfg.profiles.map(p => p.id);
         if (!ids.includes(cfg.activeProfileId)) cfg.activeProfileId = cfg.profiles[0].id;
@@ -332,6 +352,7 @@
                     if (Array.isArray(imported.userRules)) {
                         for (const r of imported.userRules) r.id = window.HpGame.vipwelcome.newRuleId();
                     }
+                    normalizeProfile(imported);   // file export từ bản cũ có thể thiếu globalSubscribe / field lọc mới
                     cfg.profiles = cfg.profiles || [];
                     cfg.profiles.push(imported);
                     cfg.activeProfileId = imported.id;
@@ -378,7 +399,7 @@
                     <input type="checkbox" data-vw-profile-enabled ${p.enabled ? 'checked' : ''} />
                 </label>
                 <span class="vw-profile-name">${escapeHtml(p.name)}</span>
-                <span class="vw-profile-count" title="Số rule cá nhân + số rule chung">${(p.userRules?.length || 0)}+${(p.globalJoin?.enabled ? 1 : 0) + (p.globalGift?.enabled ? 1 : 0)}</span>
+                <span class="vw-profile-count" title="Số rule cá nhân + số rule chung">${(p.userRules?.length || 0)}+${(p.globalJoin?.enabled ? 1 : 0) + (p.globalGift?.enabled ? 1 : 0) + (p.globalSubscribe?.enabled ? 1 : 0)}</span>
             </div>`;
         }).join('');
         // Wire chips — toàn chip clickable để chọn nhóm (hit area lớn).
@@ -420,6 +441,28 @@
             } else if (v !== undefined) out[k] = v;
         }
         return out;
+    }
+
+    // Fill field thiếu cho 1 profile (config cũ trên đĩa / import JSON cũ) — giữ nguyên giá trị đã có.
+    function normalizeProfile(p) {
+        if (!p || typeof p !== 'object') return p;
+        const pdef = window.HpGame.vipwelcome.newProfile('');
+        for (const K of Object.values(GLOBAL_KINDS)) p[K.key] = deepMerge(pdef[K.key], p[K.key] || {});
+        if (!Array.isArray(p.userRules)) p.userRules = [];
+        return p;
+    }
+
+    // Dữ liệu user giả cho nút TEST — gửi kèm cờ TOP/Fan/Sub/Follow/diamond để server (khi hỗ trợ)
+    // render được {rank} {fans} {sub} {mod} {diamond}. Cờ bật theo điều kiện rule đang tick để test luôn qua lọc.
+    function fakeTestUserFields(g, kind) {
+        return {
+            isTopUser: !!g?.requireTopUser,
+            topUserNo: g?.requireTopUser ? 1 : 0,
+            fansLevel: Number(g?.minFansLevel) || 0,
+            isSubscriber: kind === 'subscribe' || !!g?.requireSubscriber,
+            isFollowing: !!g?.requireFollowing,
+            diamondCount: 99
+        };
     }
 
     function wireTabs() {
@@ -547,8 +590,11 @@
             wireUserRuleCards();
         }
         // Re-wire buttons mỗi lần render
-        $('#vw-btn-add-user-rule')?.addEventListener('click', addUserRule, { once: true });
-        $('#vw-btn-test-all')?.addEventListener('click', testAllRules, { once: true });
+        // Gắn 1 lần (cờ _vwWired) — {once:true} cũ làm nút "Test all" chết sau lần bấm đầu tiên.
+        const addBtn = $('#vw-btn-add-user-rule');
+        if (addBtn && !addBtn._vwWired) { addBtn._vwWired = true; addBtn.addEventListener('click', addUserRule); }
+        const testBtn = $('#vw-btn-test-all');
+        if (testBtn && !testBtn._vwWired) { testBtn._vwWired = true; testBtn.addEventListener('click', testAllRules); }
         // Search filter — keep state across re-renders via input itself
         const searchEl = $('#vw-rule-search');
         if (searchEl && !searchEl._vwWired) {
@@ -588,8 +634,10 @@
                 items.push({ kind: 'user', ruleId: r.id, label: '@' + r.uniqueId });
             }
         }
-        if (profile.globalJoin?.enabled && profile.globalJoin?.mediaUrl) items.push({ kind: 'globalJoin', label: 'Tất cả vào phòng' });
-        if (profile.globalGift?.enabled && profile.globalGift?.mediaUrl) items.push({ kind: 'globalGift', label: 'Tất cả lên cấp' });
+        for (const [kindId, K] of Object.entries(GLOBAL_KINDS)) {
+            const g = profile[K.key];
+            if (g?.enabled && g?.mediaUrl) items.push({ kind: K.ruleType, kindId, label: K.testLabel });
+        }
         if (items.length === 0) return flashWarn('Không có rule nào ENABLED + có media để test');
         flashOk(`Test ${items.length} rule lần lượt...`);
         const gapMs = Math.max(800, (cfg.queue?.perItemMinMs || 200) + 600);
@@ -597,7 +645,8 @@
             const it = items[i];
             const payload = it.kind === 'user'
                 ? { profileId: cfg.activeProfileId, ruleType: 'user', ruleId: it.ruleId, uniqueId: 'tester', nickname: 'Test', level: 99 }
-                : { profileId: cfg.activeProfileId, ruleType: it.kind, uniqueId: 'tester', nickname: 'Test', level: 99, giftName: 'Quà thử' };
+                : { profileId: cfg.activeProfileId, ruleType: it.kind, uniqueId: 'tester', nickname: 'Test', level: 99, giftName: 'Quà thử',
+                    ...fakeTestUserFields(profile[GLOBAL_KINDS[it.kindId]?.key], it.kindId) };
             await fetch('/api/games/vipwelcome/trigger', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type: 'test', payload })
@@ -808,20 +857,22 @@
     // TAB 2: GLOBAL (all users)
     // ============================================================
     function renderGlobalTab() {
-        renderGlobalCard('join');
-        renderGlobalCard('gift');
+        for (const kind of Object.keys(GLOBAL_KINDS)) renderGlobalCard(kind);
     }
 
     function renderGlobalCard(kind) {
-        const host = $(kind === 'join' ? '#vw-global-join-card' : '#vw-global-gift-card');
+        const K = GLOBAL_KINDS[kind];
+        const host = K ? $(K.host) : null;
         if (!host) return;
         const profile = activeProfile();
         if (!profile) { host.innerHTML = ''; return; }
-        const g = kind === 'join' ? profile.globalJoin : profile.globalGift;
-        const titleEmoji = kind === 'join' ? '🚪' : '🚀';
-        const titleText = kind === 'join'
-            ? `[${profile.name}] TẤT CẢ USER — Vào phòng`
-            : `[${profile.name}] TẤT CẢ USER — Lên cấp`;
+        const g = profile[K.key];
+        if (!g) { host.innerHTML = ''; return; }   // profile chưa normalize → không crash
+        const titleEmoji = K.emoji;
+        const titleText = `[${profile.name}] TẤT CẢ USER — ${K.title}`;
+        const styleOptions = ['<option value="">— Theo phong cách nhóm —</option>']
+            .concat(LABEL_STYLE_DEFS.map(s => `<option value="${s.id}" ${g.labelStyle === s.id ? 'selected' : ''}>${s.emoji} ${escapeHtml(s.label)}</option>`))
+            .join('');
         const hasFile = !!g.mediaUrl;
         const fileName = g.mediaName || (g.mediaUrl ? g.mediaUrl.split('/').pop() : '');
         const typeBadge = hasFile ? (g.mediaType === 'video' ? '🎞 VIDEO' : (g.mediaType === 'audio' ? '🔊 ÂM' : '📄')) : '';
@@ -849,8 +900,20 @@
                     <label class="vw-inline" title="Chỉ phát cho user có dấu tích xanh trên TikTok (verified account)"><input type="checkbox" id="vw-${kind}-verified" ${g.requireVerified ? 'checked' : ''} /> ✓ Chỉ tích xanh</label>
                 </div>
                 <div class="vw-rule-row">
+                    <label class="vw-inline" title="Chỉ phát cho người đang nằm TOP 1-3 người tặng quà trong phòng (TikTok gửi kèm topUserNo)"><input type="checkbox" id="vw-${kind}-topuser" ${g.requireTopUser ? 'checked' : ''} /> 🏆 Chỉ TOP 3 người tặng trong phòng</label>
+                    <label class="vw-inline" title="Chỉ phát cho thành viên Fan club từ cấp này trở lên; 0 = bỏ qua điều kiện">🎗 Fan club từ cấp ≥ <input type="number" min="0" step="1" id="vw-${kind}-fanslevel" value="${g.minFansLevel || 0}" /></label>
+                    ${kind === 'subscribe' ? '' : `<label class="vw-inline" title="Chỉ phát cho người đã đăng ký kênh (Sub)"><input type="checkbox" id="vw-${kind}-sub" ${g.requireSubscriber ? 'checked' : ''} /> ⭐ Chỉ người đã đăng ký kênh</label>`}
+                    <label class="vw-inline" title="Chỉ phát cho người đang follow kênh"><input type="checkbox" id="vw-${kind}-following" ${g.requireFollowing ? 'checked' : ''} /> ➕ Chỉ người đang follow</label>
+                </div>
+                <div class="vw-hint">Dữ liệu TikTok gửi kèm khi vào phòng/tặng quà — không cần user làm thêm gì.</div>
+                <div class="vw-rule-row">
                     <label class="vw-inline vw-msg-row">💬 Lời chúc:
-                        <input type="text" id="vw-${kind}-message" placeholder="VD: Chào {nickname} cấp {level}!" value="${escapeHtml(g.message || '')}" />
+                        <input type="text" id="vw-${kind}-message" placeholder="${K.ph}" value="${escapeHtml(g.message || '')}" />
+                    </label>
+                </div>
+                <div class="vw-rule-row">
+                    <label class="vw-inline" title="Phong cách lời chúc riêng cho rule này (mặc định theo tab Cài đặt)">🎨 Phong cách
+                        <select id="vw-${kind}-style">${styleOptions}</select>
                     </label>
                 </div>
                 <div class="vw-rule-actions">
@@ -858,7 +921,7 @@
                     <button class="primary small" id="vw-${kind}-test" ${hasFile ? '' : 'disabled'}>▶ TEST</button>
                     <button class="danger small" id="vw-${kind}-clear" ${hasFile ? '' : 'disabled'}>🗑 Xoá file</button>
                 </div>
-                <div class="vw-hint">Biến: {nickname}, {level}, {gift}, {count}, {uniqueId}, {verified} (✓ nếu có tích xanh)</div>
+                <div class="vw-hint">Biến: {nickname}, {level}, {gift}, {count}, {uniqueId}, {verified} (✓ tích xanh), {rank} (TOP N người tặng), {fans} (Fan LvN), {sub} (⭐ Sub), {mod} (🛡 Mod), {diamond} (kim cương quà)</div>
             </div>`;
         // Wire
         $(`#vw-${kind}-enabled`)?.addEventListener('change', (e) => {
@@ -877,6 +940,21 @@
         $(`#vw-${kind}-verified`)?.addEventListener('change', (e) => {
             g.requireVerified = !!e.target.checked; schedulePersist();
         });
+        $(`#vw-${kind}-topuser`)?.addEventListener('change', (e) => {
+            g.requireTopUser = !!e.target.checked; schedulePersist();
+        });
+        $(`#vw-${kind}-fanslevel`)?.addEventListener('input', (e) => {
+            g.minFansLevel = Math.max(0, parseInt(e.target.value, 10) || 0); schedulePersist();
+        });
+        $(`#vw-${kind}-sub`)?.addEventListener('change', (e) => {
+            g.requireSubscriber = !!e.target.checked; schedulePersist();
+        });
+        $(`#vw-${kind}-following`)?.addEventListener('change', (e) => {
+            g.requireFollowing = !!e.target.checked; schedulePersist();
+        });
+        $(`#vw-${kind}-style`)?.addEventListener('change', (e) => {
+            g.labelStyle = e.target.value || ''; schedulePersist();
+        });
         $(`#vw-${kind}-message`)?.addEventListener('input', (e) => {
             g.message = e.target.value; schedulePersist();
         });
@@ -894,12 +972,13 @@
                 body: JSON.stringify({
                     type: 'test', payload: {
                         profileId: cfg.activeProfileId,
-                        ruleType: kind === 'join' ? 'globalJoin' : 'globalGift',
+                        ruleType: K.ruleType,
                         uniqueId: 'demo_user',
                         nickname: 'Demo VIP',
                         level: Math.max(g.minLevel || 30, 30),
                         verified: !!g.requireVerified,    // test với verified=true nếu rule đòi tích xanh
-                        giftName: 'Hoa Hồng'
+                        giftName: 'Hoa Hồng',
+                        ...fakeTestUserFields(g, kind)    // TOP/Fan/Sub/Follow/diamond giả — server dùng khi hỗ trợ
                     }
                 })
             });
@@ -917,7 +996,7 @@
             const f = inp.files?.[0]; inp.remove();
             if (!f) return;
             const profile = activeProfile(); if (!profile) return;
-            const g = kind === 'join' ? profile.globalJoin : profile.globalGift;
+            const g = profile[GLOBAL_KINDS[kind]?.key]; if (!g) return;
             await uploadFileToTarget(f, (meta) => {
                 g.mediaUrl = meta.url;
                 g.mediaName = f.name;
@@ -1033,7 +1112,7 @@
                 ? `<div class="vw-empty">Hàng đợi trống.</div>`
                 : items.map((it, i) => `<div class="vw-queue-item">
                     <span class="vw-q-idx">#${i + 1}</span>
-                    <span class="vw-q-ev">${it.eventType === 'join' ? '🚪' : '🎁'}</span>
+                    <span class="vw-q-ev">${eventIcon(it.eventType)}</span>
                     <span class="vw-q-user">@${escapeHtml(it.uniqueId || '?')}</span>
                     <span class="vw-q-meta">cấp ${it.level || 0}</span>
                     <span class="vw-q-rule">${escapeHtml(it.ruleLabel || '')}</span>
@@ -1053,7 +1132,7 @@
         let ico = '▶';
         let extra = '';
         if (e.kind === 'play') {
-            ico = e.eventType === 'gift' ? '🎁' : '🚪';
+            ico = eventIcon(e.eventType);
             extra = `@${escapeHtml(e.uniqueId || '?')} (cấp ${e.level || 0}) — ${escapeHtml(e.ruleLabel || '')}`;
         } else if (e.kind === 'mediaMissing') {
             ico = '⚠';

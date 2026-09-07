@@ -116,8 +116,8 @@
                     </div>
                     <div class="overlay-bar">
                         <button class="primary small" id="btn-lq-copy" onclick="lqCopyOverlay(this)" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
-                        <button class="ghost small" onclick="window.open('/_prototype/level-quest.html?mode=overlay','_blank','width=1080,height=400')">🪟 Mở overlay preview</button>
-                        <button class="ghost small" onclick="document.getElementById('lq-frame').contentWindow.location.reload()" title="Reload prototype">↻ Reload</button>
+                        <button class="ghost small" onclick="window.open('/_prototype/level-quest.html?mode=overlay','_blank','width=1080,height=400')">🪟 Xem overlay</button>
+                        <button class="ghost small" onclick="document.getElementById('lq-frame').contentWindow.location.reload()" title="Reload prototype">🔄 Reload</button>
                     </div>
                     <script>
                       // Copy với fallback cho Electron / iframe context (clipboard API có thể fail im lặng)
@@ -158,8 +158,8 @@
                     </div>
                     <div class="overlay-bar">
                         <button class="primary small" id="btn-timer-copy" onclick="timerCopyOverlay(this)" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
-                        <button class="ghost small" onclick="window.open('/_prototype/timer.html?mode=overlay','_blank','width=900,height=420')" title="Preview window — gọn hơn để theo dõi">🪟 Mở preview window</button>
-                        <button class="ghost small" onclick="document.getElementById('timer-frame').contentWindow.location.reload()" title="Reload prototype">↻ Reload</button>
+                        <button class="ghost small" onclick="window.open('/_prototype/timer.html?mode=overlay','_blank','width=900,height=420')" title="Preview window — gọn hơn để theo dõi">🪟 Xem overlay</button>
+                        <button class="ghost small" onclick="document.getElementById('timer-frame').contentWindow.location.reload()" title="Reload prototype">🔄 Reload</button>
                     </div>
                     <script>
                       // Copy URL overlay vào clipboard — không hiển thị URL ra ngoài.
@@ -555,9 +555,9 @@
                     <div class="overlay-bar">
                         <input id="caro-overlay-url" type="text" readonly hidden />
                         <button id="caro-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
-                        <button id="caro-btn-popout" class="ghost small" title="Mở cửa sổ Overlay Review trong suốt để OBS dùng Window Capture bắt sắc nét hơn link Browser Source">🪟 Overlay Review</button>
-                        <button id="caro-btn-reset-round-header" class="danger small" title="Xoá bàn cờ và chơi lại hiệp này (không đổi tỉ số)">🔁 Reset hiệp</button>
-                        <button id="caro-btn-save" class="primary small" title="Lưu cài đặt Caro">💾 Lưu cài đặt</button>
+                        <button id="caro-btn-popout" class="ghost small" title="Mở cửa sổ Overlay Review trong suốt để OBS dùng Window Capture bắt sắc nét hơn link Browser Source">🪟 Xem overlay</button>
+                        <button id="caro-btn-reset-round-header" class="danger small" title="Xoá bàn cờ và chơi lại hiệp này (không đổi tỉ số)">↺ Reset hiệp</button>
+                        <button id="caro-btn-save" class="primary small" title="Lưu cài đặt Caro">💾 Lưu tất cả</button>
                     </div>
                 </header>
 
@@ -1091,7 +1091,7 @@
 
                                 <hr class="caro-sep" />
                                 <div class="caro-actions">
-                                    <button class="ghost block" id="caro-btn-reset-round" title="Xoá bàn cờ và chơi lại hiệp này (không đổi tỉ số)">🔁 Reset hiệp này</button>
+                                    <button class="ghost block" id="caro-btn-reset-round" title="Xoá bàn cờ và chơi lại hiệp này (không đổi tỉ số)">↺ Reset hiệp này</button>
                                     <button class="ghost block" id="caro-btn-analyze" title="Phân tích các nước missed-block trong hiệp này">🔍 Phân tích trận</button>
                                     <button class="danger block" id="caro-btn-surrender" title="Đầu hàng — User thắng hiệp này, có badge Honor Victory">🏳️ Đầu hàng</button>
                                 </div>
@@ -1225,7 +1225,7 @@
                         <input id="vipwelcome-overlay-url" type="text" readonly hidden />
                         <button id="vipwelcome-power" class="hp-power on" title="Đang chạy — bấm để TẮT (dừng ngay video đang phát + xoá hàng đợi + không nhận sự kiện mới)"><span class="hp-power-ico">▶</span><span class="hp-power-text">ĐANG CHẠY</span></button>
                         <button id="vipwelcome-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
-                        <button id="vipwelcome-btn-reload" class="ghost small" title="Buộc OBS browser source reload — dùng khi đổi style mà overlay vẫn hiện cũ (do cache)">🔄 Reload overlay</button>
+                        <button id="vipwelcome-btn-reload" class="ghost small" title="Buộc OBS browser source reload — dùng khi đổi style mà overlay vẫn hiện cũ (do cache)">🔄 Reload</button>
                     </div>
                 </header>
 
@@ -1275,9 +1275,10 @@
 
                             <!-- TAB: Tất cả user -->
                             <div class="tab-pane vw-pane" data-vw-pane="global">
-                                <div class="vw-pane-hint">Trigger cho BẤT KỲ user nào trong phòng LIVE. Đặt Min Level đủ cao để tránh spam.</div>
+                                <div class="vw-pane-hint">Trigger cho BẤT KỲ user nào trong phòng LIVE. Đặt Min Level đủ cao để tránh spam. Các điều kiện TOP / Fan club / Sub / Follow lọc theo dữ liệu TikTok gửi kèm từng sự kiện — chỉ tick khi thật sự cần, tick nhiều rule sẽ ít phát hơn.</div>
                                 <div id="vw-global-join-card"></div>
                                 <div id="vw-global-gift-card"></div>
+                                <div id="vw-global-subscribe-card"></div>
                             </div>
 
                             <!-- TAB: Settings -->
@@ -1361,7 +1362,7 @@
                     <div class="overlay-bar">
                         <label class="vc-switch" title="Bật / Tắt toàn bộ game"><input id="vc-cfg-enabled" type="checkbox" checked /><span>Bật</span></label>
                         <button id="vc-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
-                        <button id="vc-btn-popout" class="ghost small" title="Mở overlay ra cửa sổ riêng để theo dõi trên PC — vị trí và kích thước tự lưu cho lần sau">🪟 Mở overlay PC</button>
+                        <button id="vc-btn-popout" class="ghost small" title="Mở overlay ra cửa sổ riêng để theo dõi trên PC — vị trí và kích thước tự lưu cho lần sau">🪟 Xem overlay</button>
                         <button id="vc-btn-reload" class="ghost small" title="Buộc overlay reload (test layout mới)">🔄 Reload</button>
                     </div>
                 </header>
@@ -1395,7 +1396,7 @@
                             <div class="vc-controls-row">
                                 <button id="vc-btn-toggle" class="primary vc-btn-toggle" title="Bắt đầu phiên bình chọn — reset điểm + chạy đồng hồ">▶ Bắt đầu</button>
                                 <button id="vc-btn-reset" class="danger" title="Reset toàn bộ điểm về 0">↺ Reset</button>
-                                <button id="vc-btn-save" class="ghost" title="Lưu cài đặt ngay (cũng tự lưu sau ~0.4s mỗi khi đổi)">💾 Lưu cài đặt</button>
+                                <button id="vc-btn-save" class="ghost" title="Lưu cài đặt ngay (cũng tự lưu sau ~0.4s mỗi khi đổi)">💾 Lưu tất cả</button>
                                 <span id="vc-save-flash" class="vc-save-flash" hidden>✓ Đã lưu</span>
                                 <span class="vc-controls-spacer"></span>
                                 <div class="vc-count-mode">
@@ -1493,7 +1494,7 @@
                         <span id="nd-session-status" class="nd-session-status">⏸ Sẵn sàng</span>
                         <span class="nd-bar-spacer"></span>
                         <button id="nd-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
-                        <button id="nd-btn-popout-edit" class="ghost small" title="Mở overlay chế độ sửa — kéo chuột chỉnh vị trí thanh nhiệt, cuộn để zoom">✏ Sửa Overlay</button>
+                        <button id="nd-btn-popout-edit" class="ghost small" title="Mở overlay chế độ sửa — kéo chuột chỉnh vị trí thanh nhiệt, cuộn để zoom">✏ Sửa overlay</button>
                         <button id="nd-btn-reload" class="ghost small" title="Buộc overlay reload">🔄 Reload</button>
                         <button id="nd-btn-reset" class="danger small" title="Reset nhiệt độ + xoá top contributor">↺ Reset nhiệt</button>
                         <button id="nd-btn-save" class="primary small" title="Lưu tất cả cấu hình ngay">💾 Lưu tất cả</button>
@@ -1531,7 +1532,7 @@
                         <span id="bc-session-status" class="nd-session-status">⏸ Sẵn sàng</span>
                         <span class="nd-bar-spacer"></span>
                         <button id="bc-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
-                        <button id="bc-btn-popout-edit" class="ghost small" title="Mở overlay chế độ sửa — kéo chuột để chỉnh vị trí hàng tim + bow widget, cuộn để zoom">✏ Sửa Overlay</button>
+                        <button id="bc-btn-popout-edit" class="ghost small" title="Mở overlay chế độ sửa — kéo chuột để chỉnh vị trí hàng tim + bow widget, cuộn để zoom">✏ Sửa overlay</button>
                         <button id="bc-btn-reload" class="ghost small" title="Buộc overlay reload">🔄 Reload</button>
                         <button id="bc-btn-reset" class="danger small" title="Reset máu về full">↺ Reset máu</button>
                         <button id="bc-btn-save" class="primary small" title="Lưu tất cả cấu hình ngay">💾 Lưu tất cả</button>
@@ -1581,7 +1582,7 @@
                         </div>
                         <div class="tc-bar-group tc-bar-tools">
                             <button id="tc-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
-                            <button id="tc-btn-popout-edit" class="ghost small" title="Mở overlay chế độ sửa — kéo cây để chỉnh vị trí, cuộn để zoom">✏ Sửa Overlay</button>
+                            <button id="tc-btn-popout-edit" class="ghost small" title="Mở overlay chế độ sửa — kéo cây để chỉnh vị trí, cuộn để zoom">✏ Sửa overlay</button>
                             <button id="tc-btn-reload" class="ghost small" title="Buộc overlay reload">🔄 Reload</button>
                             <button id="tc-btn-reset" class="danger small" title="Reset cây, hoa và bướm">↺ Reset vườn</button>
                             <button id="tc-btn-save" class="primary small" title="Lưu tất cả cấu hình ngay">💾 Lưu tất cả</button>
@@ -1613,12 +1614,12 @@
                     </div>
                     <div class="overlay-bar">
                         <label class="toggle-row" title="Bật/tắt game Nhặt Lá"><input id="nl-cfg-enabled" type="checkbox" checked><span>Bật game</span></label>
-                        <button id="nl-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 COPY</button>
-                        <button id="nl-btn-preview" class="ghost small" title="Mở cửa sổ overlay trong suốt để kéo lá trực tiếp hoặc Window Capture trong OBS">🪟 Overlay</button>
+                        <button id="nl-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
+                        <button id="nl-btn-preview" class="ghost small" title="Mở cửa sổ overlay trong suốt để kéo lá trực tiếp hoặc Window Capture trong OBS">🪟 Xem overlay</button>
                         <button id="nl-btn-drop" class="ghost small" title="Thả 1 lá để kiểm tra overlay">🍂 Test</button>
                         <button id="nl-btn-clear" class="danger small" title="Xóa tất cả lá đang có trên overlay">↺ Xóa</button>
                         <button id="nl-btn-reload" class="ghost small" title="Buộc overlay reload để nhận ảnh lá vừa thêm">🔄 Reload</button>
-                        <button id="nl-btn-save" class="primary small" title="Lưu cấu hình ngay">💾 Lưu</button>
+                        <button id="nl-btn-save" class="primary small" title="Lưu cấu hình ngay">💾 Lưu tất cả</button>
                     </div>
                 </header>
                 <div class="game-body nhatla-body">
@@ -2395,45 +2396,91 @@
         <div class="settings-card">
             <div class="settings-head">
                 <span>⚙ Cài đặt</span>
+                <span class="settings-head-sub" id="st-app-version">v…</span>
                 <button id="settings-close" class="modal-close" title="Đóng">✕</button>
             </div>
             <div class="settings-body">
 
                 <!-- 🔑 Bản quyền -->
-                <div class="settings-block">
-                    <div class="settings-block-title">🔑 Bản quyền</div>
-                    <div class="lic-badge" id="lic-badge">
-                        <div class="lic-status" id="lic-status-text">Đang kiểm tra…</div>
-                        <div class="lic-meta" id="lic-meta"></div>
+                <section class="settings-block">
+                    <div class="settings-block-title">🔑 Bản quyền <span class="st-pill" id="st-lic-pill">…</span></div>
+                    <div class="st-grid">
+                        <div class="st-row"><span class="st-k">Gói</span><span class="st-v" id="st-lic-role">—</span></div>
+                        <div class="st-row"><span class="st-k">Key</span><span class="st-v mono" id="st-lic-key">—</span></div>
+                        <div class="st-row"><span class="st-k">Hạn dùng</span><span class="st-v" id="st-lic-expiry">—</span></div>
+                        <div class="st-row" id="st-lic-bind-row" hidden><span class="st-k">TikTok ID</span><span class="st-v" id="st-lic-bind">—</span></div>
+                        <div class="st-row"><span class="st-k">Mã máy</span><span class="st-v mono" id="st-lic-hwid" title="Đọc mã này cho HP Media khi cần đổi máy / hỗ trợ">—</span></div>
+                        <div class="st-row"><span class="st-k">Kiểm tra lần cuối</span><span class="st-v" id="st-lic-checked">—</span></div>
                     </div>
-                    <button id="btn-lic-logout" class="lic-logout-btn">🗑️ Xóa KEY đang dùng</button>
-                </div>
+                    <div class="st-actions">
+                        <button id="btn-lic-recheck" class="ghost small" title="Hỏi lại máy chủ HP Media ngay bây giờ">🔄 Kiểm tra lại</button>
+                        <button id="btn-lic-logout" class="ghost small danger-text" title="Gỡ key khỏi máy này — lần mở sau phải nhập lại">🗑 Xóa KEY</button>
+                    </div>
+                    <div class="hint" id="st-lic-note"></div>
+                </section>
 
                 <!-- 📦 Phiên bản -->
-                <div class="settings-block">
-                    <div class="settings-block-title">📦 Phiên bản</div>
-                    <div class="version-block">
-                        <div class="vb-row">
-                            <span class="vb-label">Hiện tại</span>
-                            <span class="vb-value" id="vb-current">…</span>
-                        </div>
-                        <div class="vb-row" id="vb-row-latest" hidden>
-                            <span class="vb-label">Mới nhất</span>
-                            <span class="vb-value new" id="vb-latest">—</span>
-                        </div>
-                        <div class="vb-actions">
-                            <button class="vb-btn" id="btn-check-update" title="Kiểm tra phiên bản mới từ máy chủ HP Media">🔄 Kiểm tra phiên bản</button>
-                            <button class="vb-btn primary" id="btn-show-update" hidden>📥 Cập nhật ngay</button>
-                        </div>
+                <section class="settings-block">
+                    <div class="settings-block-title">📦 Phiên bản <span class="st-pill" id="st-ver-pill">…</span></div>
+                    <div class="st-grid">
+                        <div class="st-row"><span class="st-k">Hiện tại</span><span class="st-v" id="vb-current">…</span></div>
+                        <div class="st-row" id="vb-row-latest" hidden><span class="st-k">Mới nhất</span><span class="st-v new" id="vb-latest">—</span></div>
+                        <div class="st-row"><span class="st-k">Kiểm tra</span><span class="st-v" id="st-ver-checked">Tự động khi mở app</span></div>
                     </div>
-                </div>
+                    <div class="st-actions">
+                        <button class="ghost small" id="btn-check-update" title="Kiểm tra phiên bản mới từ máy chủ HP Media">🔄 Kiểm tra phiên bản</button>
+                        <button class="primary small" id="btn-show-update" hidden>📥 Cập nhật ngay</button>
+                    </div>
+                </section>
 
-                <!-- ↻ Đồng bộ quà -->
-                <div class="settings-block">
+                <!-- 🔗 Kết nối TikTok -->
+                <section class="settings-block">
+                    <div class="settings-block-title">🔗 Kết nối TikTok</div>
+                    <label class="st-field">
+                        <span class="st-k">Euler Stream API key <span class="hint-inline">(tuỳ chọn — ký kết nối ổn định hơn)</span></span>
+                        <div class="st-input-row">
+                            <input id="st-sign-key" type="password" placeholder="Dán key từ eulerstream.com" autocomplete="off" spellcheck="false" />
+                            <button id="st-sign-key-save" class="primary small">Lưu</button>
+                        </div>
+                    </label>
+                    <div class="hint" id="st-sign-key-hint">Chưa có key: kết nối ẩn danh giới hạn 5 lượt/phút · 100 lượt/ngày.</div>
+                    <label class="st-toggle"><input type="checkbox" id="st-auto-reconnect" checked /> <span>Tự kết nối lại khi rớt LIVE <span class="hint-inline">(giữ nguyên số liệu buổi live)</span></span></label>
+                </section>
+
+                <!-- 🖥 OBS & Overlay -->
+                <section class="settings-block">
+                    <div class="settings-block-title">🖥 OBS &amp; Overlay</div>
+                    <div class="st-grid">
+                        <div class="st-row"><span class="st-k">Độ phân giải overlay</span><span class="st-v"><select id="st-overlay-res" class="st-select"><option value="hd">HD 1080×1920</option><option value="4k">4K 2160×3840</option></select></span></div>
+                        <div class="st-row"><span class="st-k">Địa chỉ overlay</span><span class="st-v mono" id="st-overlay-host">—</span></div>
+                        <div class="st-row"><span class="st-k">TikTok LIVE Studio</span><span class="st-v" id="st-overlay-mapped">—</span></div>
+                    </div>
+                    <label class="st-toggle"><input type="checkbox" id="st-lan-access" /> <span>Cho máy khác trong mạng LAN mở overlay <span class="hint-inline">(cần khởi động lại app)</span></span></label>
+                    <div class="hint" id="st-lan-hint"></div>
+                    <div class="st-actions">
+                        <button class="ghost small" id="st-reload-overlays" title="Buộc mọi Browser Source trong OBS tải lại (khi đổi cài đặt mà overlay chưa cập nhật)">🔄 Reload mọi overlay</button>
+                    </div>
+                </section>
+
+                <!-- 🎁 Danh sách quà -->
+                <section class="settings-block">
                     <div class="settings-block-title">🎁 Danh sách quà</div>
-                    <button id="btn-reload-gifts" class="ghost block small">↻ Đồng bộ danh sách quà</button>
-                    <div class="hint" id="gift-count-hint">— quà</div>
-                </div>
+                    <div class="st-actions">
+                        <button id="btn-reload-gifts" class="ghost small">↻ Đồng bộ danh sách quà</button>
+                        <span class="hint" id="gift-count-hint">— quà</span>
+                    </div>
+                </section>
+
+                <!-- 💾 Sao lưu -->
+                <section class="settings-block">
+                    <div class="settings-block-title">💾 Sao lưu cài đặt</div>
+                    <div class="st-actions">
+                        <button class="ghost small" id="st-backup-export" title="Xuất toàn bộ cài đặt game + bản quyền ra file JSON">⬇ Xuất backup</button>
+                        <button class="ghost small" id="st-backup-import" title="Nạp lại file backup JSON">⬆ Nhập backup</button>
+                        <input type="file" id="st-backup-file" accept="application/json,.json" hidden />
+                    </div>
+                    <div class="hint">Mang file sang máy khác để giữ nguyên vị trí hũ, quà gán hiệu ứng, danh sách VIP…</div>
+                </section>
 
             </div>
         </div>
@@ -2496,7 +2543,7 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="/lib/matter.min.js"></script>
     <script src="/games/thuytinh/game.js"></script>
     <script src="/games/caro/game.js"></script>
     <script src="/games/caro/caro-panel.js"></script>

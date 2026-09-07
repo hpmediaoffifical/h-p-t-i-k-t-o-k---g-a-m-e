@@ -1398,7 +1398,7 @@
             const $av = $killingBlow.querySelector('.bc-kb-avatar');
             const $nm = $killingBlow.querySelector('.bc-kb-name');
             if (user.avatar) {
-                $av.outerHTML = `<img class="bc-kb-avatar" src="${escapeHtml(user.avatar)}" onerror="this.outerHTML='<div class=\\'bc-kb-avatar\\'></div>" />`;
+                $av.outerHTML = `<img class="bc-kb-avatar" src="${escapeHtml(user.avatar)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'bc-kb-avatar'}))" />`;
             }
             if ($nm) $nm.textContent = user.nickname || user.uniqueId || 'Người bí ẩn';
             $killingBlow.classList.remove('show');
@@ -1413,9 +1413,10 @@
             const top3 = (data?.top3 || []).slice(0, 3);
             if (!top3.length) return;
             // Reorder: 2nd, 1st, 3rd for visual podium
-            const order = [top3[1], top3[0], top3[2]].filter(Boolean);
-            $podiumRow.innerHTML = order.map((u, slotIdx) => {
-                const realRank = (slotIdx === 0) ? 2 : (slotIdx === 1) ? 1 : 3;
+            // Giữ hạng thật theo vị trí gốc — 1 người tặng duy nhất trước đây bị gắn 🥈 vì rơi vào slot 0.
+            const ranked = top3.map((u, i) => ({ u, rank: i + 1 }));
+            const order = [ranked[1], ranked[0], ranked[2]].filter(Boolean);
+            $podiumRow.innerHTML = order.map(({ u, rank: realRank }) => {
                 const medal = realRank === 1 ? '🥇' : realRank === 2 ? '🥈' : '🥉';
                 const av = u.avatar
                     ? `<img class="bc-podium-avatar" src="${escapeHtml(u.avatar)}" onerror="this.style.visibility='hidden'" />`

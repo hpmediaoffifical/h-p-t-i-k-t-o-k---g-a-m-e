@@ -53,8 +53,10 @@
     }
 
     function rowPoints(row, countingMode, weights) {
-        const cw = (weights && Number(weights.commentWeight) > 0) ? Number(weights.commentWeight) : 1;
-        const gw = (weights && Number(weights.giftWeight) > 0) ? Number(weights.giftWeight) : 1;
+        // Trọng số 0 là hợp lệ (= tắt nguồn điểm đó); chỉ khi thiếu/âm mới về 1.
+        const num = (v) => (v == null || v === '' || !(Number(v) >= 0)) ? 1 : Number(v);
+        const cw = weights ? num(weights.commentWeight) : 1;
+        const gw = weights ? num(weights.giftWeight) : 1;
         const c = Math.round((row.comments | 0) * cw);
         const g = Math.round((row.giftXu | 0) * gw);
         const b = row.bonus | 0;

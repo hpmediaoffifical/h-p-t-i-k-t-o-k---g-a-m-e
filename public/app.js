@@ -432,7 +432,12 @@
     // ===== Games =====
     const GAME_DEVELOPMENT_NOTICE = 'Đang phát triển, có thể gặp sự cố...';
     // Whitelist game đã ổn định — không hiển thị cảnh báo "Đang phát triển"
-    const STABLE_GAMES = new Set(['thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung', 'level-quest', 'timer', 'liveTranslate']);
+    // Khi thêm id vào đây PHẢI thêm cả STABLE_IDS trong public/quick-launch.html (cửa sổ Khởi động nhanh).
+    const STABLE_GAMES = new Set([
+        'thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung',
+        'pktiktok', 'vipwelcome', 'trongcay', 'nhatla',
+        'level-quest', 'timer', 'liveTranslate'
+    ]);
 
     function renderGameDevelopmentNotice(game) {
         if (STABLE_GAMES.has(game.id)) return '';
@@ -573,6 +578,14 @@
         const cfg = g.config || {};
         return !('enabled' in cfg) || cfg.enabled !== false;
     }
+    // Tooltip nút ⏹ theo game — TẮT (enabled=false) có side-effect riêng ở server
+    // (server.js POST /api/games/:id/config): dừng media / xoá hàng đợi / reset vườn.
+    const QL_STOP_TITLE = {
+        pktiktok:   'Tắt game — dừng ngay hiệu ứng PK đang phát',
+        vipwelcome: 'Tắt game — dừng phát + xoá hàng đợi chào VIP',
+        trongcay:   'Tắt game — XOÁ vườn hiện tại (muốn tạm dừng giữ vườn: dùng ⏸ ở cửa sổ Khởi động nhanh)',
+        bancung:    'Tắt game — HP về đầy',
+    };
     function buildQuickLaunchCard(g) {
         const enabled = isGameEnabled(g);
         const card = document.createElement('div');
@@ -591,7 +604,7 @@
             </div>
             <div class="ql-card-actions">
                 <button class="ql-btn ql-btn-start" data-action="start" ${enabled ? 'disabled' : ''} title="Bật game ngay">▶ Bắt đầu</button>
-                <button class="ql-btn ql-btn-stop"  data-action="stop"  ${enabled ? '' : 'disabled'} title="Tắt game">⏹ Tắt</button>
+                <button class="ql-btn ql-btn-stop"  data-action="stop"  ${enabled ? '' : 'disabled'} title="${QL_STOP_TITLE[g.id] || 'Tắt game'}">⏹ Tắt</button>
                 <button class="ql-btn ql-btn-open"  data-action="open"  title="Mở cài đặt chi tiết">⚙</button>
             </div>
         `;
@@ -699,6 +712,57 @@
                     });
                 } catch (e) { console.warn('[quick-launch] bancung control fail:', e); }
                 break;
+            case 'trongcay':
+                // start = mở phiên (sessionActive=true, server reload overlay OBS), stop = tạm dừng
+                // giữ vườn, reset = xoá vườn + người đóng góp (server.js POST /api/games/trongcay/control).
+                try {
+                    await fetch('/api/games/trongcay/control', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ cmd: action })   // 'start' | 'stop' | 'reset'
+                    });
+                } catch (e) { console.warn('[quick-launch] trongcay control fail:', e); }
+                break;
+            case 'pktiktok':
+            case 'vipwelcome':
+            case 'nhatla': {
+                // Không có khái niệm "phiên" — start/stop = BẬT/TẮT config.enabled (giống ⏻ Thư viện).
+                // Server tự phát pktiktok:stop / vipwelcome:stop + xoá hàng đợi khi enabled true→false.
+                // reset = dừng thứ đang phát (PK/VIP) hoặc xoá sạch lá + TOP (Nhặt Lá), KHÔNG đổi enabled.
+                // Gọi API trực tiếp — chạy được kể cả khi chưa mở panel game.
+                const g = games.find(x => x.id === gameId);
+                if (!g) break;
+                if (action === 'start') {
+                    if (!isGameEnabled(g)) await setGameEnabled(g, true);
+                    break;
+                }
+                if (action === 'stop') {
+                    if (isGameEnabled(g)) await setGameEnabled(g, false);
+                    if (gameId === 'pktiktok') { try { window.HpPkTiktokPanel?.instance?.()?.stopAll?.(); } catch (_) {} }
+                    break;
+                }
+                if (action !== 'reset') break;
+                try {
+                    if (gameId === 'nhatla') {
+                        // server.js POST /api/games/:id/cmd — 'clear' (= 'reset'): xoá lá + reset TOP người tặng
+                        await fetch('/api/games/nhatla/cmd', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ cmd: 'clear' })
+                        });
+                    } else {
+                        // PK: io.emit pktiktok:stop. VIP: resetVipPlaybackState + vipwelcome:stop + queue 0.
+                        await fetch(`/api/games/${gameId}/trigger`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ type: 'stop' })
+                        });
+                        // Preview trong panel PK (nếu panel đã mở) cũng dừng — optional, không bắt buộc
+                        if (gameId === 'pktiktok') { try { window.HpPkTiktokPanel?.instance?.()?.stopAll?.(); } catch (_) {} }
+                    }
+                } catch (e) { console.warn(`[quick-launch] ${gameId} reset fail:`, e); }
+                break;
+            }
             case 'level-quest': {
                 const f = document.getElementById('lq-frame');
                 try { f?.contentWindow?.postMessage({ type: 'quickLaunch', action }, '*'); } catch (e) {}
@@ -2311,7 +2375,6 @@
         if (!ctxMenu.contains(ev.target)) closeGiftContextMenu();
     });
     document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeGiftContextMenu(); });
-    function escHtml(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 
     // ===== Wire UI =====
     let isLiveConnected = false;
@@ -3203,6 +3266,12 @@
             setStatus('online', `@${s.username || ''}`);
             dom.statRoom.textContent = s.roomId ? `Room ${s.roomId}` : '';
             setConnectedUI(true, s.username || liveUsername);
+        } else if (s?.reconnecting) {
+            // Rớt LIVE giữa buổi → server tự nối lại (giữ nguyên số liệu). Hiện trạng thái để idol khỏi hoảng.
+            const secs = Math.max(1, Math.round((s.nextInMs || 0) / 1000));
+            setStatus('connecting', s.phase === 'connecting'
+                ? `Đang nối lại @${s.username || ''}… (lần ${s.attempt || 1})`
+                : `Mất kết nối — tự nối lại sau ${secs}s (lần ${s.attempt || 1})`);
         } else {
             setStatus(null, s?.reason === 'streamEnd' ? 'LIVE đã kết thúc' : 'Chưa kết nối');
             setConnectedUI(false);
@@ -4209,6 +4278,7 @@
             const foot = document.getElementById('footer-version');
             if (cur) cur.textContent = 'v' + currentLocalVersion;
             if (foot) foot.textContent = 'v' + currentLocalVersion;
+            const sv = document.getElementById('st-app-version'); if (sv) sv.textContent = 'v' + currentLocalVersion;
             return local;
         } catch { return null; }
     }
@@ -4221,6 +4291,8 @@
             await fetchVersionInfo();
             const r = await (await fetch('/api/update/check')).json();
             if (!r.ok) {
+                const pill = document.getElementById('st-ver-pill');
+                if (pill) { pill.textContent = 'Không kiểm tra được'; pill.className = 'st-pill warn'; }
                 if (manual) toastInfo(r.error || 'Không kiểm tra được phiên bản');
                 return;
             }
@@ -4249,6 +4321,10 @@
         const row = document.getElementById('vb-row-latest');
         const latestEl = document.getElementById('vb-latest');
         const btnShow = document.getElementById('btn-show-update');
+        const pill = document.getElementById('st-ver-pill');
+        const chk = document.getElementById('st-ver-checked');
+        if (pill) { pill.textContent = info ? 'Có bản mới v' + info.version : 'Mới nhất ✓'; pill.className = 'st-pill ' + (info ? 'warn' : 'ok'); }
+        if (chk) chk.textContent = fmtTimeShort(Date.now());
         if (info) {
             if (row) row.hidden = false;
             if (latestEl) latestEl.textContent = 'v' + info.version;
@@ -4374,7 +4450,103 @@
 
     // ===== Settings popup =====
     const settingsPopup = document.getElementById('settings-popup');
-    const openSettingsPopup = () => { if (settingsPopup) settingsPopup.hidden = false; };
+    const stToast = (msg, kind) => (typeof window.toast === 'function' ? window.toast(msg, kind || 'success', 2500) : toastInfo(msg));
+    async function loadSettingsPanel() {
+        const $id = (id) => document.getElementById(id);
+        const sel = $id('st-overlay-res'); if (sel) sel.value = getOverlayResolution();
+        try {
+            const s = await (await fetch('/api/settings')).json();
+            const keyInp = $id('st-sign-key');
+            if (keyInp) {
+                keyInp.value = '';
+                keyInp.placeholder = s.tiktokSignApiKeySet ? 'Đã lưu ' + s.tiktokSignApiKeyMasked + ' — dán key mới để thay, để trống + Lưu để xoá' : 'Dán key từ eulerstream.com (miễn phí)';
+            }
+            const hint = $id('st-sign-key-hint');
+            if (hint) hint.textContent = s.tiktokSignApiKeyFromEnv
+                ? '✓ Đang dùng key từ biến môi trường TIKTOK_SIGN_API_KEY.'
+                : s.tiktokSignApiKeySet
+                    ? '✓ Đang ký kết nối bằng key riêng — hạn mức cao hơn, hết lỗi "HTTP 200". Áp dụng từ lần Kết nối LIVE kế tiếp.'
+                    : 'Chưa có key: kết nối ẩn danh giới hạn 5 lượt/phút · 30 lượt/giờ · 100 lượt/ngày (tính theo IP máy). Lấy key miễn phí tại eulerstream.com → dán vào đây.';
+            const ar = $id('st-auto-reconnect'); if (ar) ar.checked = s.autoReconnect !== false;
+            const host = $id('st-overlay-host'); if (host) host.textContent = 'http://' + (s.overlay?.host || 'localhost') + ':' + (s.overlay?.port || 3000);
+            const mapped = $id('st-overlay-mapped');
+            if (mapped) {
+                mapped.textContent = s.overlay?.hostMapped ? '✓ hpaction.obs đã map — dán được vào LIVE Studio' : '⚠ Chưa map hosts — dùng localhost cho OBS';
+                mapped.className = 'st-v ' + (s.overlay?.hostMapped ? 'ok-text' : 'warn-text');
+            }
+            const net = s.network || null;
+            const lan = $id('st-lan-access'); if (lan) lan.checked = !!(net && net.lanAccess);
+            const lh = $id('st-lan-hint');
+            if (lh) {
+                const port = (net && net.port) || 3000;
+                if (!net) lh.textContent = '';
+                else if (net.needsRestart) lh.textContent = '⚠ Đã lưu — khởi động lại HP Action LIVE để áp dụng (hiện đang lắng nghe ' + net.bindHost + ').';
+                else if (net.lanAccess) {
+                    const urls = (net.lanAddresses || []).map(ip => 'http://' + ip + ':' + port);
+                    lh.textContent = 'LAN: ' + (urls.join(' · ') || 'không tìm thấy IPv4 LAN') + ' · token X-HP-Token: ' + (net.token || '—')
+                        + ' — máy khác dán http://<IP>:' + port + '/overlay/... vào OBS (lần đầu Windows Firewall hỏi → chọn Allow).';
+                } else lh.textContent = 'Đang lắng nghe 127.0.0.1 — chỉ máy này mở được overlay.';
+            }
+            const gc = $id('gift-count-hint');
+            if (gc && s.gifts) gc.textContent = s.gifts.count + ' quà' + (s.gifts.loadedAt ? ' · cập nhật ' + fmtTimeShort(s.gifts.loadedAt) : '');
+        } catch (e) { /* server chưa sẵn sàng — giữ giá trị cũ */ }
+    }
+    const openSettingsPopup = () => {
+        if (!settingsPopup) return;
+        settingsPopup.hidden = false;
+        loadSettingsPanel();
+        if (lastLicenseInfo) updateLicenseBadge(lastLicenseInfo);
+    };
+    document.getElementById('st-sign-key-save')?.addEventListener('click', async () => {
+        const inp = document.getElementById('st-sign-key');
+        const v = (inp?.value || '').trim();
+        try {
+            const r = await (await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tiktokSignApiKey: v }) })).json();
+            if (!r.ok) return stToast(r.error || 'Không lưu được key', 'error');
+            stToast(v ? '✓ Đã lưu API key — áp dụng từ lần kết nối tới' : 'Đã xoá API key');
+            loadSettingsPanel();
+        } catch (e) { stToast('Lỗi lưu key: ' + e.message, 'error'); }
+    });
+    document.getElementById('st-auto-reconnect')?.addEventListener('change', async (e) => {
+        try {
+            await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ autoReconnect: !!e.target.checked }) });
+            stToast(e.target.checked ? '✓ Sẽ tự kết nối lại khi rớt LIVE' : 'Đã tắt tự kết nối lại');
+        } catch (err) {}
+    });
+    document.getElementById('st-lan-access')?.addEventListener('change', async (e) => {
+        try {
+            const r = await (await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lanAccess: !!e.target.checked }) })).json();
+            if (!r.ok) return stToast(r.error || 'Không lưu được cài đặt mạng', 'error');
+            stToast(r.needsRestart ? '⚠ Đã lưu — khởi động lại app để áp dụng' : '✓ Đã lưu cài đặt mạng');
+            loadSettingsPanel();
+        } catch (err) { stToast('Không lưu được: ' + err.message, 'error'); }
+    });
+    document.getElementById('st-overlay-res')?.addEventListener('change', (e) => {
+        setOverlayResolution(e.target.value);
+        const hdr = document.getElementById('overlay-resolution-select'); if (hdr) hdr.value = getOverlayResolution();
+        stToast('✓ Overlay: ' + (e.target.value === '4k' ? '4K 2160×3840' : 'HD 1080×1920') + ' — copy lại Link OBS');
+    });
+    document.getElementById('st-reload-overlays')?.addEventListener('click', () => {
+        socket.emit('overlay:reload', {});
+        stToast('🔄 Đã yêu cầu mọi overlay tải lại');
+    });
+    document.getElementById('btn-lic-recheck')?.addEventListener('click', async (e) => {
+        const btn = e.currentTarget; btn.disabled = true;
+        try {
+            const lic = await (await fetch('/api/license/status')).json();
+            updateLicenseBadge(lic);
+            if (lic.activated) stToast(lic.offline ? '🌐 Máy chủ chưa phản hồi — đang dùng hạn offline' : '✓ Bản quyền hợp lệ');
+            else stToast('❌ ' + (lic.error || 'Key không còn hợp lệ'), 'error');
+        } catch (err) { stToast('Không kiểm tra được: ' + err.message, 'error'); }
+        finally { btn.disabled = false; }
+    });
+    document.getElementById('st-backup-export')?.addEventListener('click', () => exportBackupConfig());
+    document.getElementById('st-backup-import')?.addEventListener('click', () => document.getElementById('st-backup-file')?.click());
+    document.getElementById('st-backup-file')?.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) importBackupConfig(f);
+        e.target.value = '';
+    });
     document.getElementById('btn-open-settings')?.addEventListener('click', openSettingsPopup);
     document.getElementById('caro-btn-settings')?.addEventListener('click', openSettingsPopup);
     document.getElementById('pktiktok-btn-settings')?.addEventListener('click', openSettingsPopup);
@@ -4390,11 +4562,11 @@
     // ===== Xóa KEY đang dùng (logout) =====
     // Gọi /api/license/deactivate → reset config.license → reload → license gate hiện lại
     document.getElementById('btn-lic-logout')?.addEventListener('click', async () => {
-        const ok = window.confirm(
-            '⚠️ Xác nhận xóa KEY đang dùng?\n\n' +
-            'App sẽ thoát chế độ đã kích hoạt, yêu cầu nhập KEY mới lần sau mở.\n' +
-            'Cài đặt khác (vị trí hũ, triggers quà, v.v.) sẽ được giữ lại.'
-        );
+        const ok = await hpConfirm({
+            icon: '🗑', title: 'Xóa KEY đang dùng?', tone: 'danger',
+            body: 'App sẽ thoát chế độ đã kích hoạt và yêu cầu nhập KEY ở lần mở sau. Cài đặt game (vị trí hũ, quà gán hiệu ứng, VIP…) vẫn được giữ.',
+            okLabel: 'Xóa KEY', cancelLabel: 'Giữ lại'
+        });
         if (!ok) return;
         try {
             await fetch('/api/license/deactivate', { method: 'POST' });
@@ -6218,41 +6390,61 @@
     function hideGate() {
         if (gateEl) gateEl.hidden = true;
     }
+    let lastLicenseInfo = null;
+    function fmtTimeShort(ts) {
+        if (!ts) return '—';
+        const d = new Date(ts);
+        return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' · ' + d.toLocaleDateString('vi-VN');
+    }
+    function daysUntilDmy(dmy) {
+        const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(dmy || '').trim());
+        if (!m) return null;
+        return Math.ceil((new Date(+m[3], +m[2] - 1, +m[1], 23, 59, 59) - Date.now()) / 86400000);
+    }
     function updateLicenseBadge(info) {
-        if (!licStatusText) return;
+        info = info || {};
+        lastLicenseInfo = info;
+        const $id = (id) => document.getElementById(id);
         const role = String(info.role || '').toUpperCase();
         const vipText = String(info.vip || '').trim();
         const isAdmin = role === 'ADMIN';
         const isCreator = role === 'CREATOR';
-        const isVip = /vip/i.test(vipText);
+        const isVip = role === 'VIP' || /vip/i.test(vipText);
+        const activated = info.activated === true || info.ok === true || !!info.key;
 
-        // Tag: role mới (ADMIN/CREATOR) → fallback VIP/Thường cho key cũ
-        let tagIco, tagText;
-        if (isCreator) { tagIco = '🎥'; tagText = 'CREATOR'; }
-        else if (isAdmin) { tagIco = '👑'; tagText = 'ADMIN'; }
-        else if (isVip) { tagIco = '⭐'; tagText = 'VIP'; }
-        else { tagIco = ''; tagText = vipText || 'Bản quyền'; }
-
-        const offlinePrefix = info.offline ? '🌐 Offline · ' : '';
-        const tag = offlinePrefix + (tagIco ? tagIco + ' ' : '') + tagText;
-        // CREATOR: key chính là TikTok ID → hiển thị full để user dễ thấy
-        // ADMIN/VIP: mask key cho bảo mật
-        const keyDisplay = isCreator
-            ? '@' + (info.key || '')
-            : (info.key ? info.key.slice(0, 4) + '****' + info.key.slice(-4) : '');
-        const expiry = info.expiry || '—';
-
-        let html = `${escAttrInline(tag)} <span class="lic-sep">·</span> <span class="lic-keymask">${escAttrInline(keyDisplay)}</span> <span class="lic-sep">·</span> HSD <b>${escAttrInline(expiry)}</b>`;
-
-        // Hàng 2 (CREATOR): nhắc TikTok ID cần connect
-        if (isCreator && info.key) {
-            html += `<div class="lic-creator-bind">🔗 Chỉ kết nối được với TikTok <b>@${escAttrInline(info.key)}</b></div>`;
+        const roleEl = $id('st-lic-role');
+        if (roleEl) {
+            roleEl.textContent = isCreator ? '🎥 CREATOR' : isAdmin ? '👑 ADMIN' : isVip ? '⭐ VIP' : (vipText || 'Bản quyền');
+            roleEl.className = 'st-v ' + (isCreator ? 'role-creator' : isAdmin ? 'role-admin' : isVip ? 'role-vip' : '');
         }
-
-        licStatusText.innerHTML = html;
-        const cls = info.offline ? 'offline' : (isCreator ? 'creator' : (isAdmin ? 'admin' : (isVip ? 'vip' : 'normal')));
-        licStatusText.className = 'lic-status compact ' + cls;
-        if (licMeta) licMeta.innerHTML = '';
+        // CREATOR: key chính là TikTok ID → hiện đầy đủ. ADMIN/VIP: che giữa.
+        const keyEl = $id('st-lic-key');
+        if (keyEl) keyEl.textContent = isCreator ? '@' + (info.key || '') : (info.key ? info.key.slice(0, 4) + '••••' + info.key.slice(-4) : '—');
+        const days = daysUntilDmy(info.expiry);
+        const expEl = $id('st-lic-expiry');
+        if (expEl) expEl.textContent = info.expiry
+            ? info.expiry + (days == null ? '' : (days < 0 ? ' · đã hết hạn' : ' · còn ' + days + ' ngày'))
+            : 'Vĩnh viễn';
+        const bindRow = $id('st-lic-bind-row'), bindEl = $id('st-lic-bind');
+        if (bindRow && bindEl) {
+            const ids = Array.isArray(info.allowedIds) ? info.allowedIds : [];
+            if (isCreator && info.key) { bindRow.hidden = false; bindEl.textContent = 'Chỉ @' + info.key; }
+            else if (ids.length) { bindRow.hidden = false; bindEl.textContent = ids.map(x => '@' + x).join(', '); }
+            else bindRow.hidden = true;
+        }
+        const hwEl = $id('st-lic-hwid'); if (hwEl) hwEl.textContent = info.hwidShort || '—';
+        const chkEl = $id('st-lic-checked');
+        if (chkEl) chkEl.textContent = info.offline ? 'Offline · dùng tạm tối đa 24h' : (info.lastValidated ? fmtTimeShort(info.lastValidated) : 'Vừa xong');
+        const pill = $id('st-lic-pill');
+        if (pill) {
+            if (!activated) { pill.textContent = 'Chưa kích hoạt'; pill.className = 'st-pill bad'; }
+            else if (info.offline) { pill.textContent = 'Offline'; pill.className = 'st-pill warn'; }
+            else if (days != null && days < 0) { pill.textContent = 'Hết hạn'; pill.className = 'st-pill bad'; }
+            else if (days != null && days <= 7) { pill.textContent = 'Sắp hết hạn'; pill.className = 'st-pill warn'; }
+            else { pill.textContent = 'Đã kích hoạt'; pill.className = 'st-pill ok'; }
+        }
+        const noteEl = $id('st-lic-note');
+        if (noteEl) noteEl.textContent = (info.note && info.note !== 'Offline grace period') ? info.note : '';
 
         // === CREATOR auto-fill username ===
         // Key CREATOR = TikTok ID. Auto-fill field username nếu đang trống.

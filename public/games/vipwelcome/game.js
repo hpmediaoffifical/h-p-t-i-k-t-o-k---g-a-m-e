@@ -34,21 +34,39 @@
             name: name || 'Nhóm mới',
             enabled: true,
             userRules: [],
+            // Rule "Tất cả user" — 4 điều kiện lọc phụ (requireTopUser / minFansLevel / requireSubscriber /
+            // requireFollowing) dựa trên dữ liệu TikTok gửi kèm event; server kiểm ở vipGlobalRulePasses.
+            // labelStyle '' = theo phong cách nhóm (tab Cài đặt).
             globalJoin: {
                 enabled: false,
                 mediaUrl: '', mediaName: '', mediaType: '',
                 volume: 100,
                 message: 'Chào mừng {nickname} (cấp {level}) đã ghé phòng!',
+                labelStyle: '',
                 minLevel: 20,
-                requireVerified: false
+                requireVerified: false,
+                requireTopUser: false, minFansLevel: 0, requireSubscriber: false, requireFollowing: false
             },
             globalGift: {
                 enabled: false,
                 mediaUrl: '', mediaName: '', mediaType: '',
                 volume: 100,
                 message: 'Chúc mừng {nickname} vừa lên cấp {level}!',
+                labelStyle: '',
                 minLevel: 20,
-                requireVerified: false
+                requireVerified: false,
+                requireTopUser: false, minFansLevel: 0, requireSubscriber: false, requireFollowing: false
+            },
+            // Đăng ký kênh (Sub) — minLevel 0 để không im lặng với người cấp thấp vừa sub.
+            globalSubscribe: {
+                enabled: false,
+                mediaUrl: '', mediaName: '', mediaType: '',
+                volume: 100,
+                message: 'Cảm ơn {nickname} đã đăng ký kênh! {sub}',
+                labelStyle: '',
+                minLevel: 0,
+                requireVerified: false,
+                requireTopUser: false, minFansLevel: 0, requireSubscriber: false, requireFollowing: false
             }
         };
     }
@@ -89,7 +107,12 @@
             .replace(/\{level\}/g, String(ctx?.level || 0))
             .replace(/\{gift\}/g, ctx?.giftName || '')
             .replace(/\{count\}/g, String(ctx?.repeatCount || 1))
-            .replace(/\{diamond\}/g, String(ctx?.diamondCount || 0));
+            .replace(/\{diamond\}/g, String(ctx?.diamondCount || 0))
+            .replace(/\{verified\}/g, ctx?.verified ? '✓' : '')
+            .replace(/\{rank\}/g, ctx?.topUserNo ? `TOP ${ctx.topUserNo}` : (ctx?.isTopUser ? 'TOP' : ''))
+            .replace(/\{fans\}/g, ctx?.fansLevel ? `Fan Lv${ctx.fansLevel}` : '')
+            .replace(/\{sub\}/g, ctx?.isSubscriber ? '⭐ Sub' : '')
+            .replace(/\{mod\}/g, ctx?.isModerator ? '🛡 Mod' : '');
     }
 
     window.HpGame.vipwelcome = {

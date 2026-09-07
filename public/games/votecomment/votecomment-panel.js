@@ -374,7 +374,8 @@
         if (!host) return;
         const mode = cfg?.countingMode || 'both';
         const rows = liveState?.rows || [];
-        const total = window.HpGame.votecomment.totalPoints(rows, mode);
+        const weights = { commentWeight: cfg?.commentWeight, giftWeight: cfg?.giftWeight };
+        const total = window.HpGame.votecomment.totalPoints(rows, mode, weights);
         $$('.vc-row-card', host).forEach(card => {
             const id = card.dataset.id;
             const live = rows.find(r => r.id === id);
@@ -382,7 +383,8 @@
             card.querySelector('.vc-row-stats').innerHTML = `
                 <span>💬 <b>${live.comments | 0}</b> bình luận</span>
                 <span>🎁 <b>${live.giftXu | 0}</b> xu</span>
-                <span class="vc-row-points">${total > 0 ? (window.HpGame.votecomment.rowPoints(live, mode) / total * 100).toFixed(0) : 0}%</span>
+                <span>✋ <b>${live.bonus | 0}</b> bù tay</span>
+                <span class="vc-row-points">${total > 0 ? (window.HpGame.votecomment.rowPoints(live, mode, weights) / total * 100).toFixed(0) : 0}%</span>
             `;
         });
         // Status pill
