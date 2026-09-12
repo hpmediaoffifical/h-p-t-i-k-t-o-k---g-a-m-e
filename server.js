@@ -4740,6 +4740,16 @@ app.get('/api/update/check', async (req, res) => {
                     const remote = await r.json();
                     if (remote.ok && remote.version) {
                         const isNewer = cmpVersion(remote.version, localVer) > 0;
+                        // Nguồn dự phòng đang kẹt ở bản RẤT cũ (1.0.9) trong khi khách đã ở 1.9.x. Nếu GitHub lỗi
+                        // (rate-limit 60 lượt/giờ/IP khi nhiều máy chung một IP, proxy công ty, mạng chớp) mà ta tin
+                        // nguồn này thì báo "đã là bản mới nhất" — SAI, và che mất bản mới thật. Bản cũ hơn/bằng =
+                        // nguồn dự phòng không đáng tin → báo là KHÔNG kiểm tra được, đừng khẳng định đã mới nhất.
+                        if (!isNewer) {
+                            return res.json({
+                                ok: false, localVersion: localVer,
+                                error: 'Chưa kiểm tra được bản cập nhật (nguồn chính tạm thời không truy cập được) — thử lại sau ít phút'
+                            });
+                        }
                         return res.json({
                             ok: true, localVersion: localVer, hasUpdate: isNewer,
                             latestVersion: remote.version, notes: remote.notes || '',
@@ -4821,6 +4831,15 @@ app.post('/api/update/download', async (req, res) => {
 
             if (!downloadUrl) {
                 throw new Error('Không kết nối được nguồn cập nhật');
+            }
+
+            // CHỐT CHẶN HẠ CẤP. Client bấm Đồng ý mà KHÔNG gửi version/URL nào (public/app.js POST body rỗng) →
+            // route này tự dò nguồn lại từ đầu. Nếu GitHub OK lúc kiểm tra nhưng lỗi lúc tải, nhánh dự phòng được
+            // nhận vô điều kiện — mà nguồn đó đang trả 1.0.9, nghĩa là cài đè bản 1.0.9 lên máy đang chạy 1.9.x.
+            // Không bao giờ cài bản không MỚI HƠN bản đang chạy.
+            const localVerNow = (() => { try { return require('./package.json').version || '0.0.0'; } catch (e) { return '0.0.0'; } })();
+            if (version === 'latest' || cmpVersion(version, localVerNow) <= 0) {
+                throw new Error(`Nguồn cập nhật trả về bản ${version} không mới hơn bản đang dùng (${localVerNow}) — đã huỷ để tránh hạ cấp. Thử lại sau ít phút.`);
             }
 
             // Step 2: download installer to temp folder

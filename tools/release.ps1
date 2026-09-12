@@ -192,8 +192,8 @@ if ($DryRun) {
 # ─── GITHUB RELEASE — ĐÂY LÀ BƯỚC LÀM MÁY KHÁCH THẤY BẢN MỚI ─────────────────
 # App goi api.github.com/.../releases/latest, doc tag_name, tim asset khop Setup*.exe.
 # Khong co buoc nay thi khong ai cap nhat duoc, du license-server co gi di nua.
-Say "6/8  GitHub Release (KENH CAP NHAT CHINH)"
-gh release view $TAG | Out-Null
+Say "6/8  GitHub Release vao $repoSlug (KENH CAP NHAT CHINH)"
+gh release view $TAG -R $repoSlug | Out-Null
 $releaseExists = ($LASTEXITCODE -eq 0)
 if ($releaseExists) {
     Skip "gh release create $TAG"
@@ -204,7 +204,7 @@ if ($releaseExists) {
     # tham so lam dong lenh dai loang ngoang, vua kho doc vua de vo cu phap.
     $assets = @($FILEPATH)
     if (Test-Path "dist\latest.yml") { $assets += "dist\latest.yml" }
-    gh release create $TAG @assets --title "$TAG" --notes-file $NotesFile
+    gh release create $TAG @assets -R $repoSlug --title "$TAG" --notes-file $NotesFile
     if ($LASTEXITCODE -ne 0) { Die "tao GitHub release that bai" }
     Good "da tao release $TAG kem installer"
 }
