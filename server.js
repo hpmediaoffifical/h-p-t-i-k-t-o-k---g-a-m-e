@@ -1,3 +1,5 @@
+process.env.SIGN_API_URL = process.env.SIGN_API_URL || 'https://sign.nguyenvu.dev';
+
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
