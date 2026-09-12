@@ -3852,37 +3852,116 @@ function getTikTokSignApiKey() {
         || appConfig.tiktokSignApiKey
         || null;
 }
-// SignConfig của lib là singleton toàn cục và createEulerClient() cache instance → đổi key trong ⚙ Cài đặt phải ghi lại
-// apiKey + xoá cache trước mỗi lần connect, nếu không lib vẫn dùng key cũ (hoặc key đã xoá).
-function applyTikTokSignApiKey() {
+// Sign-server ký WebSocket. 2.4.4 KHÔNG có option signApiUrl trên connection options — URL nằm ở SignConfig.basePath
+// (mặc định của lib: https://api.eulerstream.com). Tier ẩn danh của Euler chỉ trả proxy wss://ws-fallback.eulerstream.com
+// → hay dính lỗi "HTTP 200 thay vì nâng cấp WebSocket". sign.nguyenvu.dev là sign-server riêng, không cần key và trả
+// thẳng ws_direct → đặt làm mặc định. Muốn quay về Euler: set env TIKTOK_SIGN_API_URL=https://api.eulerstream.com
+const TIKTOK_SIGN_BASE_URL_DEFAULT = 'https://sign.nguyenvu.dev';
+const TIKTOK_SIGN_BASE_URL_EULER = 'https://api.eulerstream.com';
+function normalizeSignBaseUrl(v) {
+    let s = String(v || '').trim();
+    while (s.endsWith('/')) s = s.slice(0, -1);   // basePath của lib không được có dấu / ở cuối
+    return s;
+}
+// URL do người dùng tự khai báo (env hoặc app-config) — phân biệt với mặc định hard-code để biết có được gửi API key
+// sang đó không.
+function getExplicitTikTokSignBaseUrl() {
+    return normalizeSignBaseUrl(process.env.TIKTOK_SIGN_API_URL || process.env.SIGN_API_URL || appConfig.tiktokSignBaseUrl);
+}
+function getTikTokSignBaseUrl() {
+    return getExplicitTikTokSignBaseUrl() || TIKTOK_SIGN_BASE_URL_DEFAULT;
+}
+function isEulerSignBase(base) {
+    try { return /(^|\.)eulerstream\.com$/i.test(new URL(base).hostname); } catch (e) { return false; }
+}
+// API key là key của EulerStream → CHỈ gửi cho chính Euler, hoặc cho host do người dùng tự khai báo (họ tự chọn cặp
+// URL+key nên coi như cố ý). Mặc định sign.nguyenvu.dev là bên thứ ba: đẩy key sang đó là lộ credential của người dùng.
+// Lib nhét SignConfig.apiKey vào header X-Api-Key của MỌI request tới basePath nên phải chặn từ đây.
+function signKeyAllowedFor(base) {
+    if (isEulerSignBase(base)) return true;
+    const explicit = getExplicitTikTokSignBaseUrl();
+    return !!explicit && explicit === base;
+}
+// SignConfig của lib là singleton toàn cục và createEulerClient() cache instance → đổi key/URL trong ⚙ Cài đặt phải ghi
+// lại apiKey + basePath rồi xoá cache trước mỗi lần connect, nếu không lib vẫn dùng giá trị cũ (hoặc key đã xoá).
+function applyTikTokSignConfig(baseOverride) {
     const sc = tlc?.SignConfig;
     if (!sc) return;
-    const key = getTikTokSignApiKey() || process.env.SIGN_API_KEY || undefined;
+    const base = normalizeSignBaseUrl(baseOverride) || getTikTokSignBaseUrl();
+    const key = (signKeyAllowedFor(base) && (getTikTokSignApiKey() || process.env.SIGN_API_KEY)) || undefined;
     if (sc.apiKey !== key) { sc.apiKey = key; sc.cachedInstance = undefined; }
+    if (sc.basePath !== base) { sc.basePath = base; sc.cachedInstance = undefined; }
+}
+
+// "Kết nối câm": sign.nguyenvu.dev đôi khi bắt tay WebSocket thành công nhưng KHÔNG frame nào chảy về (đo thực tế ~1/3
+// lần trên cùng một phòng đang LIVE; Euler 5/5 lần đều có dữ liệu). Câm còn tệ hơn lỗi — UI báo "đã kết nối" mà overlay
+// đứng im, và auto-reconnect chỉ chạy khi DISCONNECTED nên không bao giờ tự thoát. → sau connect() phải chờ frame đầu.
+const TIKTOK_FIRST_FRAME_TIMEOUT_MS = Math.max(1, Number(process.env.TIKTOK_FIRST_FRAME_TIMEOUT_MS) || 8000);
+function waitForFirstTikTokFrame(conn, lib, ms = TIKTOK_FIRST_FRAME_TIMEOUT_MS) {
+    // WEBSOCKET_DATA/DECODED_DATA bắn cho MỌI frame (kể cả housekeeping của phòng vắng: ROOM_USER, LIVE_INTRO...) →
+    // tín hiệu "còn sống" đáng tin hơn CHAT/GIFT vốn phụ thuộc người xem có tương tác hay không.
+    const signals = [lib?.ControlEvent?.WEBSOCKET_DATA, lib?.ControlEvent?.DECODED_DATA].filter(Boolean);
+    if (!signals.length) return Promise.resolve(true);
+    return new Promise(resolve => {
+        let done = false;
+        const off = (ev) => { try { (conn.off || conn.removeListener).call(conn, ev, onData); } catch (e) {} };
+        const finish = (ok) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            signals.forEach(off);
+            resolve(ok);
+        };
+        const onData = () => finish(true);
+        const timer = setTimeout(() => finish(false), ms);
+        timer.unref?.();
+        for (const ev of signals) { try { conn.on(ev, onData); } catch (e) {} }
+    });
 }
 
 async function createTikTokConnectionWithFallback(username) {
     const lib = await loadTikTokConnector();
-    applyTikTokSignApiKey();
     const signApiKey = getTikTokSignApiKey();
-    const mk = (extra = {}) => makeTikTokConnectOptions({ ...(signApiKey ? { signApiKey } : {}), ...extra });
+    const mk = (sign, extra = {}) => makeTikTokConnectOptions({
+        ...(signApiKey && signKeyAllowedFor(sign) ? { signApiKey } : {}),
+        ...extra
+    });
     // Lỗi WebSocket / sign-server thường TẠM THỜI → thử lại tối đa 3 lần với backoff 2s/5s. Không thử nhiều hơn vì
     // sign-server ẩn danh chỉ cho 5 lượt ký/phút — thử dồn dập chỉ đốt hạn mức rồi dính rate-limit.
     // (2.4.4 bỏ connectWithUniqueId; useMobile cần session.cookie mà app không có → không còn nhánh mobile.)
+    // Nấc cuối đổi sang sign-server dự phòng (Euler): chậm hơn (~6–10s so với ~1.5s) nhưng ổn định, dùng khi host
+    // chính lỗi hoặc trả về kết nối câm.
+    const primarySign = getTikTokSignBaseUrl();
+    const backupSign = isEulerSignBase(primarySign) ? null : TIKTOK_SIGN_BASE_URL_EULER;
     const attempts = [
-        { label: 'web',         options: mk() },
-        { label: 'web-retry-1', options: mk() },
-        { label: 'web-retry-2', options: mk() }
-    ];
+        { label: 'web',         sign: primarySign },
+        { label: 'web-retry-1', sign: primarySign },
+        backupSign
+            ? { label: 'web-sign-backup', sign: backupSign }
+            : { label: 'web-retry-2',     sign: primarySign }
+    ].map(a => ({ ...a, options: mk(a.sign) }));
     const backoffs = [2000, 5000];
     const errors = [];
     for (let i = 0; i < attempts.length; i++) {
         const attempt = attempts[i];
+        const isLast = i === attempts.length - 1;
+        applyTikTokSignConfig(attempt.sign);   // phải set TRƯỚC connect() — createEulerClient() đọc SignConfig lúc đó
         const conn = new lib.TikTokLiveConnection(username, attempt.options);
         attachConnectionEvents(conn, lib);
         try {
-            console.log(`[tiktok] Connect attempt ${i + 1}/${attempts.length}: ${attempt.label}${signApiKey ? ' (signed)' : ''}`);
+            console.log(`[tiktok] Connect attempt ${i + 1}/${attempts.length}: ${attempt.label} qua ${attempt.sign}${attempt.options.signApiKey ? ' (signed)' : ''}`);
             const state = await conn.connect();
+            // Bắt tay xong CHƯA chắc có dữ liệu → phải thấy frame đầu tiên mới coi là kết nối thật.
+            const alive = await waitForFirstTikTokFrame(conn, lib);
+            if (!alive && !isLast) {
+                const message = `kết nối câm — không frame nào trong ${TIKTOK_FIRST_FRAME_TIMEOUT_MS}ms (${attempt.sign})`;
+                console.warn(`[tiktok] ${message} → bỏ connection này, thử tiếp`);
+                errors.push({ attempt: attempt.label, message, kind: 'silent' });
+                try { await conn.disconnect(); } catch (e) {}
+                if (conn !== connection) liveConnected = false;   // handler CONNECTED của conn vừa bỏ đã bật cờ lên
+                continue;   // đã chờ 8s rồi → không cần backoff thêm
+            }
+            if (!alive) console.warn('[tiktok] Hết sign-server để thử mà vẫn chưa có frame nào — giữ kết nối này (có thể phòng đang rất vắng)');
             if (i > 0) console.log(`[tiktok] ✓ Kết nối THÀNH CÔNG ở lần thử ${i + 1} (${attempt.label})`);
             return { conn, state, attempt: attempt.label, errors };
         } catch (err) {
@@ -4558,6 +4637,8 @@ function settingsSnapshot(req) {
         tiktokSignApiKeySet: !!k,
         tiktokSignApiKeyMasked: k ? (k.slice(0, 4) + '••••' + k.slice(-4)) : '',
         tiktokSignApiKeyFromEnv: !!(process.env.TIKTOK_SIGN_API_KEY || process.env.EULER_API_KEY),
+        tiktokSignBaseUrl: getTikTokSignBaseUrl(),
+        tiktokSignBaseUrlFromEnv: !!(process.env.TIKTOK_SIGN_API_URL || process.env.SIGN_API_URL),
         autoReconnect: appConfig.autoReconnect !== false,
         overlay: { host: OBS_LOCAL_HOST, port: PORT, hostMapped: isHostMapped() },
         network: {
