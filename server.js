@@ -1103,7 +1103,8 @@ async function connectToUser(username) {
         connection = new TikTokLiveConnection(currentUsername, {
             processInitialData: false,
             enableExtendedGiftInfo: true,
-            fetchRoomInfoOnConnect: true
+            fetchRoomInfoOnConnect: true,
+            signApiUrl: 'https://sign.nguyenvu.dev'
         });
         attachConnectionEvents(connection);
         const state = await connection.connect();
