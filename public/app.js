@@ -2235,10 +2235,16 @@
             toast('🫙 HŨ THỦY TINH ĐANG TẮT — bật ở 🎮 Thư viện Game để quà rơi vào hũ', 'warn', 3500);
         }
     }
+    // Công tắc của CHÍNH Hũ trong Thư viện (games[] luôn được cập nhật qua 'gameConfig').
+    // Không dùng currentGame: đang mở view game khác thì currentGame là game đó, không phải Hũ.
+    function thuyTinhEnabled() {
+        const g = games.find(x => x.id === 'thuytinh');
+        return !g || !g.config || g.config.enabled !== false;
+    }
     function spawnInGame(g) {
         if (!gameInstance) return;
-        if (currentGame?.id === 'thuytinh' && currentGame.config?.enabled === false) {
-            notifyThuyDisabled();   // thả tay từ danh sách quà khi game tắt
+        if (!thuyTinhEnabled()) {
+            if (currentGame?.id === 'thuytinh') notifyThuyDisabled();   // thả tay từ danh sách quà khi game tắt
             return;
         }
         const sheet = giftMap[String(g.giftId)];
@@ -3300,11 +3306,17 @@
             targetGame.config = config;
             updateQuickLaunchCardState(gameId);
         }
-        if (!gameInstance || gameId !== currentGame?.id) return;
-        currentGame.config = config;
+        // gameInstance LUÔN là engine Hũ Thủy Tinh → CHỈ config của Hũ mới được đổ vào engine.
+        // Lỗi cũ (≤ v1.9.7): điều kiện là "gameId === game đang mở", nên đứng ở view Vote Bình Luận /
+        // Timer / Level Quest… mà game đó phát config (kể cả enabled:false) là engine Hũ nhận nhầm:
+        // Hũ tự "tắt", quà thật không rơi, applyConfigToUI văng TypeError 'gravity', và config lạ
+        // (title/rows/display của Vote) bị lưu ngược lên app-config.json của Hũ.
+        if (!gameInstance || gameId !== 'thuytinh') return;
         // Bỏ qua echo của save vừa thực hiện (1.5s) — tránh overwrite local state đang edit
         if (Date.now() - lastOwnSaveTs < 1500) return;
         gameInstance.setConfig(config);
+        // UI cài đặt + danh sách quà của Hũ chỉ vẽ lại khi đang mở đúng view Hũ
+        if (currentGame?.id !== 'thuytinh') return;
         applyConfigToUI(config);
         renderGiftCatalog(dom.giftSearchInput.value);
     });
@@ -3312,10 +3324,11 @@
     socket.on('chat', appendComment);
     socket.on('gift', (g) => {
         appendGiftEvent(g);
-        // Cũng spawn vào preview thực (overlay nhận qua room 'overlay').
-        // Gate: nếu game hiện tại đang TẮT trong Thư viện → KHÔNG spawn (tránh quà rơi vào hũ
-        // khi user đã tắt). Áp dụng cho mọi game có field enabled.
-        if (currentGame && currentGame.config?.enabled !== false) {
+        // Engine Hũ trong app là nguồn state (TOP tặng, tổng quà, snapshot khôi phục cho OBS) nên quà
+        // phải vào engine theo công tắc của CHÍNH Hũ. Lỗi cũ (≤ v1.9.7) xét công tắc của game đang mở
+        // trên màn hình: đứng ở view một game đang TẮT (Vote/Nhặt Lá…) là quà thật không vào Hũ,
+        // rồi OBS reload lại theo snapshot thiếu quà đó.
+        if (thuyTinhEnabled()) {
             spawnInGame(g);
         } else if (currentGame?.id === 'thuytinh') {
             // Quà THẬT/TEST tới khi Hũ đang TẮT → quà bị chặn ở đây (trước spawnInGame) nên

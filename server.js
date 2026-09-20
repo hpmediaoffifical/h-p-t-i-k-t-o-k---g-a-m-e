@@ -1425,6 +1425,33 @@ const LIVE_TRANSLATE_LANG_LABELS = {
 for (const gId of Object.keys(GAMES)) {
     if (!appConfig.games[gId]) appConfig.games[gId] = { ...GAMES[gId].defaultConfig };
 }
+// Hũ Thủy Tinh — dọn key lạ. App ≤ v1.9.7 có lúc đổ nhầm config của game khác (Vote Bình Luận…)
+// vào engine Hũ rồi lưu ngược lên server → app-config.json của Hũ lẫn title/rows/display… của game
+// đó. Chỉ bỏ key KHÔNG thuộc Hũ mà lại là key mặc định của một game khác; key Hũ hợp lệ giữ nguyên.
+const THUYTINH_CONFIG_KEYS = new Set([
+    'enabled', 'jar', 'gift', 'physics', 'jarVisible', 'jarLocked', 'maxCapacity', 'history', 'features',
+    'goal', 'goalBarGap', 'autoShakeAt', 'randomEventEverySec', 'thiefEverySec', 'thiefMissRate',
+    'policeCatchRate', 'policeBanSec', 'policeName', 'triggers', 'effects', 'panelPositions', 'panelScales',
+    'actorScales', 'jarAccessory', 'jarTheme', 'badges', 'topHangers', 'webmFxVolume'
+]);
+function cleanThuyTinhConfig(cfg) {
+    if (!cfg || typeof cfg !== 'object') return [];
+    const foreign = new Set();
+    for (const [gid, g] of Object.entries(GAMES)) {
+        if (gid === 'thuytinh' || !g.defaultConfig || typeof g.defaultConfig !== 'object') continue;
+        for (const k of Object.keys(g.defaultConfig)) if (!THUYTINH_CONFIG_KEYS.has(k)) foreign.add(k);
+    }
+    const removed = Object.keys(cfg).filter(k => foreign.has(k));
+    for (const k of removed) delete cfg[k];
+    return removed;
+}
+{
+    const removed = cleanThuyTinhConfig(appConfig.games.thuytinh);
+    if (removed.length) {
+        console.log(`[thuytinh] Dọn ${removed.length} key lạ lẫn vào config Hũ: ${removed.join(', ')}`);
+        saveAppConfig();
+    }
+}
 // Migrate vipwelcome config từ schema cũ (single profile) sang multi-profile.
 if (appConfig.games.vipwelcome) {
     appConfig.games.vipwelcome = migrateVipWelcomeConfig(appConfig.games.vipwelcome);
@@ -4432,6 +4459,7 @@ app.post('/api/games/:id/config', (req, res) => {
         };
     }
     appConfig.games[g.id] = { ...appConfig.games[g.id], ...incoming };
+    if (g.id === 'thuytinh') cleanThuyTinhConfig(appConfig.games.thuytinh);   // app cũ POST config lẫn key game khác
     if (g.id === 'pktiktok') {
         appConfig.games.pktiktok = normalizePkTiktokConfig(appConfig.games.pktiktok);
     }
