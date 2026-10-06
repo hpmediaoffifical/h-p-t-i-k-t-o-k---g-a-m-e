@@ -8091,6 +8091,18 @@ app.get('/api/chemtraicay/obs-frame', async (req, res) => {
     }
 });
 
+// Danh sách scene (obs-websocket GetSceneList) — độc lập với các helper khác của obs-bridge
+app.get('/api/chemtraicay/obs-scenes', async (req, res) => {
+    if (!obsBridge.isConnected()) return res.status(503).json({ error: 'OBS chưa kết nối', scenes: [] });
+    try {
+        const r = await obsBridge.obs.call('GetSceneList');
+        const scenes = (r?.scenes || []).map(sc => sc.sceneName).filter(Boolean).reverse();
+        res.json({ scenes, current: r?.currentProgramSceneName || '' });
+    } catch (e) {
+        res.status(502).json({ error: String(e?.message || e), scenes: [] });
+    }
+});
+
 app.get('/api/chemtraicay/obs-sources', async (req, res) => {
     const sceneName = String(req.query.scene || '').slice(0, 200);
     if (!sceneName) return res.status(400).json({ error: 'thiếu scene' });
@@ -8126,7 +8138,8 @@ async function chemTraiCaySceneFor(type) {
     if (!sc.enabled) return;
     const name = type === 'start' ? sc.playScene : type === 'end' ? sc.backScene : '';
     if (!name) return;
-    try { await obsBridge.setCurrentScene(name); } catch (e) { console.warn('[chemtraicay] đổi scene lỗi:', e?.message || e); }
+    if (!obsBridge.isConnected()) return;
+    try { await obsBridge.obs.call('SetCurrentProgramScene', { sceneName: name }); } catch (e) { console.warn('[chemtraicay] đổi scene lỗi:', e?.message || e); }
 }
 
 setInterval(() => {
