@@ -1,0 +1,91 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { createRelay, sceneItemToCamRect } = require('../lib/chemtraicay-relay.js');
+
+const pts42 = () => Array.from({ length: 42 }, (_, i) => (i % 2 ? 0.5 : 0.25));
+const good = (over) => ({ id: 'trk_ab12', t: 1000, fps: 30, aspect: 1.777, hands: [{ side: 'R', pts: pts42() }], ...over });
+
+test('validateHand: pts 41 số → null', () => {
+    const r = createRelay();
+    assert.equal(r.validateHand(good({ hands: [{ side: 'R', pts: pts42().slice(1) }] })), null);
+});
+
+test('validateHand: pts có NaN hoặc chuỗi → null', () => {
+    const r = createRelay();
+    const bad = pts42(); bad[5] = NaN;
+    assert.equal(r.validateHand(good({ hands: [{ side: 'R', pts: bad }] })), null);
+    const bad2 = pts42(); bad2[0] = '0.3';
+    assert.equal(r.validateHand(good({ hands: [{ side: 'L', pts: bad2 }] })), null);
+});
+
+test('validateHand: giá trị ngoài 0..1 được clamp, làm tròn 3 chữ số, tay rỗng hợp lệ', () => {
+    const r = createRelay();
+    const p = pts42(); p[0] = 1.7; p[1] = -0.2; p[2] = 0.123456;
+    const out = r.validateHand(good({ hands: [{ side: 'R', pts: p }] }));
+    assert.equal(out.hands[0].pts[0], 1); assert.equal(out.hands[0].pts[1], 0); assert.equal(out.hands[0].pts[2], 0.123);
+    assert.equal(out.id, 'trk_ab12'); assert.equal(out.fps, 30);
+    assert.deepEqual(r.validateHand(good({ hands: [] })).hands, []);
+});
+
+test('validateHand: 3 tay, side lạ, id dài, hands không phải mảng → null', () => {
+    const r = createRelay();
+    const h = { side: 'R', pts: pts42() };
+    assert.equal(r.validateHand(good({ hands: [h, h, h] })), null);
+    assert.equal(r.validateHand(good({ hands: [{ side: 'X', pts: pts42() }] })), null);
+    assert.equal(r.validateHand(good({ id: 'x'.repeat(33) })), null);
+    assert.equal(r.validateHand(good({ hands: 'nope' })), null);
+    assert.equal(r.validateHand(null), null);
+});
+
+test('acceptHand chỉ nhận gói từ tracker active', () => {
+    const r = createRelay();
+    assert.equal(r.acceptHand(good(), 'sockA'), null);
+    r.setActive('trk_ab12', 'sockA');
+    assert.equal(r.activeId(), 'trk_ab12');
+    assert.ok(r.acceptHand(good(), 'sockA'));
+    assert.equal(r.acceptHand(good({ id: 'trk_zz99' }), 'sockB'), null);
+});
+
+test('dropSocket của socket active xóa activeId; socket khác thì không', () => {
+    const r = createRelay();
+    r.setActive('trk_ab12', 'sockA');
+    assert.equal(r.dropSocket('sockB'), false); assert.equal(r.activeId(), 'trk_ab12');
+    assert.equal(r.dropSocket('sockA'), true); assert.equal(r.activeId(), null);
+});
+
+test('sweep xóa tracker im quá staleMs; touch giữ sống', () => {
+    let now = 0;
+    const r = createRelay({ now: () => now, staleMs: 3000 });
+    r.setActive('trk_ab12', 'sockA');
+    now = 2000; r.touch('trk_ab12');
+    now = 4500; assert.equal(r.sweep(), false); assert.equal(r.activeId(), 'trk_ab12');
+    now = 5001; assert.equal(r.sweep(), true); assert.equal(r.activeId(), null);
+    assert.equal(r.sweep(), false);
+});
+
+const base = { baseWidth: 1080, baseHeight: 1920 };
+const tf = (over) => ({ positionX: 0, positionY: 0, scaleX: 1, scaleY: 1, sourceWidth: 1920, sourceHeight: 1080,
+    cropLeft: 0, cropRight: 0, cropTop: 0, cropBottom: 0, boundsType: 'OBS_BOUNDS_NONE', boundsWidth: 0, boundsHeight: 0, alignment: 5, rotation: 0, ...over });
+const near = (a, b, eps) => assert.ok(Math.abs(a - b) <= (eps || 0.1), `${a} ≠ ${b}`);
+
+test('sceneItemToCamRect: nguồn 16:9 phủ dọc, top-left, không crop', () => {
+    const c = sceneItemToCamRect(tf({ scaleX: 1.77778, scaleY: 1.77778, positionX: -1166.7 }), base);
+    near(c.xPercent, -108.02); near(c.yPercent, 0); near(c.widthPercent, 316.05); near(c.heightPercent, 100);
+});
+
+test('sceneItemToCamRect: crop trái/phải 420, scale 1, top-left', () => {
+    const c = sceneItemToCamRect(tf({ cropLeft: 420, cropRight: 420 }), base);
+    near(c.xPercent, -38.89); near(c.widthPercent, 177.78); near(c.heightPercent, 56.25); near(c.yPercent, 0);
+});
+
+test('sceneItemToCamRect: alignment center, position giữa', () => {
+    const c = sceneItemToCamRect(tf({ alignment: 0, positionX: 540, positionY: 960 }), base);
+    near(c.xPercent, -38.89); near(c.yPercent, 21.88);
+});
+
+test('sceneItemToCamRect: bounds STRETCH 1080×1920 cho nguồn crop vuông', () => {
+    const c = sceneItemToCamRect(tf({ cropLeft: 420, cropRight: 420, boundsType: 'OBS_BOUNDS_STRETCH', boundsWidth: 1080, boundsHeight: 1920 }), base);
+    // cropW 1080 → sx = 1; cropH 1080 → sy = 1920/1080
+    near(c.xPercent, -38.89); near(c.widthPercent, 177.78); near(c.heightPercent, 100); near(c.yPercent, 0);
+});
