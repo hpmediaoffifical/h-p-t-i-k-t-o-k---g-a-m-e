@@ -1,0 +1,1185 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>TOUCH &amp; PLAY — Prototype</title>
+<script>
+  // /_prototype/touchplay.html                → lab (cài đặt + sân khấu xem trước, chơi thử bằng chuột/camera)
+  // /_prototype/touchplay.html?mode=overlay   → OBS Browser Source 1080×1920 (tự mở camera + nhận diện)
+  // OBS phải có cờ --use-fake-ui-for-media-stream (shortcut OBS) thì Browser Source mới được mở camera,
+  // và link phải là localhost (trang http://<tên khác> không phải secure context → không có camera).
+  (function () {
+    if (new URLSearchParams(location.search).get('mode') === 'overlay') document.documentElement.setAttribute('data-overlay', '1');
+  })();
+</script>
+<script src="/lib/overlay-resolution.js"></script>
+<style>
+  :root { --bg:#eef2f7; --panel:#fff; --line:#e2e7ef; --text:#1d2433; --muted:#6c7689; --accent:#00b8d9; --ok:#1fbf75; --bad:#ff4d6d; --warn:#f59f00; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:14px/1.45 'Be Vietnam Pro','Segoe UI',system-ui,sans-serif; }
+  button, input, select { font:inherit; }
+
+  /* ---------- sân khấu (dùng chung lab + overlay) ---------- */
+  .tp-stage { position:relative; width:1080px; height:1920px; overflow:hidden; transform-origin:0 0; background:transparent; }
+  .tp-stage video, .tp-stage canvas { position:absolute; inset:0; width:100%; height:100%; }
+  .tp-stage video { object-fit:cover; }
+  .tp-stage video.mirror { transform:scaleX(-1); }
+  .tp-stage canvas { touch-action:none; }
+  .tp-alert { position:absolute; left:60px; right:60px; top:42%; padding:28px 32px; border-radius:24px; background:rgba(20,8,14,.88);
+    border:3px solid var(--bad); color:#fff; font:600 34px/1.35 'Segoe UI',sans-serif; text-align:center; display:none; }
+  .tp-alert small { display:block; margin-top:14px; font-size:26px; font-weight:400; color:#ffd5dd; }
+  .tp-alert code { background:#000; padding:2px 10px; border-radius:8px; color:#7ff; }
+
+  /* ---------- overlay: trong suốt, chỉ còn sân khấu ---------- */
+  html[data-overlay="1"], html[data-overlay="1"] body { background:transparent !important; overflow:hidden; }
+  html[data-overlay="1"] .lab-only { display:none !important; }
+  html[data-overlay="1"] .tp-wrap, html[data-overlay="1"] .main { position:fixed; inset:0; background:transparent !important; }
+
+  /* ---------- lab ---------- */
+  .layout { display:grid; grid-template-columns: minmax(340px, 430px) 1fr; height:100vh; }
+  .side { overflow:auto; padding:14px 14px 40px; border-right:1px solid var(--line); background:#f7f9fc; }
+  .main { position:relative; display:flex; flex-direction:column; min-width:0; }
+  .stage-bar { display:flex; gap:8px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line); background:#fff; flex-wrap:wrap; }
+  .stage-bar .sp { flex:1; }
+  .tp-wrap { flex:1; min-height:0; position:relative; overflow:hidden; background:
+      repeating-conic-gradient(#1a2233 0 25%, #151c2b 0 50%) 0 0/32px 32px; }
+  .tp-fit { position:absolute; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:12px; }
+  .card h3 { margin:0 0 8px; font-size:14px; letter-spacing:.3px; }
+  .card p, .hint { margin:6px 0; color:var(--muted); font-size:12.5px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; }
+  .row > label { flex:1; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; }
+  .field { display:flex; flex-direction:column; gap:2px; font-size:12.5px; color:var(--muted); }
+  .field input, .field select { color:var(--text); }
+  input[type=number], select, input[type=text] { padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:#fff; min-width:0; }
+  input[type=range] { width:100%; }
+  .chk { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .btn { padding:7px 12px; border-radius:9px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+  .btn:hover { border-color:#b8c4d8; }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; }
+  .btn.danger { color:var(--bad); }
+  .btn.small { padding:4px 9px; font-size:12.5px; }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .pill { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; padding:3px 10px; border-radius:999px; background:#eef2f7; color:var(--muted); }
+  .pill.ok { background:#e3f8ee; color:#11804d; } .pill.bad { background:#ffe6eb; color:#c0213f; } .pill.warn { background:#fff4dc; color:#9a6400; }
+  .act-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(118px, 1fr)); gap:6px; }
+  .tiers { width:100%; border-collapse:collapse; font-size:12.5px; }
+  .tiers td { padding:3px 2px; }
+  .tiers input, .tiers select { width:100%; }
+  .poses { display:grid; grid-template-columns:repeat(auto-fill, minmax(92px, 1fr)); gap:8px; }
+  .pose-card { border:1px solid var(--line); border-radius:10px; padding:6px; text-align:center; font-size:11.5px; background:#fff; position:relative; }
+  .pose-card.off { opacity:.4; }
+  .pose-card canvas { width:100%; height:auto; display:block; background:#0f1626; border-radius:6px; }
+  .pose-card .x { position:absolute; top:2px; right:4px; border:0; background:none; color:var(--bad); cursor:pointer; font-size:14px; }
+  code.k { background:#11161e; color:#7ff; padding:2px 7px; border-radius:6px; font-size:12px; user-select:all; }
+  .metrics { font:12px ui-monospace,Consolas,monospace; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="layout" id="layout">
+  <aside class="side lab-only">
+    <div class="card">
+      <h3>📷 Nguồn camera</h3>
+      <label class="chk"><input type="radio" name="src" value="obs"> <b>Camera trong OBS</b> — dùng khi live</label>
+      <label class="chk"><input type="radio" name="src" value="webcam"> Webcam máy này — chỉ để thử trong app</label>
+
+      <div id="srcObs">
+        <p>Game đọc hình từ chính nguồn camera trong scene OBS (qua OBS WebSocket), không giành webcam. Vị trí/cỡ/lật camera trong scene được tự tính theo.</p>
+        <div class="row">
+          <select id="obsSource" style="flex:1"><option value="">— chọn nguồn camera —</option></select>
+          <button class="btn small" id="obsRefresh" title="Tải lại danh sách nguồn">🔄</button>
+        </div>
+        <div class="row"><span class="pill" id="obsState">Đang kiểm tra OBS…</span></div>
+        <div class="row"><span class="pill" id="obsOverlay">Chưa thấy overlay nào trong OBS đang chạy</span></div>
+        <label class="chk"><input type="checkbox" id="labFeed"> Xem trước nhận diện ở đây (tốn máy — tắt khi đang live)</label>
+      </div>
+
+      <div id="srcWebcam" hidden>
+        <p>Chỉ thử trong app. Webcam OBS đang dùng thường không mở được ở đây.</p>
+        <div class="row">
+          <select id="camSelect" style="flex:1"><option value="">Camera mặc định</option></select>
+          <button class="btn primary" id="camBtn">Bật camera</button>
+        </div>
+        <label class="chk"><input type="checkbox" data-k="mirror"> Lật gương</label>
+      </div>
+
+      <div class="row"><span class="pill" id="camState">Nhận diện: tắt</span><span class="metrics" id="metrics"></span></div>
+      <div class="grid2">
+        <label class="chk"><input type="checkbox" data-k="showHands"> Hiện điểm tay</label>
+        <label class="chk"><input type="checkbox" data-k="skeleton"> Khung xương</label>
+      </div>
+      <label class="field">Chất lượng nhận diện
+        <select data-k="quality"><option value="low">Nhẹ · máy yếu (15 hình/giây)</option><option value="auto">Cân bằng (20–24 hình/giây)</option><option value="high">Mượt · máy mạnh (30 hình/giây)</option></select>
+      </label>
+    </div>
+
+    <div class="card">
+      <h3>🎥 Đưa vào OBS</h3>
+      <p>1. OBS: <b>Công cụ → Cài đặt WebSocket Server</b> → bật. Trong app: kết nối OBS ở mục <b>Hiệu ứng OBS</b>.</p>
+      <p>2. Chọn nguồn camera ở thẻ trên.</p>
+      <p>3. Thêm <b>Browser Source</b> 1080×1920 với link dưới, đặt <b>phía trên</b> nguồn camera và phủ kín khung hình. Nền game trong suốt — camera vẫn hiện bên dưới.</p>
+      <div class="row"><button class="btn primary" id="copyLink">📋 Copy link OBS</button></div>
+      <p class="hint" id="linkTxt"></p>
+      <p>Muốn chạm thử bằng chuột ngay trong OBS: chuột phải Browser Source → <b>Interact</b>.</p>
+    </div>
+
+    <div class="card">
+      <h3>🕹 Điều khiển (gửi tới cả OBS)</h3>
+      <div class="row">
+        <button class="btn primary" data-cmd="start">▶ Bắt đầu</button>
+        <button class="btn" data-cmd="stop">■ Dừng</button>
+        <button class="btn" data-cmd="rescue">🧹 Giải cứu</button>
+      </div>
+      <div class="row"><span class="hint">Thử hành động · số lượng</span><input type="number" id="testQty" min="1" max="50" value="3" style="width:64px"></div>
+      <div class="act-grid" id="actGrid"></div>
+      <label class="chk" style="margin-top:8px"><input type="checkbox" data-k="practice"> Tự thả vật luyện tập khi không có quà</label>
+    </div>
+
+    <div class="card">
+      <h3>🎁 Quà → hành động</h3>
+      <p>Theo giá 1 quà (xu). Quà rơi vào mốc cao nhất mà nó đạt. Số lượng × số lần combo.</p>
+      <table class="tiers"><tbody id="tierBody"></tbody></table>
+      <div class="row"><button class="btn small" id="addTier">+ Thêm mốc</button></div>
+      <div class="grid2">
+        <label class="chk"><input type="checkbox" data-k="autoStartOnGift"> Có quà tự bắt đầu ván</label>
+        <label class="field">Tối đa mỗi lần tặng<input type="number" data-k="maxPerGift" min="1" max="200"></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>⚙ Luật chơi</h3>
+      <div class="grid2">
+        <label class="field">Tốc độ rơi ×<input type="number" data-k="fallSpeed" min="0.2" max="4" step="0.1"></label>
+        <label class="field">Cỡ vật ×<input type="number" data-k="itemScale" min="0.5" max="2" step="0.1"></label>
+        <label class="field">Vạch thua (% từ trên)<input type="number" data-k="dangerPercent" min="10" max="80"></label>
+        <label class="field">Giữ nút bắt đầu (giây)<input type="number" data-k="holdStart" min="0.2" max="3" step="0.1"></label>
+        <label class="field">Độ dễ tư thế (độ lệch)<input type="number" data-k="poseTolerance" min="15" max="70"></label>
+        <label class="field">Giữ tư thế (giây)<input type="number" data-k="poseHold" min="0.1" max="3" step="0.1"></label>
+        <label class="field">Độ há miệng để ăn<input type="number" data-k="mouthOpen" min="0.1" max="0.9" step="0.05"></label>
+        <label class="field">Âm lượng<input type="range" data-k="volume" min="0" max="1" step="0.05"></label>
+      </div>
+      <div class="row"><label class="chk"><input type="checkbox" data-k="showDanger"> Hiện vạch thua</label></div>
+      <div class="row"><button class="btn small danger" id="resetCfg">Khôi phục mặc định</button></div>
+    </div>
+
+    <div class="card">
+      <h3>🧍 Tư thế</h3>
+      <p>Bấm vào thẻ để bật/tắt. Tự tạo: bật camera ở trên, đứng lùi xa thấy cả hai tay, bấm chụp — có 3 giây chuẩn bị.</p>
+      <div class="row"><button class="btn primary" id="capturePose">📸 Chụp tư thế (3s)</button><span class="hint" id="captureMsg"></span></div>
+      <div class="poses" id="poseList"></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="stage-bar lab-only">
+      <b>Xem trước</b>
+      <span class="pill" id="sockState">Đang kết nối…</span>
+      <span class="sp"></span>
+      <label class="chk"><input type="checkbox" id="mouseHand" checked> Chơi thử bằng chuột</label>
+    </div>
+    <div class="tp-wrap" id="wrap">
+      <div class="tp-fit" id="fit">
+        <div class="tp-stage" id="stage">
+          <video id="cam" muted playsinline></video>
+          <canvas id="cv" width="1080" height="1920"></canvas>
+          <div class="tp-alert" id="alert"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script type="module">
+import { HpTracker, poseAngles, poseError } from '/lib/hp-tracking.mjs';
+import { cameraToStage } from '/lib/obs-scene-map.mjs';
+
+const IS_OVERLAY = document.documentElement.getAttribute('data-overlay') === '1';
+const GAME_ID = 'touchplay';
+const W = 1080, H = 1920;
+const $ = id => document.getElementById(id);
+
+// ============================================================ CONFIG
+const ACTIONS = {
+  ball:   { label: 'Bóng chạm',     icon: '🔵' },
+  food:   { label: 'Đồ ăn',         icon: '🍔' },
+  pose:   { label: 'Tư thế',        icon: '🧍' },
+  rain:   { label: 'Mưa bóng ×8',   icon: '🌧' },
+  freeze: { label: 'Đóng băng 6s',  icon: '❄' },
+  slow:   { label: 'Chậm 8s',       icon: '🐢' },
+  fast:   { label: 'Nhanh 8s',      icon: '⚡' },
+  shield: { label: 'Khiên +1',      icon: '🛡' },
+  fever:  { label: 'Điểm ×2 8s',    icon: '🔥' },
+  rescue: { label: 'Giải cứu',      icon: '🧹' }
+};
+// Góc 4 đoạn tay (độ, hệ màn hình): [cánh tay trái-màn-hình, cẳng, cánh tay phải-màn-hình, cẳng]
+// 0 = chỉ sang phải, 90 = chỉ xuống, -90 = chỉ lên, 180 = chỉ sang trái.
+const BUILTIN_POSES = [
+  { id: 't',      name: 'Chữ T',          a: [180, 180, 0, 0] },
+  { id: 'y',      name: 'Chữ Y',          a: [-135, -135, -45, -45] },
+  { id: 'up',     name: 'Hai tay lên trời', a: [-100, -90, -80, -90] },
+  { id: 'muscle', name: 'Gồng cơ bắp',    a: [180, -90, 0, -90] },
+  { id: 'lup',    name: 'Giơ tay trái',   a: [-95, -90, 80, 90] },
+  { id: 'rup',    name: 'Giơ tay phải',   a: [100, 90, -85, -90] },
+  { id: 'hips',   name: 'Chống hông',     a: [120, 45, 60, 135] },
+  { id: 'head',   name: 'Ôm đầu',         a: [-150, -20, -30, -160] },
+  { id: 'diag',   name: 'Chéo tay',       a: [-135, -135, 45, 45] },
+  { id: 'l',      name: 'Chữ L',          a: [180, 180, -90, -90] },
+  { id: 'side',   name: 'Một tay ngang',  a: [100, 90, 0, 0] }
+];
+const DEFAULT_CFG = {
+  source: 'obs', obsSource: '', mirror: true, showHands: true, skeleton: false, quality: 'auto',
+  volume: 0.6, fallSpeed: 1, itemScale: 1, dangerPercent: 35, showDanger: true,
+  holdStart: 0.8, poseTolerance: 35, poseHold: 0.5, mouthOpen: 0.3,
+  autoStartOnGift: true, practice: false, maxPerGift: 40,
+  tiers: [
+    { min: 1,   action: 'ball',   count: 1 },
+    { min: 5,   action: 'food',   count: 1 },
+    { min: 10,  action: 'pose',   count: 1 },
+    { min: 30,  action: 'rain',   count: 1 },
+    { min: 99,  action: 'freeze', count: 1 },
+    { min: 199, action: 'shield', count: 3 },
+    { min: 299, action: 'rescue', count: 1 }
+  ],
+  posesOff: [], customPoses: []
+};
+const clone = o => JSON.parse(JSON.stringify(o));
+const num = (v, a, b, f) => { v = Number(v); return Number.isFinite(v) ? Math.max(a, Math.min(b, v)) : f; };
+function normalize(c) {
+  const d = clone(DEFAULT_CFG), o = Object.assign(d, c && typeof c === 'object' ? c : {});
+  o.fallSpeed = num(o.fallSpeed, 0.2, 4, 1); o.itemScale = num(o.itemScale, 0.5, 2, 1);
+  o.dangerPercent = num(o.dangerPercent, 10, 80, 35); o.holdStart = num(o.holdStart, 0.2, 3, 0.8);
+  o.poseTolerance = num(o.poseTolerance, 15, 70, 35); o.poseHold = num(o.poseHold, 0.1, 3, 0.5);
+  o.mouthOpen = num(o.mouthOpen, 0.1, 0.9, 0.3); o.volume = num(o.volume, 0, 1, 0.6);
+  o.maxPerGift = Math.round(num(o.maxPerGift, 1, 200, 40));
+  if (!['low', 'auto', 'high'].includes(o.quality)) o.quality = 'auto';
+  if (!['obs', 'webcam'].includes(o.source)) o.source = 'obs';
+  o.obsSource = typeof o.obsSource === 'string' ? o.obsSource.slice(0, 200) : '';
+  o.tiers = (Array.isArray(o.tiers) ? o.tiers : []).filter(t => t && ACTIONS[t.action])
+    .map(t => ({ min: Math.round(num(t.min, 1, 1e6, 1)), action: t.action, count: Math.round(num(t.count, 1, 100, 1)) }));
+  o.posesOff = Array.isArray(o.posesOff) ? o.posesOff.filter(x => typeof x === 'string') : [];
+  o.customPoses = (Array.isArray(o.customPoses) ? o.customPoses : [])
+    .filter(p => p && Array.isArray(p.a) && p.a.length === 4 && p.a.every(Number.isFinite)).slice(0, 60);
+  return o;
+}
+let cfg = normalize(null);
+const LS_KEY = 'tp:cfg';
+try { const s = JSON.parse(localStorage.getItem(LS_KEY)); if (s) cfg = normalize(s); } catch (_) {}
+const activePoses = () => [...BUILTIN_POSES, ...cfg.customPoses].filter(p => !cfg.posesOff.includes(p.id));
+
+// ============================================================ AUDIO (tự tổng hợp, không dùng file ngoài)
+let actx = null;
+function ac() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { return null; } }
+  if (actx.state === 'suspended') actx.resume().catch(() => {});
+  return actx;
+}
+window.addEventListener('pointerdown', () => ac(), { once: true });
+let lastSfx = 0;
+function tone(freq, dur, type = 'sine', vol = 0.3, slideTo = 0, delay = 0) {
+  const c = ac(); if (!c || cfg.volume <= 0) return;
+  const t = c.currentTime + delay, o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+  g.gain.setValueAtTime(vol * cfg.volume, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+function noise(dur, vol = 0.3, delay = 0, hp = 1200) {
+  const c = ac(); if (!c || cfg.volume <= 0) return;
+  const n = Math.floor(c.sampleRate * dur), buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(), t = c.currentTime + delay;
+  f.type = 'highpass'; f.frequency.value = hp; g.gain.value = vol * cfg.volume;
+  s.buffer = buf; s.connect(f).connect(g).connect(c.destination); s.start(t);
+}
+const SFX = {
+  pop()    { const n = performance.now(); if (n - lastSfx < 40) return; lastSfx = n; tone(520 + Math.random() * 200, 0.12, 'sine', 0.35, 1400); },
+  eat()    { noise(0.05, 0.4, 0, 1800); noise(0.05, 0.35, 0.09, 1500); noise(0.06, 0.3, 0.18, 1300); },
+  pose()   { tone(880, 0.5, 'triangle', 0.3); tone(1320, 0.6, 'triangle', 0.25, 0, 0.08); },
+  power()  { tone(660, 0.35, 'sine', 0.25, 1760); tone(990, 0.4, 'sine', 0.15, 2200, 0.06); },
+  land()   { tone(150, 0.12, 'sine', 0.25, 70); },
+  start()  { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.18, 'square', 0.12, 0, i * 0.09)); },
+  over()   { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.3, 'sawtooth', 0.12, 0, i * 0.16)); },
+  grab()   { tone(300, 0.08, 'sine', 0.2, 500); },
+  shield() { tone(400, 0.25, 'triangle', 0.25, 200); }
+};
+
+// ============================================================ ẢNH
+const imgCache = new Map();
+function img(url) {
+  if (!url || typeof url !== 'string' || !/^(https?:|\/)/.test(url)) return null;
+  if (imgCache.has(url)) return imgCache.get(url);
+  if (imgCache.size > 300) imgCache.delete(imgCache.keys().next().value);
+  const im = new Image(); im.decoding = 'async'; im.src = url; imgCache.set(url, im); return im;
+}
+const ready = im => im && im.complete && im.naturalWidth > 0;
+
+// ============================================================ TRACKER
+const video = $('cam');
+const tracker = new HpTracker({ width: W, height: H, video, mirror: cfg.mirror, quality: cfg.quality, onStatus: (t, lv) => setCamState(t, lv) });
+window.__tp = { tracker, get state() { return S; }, get cfg() { return cfg; } };   // debug
+function setCamState(text, level) {
+  const el = $('camState');
+  if (el) { el.textContent = 'Nhận diện: ' + text; el.className = 'pill ' + (level === 'ok' ? 'ok' : level === 'error' ? 'bad' : 'warn'); }
+}
+// Hộp báo lỗi giữa overlay — chỉ hiện khi không có hình camera (để streamer thấy ngay trong OBS
+// lúc dựng scene), có hình lại là tự ẩn.
+function showAlert(text) {
+  const el = $('alert'); if (!el) return;
+  if (!text) { el.style.display = 'none'; return; }
+  el.innerHTML = '⚠ ' + esc(text) + '<small>Touch &amp; Play đọc hình từ nguồn camera trong OBS. Mở Touch &amp; Play trong app để chọn nguồn.</small>';
+  el.style.display = 'block';
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+// ---------- nguồn camera trong OBS (server chụp nguồn → gửi JPEG + bố cục scene) ----------
+let renderObsState = null;   // lab gán hàm vẽ trạng thái nguồn OBS
+const feed = { on: false, layout: null, status: null, lastAt: 0, busy: false, bitmapW: 0, bitmapH: 0, M: null };
+async function startObsFeed() {
+  if (feed.on) return;
+  feed.on = true; feed.lastAt = performance.now();
+  try { await tracker.startExternal(); } catch (e) { setCamState(e.message || String(e), 'error'); }
+  socket?.emit('touchplay:feed', true);
+  applyCameraLook();
+}
+function stopObsFeed() {
+  if (!feed.on) return;
+  feed.on = false;
+  socket?.emit('touchplay:feed', false);
+  if (tracker.mode === 'external') tracker.stop();
+  setCamState('tắt', 'warn');
+}
+async function onFrame(f) {
+  if (!feed.on || feed.busy || !f?.img) return;
+  feed.busy = true;     // đang giải mã thì bỏ khung mới — luôn dùng hình mới nhất, không dồn hàng
+  try {
+    const bmp = await createImageBitmap(new Blob([f.img], { type: 'image/jpeg' }));
+    feed.M = cameraToStage(feed.layout, bmp.width, bmp.height, W, H);
+    feed.bitmapW = bmp.width; feed.bitmapH = bmp.height;
+    tracker.pushFrame(bmp, feed.M);
+    feed.lastAt = performance.now();
+  } catch (_) {} finally { feed.busy = false; }
+}
+function feedProblem() {
+  const st = feed.status || {};
+  if (st.obsConnected === false) return 'App chưa kết nối OBS WebSocket. OBS: Công cụ → Cài đặt WebSocket Server → bật; rồi kết nối ở mục Hiệu ứng OBS trong app.';
+  if (!st.source) return 'Chưa chọn nguồn camera cho Touch & Play.';
+  if (st.error === 'source-missing') return 'Không tìm thấy nguồn "' + st.source + '" trong OBS.';
+  return 'Chưa nhận được hình từ nguồn "' + st.source + '".';
+}
+
+// ---------- webcam trực tiếp (chỉ lab) ----------
+async function startWebcam(deviceId = '') {
+  stopObsFeed();
+  tracker.mirror = cfg.mirror; tracker.quality = cfg.quality;
+  try {
+    const id = await tracker.startWebcam(deviceId);
+    applyCameraLook();
+    await fillCameraLists(id);
+    return true;
+  } catch (e) { setCamState(e.message || String(e), 'error'); applyCameraLook(); return false; }
+}
+function applyCameraLook() {
+  // Overlay không bao giờ vẽ hình camera (OBS đã hiện camera bên dưới). Lab chỉ hiện <video> khi thử webcam.
+  video.classList.toggle('mirror', !!cfg.mirror);
+  video.style.visibility = tracker.mode === 'webcam' ? 'visible' : 'hidden';
+  tracker.mirror = cfg.mirror; tracker.quality = cfg.quality;
+}
+
+// ============================================================ GAME STATE
+const R0 = 64;                  // bán kính gốc
+const BASE_FALL = 230;          // px/s
+const FOODS = ['🍔', '🍕', '🍩', '🍗', '🍉', '🍦', '🧁', '🍟', '🍓', '🥤'];
+const COLORS = { ball: '#55efff', food: '#ffbe64', pose: '#bcff80' };
+const S = {
+  phase: 'idle',      // idle | playing | over
+  score: 0, best: 0, combo: 0, lastHitAt: -99, time: 0,
+  freeze: 0, slow: 0, fast: 0, fever: 0, shield: 0,
+  items: [], pile: [], exits: [], queue: [], particles: [], labels: [], notices: [],
+  startHold: 0, overAt: 0, practiceClock: 0, spawnClock: 0, poseProgress: 0, poseLive: null, poseErr: 999
+};
+try { S.best = Number(localStorage.getItem('tp:best')) || 0; } catch (_) {}
+let nextId = 1;
+let capturing = false;    // lab đang đếm ngược chụp tư thế → cần model body
+
+// Sân chơi = phần camera đang hiện trên sân khấu. Tay chỉ bắt được trong khung camera, nên vật rơi,
+// đáy đống, vạch thua và nút bắt đầu đều phải nằm trong khung đó (camera đặt giữa màn hình, phía dưới
+// là ảnh nền → vật không được rơi xuống chỗ tay không với tới).
+const AREA = { x0: 0, y0: 0, x1: W, y1: H, w: W, h: H };
+function updateArea() {
+  let a = { x0: 0, y0: 0, x1: W, y1: H };
+  if (feed.on && feed.M && feed.bitmapW) {
+    const M = feed.M, cs = [[0, 0], [feed.bitmapW, 0], [0, feed.bitmapH], [feed.bitmapW, feed.bitmapH]]
+      .map(([x, y]) => ({ x: M[0] * x + M[2] * y + M[4], y: M[1] * x + M[3] * y + M[5] }));
+    const b = { x0: Math.max(0, Math.min(...cs.map(p => p.x))), x1: Math.min(W, Math.max(...cs.map(p => p.x))),
+                y0: Math.max(0, Math.min(...cs.map(p => p.y))), y1: Math.min(H, Math.max(...cs.map(p => p.y))) };
+    if (b.x1 - b.x0 > 300 && b.y1 - b.y0 > 400) a = b;     // camera quá nhỏ / ra ngoài khung → dùng cả sân khấu
+  }
+  Object.assign(AREA, a, { w: a.x1 - a.x0, h: a.y1 - a.y0 });
+  START_BTN.x = (AREA.x0 + AREA.x1) / 2; START_BTN.y = AREA.y0 + AREA.h * 0.74;
+  START_BTN.r = Math.max(80, Math.min(150, AREA.w * 0.18, AREA.h * 0.14));
+}
+function danger() { return AREA.y0 + AREA.h * cfg.dangerPercent / 100; }
+
+function startGame() {
+  Object.assign(S, { phase: 'playing', score: 0, combo: 0, lastHitAt: -99, time: 0, freeze: 0, slow: 0, fast: 0, fever: 0, shield: 0, startHold: 0, poseProgress: 0 });
+  S.items.length = S.queue.length = S.particles.length = 0;
+  for (const p of S.pile) flyOut(p); S.pile.length = 0;
+  label('BẮT ĐẦU!', W / 2, H * 0.42, '#55efff', 1.4);
+  SFX.start();
+}
+function stopGame(showOver = true) {
+  if (S.phase !== 'playing') { if (S.phase === 'over') { for (const p of S.pile) flyOut(p); S.pile.length = 0; } S.phase = 'idle'; return; }
+  // Vật đang rơi bay khỏi sân luôn — để lại thì chúng đứng im lơ lửng suốt màn chờ.
+  for (const it of S.items) if (!it.dead) flyOut(it);
+  S.items.length = 0; S.queue.length = 0;
+  S.phase = showOver ? 'over' : 'idle'; S.overAt = performance.now();
+  if (showOver) SFX.over(); else { for (const p of S.pile) flyOut(p); S.pile.length = 0; }
+  saveBest();
+}
+function saveBest() { if (S.score > S.best) S.best = S.score; try { localStorage.setItem('tp:best', String(S.best)); } catch (_) {} }
+
+function rescue() {
+  for (const p of S.pile) flyOut(p); S.pile.length = 0;
+  label('GIẢI CỨU!', W / 2, H * 0.45, '#55efff', 1.4); SFX.power();
+}
+
+// Hàng đợi: quà 40 cái không dội xuống một lúc mà xả dần.
+function enqueue(action, qty, from = {}) {
+  if (!ACTIONS[action]) return;
+  qty = Math.max(1, Math.min(200, Math.round(qty) || 1));
+  if (S.phase !== 'playing') {
+    if (!(cfg.autoStartOnGift || from.source === 'cmd')) return;
+    startGame();
+  }
+  const sp = { avatar: from.avatar || '', icon: from.icon || '' };
+  switch (action) {
+    case 'freeze': S.freeze = Math.min(30, S.freeze + 6 * qty); label('ĐÓNG BĂNG ❄', W / 2, H * 0.3, '#9be8ff'); SFX.power(); return;
+    case 'slow':   S.slow = Math.min(40, S.slow + 8 * qty); S.fast = 0; label('CHẬM LẠI 🐢', W / 2, H * 0.3, '#bca1ff'); SFX.power(); return;
+    case 'fast':   S.fast = Math.min(40, S.fast + 8 * qty); S.slow = 0; label('TĂNG TỐC ⚡', W / 2, H * 0.3, '#ff9f43'); SFX.power(); return;
+    case 'fever':  S.fever = Math.min(40, S.fever + 8 * qty); label('ĐIỂM ×2 🔥', W / 2, H * 0.3, '#ffbe64'); SFX.power(); return;
+    case 'shield': S.shield = Math.min(30, S.shield + qty); label('KHIÊN +' + qty + ' 🛡', W / 2, H * 0.3, '#bcff80'); SFX.power(); return;
+    case 'rescue': rescue(); return;
+    case 'rain':   for (let i = 0; i < Math.min(160, qty * 8); i++) S.queue.push({ kind: 'ball', fast: true, ...sp }); break;
+    default:       for (let i = 0; i < qty; i++) S.queue.push({ kind: action, ...sp });
+  }
+  if (S.queue.length > 400) S.queue.splice(0, S.queue.length - 400);
+}
+
+function spawn(q) {
+  const scale = cfg.itemScale;
+  const r = (q.kind === 'pose' ? R0 * 1.3 : q.kind === 'food' ? R0 * 1.12 : R0) * scale;
+  let pose = null;
+  if (q.kind === 'pose') {
+    const list = activePoses(); if (!list.length) return;
+    pose = list[Math.floor(Math.random() * list.length)];
+  }
+  S.items.push({
+    id: nextId++, kind: q.kind, r, x: AREA.x0 + r + Math.random() * Math.max(0, AREA.w - 2 * r), y: -r, vy: 0,
+    avatar: img(q.avatar), icon: img(q.icon), food: FOODS[Math.floor(Math.random() * FOODS.length)],
+    pose, heldBy: null, born: S.time, rollT: 0
+  });
+}
+
+function scorePoints(base, x, y, color) {
+  S.combo = S.time - S.lastHitAt < 2.5 ? S.combo + 1 : 1;
+  S.lastHitAt = S.time;
+  const mult = Math.min(5, 1 + Math.floor(S.combo / 5)) * (S.fever > 0 ? 2 : 1);
+  const pts = base * mult;
+  S.score += pts;
+  if (S.score > S.best) S.best = S.score;
+  label('+' + pts, x, y, color);
+  if (S.combo > 0 && S.combo % 15 === 0) { S.fever = Math.min(40, S.fever + 8); label('COMBO ' + S.combo + ' · ĐIỂM ×2', W / 2, H * 0.28, '#ffbe64', 1.6); }
+}
+function popItem(it, base, sfx) {
+  it.dead = true;
+  burst(it.x, it.y, COLORS[it.kind] || '#fff', it.kind === 'pose' ? 40 : 22);
+  scorePoints(base, it.x, it.y - it.r, COLORS[it.kind]);
+  sfx();
+}
+
+// ---------- đống vật dưới đáy: tìm mặt đỡ gần nhất ----------
+function floorAt(x, r) {
+  let floor = AREA.y1 - r, support = null;
+  for (const p of S.pile) {
+    const dx = x - p.x, rr = r + p.r;
+    if (Math.abs(dx) >= rr) continue;
+    const surf = p.y - Math.sqrt(rr * rr - dx * dx);
+    if (surf < floor) { floor = surf; support = p; }
+  }
+  return { floor, support };
+}
+function settle(it) {
+  it.dead = true;
+  if (S.shield > 0) { S.shield--; burst(it.x, it.y, '#bcff80', 14); SFX.shield(); return; }
+  S.combo = 0;
+  S.pile.push({ kind: it.kind, x: it.x, y: it.y, r: it.r, avatar: it.avatar, icon: it.icon, food: it.food, pose: it.pose });
+  SFX.land();
+  if (it.y - it.r < danger()) { label('THUA RỒI!', W / 2, H * 0.4, '#ff70bc', 2); stopGame(true); }
+}
+function flyOut(p) { if (S.exits.length < 160) S.exits.push({ ...p, vx: (p.x < W / 2 ? -1 : 1) * (500 + Math.random() * 400), vy: -900 - Math.random() * 500, life: 1.2 }); }
+
+// ---------- hiệu ứng ----------
+function burst(x, y, color, n) {
+  const cap = cfg.quality === 'low' ? 120 : 260;
+  for (let i = 0; i < n && S.particles.length < cap; i++) {
+    const a = Math.random() * Math.PI * 2, s = 150 + Math.random() * 420;
+    S.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120, life: 0.5 + Math.random() * 0.5, r: 4 + Math.random() * 8, color });
+  }
+}
+function label(text, x, y, color = '#fff', life = 1.1) { if (S.labels.length > 24) S.labels.shift(); S.labels.push({ text, x, y, color, life, max: life }); }
+function notice(text) { S.notices.push({ text, life: 3.2 }); if (S.notices.length > 4) S.notices.shift(); }
+
+// ============================================================ TAY (camera + chuột)
+const pointer = { x: 0, y: 0, down: false, inside: false };
+function hands() {
+  const now = performance.now();
+  const list = now - tracker.handsAt < 300 ? tracker.hands.slice() : [];
+  const allowMouse = IS_OVERLAY || $('mouseHand')?.checked;
+  if (allowMouse && pointer.down) {
+    const p = { x: pointer.x, y: pointer.y };
+    list.push({ id: 'mouse', mouse: true, tip: p, palm: p, pinch: p, pinching: true, size: 80, pts: null });
+  }
+  return list;
+}
+function touchPoints(h) { return h.pts ? [h.pts[4], h.pts[8], h.pts[12], h.palm] : [h.tip]; }
+
+// ============================================================ UPDATE
+function update(dt) {
+  updateArea();
+  const hs = hands();
+  // Chỉ chạy model mặt/body khi trên sân có vật cần tới — tiết kiệm máy.
+  const needFace = S.phase === 'playing' && S.items.some(i => i.kind === 'food' && !i.dead);
+  const needPose = (S.phase === 'playing' && S.items.some(i => i.kind === 'pose' && !i.dead)) || capturing;
+  tracker.want({ face: needFace, pose: needPose || cfg.skeleton });
+
+  if (S.phase !== 'playing') { updateStartButton(dt, hs); return; }
+  S.time += dt;
+  for (const k of ['freeze', 'slow', 'fast', 'fever']) S[k] = Math.max(0, S[k] - dt);
+  if (S.time - S.lastHitAt > 2.5) S.combo = 0;
+
+  // xả hàng đợi
+  S.spawnClock += dt;
+  const pace = S.queue.length > 60 ? 0.07 : S.queue.length > 20 ? 0.14 : S.queue[0]?.fast ? 0.12 : 0.3;
+  if (S.queue.length && S.spawnClock >= pace && S.items.length < 90) { S.spawnClock = 0; spawn(S.queue.shift()); }
+  if (cfg.practice && !S.queue.length) {
+    S.practiceClock += dt;
+    if (S.practiceClock > 1.5) { S.practiceClock = 0; const r = Math.random(); S.queue.push({ kind: r < 0.55 ? 'ball' : r < 0.8 ? 'food' : 'pose' }); }
+  }
+
+  const now = performance.now();
+  const face = now - tracker.faceAt < 400 ? tracker.face : null;
+  const mouthOk = face && face.open >= cfg.mouthOpen;
+
+  // tư thế: vật tư thế cũ nhất là "đề bài" hiện tại
+  const target = S.items.find(i => i.kind === 'pose' && !i.dead);
+  S.poseLive = now - tracker.poseAt < 500 ? poseAngles(tracker.pose) : null;
+  if (target) {
+    S.poseErr = poseError(S.poseLive, target.pose.a);
+    if (S.poseErr <= cfg.poseTolerance) S.poseProgress += dt;
+    else S.poseProgress = Math.max(0, S.poseProgress - dt * 2);
+    if (S.poseProgress >= cfg.poseHold) { S.poseProgress = 0; popItem(target, 50, SFX.pose); label(target.pose.name + ' ✓', W / 2, H * 0.24, '#bcff80', 1.3); }
+  } else { S.poseProgress = 0; S.poseErr = 999; }
+
+  const speedMul = cfg.fallSpeed * (S.slow > 0 ? 0.45 : 1) * (S.fast > 0 ? 1.7 : 1);
+  const holding = new Set(S.items.filter(i => i.heldBy && !i.dead).map(i => i.heldBy));
+
+  for (const it of S.items) {
+    if (it.dead) continue;
+    // ---- tương tác tay ----
+    if (it.kind === 'ball') {
+      if (hs.some(h => touchPoints(h).some(p => p && Math.hypot(p.x - it.x, p.y - it.y) < it.r + 16))) { popItem(it, 10, SFX.pop); continue; }
+    } else if (it.kind === 'food') {
+      let h = it.heldBy ? hs.find(v => v.id === it.heldBy) : null;
+      if (it.heldBy && (!h || !h.pinching)) { it.heldBy = null; it.vy = 0; h = null; }
+      if (!h) {
+        h = hs.find(v => v.pinching && !holding.has(v.id) && Math.hypot(v.pinch.x - it.x, v.pinch.y - it.y) < it.r * 1.2);
+        if (h) {
+          // Chuột trong lab: không có miệng để đút → bấm trúng là ăn luôn.
+          if (h.mouse) { popItem(it, 30, SFX.eat); continue; }
+          it.heldBy = h.id; holding.add(h.id); SFX.grab();
+        }
+      }
+      if (h && it.heldBy) {
+        const k = 1 - Math.exp(-dt * 30);
+        it.x += (h.pinch.x - it.x) * k; it.y += (h.pinch.y - it.y) * k;
+      }
+      if (mouthOk && Math.hypot(face.mouth.x - it.x, face.mouth.y - it.y) < it.r + face.width * 0.6) {
+        if (it.heldBy) holding.delete(it.heldBy);
+        popItem(it, 30, SFX.eat); continue;
+      }
+      if (it.heldBy) continue;
+    } else if (it.kind === 'pose') {
+      if (hs.some(h => h.mouse && Math.hypot(h.tip.x - it.x, h.tip.y - it.y) < it.r)) { popItem(it, 50, SFX.pose); continue; }
+    }
+    // ---- rơi + chồng đống ----
+    if (S.freeze > 0) continue;
+    const kindMul = it.kind === 'pose' ? 0.55 : it.kind === 'food' ? 0.85 : 1;
+    const prevY = it.y;
+    it.vy = BASE_FALL * speedMul * kindMul;
+    it.y += it.vy * dt;
+    const { floor, support } = floorAt(it.x, it.r);
+    if (it.y >= floor && prevY <= floor + 2) {
+      // Đậu lệch trên một vật → lăn sang bên một chút, tối đa 1 giây rồi nằm yên.
+      if (support && Math.abs(it.x - support.x) > it.r * 0.25 && it.rollT < 1) {
+        const dir = Math.sign(it.x - support.x);
+        const nx = Math.max(AREA.x0 + it.r, Math.min(AREA.x1 - it.r, it.x + dir * 260 * dt));
+        it.rollT += dt;
+        if (nx !== it.x) { it.x = nx; it.y = Math.min(it.y, floorAt(it.x, it.r).floor); continue; }
+      }
+      it.y = floor;
+      settle(it);
+      if (S.phase !== 'playing') return;
+    } else if (it.y > floor) {
+      it.y = floor; settle(it);
+      if (S.phase !== 'playing') return;
+    }
+  }
+  S.items = S.items.filter(i => !i.dead);
+}
+
+// Nút "giữ tay để bắt đầu" — tay (hoặc chuột) đặt lên nút đủ lâu thì vào ván.
+const START_BTN = { x: W / 2, y: H * 0.74, r: 150 };
+function updateStartButton(dt, hs) {
+  // Bảng điểm giữ 4 giây cùng đống vật thua cuộc, rồi dọn sân về màn chờ.
+  if (S.phase === 'over' && performance.now() - S.overAt > 4000) { S.phase = 'idle'; for (const p of S.pile) flyOut(p); S.pile.length = 0; }
+  if (S.phase !== 'idle') { S.startHold = 0; return; }
+  const on = hs.some(h => touchPoints(h).some(p => p && Math.hypot(p.x - START_BTN.x, p.y - START_BTN.y) < START_BTN.r));
+  S.startHold = on ? S.startHold + dt : Math.max(0, S.startHold - dt * 2);
+  if (S.startHold >= cfg.holdStart) startGame();
+}
+
+// ============================================================ RENDER
+const cv = $('cv'), ctx = cv.getContext('2d');
+const sprites = new Map();
+function sprite(kind, size, avatar, icon, food, pose) {
+  const key = [kind, size, ready(avatar) ? avatar.src : '', ready(icon) ? icon.src : '', food || '', pose?.id || ''].join('|');
+  let s = sprites.get(key);
+  if (s) return s;
+  const pad = 14, c = document.createElement('canvas'); c.width = c.height = size + pad * 2;
+  const g = c.getContext('2d'), r = size / 2, col = COLORS[kind] || '#fff';
+  g.translate(r + pad, r + pad);
+  if (kind === 'food') {
+    g.font = `${Math.round(size * 0.92)}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`;
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(food, 0, size * 0.04);
+    if (ready(avatar)) { g.save(); g.beginPath(); g.arc(r * 0.62, r * 0.62, r * 0.34, 0, 7); g.clip(); g.drawImage(avatar, r * 0.28, r * 0.28, r * 0.68, r * 0.68); g.restore(); g.strokeStyle = col; g.lineWidth = 3; g.beginPath(); g.arc(r * 0.62, r * 0.62, r * 0.34, 0, 7); g.stroke(); }
+  } else {
+    g.shadowColor = col; g.shadowBlur = cfg.quality === 'low' ? 0 : 12;
+    g.fillStyle = kind === 'pose' ? '#0f2414' : '#0f1d33'; g.strokeStyle = col; g.lineWidth = 5;
+    g.beginPath(); g.arc(0, 0, r - 4, 0, 7); g.fill(); g.stroke(); g.shadowBlur = 0;
+    if (kind === 'pose' && pose) {
+      drawStick(g, pose.a, 0, -r * 0.05, r * 0.6, col, Math.max(3, r * 0.08));
+    } else if (ready(avatar)) {
+      g.save(); g.beginPath(); g.arc(0, 0, r - 7, 0, 7); g.clip(); g.drawImage(avatar, -r, -r, size, size); g.restore();
+    } else {
+      g.fillStyle = col; g.font = `bold ${Math.round(r)}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('✦', 0, 2);
+    }
+    if (ready(icon)) g.drawImage(icon, r * 0.28, -r * 1.12, r * 0.8, r * 0.8);
+  }
+  s = { c, pad };
+  if (sprites.size > 400) sprites.delete(sprites.keys().next().value);
+  sprites.set(key, s);
+  return s;
+}
+function drawItem(it, x = it.x, y = it.y, alpha = 1) {
+  const size = Math.round(it.r * 2);
+  const s = sprite(it.kind, size, it.avatar, it.icon, it.food, it.pose);
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(s.c, x - it.r - s.pad, y - it.r - s.pad);
+  ctx.globalAlpha = 1;
+}
+// Hình người que từ 4 góc tay — dùng cho thẻ tư thế, vật tư thế và khung "đề bài".
+function drawStick(g, a, cx, cy, sw, color, lw) {
+  const sh = [[cx - sw / 2, cy], [cx + sw / 2, cy]];
+  const up = sw * 0.62, fo = sw * 0.58, rad = d => d * Math.PI / 180;
+  g.save(); g.strokeStyle = color; g.lineWidth = lw; g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath(); g.arc(cx, cy - sw * 0.5, sw * 0.26, 0, 7); g.stroke();
+  g.beginPath(); g.moveTo(sh[0][0], sh[0][1]); g.lineTo(sh[1][0], sh[1][1]);
+  g.moveTo(cx, cy); g.lineTo(cx, cy + sw * 1.15);
+  g.moveTo(cx, cy + sw * 1.15); g.lineTo(cx - sw * 0.3, cy + sw * 1.9);
+  g.moveTo(cx, cy + sw * 1.15); g.lineTo(cx + sw * 0.3, cy + sw * 1.9);
+  for (let s = 0; s < 2; s++) {
+    const [x0, y0] = sh[s], A = rad(a[s * 2]), B = rad(a[s * 2 + 1]);
+    const ex = x0 + Math.cos(A) * up, ey = y0 + Math.sin(A) * up;
+    g.moveTo(x0, y0); g.lineTo(ex, ey); g.lineTo(ex + Math.cos(B) * fo, ey + Math.sin(B) * fo);
+  }
+  g.stroke(); g.restore();
+}
+
+function render(dt) {
+  ctx.clearRect(0, 0, W, H);
+  const now = performance.now();
+  // Lab: vẽ hình camera OBS đúng chỗ nó hiện trong scene (overlay thật thì để trong suốt — OBS tự hiện camera).
+  if (!IS_OVERLAY && feed.on && feed.M && tracker.ext?.bitmap) {
+    ctx.save(); ctx.setTransform(...feed.M); ctx.drawImage(tracker.ext.bitmap, 0, 0); ctx.restore();
+  }
+
+  if (S.freeze > 0 || S.fever > 0) {
+    ctx.strokeStyle = S.freeze > 0 ? 'rgba(130,230,255,.85)' : 'rgba(255,190,100,.85)';
+    ctx.lineWidth = 12; ctx.strokeRect(6, 6, W - 12, H - 12);
+  }
+  if (cfg.showDanger && (S.pile.length || S.phase === 'playing')) {
+    ctx.save(); ctx.setLineDash([18, 16]); ctx.strokeStyle = 'rgba(255,112,188,.7)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(AREA.x0, danger()); ctx.lineTo(AREA.x1, danger()); ctx.stroke(); ctx.restore();
+  }
+  for (const p of S.pile) drawItem(p);
+  for (const it of S.items) {
+    if (it.heldBy) { ctx.save(); ctx.strokeStyle = '#ffbe64'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(it.x, it.y, it.r + 10, 0, 7); ctx.stroke(); ctx.restore(); }
+    if (S.freeze > 0) { ctx.save(); ctx.strokeStyle = 'rgba(180,240,255,.6)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(it.x, it.y, it.r + 6, 0, 7); ctx.stroke(); ctx.restore(); }
+    drawItem(it);
+  }
+  for (let i = S.exits.length - 1; i >= 0; i--) {
+    const e = S.exits[i]; e.life -= dt; if (e.life <= 0) { S.exits.splice(i, 1); continue; }
+    e.x += e.vx * dt; e.y += e.vy * dt; e.vy += 1400 * dt; drawItem(e, e.x, e.y, Math.min(1, e.life * 2));
+  }
+
+  // miệng (khi có đồ ăn trên sân)
+  const face = now - tracker.faceAt < 400 ? tracker.face : null;
+  if (face && S.items.some(i => i.kind === 'food')) {
+    const open = face.open >= cfg.mouthOpen;
+    ctx.save(); ctx.strokeStyle = open ? '#1fbf75' : 'rgba(255,255,255,.6)'; ctx.lineWidth = 5; ctx.setLineDash(open ? [] : [10, 8]);
+    ctx.beginPath(); ctx.arc(face.mouth.x, face.mouth.y, Math.max(30, face.width * 0.75), 0, 7); ctx.stroke(); ctx.restore();
+  }
+
+  // đề bài tư thế
+  const target = S.items.find(i => i.kind === 'pose');
+  if (target && S.phase === 'playing') drawPoseTarget(target);
+
+  // khung xương (gỡ lỗi)
+  if (cfg.skeleton) drawSkeleton(now);
+
+  // tay
+  if (cfg.showHands) for (const h of hands()) {
+    ctx.save();
+    ctx.strokeStyle = h.pinching ? '#ffbe64' : '#55efff'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(h.tip.x, h.tip.y, 20, 0, 7); ctx.stroke();
+    if (h.pinching && !h.mouse) { ctx.fillStyle = 'rgba(255,190,100,.5)'; ctx.beginPath(); ctx.arc(h.pinch.x, h.pinch.y, 14, 0, 7); ctx.fill(); }
+    ctx.restore();
+  }
+
+  // hạt + chữ nổi
+  for (let i = S.particles.length - 1; i >= 0; i--) {
+    const p = S.particles[i]; p.life -= dt; if (p.life <= 0) { S.particles.splice(i, 1); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 900 * dt;
+    ctx.globalAlpha = Math.min(1, p.life * 2); ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.r, p.r);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  for (let i = S.labels.length - 1; i >= 0; i--) {
+    const l = S.labels[i]; l.life -= dt; if (l.life <= 0) { S.labels.splice(i, 1); continue; }
+    l.y -= 60 * dt; ctx.globalAlpha = Math.min(1, l.life * 2.5);
+    ctx.font = '900 54px "Segoe UI",sans-serif'; ctx.lineWidth = 10; ctx.strokeStyle = '#07101e';
+    ctx.strokeText(l.text, l.x, l.y); ctx.fillStyle = l.color; ctx.fillText(l.text, l.x, l.y);
+  }
+  ctx.globalAlpha = 1;
+
+  drawHud(dt);
+  if (S.phase === 'idle') drawStartScreen();
+  if (S.phase === 'over') drawOverScreen();
+}
+
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+function panel(x, y, w, h) { ctx.fillStyle = 'rgba(8,18,37,.78)'; roundRect(x, y, w, h, 26); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.lineWidth = 2; ctx.stroke(); }
+
+function drawHud(dt) {
+  if (S.phase === 'idle') return;
+  ctx.save(); ctx.textBaseline = 'alphabetic';
+  panel(48, 48, 380, 150);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#9bacbf'; ctx.font = '700 24px "Segoe UI",sans-serif'; ctx.fillText('ĐIỂM', 76, 92);
+  ctx.fillStyle = '#fff'; ctx.font = '900 64px "Segoe UI",sans-serif'; ctx.fillText(S.score.toLocaleString('vi-VN'), 76, 158);
+  const mult = Math.min(5, 1 + Math.floor(S.combo / 5)) * (S.fever > 0 ? 2 : 1);
+  ctx.fillStyle = '#55efff'; ctx.font = '700 24px "Segoe UI",sans-serif'; ctx.fillText('×' + mult + ' · ' + S.combo + ' COMBO', 76, 186);
+  panel(W - 48 - 260, 48, 260, 150);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#9bacbf'; ctx.font = '700 24px "Segoe UI",sans-serif'; ctx.fillText('KỶ LỤC', W - 76, 92);
+  ctx.fillStyle = '#ffdc88'; ctx.font = '900 48px "Segoe UI",sans-serif'; ctx.fillText(S.best.toLocaleString('vi-VN'), W - 76, 150);
+
+  const buffs = [S.freeze > 0 && '❄ ' + Math.ceil(S.freeze) + 's', S.slow > 0 && '🐢 ' + Math.ceil(S.slow) + 's', S.fast > 0 && '⚡ ' + Math.ceil(S.fast) + 's',
+    S.fever > 0 && '🔥 ' + Math.ceil(S.fever) + 's', S.shield > 0 && '🛡 ' + S.shield, S.queue.length > 0 && '⏳ ' + S.queue.length].filter(Boolean);
+  if (buffs.length) { ctx.textAlign = 'center'; ctx.font = '800 34px "Segoe UI","Segoe UI Emoji",sans-serif'; ctx.fillStyle = '#ffdc88'; ctx.lineWidth = 8; ctx.strokeStyle = '#07101e'; const t = buffs.join('   '); ctx.strokeText(t, W / 2, 250); ctx.fillText(t, W / 2, 250); }
+
+  // thông báo quà
+  ctx.textAlign = 'center'; ctx.font = '700 30px "Segoe UI","Segoe UI Emoji",sans-serif';
+  let y = H - 70;
+  for (let i = S.notices.length - 1; i >= 0; i--) {
+    const n = S.notices[i]; n.life -= dt; if (n.life <= 0) { S.notices.splice(i, 1); continue; }
+    ctx.globalAlpha = Math.min(1, n.life * 2); ctx.lineWidth = 7; ctx.strokeStyle = '#07101e'; ctx.strokeText(n.text, W / 2, y); ctx.fillStyle = '#fff'; ctx.fillText(n.text, W / 2, y); y -= 44;
+  }
+  ctx.restore();
+}
+
+function drawPoseTarget(t) {
+  const w = 260, h = 330, x = AREA.x0 + 16, y = Math.max(AREA.y0 + 16, 230), cx = x + w / 2;
+  ctx.save(); panel(x, y, w, h);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#bcff80'; ctx.font = '800 26px "Segoe UI",sans-serif';
+  ctx.fillText('LÀM THEO', cx, y + 30);
+  ctx.font = '700 24px "Segoe UI",sans-serif'; ctx.fillText(t.pose.name.toUpperCase(), cx, y + 60);
+  drawStick(ctx, t.pose.a, cx, y + 150, 90, '#bcff80', 10);
+  if (S.poseLive) drawStick(ctx, S.poseLive, cx, y + 150, 90, 'rgba(85,239,255,.55)', 5);
+  const prog = Math.min(1, S.poseProgress / cfg.poseHold);
+  ctx.fillStyle = 'rgba(255,255,255,.15)'; roundRect(x + 24, y + h - 34, w - 48, 12, 6); ctx.fill();
+  ctx.fillStyle = '#bcff80'; roundRect(x + 24, y + h - 34, (w - 48) * prog, 12, 6); ctx.fill();
+  ctx.fillStyle = '#9bacbf'; ctx.font = '600 20px "Segoe UI",sans-serif';
+  ctx.fillText(S.poseLive ? 'lệch ' + Math.round(S.poseErr) + '°' : 'lùi xa để thấy 2 tay', cx, y + h - 56);
+  ctx.restore();
+}
+
+function drawSkeleton(now) {
+  const P = now - tracker.poseAt < 500 ? tracker.pose : null;
+  ctx.save(); ctx.strokeStyle = 'rgba(85,239,255,.8)'; ctx.lineWidth = 5;
+  if (P) {
+    ctx.beginPath();
+    for (const [a, b] of [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [24, 26], [25, 27], [26, 28]]) { ctx.moveTo(P[a].x, P[a].y); ctx.lineTo(P[b].x, P[b].y); }
+    ctx.stroke();
+  }
+  if (now - tracker.handsAt < 300) for (const h of tracker.hands) {
+    ctx.beginPath();
+    for (const ch of [[0, 1, 2, 3, 4], [0, 5, 6, 7, 8], [5, 9, 10, 11, 12], [9, 13, 14, 15, 16], [13, 17, 18, 19, 20], [0, 17]]) { ctx.moveTo(h.pts[ch[0]].x, h.pts[ch[0]].y); for (const i of ch.slice(1)) ctx.lineTo(h.pts[i].x, h.pts[i].y); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Màn chờ / kết thúc nằm trong khung camera, co theo bề rộng khung.
+function cardAt(yTop, w0, h0) {
+  const k = Math.min(1, (AREA.w - 40) / w0), cx = (AREA.x0 + AREA.x1) / 2;
+  ctx.translate(cx, yTop); ctx.scale(k, k);
+  panel(-w0 / 2, 0, w0, h0);
+}
+function drawStartScreen() {
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.save(); cardAt(AREA.y0 + Math.min(40, AREA.h * 0.04), 800, 330);
+  ctx.fillStyle = '#55efff'; ctx.font = '700 26px "Segoe UI",sans-serif'; ctx.fillText('HP ACTION LIVE', 0, 46);
+  ctx.fillStyle = '#fff'; ctx.font = '900 92px "Segoe UI",sans-serif'; ctx.fillText('TOUCH & PLAY', 0, 126);
+  ctx.fillStyle = '#c9d6e8'; ctx.font = '600 30px "Segoe UI",sans-serif';
+  ctx.fillText('Chạm bóng · Gắp đồ ăn đưa lên miệng', 0, 200);
+  ctx.fillText('Làm theo tư thế · Đừng để đống vật chạm vạch', 0, 244);
+  ctx.fillStyle = '#ffdc88'; ctx.font = '700 28px "Segoe UI",sans-serif'; ctx.fillText('Kỷ lục: ' + S.best.toLocaleString('vi-VN'), 0, 296);
+  ctx.restore();
+  const b = START_BTN, prog = Math.min(1, S.startHold / cfg.holdStart), f = b.r / 150;
+  ctx.fillStyle = 'rgba(85,239,255,.18)'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill();
+  ctx.strokeStyle = 'rgba(85,239,255,.5)'; ctx.lineWidth = 6; ctx.stroke();
+  if (prog > 0) { ctx.strokeStyle = '#55efff'; ctx.lineWidth = 16 * f; ctx.beginPath(); ctx.arc(b.x, b.y, b.r - 8 * f, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2); ctx.stroke(); }
+  ctx.fillStyle = '#fff'; ctx.font = `900 ${Math.round(44 * f)}px "Segoe UI",sans-serif`; ctx.fillText('GIỮ TAY', b.x, b.y - 22 * f); ctx.fillText('ĐỂ CHƠI', b.x, b.y + 30 * f);
+  ctx.restore();
+}
+function drawOverScreen() {
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  cardAt(AREA.y0 + AREA.h * 0.3, 760, 300);
+  ctx.fillStyle = '#ff70bc'; ctx.font = '900 80px "Segoe UI",sans-serif'; ctx.fillText('KẾT THÚC', 0, 90);
+  ctx.fillStyle = '#fff'; ctx.font = '800 56px "Segoe UI",sans-serif'; ctx.fillText(S.score.toLocaleString('vi-VN') + ' điểm', 0, 180);
+  ctx.fillStyle = '#ffdc88'; ctx.font = '700 30px "Segoe UI",sans-serif'; ctx.fillText(S.score >= S.best && S.score > 0 ? 'KỶ LỤC MỚI!' : 'Kỷ lục: ' + S.best.toLocaleString('vi-VN'), 0, 250);
+  ctx.restore();
+}
+
+// ============================================================ VÒNG LẶP
+const STEP = 1 / 60;
+let acc = 0, last = 0, renderMs = 0;
+function frame(t) {
+  requestAnimationFrame(frame);
+  const raw = last ? (t - last) / 1000 : STEP; last = t;
+  const dt = Math.min(0.1, raw);
+  acc += dt; let n = 0;
+  while (acc >= STEP && n++ < 6) { update(STEP); acc -= STEP; }
+  if (n >= 6) acc = 0;
+  const t0 = performance.now(); render(dt); renderMs = renderMs * 0.9 + (performance.now() - t0) * 0.1;
+  if (!IS_OVERLAY && (frame.k = (frame.k || 0) + 1) % 15 === 0) {
+    $('metrics').textContent = tracker.active ? `${Math.round(tracker.fps)} lần/s · AI ${tracker.aiMs.toFixed(0)}ms · vẽ ${renderMs.toFixed(1)}ms · ${tracker.hands.length} tay` : `vẽ ${renderMs.toFixed(1)}ms`;
+  }
+}
+requestAnimationFrame(frame);
+
+// ============================================================ CHUỘT
+function toStage(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; }
+cv.addEventListener('pointerdown', e => { Object.assign(pointer, toStage(e), { down: true }); cv.setPointerCapture(e.pointerId); ac(); });
+cv.addEventListener('pointermove', e => Object.assign(pointer, toStage(e)));
+cv.addEventListener('pointerup', () => { pointer.down = false; });
+cv.addEventListener('pointercancel', () => { pointer.down = false; });
+
+// ============================================================ QUÀ + LỆNH
+function actionForGift(coin) {
+  const list = cfg.tiers.slice().sort((a, b) => b.min - a.min);
+  return list.find(t => coin >= t.min) || null;
+}
+function handleGift(g) {
+  if (!g || gameDisabled) return;
+  const coin = Number(g.coinValue ?? g.diamondCount ?? 1) || 1;
+  const tier = actionForGift(coin);
+  if (!tier) return;
+  const qty = Math.min(cfg.maxPerGift, tier.count * Math.max(1, parseInt(g.repeatCount, 10) || 1));
+  enqueue(tier.action, qty, { avatar: g.profilePicture, icon: g.image || g.giftPicture, source: g.source });
+  if (S.phase === 'playing') notice(`${(g.nickname || g.uniqueId || 'Ai đó').slice(0, 18)} → ${ACTIONS[tier.action].icon} ${ACTIONS[tier.action].label}${qty > 1 && !['freeze', 'slow', 'fast', 'fever', 'rescue'].includes(tier.action) ? ' ×' + qty : ''}`);
+}
+function handleCmd(cmd, p = {}) {
+  if (cmd === 'start') startGame();
+  else if (cmd === 'stop') stopGame(false);
+  else if (cmd === 'rescue') { if (S.phase === 'playing') rescue(); }
+  else if (cmd === 'spawn' && ACTIONS[p.action]) enqueue(p.action, p.qty || 1, { source: 'cmd' });
+}
+
+let gameDisabled = false;
+let socket = null;
+if (typeof io === 'function') {
+  socket = io({ transports: ['websocket', 'polling'] });
+  socket.on('connect', () => {
+    socket.emit('subscribe', IS_OVERLAY ? 'overlay' : 'preview');
+    if (feed.on) socket.emit('touchplay:feed', true);     // nối lại sau khi app khởi động lại
+    const el = $('sockState'); if (el) { el.textContent = '● Đã nối app'; el.className = 'pill ok'; }
+  });
+  socket.on('disconnect', () => { const el = $('sockState'); if (el) { el.textContent = '● Mất kết nối app'; el.className = 'pill bad'; } });
+  socket.on('gift', handleGift);
+  socket.on('gameCmd', d => { if (d && d.gameId === GAME_ID) handleCmd(d.cmd, d.payload || {}); });
+  // Lab là nguồn cấu hình duy nhất — chỉ overlay mới nhận cấu hình vọng lại (xem memory relay-cfg).
+  socket.on('gameConfig', d => {
+    if (!d || d.gameId !== GAME_ID) return;
+    setDisabled(d.config?.enabled === false);
+    if (IS_OVERLAY && d.config?.tpCfg) applyRemoteCfg(d.config.tpCfg);
+  });
+  socket.on('gameDisabled', d => { if (d?.gameId === GAME_ID) setDisabled(true); });
+  socket.on('gameEnabled', d => { if (d?.gameId === GAME_ID) setDisabled(false); });
+  socket.on('touchplay:frame', onFrame);
+  socket.on('touchplay:layout', l => { feed.layout = l; });
+  socket.on('touchplay:feedStatus', st => { feed.status = st; renderObsState?.(); });
+  socket.on('overlay:reload', d => { if (IS_OVERLAY && (!d?.gameId || d.gameId === GAME_ID)) location.reload(); });
+}
+function setDisabled(off) {
+  if (off === gameDisabled) return;
+  gameDisabled = off;
+  if (!IS_OVERLAY) return;
+  // Tắt game trong Thư viện → overlay thôi nhận hình, OBS khỏi phải chụp camera.
+  if (off) { stopGame(false); stopObsFeed(); cv.style.display = 'none'; showAlert(''); }
+  else { cv.style.display = ''; startObsFeed(); }
+}
+function applyRemoteCfg(c) {
+  cfg = normalize(c);
+  try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); } catch (_) {}
+  sprites.clear();
+  applyCameraLook();
+}
+
+// ============================================================ BOOT
+async function fetchServerCfg() {
+  try {
+    const r = await fetch('/api/games/' + GAME_ID + '/config', { cache: 'no-store' });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (j && j.enabled === false) setDisabled(true);
+    return j && j.tpCfg ? j.tpCfg : null;
+  } catch (_) { return null; }
+}
+
+if (IS_OVERLAY) {
+  const remote = await fetchServerCfg();
+  if (remote) applyRemoteCfg(remote);
+  fitOverlay(); window.addEventListener('resize', fitOverlay);
+  if (!gameDisabled) startObsFeed();
+  // Báo sức khoẻ nhận diện về app mỗi 2 giây — lab hiện cho streamer xem OBS có bắt được tay không.
+  setInterval(() => {
+    if (!feed.on || !socket?.connected) return;
+    socket.emit('touchplay:overlayStat', { fps: tracker.fps, aiMs: tracker.aiMs, hands: performance.now() - tracker.handsAt < 500 ? tracker.hands.length : 0, delegate: tracker.delegate, phase: S.phase });
+  }, 2000);
+  // Mất hình camera > 4 giây → báo ngay trên overlay (streamer thấy lúc dựng scene); có hình là tự ẩn.
+  setInterval(() => {
+    if (!feed.on || gameDisabled) return showAlert('');
+    showAlert(performance.now() - feed.lastAt > 4000 ? feedProblem() : '');
+  }, 1000);
+} else {
+  await bootLab();
+}
+
+// Overlay: giữ đúng tỉ lệ 9:16 giữa khung Browser Source (lệch kích thước thì không méo).
+function fitOverlay() {
+  const vw = innerWidth, vh = innerHeight, s = Math.min(vw / W, vh / H);
+  const fit = $('fit'); fit.style.left = ((vw - W * s) / 2) + 'px'; fit.style.top = ((vh - H * s) / 2) + 'px';
+  $('stage').style.transform = `scale(${s})`;
+}
+
+// ============================================================ LAB
+async function bootLab() {
+  let booting = true, touched = false, saveTimer = 0;
+  const remote = await fetchServerCfg();
+  if (remote && !touched) cfg = normalize(remote);
+  booting = false;
+
+  const fitLab = () => {
+    const wrap = $('wrap'), pad = 16, s = Math.min((wrap.clientWidth - pad * 2) / W, (wrap.clientHeight - pad * 2) / H);
+    const fit = $('fit'); fit.style.left = ((wrap.clientWidth - W * s) / 2) + 'px'; fit.style.top = ((wrap.clientHeight - H * s) / 2) + 'px';
+    $('stage').style.transform = `scale(${s})`;
+  };
+  new ResizeObserver(fitLab).observe($('wrap')); fitLab();
+
+  function save() {
+    touched = true;
+    try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); } catch (_) {}
+    if (booting) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      fetch('/api/games/' + GAME_ID + '/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tpCfg: cfg }) }).catch(() => {});
+    }, 500);
+  }
+
+  // ô cấu hình đơn giản: data-k
+  for (const el of document.querySelectorAll('[data-k]')) {
+    const k = el.dataset.k;
+    if (el.type === 'checkbox') el.checked = !!cfg[k]; else el.value = cfg[k];
+    el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
+      cfg[k] = el.type === 'checkbox' ? el.checked : (el.type === 'number' || el.type === 'range') ? Number(el.value) : el.value;
+      cfg = normalize(cfg);
+      if (el.type === 'number') el.value = cfg[k];
+      if (['mirror', 'quality'].includes(k)) applyCameraLook();
+      if (k === 'itemScale') sprites.clear();
+      save();
+    });
+  }
+
+  // ---- nguồn camera ----
+  const showSrc = () => {
+    for (const r of document.querySelectorAll('input[name=src]')) r.checked = r.value === cfg.source;
+    $('srcObs').hidden = cfg.source !== 'obs'; $('srcWebcam').hidden = cfg.source !== 'webcam';
+  };
+  showSrc();
+  for (const r of document.querySelectorAll('input[name=src]')) r.onchange = () => {
+    cfg.source = r.value; save(); showSrc();
+    if (cfg.source === 'obs') { if (tracker.mode === 'webcam') tracker.stop(); applyCameraLook(); setCamState('tắt', 'warn'); $('camBtn').textContent = 'Bật camera'; if ($('labFeed').checked) startObsFeed(); }
+    else stopObsFeed();
+  };
+  $('camBtn').onclick = async () => {
+    if (tracker.mode === 'webcam') { tracker.stop(); applyCameraLook(); setCamState('tắt', 'warn'); $('camBtn').textContent = 'Bật camera'; return; }
+    $('camBtn').disabled = true;
+    const ok = await startWebcam($('camSelect').value);
+    $('camBtn').disabled = false;
+    $('camBtn').textContent = ok ? 'Tắt camera' : 'Bật camera';
+  };
+  $('camSelect').onchange = () => { if (tracker.mode === 'webcam') startWebcam($('camSelect').value); };
+  $('labFeed').onchange = () => { if ($('labFeed').checked) startObsFeed(); else stopObsFeed(); };
+
+  // Danh sách nguồn OBS + trạng thái cấp hình. Server cũng đẩy 'touchplay:feedStatus' khi lab xem trước.
+  let lastSources = null;
+  renderObsState = () => {
+    const el = $('obsState'), st = feed.status || lastSources?.status;
+    if (!el || !st) return;
+    let txt, cls;
+    if (!st.obsConnected) { txt = '● Chưa kết nối OBS WebSocket (mục Hiệu ứng OBS)'; cls = 'bad'; }
+    else if (!st.source) { txt = '● Đã nối OBS — chọn nguồn camera'; cls = 'warn'; }
+    else if (st.error === 'source-missing') { txt = '● Không thấy nguồn "' + st.source + '"'; cls = 'bad'; }
+    else if (feed.on && st.live) { txt = '● Đang nhận hình ' + st.fps + ' hình/giây' + (st.camFound ? ' · thấy camera trong scene "' + st.scene + '"' : ' · camera không có trong scene đang phát'); cls = st.camFound ? 'ok' : 'warn'; }
+    else { txt = '● Sẵn sàng · overlay trong OBS sẽ tự nhận hình' + (st.overlayFound ? ' (đã thấy overlay trong scene)' : ''); cls = 'ok'; }
+    el.textContent = txt; el.className = 'pill ' + cls;
+    const ov = st.overlay, oe = $('obsOverlay');
+    if (oe) {
+      oe.textContent = ov ? `● Overlay trong OBS: nhận diện ${ov.fps} lần/giây · AI ${ov.aiMs}ms (${ov.delegate}) · đang thấy ${ov.hands} tay` : '● Chưa thấy overlay nào trong OBS đang chạy';
+      oe.className = 'pill ' + (ov ? (ov.fps >= 10 ? 'ok' : 'warn') : 'warn');
+    }
+  };
+  const loadSources = async () => {
+    try {
+      lastSources = await (await fetch('/api/touchplay/obs-sources', { cache: 'no-store' })).json();
+      const sel = $('obsSource'), list = lastSources.sources || [];
+      const names = list.map(x => x.name);
+      if (cfg.obsSource && !names.includes(cfg.obsSource)) list.unshift({ name: cfg.obsSource, kind: '?', camera: true, missing: true });
+      // Danh sách hỏi lại mỗi 3 giây — chỉ vẽ lại khi đổi, kẻo đang mở dropdown thì bị đóng ngang.
+      const key = JSON.stringify([list.map(x => x.name), cfg.obsSource]);
+      if (key !== loadSources.key) { loadSources.key = key;
+      sel.innerHTML = '<option value="">— chọn nguồn camera —</option>' + list.map(x =>
+        `<option value="${esc(x.name)}"${x.name === cfg.obsSource ? ' selected' : ''}>${x.camera ? '📷 ' : ''}${esc(x.name)}${x.missing ? ' (không thấy trong OBS)' : ''}</option>`).join(''); }
+      // Chưa chọn mà OBS chỉ có đúng 1 camera → chọn sẵn cho đỡ một bước.
+      if (!cfg.obsSource) { const cams = list.filter(x => x.camera); if (cams.length === 1) { cfg.obsSource = cams[0].name; sel.value = cfg.obsSource; save(); } }
+    } catch (_) { lastSources = null; }
+    renderObsState();
+  };
+  $('obsSource').onchange = () => { cfg.obsSource = $('obsSource').value; save(); setTimeout(loadSources, 900); };
+  $('obsRefresh').onclick = loadSources;
+  await loadSources();
+  setInterval(loadSources, 3000);
+  fillCameraLists('');
+
+  // OBS: overlay không cần camera của trình duyệt nữa → dùng link chung của app (kể cả link máy thứ 2).
+  const overlayPath = '/_prototype/touchplay.html?mode=overlay';
+  const url = (() => { try { if (typeof parent.buildOverlayURL === 'function') return parent.buildOverlayURL(overlayPath); } catch (_) {} return location.origin + overlayPath; })();
+  $('linkTxt').textContent = url;
+  const copy = (txt, btn) => {
+    const done = () => { const o = btn.textContent; btn.textContent = '✓ Đã copy'; setTimeout(() => btn.textContent = o, 1400); };
+    (navigator.clipboard?.writeText(txt) || Promise.reject()).then(done).catch(() => {
+      const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (_) {} ta.remove();
+    });
+  };
+  $('copyLink').onclick = () => copy(url, $('copyLink'));
+
+  // lệnh → server → mọi overlay (kể cả xem trước này)
+  const sendCmd = (cmd, payload) => fetch('/api/games/' + GAME_ID + '/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd, payload }) })
+    .then(r => { if (!r.ok) throw 0; }).catch(() => handleCmd(cmd, payload || {}));
+  for (const b of document.querySelectorAll('[data-cmd]')) b.onclick = () => sendCmd(b.dataset.cmd);
+  const grid = $('actGrid');
+  for (const [k, a] of Object.entries(ACTIONS)) {
+    const b = document.createElement('button'); b.className = 'btn small'; b.textContent = a.icon + ' ' + a.label;
+    b.onclick = () => sendCmd('spawn', { action: k, qty: Number($('testQty').value) || 1 });
+    grid.appendChild(b);
+  }
+
+  // mốc quà
+  const renderTiers = () => {
+    const body = $('tierBody'); body.innerHTML = '<tr><td style="width:84px">Từ (xu)</td><td>Hành động</td><td style="width:64px">Số lượng</td><td style="width:28px"></td></tr>';
+    cfg.tiers.forEach((t, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td><input type="number" min="1" value="${t.min}"></td><td><select>${Object.entries(ACTIONS).map(([k, a]) => `<option value="${k}"${k === t.action ? ' selected' : ''}>${a.icon} ${a.label}</option>`).join('')}</select></td><td><input type="number" min="1" max="100" value="${t.count}"></td><td><button class="btn small danger" title="Xoá">✕</button></td>`;
+      const [mi, ac2, co] = tr.querySelectorAll('input,select');
+      // Luôn sửa qua cfg.tiers[i]: normalize() ở ô khác tạo object mới, giữ `t` cũ là sửa vào hư không.
+      mi.onchange = () => { cfg.tiers[i].min = Math.max(1, Number(mi.value) || 1); save(); };
+      ac2.onchange = () => { cfg.tiers[i].action = ac2.value; save(); };
+      co.onchange = () => { cfg.tiers[i].count = Math.max(1, Number(co.value) || 1); save(); };
+      tr.querySelector('button').onclick = () => { cfg.tiers.splice(i, 1); save(); renderTiers(); };
+      body.appendChild(tr);
+    });
+  };
+  renderTiers();
+  $('addTier').onclick = () => { const top = cfg.tiers.reduce((m, t) => Math.max(m, t.min), 0); cfg.tiers.push({ min: top + 100, action: 'ball', count: 5 }); save(); renderTiers(); };
+  $('resetCfg').onclick = () => {
+    if (!confirm('Khôi phục toàn bộ cài đặt Touch & Play về mặc định? (Tư thế tự chụp cũng mất)')) return;
+    cfg = normalize(null); save(); location.reload();
+  };
+
+  // tư thế
+  const renderPoses = () => {
+    const box = $('poseList'); box.innerHTML = '';
+    for (const p of [...BUILTIN_POSES, ...cfg.customPoses]) {
+      const card = document.createElement('div'); card.className = 'pose-card' + (cfg.posesOff.includes(p.id) ? ' off' : '');
+      const c = document.createElement('canvas'); c.width = 160; c.height = 170;
+      drawStick(c.getContext('2d'), p.a, 80, 62, 46, '#bcff80', 5);
+      card.appendChild(c); card.appendChild(Object.assign(document.createElement('div'), { textContent: p.name }));
+      card.onclick = () => {
+        const i = cfg.posesOff.indexOf(p.id);
+        if (i >= 0) cfg.posesOff.splice(i, 1); else cfg.posesOff.push(p.id);
+        save(); renderPoses();
+      };
+      if (p.id.startsWith('c')) {
+        const x = Object.assign(document.createElement('button'), { className: 'x', textContent: '✕', title: 'Xoá tư thế' });
+        x.onclick = ev => { ev.stopPropagation(); cfg.customPoses = cfg.customPoses.filter(q => q.id !== p.id); save(); renderPoses(); };
+        card.appendChild(x);
+      }
+      box.appendChild(card);
+    }
+  };
+  renderPoses();
+  $('capturePose').onclick = async () => {
+    const msg = $('captureMsg');
+    if (!tracker.active) { msg.textContent = 'Bật camera trước đã.'; return; }
+    capturing = true;
+    for (let s = 3; s > 0; s--) { msg.textContent = 'Chuẩn bị… ' + s; label(String(s), W / 2, H * 0.4, '#bcff80', 0.9); await new Promise(r => setTimeout(r, 1000)); }
+    const a = poseAngles(tracker.pose);
+    capturing = false;
+    if (!a) { msg.textContent = 'Không thấy đủ vai–khuỷu–cổ tay. Lùi xa hơn rồi thử lại.'; return; }
+    const n = cfg.customPoses.length + 1;
+    cfg.customPoses.push({ id: 'c' + Date.now().toString(36), name: 'Tự tạo ' + n, a: a.map(v => Math.round(v)) });
+    SFX.pose(); msg.textContent = 'Đã lưu "Tự tạo ' + n + '"'; save(); renderPoses();
+  };
+}
+async function fillCameraLists(currentId) {
+  const sel = $('camSelect');
+  if (!sel) return;
+  const cams = await tracker.listCameras();
+  sel.innerHTML = '<option value="">Camera mặc định</option>' + cams.map(c => `<option value="${esc(c.deviceId)}">${esc(c.label || 'Camera')}</option>`).join('');
+  if (currentId) sel.value = currentId;
+}
+</script>
+</body>
+</html>

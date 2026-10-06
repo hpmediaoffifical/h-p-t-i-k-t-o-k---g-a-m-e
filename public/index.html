@@ -191,6 +191,38 @@
                 </div>
             </section>
 
+            <!-- GAME VIEW: TOUCH & PLAY (prototype — lab + overlay trong public/_prototype/touchplay.html) -->
+            <section id="view-touchplay" class="view game-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🖐 Touch &amp; Play</h2>
+                        <div class="game-sub">Game webcam · chạm bóng · gắp đồ ăn đưa lên miệng · làm theo tư thế</div>
+                    </div>
+                    <div class="overlay-bar">
+                        <button class="primary small" onclick="touchplayCopyOverlay(this)" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
+                        <button class="ghost small" onclick="document.getElementById('touchplay-frame').contentWindow.location.reload()" title="Reload prototype">🔄 Reload</button>
+                    </div>
+                    <script>
+                      // Overlay không mở camera (đọc hình nguồn camera trong OBS qua server) → dùng link chung của app.
+                      function touchplayCopyOverlay(btn){
+                        const path = '/_prototype/touchplay.html?mode=overlay';
+                        const url = (typeof window.buildOverlayURL === 'function') ? window.buildOverlayURL(path) : (location.origin + path);
+                        const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(()=>btn.textContent='📋 Link OBS', 1500); };
+                        const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(()=>btn.textContent='📋 Link OBS', 1500); };
+                        const legacy = () => { try { const ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); done(); } catch(e){ fail(); } };
+                        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done).catch(legacy);
+                        else legacy();
+                      }
+                    </script>
+                </header>
+                <div style="padding:0; flex:1; min-height:0;">
+                    <iframe id="touchplay-frame" src="/_prototype/touchplay.html" loading="lazy" allow="camera; autoplay" style="width:100%; height:calc(100vh - 80px); border:0; display:block; background:#0d1220;"></iframe>
+                </div>
+            </section>
+
+                </div>
+            </section>
+
             <!-- GAME VIEW: Hủ Thủy Tinh -->
             <section id="view-thuytinh" class="view game-view">
                 <header class="game-header">

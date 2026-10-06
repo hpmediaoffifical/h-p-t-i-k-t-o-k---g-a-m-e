@@ -340,7 +340,7 @@
 
             <div class="nd-card">
                 <div class="nd-card-title">💀 Hồi sinh khi chết</div>
-                <label class="nd-inline">Cửa sổ chờ hồi sinh <input type="number" id="bc-reviveWindowSec" min="1" max="60" step="1" value="${cfg.reviveWindowSec ?? 5}" /> giây</label>
+                <label class="nd-inline">Cửa sổ chờ hồi sinh <input type="number" id="bc-reviveWindowSec" min="1" max="300" step="1" value="${cfg.reviveWindowSec ?? 30}" /> giây</label>
                 <label class="nd-inline"><input type="checkbox" id="bc-autoReviveAfterWindow" ${cfg.autoReviveAfterWindow !== false ? 'checked' : ''} /> Tự hồi sinh nếu không ai cứu</label>
                 <label class="nd-inline">Máu khi tự hồi sinh <input type="number" id="bc-autoReviveHearts" min="0.5" step="0.5" value="${cfg.autoReviveHearts ?? 5}" /> ♥</label>
                 <label class="nd-inline">Giáp bất tử sau khi hồi sinh <input type="number" id="bc-reviveProtectionSec" min="0" step="1" value="${cfg.reviveProtectionSec ?? 3}" /> giây</label>
@@ -661,6 +661,37 @@
             </div>
 
             <div class="nd-card">
+                <div class="nd-card-title">🧍 Bám theo NGƯỜI THẬT (camera trong OBS)</div>
+                <label class="nd-inline"><input type="checkbox" id="bc-track-on" ${d.bodyTrack === true ? 'checked' : ''} /> Mũi tên bắn vào thân / đầu streamer, hàng tim bám trên đỉnh đầu</label>
+                <div class="nd-hint">
+                    Game đọc hình từ <b>nguồn camera đang có trong scene OBS</b> (không mở webcam riêng) và nhận diện cơ thể.
+                    Thấy người: tim đi theo đỉnh đầu, cung xoay theo người, mũi tên cắm lại trên thân và để vết đỏ nhạt mờ dần sau 4 giây.
+                    Không thấy người: về vị trí cấu hình bên dưới như cũ.
+                    <br>Cần: app đã kết nối <b>OBS WebSocket</b> (mục Hiệu ứng OBS) và Browser Source Bắn Cung nằm <b>trên</b> camera trong scene.
+                </div>
+                <label class="nd-inline">Nguồn camera
+                    <select id="bc-track-src" style="min-width:220px"><option value="">— dùng nguồn Touch &amp; Play đã chọn —</option></select>
+                    <button class="ghost small" id="bc-track-refresh" title="Tải lại danh sách nguồn từ OBS">↻</button>
+                </label>
+                <div class="nd-hint" id="bc-track-status">Đang hỏi OBS…</div>
+                <label class="nd-inline"><input type="checkbox" id="bc-track-blood" ${d.bloodMarks !== false ? 'checked' : ''} /> 🩸 Vết đỏ nhạt chỗ trúng (mờ dần sau 4 giây)</label>
+                <label class="nd-inline"><input type="checkbox" id="bc-track-flash" ${d.bodyFlash !== false ? 'checked' : ''} /> 🔴 Trúng thì cả người phủ đỏ nhạt (thay chớp đỏ toàn màn hình)</label>
+                <label class="nd-inline">Độ đậm màu đỏ khi trúng <input type="range" id="bc-flashop" min="10" max="100" step="5" value="${d.bodyFlashOpacity ?? 50}" /><span id="bc-flashop-v">${d.bodyFlashOpacity ?? 50}%</span></label>
+                <label class="nd-inline"><input type="checkbox" id="bc-track-char" ${d.bodyChar !== false ? 'checked' : ''} /> ⚫ Hết máu thì cả người cháy đen (thay màn tối toàn khung) — tự hồi theo "Cửa sổ chờ hồi sinh" ở tab Máu</label>
+                <label class="nd-inline">Độ đậm màu đen khi gục <input type="range" id="bc-charop" min="10" max="100" step="5" value="${d.bodyCharOpacity ?? 70}" /><span id="bc-charop-v">${d.bodyCharOpacity ?? 70}%</span></label>
+                <div class="nd-hint">Kéo thấp = mờ, vẫn thấy rõ người; 100% = phủ kín.</div>
+                <label class="nd-inline"><input type="checkbox" id="bc-track-smooth" ${d.maskSmooth !== false ? 'checked' : ''} /> ✨ Làm mượt viền người (khuyên dùng — tắt nếu thấy lớp đỏ/đen bám chậm)</label>
+            </div>
+
+            <div class="nd-card">
+                <div class="nd-card-title">🧹 Chữ trên màn hình khi gục</div>
+                <div class="nd-hint">Mặc định tắt hết cho màn gọn — người xem tự hiểu. Thời gian chờ và máu tự hồi chỉnh ở tab <b>Máu</b> (Cửa sổ chờ hồi sinh).</div>
+                <label class="nd-inline"><input type="checkbox" id="bc-fx-deathpanel" ${d.showDeathPanel === true ? 'checked' : ''} /> 💀 Bảng "ĐÃ GỤC" + đếm ngược + lời nhắc tặng quà hồi sinh</label>
+                <label class="nd-inline"><input type="checkbox" id="bc-fx-killing" ${d.showKillingBlow === true ? 'checked' : ''} /> ⚔ Thẻ "PHÁT KẾT LIỄU" (tên người bắn phát cuối)</label>
+                <label class="nd-inline"><input type="checkbox" id="bc-fx-survival" ${d.showSurvivalTimer === true ? 'checked' : ''} /> ⏱ Đồng hồ "SỐNG SÓT" (góc trên-phải)</label>
+            </div>
+
+            <div class="nd-card">
                 <div class="nd-card-title">📐 Vị trí HÀNG TRÁI TIM</div>
                 <label class="nd-inline">X (ngang) <input type="range" id="bc-hx" min="0" max="100" step="1" value="${d.heartsXPercent ?? 50}" /><span id="bc-hx-v">${d.heartsXPercent ?? 50}%</span></label>
                 <label class="nd-inline">Y (dọc) <input type="range" id="bc-hy" min="0" max="100" step="1" value="${d.heartsYPercent ?? 14}" /><span id="bc-hy-v">${d.heartsYPercent ?? 14}%</span></label>
@@ -738,9 +769,7 @@
                 <label class="nd-inline"><input type="checkbox" id="bc-fx-slowmo" ${d.slowMotionOnKill !== false ? 'checked' : ''} /> 🎬 Slo-motion phát kết liễu</label>
                 <label class="nd-inline"><input type="checkbox" id="bc-fx-vp-shake" ${d.viewportShakeOnHit !== false ? 'checked' : ''} /> 📳 Viewport rung khi trúng</label>
                 <label class="nd-inline"><input type="checkbox" id="bc-fx-deathcam" ${d.deathCamZoom !== false ? 'checked' : ''} /> 💀 Death cam (grayscale + dim)</label>
-                <label class="nd-inline"><input type="checkbox" id="bc-fx-killing" ${d.showKillingBlow !== false ? 'checked' : ''} /> ⚔ Banner "PHÁT KẾT LIỄU"</label>
                 <label class="nd-inline"><input type="checkbox" id="bc-fx-podium" ${d.showPodium !== false ? 'checked' : ''} /> 🏆 Podium top-3 cuối phiên</label>
-                <label class="nd-inline"><input type="checkbox" id="bc-fx-survival" ${d.showSurvivalTimer !== false ? 'checked' : ''} /> ⏱ Đồng hồ sống sót (góc trên-phải)</label>
                 <label class="nd-inline"><input type="checkbox" id="bc-fx-giftlist" ${d.showGiftList !== false ? 'checked' : ''} /> 🎁 Danh sách quà chỉ định trên overlay (kéo trong edit mode)</label>
                 <label class="nd-inline"><input type="checkbox" id="bc-fx-hpnum" ${d.showHpNumber !== false ? 'checked' : ''} /> 🔢 Số máu dưới hàng trái tim (5.6/10 ❤)</label>
                 <label class="nd-inline">Bố cục danh sách quà
@@ -793,16 +822,60 @@
         wireRange('bc-ix', 'impactXPercent', '%');
         wireRange('bc-iy', 'impactYPercent', '%');
         wireRange('bc-ispread', 'impactSpread', '%');
+        wireRange('bc-flashop', 'bodyFlashOpacity', '%');
+        wireRange('bc-charop', 'bodyCharOpacity', '%');
         wireRange('bc-flash', 'redFlashIntensity', '%');
         wireRange('bc-death', 'deathTintOpacity', '%');
         wireRange('bc-arrowDur', 'arrowDurationMs', 'ms');
         wireRange('bc-burstDelay', 'burstDelayMs', 'ms');
         $('#bc-autoAim', host)?.addEventListener('change', e => { d.autoAimBow = !!e.target.checked; schedulePersist(); });
+        // Bám theo người — nguồn camera lấy từ OBS qua API dùng chung với Touch & Play
+        $('#bc-track-on', host)?.addEventListener('change', e => { d.bodyTrack = !!e.target.checked; schedulePersist(); setTimeout(loadTrackSources, 800); });
+        $('#bc-track-blood', host)?.addEventListener('change', e => { d.bloodMarks = !!e.target.checked; schedulePersist(); });
+        $('#bc-track-flash', host)?.addEventListener('change', e => { d.bodyFlash = !!e.target.checked; schedulePersist(); });
+        $('#bc-track-char', host)?.addEventListener('change', e => { d.bodyChar = !!e.target.checked; schedulePersist(); });
+        $('#bc-track-smooth', host)?.addEventListener('change', e => { d.maskSmooth = !!e.target.checked; schedulePersist(); });
+        $('#bc-track-src', host)?.addEventListener('change', e => { d.trackSource = e.target.value || ''; schedulePersist(); setTimeout(loadTrackSources, 900); });
+        $('#bc-track-refresh', host)?.addEventListener('click', loadTrackSources);
+        let _trackKey = '';
+        async function loadTrackSources() {
+            const sel = $('#bc-track-src', host), st = $('#bc-track-status', host);
+            if (!sel || !st || !host.isConnected) return;
+            let r = null;
+            try { r = await (await fetch('/api/touchplay/obs-sources', { cache: 'no-store' })).json(); } catch (e) {}
+            const list = (r?.sources || []).slice();
+            const cur = d.trackSource || '';
+            if (cur && !list.some(x => x.name === cur)) list.unshift({ name: cur, camera: true, missing: true });
+            // Chỉ vẽ lại khi danh sách đổi — đang mở dropdown mà vẽ lại thì bị đóng ngang.
+            const key = JSON.stringify([list.map(x => x.name), cur]);
+            if (key !== _trackKey) {
+                _trackKey = key;
+                sel.innerHTML = '<option value="">— dùng nguồn Touch &amp; Play đã chọn —</option>' + list.map(x =>
+                    `<option value="${escapeHtml(x.name)}"${x.name === cur ? ' selected' : ''}>${x.camera ? '📷 ' : ''}${escapeHtml(x.name)}${x.missing ? ' (không thấy trong OBS)' : ''}</option>`).join('');
+            }
+            const s = r?.status || {};
+            let txt, color = '#8b93a8';
+            if (!r || s.obsConnected === false) { txt = '● Chưa kết nối OBS WebSocket — vào mục Hiệu ứng OBS để kết nối.'; color = '#ff6b6b'; }
+            else if (!d.bodyTrack) { txt = '● Đã nối OBS. Bật ô trên để bắt đầu bám theo người.'; }
+            else if (!s.source) { txt = '● Chưa có nguồn camera — chọn ở trên (hoặc chọn trong Touch & Play).'; color = '#ffb347'; }
+            else if (s.error === 'source-missing') { txt = '● Không thấy nguồn "' + s.source + '" trong OBS.'; color = '#ff6b6b'; }
+            else if (s.live) {
+                const ov = s.overlay;
+                txt = '● Đang chụp "' + s.source + '" ' + s.fps + ' hình/giây' + (s.camFound ? '' : ' · camera không có trong scene đang phát')
+                    + (ov && ov.phase === 'bancung' ? (ov.pose ? ' · overlay THẤY NGƯỜI (' + ov.fps + ' lần/giây, ' + ov.delegate + ')' : ' · overlay chưa thấy người') : ' · overlay Bắn Cung trong OBS chưa báo về');
+                color = s.camFound ? '#5fd38a' : '#ffb347';
+            }
+            else { txt = '● Sẵn sàng với nguồn "' + s.source + '" — overlay Bắn Cung trong OBS sẽ tự nhận hình.'; color = '#5fd38a'; }
+            st.textContent = txt; st.style.color = color;
+        }
+        loadTrackSources();
+        clearInterval(window.__bcTrackPoll);
+        window.__bcTrackPoll = setInterval(() => { if (!host.isConnected || !$('#bc-track-status', host)) { clearInterval(window.__bcTrackPoll); return; } loadTrackSources(); }, 3000);
         // Advanced visual toggles
         [['bc-fx-trail','showArrowTrail'],['bc-fx-username','showArrowUsername'],['bc-fx-particles','showHitParticles'],
          ['bc-fx-shake-low','heartShakeLowHp'],['bc-fx-slowmo','slowMotionOnKill'],['bc-fx-vp-shake','viewportShakeOnHit'],
          ['bc-fx-deathcam','deathCamZoom'],['bc-fx-killing','showKillingBlow'],['bc-fx-podium','showPodium'],
-         ['bc-fx-survival','showSurvivalTimer'],['bc-fx-giftlist','showGiftList'],
+         ['bc-fx-survival','showSurvivalTimer'],['bc-fx-deathpanel','showDeathPanel'],['bc-fx-giftlist','showGiftList'],
          ['bc-fx-hpnum','showHpNumber'],
          ['bc-gp-combo','comboEnabled'],['bc-gp-hs','headshotEnabled'],['bc-gp-charge','bowChargeEnabled']]
         .forEach(([id, key]) => $('#' + id, host)?.addEventListener('change', e => { d[key] = !!e.target.checked; schedulePersist(); }));

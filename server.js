@@ -104,6 +104,7 @@ async function loadTikTokConnector() {
 // Nạp sớm lúc khởi động (không chặn listen) để log phiên bản + báo sớm nếu gói hỏng.
 loadTikTokConnector().catch((e) => console.error('[tiktok] KHÔNG nạp được tiktok-live-connector:', e?.message || e));
 const { OBSBridge } = require('./lib/obs-bridge');
+const { ObsCameraFeed } = require('./lib/touchplay-obs-feed');
 const { LuaSync } = require('./lib/lua-sync');
 const { OBSSettings } = require('./lib/obs-settings');
 
@@ -369,6 +370,17 @@ const GAMES = {
         description: 'Đếm lùi / đếm tới với 9 giao diện (LED, vòng tròn, thanh, đa giác, neon, flip). Quà tặng ± thời gian theo 3 chế độ: cố định / theo xu / chọn phe.',
         icon: '⏱',
         overlayPath: '/_prototype/timer.html?mode=overlay',
+        defaultConfig: { enabled: true }
+    },
+    // TOUCH & PLAY (prototype): game webcam — overlay tự mở camera + MediaPipe (public/lib/mediapipe),
+    // chạm bóng / gắp đồ ăn đưa lên miệng / làm theo tư thế. Toàn bộ logic ở client; server chỉ
+    // cho mượn route chung: /config (lưu tpCfg), /cmd (nút thử → gameCmd), /test-gift.
+    'touchplay': {
+        id: 'touchplay',
+        name: 'Touch & Play',
+        description: 'Game webcam: chạm bóng, gắp đồ ăn đưa lên miệng, làm theo tư thế. Quà tặng thả bóng / đồ ăn / tư thế / sức mạnh.',
+        icon: '🖐',
+        overlayPath: '/_prototype/touchplay.html?mode=overlay',
         defaultConfig: { enabled: true }
     }
 };
@@ -876,9 +888,9 @@ function makeDefaultBanCungConfig() {
         regenPerSecond: 0.2,
         idleBeforeRegen: 3,
         // ===== Chết / hồi sinh =====
-        reviveWindowSec: 10,          // user-curated: 10s chờ revive
+        reviveWindowSec: 30,          // 30s chờ khán giả tặng quà hồi sinh, hết giờ thì tự hồi
         autoReviveAfterWindow: true,
-        autoReviveHearts: 5,
+        autoReviveHearts: 10,         // tự hồi = đầy máu (bằng maxHearts mặc định)
         reviveProtectionSec: 3,       // user-curated: 3s giáp sau revive
         // ===== BẮN TỰ DO — quà bất kỳ (không gán) cũng kích hoạt =====
         // Damage = totalKC / freeFireKcPerHeart hearts. Số mũi = ceil(totalKC / freeFireKcPerShot).
@@ -914,6 +926,15 @@ function makeDefaultBanCungConfig() {
             arrowDurationMs: 200,      // 200ms — mũi tên bay nhanh, snappy
             burstDelayMs: 120,         // 120ms — burst 3 phát rất gần nhau
             autoAimBow: true,
+            // ===== BÁM THEO NGƯỜI — camera trong OBS + MediaPipe Pose (dùng chung feed với Touch & Play) =====
+            bodyTrack: false,          // bật: mũi tên bắn vào thân/đầu thật, hàng tim bám đỉnh đầu
+            trackSource: '',           // tên nguồn camera trong OBS; trống = dùng nguồn Touch & Play đã chọn
+            bloodMarks: true,          // vết đỏ nhạt dính trên người chỗ trúng, mờ dần sau ~4 giây
+            bodyFlash: true,           // trúng → chớp đỏ theo hình cơ thể (thay chớp toàn màn) khi đang thấy người
+            bodyChar: true,            // hết máu → cả cơ thể cháy đen (thay màn tối toàn khung) khi đang thấy người
+            bodyCharOpacity: 70,       // % độ đậm lớp đen khi chết — 70 vẫn thấy người bên dưới
+            bodyFlashOpacity: 50,      // % độ đậm lớp đỏ nhạt khi trúng
+            maskSmooth: true,          // làm mượt viền người (lọc nhiễu + bù chuyển động) — tắt = mặt nạ thô
             // Điểm trúng (target zone) — user-curated: trúng vào MẶT/THÂN streamer
             impactXPercent: 55,
             impactYPercent: 40,
@@ -933,9 +954,10 @@ function makeDefaultBanCungConfig() {
             slowMotionOnKill: true,    // slo-mo 400ms khi phát kết liễu
             viewportShakeOnHit: true,  // viewport rung 80ms khi trúng
             deathCamZoom: true,        // dim + zoom out khi chết
-            showKillingBlow: true,     // banner tên người gây phát kết liễu
-            showPodium: true,          // top-3 podium khi kết thúc phiên
-            showSurvivalTimer: true,   // đồng hồ "sống sót"
+            showKillingBlow: false,    // thẻ tên người gây phát kết liễu — user thấy thừa, mặc định tắt
+            showDeathPanel: false,     // bảng "ĐÃ GỤC" + đếm ngược + lời nhắc hồi sinh — mặc định tắt
+            showPodium: false,         // top-3 podium khi kết thúc phiên — user không cần bảng xếp hạng
+            showSurvivalTimer: false,  // đồng hồ "sống sót" — mặc định tắt
             // ===== GAMEPLAY DEPTH =====
             criticalChance: 5,         // % per shot — critical 2-3x damage
             criticalMultiplier: 3,
@@ -1117,6 +1139,35 @@ function obsBridgeAutoRefreshOverlays(reason) {
 // obs-websocket-js phát 'Identified' sau khi kết nối + xác thực xong (đủ điều kiện gọi request).
 // Bắt ở đây để cover cả 2 case: app mở khi OBS đã chạy, VÀ OBS mở sau app (reconnect thành công).
 try { obsBridge.obs.on('Identified', () => obsBridgeAutoRefreshOverlays('OBS connected')); } catch (e) {}
+// TOUCH & PLAY: chụp nguồn camera TRONG scene OBS (không mở webcam riêng) gửi overlay nhận diện.
+// Chỉ chạy khi có overlay đăng ký 'touchplay:feed'. Cấu hình lấy từ tpCfg mà lab lưu.
+const touchplayFeed = new ObsCameraFeed({
+    bridge: obsBridge, io,
+    logger: { log: (...a) => console.log(...a), warn: (...a) => console.warn(...a) },
+    // Link OBS của app có thể là link chia sẻ /overlay/shared/<token> — không chứa chữ "touchplay"/"bancung".
+    overlayMatchers: {
+        touchplay: (url) => /touchplay/i.test(url) || (!!appConfig.shareTokens?.touchplay && url.includes('/overlay/shared/' + appConfig.shareTokens.touchplay)),
+        bancung: (url) => /\/overlay\/bancung/i.test(url) || (!!appConfig.shareTokens?.bancung && url.includes('/overlay/shared/' + appConfig.shareTokens.bancung))
+    },
+    getOptions: (activeGames = new Set()) => {
+        const g = appConfig.games?.touchplay || {}, c = g.tpCfg || {};
+        const tpOn = g.enabled !== false && c.source !== 'webcam';
+        // Bắn Cung bám theo người cũng dùng feed này; không có nguồn riêng thì dùng nguồn Touch & Play đã chọn.
+        // Overlay Bắn Cung đang nhận hình (và Touch & Play không) → ưu tiên nguồn Bắn Cung chọn.
+        const bc = appConfig.games?.bancung || {}, bcd = bc.display || {};
+        const bcOn = bc.enabled !== false && bcd.bodyTrack === true;
+        const bcFirst = bcOn && activeGames.has('bancung') && !activeGames.has('touchplay');
+        const bcSource = bcOn ? (bcd.trackSource || c.obsSource) : '';
+        const source = bcFirst ? (bcSource || (tpOn && c.obsSource)) : ((tpOn && c.obsSource) || bcSource) || '';
+        return {
+            enabled: tpOn || bcOn,
+            source,
+            width: { low: 640, auto: 960, high: 1280 }[c.quality] || 960,
+            fps: { low: 15, auto: 20, high: 30 }[c.quality] || 20
+        };
+    }
+});
+touchplayFeed.start();
 // ===== Effect Queue — PER-GROUP serialization =====
 // Logic: mỗi mapping có field `group`. Effect cùng group → chạy tuần tự (queue chung).
 //        Effect khác group → chạy parallel (queue riêng).
@@ -5300,6 +5351,16 @@ app.post('/api/games/:id/cmd', (req, res) => {
     io.emit('gameCmd', { gameId: g.id, cmd, payload: payload || null, seq });
     if (authoritativeState) io.to('overlay').emit('gameStateSnapshot', { gameId: g.id, state: authoritativeState });
     res.json({ ok: true, seq });
+});
+
+// Touch & Play: danh sách nguồn hình trong OBS để lab chọn camera + trạng thái cấp hình.
+app.get('/api/touchplay/obs-sources', async (req, res) => {
+    try {
+        const r = await touchplayFeed.listSources();
+        res.json({ ...r, status: touchplayFeed.status(), layout: touchplayFeed.layout });
+    } catch (e) {
+        res.json({ ok: false, reason: 'error', error: e.message, sources: [], status: touchplayFeed.status() });
+    }
 });
 
 // Test-spawn a gift (manual drop from UI)
@@ -9717,6 +9778,7 @@ io.on('connection', (socket) => {
     // disconnect để overlay OBS trên máy đó vẫn xem được.
     socket.data.trusted = socketIsTrusted(socket);
     const onTrusted = (event, handler) => socket.on(event, (...args) => { if (socket.data.trusted === true) handler(...args); });
+    touchplayFeed.attach(socket);
     // Default emits
     socket.emit('giftSheet', giftList);
     socket.emit('status', { connected: isTikTokLiveConnected(), username: currentUsername, roomId: currentRoomId });

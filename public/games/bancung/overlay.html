@@ -966,6 +966,92 @@
         opacity: 0;
     }
 
+    /* ===== BÁM THEO NGƯỜI — hàng tim/điểm trúng đặt theo pixel từng khung, không transition ===== */
+    body.bc-tracking .bc-hearts-stage,
+    body.bc-tracking .bc-impact-zone { transition: none; }
+    body.bc-tracking .bc-hearts-inner { transition: none; }
+    /* Vết đỏ nhạt chỗ trúng — dính theo thân người, mờ dần (opacity do JS đặt theo tuổi) */
+    .bc-blood {
+        position: absolute;
+        width: 90px; height: 90px;
+        border-radius: 50%;
+        background: radial-gradient(ellipse at 50% 50%, rgba(255,75,75,0.78) 0%, rgba(235,45,45,0.55) 40%, rgba(210,25,25,0.22) 62%, rgba(200,20,20,0) 76%);
+        filter: blur(2px);
+        pointer-events: none;
+        will-change: transform, opacity;
+        z-index: 21;
+    }
+    .bc-blood::after {
+        /* giọt nhỏ lệch tâm cho vết bớt tròn đều */
+        content: '';
+        position: absolute; left: 58%; top: 56%;
+        width: 42%; height: 42%;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255,90,90,0.6) 0%, rgba(255,80,80,0) 70%);
+    }
+    /* Mũi tên cắm lại trên người một lúc rồi mờ — đầu mũi tên nằm đúng điểm chạm */
+    .bc-stuck-arrow {
+        position: absolute;
+        left: 0; top: 0;
+        width: 0; height: 0;
+        pointer-events: none;
+        will-change: transform, opacity;
+        z-index: 23;
+        filter: drop-shadow(0 0 6px var(--skin-glow, transparent));
+    }
+    .bc-stuck-arrow svg {
+        position: absolute;
+        width: 112px; height: 27px;
+        right: -8px; top: -13.5px;   /* đầu mũi tên (x≈132/140) trùng gốc, cắm sâu ~8px vào thân */
+        overflow: visible;
+    }
+    .bc-stuck-arrow .shaft { stroke: var(--arrow-color); stroke-width: 4; fill: var(--arrow-color); }
+    .bc-stuck-arrow .head { fill: var(--arrow-color); stroke: var(--arrow-color); stroke-width: 1.5; }
+    .bc-stuck-arrow .fletch { fill: var(--string-color); }
+    /* Chớp đỏ THEO HÌNH CƠ THỂ khi trúng (thay chớp toàn màn khi đã bám được người) */
+    .bc-body-flash {
+        position: fixed; inset: 0;
+        width: 100%; height: 100%;
+        pointer-events: none;
+        z-index: 40;
+    }
+    /* Hết máu khi đang bám người: cơ thể cháy đen (canvas), KHÔNG phủ tối cả màn hình */
+    .bc-body-char {
+        position: fixed; inset: 0;
+        width: 100%; height: 100%;
+        pointer-events: none;
+        z-index: 38;
+    }
+    body.bc-dead.bc-tracking .bc-deathveil {
+        background: transparent;
+        justify-content: flex-end;
+        padding-bottom: 7%;
+    }
+    body.bc-dead.bc-tracking .bc-dead-label { font-size: 64px; letter-spacing: 6px; }
+    /* Tắt bảng "ĐÃ GỤC" + đếm ngược + lời nhắc (mặc định) — giữ lại hiệu ứng tối/cháy đen */
+    body.no-deathpanel .bc-dead-label,
+    body.no-deathpanel .bc-dead-countdown,
+    body.no-deathpanel .bc-dead-hint { display: none !important; }
+    body.bc-dead.bc-tracking .bc-dead-countdown { margin-top: 6px; font-size: 48px; }
+    body.bc-dead.bc-tracking .bc-dead-hint { margin-top: 8px; font-size: 24px; }
+    /* Nhắc nhỏ dưới đáy khi bật bám người mà chưa có hình camera từ OBS */
+    .bc-track-warn {
+        position: fixed; left: 50%; bottom: 3%;
+        transform: translateX(-50%);
+        max-width: 86%;
+        padding: 8px 14px;
+        border-radius: 10px;
+        background: rgba(20,20,28,0.78);
+        border: 1px solid rgba(255,170,60,0.6);
+        color: #ffd28a;
+        font-size: 15px; font-weight: 600;
+        text-align: center;
+        pointer-events: none;
+        z-index: 60;
+        display: none;
+    }
+    .bc-track-warn.show { display: block; }
+
     /* EDIT MODE — only when ?edit=1 */
     body.bc-edit .bc-hearts-stage,
     body.bc-edit .bc-bow-stage,
@@ -1074,6 +1160,9 @@
 
     <!-- Flying arrows + popups layer -->
     <div class="bc-arrows-layer" id="bc-arrows-layer"></div>
+    <div class="bc-track-warn" id="bc-track-warn"></div>
+    <canvas class="bc-body-flash" id="bc-body-flash"></canvas>
+    <canvas class="bc-body-char" id="bc-body-char"></canvas>
 
     <!-- Heal/Shield/Revive banner -->
     <div class="bc-banner" id="bc-banner"></div>
@@ -1155,6 +1244,36 @@
         let _prevHp = null;
         let _deadCountdownTimer = null;
 
+        // ===== BÁM THEO NGƯỜI (camera trong OBS + MediaPipe Pose) =====
+        // bodyTrack do module /games/bancung/body-track.mjs tạo rồi trao qua window.__bcTrackHost.ready().
+        // trackWanted = cấu hình bật (và không ở chế độ sửa vị trí). Khi thấy người: hàng tim bám đỉnh
+        // đầu, điểm trúng = tâm thân, mũi tên bay vào thân/đầu thật, vết máu + mũi tên cắm dính theo người.
+        const $trackWarn = document.getElementById('bc-track-warn');
+        let bodyTrack = null;
+        let trackWanted = false;
+        let trackingNow = false;          // khung vừa rồi có thấy người
+        let lastHitPt = null;             // { x, y, at } — điểm mũi tên vừa chạm (cho hạt bụi / banner)
+        const bodyMarks = [];             // [{ el, mark:{frame,a,b}, born, life, fadeFrom, alpha, tail }]
+        let _lastAimAt = { x: -1e9, y: -1e9 };
+        let _warnAt = 0;
+        // Chớp đỏ theo hình cơ thể: canvas nửa độ phân giải (CSS phóng 100%) + canvas phụ vẽ bóng người đặc.
+        const $bodyFlash = document.getElementById('bc-body-flash');
+        const bodyFlashCtx = $bodyFlash.getContext('2d');
+        const bodyMask = document.createElement('canvas');
+        const bodyMaskCtx = bodyMask.getContext('2d');
+        let bodyFlashAt = -1e9;           // lúc trúng gần nhất (performance.now)
+        // Trúng tên: người phủ đỏ nhạt — sáng lên 90ms, giữ tới 380ms rồi mờ hết ở 1100ms.
+        // Bắn dồn thì mỗi phát kéo dài lại → người đỏ liên tục.
+        const BODY_FLASH_MS = 1100, BODY_FLASH_UP = 90, BODY_FLASH_HOLD = 380;
+        // Cháy đen khi hết máu: hiện dần lúc chết, mờ dần lúc hồi sinh.
+        const $bodyChar = document.getElementById('bc-body-char');
+        const bodyCharCtx = $bodyChar.getContext('2d');
+        let charDeadAt = 0;               // performance.now lúc chết (0 = đang sống)
+        let charReviveAt = -1e9;          // performance.now lúc hồi sinh — để mờ dần
+        const CHAR_IN_MS = 650, CHAR_OUT_MS = 900;
+        let _maskAt = -1;                 // khung đã vẽ bóng người (vẽ 1 lần / khung cho cả chớp đỏ lẫn cháy đen)
+        let _maskSeg = false;             // bóng người khung này lấy từ mặt nạ model (true) hay vẽ từ khớp (false)
+
         // ===== Heart bar render (supports half hearts) =====
         function renderHearts(hp, maxHp) {
             const max = Math.max(1, Math.round(maxHp || 10));
@@ -1212,6 +1331,7 @@
             document.body.classList.toggle('no-hearts', d.showHearts === false);
             document.body.classList.toggle('no-bow', d.showBowWidget === false);
             document.body.classList.toggle('no-top', d.showTopContrib === false);
+            document.body.classList.toggle('no-deathpanel', d.showDeathPanel !== true);
             // Top position
             $top.style.left = $top.style.right = $top.style.top = $top.style.bottom = '';
             const pos = d.topContribPos || 'bottom-left';
@@ -1223,7 +1343,7 @@
             $impact.style.left = (d.impactXPercent ?? 50) + '%';
             $impact.style.top = (d.impactYPercent ?? 18) + '%';
             // Survival timer visibility
-            if ($survival) $survival.style.display = (d.showSurvivalTimer === false) ? 'none' : '';
+            if ($survival) $survival.style.display = (d.showSurvivalTimer !== true) ? 'none' : '';
             // Bow charge ring visibility
             if ($bowCharge) $bowCharge.classList.toggle('active', d.bowChargeEnabled === true);
             // Gift list visibility + position + scale + layout
@@ -1238,7 +1358,226 @@
             renderGiftList();
             // Bow auto-aim toward impact zone — calculated AFTER layout settles
             requestAnimationFrame(updateBowAim);
+            syncBodyTrack();
         }
+
+        // ===== Bám theo người =====
+        function syncBodyTrack() {
+            const d = config?.display || {};
+            trackWanted = d.bodyTrack === true && !isEdit;
+            if (bodyTrack) { bodyTrack.maskSmooth = d.maskSmooth !== false; bodyTrack.setEnabled(trackWanted); }
+            if (!trackWanted) { restoreLayout(); showTrackWarn(''); }
+        }
+        // Vị trí/cỡ theo cấu hình (khi không thấy người hoặc tắt bám).
+        function restoreLayout() {
+            if (!trackingNow && !document.body.classList.contains('bc-tracking')) return;
+            trackingNow = false;
+            document.body.classList.remove('bc-tracking');
+            const d = config?.display || {};
+            $stageHearts.style.left = (d.heartsXPercent ?? 50) + '%';
+            $stageHearts.style.top  = (d.heartsYPercent ?? 14) + '%';
+            const hScale = ((d.heartsScale ?? 100) / 100);
+            $innerHearts.style.transform = 'scale(' + hScale + ')';
+            document.body.style.setProperty('--hp-scale', hScale);
+            $impact.style.left = (d.impactXPercent ?? 50) + '%';
+            $impact.style.top = (d.impactYPercent ?? 18) + '%';
+            requestAnimationFrame(updateBowAim);
+        }
+        function showTrackWarn(text) {
+            if (!$trackWarn) return;
+            if (!text) { $trackWarn.classList.remove('show'); return; }
+            $trackWarn.textContent = '🧍 Bám theo người: ' + text;
+            $trackWarn.classList.add('show');
+        }
+        // Hàng tim lên đỉnh đầu, điểm trúng về tâm thân — gọi mỗi khung khi thấy người.
+        function followBody(B) {
+            const d = config?.display || {};
+            if (!trackingNow) { trackingNow = true; document.body.classList.add('bc-tracking'); }
+            const W = window.innerWidth, H = window.innerHeight;
+            // Cỡ tim theo cỡ đầu: đứng gần camera đầu to → tim to, có giới hạn để không phá bố cục.
+            const headW = B.head ? B.head.width : B.shoulderW * 0.55;
+            const k = Math.max(0.65, Math.min(1.4, headW / 180));
+            const hScale = ((d.heartsScale ?? 100) / 100) * k;
+            $innerHearts.style.transform = 'scale(' + hScale + ')';
+            document.body.style.setProperty('--hp-scale', hScale);
+            const crown = B.head ? B.head.crown : { x: B.torso.O.x, y: B.torso.O.y - B.shoulderW * 0.95 };
+            const r = $innerHearts.getBoundingClientRect();
+            const h = r.height || 60, w = r.width || 200;
+            const gap = 14 + headW * 0.08;
+            // Giữ trọn hàng tim trong khung: hàng rộng hơn khung thì căn giữa khung.
+            const x = w + 12 < W ? Math.max(w / 2 + 6, Math.min(W - w / 2 - 6, crown.x)) : W / 2;
+            const y = Math.max(h / 2 + 6, Math.min(H - h / 2, crown.y - gap - h / 2));
+            $stageHearts.style.left = x + 'px';
+            $stageHearts.style.top = y + 'px';
+            // Điểm trúng = tâm thân → cung tự xoay theo người (chỉ tính lại khi dời > 3px cho nhẹ).
+            $impact.style.left = B.center.x + 'px';
+            $impact.style.top = B.center.y + 'px';
+            if (Math.hypot(B.center.x - _lastAimAt.x, B.center.y - _lastAimAt.y) > 3) { _lastAimAt = { x: B.center.x, y: B.center.y }; updateBowAim(); }
+        }
+        // Vòng vẽ: lọc pose, bám đầu, kéo vết máu/mũi tên cắm theo thân, mờ dần theo tuổi.
+        function trackFrame(now) {
+            requestAnimationFrame(trackFrame);
+            if (!bodyTrack) return;
+            let B = null;
+            if (trackWanted) {
+                bodyTrack.tick(now);
+                B = bodyTrack.body();
+                if (B) followBody(B); else restoreLayout();
+                if (now - _warnAt > 1000) { _warnAt = now; showTrackWarn(B || trackingNow ? '' : bodyTrack.problem()); }
+            }
+            drawBodyFlash(now, B);
+            drawBodyChar(now, B);
+            for (let i = bodyMarks.length - 1; i >= 0; i--) {
+                const m = bodyMarks[i], age = now - m.born;
+                if (age > m.life) { m.el.remove(); bodyMarks.splice(i, 1); continue; }
+                const p = B ? bodyTrack.toStage(m.mark, B) : null;
+                if (!p) { m.el.style.opacity = '0'; continue; }     // mất người: ẩn, thấy lại thì hiện đúng chỗ
+                const fade = age < m.fadeFrom ? 1 : 1 - (age - m.fadeFrom) / (m.life - m.fadeFrom);
+                m.el.style.opacity = (m.alpha * fade).toFixed(3);
+                m.el.style.transform = 'translate(' + p.x + 'px, ' + p.y + 'px) ' + m.tail;
+            }
+        }
+        // Mũi tên vừa chạm người tại (x,y): vết đỏ nhạt + mũi tên cắm lại, cả hai dính theo thân.
+        function landOnBody(x, y, frame, fallbackMark, angle, B) {
+            const mark = bodyTrack.toLocal(x, y, frame, B) || fallbackMark;
+            if (!mark) return;
+            const sw = B ? B.shoulderW : 300;
+            if (config?.display?.bloodMarks !== false) {
+                const el = document.createElement('div');
+                el.className = 'bc-blood';
+                const size = sw * (0.3 + Math.random() * 0.16);
+                el.style.width = el.style.height = size + 'px';
+                el.style.left = (-size / 2) + 'px'; el.style.top = (-size / 2) + 'px';
+                el.style.opacity = '0';
+                $arrowsLayer.appendChild(el);
+                bodyMarks.push({ el, mark, born: performance.now(), life: 4000, fadeFrom: 1800, alpha: 0.9,
+                    tail: 'rotate(' + Math.floor(Math.random() * 360) + 'deg) scale(' + (0.9 + Math.random() * 0.3).toFixed(2) + ', 1)' });
+            }
+            const ar = document.createElement('div');
+            ar.className = 'bc-stuck-arrow';
+            ar.innerHTML = '<svg viewBox="0 0 140 34"><line class="shaft" x1="10" y1="17" x2="118" y2="17" stroke-width="4" /><polygon class="head" points="132,17 113,8 113,26" /><polygon class="fletch" points="12,17 0,8 0,26" /></svg>';
+            ar.style.opacity = '0';
+            $arrowsLayer.appendChild(ar);
+            const scl = Math.max(0.6, Math.min(1.1, sw / 360));
+            bodyMarks.push({ el: ar, mark, born: performance.now(), life: 1600, fadeFrom: 1000, alpha: 1, tail: 'rotate(' + angle + 'rad) scale(' + scl.toFixed(2) + ')' });
+        }
+        // Bóng người đặc từ 33 điểm pose: đầu (elip), thân (tứ giác vai–hông), tay/chân (nét tròn đầu).
+        // Vẽ đặc màu trắng lên canvas phụ → chồng lên nhau không bị đậm gấp đôi.
+        function paintSilhouette(ctx, P, B, k) {
+            const ok = i => P[i] && (P[i].v ?? 1) >= 0.5;
+            const X = i => P[i].x * k, Y = i => P[i].y * k;
+            const sw = B.shoulderW * k;
+            ctx.fillStyle = '#fff'; ctx.strokeStyle = '#fff'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            // thân: tứ giác vai–hông (hông thiếu thì dùng khung v đã suy ra), nở ra chút cho ôm người
+            const T = B.torso;
+            const quad = [[T.O.x - T.u.x / 2, T.O.y - T.u.y / 2], [T.O.x + T.u.x / 2, T.O.y + T.u.y / 2],
+                          [T.O.x + T.u.x * 0.42 + T.v.x, T.O.y + T.u.y * 0.42 + T.v.y], [T.O.x - T.u.x * 0.42 + T.v.x, T.O.y - T.u.y * 0.42 + T.v.y]];
+            ctx.beginPath(); quad.forEach(([x, y], i) => i ? ctx.lineTo(x * k, y * k) : ctx.moveTo(x * k, y * k)); ctx.closePath();
+            ctx.lineWidth = sw * 0.22; ctx.fill(); ctx.stroke();
+            // đầu: elip quanh tâm đầu, cao hơn rộng
+            if (B.head) {
+                const h = B.head, ang = Math.atan2(h.u.y, h.u.x);
+                ctx.save(); ctx.translate(h.c.x * k, h.c.y * k); ctx.rotate(ang);
+                ctx.beginPath(); ctx.ellipse(0, -h.width * k * 0.16, h.width * k * 0.68, h.width * k * 0.95, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+                // cổ
+                ctx.beginPath(); ctx.moveTo(h.c.x * k, h.c.y * k); ctx.lineTo(T.O.x * k, T.O.y * k); ctx.lineWidth = sw * 0.3; ctx.stroke();
+            }
+            // tay (vai→khuỷu→cổ tay) và chân (hông→gối→cổ chân): chỉ đoạn nào thấy đủ 2 đầu
+            const limbs = [[11, 13, 0.36], [13, 15, 0.3], [12, 14, 0.36], [14, 16, 0.3], [23, 25, 0.5], [25, 27, 0.42], [24, 26, 0.5], [26, 28, 0.42]];
+            for (const [a, b, w] of limbs) {
+                if (!ok(a) || !ok(b)) continue;
+                ctx.beginPath(); ctx.moveTo(X(a), Y(a)); ctx.lineTo(X(b), Y(b)); ctx.lineWidth = sw * w; ctx.stroke();
+            }
+            // bàn tay / bàn chân: chấm tròn ở cổ tay, cổ chân
+            for (const [i, r] of [[15, 0.16], [16, 0.16], [27, 0.2], [28, 0.2]]) {
+                if (!ok(i)) continue;
+                ctx.beginPath(); ctx.arc(X(i), Y(i), sw * r, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        // Mỗi khung: nếu vừa trúng (< BODY_FLASH_MS) và đang thấy người → viền đỏ phát sáng quanh bóng người,
+        // bên trong hồng nhạt; nhấp nháy 3 nhịp rồi tắt. Không trúng / mất người → canvas trống.
+        function drawBodyFlash(now, B) {
+            const age = now - bodyFlashAt;
+            const ctx = bodyFlashCtx, cw = $bodyFlash.width, ch = $bodyFlash.height;
+            if (age > BODY_FLASH_MS || !B || !bodyTrack) { if (cw && $bodyFlash._dirty) { ctx.clearRect(0, 0, cw, ch); $bodyFlash._dirty = false; } return; }
+            const P = bodyTrack.points();
+            if (!P) return;
+            const k = 0.5, W = Math.round(window.innerWidth * k), H = Math.round(window.innerHeight * k);
+            if ($bodyFlash.width !== W || $bodyFlash.height !== H) { $bodyFlash.width = W; $bodyFlash.height = H; }
+            const seg = ensureMask(now, P, B, k, W, H);
+            const a = age < BODY_FLASH_UP ? age / BODY_FLASH_UP
+                    : age < BODY_FLASH_HOLD ? 1
+                    : 1 - (age - BODY_FLASH_HOLD) / (BODY_FLASH_MS - BODY_FLASH_HOLD);
+            const glow = Math.round(6 + B.shoulderW * k * 0.05);
+            ctx.clearRect(0, 0, W, H);
+            const red = tintMask('#ff2a2a');
+            // 1) quầng đỏ mỏng tràn ra ngoài mép người
+            // Độ đậm lớp đỏ chỉnh trong panel (bodyFlashOpacity, %); 50% = đỏ nhạt như mặc định.
+            const fo = Math.max(0.05, Math.min(1, (Number(config?.display?.bodyFlashOpacity) || 50) / 100));
+            ctx.save(); ctx.globalAlpha = Math.min(1, a * fo * 0.9); ctx.filter = 'blur(' + glow + 'px)'; ctx.drawImage(red, 0, 0); ctx.restore();
+            // 2) phủ ĐỎ NHẠT đều lên cả người (mặt, tóc, áo, tay chân) — mặt nạ người thì sát hình, không thì bóng từ khớp
+            ctx.save(); ctx.globalCompositeOperation = 'destination-out'; ctx.drawImage(bodyMask, 0, 0); ctx.restore();
+            ctx.save(); ctx.globalAlpha = Math.min(1, a * fo * (seg ? 1 : 0.85)); ctx.filter = 'blur(1px)'; ctx.drawImage(red, 0, 0); ctx.restore();
+            $bodyFlash._dirty = true;
+        }
+        function ensureMask(now, P, B, k, W, H) {
+            if (bodyMask.width !== W || bodyMask.height !== H) { bodyMask.width = W; bodyMask.height = H; _maskAt = -1; }
+            if (_maskAt === now) return _maskSeg;
+            _maskAt = now;
+            bodyMaskCtx.clearRect(0, 0, W, H);
+            // Có mặt nạ người từ model → đúng hình người (tóc, áo, tay cầm đồ…); chưa có thì bóng vẽ từ khớp.
+            const sm = bodyTrack.segMask(now);
+            if (sm) {
+                const M = sm.M;
+                bodyMaskCtx.save();
+                bodyMaskCtx.setTransform(M[0] * k, M[1] * k, M[2] * k, M[3] * k, (M[4] + sm.dx) * k, (M[5] + sm.dy) * k);
+                bodyMaskCtx.imageSmoothingEnabled = true;
+                bodyMaskCtx.drawImage(sm.canvas, 0, 0);
+                bodyMaskCtx.restore();
+            } else paintSilhouette(bodyMaskCtx, P, B, k);
+            _maskSeg = !!sm;
+            return _maskSeg;
+        }
+        // Hết máu: cả cơ thể cháy đen theo bóng người. Mép khói mờ + than hồng âm ỉ nhấp nháy ở viền.
+        function drawBodyChar(now, B) {
+            const ctx = bodyCharCtx, cw = $bodyChar.width, ch = $bodyChar.height;
+            let a = 0;
+            if (charDeadAt) a = Math.min(1, (now - charDeadAt) / CHAR_IN_MS);
+            else if (now - charReviveAt < CHAR_OUT_MS) a = 1 - (now - charReviveAt) / CHAR_OUT_MS;
+            const P = bodyTrack && bodyTrack.points();
+            if (a <= 0 || !B || !P || config?.display?.bodyChar === false) {
+                if (cw && $bodyChar._dirty) { ctx.clearRect(0, 0, cw, ch); $bodyChar._dirty = false; }
+                return;
+            }
+            const k = 0.5, W = Math.round(window.innerWidth * k), H = Math.round(window.innerHeight * k);
+            if ($bodyChar.width !== W || $bodyChar.height !== H) { $bodyChar.width = W; $bodyChar.height = H; }
+            ensureMask(now, P, B, k, W, H);
+            const soft = Math.round(4 + B.shoulderW * k * 0.05);
+            ctx.clearRect(0, 0, W, H);
+            // 1) khói đen lan nhẹ ra ngoài mép
+            // Độ đậm lớp đen chỉnh trong panel (bodyCharOpacity, %); 70% = vẫn thấy mờ mờ người bên dưới.
+            const co = Math.max(0.05, Math.min(1, (Number(config?.display?.bodyCharOpacity) || 70) / 100));
+            ctx.save(); ctx.globalAlpha = a * co * 0.55; ctx.filter = 'blur(' + (soft * 2) + 'px)'; ctx.drawImage(tintMask('#000000'), 0, 0); ctx.restore();
+            // 2) than hồng âm ỉ ở viền — nhấp nháy chậm
+            const ember = 0.25 + 0.2 * Math.sin(now / 260) + 0.1 * Math.sin(now / 97);
+            ctx.save(); ctx.globalAlpha = a * Math.max(0, ember); ctx.filter = 'blur(' + soft + 'px)'; ctx.drawImage(tintMask('#ff3a12'), 0, 0); ctx.restore();
+            // 3) thân cháy đen (mép hơi mềm) phủ lên, chừa lại một rìa than mỏng
+            ctx.save(); ctx.globalAlpha = a * co; ctx.filter = 'blur(' + Math.max(1, Math.round(soft / 3)) + 'px)'; ctx.drawImage(tintMask('#0a0605'), 0, 0); ctx.restore();
+            $bodyChar._dirty = true;
+        }
+        // Bóng người (trắng) → màu đỏ, giữ alpha: dùng canvas tạm chung.
+        let _tint = null;
+        function tintMask(color) {
+            if (!_tint) { _tint = document.createElement('canvas'); }
+            if (_tint.width !== bodyMask.width || _tint.height !== bodyMask.height) { _tint.width = bodyMask.width; _tint.height = bodyMask.height; }
+            const c = _tint.getContext('2d');
+            c.clearRect(0, 0, _tint.width, _tint.height);
+            c.drawImage(bodyMask, 0, 0);
+            c.globalCompositeOperation = 'source-in'; c.fillStyle = color; c.fillRect(0, 0, _tint.width, _tint.height);
+            c.globalCompositeOperation = 'source-over';
+            return _tint;
+        }
+        requestAnimationFrame(trackFrame);
 
         // ===== Gift list rendering — render 4 categories of configured gifts =====
         function renderGiftList() {
@@ -1394,7 +1733,7 @@
 
         // ===== Killing-blow callout =====
         function showKillingBlow(user) {
-            if (config?.display?.showKillingBlow === false || !user) return;
+            if (config?.display?.showKillingBlow !== true || !user) return;
             const $av = $killingBlow.querySelector('.bc-kb-avatar');
             const $nm = $killingBlow.querySelector('.bc-kb-name');
             if (user.avatar) {
@@ -1472,6 +1811,8 @@
             const wasDead = document.body.classList.contains('bc-dead');
             const isDead = (s.deadAt || 0) > 0;
             document.body.classList.toggle('bc-dead', isDead);
+            if (isDead && !charDeadAt) charDeadAt = performance.now();
+            else if (!isDead && charDeadAt) { charDeadAt = 0; charReviveAt = performance.now(); }
             // Shield badge
             const shielded = !!s.shielded;
             const row = document.getElementById('bc-hearts-row');
@@ -1510,6 +1851,12 @@
 
         function startDeathCountdown(msLeft) {
             if (_deadCountdownTimer) { clearInterval(_deadCountdownTimer); _deadCountdownTimer = null; }
+            const hint = document.querySelector('.bc-dead-hint');
+            if (hint && !_deadCountdownTimer) {
+                const win = Math.round(Number(config?.reviveWindowSec) || 5);
+                const auto = config?.autoReviveAfterWindow !== false;
+                hint.innerHTML = 'Tặng quà <b>Hồi sinh</b> trong ' + win + ' giây để cứu!' + (auto ? '<br><small>Không ai cứu thì tự hồi đầy máu</small>' : '');
+            }
             const endAt = Date.now() + Math.max(0, msLeft || 0);
             const update = () => {
                 const left = Math.max(0, endAt - Date.now());
@@ -1579,8 +1926,10 @@
             // Spread: % của viewport
             const spreadPct = Math.max(0, Math.min(30, Number(config?.display?.impactSpread) || 0));
             const spreadPx = (spreadPct / 100) * Math.min(window.innerWidth, window.innerHeight);
-            const tx = impactRect.left + impactRect.width / 2 + (Math.random() * 2 - 1) * spreadPx;
-            const ty = impactRect.top + impactRect.height / 2 + (Math.random() * 2 - 1) * spreadPx;
+            // Thấy người → bắn vào thân/đầu thật; không thì về điểm trúng cấu hình như cũ.
+            const bodyTgt = trackWanted && bodyTrack && trackingNow ? bodyTrack.pickTarget(!!opts.headshot) : null;
+            const tx = bodyTgt ? bodyTgt.x : impactRect.left + impactRect.width / 2 + (Math.random() * 2 - 1) * spreadPx;
+            const ty = bodyTgt ? bodyTgt.y : impactRect.top + impactRect.height / 2 + (Math.random() * 2 - 1) * spreadPx;
             // Straight-line angle from source to target — arrow rotates to match trajectory
             const dx = tx - sx;
             const dy = ty - sy;
@@ -1659,6 +2008,11 @@
                     // Spawn shield ping at impact moment (when arrow reaches target)
                     setTimeout(() => spawnShieldPing(tx, ty), durationMs * 0.5);
                 } else {
+                    if (bodyTgt) setTimeout(() => {
+                        lastHitPt = { x: tx, y: ty, at: performance.now() };
+                        const B = bodyTrack?.body();
+                        if (B) landOnBody(tx, ty, bodyTgt.frame, { frame: bodyTgt.frame, a: bodyTgt.a, b: bodyTgt.b }, angle, B);
+                    }, totalDur * 0.92);
                     arrow.animate([
                         { left: sx + 'px', top: sy + 'px', transform: `translate(-50%,-50%) rotate(${angle}rad)`, opacity: 1, offset: 0 },
                         { left: tx + 'px', top: ty + 'px', transform: `translate(-50%,-50%) rotate(${angle}rad)`, opacity: 1, offset: 0.92 },
@@ -1729,6 +2083,12 @@
 
         // ===== Socket =====
         const socket = io({ transports: ['websocket', 'polling'] });
+        // Module body-track.mjs (ESM, nạp sau script này) tạo tracker rồi gọi ready().
+        window.__bcTrackHost = {
+            socket,
+            onStatus: (t, lv) => { if (lv === 'error') console.warn('[bancung-track]', t); },
+            ready: (t) => { bodyTrack = t; bodyTrack.maskSmooth = config?.display?.maskSmooth !== false; bodyTrack.setEnabled(trackWanted); }
+        };
         socket.on('connect', () => {
             socket.emit('subscribe', 'overlay');
             fetch('/api/games/bancung/livestate').then(r => r.json()).then(s => applyState(s)).catch(() => {});
@@ -1740,14 +2100,17 @@
             spawnFlyingArrow(Number(d.arrowDurationMs) || 700, d.user || null, { blocked: !!d.blocked });
         });
         socket.on('bancung:hit', (d) => {
-            flashRed();
+            // Đang bám được người → chớp đỏ theo hình cơ thể, KHÔNG chớp toàn màn (phần ngoài người không liên quan).
+            if (trackWanted && trackingNow && config?.display?.bodyFlash !== false) bodyFlashAt = performance.now();
+            else flashRed();
             viewportShake();
             // Slo-mo on killing blow first (so subsequent visuals also slow)
             if (d.killingBlow) triggerSlowMo();
-            // Particle impact + critical/headshot banners — at impact zone location
+            // Particle impact + critical/headshot banners — tại chỗ mũi tên vừa chạm người, không thì điểm trúng
             const impRect = $impact.getBoundingClientRect();
-            const cx = impRect.left + impRect.width / 2;
-            const cy = impRect.top + impRect.height / 2;
+            const fresh = lastHitPt && performance.now() - lastHitPt.at < 1500 ? lastHitPt : null;
+            const cx = fresh ? fresh.x : impRect.left + impRect.width / 2;
+            const cy = fresh ? fresh.y : impRect.top + impRect.height / 2;
             spawnParticles(cx, cy);
             if (d.firstBlood) showHitBanner('firstblood', cx, cy);
             if (d.critical)  showHitBanner('critical', cx, cy);
@@ -1884,6 +2247,16 @@
         // Re-aim bow on window resize too
         window.addEventListener('resize', () => requestAnimationFrame(updateBowAim));
     })();
+    </script>
+    <script type="module">
+        // Bám theo người: chỉ nạp module (MediaPipe chỉ tải khi cấu hình bật — setEnabled(true)).
+        import { BcBodyTrack } from '/games/bancung/body-track.mjs';
+        const host = window.__bcTrackHost;
+        if (host) {
+            const t = new BcBodyTrack({ socket: host.socket, width: window.innerWidth, height: window.innerHeight, onStatus: host.onStatus });
+            window.__bcBodyTrack = t;     // để soi/thử trong DevTools (pushFrame ảnh mẫu…)
+            host.ready(t);
+        }
     </script>
 </body>
 </html>

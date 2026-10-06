@@ -905,6 +905,7 @@
         else if (gameId === 'liveTranslate') openLiveTranslateView();
         else if (gameId === 'level-quest') showView('view-level-quest');
         else if (gameId === 'timer') showView('view-timer');
+        else if (gameId === 'touchplay') showView('view-touchplay');
         else if (gameId === 'obs-effects') showView('view-obs-effects');
     }
 
