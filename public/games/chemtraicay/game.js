@@ -51,6 +51,69 @@
         let objects = [];
         let events = [];
         let nextId = 1;
+        let combo = 0;
+        let comboAt = -Infinity;   // thời điểm nhát gần nhất (ms engine)
+        let clock = 0;             // thời gian engine tích lũy (ms)
+        const blades = { L: mkBlade(), R: mkBlade(), M: mkBlade() };
+
+        function mkBlade() { return { x: 0, y: 0, present: false, px: 0, py: 0, pprev: false }; }
+
+        function setBlade(side, x, y, present) {
+            const b = blades[side]; if (!b) return;
+            b.x = num(x, b.x); b.y = num(y, b.y); b.present = !!present;
+        }
+
+        // khoảng cách từ điểm (px,py) tới đoạn thẳng AB
+        function segDist(ax, ay, bx, by, px, py) {
+            const dx = bx - ax, dy = by - ay;
+            const l2 = dx * dx + dy * dy;
+            let t = l2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
+            t = Math.max(0, Math.min(1, t));
+            const cx = ax + t * dx, cy = ay + t * dy;
+            return Math.hypot(px - cx, py - cy);
+        }
+
+        function registerHit() {
+            if (clock - comboAt <= 1000) combo += 1; else combo = 1;
+            comboAt = clock;
+        }
+
+        function cutObject(o, ax, ay, bx, by) {
+            const pts = num(cfg.points, 10);
+            score += pts;
+            registerHit();
+            events.push({ type: 'cut', kind: o.kind, x: o.x, y: o.y, points: pts, combo, depth: o.depth + 1 });
+            // pháp tuyến của đoạn cắt → 2 mảnh văng ngược chiều
+            let nx = -(by - ay), ny = bx - ax;
+            const len = Math.hypot(nx, ny) || 1; nx /= len; ny /= len;
+            const maxDepth = Math.max(1, num(cfg.cuts, 2));
+            for (const sgn of [1, -1]) {
+                objects.push({ id: nextId++, kind: o.kind, x: o.x + nx * sgn * o.r * 0.3, y: o.y + ny * sgn * o.r * 0.3,
+                    r: o.r * 0.7, vx: o.vx + nx * sgn * 180, vy: o.vy - 150, rot: o.rot, spin: o.spin + sgn * 2,
+                    depth: o.depth + 1, golden: o.golden, cutAngle: Math.atan2(by - ay, bx - ax), half: sgn });
+            }
+            void maxDepth;
+        }
+
+        function runBlades() {
+            const maxDepth = Math.max(1, num(cfg.cuts, 2));
+            const reach = num(cfg.cutRadius, 15);
+            for (const side of ['L', 'R']) {
+                const b = blades[side];
+                if (b.present && b.pprev) {
+                    const hit = [];
+                    for (const o of objects) {
+                        if (o.depth >= maxDepth) continue;
+                        if (segDist(b.px, b.py, b.x, b.y, o.x, o.y) <= o.r + reach) hit.push(o);
+                    }
+                    for (const o of hit) {
+                        objects = objects.filter(q => q !== o);
+                        cutObject(o, b.px, b.py, b.x, b.y);
+                    }
+                }
+                b.px = b.x; b.py = b.y; b.pprev = b.present;
+            }
+        }
 
         function setConfig(c) { cfg = Object.assign(defaultConfig(), c || {}); }
 
@@ -75,8 +138,12 @@
         }
 
         function step(dtMs) {
-            if (!playing) return;
-            const dt = Math.max(0, num(dtMs, 16)) / 1000;
+            const dtm = Math.max(0, num(dtMs, 16));
+            clock += dtm;
+            if (combo && clock - comboAt > 1000) combo = 0;
+            if (!playing) { for (const k in blades) { blades[k].px = blades[k].x; blades[k].py = blades[k].y; blades[k].pprev = blades[k].present; } return; }
+            const dt = dtm / 1000;
+            runBlades();
             // xả hàng đợi
             spawnAcc += num(cfg.spawnPerSecond, 3) * dt;
             while (spawnAcc >= 1 && queue.length) { spawnAcc -= 1; spawn(queue.shift()); }
@@ -100,10 +167,12 @@
 
         function snapshot() {
             const ev = events; events = [];
-            return { playing, score, pile, queue: queue.length, objects: objects.map(o => o), events: ev };
+            const bl = {};
+            for (const k in blades) bl[k] = { x: blades[k].x, y: blades[k].y, present: blades[k].present };
+            return { playing, score, pile, combo, queue: queue.length, objects: objects.map(o => o), events: ev, blades: bl };
         }
 
-        return { enqueue, step, start, stop, reset, snapshot, setConfig };
+        return { enqueue, step, start, stop, reset, snapshot, setConfig, setBlade };
     }
 
     return { ACTIONS, FRUITS, ACTION_LABELS, defaultConfig, createEngine };
