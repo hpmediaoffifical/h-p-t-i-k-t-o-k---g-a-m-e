@@ -1,6 +1,6 @@
 # Chém Trái Cây — game chém hoa quả điều khiển bằng tay qua webcam
 
-Ngày: 2026-10-06. Trạng thái: đã duyệt ý tưởng, chờ duyệt spec.
+Ngày: 2026-10-06. Trạng thái: đã triển khai trên nhánh `feature/chemtraicay` (worktree `.claude/worktrees/chemtraicay`), chờ gộp vào `release-v1.7.0-clean`.
 
 ## 1. Mục tiêu
 
@@ -16,7 +16,7 @@ Pha 1 chỉ nhận diện **tay** (2 tay). Mặt và body để pha sau, dùng c
 |---|---|---|
 | Overlay OBS | `public/games/chemtraicay/overlay.html` | Vẽ game trên canvas 1080×1920, nhận tay + quà qua socket |
 | Engine | `public/games/chemtraicay/game.js` | Logic thuần (sinh quả, vật lý, chém, bom, buff, vườn tích tụ). Không đụng DOM, test được bằng `node --test` |
-| Tracker | `public/games/chemtraicay/tracker.html` + `tracker.js` | Mở webcam, chạy MediaPipe HandLandmarker, gửi tọa độ tay |
+| Tracker | `public/games/chemtraicay/tracker.html` + `tracker.js` | Lấy hình từ Scene/Source OBS (qua server) hoặc webcam, chạy MediaPipe HandLandmarker, gửi tọa độ tay |
 | Panel | `public/games/chemtraicay/chemtraicay-panel.js` | Giao diện cài đặt trong app: 4 tab Cài đặt / Quà / Camera / Hiển thị |
 | Server | `server.js` | Đăng ký game, route, relay tay, map quà, đổi Scene OBS |
 | MediaPipe | `public/lib/mediapipe/` | `vision_bundle.mjs`, `wasm/vision_wasm_internal.{js,wasm}`, `hand_landmarker.task` (≈20 MB, offline) |
@@ -26,10 +26,10 @@ Pha 1 chỉ nhận diện **tay** (2 tay). Mặt và body để pha sau, dùng c
 ## 3. Luồng dữ liệu
 
 ```
-Webcam ─► tracker (MediaPipe, 30fps) ─socket 'chemtraicay:hand'─► server relay ─► overlay (OBS) + preview (panel)
+OBS (GetSourceScreenshot) / webcam ─► tracker (MediaPipe) ─socket 'chemtraicay:hand'─► server relay ─► overlay (OBS) + preview (panel)
 TikTok gift ─► emitGift() ─► handleChemTraiCayGift() ─'chemtraicay:gift'─► overlay + preview
 Overlay ─'chemtraicay:state' (2 Hz)─► server cache ─► preview (panel hiện điểm, vườn, buff)
-Overlay ─'chemtraicay:event' {start|end}─► server ─► obsBridge.setCurrentScene (nếu bật)
+Overlay ─'chemtraicay:event' {start|end}─► server ─► obs-websocket SetCurrentProgramScene (nếu bật)
 ```
 
 ### 3.1 Tracker → overlay (`chemtraicay:hand`)
@@ -47,17 +47,17 @@ Server: `onTrusted('chemtraicay:hand')` (tracker ở loopback hoặc có token �
 
 ### 3.2 Nguồn hình cho tracker (giống GGTT: lấy từ OBS, không mở webcam ngoài)
 
-Config `videoSource { mode: 'obs-scene' | 'obs-source' | 'webcam', scene: '', source: '', fps: 15, width: 640 }`.
+Config `videoSource { mode: 'obs-source' | 'obs-scene' | 'webcam', scene: '', source: '', fps: 15, width: 640 }`. Mặc định `obs-source` (giống Touch & Play: chọn nguồn camera trong Scene OBS; game trong suốt đè lên camera).
 
 | mode | Lấy hình | Ánh xạ tọa độ |
 |---|---|---|
-| `obs-scene` (mặc định) | Server gọi obs-websocket `GetSourceScreenshot { sourceName: scene, imageFormat:'jpg', imageWidth, imageCompressionQuality:60 }` theo yêu cầu của tracker | 1:1 với overlay: điểm chuẩn hóa (x,y) → (x·1080, y·1920). Không cần gương. |
-| `obs-source` | Như trên nhưng `sourceName` = input camera trong scene (danh sách từ `GetSceneItemList`) | Qua `camRect`; nút "Lấy từ OBS" gọi `GetSceneItemTransform` để điền `camRect` tự động (position, scale, crop, bounds; bỏ qua xoay). Tránh quả che tay khi nhận diện. |
+| `obs-scene` | Server gọi obs-websocket `GetSourceScreenshot { sourceName: scene, imageFormat:'jpg', imageWidth, imageCompressionQuality:60 }` theo yêu cầu của tracker | 1:1 với overlay: điểm chuẩn hóa (x,y) → (x·1080, y·1920). Không cần gương. |
+| `obs-source` (mặc định) | Như trên nhưng `sourceName` = input camera trong scene (danh sách từ `GetSceneItemList`) | Qua `camRect`; tracker **tự** gọi `GetSceneItemTransform` khi chọn source và mỗi lần bật nhận diện để điền `camRect` (position, scale, crop, bounds; bỏ qua xoay); panel có nút "Lấy vùng camera từ OBS" để làm lại. Tránh quả che tay khi nhận diện. |
 | `webcam` | `getUserMedia` trong trang tracker | Qua `camRect`; `camRect = null` → tự tính "cover" từ `aspect` (16:9 → rộng 316 %, x −108 %, cao 100 %). `mirror` chỉ áp cho mode này. |
 
 Endpoint khung hình: `GET /api/chemtraicay/obs-frame?source=<tên>&w=640` trả `image/jpeg` (server giải base64 từ obs-websocket). Tracker tự điều nhịp: fetch → `createImageBitmap` → `detectForVideo` → fetch tiếp, trần `videoSource.fps`. OBS chưa kết nối → 503 `{error:'OBS chưa kết nối'}`, tracker hiện trạng thái và thử lại mỗi 2 s.
 
-`camRect {xPercent, yPercent, widthPercent, heightPercent}` mô tả khung hình nguồn **đầy đủ, chưa crop** nằm ở đâu trên overlay 1080×1920. Kéo chỉnh ở overlay `?edit=1` (khung mờ "📷 Vùng camera"), POST `/api/games/chemtraicay/config` khi thả. Điểm tay `(x,y)` → overlay: `X = camRect.x + x·camRect.w`, `Y = camRect.y + y·camRect.h`. Ở overlay `?edit=1` hiện khung mờ "Vùng camera" kéo/thả, resize được, POST `/api/games/chemtraicay/config` khi thả (mẫu bancung). Điểm tay `(x,y)` → overlay: `X = camRect.x + x·camRect.w`, `Y = camRect.y + y·camRect.h`.
+`camRect {xPercent, yPercent, widthPercent, heightPercent}` mô tả khung hình nguồn **đầy đủ, chưa crop** nằm ở đâu trên overlay 1080×1920. Kéo chỉnh ở overlay `?edit=1` (khung mờ "📷 Vùng camera"), POST `/api/games/chemtraicay/config` khi thả. Điểm tay `(x,y)` → overlay: `X = camRect.x + x·camRect.w`, `Y = camRect.y + y·camRect.h`.
 
 ### 3.3 Quà → hành động
 
@@ -128,7 +128,7 @@ Overlay chỉ vẽ `snapshot()` và phát âm theo `events`.
   slowFactor:0.55, slowSeconds:10, rescuePercent:100, holdSeconds:0.85,
   spawnPerSecond:3, maxPerGift:30, idleSpawnSeconds:0,
   camRect:null, // null = 1:1 với overlay ở mode obs-scene; "cover" từ aspect ở mode webcam
-  videoSource:{ mode:'obs-scene', scene:'', source:'', fps:15, width:640 },
+  videoSource:{ mode:'obs-source', scene:'', source:'', fps:15, width:640 },
   mirror:true,  // chỉ áp cho mode webcam
   giftRules:[],
   obsScene:{ enabled:false, playScene:'', backScene:'' },

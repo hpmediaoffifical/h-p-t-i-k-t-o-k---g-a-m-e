@@ -13,7 +13,7 @@ let trackerId = sessionStorage.getItem('ctc-tracker-id');
 if (!trackerId) { trackerId = 'trk_' + Math.random().toString(36).slice(2, 6); sessionStorage.setItem('ctc-tracker-id', trackerId); }
 
 const socket = io({ transports: ['websocket', 'polling'] });
-let cfg = { videoSource: { mode: 'obs-scene', scene: '', source: '', fps: 15, width: 640 }, mirror: true };
+let cfg = { videoSource: { mode: 'obs-source', scene: '', source: '', fps: 15, width: 640 }, mirror: true };
 let landmarker = null;
 let running = false;        // người dùng đã bật
 let paused = false;         // tracker khác đang active
@@ -30,10 +30,10 @@ const video = $('video'), frameCv = $('frame'), drawCv = $('draw');
 const fctx = frameCv.getContext('2d'), dctx = drawCv.getContext('2d');
 
 // ---------- trạng thái ----------
-const st = { obs: '', src: '', model: '', sock: '', trk: '' };
+const st = { obs: '', src: '', model: '', sock: '', trk: '', rect: '' };
 function renderStatus() {
     $('status').innerHTML = [
-        st.sock, st.model, st.src, st.obs, st.trk
+        st.sock, st.model, st.src, st.rect, st.obs, st.trk
     ].filter(Boolean).join('<br>');
 }
 function setStatus(k, html) { st[k] = html; renderStatus(); }
@@ -61,11 +61,25 @@ function saveVideoSource(patch) {
     saveTimer = setTimeout(async () => {
         try {
             const cur = await fetch('/api/games/chemtraicay/config').then(r => r.json());
-            await fetch('/api/games/chemtraicay/config', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...cur, videoSource: cfg.videoSource, mirror: $('chk-mirror').checked }) });
+            const body = { ...cur, videoSource: cfg.videoSource, mirror: $('chk-mirror').checked };
+            const rect = await autoCamRect();
+            if (rect) body.camRect = rect;
+            await fetch('/api/games/chemtraicay/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         } catch (e) { /* non-fatal */ }
         if (running) restartSource();
     }, 350);
+}
+// Mode Source OBS: vùng camera trên overlay = transform của source trong scene (giống Touch & Play), lấy tự động.
+async function autoCamRect() {
+    const vs = cfg.videoSource;
+    if (vs.mode !== 'obs-source' || !vs.scene || !vs.source) return null;
+    try {
+        const r = await fetch(`/api/chemtraicay/obs-transform?scene=${encodeURIComponent(vs.scene)}&source=${encodeURIComponent(vs.source)}`);
+        const j = await r.json();
+        if (!r.ok || !j.camRect) { setStatus('rect', `Vùng camera: <span class="warn">${j.error || r.status}</span>`); return null; }
+        setStatus('rect', `Vùng camera: <span class="ok">tự lấy từ OBS</span> (x ${j.camRect.xPercent}% · y ${j.camRect.yPercent}% · rộng ${j.camRect.widthPercent}% · cao ${j.camRect.heightPercent}%)`);
+        return j.camRect;
+    } catch (e) { return null; }
 }
 
 // ---------- UI nguồn ----------
@@ -277,6 +291,15 @@ async function start() {
     try { await ensureModel(); } catch (e) { running = false; updateToggle(); msg('Không nạp được model nhận diện. Bấm Bật lại để thử.'); return; }
     socket.emit('chemtraicay:tracker', { id: trackerId, active: true });
     restartSource();
+    // Source OBS: làm mới vùng camera mỗi lần bật (streamer có thể vừa dời/đổi cỡ camera trong OBS)
+    autoCamRect().then(async (rect) => {
+        if (!rect) return;
+        try {
+            const cur = await fetch('/api/games/chemtraicay/config').then(r => r.json());
+            if (JSON.stringify(cur.camRect) === JSON.stringify(rect)) return;
+            await fetch('/api/games/chemtraicay/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...cur, camRect: rect }) });
+        } catch (e) { /* non-fatal */ }
+    });
 }
 function stop() {
     running = false; loopToken++; stopStream(); updateToggle();

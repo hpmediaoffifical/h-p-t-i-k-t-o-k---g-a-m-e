@@ -27,7 +27,7 @@
             slowFactor: 0.55, slowSeconds: 10, rescuePercent: 100, holdSeconds: 0.85,
             spawnPerSecond: 3, maxPerGift: 30, idleSpawnSeconds: 0,
             camRect: null,
-            videoSource: { mode: 'obs-scene', scene: '', source: '', fps: 15, width: 640 },
+            videoSource: { mode: 'obs-source', scene: '', source: '', fps: 15, width: 640 },
             mirror: true,
             giftRules: [],
             obsScene: { enabled: false, playScene: '', backScene: '' },
@@ -60,7 +60,13 @@
         let hold = { x: 0, y: 0, r: 0, ms: 0, side: null };
         let idleAcc = 0;
 
-        function holdTarget(x, y, r) { hold.x = num(x, 0); hold.y = num(y, 0); hold.r = Math.max(0, num(r, 0)); hold.ms = 0; }
+        // Overlay gọi mỗi khung theo vị trí nút trên màn hình; chỉ reset tiến độ khi nút thật sự dời chỗ.
+        function holdTarget(x, y, r) {
+            const nx = num(x, 0), ny = num(y, 0), nr = Math.max(0, num(r, 0));
+            const moved = Math.hypot(nx - hold.x, ny - hold.y) > 2 || Math.abs(nr - hold.r) > 2;
+            hold.x = nx; hold.y = ny; hold.r = nr;
+            if (moved) hold.ms = 0;
+        }
 
         function applyBuff(action, qty) {
             const n = Math.max(1, Math.floor(num(qty, 1)));

@@ -14,7 +14,7 @@ test('ACTIONS có đúng 15 hành động theo thứ tự spec', () => {
 test('defaultConfig trả về bản sao độc lập với giá trị spec', () => {
     const a = defaultConfig(); const b = defaultConfig();
     assert.equal(a.cutRadius, 15); assert.equal(a.danger, 50); assert.equal(a.camRect, null);
-    assert.deepEqual(a.videoSource, { mode: 'obs-scene', scene: '', source: '', fps: 15, width: 640 });
+    assert.deepEqual(a.videoSource, { mode: 'obs-source', scene: '', source: '', fps: 15, width: 640 });
     assert.deepEqual(a.obsScene, { enabled: false, playScene: '', backScene: '' });
     a.cutRadius = 99; assert.equal(b.cutRadius, 15);
 });
@@ -216,4 +216,16 @@ test('idleSpawnSeconds > 0 tự sinh quả khi hàng đợi rỗng', () => {
     const eng = createEngine({ ...defaultConfig(), idleSpawnSeconds: 1, spawnPerSecond: 100 }); eng.start();
     eng.step(1100);
     assert.equal(eng.snapshot().objects.length, 1);
+});
+
+test('holdTarget gọi lại mỗi khung với cùng vị trí không làm mất tiến độ giữ', () => {
+    const eng = createEngine({ ...defaultConfig(), holdSeconds: 0.5 });
+    for (let i = 0; i < 40; i++) { eng.holdTarget(540, 1000, 120); eng.setBlade('R', 540, 1000, true); eng.step(16); }
+    assert.equal(eng.snapshot().playing, true);
+});
+test('holdTarget đổi vị trí thì tiến độ giữ về 0', () => {
+    const eng = createEngine({ ...defaultConfig(), holdSeconds: 0.85 }); eng.holdTarget(540, 1000, 120);
+    eng.setBlade('R', 540, 1000, true); eng.step(400);
+    eng.holdTarget(540, 1400, 120);
+    assert.equal(eng.snapshot().hold.progress, 0);
 });

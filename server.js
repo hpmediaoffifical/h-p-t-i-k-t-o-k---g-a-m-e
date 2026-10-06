@@ -393,7 +393,7 @@ function makeDefaultChemTraiCayConfig() {
         slowFactor: 0.55, slowSeconds: 10, rescuePercent: 100, holdSeconds: 0.85,
         spawnPerSecond: 3, maxPerGift: 30, idleSpawnSeconds: 0,
         camRect: null,
-        videoSource: { mode: 'obs-scene', scene: '', source: '', fps: 15, width: 640 },
+        videoSource: { mode: 'obs-source', scene: '', source: '', fps: 15, width: 640 },
         mirror: true,
         giftRules: [],
         obsScene: { enabled: false, playScene: '', backScene: '' },
