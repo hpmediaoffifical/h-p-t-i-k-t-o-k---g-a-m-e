@@ -139,3 +139,59 @@ test('sceneItemToCamRect: không lật → flipX/flipY = false', () => {
     const c = sceneItemToCamRect(tf({}), base);
     assert.equal(c.flipX, false); assert.equal(c.flipY, false);
 });
+
+// ---- sao chép transform camera sang Scene quét (chỉ các trường SetSceneItemTransform chấp nhận) ----
+const { pickTransformForCopy } = require('../lib/chemtraicay-relay.js');
+test('pickTransformForCopy: giữ position/scale/rotation/alignment/crop, bỏ width/height/sourceWidth', () => {
+    const t = pickTransformForCopy(tf({ positionX: 10, positionY: 20, scaleX: -1, scaleY: 2, rotation: 0, alignment: 5, cropLeft: 3, cropRight: 4, cropTop: 5, cropBottom: 6, width: -1920, height: 2160 }));
+    assert.deepEqual(t, { positionX: 10, positionY: 20, scaleX: -1, scaleY: 2, rotation: 0, alignment: 5, cropLeft: 3, cropRight: 4, cropTop: 5, cropBottom: 6, boundsType: 'OBS_BOUNDS_NONE' });
+});
+test('pickTransformForCopy: bounds ≠ NONE thì kèm boundsWidth/Height/Alignment (tối thiểu 1)', () => {
+    const t = pickTransformForCopy(tf({ boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 1080, boundsHeight: 1920, boundsAlignment: 0 }));
+    assert.equal(t.boundsType, 'OBS_BOUNDS_SCALE_INNER'); assert.equal(t.boundsWidth, 1080); assert.equal(t.boundsHeight, 1920); assert.equal(t.boundsAlignment, 0);
+    const t2 = pickTransformForCopy(tf({ boundsType: 'OBS_BOUNDS_STRETCH', boundsWidth: 0, boundsHeight: 0 }));
+    assert.equal(t2.boundsWidth, 1); assert.equal(t2.boundsHeight, 1);
+});
+
+// ---- ensureScanScene: dựng Scene quét bằng obs-websocket giả lập ----
+const { ensureScanScene } = require('../lib/chemtraicay-relay.js');
+function fakeObs(state) {
+    const calls = [];
+    const call = async (req, data) => {
+        calls.push([req, data]);
+        switch (req) {
+            case 'GetSceneItemId': if (data.sceneName === 'LIVE' && data.sourceName === 'Cam') return { sceneItemId: 31 }; throw new Error('No scene items were found');
+            case 'GetSceneItemTransform': return { sceneItemTransform: { positionX: 1583, positionY: 376, scaleX: -1, scaleY: 1, rotation: 0, alignment: 5, cropLeft: 0, cropRight: 0, cropTop: 0, cropBottom: 0, boundsType: 'OBS_BOUNDS_NONE', boundsWidth: 0, boundsHeight: 0, sourceWidth: 1920, sourceHeight: 1080, width: -1920, height: 1080 } };
+            case 'GetSceneList': return { scenes: state.scenes.map(n => ({ sceneName: n })) };
+            case 'CreateScene': state.scenes.push(data.sceneName); state.items[data.sceneName] = []; return {};
+            case 'GetSceneItemList': return { sceneItems: state.items[data.sceneName] || [] };
+            case 'CreateSceneItem': { const id = 7; (state.items[data.sceneName] = state.items[data.sceneName] || []).push({ sourceName: data.sourceName, sceneItemId: id, sceneItemEnabled: true }); return { sceneItemId: id }; }
+            case 'SetSceneItemEnabled': return {};
+            case 'SetSceneItemTransform': state.lastTransform = data; return {};
+            default: throw new Error('unexpected ' + req);
+        }
+    };
+    return { call, calls };
+}
+test('ensureScanScene: tạo Scene mới, thêm camera, sao chép transform (không đụng Scene live)', async () => {
+    const st = { scenes: ['LIVE'], items: { LIVE: [{ sourceName: 'Cam', sceneItemId: 31, sceneItemEnabled: true }] } };
+    const obs = fakeObs(st);
+    const r = await ensureScanScene(obs.call, { liveScene: 'LIVE', source: 'Cam', scanScene: 'CTC Quét' });
+    assert.equal(r.created, true); assert.equal(r.sceneItemId, 7); assert.equal(r.scanScene, 'CTC Quét');
+    assert.deepEqual(st.lastTransform, { sceneName: 'CTC Quét', sceneItemId: 7, sceneItemTransform: { positionX: 1583, positionY: 376, scaleX: -1, scaleY: 1, rotation: 0, alignment: 5, cropLeft: 0, cropRight: 0, cropTop: 0, cropBottom: 0, boundsType: 'OBS_BOUNDS_NONE' } });
+    assert.ok(!obs.calls.some(([req, d]) => (req === 'SetSceneItemTransform' || req === 'SetSceneItemEnabled' || req === 'CreateSceneItem') && d.sceneName === 'LIVE'));
+});
+test('ensureScanScene: Scene quét đã có camera → chỉ cập nhật transform, không tạo thêm', async () => {
+    const st = { scenes: ['LIVE', 'CTC Quét'], items: { LIVE: [], 'CTC Quét': [{ sourceName: 'Cam', sceneItemId: 9, sceneItemEnabled: false }] } };
+    const obs = fakeObs(st);
+    const r = await ensureScanScene(obs.call, { liveScene: 'LIVE', source: 'Cam', scanScene: 'CTC Quét' });
+    assert.equal(r.created, false); assert.equal(r.sceneItemId, 9);
+    assert.ok(!obs.calls.some(([req]) => req === 'CreateScene' || req === 'CreateSceneItem'));
+    assert.ok(obs.calls.some(([req, d]) => req === 'SetSceneItemEnabled' && d.sceneItemId === 9 && d.sceneItemEnabled === true));
+});
+test('ensureScanScene: camera không có trong Scene live → ném lỗi, không tạo gì', async () => {
+    const st = { scenes: ['LIVE'], items: { LIVE: [] } };
+    const obs = fakeObs(st);
+    await assert.rejects(() => ensureScanScene(obs.call, { liveScene: 'LIVE', source: 'Khác', scanScene: 'CTC Quét' }));
+    assert.ok(!obs.calls.some(([req]) => req === 'CreateScene'));
+});

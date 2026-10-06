@@ -229,3 +229,9 @@ test('holdTarget đổi vị trí thì tiến độ giữ về 0', () => {
     eng.holdTarget(540, 1400, 120);
     assert.equal(eng.snapshot().hold.progress, 0);
 });
+
+test('tổng hàng đợi sinh quả có trần 300 dù nhiều quà liên tiếp', () => {
+    const eng = createEngine({ ...defaultConfig(), maxPerGift: 30 }); eng.start();
+    for (let i = 0; i < 20; i++) eng.enqueue('apple', 30);
+    assert.equal(eng.snapshot().queue, 300);
+});

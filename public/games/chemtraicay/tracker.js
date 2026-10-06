@@ -25,6 +25,8 @@ const smooth = { L: null, R: null };
 let fpsCount = 0, fpsAt = performance.now();
 let sourceAspect = 16 / 9;
 let scenesCache = [];
+let currentScene = '';      // Scene đang phát (gợi ý làm Scene live khi tạo Scene quét)
+let lastLiveLoaded = null;
 
 const video = $('video'), frameCv = $('frame'), drawCv = $('draw');
 const fctx = frameCv.getContext('2d'), dctx = drawCv.getContext('2d');
@@ -49,7 +51,7 @@ async function loadConfig() {
 function applyConfig(c, first) {
     if (!c || typeof c !== 'object') return;
     const prev = JSON.stringify(cfg.videoSource);
-    cfg = { ...cfg, ...c, videoSource: { mode: 'obs-scene', scene: '', source: '', fps: 15, width: 640, ...(c.videoSource || {}) } };
+    cfg = { ...cfg, ...c, videoSource: { mode: 'obs-source', scene: '', source: '', fps: 15, width: 640, ...(c.videoSource || {}) } };
     renderSourceUI();
     if (!first && running && JSON.stringify(cfg.videoSource) !== prev) restartSource();
 }
@@ -64,6 +66,7 @@ function saveVideoSource(patch) {
             const body = { ...cur, videoSource: cfg.videoSource, mirror: $('chk-mirror').checked };
             const rect = await autoCamRect();
             if (rect) body.camRect = rect;
+            if (cfg.videoSource.mode === 'obs-scene') body.camRect = null;   // Scene quét: 1:1, bỏ khung cũ của mode Source
             await fetch('/api/games/chemtraicay/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         } catch (e) { /* non-fatal */ }
         if (running) restartSource();
@@ -89,6 +92,12 @@ function renderSourceUI() {
     $('obs-opts').classList.toggle('hidden', vs.mode === 'webcam');
     $('cam-opts').classList.toggle('hidden', vs.mode !== 'webcam');
     $('row-source').classList.toggle('hidden', vs.mode !== 'obs-source');
+    $('scan-opts').classList.toggle('hidden', vs.mode !== 'obs-scene');
+    if (vs.mode === 'obs-scene') {
+        const live = vs.liveScene || currentScene || '';
+        fillSelect($('sel-live-scene'), scenesCache, live, '— chọn Scene live —');
+        if (live !== lastLiveLoaded) { lastLiveLoaded = live; loadLiveSources(); }
+    }
     $('sel-fps').value = String(vs.fps || 15);
     $('sel-width').value = String(vs.width || 640);
     if (typeof cfg.mirror === 'boolean') $('chk-mirror').checked = cfg.mirror;
@@ -106,6 +115,7 @@ async function loadScenes() {
     try {
         const r = await fetch('/api/chemtraicay/obs-scenes').then(r => r.json());
         const list = Array.isArray(r) ? r : (r.scenes || r.items || r.list || []);
+        currentScene = (r && r.current) || currentScene;
         scenesCache = list.map(s => { const n = typeof s === 'string' ? s : (s.sceneName || s.name || ''); return { value: n, label: n }; }).filter(s => s.value);
         setStatus('obs', scenesCache.length ? `OBS: <span class="ok">đã kết nối</span> (${scenesCache.length} scene)` : 'OBS: <span class="warn">chưa kết nối hoặc chưa có scene</span>');
     } catch (e) { scenesCache = []; setStatus('obs', 'OBS: <span class="bad">chưa kết nối</span> — vào mục Hiệu ứng OBS để kết nối'); }
@@ -135,6 +145,34 @@ $('sel-source').addEventListener('change', (e) => saveVideoSource({ source: e.ta
 $('sel-fps').addEventListener('change', (e) => saveVideoSource({ fps: Number(e.target.value) }));
 $('sel-width').addEventListener('change', (e) => saveVideoSource({ width: Number(e.target.value) }));
 $('btn-refresh').addEventListener('click', loadScenes);
+// ----- Scene quét riêng: chọn Scene live + camera trong đó → tạo Scene chỉ chứa camera, transform y hệt -----
+async function loadLiveSources() {
+    const live = $('sel-live-scene').value;
+    if (!live) { fillSelect($('sel-live-source'), [], '', '— chọn Scene live trước —'); return; }
+    try {
+        const r = await fetch('/api/chemtraicay/obs-sources?scene=' + encodeURIComponent(live)).then(r => r.json());
+        const items = (r.items || []).map(it => ({ value: it.name, label: it.name + (it.kind ? ` (${it.kind})` : '') }));
+        const prefer = cfg.videoSource.liveSource || (items.find(i => /dshow|capture|camera|cam/i.test(i.label)) || {}).value || '';
+        fillSelect($('sel-live-source'), items, prefer, '— chọn camera —');
+    } catch (e) { fillSelect($('sel-live-source'), [], '', '— không lấy được —'); }
+}
+$('sel-live-scene').addEventListener('change', () => { cfg.videoSource.liveScene = $('sel-live-scene').value; loadLiveSources(); });
+$('sel-live-source').addEventListener('change', () => { cfg.videoSource.liveSource = $('sel-live-source').value; });
+$('btn-make-scan').addEventListener('click', async () => {
+    const liveScene = $('sel-live-scene').value, source = $('sel-live-source').value;
+    const scanScene = ($('inp-scan-name').value || 'CTC Quét').trim();
+    const out = $('scan-msg');
+    if (!liveScene || !source) { out.textContent = 'Chọn Scene live và camera trước.'; return; }
+    out.textContent = 'Đang tạo…';
+    try {
+        const r = await fetch('/api/chemtraicay/obs-scan-scene', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ liveScene, source, scanScene }) });
+        const j = await r.json();
+        if (!r.ok || !j.ok) { out.textContent = 'Lỗi: ' + (j.error || r.status); return; }
+        out.textContent = `${j.created ? 'Đã tạo' : 'Đã cập nhật'} Scene "${j.scanScene}" chứa "${source}" đúng vị trí như Scene live. Đang dùng Scene này để quét.`;
+        await loadScenes();
+        saveVideoSource({ mode: 'obs-scene', scene: j.scanScene, liveScene, liveSource: source });
+    } catch (e) { out.textContent = 'Lỗi: ' + (e && e.message || e); }
+});
 $('sel-cam').addEventListener('change', (e) => { localStorage.setItem('ctc-cam', e.target.value); if (running) restartSource(); });
 $('sel-res').addEventListener('change', (e) => { localStorage.setItem('ctc-res', e.target.value); if (running) restartSource(); });
 $('chk-mirror').addEventListener('change', () => { video.classList.toggle('mirror', $('chk-mirror').checked); saveVideoSource({}); });
@@ -321,7 +359,8 @@ function updateToggle() {
 }
 
 // ---------- socket ----------
-socket.on('connect', () => { setStatus('sock', 'App: <span class="ok">đã kết nối</span> · tracker <b>' + trackerId + '</b>'); socket.emit('subscribe', 'preview'); if (running) socket.emit('chemtraicay:tracker', { id: trackerId, active: true }); });
+// Không subscribe room nào: trackerStatus/gameConfig được phát toàn cục, tracker không cần gói tay/quà của room preview.
+socket.on('connect', () => { setStatus('sock', 'App: <span class="ok">đã kết nối</span> · tracker <b>' + trackerId + '</b>'); if (running) socket.emit('chemtraicay:tracker', { id: trackerId, active: true }); });
 socket.on('disconnect', () => setStatus('sock', 'App: <span class="bad">mất kết nối</span>'));
 socket.on('gameConfig', ({ gameId, config }) => { if (gameId === 'chemtraicay') applyConfig(config, false); });
 socket.on('chemtraicay:trackerStatus', ({ activeId: id }) => {

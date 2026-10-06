@@ -17,6 +17,7 @@
 
     const BASE_RADIUS = 40;      // px khi objectScale = 1
     const GRAVITY = 1800;        // px/s²
+    const MAX_QUEUE = 300;       // trần tổng quả chờ sinh
 
     function defaultConfig() {
         return {
@@ -136,13 +137,11 @@
             // pháp tuyến của đoạn cắt → 2 mảnh văng ngược chiều
             let nx = -(by - ay), ny = bx - ax;
             const len = Math.hypot(nx, ny) || 1; nx /= len; ny /= len;
-            const maxDepth = Math.max(1, num(cfg.cuts, 2));
             for (const sgn of [1, -1]) {
                 objects.push({ id: nextId++, kind: o.kind, x: o.x + nx * sgn * o.r * 0.3, y: o.y + ny * sgn * o.r * 0.3,
                     r: o.r * 0.7, vx: o.vx + nx * sgn * 180, vy: o.vy - 150, rot: o.rot, spin: o.spin + sgn * 2,
                     depth: o.depth + 1, golden: o.golden, cutAngle: Math.atan2(by - ay, bx - ax), half: sgn });
             }
-            void maxDepth;
         }
 
         function runBlades() {
@@ -178,8 +177,10 @@
             const max = Math.max(1, num(cfg.maxPerGift, 30));
             const n = Math.min(max, Math.max(1, Math.floor(num(qty, 1))));
             if (action === 'god' || action === 'fast' || action === 'slow' || action === 'rescue') { applyBuff(action, n); return n; }
-            for (let i = 0; i < n; i++) queue.push(action);
-            return n;
+            // Trần tổng hàng đợi: bão quà không biến thành hàng giờ quả bay.
+            let added = 0;
+            for (let i = 0; i < n && queue.length < MAX_QUEUE; i++) { queue.push(action); added++; }
+            return added;
         }
 
         function spawn(kind) {

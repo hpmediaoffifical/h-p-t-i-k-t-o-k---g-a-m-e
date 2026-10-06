@@ -8016,7 +8016,7 @@ app.get('/overlay/bancung', (req, res) => {
 });
 
 // ===================== CHÉM TRÁI CÂY =====================
-const { createRelay: createChemRelay, sceneItemToCamRect } = require('./lib/chemtraicay-relay');
+const { createRelay: createChemRelay, sceneItemToCamRect, ensureScanScene } = require('./lib/chemtraicay-relay');
 const chemRelay = createChemRelay();
 let chemTraiCayStateCache = null;
 
@@ -8030,8 +8030,7 @@ app.get('/tracker/chemtraicay', (req, res) => {
 function chemTraiCayCfg() { return appConfig.games.chemtraicay || makeDefaultChemTraiCayConfig(); }
 
 function emitChemTraiCayGift(payload) {
-    io.to('overlay').emit('chemtraicay:gift', payload);
-    io.to('preview').emit('chemtraicay:gift', payload);
+    io.to('overlay').to('preview').emit('chemtraicay:gift', payload);
 }
 
 function handleChemTraiCayGift({ nickname, profilePicture, giftId, giftName, giftImage, repeatCount, source }) {
@@ -8144,6 +8143,23 @@ app.get('/api/chemtraicay/obs-transform', async (req, res) => {
         const vs = await obsBridge.obs.call('GetVideoSettings');
         const camRect = sceneItemToCamRect(tr.sceneItemTransform || {}, { baseWidth: vs.baseWidth, baseHeight: vs.baseHeight });
         res.json({ camRect, base: { baseWidth: vs.baseWidth, baseHeight: vs.baseHeight }, transform: tr.sceneItemTransform });
+    } catch (e) {
+        res.status(502).json({ error: String(e?.message || e) });
+    }
+});
+
+// Scene quét riêng: tạo (hoặc cập nhật) Scene chỉ chứa tham chiếu nguồn camera, sao chép đúng
+// transform của camera trong Scene live. Không sửa gì trong Scene live, không chuyển cảnh.
+app.post('/api/chemtraicay/obs-scan-scene', async (req, res) => {
+    const liveScene = String(req.body?.liveScene || '').slice(0, 200);
+    const sourceName = String(req.body?.source || '').slice(0, 200);
+    const scanScene = String(req.body?.scanScene || 'CTC Quét').slice(0, 60).trim() || 'CTC Quét';
+    if (!liveScene || !sourceName) return res.status(400).json({ error: 'thiếu liveScene/source' });
+    if (scanScene === liveScene) return res.status(400).json({ error: 'Scene quét phải khác Scene live' });
+    if (!chemTraiCayObsGuard(req, res)) return;
+    try {
+        const r = await ensureScanScene((req, data) => obsBridge.obs.call(req, data), { liveScene, source: sourceName, scanScene });
+        res.json({ ok: true, ...r });
     } catch (e) {
         res.status(502).json({ error: String(e?.message || e) });
     }
@@ -9993,8 +10009,7 @@ io.on('connection', (socket) => {
     onTrusted('chemtraicay:hand', (data) => {
         const v = chemRelay.acceptHand(data, socket.id);
         if (!v) return;
-        socket.to('overlay').emit('chemtraicay:hand', v);
-        socket.to('preview').emit('chemtraicay:hand', v);
+        socket.to('overlay').to('preview').emit('chemtraicay:hand', v);
     });
     onTrusted('chemtraicay:state', (data) => {
         if (!data || typeof data !== 'object') return;
