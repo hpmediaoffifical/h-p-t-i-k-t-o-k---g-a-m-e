@@ -1567,6 +1567,40 @@
                 </div>
             </section>
 
+            <!-- ============ GAME VIEW: Chém Trái Cây (tay qua webcam/OBS) ============ -->
+            <section id="view-chemtraicay" class="view game-view chemtraicay-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🍉 Chém Trái Cây</h2>
+                    </div>
+                    <div class="overlay-bar ctc-overlay-bar">
+                        <button id="ctc-btn-start" class="primary small" title="Bắt đầu ván (overlay cũng có nút giữ ngón trỏ)">▶ Bắt đầu</button>
+                        <button id="ctc-btn-stop" class="ghost small" title="Dừng ván, xóa quả đang bay">⏸ Dừng</button>
+                        <button id="ctc-btn-reset" class="danger small" title="Đặt lại tổng điểm về 0">↺ Đặt lại điểm</button>
+                        <span class="nd-bar-spacer"></span>
+                        <button id="ctc-btn-copy" class="primary small" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
+                        <button id="ctc-btn-edit" class="ghost small" title="Mở overlay chế độ sửa — kéo khung Vùng camera trùng với camera trong OBS">🎯 Chỉnh vùng camera</button>
+                        <button id="ctc-btn-reload" class="ghost small" title="Buộc overlay reload">🔄 Reload</button>
+                        <button id="ctc-btn-save" class="primary small" title="Lưu tất cả cấu hình ngay">💾 Lưu</button>
+                    </div>
+                </header>
+                <div class="game-body chemtraicay-body">
+                    <div class="ctc-status" id="ctc-status"></div>
+                    <div class="ctc-tabs">
+                        <button class="ctc-tab active" data-ctc-tab="settings"><span class="ctc-tab-icon" style="--icon-bg:#1f3a1a;--icon-fg:#9bf26b">⚙</span><span class="ctc-tab-text"><b>Cài đặt</b><em>Vùng chém / Vật lý / Buff</em></span></button>
+                        <button class="ctc-tab" data-ctc-tab="gifts"><span class="ctc-tab-icon" style="--icon-bg:#3a2e1a;--icon-fg:#ffd54a">🎁</span><span class="ctc-tab-text"><b>Quà</b><em>Quả / Bom / Buff + Gửi thử</em></span></button>
+                        <button class="ctc-tab" data-ctc-tab="camera"><span class="ctc-tab-icon" style="--icon-bg:#1a2a35;--icon-fg:#25f4ee">🖐</span><span class="ctc-tab-text"><b>Camera</b><em>Nguồn hình OBS + nhận diện tay</em></span></button>
+                        <button class="ctc-tab" data-ctc-tab="display"><span class="ctc-tab-icon" style="--icon-bg:#2a1a3a;--icon-fg:#b66bff">🎨</span><span class="ctc-tab-text"><b>Hiển thị</b><em>HUD / Âm thanh / Scene OBS</em></span></button>
+                    </div>
+                    <div class="ctc-panes">
+                        <div class="ctc-pane active" data-ctc-pane="settings" id="ctc-settings-pane"></div>
+                        <div class="ctc-pane" data-ctc-pane="gifts" id="ctc-gifts-pane"></div>
+                        <div class="ctc-pane" data-ctc-pane="camera" id="ctc-camera-pane"></div>
+                        <div class="ctc-pane" data-ctc-pane="display" id="ctc-display-pane"></div>
+                    </div>
+                </div>
+            </section>
+
             <!-- ============ GAME VIEW: Trồng Cây ============ -->
             <section id="view-trongcay" class="view game-view trongcay-view">
                 <header class="game-header">
@@ -2557,6 +2591,8 @@
     <script src="/games/nhietdo/nhietdo-panel.js"></script>
     <script src="/games/bancung/game.js"></script>
     <script src="/games/bancung/bancung-panel.js"></script>
+    <script src="/games/chemtraicay/game.js"></script>
+    <script src="/games/chemtraicay/chemtraicay-panel.js"></script>
     <script src="/games/trongcay/game.js"></script>
     <script src="/games/trongcay/trongcay-panel.js"></script>
     <script src="/games/nhatla/game.js"></script>
