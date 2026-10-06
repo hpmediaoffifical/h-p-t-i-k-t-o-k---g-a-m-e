@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HP Chém Trái Cây — Nhận diện tay</title>
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #0d1220; color: #e6e8ee; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; }
+    body { padding: 14px; min-height: 100vh; }
+    body.embed { padding: 10px; }
+    h1 { font-size: 18px; margin-bottom: 10px; }
+    body.embed h1 { display: none; }
+    .wrap { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: start; }
+    @media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+    .card { background: #141a2b; border: 1px solid #2c3243; border-radius: 12px; padding: 12px; }
+    .card h2 { font-size: 12px; letter-spacing: .12em; color: #8b93a8; margin-bottom: 8px; text-transform: uppercase; }
+    .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .row label { color: #aeb6c8; min-width: 72px; }
+    select, input[type=number] { flex: 1; min-width: 0; background: #0e1118; border: 1px solid #2c3243; color: #e6e8ee; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+    .modes { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+    .modes button { background: #0e1118; border: 1px solid #2c3243; color: #cdd3e0; border-radius: 8px; padding: 8px 4px; cursor: pointer; font-size: 12px; font-weight: 700; }
+    .modes button.on { background: #1f3b2a; border-color: #4ade80; color: #d7ffe3; }
+    button.primary { background: #ff6b3d; border: 0; color: #fff; border-radius: 8px; padding: 10px 14px; font-weight: 800; cursor: pointer; width: 100%; margin-top: 10px; font-size: 14px; }
+    button.primary.stop { background: #3a4152; }
+    button.ghost { background: transparent; border: 1px solid #2c3243; color: #cdd3e0; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+    .hint { font-size: 12px; color: #8b93a8; line-height: 1.45; margin-top: 8px; }
+    .status { margin-top: 10px; font-size: 12px; line-height: 1.6; color: #aeb6c8; }
+    .status b { color: #fff; }
+    .status .ok { color: #4ade80; } .status .bad { color: #ff6b6b; } .status .warn { color: #ffd23f; }
+    .preview { position: relative; background: #05070c; border-radius: 12px; overflow: hidden; border: 1px solid #2c3243; aspect-ratio: 16 / 9; }
+    .preview video, .preview canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+    .preview video.mirror { transform: scaleX(-1); }
+    .preview .msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px; color: #aeb6c8; font-size: 14px; }
+    .fps { position: absolute; right: 8px; top: 6px; font-size: 12px; color: #4ade80; font-weight: 700; background: rgba(0,0,0,.5); padding: 2px 8px; border-radius: 6px; }
+    .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<h1>🍉 Chém Trái Cây — Nhận diện tay</h1>
+<div class="wrap">
+    <div class="card">
+        <h2>Nguồn hình</h2>
+        <div class="modes">
+            <button data-mode="obs-source" title="Lấy hình đúng nguồn camera trong Scene — giống Touch &amp; Play">Camera trong OBS</button>
+            <button data-mode="obs-scene" title="Lấy cả Scene (gồm overlay) — tọa độ khớp 1:1">Cả Scene OBS</button>
+            <button data-mode="webcam" title="Dự phòng: mở webcam trực tiếp">Webcam</button>
+        </div>
+        <div id="obs-opts">
+            <div class="row"><label>Scene</label><select id="sel-scene"></select><button class="ghost" id="btn-refresh" title="Nạp lại danh sách">↻</button></div>
+            <div class="row" id="row-source"><label>Source</label><select id="sel-source"></select></div>
+            <div class="row"><label>Nhịp</label><select id="sel-fps"><option value="10">10 hình/giây (nhẹ)</option><option value="15">15 hình/giây</option><option value="20">20 hình/giây (mượt)</option></select></div>
+            <div class="row"><label>Cỡ hình</label><select id="sel-width"><option value="480">480 px</option><option value="640">640 px</option><option value="960">960 px</option></select></div>
+            <div class="hint">Lấy ngay hình đang hiện trong OBS (cần OBS đã kết nối ở mục <b>Hiệu ứng OBS</b>). Không mở webcam riêng, không trùng camera với OBS.</div>
+        </div>
+        <div id="cam-opts" class="hidden">
+            <div class="row"><label>Camera</label><select id="sel-cam"></select></div>
+            <div class="row"><label>Độ phân giải</label><select id="sel-res"><option value="640x360">640×360</option><option value="1280x720">1280×720</option></select></div>
+            <div class="row"><label><input type="checkbox" id="chk-mirror" checked> Gương (soi như gương)</label></div>
+            <div class="hint">Dự phòng khi không dùng OBS. Nếu OBS đang giữ camera, chọn camera khác.</div>
+        </div>
+        <button class="primary" id="btn-toggle">▶ Bật nhận diện</button>
+        <div class="status" id="status"></div>
+    </div>
+    <div class="card">
+        <h2>Xem trước</h2>
+        <div class="preview">
+            <video id="video" muted playsinline autoplay class="hidden"></video>
+            <canvas id="frame"></canvas>
+            <canvas id="draw"></canvas>
+            <div class="msg" id="msg">Chưa bật nhận diện.</div>
+            <div class="fps" id="fps">0 fps</div>
+        </div>
+        <div class="hint">Vẽ 21 điểm mỗi tay. Đầu ngón trỏ (điểm 8) là lưỡi dao trên overlay. Tay trái xanh, tay phải trắng.</div>
+    </div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script type="module" src="/games/chemtraicay/tracker.js"></script>
+</body>
+</html>

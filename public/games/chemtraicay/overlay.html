@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <script src="/lib/overlay-resolution.js"></script>
+<meta charset="utf-8" />
+<title>HP Chém Trái Cây — Overlay</title>
+<style>
+    /* OBS browser source: 1080×1920 trong suốt. Engine tính trong hệ 1080×1920; canvas phủ toàn khung. */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; color: #fff; user-select: none;
+        font-family: 'Segoe UI', Arial, sans-serif; }
+    #ctc-stage { position: fixed; inset: 0; }
+    #ctc-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .ctc-hud { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; }
+    .ctc-score { position: absolute; left: 3%; top: 2.2%; padding: 10px 18px; border-radius: 16px;
+        background: rgba(10, 14, 22, .62); border: 1px solid rgba(255,255,255,.14); min-width: 180px; }
+    .ctc-score .lbl, .ctc-pile .lbl { font-size: 14px; letter-spacing: .14em; color: #c9d1e3; font-weight: 700; }
+    .ctc-score .val { font-size: 46px; font-weight: 900; line-height: 1.05; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+    .ctc-pile { position: absolute; right: 3%; top: 2.2%; padding: 10px 18px; border-radius: 16px; min-width: 240px;
+        background: rgba(10, 14, 22, .62); border: 1px solid rgba(255,255,255,.14); }
+    .ctc-pile .val { font-size: 22px; font-weight: 800; margin-top: 2px; }
+    .ctc-pile .bar { height: 10px; border-radius: 6px; background: rgba(255,255,255,.14); margin-top: 8px; overflow: hidden; position: relative; }
+    .ctc-pile .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, #7cf29a, #ffd23f 60%, #ff5a5a); transition: width .25s; }
+    .ctc-pile .bar b { position: absolute; top: -3px; bottom: -3px; width: 3px; background: #ff5a5a; left: 50%; }
+    .ctc-buffs { position: absolute; left: 50%; top: 2.4%; transform: translateX(-50%); display: flex; gap: 8px; }
+    .ctc-buff { padding: 6px 12px; border-radius: 999px; font-weight: 800; font-size: 16px; background: rgba(10,14,22,.7); border: 1px solid rgba(255,255,255,.2); }
+    .ctc-buff.god { color: #ffd23f; } .ctc-buff.fast { color: #ff8a5a; } .ctc-buff.slow { color: #8ad5ff; }
+    .ctc-combo { position: absolute; left: 50%; top: 9%; transform: translateX(-50%) scale(1); font-size: 44px; font-weight: 900;
+        color: #ffd23f; text-shadow: 0 3px 10px rgba(0,0,0,.6); opacity: 0; transition: opacity .2s, transform .2s; }
+    .ctc-combo.show { opacity: 1; transform: translateX(-50%) scale(1.12); }
+    .ctc-danger { position: absolute; left: 0; right: 0; height: 3px; background: rgba(255,90,90,.9); box-shadow: 0 0 12px #ff5a5a; }
+    .ctc-danger span { position: absolute; right: 3%; top: -22px; font-size: 13px; color: #ffb3b3; letter-spacing: .1em; }
+    .ctc-notices { position: absolute; left: 3%; bottom: 4%; display: flex; flex-direction: column; gap: 8px; max-width: 60%; }
+    .ctc-notice { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; border-radius: 999px;
+        background: rgba(10,14,22,.78); border: 1px solid rgba(255,255,255,.18); font-size: 18px; animation: ctc-in .25s ease-out; }
+    .ctc-notice img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; background: #222; }
+    .ctc-notice b { color: #ffd23f; }
+    @keyframes ctc-in { from { transform: translateX(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
+    .ctc-start { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 640px; padding: 36px 32px;
+        border-radius: 28px; background: rgba(8, 12, 20, .78); border: 1px solid rgba(255,255,255,.16); text-align: center; pointer-events: none; }
+    .ctc-start h1 { font-size: 72px; line-height: 1; font-weight: 900; letter-spacing: .02em; }
+    .ctc-start h1 span { display: block; color: #9bf26b; }
+    .ctc-start p { margin-top: 14px; font-size: 20px; color: #c9d1e3; line-height: 1.4; }
+    .ctc-hold { position: relative; width: 240px; height: 240px; margin: 26px auto 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        background: rgba(155,242,107,.12); border: 3px solid rgba(155,242,107,.5); font-size: 26px; font-weight: 800; color: #e9ffdd; }
+    .ctc-hold svg { position: absolute; inset: -3px; width: calc(100% + 6px); height: calc(100% + 6px); transform: rotate(-90deg); }
+    .ctc-hold circle { fill: none; stroke: #9bf26b; stroke-width: 8; stroke-linecap: round; stroke-dasharray: 740; stroke-dashoffset: 740; }
+    .ctc-start small { display: block; margin-top: 10px; font-size: 16px; color: #8fa0bf; }
+    .ctc-end { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 30px 48px; border-radius: 24px; text-align: center;
+        background: rgba(8,12,20,.85); border: 1px solid rgba(255,90,90,.5); display: none; }
+    .ctc-end h2 { font-size: 40px; color: #ff8a8a; } .ctc-end .sc { font-size: 72px; font-weight: 900; color: #ffd23f; }
+    .ctc-dot { position: absolute; left: 10px; bottom: 10px; width: 10px; height: 10px; border-radius: 50%; background: #ff5a5a; opacity: .8; }
+    .ctc-dot.on { background: #4ade80; opacity: .4; }
+    .ctc-trk { position: absolute; left: 26px; bottom: 6px; font-size: 12px; color: #8fa0bf; }
+    .hidden { display: none !important; }
+    body.ctc-stopped #ctc-stage { display: none; }
+
+    /* ===== EDIT MODE (?edit=1): khung "Vùng camera" kéo/thả ===== */
+    body.ctc-edit { background: rgba(20, 24, 34, .35); }
+    .ctc-cam { position: absolute; border: 3px dashed #3bb0ff; background: rgba(59,176,255,.12); display: none; cursor: move; touch-action: none; }
+    body.ctc-edit .ctc-cam { display: block; }
+    .ctc-cam .lbl { position: absolute; left: 8px; top: 8px; padding: 4px 10px; background: rgba(59,176,255,.9); color: #061a2b; font-weight: 800; border-radius: 8px; font-size: 16px; }
+    .ctc-cam .h { position: absolute; width: 28px; height: 28px; background: #3bb0ff; border: 2px solid #fff; border-radius: 6px; }
+    .ctc-cam .h.tl { left: -14px; top: -14px; cursor: nwse-resize; } .ctc-cam .h.tr { right: -14px; top: -14px; cursor: nesw-resize; }
+    .ctc-cam .h.bl { left: -14px; bottom: -14px; cursor: nesw-resize; } .ctc-cam .h.br { right: -14px; bottom: -14px; cursor: nwse-resize; }
+    .ctc-edit-bar { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); padding: 12px 18px; border-radius: 14px; display: none;
+        background: rgba(8,12,20,.9); border: 1px solid rgba(255,255,255,.2); font-size: 16px; color: #c9d1e3; text-align: center; max-width: 86%; }
+    body.ctc-edit .ctc-edit-bar { display: block; }
+    .ctc-edit-bar b { color: #3bb0ff; }
+</style>
+</head>
+<body>
+<div id="ctc-stage">
+    <canvas id="ctc-canvas" width="1080" height="1920"></canvas>
+    <div class="ctc-hud">
+        <div class="ctc-score" id="ctc-score-box"><div class="lbl">TỔNG ĐIỂM</div><div class="val" id="ctc-score">0</div></div>
+        <div class="ctc-pile" id="ctc-pile-box"><div class="lbl">VƯỜN TÍCH TỤ</div><div class="val"><span id="ctc-pile">0</span> / <span id="ctc-danger-val">50</span>%</div>
+            <div class="bar"><i id="ctc-pile-fill"></i><b id="ctc-pile-mark"></b></div></div>
+        <div class="ctc-buffs" id="ctc-buffs"></div>
+        <div class="ctc-combo" id="ctc-combo">COMBO ×2</div>
+    </div>
+    <div class="ctc-danger" id="ctc-danger-line"><span>VẠCH NGUY HIỂM</span></div>
+    <div class="ctc-notices" id="ctc-notices"></div>
+    <div class="ctc-start" id="ctc-start">
+        <h1>CHÉM<span>TRÁI CÂY</span></h1>
+        <p>Lướt ngón trỏ chém quả đang bay. Cẩn thận với bom.<br>Đừng để vườn đầy quá vạch giới hạn.</p>
+        <div class="ctc-hold" id="ctc-hold"><svg viewBox="0 0 246 246"><circle id="ctc-hold-ring" cx="123" cy="123" r="118"/></svg><span>Giữ để bắt đầu</span></div>
+        <small id="ctc-hold-hint">Giữ ngón trỏ trên nút trong 0,85 giây. Cũng có thể nhấn giữ bằng chuột.</small>
+    </div>
+    <div class="ctc-end" id="ctc-end"><h2>VƯỜN ĐẦY RỒI!</h2><div class="sc" id="ctc-end-score">0</div><p>Giữ nút để chơi tiếp</p></div>
+    <div class="ctc-dot" id="ctc-dot"></div>
+    <div class="ctc-trk" id="ctc-trk"></div>
+    <div class="ctc-cam" id="ctc-cam"><div class="lbl">📷 Vùng camera</div><div class="h tl" data-h="tl"></div><div class="h tr" data-h="tr"></div><div class="h bl" data-h="bl"></div><div class="h br" data-h="br"></div></div>
+    <div class="ctc-edit-bar" id="ctc-edit-bar"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/games/chemtraicay/game.js"></script>
+<script>
+(function () {
+    'use strict';
+    const W = 1080, H = 1920;
+    const Game = window.HpGame.chemtraicay;
+    const qs = new URLSearchParams(location.search);
+    const isEdit = qs.get('edit') === '1';
+    const isReview = qs.get('review') === '1';
+    const mouseCuts = isReview || qs.get('mouse') === '1' || isEdit;
+    const token = qs.get('token') || '';
+
+    const $ = (id) => document.getElementById(id);
+    const canvas = $('ctc-canvas');
+    const ctx = canvas.getContext('2d');
+
+    let cfg = Game.defaultConfig();
+    let engine = Game.createEngine(cfg, { width: W, height: H });
+    let lastAspect = 16 / 9;
+    const trails = { L: [], R: [] };
+    let particles = [];
+    let flash = 0;         // chớp đỏ khi bom nổ
+    let shake = 0;
+    let comboTimer = 0;
+    let endTimer = 0;
+    let lastT = performance.now();
+    let frames = 0, fpsAt = performance.now(), fps = 0;
+
+    // ---------- toạ độ canvas: CSS px → 1080×1920 ----------
+    function toStage(clientX, clientY) {
+        const r = canvas.getBoundingClientRect();
+        return { x: (clientX - r.left) / r.width * W, y: (clientY - r.top) / r.height * H };
+    }
+
+    // ---------- ánh xạ tay → overlay ----------
+    function resolveCamRect() {
+        const mode = cfg.videoSource && cfg.videoSource.mode || 'obs-scene';
+        const cr = cfg.camRect;
+        if (cr && Number.isFinite(Number(cr.widthPercent)) && Number(cr.widthPercent) > 0) {
+            return { x: Number(cr.xPercent) / 100 * W, y: Number(cr.yPercent) / 100 * H, w: Number(cr.widthPercent) / 100 * W, h: Number(cr.heightPercent) / 100 * H, flipX: !!cr.flipX, flipY: !!cr.flipY };
+        }
+        if (mode === 'obs-scene') return { x: 0, y: 0, w: W, h: H, flipX: false, flipY: false };
+        const h = H, w = H * lastAspect;      // cover
+        return { x: (W - w) / 2, y: 0, w, h, flipX: false, flipY: false };
+    }
+    // Camera lật trong OBS (scale âm) → điểm chuẩn hóa của khung nguồn đảo chiều trên overlay.
+    function mapPoint(nx, ny) {
+        const r = resolveCamRect();
+        return { x: r.x + (r.flipX ? 1 - nx : nx) * r.w, y: r.y + (r.flipY ? 1 - ny : ny) * r.h };
+    }
+
+    let lastTrackerId = null;
+    let lastHandAt = 0;
+    let bladesLive = false;   // đang có ít nhất 1 dao hiện diện từ tracker
+    // Xóa dao + vệt khi đổi tracker / mất tracker / mất gói lâu → không "chém ma" từ vị trí cũ.
+    function clearBlades() {
+        for (const s of ['L', 'R']) { engine.setBlade(s, 0, 0, false); trails[s] = []; }
+        bladesLive = false;
+    }
+    function applyHands(pkt) {
+        if (pkt.aspect) lastAspect = pkt.aspect;
+        if (pkt.id && pkt.id !== lastTrackerId) { clearBlades(); lastTrackerId = pkt.id; }
+        lastHandAt = performance.now();
+        const seen = { L: false, R: false };
+        for (const h of pkt.hands || []) {
+            const p = mapPoint(h.pts[16], h.pts[17]);   // điểm 8 = đầu ngón trỏ
+            engine.setBlade(h.side, p.x, p.y, true);
+            seen[h.side] = true;
+            const tr = trails[h.side]; tr.push({ x: p.x, y: p.y, t: performance.now() }); if (tr.length > 14) tr.shift();
+        }
+        for (const s of ['L', 'R']) if (!seen[s]) engine.setBlade(s, 0, 0, false);
+        bladesLive = seen.L || seen.R;
+    }
+
+    // ---------- socket ----------
+    const socket = io({ transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+    socket.on('connect', () => {
+        $('ctc-dot').classList.add('on');
+        socket.emit('subscribe', isReview ? 'preview' : 'overlay');
+        fetch('/api/games/chemtraicay/config').then(r => r.json()).then(applyConfig).catch(() => {});
+    });
+    socket.on('disconnect', () => $('ctc-dot').classList.remove('on'));
+    socket.on('gameConfig', ({ gameId, config }) => { if (gameId === 'chemtraicay') applyConfig(config); });
+    socket.on('gameCmd', ({ gameId, cmd }) => {
+        if (gameId !== 'chemtraicay') return;
+        if (cmd === 'start') engine.start(); else if (cmd === 'stop') engine.stop(); else if (cmd === 'reset') engine.reset();
+    });
+    socket.on('gameDisabled', ({ gameId }) => { if (gameId === 'chemtraicay') document.body.classList.add('ctc-stopped'); });
+    socket.on('gameEnabled', ({ gameId }) => { if (gameId === 'chemtraicay') document.body.classList.remove('ctc-stopped'); });
+    socket.on('overlay:reload', (d) => { if (!d || !d.gameId || d.gameId === 'chemtraicay') location.reload(); });
+    socket.on('chemtraicay:hand', applyHands);
+    socket.on('chemtraicay:trackerStatus', ({ activeId }) => {
+        $('ctc-trk').textContent = activeId ? '' : 'chưa có tracker';
+        if (!activeId || activeId !== lastTrackerId) { clearBlades(); lastTrackerId = activeId || null; }
+    });
+    socket.on('chemtraicay:gift', (g) => {
+        if (!g || !Game.ACTIONS.includes(g.action)) return;
+        engine.enqueue(g.action, g.qty);
+        if (cfg.showNotices !== false) notice(g);
+    });
+
+    function applyConfig(c) {
+        if (!c || typeof c !== 'object') return;
+        cfg = Object.assign(Game.defaultConfig(), c);
+        engine.setConfig(cfg);
+        if (cfg.enabled === false) document.body.classList.add('ctc-stopped'); else document.body.classList.remove('ctc-stopped');
+        $('ctc-score-box').classList.toggle('hidden', cfg.showScore === false);
+        $('ctc-danger-line').classList.toggle('hidden', cfg.showDanger === false);
+        $('ctc-danger-val').textContent = Math.round(Number(cfg.danger) || 50);
+        $('ctc-pile-mark').style.left = Math.min(100, Number(cfg.danger) || 50) + '%';
+        $('ctc-danger-line').style.top = (100 - Math.min(100, Number(cfg.danger) || 50) * 0.5) + '%';
+        $('ctc-hold-hint').textContent = `Giữ ngón trỏ trên nút trong ${String(Number(cfg.holdSeconds) || 0.85).replace('.', ',')} giây. Cũng có thể nhấn giữ bằng chuột.`;
+        if (isEdit) layoutCamRect();
+    }
+
+    // ---------- thông báo quà ----------
+    function notice(g) {
+        const box = $('ctc-notices');
+        const el = document.createElement('div');
+        el.className = 'ctc-notice';
+        const img = g.profilePicture || g.image;
+        el.innerHTML = (img ? `<img src="${String(img).replace(/"/g, '')}" alt="">` : '') +
+            `<span>${escapeHtml(g.nickname || 'Khán giả')} → <b>${g.qty} ${escapeHtml(Game.ACTION_LABELS[g.action] || g.action)}</b></span>`;
+        box.appendChild(el);
+        while (box.children.length > 4) box.removeChild(box.firstChild);
+        setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .4s'; setTimeout(() => el.remove(), 420); }, 3500);
+    }
+    function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+    // ---------- âm thanh tổng hợp (WebAudio) ----------
+    let actx = null;
+    function audio() { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; } } if (actx && actx.state === 'suspended') actx.resume().catch(() => {}); return actx; }
+    function vol() { return Math.max(0, Math.min(1, Number(cfg.volume))); }
+    function tone(freq, dur, type, gain, slideTo) {
+        const a = audio(); if (!a || vol() <= 0) return;
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = type || 'sine'; o.frequency.setValueAtTime(freq, a.currentTime);
+        if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, a.currentTime + dur);
+        g.gain.setValueAtTime((gain || 0.2) * vol(), a.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+        o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + dur + 0.02);
+    }
+    function noise(dur, gain, lowpass) {
+        const a = audio(); if (!a || vol() <= 0) return;
+        const len = Math.floor(a.sampleRate * dur), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+        const src = a.createBufferSource(); src.buffer = buf;
+        const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lowpass || 1200;
+        const g = a.createGain(); g.gain.value = (gain || 0.3) * vol();
+        src.connect(f).connect(g).connect(a.destination); src.start();
+    }
+    const SFX = {
+        slice() { noise(0.09, 0.25, 4000); tone(900, 0.08, 'triangle', 0.08, 300); },
+        swish() { noise(0.12, 0.08, 2500); },
+        explode() { noise(0.45, 0.6, 500); tone(80, 0.4, 'sawtooth', 0.25, 30); },
+        land() { tone(120, 0.12, 'sine', 0.15, 60); },
+        buff() { tone(520, 0.12, 'square', 0.08); setTimeout(() => tone(780, 0.16, 'square', 0.08), 110); },
+        rescue() { tone(440, 0.12, 'triangle', 0.1); setTimeout(() => tone(660, 0.12, 'triangle', 0.1), 100); setTimeout(() => tone(880, 0.2, 'triangle', 0.1), 200); },
+        start() { tone(330, 0.1, 'triangle', 0.1); setTimeout(() => tone(660, 0.18, 'triangle', 0.12), 120); },
+        end() { tone(392, 0.25, 'sawtooth', 0.12); setTimeout(() => tone(330, 0.25, 'sawtooth', 0.12), 250); setTimeout(() => tone(262, 0.5, 'sawtooth', 0.12), 500); },
+        combo() { tone(1046, 0.08, 'square', 0.06); }
+    };
+    window.ctcTestAudio = () => { SFX.slice(); setTimeout(SFX.buff, 200); setTimeout(SFX.explode, 500); };
+
+    // ---------- vẽ ----------
+    const PALETTE = {
+        apple: { body: '#e5323a', dark: '#b01e28', inner: '#fff3c4', seed: '#3b2a1a' },
+        orange: { body: '#ff9a1f', dark: '#d97706', inner: '#ffd27a', seed: '#fff' },
+        lemon: { body: '#f7d92e', dark: '#d4b31a', inner: '#fff7b0', seed: '#f1e48c' },
+        pear: { body: '#b9d14a', dark: '#8fa72c', inner: '#f6f3c8', seed: '#3b2a1a' },
+        peach: { body: '#ffb08a', dark: '#f08a5a', inner: '#ffe0b0', seed: '#8a4a2a' },
+        strawberry: { body: '#e8304a', dark: '#b5213a', inner: '#ffd5dc', seed: '#f6e27a' },
+        plum: { body: '#6a3fa0', dark: '#4b2a78', inner: '#e8c9ff', seed: '#3b2a1a' },
+        watermelon: { body: '#2f9e44', dark: '#1e6b2e', inner: '#ff4d6d', seed: '#1a1a1a' },
+        pineapple: { body: '#e9b42b', dark: '#b8891a', inner: '#fff1a8', seed: '#d9b35a' },
+        kiwi: { body: '#8a6a3a', dark: '#5e4524', inner: '#9bd45e', seed: '#1a1a1a' }
+    };
+    function quality() { const q = cfg.quality; return q === 'low' ? 0 : q === 'high' ? 2 : 1; }
+
+    function drawObject(o) {
+        ctx.save();
+        ctx.translate(o.x, o.y);
+        ctx.rotate(o.rot);
+        if (o.kind === 'bomb') { drawBomb(o); ctx.restore(); return; }
+        const pal = PALETTE[o.kind] || PALETTE.apple;
+        if (o.depth > 0) {
+            // mảnh: cắt nửa theo cutAngle (trong hệ toạ độ địa phương bỏ qua rot để đơn giản)
+            ctx.rotate(-o.rot + (o.cutAngle || 0));
+            ctx.beginPath(); ctx.rect(-o.r * 2, o.half > 0 ? 0 : -o.r * 2, o.r * 4, o.r * 2); ctx.clip();
+        }
+        if (quality() > 0) { ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 6; }
+        drawFruitBody(o, pal);
+        ctx.shadowColor = 'transparent';
+        if (o.depth > 0) {
+            // mặt cắt
+            ctx.beginPath(); ctx.ellipse(0, 0, o.r, o.r * 0.22, 0, 0, Math.PI * 2);
+            ctx.fillStyle = pal.inner; ctx.fill();
+            ctx.fillStyle = pal.seed;
+            for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.ellipse(i * o.r * 0.3, 0, o.r * 0.06, o.r * 0.1, 0, 0, Math.PI * 2); ctx.fill(); }
+        }
+        if (o.golden) { ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, o.r + 4, 0, Math.PI * 2); ctx.stroke(); }
+        ctx.restore();
+    }
+
+    function drawFruitBody(o, pal) {
+        const r = o.r;
+        const g = ctx.createRadialGradient(-r * 0.35, -r * 0.35, r * 0.1, 0, 0, r);
+        g.addColorStop(0, lighten(pal.body)); g.addColorStop(0.7, pal.body); g.addColorStop(1, pal.dark);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        switch (o.kind) {
+            case 'lemon': ctx.ellipse(0, 0, r * 1.15, r * 0.8, 0, 0, Math.PI * 2); break;
+            case 'pear': ctx.arc(0, r * 0.25, r * 0.95, 0, Math.PI * 2); ctx.arc(0, -r * 0.45, r * 0.6, 0, Math.PI * 2); break;
+            case 'strawberry': ctx.moveTo(0, r * 1.1); ctx.quadraticCurveTo(r * 1.2, r * 0.1, 0, -r * 0.9); ctx.quadraticCurveTo(-r * 1.2, r * 0.1, 0, r * 1.1); break;
+            case 'pineapple': ctx.ellipse(0, r * 0.15, r * 0.8, r * 1.0, 0, 0, Math.PI * 2); break;
+            case 'kiwi': ctx.ellipse(0, 0, r * 1.05, r * 0.85, 0, 0, Math.PI * 2); break;
+            default: ctx.arc(0, 0, r, 0, Math.PI * 2);
+        }
+        ctx.fill();
+        // hoạ tiết
+        ctx.lineWidth = Math.max(2, r * 0.07);
+        if (o.kind === 'watermelon') {
+            ctx.strokeStyle = pal.dark;
+            for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * r * 0.35, -r * 0.95); ctx.quadraticCurveTo(i * r * 0.55, 0, i * r * 0.35, r * 0.95); ctx.stroke(); }
+        } else if (o.kind === 'pineapple') {
+            ctx.strokeStyle = pal.dark;
+            for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.moveTo(-r, i * r * 0.3 - r * 0.6); ctx.lineTo(r, i * r * 0.3 + r * 0.6); ctx.stroke(); ctx.beginPath(); ctx.moveTo(r, i * r * 0.3 - r * 0.6); ctx.lineTo(-r, i * r * 0.3 + r * 0.6); ctx.stroke(); }
+            ctx.fillStyle = '#2f9e44';
+            for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * r * 0.18, -r * 0.8); ctx.lineTo(i * r * 0.35, -r * 1.5); ctx.lineTo(i * r * 0.18 + r * 0.14, -r * 0.8); ctx.fill(); }
+        } else if (o.kind === 'strawberry') {
+            ctx.fillStyle = pal.seed;
+            for (let i = 0; i < 9; i++) { const a = i * 0.7, rr = r * 0.5; ctx.beginPath(); ctx.ellipse(Math.cos(a) * rr, Math.sin(a) * rr * 1.2, r * 0.05, r * 0.08, 0, 0, Math.PI * 2); ctx.fill(); }
+            ctx.fillStyle = '#3fae4a';
+            for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(0, -r * 0.8); ctx.lineTo(i * r * 0.3, -r * 1.25); ctx.lineTo(i * r * 0.3 + r * 0.16, -r * 0.85); ctx.fill(); }
+        } else if (o.kind === 'orange') {
+            ctx.fillStyle = 'rgba(255,255,255,.18)';
+            for (let i = 0; i < 12; i++) { const a = i * 0.52, rr = r * (0.3 + (i % 3) * 0.2); ctx.beginPath(); ctx.arc(Math.cos(a) * rr, Math.sin(a) * rr, r * 0.05, 0, Math.PI * 2); ctx.fill(); }
+        } else if (o.kind === 'kiwi') {
+            ctx.strokeStyle = 'rgba(255,255,255,.18)';
+            for (let i = 0; i < 20; i++) { const a = i * 0.31; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.9, Math.sin(a) * r * 0.75); ctx.lineTo(Math.cos(a) * r * 1.08, Math.sin(a) * r * 0.9); ctx.stroke(); }
+        } else if (o.kind === 'peach') {
+            ctx.strokeStyle = 'rgba(200,90,60,.5)'; ctx.beginPath(); ctx.moveTo(0, -r); ctx.quadraticCurveTo(r * 0.25, 0, 0, r); ctx.stroke();
+        }
+        if (o.depth === 0 && (o.kind === 'apple' || o.kind === 'pear' || o.kind === 'plum' || o.kind === 'peach' || o.kind === 'orange')) {
+            ctx.strokeStyle = '#5a3a1a'; ctx.lineWidth = Math.max(3, r * 0.08); ctx.beginPath(); ctx.moveTo(0, -r * 0.9); ctx.lineTo(r * 0.1, -r * 1.25); ctx.stroke();
+            ctx.fillStyle = '#3fae4a'; ctx.beginPath(); ctx.ellipse(r * 0.3, -r * 1.1, r * 0.28, r * 0.13, 0.6, 0, Math.PI * 2); ctx.fill();
+        }
+        // bóng sáng
+        ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.beginPath(); ctx.ellipse(-r * 0.38, -r * 0.42, r * 0.22, r * 0.13, -0.6, 0, Math.PI * 2); ctx.fill();
+    }
+
+    function drawBomb(o) {
+        const r = o.r;
+        if (o.golden) {
+            const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
+            g.addColorStop(0, '#fff3b0'); g.addColorStop(0.6, '#ffd23f'); g.addColorStop(1, '#b8891a');
+            ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 24; ctx.fillStyle = g;
+        } else {
+            const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
+            g.addColorStop(0, '#5a5a66'); g.addColorStop(0.6, '#23232b'); g.addColorStop(1, '#0a0a0e');
+            ctx.fillStyle = g;
+        }
+        if (o.depth > 0) { ctx.rotate(-o.rot + (o.cutAngle || 0)); ctx.beginPath(); ctx.rect(-r * 2, o.half > 0 ? 0 : -r * 2, r * 4, r * 2); ctx.clip(); }
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowColor = 'transparent';
+        // ngòi + tia lửa
+        ctx.strokeStyle = '#c9c9c9'; ctx.lineWidth = Math.max(3, r * 0.08); ctx.beginPath(); ctx.moveTo(0, -r * 0.9); ctx.quadraticCurveTo(r * 0.3, -r * 1.3, r * 0.55, -r * 1.25); ctx.stroke();
+        ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(r * 0.58, -r * 1.27, r * 0.14 + Math.random() * r * 0.06, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.beginPath(); ctx.ellipse(-r * 0.35, -r * 0.4, r * 0.2, r * 0.12, -0.6, 0, Math.PI * 2); ctx.fill();
+        if (!o.golden) { ctx.fillStyle = '#ff5a5a'; ctx.font = `900 ${Math.round(r * 0.6)}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('BOM', 0, r * 0.1); }
+    }
+
+    function lighten(hex) {
+        const n = parseInt(hex.slice(1), 16); const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+        return `rgb(${Math.min(255, r + 70)},${Math.min(255, g + 70)},${Math.min(255, b + 70)})`;
+    }
+
+    function drawTrails(now) {
+        for (const s of ['L', 'R']) {
+            const tr = trails[s].filter(p => now - p.t < 220);
+            trails[s] = tr;
+            if (tr.length < 2) continue;
+            ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            for (let i = 1; i < tr.length; i++) {
+                const a = i / tr.length;
+                ctx.strokeStyle = s === 'L' ? `rgba(140,220,255,${a})` : `rgba(255,255,255,${a})`;
+                ctx.lineWidth = 4 + a * 14;
+                ctx.beginPath(); ctx.moveTo(tr[i - 1].x, tr[i - 1].y); ctx.lineTo(tr[i].x, tr[i].y); ctx.stroke();
+            }
+            ctx.restore();
+        }
+        const snap = engine.snapshot;
+        void snap;
+    }
+
+    function drawBlades(bl) {
+        for (const s of ['L', 'R']) {
+            const b = bl[s]; if (!b.present) continue;
+            ctx.save();
+            ctx.strokeStyle = s === 'L' ? '#8cdcff' : '#ffffff'; ctx.lineWidth = 3;
+            ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 14;
+            ctx.beginPath(); ctx.arc(b.x, b.y, Math.max(8, Number(cfg.cutRadius) || 15), 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    function spawnParticles(x, y, color, n) {
+        for (let i = 0; i < n; i++) {
+            const a = Math.random() * Math.PI * 2, sp = 200 + Math.random() * 500;
+            particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 200, life: 0.6 + Math.random() * 0.4, r: 4 + Math.random() * 8, color });
+        }
+    }
+    function stepParticles(dt) {
+        for (const p of particles) { p.vy += 1800 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
+        particles = particles.filter(p => p.life > 0);
+        for (const p of particles) { ctx.globalAlpha = Math.max(0, Math.min(1, p.life)); ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
+        ctx.globalAlpha = 1;
+    }
+
+    // ---------- sự kiện engine → hiệu ứng ----------
+    function handleEvents(evs) {
+        const q = quality();
+        for (const e of evs) {
+            switch (e.type) {
+                case 'cut': SFX.slice(); if (q) spawnParticles(e.x, e.y, (PALETTE[e.kind] || PALETTE.apple).inner, q * 8); if (e.combo >= 2) { showCombo(e.combo); if (e.combo % 3 === 0) SFX.combo(); } break;
+                case 'bomb': SFX.explode(); flash = 1; shake = 1; if (q) spawnParticles(e.x, e.y, '#ffb347', q * 14); break;
+                case 'blast': if (q) spawnParticles(e.x, e.y, '#888', 4); break;
+                case 'land': SFX.land(); break;
+                case 'buff': SFX.buff(); break;
+                case 'rescue': SFX.rescue(); break;
+                case 'start': SFX.start(); $('ctc-end').style.display = 'none'; emitEvent('start'); break;
+                case 'end': SFX.end(); $('ctc-end-score').textContent = e.score; $('ctc-end').style.display = 'block'; endTimer = 4; emitEvent('end'); break;
+            }
+        }
+    }
+    // Chỉ overlay thật trong OBS (không phải tab xem thử) và khi game đang bật mới báo server đổi Scene.
+    function emitEvent(type) { if (!isReview && !isEdit && cfg.enabled !== false) socket.emit('chemtraicay:event', { type }); }
+    function showCombo(n) { const el = $('ctc-combo'); el.textContent = `COMBO ×${n}`; el.classList.add('show'); comboTimer = 0.9; }
+
+    // ---------- HUD ----------
+    let lastHud = '';
+    function updateHud(s) {
+        const key = `${s.score}|${s.pile}|${Math.ceil(s.buffs.god / 1000)}|${Math.ceil(s.buffs.fast / 1000)}|${Math.ceil(s.buffs.slow / 1000)}|${s.playing}|${s.hold.progress.toFixed(2)}`;
+        if (key === lastHud) return; lastHud = key;
+        $('ctc-score').textContent = s.score;
+        $('ctc-pile').textContent = Math.round(s.pile);
+        $('ctc-pile-fill').style.width = Math.min(100, s.pile) + '%';
+        const bf = [];
+        if (s.buffs.god > 0) bf.push(`<span class="ctc-buff god">⚡ Thần Chém ${Math.ceil(s.buffs.god / 1000)}s</span>`);
+        if (s.buffs.fast > 0) bf.push(`<span class="ctc-buff fast">🔥 Tăng Tốc ${Math.ceil(s.buffs.fast / 1000)}s</span>`);
+        if (s.buffs.slow > 0) bf.push(`<span class="ctc-buff slow">❄ Giảm Tốc ${Math.ceil(s.buffs.slow / 1000)}s</span>`);
+        $('ctc-buffs').innerHTML = bf.join('');
+        $('ctc-start').style.display = s.playing || endTimer > 0 ? 'none' : 'block';
+        $('ctc-hold-ring').style.strokeDashoffset = String(740 * (1 - s.hold.progress));
+    }
+
+    function updateHoldTarget() {
+        const el = $('ctc-hold'); const r = el.getBoundingClientRect();
+        const c = toStage(r.left + r.width / 2, r.top + r.height / 2);
+        const rad = r.width / 2 / (canvas.getBoundingClientRect().width / W);
+        engine.holdTarget(c.x, c.y, rad);
+    }
+
+    // ---------- vòng chính ----------
+    let stateAcc = 0;
+    function loop(now) {
+        requestAnimationFrame(loop);
+        const rawDt = (now - lastT) / 1000; lastT = now;
+        let dt = rawDt;
+        if (dt > 0.05) dt = 0.05;
+        // Khung bị ngắt lâu (OBS tiết kiệm CPU) hoặc tracker im lặng → coi tay vắng, tránh đoạn thẳng ma khi quay lại.
+        if (bladesLive && (rawDt > 0.25 || now - lastHandAt > 300)) clearBlades();
+        if (!isEdit) engine.step(dt * 1000);
+        const s = engine.snapshot();
+        handleEvents(s.events);
+        if (!s.playing && endTimer <= 0) updateHoldTarget();
+        if (endTimer > 0) { endTimer -= dt; if (endTimer <= 0) $('ctc-end').style.display = 'none'; }
+        if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) $('ctc-combo').classList.remove('show'); }
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, W, H);
+        if (shake > 0) { ctx.translate((Math.random() - 0.5) * 24 * shake, (Math.random() - 0.5) * 24 * shake); shake = Math.max(0, shake - dt * 3); }
+        for (const o of s.objects) drawObject(o);
+        stepParticles(dt);
+        drawTrails(now);
+        drawBlades(s.blades);
+        if (flash > 0) { ctx.fillStyle = `rgba(255,60,60,${flash * 0.35})`; ctx.fillRect(-50, -50, W + 100, H + 100); flash = Math.max(0, flash - dt * 2.5); }
+        updateHud(s);
+
+        frames++; if (now - fpsAt >= 1000) { fps = frames; frames = 0; fpsAt = now; }
+        stateAcc += dt;
+        if (stateAcc >= 0.5) { stateAcc = 0; socket.emit('chemtraicay:state', { score: s.score, pile: s.pile, playing: s.playing, fps, buffs: s.buffs }); }
+    }
+    requestAnimationFrame(loop);
+
+    // ---------- chuột: giữ nút bắt đầu; ở review/mouse=1 chuột là dao phải (để thử không cần tracker) ----------
+    let mouseDown = false;
+    const mouseSide = mouseCuts ? 'R' : 'M';
+    window.addEventListener('pointerdown', (e) => { if (isEdit && e.target.closest('.ctc-cam')) return; mouseDown = true; const p = toStage(e.clientX, e.clientY); engine.setBlade(mouseSide, p.x, p.y, true); if (mouseCuts) trails.R.push({ x: p.x, y: p.y, t: performance.now() }); audio(); });
+    window.addEventListener('pointermove', (e) => { if (!mouseDown) return; const p = toStage(e.clientX, e.clientY); engine.setBlade(mouseSide, p.x, p.y, true); if (mouseCuts) { trails.R.push({ x: p.x, y: p.y, t: performance.now() }); if (trails.R.length > 14) trails.R.shift(); } });
+    window.addEventListener('pointerup', () => { mouseDown = false; engine.setBlade(mouseSide, 0, 0, false); });
+
+    // ---------- EDIT MODE: khung Vùng camera ----------
+    const camEl = $('ctc-cam');
+    let editRect = null; // px trong hệ 1080×1920
+    function layoutCamRect() {
+        if (!isEdit) return;
+        const r = resolveCamRect();
+        editRect = editRect || { x: r.x, y: r.y, w: r.w, h: r.h };
+        const mode = cfg.videoSource && cfg.videoSource.mode || 'obs-scene';
+        $('ctc-edit-bar').innerHTML = mode === 'obs-scene'
+            ? 'Nguồn hình là <b>Scene OBS</b> nên tọa độ tay khớp 1:1 với overlay, không cần chỉnh khung. Đổi nguồn ở tab Camera nếu muốn dùng Source/Webcam.'
+            : 'Kéo khung <b>📷 Vùng camera</b> trùng đúng vị trí & cỡ của hình camera (khung đầy đủ, chưa crop) trong OBS. Thả chuột là lưu.';
+        renderCamRect();
+    }
+    function renderCamRect() {
+        if (!editRect) return;
+        camEl.style.left = (editRect.x / W * 100) + '%'; camEl.style.top = (editRect.y / H * 100) + '%';
+        camEl.style.width = (editRect.w / W * 100) + '%'; camEl.style.height = (editRect.h / H * 100) + '%';
+    }
+    function saveCamRect() {
+        const camRect = { xPercent: +(editRect.x / W * 100).toFixed(2), yPercent: +(editRect.y / H * 100).toFixed(2), widthPercent: +(editRect.w / W * 100).toFixed(2), heightPercent: +(editRect.h / H * 100).toFixed(2) };
+        cfg.camRect = camRect;
+        fetch('/api/games/chemtraicay/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...cfg, camRect }) }).catch(() => {});
+    }
+    if (isEdit) {
+        document.body.classList.add('ctc-edit');
+        let drag = null;
+        camEl.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            const p = toStage(e.clientX, e.clientY);
+            drag = { h: e.target.dataset.h || 'move', sx: p.x, sy: p.y, r: { ...editRect } };
+            camEl.setPointerCapture(e.pointerId);
+        });
+        camEl.addEventListener('pointermove', (e) => {
+            if (!drag) return;
+            const p = toStage(e.clientX, e.clientY); const dx = p.x - drag.sx, dy = p.y - drag.sy; const r = drag.r;
+            if (drag.h === 'move') editRect = { x: r.x + dx, y: r.y + dy, w: r.w, h: r.h };
+            else {
+                let x = r.x, y = r.y, w = r.w, h = r.h;
+                if (drag.h.includes('l')) { x = r.x + dx; w = r.w - dx; } if (drag.h.includes('r')) w = r.w + dx;
+                if (drag.h.includes('t')) { y = r.y + dy; h = r.h - dy; } if (drag.h.includes('b')) h = r.h + dy;
+                if (w > 80 && h > 80) editRect = { x, y, w, h };
+            }
+            renderCamRect();
+        });
+        camEl.addEventListener('pointerup', () => { if (drag) { drag = null; saveCamRect(); } });
+        window.addEventListener('keydown', (e) => { if (e.key === 'r' && editRect) { editRect = null; cfg.camRect = null; layoutCamRect(); saveCamRect(); } });
+    }
+})();
+</script>
+</body>
+</html>

@@ -372,9 +372,9 @@ const GAMES = {
         overlayPath: '/_prototype/timer.html?mode=overlay',
         defaultConfig: { enabled: true }
     },
-    // TOUCH & PLAY (prototype): game webcam — overlay tự mở camera + MediaPipe (public/lib/mediapipe),
-    // chạm bóng / gắp đồ ăn đưa lên miệng / làm theo tư thế. Toàn bộ logic ở client; server chỉ
-    // cho mượn route chung: /config (lưu tpCfg), /cmd (nút thử → gameCmd), /test-gift.
+    // TOUCH & PLAY (prototype): game webcam — overlay nhận hình nguồn camera trong scene OBS
+    // (lib/touchplay-obs-feed.js) + MediaPipe (public/lib/mediapipe), chạm bóng / gắp đồ ăn đưa lên
+    // miệng / làm theo tư thế. Logic ở client; server cho mượn route chung /config, /cmd, /test-gift.
     'touchplay': {
         id: 'touchplay',
         name: 'Touch & Play',
@@ -382,8 +382,38 @@ const GAMES = {
         icon: '🖐',
         overlayPath: '/_prototype/touchplay.html?mode=overlay',
         defaultConfig: { enabled: true }
+    },
+    // CHÉM TRÁI CÂY — ngón trỏ nhận diện qua hình lấy từ Scene/Source OBS (hoặc webcam) chém quả bay
+    // trên overlay trong suốt. Engine ở public/games/chemtraicay/game.js, tracker ở tracker.html.
+    chemtraicay: {
+        id: 'chemtraicay',
+        name: 'Chém Trái Cây',
+        description: 'Ngón trỏ qua webcam chém trái cây bay trên overlay. Quà tặng sinh quả, bom, Thần Chém, Tăng/Giảm Tốc, Giải Cứu.',
+        icon: '🍉',
+        overlayPath: '/overlay/chemtraicay',
+        defaultConfig: makeDefaultChemTraiCayConfig()
     }
 };
+
+// Đồng bộ với HpGame.chemtraicay.defaultConfig() (public/games/chemtraicay/game.js)
+function makeDefaultChemTraiCayConfig() {
+    return {
+        enabled: true,
+        showNotices: true, showScore: true, showDanger: true, volume: 0.5, quality: 'auto',
+        cutRadius: 15, baseSpeed: 0.65, objectScale: 1.5, peak: 72, points: 10, bombPenalty: 50, blast: 24,
+        danger: 50, cuts: 2, pileStep: 5, godSeconds: 10, fastFactor: 1.7, fastSeconds: 10,
+        slowFactor: 0.55, slowSeconds: 10, rescuePercent: 100, holdSeconds: 0.85,
+        spawnPerSecond: 3, maxPerGift: 30, idleSpawnSeconds: 0,
+        camRect: null,
+        videoSource: { mode: 'obs-source', scene: '', source: '', fps: 15, width: 640 },
+        mirror: true,
+        giftRules: [],
+        obsScene: { enabled: false, playScene: '', backScene: '' },
+        display: { scale: 100, xPercent: 50, yPercent: 50 }
+    };
+}
+const CHEMTRAICAY_ACTIONS = ['apple', 'orange', 'lemon', 'pear', 'peach', 'strawberry', 'plum', 'watermelon',
+    'pineapple', 'kiwi', 'bomb', 'god', 'fast', 'slow', 'rescue'];
 
 // 13 events default — đồng bộ với HpGame.pktiktok.defaultConfig() trong client engine.
 function makeDefaultPkTiktokConfig() {
@@ -1515,6 +1545,14 @@ if (appConfig.games.vipwelcome) {
 }
 // Backfill bancung defaults — khi thêm key mới (display + top-level freeFire*) vào defaultConfig,
 // config cũ đã save không có → merge default vào cho user. Saved values take priority.
+if (appConfig.games.chemtraicay) {
+    const def = makeDefaultChemTraiCayConfig();
+    for (const k of Object.keys(def)) {
+        if (!(k in appConfig.games.chemtraicay)) appConfig.games.chemtraicay[k] = def[k];
+    }
+    appConfig.games.chemtraicay.videoSource = { ...def.videoSource, ...(appConfig.games.chemtraicay.videoSource || {}) };
+    appConfig.games.chemtraicay.obsScene = { ...def.obsScene, ...(appConfig.games.chemtraicay.obsScene || {}) };
+}
 if (appConfig.games.bancung) {
     const def = makeDefaultBanCungConfig();
     appConfig.games.bancung.display = { ...def.display, ...(appConfig.games.bancung.display || {}) };
@@ -3844,6 +3882,18 @@ function emitGift(g) {
             giftImage: enriched.image,
             coinValue: enriched.coinValue || 0,
             repeatCount: g.repeatCount || 1
+        });
+    } catch (e) { /* non-fatal */ }
+    // Chém Trái Cây — quà → quả / bom / buff theo giftRules
+    try {
+        handleChemTraiCayGift({
+            nickname: g.nickname,
+            profilePicture: g.profilePicture || '',
+            giftId: g.giftId,
+            giftName: enriched.giftName || g.giftName,
+            giftImage: enriched.image,
+            repeatCount: g.repeatCount || 1,
+            source: g.source || 'tiktok'
         });
     } catch (e) { /* non-fatal */ }
     // Trồng Cây — quà mọc hoa / bướm avatar / tưới nước / nắng / cắt cây
@@ -8032,6 +8082,154 @@ app.get('/overlay/bancung', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'bancung', 'overlay.html'));
 });
 
+// ===================== CHÉM TRÁI CÂY =====================
+const { createRelay: createChemRelay, sceneItemToCamRect } = require('./lib/chemtraicay-relay');
+const chemRelay = createChemRelay();
+let chemTraiCayStateCache = null;
+
+app.get('/overlay/chemtraicay', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'chemtraicay', 'overlay.html'));
+});
+app.get('/tracker/chemtraicay', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'chemtraicay', 'tracker.html'));
+});
+
+function chemTraiCayCfg() { return appConfig.games.chemtraicay || makeDefaultChemTraiCayConfig(); }
+
+function emitChemTraiCayGift(payload) {
+    io.to('overlay').emit('chemtraicay:gift', payload);
+    io.to('preview').emit('chemtraicay:gift', payload);
+}
+
+function handleChemTraiCayGift({ nickname, profilePicture, giftId, giftName, giftImage, repeatCount, source }) {
+    const cfg = chemTraiCayCfg();
+    if (cfg.enabled === false) return;
+    const rules = Array.isArray(cfg.giftRules) ? cfg.giftRules : [];
+    const gid = String(giftId);
+    const rule = rules.find(r => r && r.enabled !== false && String(r.giftId) === gid && CHEMTRAICAY_ACTIONS.includes(r.action));
+    if (!rule) return;
+    const maxPerGift = Math.max(1, Number(cfg.maxPerGift) || 30);
+    const count = Math.max(1, Math.floor(Number(rule.count) || 1));
+    const qty = Math.min(maxPerGift, count * Math.max(1, Number(repeatCount) || 1));
+    emitChemTraiCayGift({
+        action: rule.action, qty, nickname: nickname || '', profilePicture: profilePicture || '',
+        giftName: giftName || rule.giftName || '', image: giftImage || rule.giftImage || '',
+        source: source || 'tiktok', ts: Date.now()
+    });
+}
+
+app.post('/api/chemtraicay/control', (req, res) => {
+    const cmd = String(req.body?.cmd || '');
+    if (!['start', 'stop', 'reset'].includes(cmd)) return res.status(400).json({ error: 'cmd không hợp lệ' });
+    io.emit('gameCmd', { gameId: 'chemtraicay', cmd, payload: {}, seq: Date.now() });
+    res.json({ ok: true });
+});
+
+app.post('/api/chemtraicay/test', (req, res) => {
+    const action = String(req.body?.action || '');
+    if (!CHEMTRAICAY_ACTIONS.includes(action)) return res.status(400).json({ error: 'action không hợp lệ' });
+    const maxPerGift = Math.max(1, Number(chemTraiCayCfg().maxPerGift) || 30);
+    const qty = Math.min(maxPerGift, Math.max(1, Math.floor(Number(req.body?.qty) || 1)));
+    emitChemTraiCayGift({ action, qty, nickname: 'Thử nghiệm', profilePicture: '', giftName: 'Gửi thử', image: '', source: 'test', ts: Date.now() });
+    res.json({ ok: true, action, qty });
+});
+
+app.get('/api/chemtraicay/state', (req, res) => {
+    res.json({ state: chemTraiCayStateCache, activeTrackerId: chemRelay.activeId() });
+});
+
+// Khung hình từ OBS (GetSourceScreenshot) — tracker tự điều nhịp bằng cách gọi lặp.
+// Chỉ máy chạy app (loopback) hoặc client có token LAN mới được kéo hình/transform từ OBS —
+// tránh máy khác trong LAN chụp bất kỳ source nào (vd Display Capture) qua endpoint này.
+function chemTraiCayObsGuard(req, res) {
+    if (!requestIsTrusted(req)) { res.status(403).json({ error: 'forbidden' }); return false; }
+    if (!obsBridge.isConnected()) { res.status(503).json({ error: 'OBS chưa kết nối' }); return false; }
+    return true;
+}
+const chemFrameInFlight = new Map(); // key → Promise: nhiều client cùng lúc chỉ tốn 1 GetSourceScreenshot
+
+app.get('/api/chemtraicay/obs-frame', async (req, res) => {
+    const sourceName = String(req.query.source || '').slice(0, 200);
+    if (!sourceName) return res.status(400).json({ error: 'thiếu source' });
+    if (!chemTraiCayObsGuard(req, res)) return;
+    const w = Math.max(160, Math.min(1280, Math.round(Number(req.query.w) || 640)));
+    try {
+        const key = sourceName + '|' + w;
+        let pending = chemFrameInFlight.get(key);
+        if (!pending) {
+            pending = obsBridge.obs.call('GetSourceScreenshot', { sourceName, imageFormat: 'jpg', imageWidth: w, imageCompressionQuality: 60 })
+                .finally(() => chemFrameInFlight.delete(key));
+            chemFrameInFlight.set(key, pending);
+        }
+        const r = await pending;
+        const data = String(r?.imageData || '');
+        const comma = data.indexOf(',');
+        if (comma < 0) return res.status(502).json({ error: 'OBS không trả ảnh' });
+        const buf = Buffer.from(data.slice(comma + 1), 'base64');
+        res.set('Content-Type', 'image/jpeg');
+        res.set('Cache-Control', 'no-store');
+        res.send(buf);
+    } catch (e) {
+        res.status(502).json({ error: String(e?.message || e) });
+    }
+});
+
+// Danh sách scene (obs-websocket GetSceneList) — độc lập với các helper khác của obs-bridge
+app.get('/api/chemtraicay/obs-scenes', async (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ error: 'forbidden', scenes: [] });
+    if (!obsBridge.isConnected()) return res.status(503).json({ error: 'OBS chưa kết nối', scenes: [] });
+    try {
+        const r = await obsBridge.obs.call('GetSceneList');
+        const scenes = (r?.scenes || []).map(sc => sc.sceneName).filter(Boolean).reverse();
+        res.json({ scenes, current: r?.currentProgramSceneName || '' });
+    } catch (e) {
+        res.status(502).json({ error: String(e?.message || e), scenes: [] });
+    }
+});
+
+app.get('/api/chemtraicay/obs-sources', async (req, res) => {
+    const sceneName = String(req.query.scene || '').slice(0, 200);
+    if (!sceneName) return res.status(400).json({ error: 'thiếu scene' });
+    if (!chemTraiCayObsGuard(req, res)) return;
+    try {
+        const r = await obsBridge.obs.call('GetSceneItemList', { sceneName });
+        const items = (r?.sceneItems || []).map(it => ({ name: it.sourceName, kind: it.inputKind || it.sourceType || '', sceneItemId: it.sceneItemId }));
+        res.json({ items });
+    } catch (e) {
+        res.status(502).json({ error: String(e?.message || e) });
+    }
+});
+
+app.get('/api/chemtraicay/obs-transform', async (req, res) => {
+    const sceneName = String(req.query.scene || '').slice(0, 200);
+    const sourceName = String(req.query.source || '').slice(0, 200);
+    if (!sceneName || !sourceName) return res.status(400).json({ error: 'thiếu scene/source' });
+    if (!chemTraiCayObsGuard(req, res)) return;
+    try {
+        const idr = await obsBridge.obs.call('GetSceneItemId', { sceneName, sourceName });
+        const tr = await obsBridge.obs.call('GetSceneItemTransform', { sceneName, sceneItemId: idr.sceneItemId });
+        const vs = await obsBridge.obs.call('GetVideoSettings');
+        const camRect = sceneItemToCamRect(tr.sceneItemTransform || {}, { baseWidth: vs.baseWidth, baseHeight: vs.baseHeight });
+        res.json({ camRect, base: { baseWidth: vs.baseWidth, baseHeight: vs.baseHeight }, transform: tr.sceneItemTransform });
+    } catch (e) {
+        res.status(502).json({ error: String(e?.message || e) });
+    }
+});
+
+// Đổi Scene OBS khi ván bắt đầu / kết thúc (config obsScene)
+async function chemTraiCaySceneFor(type) {
+    const sc = chemTraiCayCfg().obsScene || {};
+    if (!sc.enabled) return;
+    const name = type === 'start' ? sc.playScene : type === 'end' ? sc.backScene : '';
+    if (!name) return;
+    if (!obsBridge.isConnected()) return;
+    try { await obsBridge.obs.call('SetCurrentProgramScene', { sceneName: name }); } catch (e) { console.warn('[chemtraicay] đổi scene lỗi:', e?.message || e); }
+}
+
+setInterval(() => {
+    try { if (chemRelay.sweep()) io.emit('chemtraicay:trackerStatus', { activeId: null }); } catch (e) {}
+}, 1000);
+
 app.get('/api/games/bancung/livestate', (req, res) => {
     res.json(banCungSnapshot());
 });
@@ -9853,6 +10051,35 @@ io.on('connection', (socket) => {
         gameStateCache.nhatla = state;
         io.emit('nhatla:state', { sourceId: socket.id, state });
     });
+    // ----- Chém Trái Cây: tay (≤60/s), trọng tài tracker, state, sự kiện ván -----
+    onTrusted('chemtraicay:tracker', (data) => {
+        if (!data || typeof data.id !== 'string' || !data.id || data.id.length > 32) return;
+        // Tracker gửi {active:true} mỗi ~1 s làm nhịp tim: cùng id → chỉ gia hạn, không phát lại trạng thái.
+        const changed = data.active ? chemRelay.heartbeat(data.id, socket.id) : chemRelay.release(data.id);
+        if (changed) io.emit('chemtraicay:trackerStatus', { activeId: chemRelay.activeId() });
+    });
+    onTrusted('chemtraicay:hand', (data) => {
+        const v = chemRelay.acceptHand(data, socket.id);
+        if (!v) return;
+        socket.to('overlay').emit('chemtraicay:hand', v);
+        socket.to('preview').emit('chemtraicay:hand', v);
+    });
+    onTrusted('chemtraicay:state', (data) => {
+        if (!data || typeof data !== 'object') return;
+        chemTraiCayStateCache = {
+            score: Number(data.score) || 0, pile: Number(data.pile) || 0, playing: !!data.playing,
+            fps: Number(data.fps) || 0, ts: Date.now(),
+            buffs: { god: Number(data.buffs?.god) || 0, fast: Number(data.buffs?.fast) || 0, slow: Number(data.buffs?.slow) || 0 }
+        };
+        socket.to('preview').emit('chemtraicay:state', chemTraiCayStateCache);
+    });
+    onTrusted('chemtraicay:event', (data) => {
+        const type = data && data.type;
+        if (type !== 'start' && type !== 'end') return;
+        if (!socket.rooms.has('overlay')) return; // tab review/preview không được đổi Scene OBS
+        chemTraiCaySceneFor(type);
+        socket.to('preview').emit('chemtraicay:event', { type, ts: Date.now() });
+    });
     // Relay thao tác đang kéo ở 30fps — không ghi disk, để OBS chạy cùng nhịp review.
     onTrusted('nhatla:transient', (data) => {
         if (!data || !['bin', 'hud', 'topdonors', 'leaf', 'leafEnd', 'hand', 'effect', 'dragStart', 'display', 'bags', 'giftboard'].includes(data.type)) return;
@@ -9972,6 +10199,7 @@ io.on('connection', (socket) => {
     });
     socket.on('disconnect', () => {
         if (nhatLaActiveDragSocketId === socket.id) nhatLaActiveDragSocketId = null;
+        if (chemRelay.dropSocket(socket.id)) io.emit('chemtraicay:trackerStatus', { activeId: null });
     });
 
     socket.on('subscribe', (roomName) => {
@@ -9999,6 +10227,9 @@ io.on('connection', (socket) => {
                 socket.emit('bancung:state', banCungSnapshot());
                 // Nhặt Lá: bảng TOP nằm ở RAM server, overlay reload giữa buổi phải nạp lại.
                 socket.emit('nhatla:top', { list: nhatLaTopList(), total: nhatLaDonors.size, ts: Date.now() });
+                // Chém Trái Cây: tracker đang active + state gần nhất
+                socket.emit('chemtraicay:trackerStatus', { activeId: chemRelay.activeId() });
+                if (chemTraiCayStateCache) socket.emit('chemtraicay:state', chemTraiCayStateCache);
             }
         }
     });
