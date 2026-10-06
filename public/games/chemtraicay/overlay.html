@@ -134,13 +134,17 @@
         const mode = cfg.videoSource && cfg.videoSource.mode || 'obs-scene';
         const cr = cfg.camRect;
         if (cr && Number.isFinite(Number(cr.widthPercent)) && Number(cr.widthPercent) > 0) {
-            return { x: Number(cr.xPercent) / 100 * W, y: Number(cr.yPercent) / 100 * H, w: Number(cr.widthPercent) / 100 * W, h: Number(cr.heightPercent) / 100 * H };
+            return { x: Number(cr.xPercent) / 100 * W, y: Number(cr.yPercent) / 100 * H, w: Number(cr.widthPercent) / 100 * W, h: Number(cr.heightPercent) / 100 * H, flipX: !!cr.flipX, flipY: !!cr.flipY };
         }
-        if (mode === 'obs-scene') return { x: 0, y: 0, w: W, h: H };
+        if (mode === 'obs-scene') return { x: 0, y: 0, w: W, h: H, flipX: false, flipY: false };
         const h = H, w = H * lastAspect;      // cover
-        return { x: (W - w) / 2, y: 0, w, h };
+        return { x: (W - w) / 2, y: 0, w, h, flipX: false, flipY: false };
     }
-    function mapPoint(nx, ny) { const r = resolveCamRect(); return { x: r.x + nx * r.w, y: r.y + ny * r.h }; }
+    // Camera lật trong OBS (scale âm) → điểm chuẩn hóa của khung nguồn đảo chiều trên overlay.
+    function mapPoint(nx, ny) {
+        const r = resolveCamRect();
+        return { x: r.x + (r.flipX ? 1 - nx : nx) * r.w, y: r.y + (r.flipY ? 1 - ny : ny) * r.h };
+    }
 
     let lastTrackerId = null;
     let lastHandAt = 0;

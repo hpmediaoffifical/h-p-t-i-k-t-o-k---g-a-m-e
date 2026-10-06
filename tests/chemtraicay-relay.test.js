@@ -127,3 +127,15 @@ test('release(id) bỏ active theo id kể cả khi socketId đã đổi', () =>
     assert.equal(r.release('trk_zz'), false);
     assert.equal(r.release('trk_a'), true); assert.equal(r.activeId(), null);
 });
+
+// ---- camera lật ngang/dọc trong OBS (scaleX/scaleY âm) ----
+test('sceneItemToCamRect: scaleX âm (lật ngang) → width dương, x là mép trái thật, flipX=true', () => {
+    // OBS: position là điểm neo top-left của item; scaleX=-1 làm hình vẽ ngược sang trái từ positionX
+    const c = sceneItemToCamRect(tf({ scaleX: -1, scaleY: 1, positionX: 1583, positionY: 376 }), base);
+    near(c.xPercent, -31.2); near(c.yPercent, 19.58); near(c.widthPercent, 177.78); near(c.heightPercent, 56.25);
+    assert.equal(c.flipX, true); assert.equal(c.flipY, false);
+});
+test('sceneItemToCamRect: không lật → flipX/flipY = false', () => {
+    const c = sceneItemToCamRect(tf({}), base);
+    assert.equal(c.flipX, false); assert.equal(c.flipY, false);
+});
