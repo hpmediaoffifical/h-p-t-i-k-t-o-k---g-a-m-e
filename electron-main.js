@@ -218,6 +218,11 @@ function createMainWindow() {
             openNhatLaPreviewWindow();
             return { action: 'deny' };
         }
+        // Chém Trái Cây: "Mở tracker trong Chrome" phải ra trình duyệt ngoài (Electron tắt GPU, MediaPipe chạy chậm).
+        if (url.startsWith(`${APP_URL}/tracker/`)) {
+            shell.openExternal(url);
+            return { action: 'deny' };
+        }
         if (url.startsWith(APP_URL)) {
             return { action: 'allow' };
         }

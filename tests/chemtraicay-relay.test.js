@@ -89,3 +89,41 @@ test('sceneItemToCamRect: bounds STRETCH 1080×1920 cho nguồn crop vuông', ()
     // cropW 1080 → sx = 1; cropH 1080 → sy = 1920/1080
     near(c.xPercent, -38.89); near(c.widthPercent, 177.78); near(c.heightPercent, 100); near(c.yPercent, 0);
 });
+
+// ---- Vòng sửa sau review: các chế độ bounds của OBS ----
+test('sceneItemToCamRect: SCALE_INNER (Fit to screen) 16:9 trong khung dọc → letterbox giữa', () => {
+    const c = sceneItemToCamRect(tf({ boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 1080, boundsHeight: 1920, boundsAlignment: 0 }), base);
+    near(c.xPercent, 0); near(c.yPercent, 34.18); near(c.widthPercent, 100); near(c.heightPercent, 31.64);
+});
+test('sceneItemToCamRect: SCALE_OUTER → phủ kín, tràn 2 bên', () => {
+    const c = sceneItemToCamRect(tf({ boundsType: 'OBS_BOUNDS_SCALE_OUTER', boundsWidth: 1080, boundsHeight: 1920, boundsAlignment: 0 }), base);
+    near(c.xPercent, -108.02); near(c.yPercent, 0); near(c.widthPercent, 316.05); near(c.heightPercent, 100);
+});
+test('sceneItemToCamRect: MAX_ONLY không phóng to nguồn nhỏ', () => {
+    const c = sceneItemToCamRect(tf({ sourceWidth: 640, sourceHeight: 360, boundsType: 'OBS_BOUNDS_MAX_ONLY', boundsWidth: 1080, boundsHeight: 1920, boundsAlignment: 0 }), base);
+    near(c.xPercent, 20.37); near(c.yPercent, 40.63); near(c.widthPercent, 59.26); near(c.heightPercent, 18.75);
+});
+test('sceneItemToCamRect: boundsAlignment top-left (5) đặt hình sát góc khung', () => {
+    const c = sceneItemToCamRect(tf({ boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 1080, boundsHeight: 1920, boundsAlignment: 5 }), base);
+    near(c.yPercent, 0); near(c.xPercent, 0);
+});
+test('sceneItemToCamRect: bounds + alignment center của item', () => {
+    const c = sceneItemToCamRect(tf({ alignment: 0, positionX: 540, positionY: 960, boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: 1080, boundsHeight: 1920, boundsAlignment: 0 }), base);
+    near(c.xPercent, 0); near(c.yPercent, 34.18);
+});
+
+// ---- heartbeat tracker (I1) ----
+test('heartbeat của tracker active chỉ touch, không đổi; id mới mới thay active', () => {
+    let now = 0;
+    const r = createRelay({ now: () => now, staleMs: 3000 });
+    assert.equal(r.heartbeat('trk_a', 'sA'), true);
+    now = 2500; assert.equal(r.heartbeat('trk_a', 'sA'), false);
+    now = 5000; assert.equal(r.sweep(), false);
+    assert.equal(r.heartbeat('trk_b', 'sB'), true); assert.equal(r.activeId(), 'trk_b');
+});
+test('release(id) bỏ active theo id kể cả khi socketId đã đổi', () => {
+    const r = createRelay();
+    r.setActive('trk_a', 'sOld');
+    assert.equal(r.release('trk_zz'), false);
+    assert.equal(r.release('trk_a'), true); assert.equal(r.activeId(), null);
+});

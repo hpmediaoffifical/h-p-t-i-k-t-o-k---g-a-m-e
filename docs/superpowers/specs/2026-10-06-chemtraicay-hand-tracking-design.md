@@ -103,7 +103,7 @@ Overlay chỉ vẽ `snapshot()` và phát âm theo `events`.
 
 ## 6. Tracker (`tracker.html`)
 
-- Một trang dùng cho 2 ngữ cảnh: nhúng iframe trong tab Camera của panel (`?embed=1`, iframe có `allow="camera"`), hoặc mở trong Chrome (`/tracker/chemtraicay`, panel gọi `window.open` → Electron chuyển qua `shell.openExternal`).
+- Một trang dùng cho 2 ngữ cảnh: nhúng iframe trong tab Camera của panel (`?embed=1`, iframe có `allow="camera"`), hoặc mở trong Chrome (`/tracker/chemtraicay`, panel gọi `window.open`; `electron-main.js` có nhánh riêng cho URL `/tracker/` → `shell.openExternal`, vì mặc định Electron mở URL cùng origin trong cửa sổ Electron không GPU).
 - Lý do có nút Chrome: Electron của app đang tắt GPU, tracking chạy WASM CPU. Chrome có GPU nên nhẹ máy hơn. Tracker ở Chrome vẫn là loopback nên vẫn trusted.
 - Giao diện: chọn nguồn hình (Scene OBS / Source OBS / Webcam) đọc từ config `videoSource`; với OBS: dropdown Scene (`/api/obs-bridge/scenes`) và Source (`/api/chemtraicay/obs-sources?scene=`), nhịp 10/15/20 fps; với webcam: chọn camera (`enumerateDevices`, nhớ `localStorage`), độ phân giải 640×360 / 1280×720, gương. Preview vẽ khung hình + khung xương 21 điểm, FPS, trạng thái socket/OBS, nút Bật/Tắt nhận diện.
 - MediaPipe: `HandLandmarker.createFromOptions(vision, { baseOptions:{ modelAssetPath:'/lib/mediapipe/hand_landmarker.task', delegate:'GPU' }, runningMode:'VIDEO', numHands:2 })`; nếu tạo GPU lỗi thì thử lại `delegate:'CPU'`. Nguồn OBS: vòng fetch khung → `detectForVideo(bitmap, ts)`; webcam: `requestAnimationFrame` + `detectForVideo(video, ts)`. Trang không dừng khi ẩn (app đã tắt throttling nền).

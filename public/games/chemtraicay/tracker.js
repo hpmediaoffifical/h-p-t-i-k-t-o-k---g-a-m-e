@@ -326,14 +326,23 @@ socket.on('disconnect', () => setStatus('sock', 'App: <span class="bad">mất k�
 socket.on('gameConfig', ({ gameId, config }) => { if (gameId === 'chemtraicay') applyConfig(config, false); });
 socket.on('chemtraicay:trackerStatus', ({ activeId: id }) => {
     activeId = id || null;
+    const wasPaused = paused;
     if (running && activeId && activeId !== trackerId) {
-        paused = true; setStatus('trk', `Tracker: <span class="warn">tạm dừng — đang dùng tracker khác (${activeId})</span>`);
+        // Tracker khác vừa lên active → dừng hẳn lấy hình/nhận diện (không tốn OBS/webcam), chờ tiếp quản.
+        paused = true;
+        if (!wasPaused) { loopToken++; stopStream(); msg('Đang dùng tracker khác — tạm dừng.'); }
+        setStatus('trk', `Tracker: <span class="warn">tạm dừng — đang dùng tracker khác (${activeId})</span>`);
     } else if (running && !activeId) {
         paused = false; socket.emit('chemtraicay:tracker', { id: trackerId, active: true });
+        if (wasPaused) restartSource();   // tiếp quản: bật lại lấy hình ngay, không chờ echo trạng thái
     } else {
-        paused = false; setStatus('trk', running ? 'Tracker: <span class="ok">đang gửi tay lên overlay</span>' : 'Tracker: chưa bật');
+        paused = false;
+        if (wasPaused && running) restartSource();
+        setStatus('trk', running ? 'Tracker: <span class="ok">đang gửi tay lên overlay</span>' : 'Tracker: chưa bật');
     }
 });
+// Nhịp tim: giữ quyền active khi tay ra khỏi khung lâu (server xóa active sau 3 s im lặng).
+setInterval(() => { if (running && !paused && socket.connected) socket.emit('chemtraicay:tracker', { id: trackerId, active: true }); }, 1000);
 
 (async () => {
     updateToggle(); renderStatus();

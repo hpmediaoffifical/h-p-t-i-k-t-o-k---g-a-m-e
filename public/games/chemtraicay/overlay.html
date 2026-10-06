@@ -142,8 +142,18 @@
     }
     function mapPoint(nx, ny) { const r = resolveCamRect(); return { x: r.x + nx * r.w, y: r.y + ny * r.h }; }
 
+    let lastTrackerId = null;
+    let lastHandAt = 0;
+    let bladesLive = false;   // đang có ít nhất 1 dao hiện diện từ tracker
+    // Xóa dao + vệt khi đổi tracker / mất tracker / mất gói lâu → không "chém ma" từ vị trí cũ.
+    function clearBlades() {
+        for (const s of ['L', 'R']) { engine.setBlade(s, 0, 0, false); trails[s] = []; }
+        bladesLive = false;
+    }
     function applyHands(pkt) {
         if (pkt.aspect) lastAspect = pkt.aspect;
+        if (pkt.id && pkt.id !== lastTrackerId) { clearBlades(); lastTrackerId = pkt.id; }
+        lastHandAt = performance.now();
         const seen = { L: false, R: false };
         for (const h of pkt.hands || []) {
             const p = mapPoint(h.pts[16], h.pts[17]);   // điểm 8 = đầu ngón trỏ
@@ -151,7 +161,8 @@
             seen[h.side] = true;
             const tr = trails[h.side]; tr.push({ x: p.x, y: p.y, t: performance.now() }); if (tr.length > 14) tr.shift();
         }
-        for (const s of ['L', 'R']) if (!seen[s]) { const b = engine.snapshot ? null : null; void b; engine.setBlade(s, 0, 0, false); }
+        for (const s of ['L', 'R']) if (!seen[s]) engine.setBlade(s, 0, 0, false);
+        bladesLive = seen.L || seen.R;
     }
 
     // ---------- socket ----------
@@ -171,7 +182,10 @@
     socket.on('gameEnabled', ({ gameId }) => { if (gameId === 'chemtraicay') document.body.classList.remove('ctc-stopped'); });
     socket.on('overlay:reload', (d) => { if (!d || !d.gameId || d.gameId === 'chemtraicay') location.reload(); });
     socket.on('chemtraicay:hand', applyHands);
-    socket.on('chemtraicay:trackerStatus', ({ activeId }) => { $('ctc-trk').textContent = activeId ? '' : 'chưa có tracker'; });
+    socket.on('chemtraicay:trackerStatus', ({ activeId }) => {
+        $('ctc-trk').textContent = activeId ? '' : 'chưa có tracker';
+        if (!activeId || activeId !== lastTrackerId) { clearBlades(); lastTrackerId = activeId || null; }
+    });
     socket.on('chemtraicay:gift', (g) => {
         if (!g || !Game.ACTIONS.includes(g.action)) return;
         engine.enqueue(g.action, g.qty);
@@ -408,11 +422,13 @@
                 case 'land': SFX.land(); break;
                 case 'buff': SFX.buff(); break;
                 case 'rescue': SFX.rescue(); break;
-                case 'start': SFX.start(); $('ctc-end').style.display = 'none'; socket.emit('chemtraicay:event', { type: 'start' }); break;
-                case 'end': SFX.end(); $('ctc-end-score').textContent = e.score; $('ctc-end').style.display = 'block'; endTimer = 4; socket.emit('chemtraicay:event', { type: 'end' }); break;
+                case 'start': SFX.start(); $('ctc-end').style.display = 'none'; emitEvent('start'); break;
+                case 'end': SFX.end(); $('ctc-end-score').textContent = e.score; $('ctc-end').style.display = 'block'; endTimer = 4; emitEvent('end'); break;
             }
         }
     }
+    // Chỉ overlay thật trong OBS (không phải tab xem thử) và khi game đang bật mới báo server đổi Scene.
+    function emitEvent(type) { if (!isReview && !isEdit && cfg.enabled !== false) socket.emit('chemtraicay:event', { type }); }
     function showCombo(n) { const el = $('ctc-combo'); el.textContent = `COMBO ×${n}`; el.classList.add('show'); comboTimer = 0.9; }
 
     // ---------- HUD ----------
@@ -443,12 +459,12 @@
     let stateAcc = 0;
     function loop(now) {
         requestAnimationFrame(loop);
-        let dt = (now - lastT) / 1000; lastT = now;
+        const rawDt = (now - lastT) / 1000; lastT = now;
+        let dt = rawDt;
         if (dt > 0.05) dt = 0.05;
-        if (!isEdit) {
-            const snapBefore = null; void snapBefore;
-            engine.step(dt * 1000);
-        }
+        // Khung bị ngắt lâu (OBS tiết kiệm CPU) hoặc tracker im lặng → coi tay vắng, tránh đoạn thẳng ma khi quay lại.
+        if (bladesLive && (rawDt > 0.25 || now - lastHandAt > 300)) clearBlades();
+        if (!isEdit) engine.step(dt * 1000);
         const s = engine.snapshot();
         handleEvents(s.events);
         if (!s.playing && endTimer <= 0) updateHoldTarget();

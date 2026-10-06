@@ -8072,13 +8072,29 @@ app.get('/api/chemtraicay/state', (req, res) => {
 });
 
 // Khung hình từ OBS (GetSourceScreenshot) — tracker tự điều nhịp bằng cách gọi lặp.
+// Chỉ máy chạy app (loopback) hoặc client có token LAN mới được kéo hình/transform từ OBS —
+// tránh máy khác trong LAN chụp bất kỳ source nào (vd Display Capture) qua endpoint này.
+function chemTraiCayObsGuard(req, res) {
+    if (!requestIsTrusted(req)) { res.status(403).json({ error: 'forbidden' }); return false; }
+    if (!obsBridge.isConnected()) { res.status(503).json({ error: 'OBS chưa kết nối' }); return false; }
+    return true;
+}
+const chemFrameInFlight = new Map(); // key → Promise: nhiều client cùng lúc chỉ tốn 1 GetSourceScreenshot
+
 app.get('/api/chemtraicay/obs-frame', async (req, res) => {
     const sourceName = String(req.query.source || '').slice(0, 200);
     if (!sourceName) return res.status(400).json({ error: 'thiếu source' });
-    if (!obsBridge.isConnected()) return res.status(503).json({ error: 'OBS chưa kết nối' });
+    if (!chemTraiCayObsGuard(req, res)) return;
     const w = Math.max(160, Math.min(1280, Math.round(Number(req.query.w) || 640)));
     try {
-        const r = await obsBridge.obs.call('GetSourceScreenshot', { sourceName, imageFormat: 'jpg', imageWidth: w, imageCompressionQuality: 60 });
+        const key = sourceName + '|' + w;
+        let pending = chemFrameInFlight.get(key);
+        if (!pending) {
+            pending = obsBridge.obs.call('GetSourceScreenshot', { sourceName, imageFormat: 'jpg', imageWidth: w, imageCompressionQuality: 60 })
+                .finally(() => chemFrameInFlight.delete(key));
+            chemFrameInFlight.set(key, pending);
+        }
+        const r = await pending;
         const data = String(r?.imageData || '');
         const comma = data.indexOf(',');
         if (comma < 0) return res.status(502).json({ error: 'OBS không trả ảnh' });
@@ -8093,6 +8109,7 @@ app.get('/api/chemtraicay/obs-frame', async (req, res) => {
 
 // Danh sách scene (obs-websocket GetSceneList) — độc lập với các helper khác của obs-bridge
 app.get('/api/chemtraicay/obs-scenes', async (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ error: 'forbidden', scenes: [] });
     if (!obsBridge.isConnected()) return res.status(503).json({ error: 'OBS chưa kết nối', scenes: [] });
     try {
         const r = await obsBridge.obs.call('GetSceneList');
@@ -8106,7 +8123,7 @@ app.get('/api/chemtraicay/obs-scenes', async (req, res) => {
 app.get('/api/chemtraicay/obs-sources', async (req, res) => {
     const sceneName = String(req.query.scene || '').slice(0, 200);
     if (!sceneName) return res.status(400).json({ error: 'thiếu scene' });
-    if (!obsBridge.isConnected()) return res.status(503).json({ error: 'OBS chưa kết nối' });
+    if (!chemTraiCayObsGuard(req, res)) return;
     try {
         const r = await obsBridge.obs.call('GetSceneItemList', { sceneName });
         const items = (r?.sceneItems || []).map(it => ({ name: it.sourceName, kind: it.inputKind || it.sourceType || '', sceneItemId: it.sceneItemId }));
@@ -8120,7 +8137,7 @@ app.get('/api/chemtraicay/obs-transform', async (req, res) => {
     const sceneName = String(req.query.scene || '').slice(0, 200);
     const sourceName = String(req.query.source || '').slice(0, 200);
     if (!sceneName || !sourceName) return res.status(400).json({ error: 'thiếu scene/source' });
-    if (!obsBridge.isConnected()) return res.status(503).json({ error: 'OBS chưa kết nối' });
+    if (!chemTraiCayObsGuard(req, res)) return;
     try {
         const idr = await obsBridge.obs.call('GetSceneItemId', { sceneName, sourceName });
         const tr = await obsBridge.obs.call('GetSceneItemTransform', { sceneName, sceneItemId: idr.sceneItemId });
@@ -9969,12 +9986,9 @@ io.on('connection', (socket) => {
     // ----- Chém Trái Cây: tay (≤60/s), trọng tài tracker, state, sự kiện ván -----
     onTrusted('chemtraicay:tracker', (data) => {
         if (!data || typeof data.id !== 'string' || !data.id || data.id.length > 32) return;
-        if (data.active) {
-            chemRelay.setActive(data.id, socket.id);
-        } else if (chemRelay.activeId() === data.id) {
-            chemRelay.dropSocket(socket.id);
-        }
-        io.emit('chemtraicay:trackerStatus', { activeId: chemRelay.activeId() });
+        // Tracker gửi {active:true} mỗi ~1 s làm nhịp tim: cùng id → chỉ gia hạn, không phát lại trạng thái.
+        const changed = data.active ? chemRelay.heartbeat(data.id, socket.id) : chemRelay.release(data.id);
+        if (changed) io.emit('chemtraicay:trackerStatus', { activeId: chemRelay.activeId() });
     });
     onTrusted('chemtraicay:hand', (data) => {
         const v = chemRelay.acceptHand(data, socket.id);
@@ -9986,13 +10000,15 @@ io.on('connection', (socket) => {
         if (!data || typeof data !== 'object') return;
         chemTraiCayStateCache = {
             score: Number(data.score) || 0, pile: Number(data.pile) || 0, playing: !!data.playing,
-            fps: Number(data.fps) || 0, buffs: data.buffs && typeof data.buffs === 'object' ? data.buffs : {}, ts: Date.now()
+            fps: Number(data.fps) || 0, ts: Date.now(),
+            buffs: { god: Number(data.buffs?.god) || 0, fast: Number(data.buffs?.fast) || 0, slow: Number(data.buffs?.slow) || 0 }
         };
         socket.to('preview').emit('chemtraicay:state', chemTraiCayStateCache);
     });
     onTrusted('chemtraicay:event', (data) => {
         const type = data && data.type;
         if (type !== 'start' && type !== 'end') return;
+        if (!socket.rooms.has('overlay')) return; // tab review/preview không được đổi Scene OBS
         chemTraiCaySceneFor(type);
         socket.to('preview').emit('chemtraicay:event', { type, ts: Date.now() });
     });
