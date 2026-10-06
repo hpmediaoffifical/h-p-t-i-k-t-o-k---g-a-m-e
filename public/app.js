@@ -436,8 +436,10 @@
     const STABLE_GAMES = new Set([
         'thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung',
         'pktiktok', 'vipwelcome', 'trongcay', 'nhatla',
-        'level-quest', 'timer', 'liveTranslate', 'chemtraicay'
+        'level-quest', 'timer', 'liveTranslate', 'camgames'
     ]);
+    // Game camera (Touch & Play, Chém Trái Cây…) không hiện riêng trong danh sách — vào qua 🎥 Game Camera.
+    const CAM_CHILD_GAMES = new Set((window.HpCamGames || []).map(g => g.id));
 
     function renderGameDevelopmentNotice(game) {
         if (STABLE_GAMES.has(game.id)) return '';
@@ -480,6 +482,7 @@
     function renderGameList() {
         dom.gameList.innerHTML = '';
         for (const g of games) {
+            if (CAM_CHILD_GAMES.has(g.id)) continue;
             const div = document.createElement('div');
             div.className = 'game-item';
             div.dataset.id = g.id;
@@ -555,6 +558,7 @@
     function renderHomeGrid() {
         dom.homeGrid.innerHTML = '';
         for (const g of games) {
+            if (CAM_CHILD_GAMES.has(g.id)) continue;
             const card = document.createElement('div');
             card.className = 'home-card';
             card.innerHTML = `<div class="ico">${g.icon}</div>
@@ -882,7 +886,7 @@
         currentGame = game;
         highlightActiveGame(gameId);
         // Body class: dùng để CSS ẩn/hiện FAB/popup theo game
-        document.body.classList.remove('game-thuytinh', 'game-caro', 'game-pktiktok', 'game-vipwelcome', 'game-votecomment', 'game-nhietdo', 'game-bancung', 'game-trongcay', 'game-nhatla', 'game-liveTranslate', 'game-chemtraicay');
+        document.body.classList.remove('game-thuytinh', 'game-caro', 'game-pktiktok', 'game-vipwelcome', 'game-votecomment', 'game-nhietdo', 'game-bancung', 'game-trongcay', 'game-nhatla', 'game-liveTranslate', 'game-chemtraicay', 'game-camgames', 'game-touchplay');
         document.body.classList.add('game-' + gameId);
         // Nhặt Lá giữ batch lá đang chạy trong RAM; chỉ reload thủ công khi cần nạp asset mới.
         if (gameId !== 'nhatla') {
@@ -907,8 +911,12 @@
         else if (gameId === 'level-quest') showView('view-level-quest');
         else if (gameId === 'timer') showView('view-timer');
         else if (gameId === 'touchplay') showView('view-touchplay');
+        else if (gameId === 'camgames') { showView('view-camgames'); window.HpCamGamesPanel?.open(socket); }
         else if (gameId === 'obs-effects') showView('view-obs-effects');
     }
+
+    // Màn Game Camera mở màn cài đặt game con; màn con có nút "← Game Camera".
+    window.hpOpenGame = openGame;
 
     function openVoteComment(game) {
         if (window.HpVoteCommentPanel && typeof window.HpVoteCommentPanel.open === 'function') {

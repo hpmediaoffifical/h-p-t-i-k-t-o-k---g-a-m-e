@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Game Camera — overlay</title>
+<script src="/lib/overlay-resolution.js"></script>
+<style>
+  /* Một Browser Source cho mọi game camera: trang mẹ trong suốt, game con nằm trong iframe phủ kín.
+     Không có nút/cài đặt nào ở đây — mọi cài đặt làm trong app (Game Camera). */
+  html, body { margin: 0; height: 100%; background: transparent !important; overflow: hidden; }
+  iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: transparent;
+           opacity: 1; transition: opacity .35s ease; }
+  iframe.out { opacity: 0; }
+</style>
+</head>
+<body>
+<iframe id="cg-child" allow="autoplay" title="Game Camera"></iframe>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/games/camgames/registry.js"></script>
+<script>
+(function () {
+    'use strict';
+    const frame = document.getElementById('cg-child');
+    const qs = new URLSearchParams(location.search);
+    const token = qs.get('token') || '';
+    let current = null;          // id game con đang nạp ('' = trống)
+
+    // Chuyển tiếp query của link OBS (token máy thứ 2, res=4k…) sang game con.
+    function childUrl(game) {
+        const extra = new URLSearchParams(location.search).toString();
+        return game.overlay + (extra ? (game.overlay.includes('?') ? '&' : '?') + extra : '');
+    }
+
+    function show(cfg) {
+        const on = cfg && cfg.enabled !== false;
+        const game = on && (window.HpCamGames || []).find(g => g.id === cfg.active);
+        const id = game ? game.id : '';
+        if (id === current) return;
+        const prev = current;
+        current = id;
+        // Mờ dần game cũ rồi mới nạp game mới — đổi game giữa live không bị giật khung.
+        frame.classList.add('out');
+        setTimeout(() => {
+            if (current !== id) return;
+            if (!game) { frame.removeAttribute('src'); return; }
+            frame.onload = () => frame.classList.remove('out');
+            frame.src = childUrl(game);
+        }, prev ? 350 : 0);
+    }
+
+    function load() {
+        fetch('/api/games/camgames/config', { cache: 'no-store' }).then(r => r.json()).then(show).catch(() => {});
+    }
+
+    const socket = io({ transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+    socket.on('connect', () => { socket.emit('subscribe', 'overlay'); load(); });
+    socket.on('gameConfig', d => { if (d && d.gameId === 'camgames') show(d.config); });
+    socket.on('gameDisabled', d => { if (d && d.gameId === 'camgames') show({ enabled: false }); });
+    socket.on('gameEnabled', d => { if (d && d.gameId === 'camgames') load(); });
+    socket.on('overlay:reload', d => { if (d && d.gameId === 'camgames') location.reload(); });
+    load();
+})();
+</script>
+</body>
+</html>

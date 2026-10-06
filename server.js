@@ -392,8 +392,40 @@ const GAMES = {
         icon: '🍉',
         overlayPath: '/overlay/chemtraicay',
         defaultConfig: makeDefaultChemTraiCayConfig()
+    },
+    // 🎥 GAME CAMERA — menu mẹ của các game camera (CAM_GAME_IDS). Một link OBS /overlay/camgames nạp
+    // game đang chọn; chỉ game đó bật (camGamesApplyActive) để quà không kích hoạt game đang ẩn.
+    // Mọi cài đặt ở app; overlay chỉ hiển thị + chơi.
+    camgames: {
+        id: 'camgames',
+        name: 'Game Camera',
+        description: 'Gom các game chơi bằng camera (Touch & Play, Chém Trái Cây) vào một link OBS. Chọn game trong app, OBS đổi theo.',
+        icon: '🎥',
+        overlayPath: '/overlay/camgames',
+        defaultConfig: { enabled: true, active: 'touchplay', source: '' }
     }
 };
+
+// Game con của Game Camera — thứ tự = thứ tự thẻ trong menu (public/games/camgames/registry.js).
+const CAM_GAME_IDS = ['touchplay', 'chemtraicay'];
+// Chỉ game đang chọn được bật; tắt Game Camera là tắt hết. Gọi sau mỗi lần lưu config camgames
+// và lúc khởi động để giữ đúng luật dù config cũ bật cả hai.
+function camGamesApplyActive() {
+    const cam = appConfig.games.camgames = { ...GAMES.camgames.defaultConfig, ...(appConfig.games.camgames || {}) };
+    if (!CAM_GAME_IDS.includes(cam.active)) cam.active = CAM_GAME_IDS[0];
+    const hubOn = cam.enabled !== false;
+    let changed = false;
+    for (const id of CAM_GAME_IDS) {
+        if (!GAMES[id]) continue;
+        const c = appConfig.games[id] = appConfig.games[id] || { ...GAMES[id].defaultConfig };
+        const was = c.enabled !== false, want = hubOn && id === cam.active;
+        if (was === want) continue;
+        c.enabled = want; changed = true;
+        io.emit('gameConfig', { gameId: id, config: c });
+        io.emit(want ? 'gameEnabled' : 'gameDisabled', { gameId: id, ts: Date.now() });
+    }
+    return changed;
+}
 
 // Đồng bộ với HpGame.chemtraicay.defaultConfig() (public/games/chemtraicay/game.js)
 function makeDefaultChemTraiCayConfig() {
@@ -1181,28 +1213,42 @@ const touchplayFeed = new ObsCameraFeed({
     bridge: obsBridge, io,
     logger: { log: (...a) => console.log(...a), warn: (...a) => console.warn(...a) },
     // Link OBS của app có thể là link chia sẻ /overlay/shared/<token> — không chứa chữ "touchplay"/"bancung".
+    // Overlay Game Camera chứa game con trong iframe phủ kín → Browser Source của nó là overlay của mọi game con.
     overlayMatchers: {
-        touchplay: (url) => /touchplay/i.test(url) || (!!appConfig.shareTokens?.touchplay && url.includes('/overlay/shared/' + appConfig.shareTokens.touchplay)),
-        bancung: (url) => /\/overlay\/bancung/i.test(url) || (!!appConfig.shareTokens?.bancung && url.includes('/overlay/shared/' + appConfig.shareTokens.bancung))
+        touchplay: (url) => feedUrlIs(url, 'touchplay', /touchplay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
+        chemtraicay: (url) => feedUrlIs(url, 'chemtraicay', /\/overlay\/chemtraicay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
+        bancung: (url) => feedUrlIs(url, 'bancung', /\/overlay\/bancung/i)
     },
     getOptions: (activeGames = new Set()) => {
-        const g = appConfig.games?.touchplay || {}, c = g.tpCfg || {};
-        const tpOn = g.enabled !== false && c.source !== 'webcam';
-        // Bắn Cung bám theo người cũng dùng feed này; không có nguồn riêng thì dùng nguồn Touch & Play đã chọn.
-        // Overlay Bắn Cung đang nhận hình (và Touch & Play không) → ưu tiên nguồn Bắn Cung chọn.
-        const bc = appConfig.games?.bancung || {}, bcd = bc.display || {};
-        const bcOn = bc.enabled !== false && bcd.bodyTrack === true;
-        const bcFirst = bcOn && activeGames.has('bancung') && !activeGames.has('touchplay');
-        const bcSource = bcOn ? (bcd.trackSource || c.obsSource) : '';
-        const source = bcFirst ? (bcSource || (tpOn && c.obsSource)) : ((tpOn && c.obsSource) || bcSource) || '';
+        const G = appConfig.games || {};
+        const tp = G.touchplay || {}, c = tp.tpCfg || {};
+        const bc = G.bancung || {}, bcd = bc.display || {};
+        const ct = G.chemtraicay || {}, vs = ct.videoSource || {};
+        // Nguồn camera riêng của từng game (null = game tắt / không dùng feed này).
+        const per = {
+            touchplay: tp.enabled !== false && c.source !== 'webcam' ? (c.obsSource || '') : null,
+            chemtraicay: ct.enabled !== false && vs.mode !== 'webcam' ? ((vs.mode === 'obs-scene' ? vs.scene : vs.source) || '') : null,
+            bancung: bc.enabled !== false && bcd.bodyTrack === true ? (bcd.trackSource || '') : null
+        };
+        const on = Object.keys(per).filter(k => per[k] !== null);
+        // Game Camera đặt nguồn chung → dùng cho game con; không thì game đang có overlay nhận hình trước.
+        const cam = G.camgames || {};
+        let source = cam.enabled !== false && CAM_GAME_IDS.some(id => per[id] !== null) ? (cam.source || '') : '';
+        if (!source) for (const id of [...[...activeGames].filter(id => per[id] !== null), ...on]) if (per[id]) { source = per[id]; break; }
+        if (!source && on.length) source = c.obsSource || '';   // nguồn Touch & Play từng chọn
         return {
-            enabled: tpOn || bcOn,
+            enabled: on.length > 0,
             source,
             width: { low: 640, auto: 960, high: 1280 }[c.quality] || 960,
             fps: { low: 15, auto: 20, high: 30 }[c.quality] || 20
         };
     }
 });
+// URL Browser Source khớp game: theo đường dẫn, hoặc link chia sẻ /overlay/shared/<token> của game đó.
+function feedUrlIs(url, gameId, re) {
+    const tok = appConfig.shareTokens?.[gameId];
+    return re.test(url) || (!!tok && url.includes('/overlay/shared/' + tok));
+}
 touchplayFeed.start();
 // ===== Effect Queue — PER-GROUP serialization =====
 // Logic: mỗi mapping có field `group`. Effect cùng group → chạy tuần tự (queue chung).
@@ -1553,6 +1599,7 @@ if (appConfig.games.chemtraicay) {
     appConfig.games.chemtraicay.videoSource = { ...def.videoSource, ...(appConfig.games.chemtraicay.videoSource || {}) };
     appConfig.games.chemtraicay.obsScene = { ...def.obsScene, ...(appConfig.games.chemtraicay.obsScene || {}) };
 }
+if (camGamesApplyActive()) saveAppConfig();
 if (appConfig.games.bancung) {
     const def = makeDefaultBanCungConfig();
     appConfig.games.bancung.display = { ...def.display, ...(appConfig.games.bancung.display || {}) };
@@ -4598,6 +4645,7 @@ app.post('/api/games/:id/config', (req, res) => {
         try { trongCayApplyConfigToState(appConfig.games.trongcay); } catch (e) {}
         broadcastTrongCayState({ immediate: true });
     }
+    if (g.id === 'camgames') camGamesApplyActive();
     const newEnabled = appConfig.games[g.id].enabled !== false;
     saveAppConfig();
     io.emit('gameConfig', { gameId: g.id, config: appConfig.games[g.id] });
@@ -8089,6 +8137,9 @@ let chemTraiCayStateCache = null;
 
 app.get('/overlay/chemtraicay', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'chemtraicay', 'overlay.html'));
+});
+app.get('/overlay/camgames', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'camgames', 'overlay.html'));
 });
 app.get('/tracker/chemtraicay', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'chemtraicay', 'tracker.html'));

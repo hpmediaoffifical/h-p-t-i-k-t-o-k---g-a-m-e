@@ -155,6 +155,7 @@
         bladesLive = false;
     }
     function applyHands(pkt) {
+        if (local.on) return;     // overlay đang tự nhận diện từ hình OBS → bỏ qua tracker ngoài (tránh 2 bộ dao)
         if (pkt.aspect) lastAspect = pkt.aspect;
         if (pkt.id && pkt.id !== lastTrackerId) { clearBlades(); lastTrackerId = pkt.id; }
         lastHandAt = performance.now();
@@ -169,11 +170,67 @@
         bladesLive = seen.L || seen.R;
     }
 
+    // ---------- nhận diện ngay trong overlay ----------
+    // Nguồn hình là Source/Scene OBS → không cần mở trang tracker: server chụp nguồn camera trong OBS gửi
+    // qua feed chung ('touchplay:feed'), overlay chạy MediaPipe tay và quy đổi đúng chỗ camera đang hiện
+    // (crop/lật/xoay/group — obs-scene-map.mjs). Trang tracker chỉ còn cho chế độ webcam. Không chạy ở
+    // khung xem trước trong app (review) để app khỏi gánh AI.
+    const local = { on: false, tracker: null, layout: null, busy: false, seenAt: 0, toStage: null };
+    function wantLocal() {
+        const mode = (cfg.videoSource && cfg.videoSource.mode) || 'obs-source';
+        return !isReview && !isEdit && cfg.enabled !== false && mode !== 'webcam';
+    }
+    async function syncLocal() {
+        const want = wantLocal();
+        if (want === local.on) return;
+        local.on = want;
+        $('ctc-trk').textContent = want ? '' : (lastTrackerId ? '' : 'chưa có tracker');
+        if (!want) { socket.emit('touchplay:feed', false); if (local.tracker) local.tracker.stop(); clearBlades(); return; }
+        clearBlades();
+        try {
+            if (!local.tracker) {
+                const [trk, map] = await Promise.all([import('/lib/hp-tracking.mjs'), import('/lib/obs-scene-map.mjs')]);
+                local.toStage = map.cameraToStage;
+                local.tracker = new trk.HpTracker({ width: W, height: H, quality: cfg.quality === 'low' ? 'low' : cfg.quality === 'high' ? 'high' : 'auto' });
+            }
+            if (!local.on) return;
+            await local.tracker.startExternal();
+            if (local.on) socket.emit('touchplay:feed', 'chemtraicay');
+        } catch (e) { console.warn('[chemtraicay] không bật được nhận diện trong overlay:', (e && e.message) || e); }
+    }
+    async function onLocalFrame(f) {
+        if (!local.on || local.busy || !f || !f.img || !local.tracker || !local.toStage) return;
+        local.busy = true;      // đang giải mã thì bỏ khung mới — luôn dùng hình mới nhất
+        try {
+            const bmp = await createImageBitmap(new Blob([f.img], { type: 'image/jpeg' }));
+            local.tracker.pushFrame(bmp, local.toStage(local.layout, bmp.width, bmp.height, W, H, 'chemtraicay'));
+        } catch (_) {} finally { local.busy = false; }
+    }
+    // Mỗi khung vẽ: lấy kết quả nhận diện MỚI (nếu có) → đầu ngón trỏ thành dao trái/phải.
+    function pumpLocalHands() {
+        const t = local.tracker;
+        if (!local.on || !t || !t.handsAt || t.handsAt === local.seenAt) return;
+        local.seenAt = t.handsAt;
+        lastHandAt = performance.now();
+        const seen = { L: false, R: false };
+        for (const h of t.hands) {
+            let side = h.id === 'Left' ? 'L' : h.id === 'Right' ? 'R' : (seen.L ? 'R' : 'L');
+            if (seen[side]) side = side === 'L' ? 'R' : 'L';
+            if (seen[side]) continue;
+            seen[side] = true;
+            engine.setBlade(side, h.tip.x, h.tip.y, true);
+            const tr = trails[side]; tr.push({ x: h.tip.x, y: h.tip.y, t: performance.now() }); if (tr.length > 14) tr.shift();
+        }
+        for (const s of ['L', 'R']) if (!seen[s]) engine.setBlade(s, 0, 0, false);
+        bladesLive = seen.L || seen.R;
+    }
+
     // ---------- socket ----------
     const socket = io({ transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
     socket.on('connect', () => {
         $('ctc-dot').classList.add('on');
         socket.emit('subscribe', isReview ? 'preview' : 'overlay');
+        if (local.on) socket.emit('touchplay:feed', 'chemtraicay');     // app vừa khởi động lại → đăng ký lại
         fetch('/api/games/chemtraicay/config').then(r => r.json()).then(applyConfig).catch(() => {});
     });
     socket.on('disconnect', () => $('ctc-dot').classList.remove('on'));
@@ -182,12 +239,20 @@
         if (gameId !== 'chemtraicay') return;
         if (cmd === 'start') engine.start(); else if (cmd === 'stop') engine.stop(); else if (cmd === 'reset') engine.reset();
     });
-    socket.on('gameDisabled', ({ gameId }) => { if (gameId === 'chemtraicay') document.body.classList.add('ctc-stopped'); });
-    socket.on('gameEnabled', ({ gameId }) => { if (gameId === 'chemtraicay') document.body.classList.remove('ctc-stopped'); });
+    socket.on('gameDisabled', ({ gameId }) => { if (gameId === 'chemtraicay') { document.body.classList.add('ctc-stopped'); cfg.enabled = false; syncLocal(); } });
+    socket.on('gameEnabled', ({ gameId }) => { if (gameId === 'chemtraicay') { document.body.classList.remove('ctc-stopped'); cfg.enabled = true; syncLocal(); } });
     socket.on('overlay:reload', (d) => { if (!d || !d.gameId || d.gameId === 'chemtraicay') location.reload(); });
     socket.on('chemtraicay:hand', applyHands);
+    socket.on('touchplay:frame', onLocalFrame);
+    socket.on('touchplay:layout', (l) => { local.layout = l; });
+    // Báo sức khoẻ nhận diện về app (màn Game Camera hiện "Overlay OBS: … lần/giây · thấy N tay").
+    setInterval(() => {
+        const t = local.tracker;
+        if (!local.on || !t || !socket.connected) return;
+        socket.emit('touchplay:overlayStat', { fps: t.fps, aiMs: t.aiMs, hands: performance.now() - t.handsAt < 500 ? t.hands.length : 0, delegate: t.delegate, phase: 'chemtraicay' });
+    }, 2000);
     socket.on('chemtraicay:trackerStatus', ({ activeId }) => {
-        $('ctc-trk').textContent = activeId ? '' : 'chưa có tracker';
+        $('ctc-trk').textContent = activeId || local.on ? '' : 'chưa có tracker';   // overlay tự nhận diện → không cần tracker
         if (!activeId || activeId !== lastTrackerId) { clearBlades(); lastTrackerId = activeId || null; }
     });
     socket.on('chemtraicay:gift', (g) => {
@@ -200,6 +265,7 @@
         if (!c || typeof c !== 'object') return;
         cfg = Object.assign(Game.defaultConfig(), c);
         engine.setConfig(cfg);
+        syncLocal();
         if (cfg.enabled === false) document.body.classList.add('ctc-stopped'); else document.body.classList.remove('ctc-stopped');
         $('ctc-score-box').classList.toggle('hidden', cfg.showScore === false);
         $('ctc-danger-line').classList.toggle('hidden', cfg.showDanger === false);
@@ -466,6 +532,7 @@
         const rawDt = (now - lastT) / 1000; lastT = now;
         let dt = rawDt;
         if (dt > 0.05) dt = 0.05;
+        pumpLocalHands();
         // Khung bị ngắt lâu (OBS tiết kiệm CPU) hoặc tracker im lặng → coi tay vắng, tránh đoạn thẳng ma khi quay lại.
         if (bladesLive && (rawDt > 0.25 || now - lastHandAt > 300)) clearBlades();
         if (!isEdit) engine.step(dt * 1000);
