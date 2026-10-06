@@ -125,3 +125,93 @@ test('combo tăng khi nhát liên tiếp trong 1 s và về 0 sau 1 s', () => {
     eng.setBlade('R', 700, 1300, false); eng.step(1100);
     assert.equal(eng.snapshot().combo, 0);
 });
+
+// ---------- Task 3: vườn tích tụ, thua, bom, buff, giải cứu, hold-to-start ----------
+function dropAll(eng, ms) { eng.snapshot().objects.forEach(o => { o.vy = 3000; }); eng.step(ms || 500); }
+
+test('quả rơi hết khỏi đáy → pile += pileStep và event land', () => {
+    const eng = createEngine({ ...defaultConfig(), pileStep: 5, danger: 50, spawnPerSecond: 100 }); eng.start();
+    oneFruitAt(eng, 540, 1900); dropAll(eng);
+    const s = eng.snapshot();
+    assert.equal(s.pile, 5); assert.equal(s.playing, true);
+    assert.ok(s.events.some(e => e.type === 'land' && e.kind === 'apple'));
+});
+
+test('pile ≥ danger → end, playing=false, score giữ, object xóa hết', () => {
+    const eng = createEngine({ ...defaultConfig(), pileStep: 25, danger: 50, cuts: 1, spawnPerSecond: 100 }); eng.start();
+    oneFruitAt(eng, 540, 900); swipe(eng, 900, 400, 700); eng.snapshot();
+    for (let i = 0; i < 2; i++) { oneFruitAt(eng, 540, 1900); dropAll(eng); }
+    const s = eng.snapshot();
+    assert.equal(s.pile, 50); assert.equal(s.playing, false); assert.equal(s.score, 10);
+    assert.equal(s.objects.length, 0);
+    assert.ok(s.events.some(e => e.type === 'end' && e.score === 10));
+    eng.start(); assert.equal(eng.snapshot().pile, 0); assert.equal(eng.snapshot().score, 10);
+});
+
+test('chém bom → -bombPenalty, event bomb, quả trong bán kính blast rơi vào vườn', () => {
+    const eng = createEngine({ ...defaultConfig(), bombPenalty: 50, blast: 24, pileStep: 5, spawnPerSecond: 100 }); eng.start();
+    oneFruitAt(eng, 540, 900, 'bomb'); oneFruitAt(eng, 600, 900, 'apple'); oneFruitAt(eng, 540, 300, 'apple');
+    swipe(eng, 900, 400, 700);
+    const s = eng.snapshot();
+    assert.equal(s.score, -50); assert.equal(s.pile, 5);
+    assert.equal(s.objects.length, 1); assert.ok(Math.abs(s.objects[0].y - 300) < 5);
+    assert.ok(s.events.some(e => e.type === 'bomb'));
+});
+
+test('god: bom thành vàng, chém được +points, không nổ; buffs.god ≈ godSeconds', () => {
+    const eng = createEngine({ ...defaultConfig(), godSeconds: 10, points: 10, spawnPerSecond: 100 }); eng.start();
+    eng.enqueue('god', 1); eng.step(16);
+    assert.ok(Math.abs(eng.snapshot().buffs.god - 10000) < 50);
+    const b = oneFruitAt(eng, 540, 900, 'bomb'); assert.equal(b.golden, true);
+    swipe(eng, 900, 400, 700);
+    const s = eng.snapshot();
+    assert.equal(s.score, 10); assert.ok(!s.events.some(e => e.type === 'bomb'));
+});
+
+test('fast và slow triệt tiêu thời gian của nhau', () => {
+    const eng = createEngine({ ...defaultConfig(), fastSeconds: 10, slowSeconds: 4 }); eng.start();
+    eng.enqueue('fast', 1); eng.step(16); eng.enqueue('slow', 1); eng.step(16);
+    const b = eng.snapshot().buffs;
+    assert.ok(Math.abs(b.fast - 6000) < 50, `fast ${b.fast}`); assert.equal(b.slow, 0);
+    eng.step(7000);
+    assert.equal(eng.snapshot().buffs.fast, 0);
+});
+
+test('fast nhân tốc độ bay theo fastFactor', () => {
+    const mk = (fast) => { const e = createEngine({ ...defaultConfig(), fastFactor: 2, spawnPerSecond: 100 }); e.start(); if (fast) { e.enqueue('fast', 1); e.step(16); } return e; };
+    const a = mk(false), b = mk(true);
+    const oa = oneFruitAt(a, 540, 1500), ob = oneFruitAt(b, 540, 1500);
+    oa.vy = -1000; ob.vy = -1000; a.step(100); b.step(100);
+    assert.ok(1500 - ob.y > (1500 - oa.y) * 1.5);
+});
+
+test('rescue trừ rescuePercent khỏi pile, không âm', () => {
+    const eng = createEngine({ ...defaultConfig(), pileStep: 30, rescuePercent: 100, spawnPerSecond: 100 }); eng.start();
+    oneFruitAt(eng, 540, 1900); dropAll(eng);
+    assert.equal(eng.snapshot().pile, 30);
+    eng.enqueue('rescue', 1); eng.step(16);
+    const s = eng.snapshot(); assert.equal(s.pile, 0); assert.ok(s.events.some(e => e.type === 'rescue'));
+});
+
+test('hold-to-start: giữ ngón trên nút holdSeconds thì start, rời tay thì progress về 0', () => {
+    const eng = createEngine({ ...defaultConfig(), holdSeconds: 0.85 }); eng.holdTarget(540, 1000, 120);
+    eng.setBlade('R', 540, 1000, true); eng.step(400);
+    assert.ok(eng.snapshot().hold.progress > 0.4 && !eng.snapshot().playing);
+    eng.setBlade('R', 900, 1000, true); eng.step(16); assert.equal(eng.snapshot().hold.progress, 0);
+    eng.setBlade('R', 540, 1000, true); eng.step(900);
+    assert.equal(eng.snapshot().playing, true);
+});
+
+test('chuột (blade M) cũng giữ được nút nhưng không chém quả', () => {
+    const eng = createEngine({ ...defaultConfig(), holdSeconds: 0.5, spawnPerSecond: 100 }); eng.holdTarget(540, 1000, 120);
+    eng.setBlade('M', 540, 1000, true); eng.step(600);
+    assert.equal(eng.snapshot().playing, true);
+    oneFruitAt(eng, 540, 900); eng.setBlade('M', 400, 900, true); eng.step(16); eng.setBlade('M', 700, 900, true); eng.step(16);
+    assert.equal(eng.snapshot().score, 0);
+});
+
+test('idleSpawnSeconds > 0 tự sinh quả khi hàng đợi rỗng', () => {
+    const eng = createEngine({ ...defaultConfig(), idleSpawnSeconds: 1, spawnPerSecond: 100 }); eng.start();
+    eng.step(1100);
+    assert.equal(eng.snapshot().objects.length, 1);
+});

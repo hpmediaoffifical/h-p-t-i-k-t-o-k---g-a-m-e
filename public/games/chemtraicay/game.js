@@ -55,6 +55,49 @@
         let comboAt = -Infinity;   // thời điểm nhát gần nhất (ms engine)
         let clock = 0;             // thời gian engine tích lũy (ms)
         const blades = { L: mkBlade(), R: mkBlade(), M: mkBlade() };
+        const buffs = { god: 0, fast: 0, slow: 0 };   // ms còn lại
+        let hold = { x: 0, y: 0, r: 0, ms: 0, side: null };
+        let idleAcc = 0;
+
+        function holdTarget(x, y, r) { hold.x = num(x, 0); hold.y = num(y, 0); hold.r = Math.max(0, num(r, 0)); hold.ms = 0; }
+
+        function applyBuff(action, qty) {
+            const n = Math.max(1, Math.floor(num(qty, 1)));
+            if (action === 'god') {
+                buffs.god += num(cfg.godSeconds, 10) * 1000 * n;
+                for (const o of objects) if (o.kind === 'bomb') o.golden = true;
+            } else if (action === 'fast' || action === 'slow') {
+                const other = action === 'fast' ? 'slow' : 'fast';
+                let add = num(cfg[action + 'Seconds'], 10) * 1000 * n;
+                const cancel = Math.min(buffs[other], add);
+                buffs[other] -= cancel; add -= cancel;
+                buffs[action] += add;
+            } else if (action === 'rescue') {
+                pile = Math.max(0, pile - num(cfg.rescuePercent, 100) * n);
+                events.push({ type: 'rescue', pile });
+                return;
+            }
+            events.push({ type: 'buff', kind: action, ms: buffs[action] });
+        }
+
+        function explode(bomb) {
+            score -= num(cfg.bombPenalty, 50);
+            events.push({ type: 'bomb', x: bomb.x, y: bomb.y });
+            const radius = width * num(cfg.blast, 24) / 100;
+            const gone = objects.filter(o => o !== bomb && o.kind !== 'bomb' && Math.hypot(o.x - bomb.x, o.y - bomb.y) <= radius + o.r);
+            for (const o of gone) {
+                objects = objects.filter(q => q !== o);
+                pile += num(cfg.pileStep, 5);
+                events.push({ type: 'blast', kind: o.kind, x: o.x, y: o.y });
+            }
+        }
+
+        function endGame() {
+            playing = false;
+            events.push({ type: 'end', score, pile });
+            objects = []; queue = [];
+            buffs.god = 0; buffs.fast = 0; buffs.slow = 0;
+        }
 
         function mkBlade() { return { x: 0, y: 0, present: false, px: 0, py: 0, pprev: false }; }
 
@@ -106,9 +149,13 @@
                         if (o.depth >= maxDepth) continue;
                         if (segDist(b.px, b.py, b.x, b.y, o.x, o.y) <= o.r + reach) hit.push(o);
                     }
+                    // bom nổ trước (nổ có thể cuốn luôn quả bị chém cùng nhát)
+                    hit.sort((a, c) => (a.kind === 'bomb' && !a.golden ? -1 : 0) - (c.kind === 'bomb' && !c.golden ? -1 : 0));
                     for (const o of hit) {
+                        if (!objects.includes(o)) continue;
                         objects = objects.filter(q => q !== o);
-                        cutObject(o, b.px, b.py, b.x, b.y);
+                        if (o.kind === 'bomb' && !o.golden) explode(o);
+                        else cutObject(o, b.px, b.py, b.x, b.y);
                     }
                 }
                 b.px = b.x; b.py = b.y; b.pprev = b.present;
@@ -123,6 +170,7 @@
             if (ACTIONS.indexOf(action) < 0) return 0;
             const max = Math.max(1, num(cfg.maxPerGift, 30));
             const n = Math.min(max, Math.max(1, Math.floor(num(qty, 1))));
+            if (action === 'god' || action === 'fast' || action === 'slow' || action === 'rescue') { applyBuff(action, n); return n; }
             for (let i = 0; i < n; i++) queue.push(action);
             return n;
         }
@@ -134,22 +182,38 @@
             const vy = -Math.sqrt(2 * GRAVITY * h) * num(cfg.baseSpeed, 0.65);
             const toward = x < width / 2 ? 1 : -1;
             const vx = toward * 120 * rng();
-            objects.push({ id: nextId++, kind, x, y: height + r, r, vx, vy, rot: rng() * Math.PI * 2, spin: (rng() - 0.5) * 3, depth: 0, golden: false });
+            objects.push({ id: nextId++, kind, x, y: height + r, r, vx, vy, rot: rng() * Math.PI * 2, spin: (rng() - 0.5) * 3, depth: 0, golden: kind === 'bomb' && buffs.god > 0 });
         }
 
         function step(dtMs) {
             const dtm = Math.max(0, num(dtMs, 16));
             clock += dtm;
             if (combo && clock - comboAt > 1000) combo = 0;
-            if (!playing) { for (const k in blades) { blades[k].px = blades[k].x; blades[k].py = blades[k].y; blades[k].pprev = blades[k].present; } return; }
+            if (!playing) {
+                for (const k in blades) { blades[k].px = blades[k].x; blades[k].py = blades[k].y; blades[k].pprev = blades[k].present; }
+                // giữ ngón trỏ (hoặc chuột) trên nút bắt đầu
+                let inside = null;
+                for (const k of ['L', 'R', 'M']) {
+                    const b = blades[k];
+                    if (b.present && hold.r > 0 && Math.hypot(b.x - hold.x, b.y - hold.y) <= hold.r) { inside = k; break; }
+                }
+                if (inside) { hold.ms += dtm; hold.side = inside; } else { hold.ms = 0; hold.side = null; }
+                if (hold.ms >= num(cfg.holdSeconds, 0.85) * 1000) { hold.ms = 0; start(); }
+                return;
+            }
             const dt = dtm / 1000;
+            for (const k of ['god', 'fast', 'slow']) buffs[k] = Math.max(0, buffs[k] - dtm);
+            for (const o of objects) if (o.kind === 'bomb' && o.depth === 0) o.golden = buffs.god > 0;
             runBlades();
             // xả hàng đợi
             spawnAcc += num(cfg.spawnPerSecond, 3) * dt;
             while (spawnAcc >= 1 && queue.length) { spawnAcc -= 1; spawn(queue.shift()); }
             if (!queue.length) spawnAcc = Math.min(spawnAcc, 1);
+            // tự sinh quả khi rảnh (chơi thử)
+            const idle = num(cfg.idleSpawnSeconds, 0);
+            if (idle > 0 && !queue.length) { idleAcc += dt; if (idleAcc >= idle) { idleAcc = 0; spawn(FRUITS[Math.floor(rng() * FRUITS.length)]); } } else idleAcc = 0;
             // bay
-            const speedMul = 1;
+            const speedMul = buffs.fast > 0 ? num(cfg.fastFactor, 1.7) : buffs.slow > 0 ? num(cfg.slowFactor, 0.55) : 1;
             const g = GRAVITY * num(cfg.baseSpeed, 0.65) * num(cfg.baseSpeed, 0.65);
             const dte = dt * speedMul;
             for (const o of objects) {
@@ -158,21 +222,34 @@
                 o.y += o.vy * dte;
                 o.rot += o.spin * dte;
             }
-            objects = objects.filter(o => !(o.vy > 0 && o.y > height + 2 * o.r));
+            const maxDepth = Math.max(1, num(cfg.cuts, 2));
+            const landed = objects.filter(o => o.vy > 0 && o.y > height + 2 * o.r);
+            if (landed.length) {
+                objects = objects.filter(o => !landed.includes(o));
+                for (const o of landed) {
+                    if (o.kind === 'bomb' || o.depth >= maxDepth) continue;
+                    pile += num(cfg.pileStep, 5);
+                    events.push({ type: 'land', kind: o.kind, x: o.x, depth: o.depth });
+                }
+            }
+            if (pile >= num(cfg.danger, 50)) endGame();
         }
 
-        function start() { playing = true; pile = 0; spawnAcc = 0; events.push({ type: 'start' }); }
-        function stop() { playing = false; objects = []; queue = []; }
+        function start() { playing = true; pile = 0; spawnAcc = 0; idleAcc = 0; hold.ms = 0; events.push({ type: 'start' }); }
+        function stop() { playing = false; objects = []; queue = []; buffs.god = 0; buffs.fast = 0; buffs.slow = 0; }
         function reset() { stop(); score = 0; pile = 0; }
 
         function snapshot() {
             const ev = events; events = [];
             const bl = {};
             for (const k in blades) bl[k] = { x: blades[k].x, y: blades[k].y, present: blades[k].present };
-            return { playing, score, pile, combo, queue: queue.length, objects: objects.map(o => o), events: ev, blades: bl };
+            const holdSec = Math.max(0.05, num(cfg.holdSeconds, 0.85));
+            return { playing, score, pile, combo, queue: queue.length, objects: objects.map(o => o), events: ev, blades: bl,
+                buffs: { god: buffs.god, fast: buffs.fast, slow: buffs.slow },
+                hold: { side: hold.side, progress: Math.min(1, hold.ms / (holdSec * 1000)) } };
         }
 
-        return { enqueue, step, start, stop, reset, snapshot, setConfig, setBlade };
+        return { enqueue, step, start, stop, reset, snapshot, setConfig, setBlade, holdTarget };
     }
 
     return { ACTIONS, FRUITS, ACTION_LABELS, defaultConfig, createEngine };
