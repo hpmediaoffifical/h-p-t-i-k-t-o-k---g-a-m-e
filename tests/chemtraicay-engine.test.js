@@ -14,6 +14,8 @@ test('ACTIONS có đúng 15 hành động theo thứ tự spec', () => {
 test('defaultConfig trả về bản sao độc lập với giá trị spec', () => {
     const a = defaultConfig(); const b = defaultConfig();
     assert.equal(a.cutRadius, 15); assert.equal(a.danger, 50); assert.equal(a.camRect, null);
+    assert.deepEqual(a.videoSource, { mode: 'obs-scene', scene: '', source: '', fps: 15, width: 640 });
+    assert.deepEqual(a.obsScene, { enabled: false, playScene: '', backScene: '' });
     a.cutRadius = 99; assert.equal(b.cutRadius, 15);
 });
 
