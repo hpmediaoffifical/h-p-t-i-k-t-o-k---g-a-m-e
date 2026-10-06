@@ -206,67 +206,51 @@
     .bc-bow {
         position: relative;
         width: 220px; height: 200px;
-        background: transparent;
-        border: none;
-        box-shadow: none;
-        padding: 0;
-        filter: drop-shadow(0 0 4px rgba(0,0,0,0.85)) drop-shadow(0 4px 8px rgba(0,0,0,0.5));
-        transform-origin: center center;
+        --bow-charge: 0;
+        /* bóng đổ cho cung nổi trên mọi nền camera */
+        filter: drop-shadow(0 0 3px rgba(0,0,0,0.9)) drop-shadow(0 5px 10px rgba(0,0,0,0.45));
+        /* xoay quanh TAY CẦM (x=120 trong viewBox 200, svg lệch 10px trong khung 220) */
+        transform-origin: 130px 100px;
         transition: transform 300ms cubic-bezier(0.4, 0, 0.3, 1);
     }
+    body.bc-tracking .bc-bow { transition: transform 120ms linear; }
     .bc-bow svg { width: 100%; height: 100%; overflow: visible; }
-    .bc-bow-arc {
-        stroke: var(--bow-color);
-        stroke-width: 8;
-        fill: none;
-        filter: drop-shadow(0 0 6px var(--skin-glow));
+    .bw-limb {
+        fill: url(#bw-limb);
+        stroke: rgba(0,0,0,0.55);
+        stroke-width: 0.8;
+        stroke-linejoin: round;
+        /* tích lực: cành sáng dần theo --bow-charge */
+        filter: drop-shadow(0 0 calc(2px + 10px * var(--bow-charge)) var(--skin-glow, transparent));
     }
-    .bc-bow-string {
+    .bw-limb-hi {                       /* vệt sáng dọc cành cho có khối */
+        fill: none;
+        stroke: rgba(255,255,255,0.28);
+        stroke-width: 0.9;
+        transform: translate(-1px, 0);
+    }
+    .bw-riser { fill: var(--bow-color); stroke: rgba(0,0,0,0.6); stroke-width: 1; }
+    .bw-grip { fill: rgba(20,14,10,0.82); stroke: rgba(0,0,0,0.6); stroke-width: 0.6; }
+    .bw-grip-wrap { stroke: rgba(255,255,255,0.16); stroke-width: 1; fill: none; }
+    .bw-rest { fill: var(--string-color); opacity: 0.9; }
+    .bw-nockpt { fill: var(--string-color); stroke: rgba(0,0,0,0.5); stroke-width: 0.5; }
+    .bw-string {
+        fill: none;
         stroke: var(--string-color);
-        stroke-width: 2;
-        fill: none;
-        transition: d 200ms ease-out;
+        stroke-width: 1.4;
+        stroke-linejoin: round;
+        filter: drop-shadow(0 0 calc(1px + 6px * var(--bow-charge)) var(--skin-glow, transparent));
     }
-    .bc-bow-arrow {
-        transition: transform 180ms ease-out;
-    }
-    .bc-bow-arrow .shaft {
-        stroke: var(--arrow-color);
-        stroke-width: 3;
-        fill: var(--arrow-color);
-        filter: drop-shadow(0 0 4px var(--skin-glow));
-    }
-    .bc-bow-arrow .head {
-        fill: var(--arrow-color);
-        stroke: var(--arrow-color);
-        stroke-width: 1;
-    }
-    .bc-bow-arrow .fletch {
-        fill: var(--string-color);
-    }
-    /* Charging state — pull string back */
-    .bc-bow.charging .bc-bow-string {
-        d: path('M30 30 L 120 100 L 30 170');
-    }
-    .bc-bow.charging .bc-bow-arrow {
-        transform: translateX(-30px);
-    }
-    .bc-bow.firing .bc-bow-arrow {
-        transform: translateX(180px) scale(0.4);
-        opacity: 0;
-        transition: transform 280ms ease-in, opacity 200ms ease-in 100ms;
-    }
-    .bc-bow.firing .bc-bow-string {
-        d: path('M30 30 L 60 100 L 30 170');
-        animation: bc-string-vibrate 240ms ease-out;
-    }
-    @keyframes bc-string-vibrate {
-        0% { transform: translateX(0); }
-        25% { transform: translateX(3px); }
-        50% { transform: translateX(-2px); }
-        75% { transform: translateX(2px); }
-        100% { transform: translateX(0); }
-    }
+    .bc-bow.charge-full .bw-string,
+    .bc-bow.charge-full .bw-limb { animation: bw-charge-pulse 0.7s ease-in-out infinite alternate; }
+    @keyframes bw-charge-pulse { from { opacity: 0.85; } to { opacity: 1; } }
+    .bw-arrow { will-change: transform, opacity; }
+    /* Mũi tên — dùng chung cho tên trên cung / đang bay / cắm trên người */
+    .bw-arrow .shaft, .bc-fly-arrow .shaft, .bc-stuck-arrow .shaft { stroke: var(--arrow-color); stroke-width: 2.6; stroke-linecap: round; fill: none; }
+    .bw-arrow .head, .bc-fly-arrow .head, .bc-stuck-arrow .head { fill: var(--arrow-color); stroke: rgba(0,0,0,0.45); stroke-width: 0.6; stroke-linejoin: round; }
+    .bw-arrow .head-hi, .bc-fly-arrow .head-hi, .bc-stuck-arrow .head-hi { stroke: rgba(255,255,255,0.6); stroke-width: 0.9; fill: none; }
+    .bw-arrow .fletch, .bc-fly-arrow .fletch, .bc-stuck-arrow .fletch { fill: var(--string-color); stroke: rgba(0,0,0,0.35); stroke-width: 0.5; }
+    .bw-arrow .nock, .bc-fly-arrow .nock, .bc-stuck-arrow .nock { fill: var(--string-color); stroke: rgba(0,0,0,0.5); stroke-width: 0.5; }
     /* Skin name label removed — was confusing when bow rotates */
 
     /* ===== FLYING ARROWS LAYER ===== */
@@ -520,41 +504,6 @@
         text-shadow: 0 0 18px #ff5b2e, 0 3px 0 #4a0a00;
     }
 
-    /* ===== BOW CHARGE METER — ring around bow widget ===== */
-    .bc-bow-charge {
-        position: absolute;
-        inset: -16px;
-        pointer-events: none;
-        opacity: 0;
-        transition: opacity 250ms;
-    }
-    .bc-bow-charge.active { opacity: 1; }
-    .bc-bow-charge svg {
-        width: 100%; height: 100%;
-        overflow: visible;
-    }
-    .bc-bow-charge .ring-bg {
-        fill: none;
-        stroke: rgba(255,255,255,0.18);
-        stroke-width: 6;
-    }
-    .bc-bow-charge .ring-fill {
-        fill: none;
-        stroke: var(--skin-glow, #ffd54a);
-        stroke-width: 6;
-        stroke-linecap: round;
-        transform: rotate(-90deg);
-        transform-origin: center;
-        transition: stroke-dasharray 300ms ease-out;
-        filter: drop-shadow(0 0 8px var(--skin-glow, #ffd54a));
-    }
-    .bc-bow-charge.full .ring-fill {
-        animation: bc-charge-pulse 0.7s ease-in-out infinite alternate;
-    }
-    @keyframes bc-charge-pulse {
-        0%   { opacity: 0.7; }
-        100% { opacity: 1; filter: drop-shadow(0 0 18px var(--skin-glow, #ffd54a)); }
-    }
 
     /* ===== SHIELD ACTIVE INDICATOR — pill below hearts ===== */
     .bc-shield-active {
@@ -755,10 +704,11 @@
         transform: translate(-50%, -50%) scale(0.5);
         z-index: 50;
         pointer-events: none;
-        font-size: 64px;
+        --banner-scale: 0.5;
+        font-size: calc(64px * var(--banner-scale));
         font-weight: 900;
-        padding: 18px 40px;
-        border-radius: 18px;
+        padding: calc(18px * var(--banner-scale)) calc(40px * var(--banner-scale));
+        border-radius: calc(18px * var(--banner-scale) + 4px);
         text-align: center;
         opacity: 0;
         white-space: nowrap;
@@ -787,7 +737,7 @@
     }
     .bc-banner-sub {
         display: block;
-        font-size: 26px;
+        font-size: calc(26px * var(--banner-scale, 1));
         font-weight: 700;
         margin-top: 6px;
         opacity: 0.95;
@@ -1132,26 +1082,7 @@
     <!-- Bow widget stage -->
     <div class="bc-bow-stage" id="bc-bow-stage">
         <div class="bc-bow-inner" id="bc-bow-inner">
-            <div class="bc-bow" id="bc-bow">
-                <div class="bc-bow-charge" id="bc-bow-charge">
-                    <svg viewBox="0 0 100 100">
-                        <circle class="ring-bg" cx="50" cy="50" r="44" />
-                        <circle class="ring-fill" cx="50" cy="50" r="44" stroke-dasharray="0 276.46" />
-                    </svg>
-                </div>
-                <svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet">
-                    <!-- Bow arc: curved C shape on left -->
-                    <path class="bc-bow-arc" d="M30 30 Q 100 100 30 170" />
-                    <!-- String -->
-                    <path class="bc-bow-string" d="M30 30 L 30 170" />
-                    <!-- Arrow group — ngắn lại, ending near bow arc apex để cân đối với widget -->
-                    <g class="bc-bow-arrow">
-                        <line class="shaft" x1="45" y1="100" x2="120" y2="100" />
-                        <polygon class="head" points="120,100 108,93 108,107" />
-                        <polygon class="fletch" points="47,100 35,93 35,107" />
-                    </g>
-                </svg>
-            </div>
+            <div class="bc-bow" id="bc-bow"><!-- vẽ bởi /games/bancung/bow-anim.js --></div>
         </div>
     </div>
 
@@ -1198,6 +1129,7 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="/games/bancung/game.js"></script>
+    <script src="/games/bancung/bow-anim.js"></script>
     <script>
     (function () {
         'use strict';
@@ -1225,7 +1157,11 @@
         const $podium = document.getElementById('bc-podium');
         const $podiumRow = document.getElementById('bc-podium-row');
         const $podiumSurv = document.getElementById('bc-podium-survival');
-        const $bowCharge = document.getElementById('bc-bow-charge');
+        // Cây cung vẽ + hoạt cảnh: lắp tên → kéo căng → buông → rung dây → lắp tên mới (bow-anim.js)
+        const bowCtl = window.HpBow ? window.HpBow.mount($bow) : null;
+        window.__bcBow = bowCtl;          // để soi/thử trong DevTools
+        // Mũi tên đang bay / cắm trên người: khấc ở x=10, mũi nhọn ở x=132 trong viewBox 140×34 (như cũ)
+        const ARROW_ART = window.HpBow ? window.HpBow.arrowSvg(122) : '<line class="shaft" x1="0" y1="0" x2="108" y2="0"/><polygon class="head" points="122,0 104,-8 104,8"/>';
         const $giftList = document.getElementById('bc-giftlist');
 
         // Edit mode (panel popout) — drag + wheel zoom + right-click close
@@ -1254,7 +1190,6 @@
         let trackingNow = false;          // khung vừa rồi có thấy người
         let lastHitPt = null;             // { x, y, at } — điểm mũi tên vừa chạm (cho hạt bụi / banner)
         const bodyMarks = [];             // [{ el, mark:{frame,a,b}, born, life, fadeFrom, alpha, tail }]
-        let _lastAimAt = { x: -1e9, y: -1e9 };
         let _warnAt = 0;
         // Chớp đỏ theo hình cơ thể: canvas nửa độ phân giải (CSS phóng 100%) + canvas phụ vẽ bóng người đặc.
         const $bodyFlash = document.getElementById('bc-body-flash');
@@ -1345,7 +1280,7 @@
             // Survival timer visibility
             if ($survival) $survival.style.display = (d.showSurvivalTimer !== true) ? 'none' : '';
             // Bow charge ring visibility
-            if ($bowCharge) $bowCharge.classList.toggle('active', d.bowChargeEnabled === true);
+            if (d.bowChargeEnabled !== true) { bowCtl?.setCharge(0); $bow.classList.remove('charge-full'); }
             // Gift list visibility + position + scale + layout
             document.body.classList.toggle('no-giftlist', d.showGiftList === false);
             document.body.classList.toggle('no-hpnum', d.showHpNumber === false);
@@ -1412,7 +1347,7 @@
             // Điểm trúng = tâm thân → cung tự xoay theo người (chỉ tính lại khi dời > 3px cho nhẹ).
             $impact.style.left = B.center.x + 'px';
             $impact.style.top = B.center.y + 'px';
-            if (Math.hypot(B.center.x - _lastAimAt.x, B.center.y - _lastAimAt.y) > 3) { _lastAimAt = { x: B.center.x, y: B.center.y }; updateBowAim(); }
+            updateBowAim(B);              // mỗi khung — tự bỏ qua khi góc gần như không đổi
         }
         // Vòng vẽ: lọc pose, bám đầu, kéo vết máu/mũi tên cắm theo thân, mờ dần theo tuổi.
         function trackFrame(now) {
@@ -1455,7 +1390,7 @@
             }
             const ar = document.createElement('div');
             ar.className = 'bc-stuck-arrow';
-            ar.innerHTML = '<svg viewBox="0 0 140 34"><line class="shaft" x1="10" y1="17" x2="118" y2="17" stroke-width="4" /><polygon class="head" points="132,17 113,8 113,26" /><polygon class="fletch" points="12,17 0,8 0,26" /></svg>';
+            ar.innerHTML = '<svg viewBox="0 0 140 34"><g transform="translate(10,17)">' + ARROW_ART + '</g></svg>';
             ar.style.opacity = '0';
             $arrowsLayer.appendChild(ar);
             const scl = Math.max(0.6, Math.min(1.1, sw / 360));
@@ -1664,12 +1599,10 @@
 
         // ===== Bow charge ring update =====
         function updateBowCharge(pct) {
-            const ring = $bowCharge?.querySelector('.ring-fill');
-            if (!ring) return;
-            const C = 2 * Math.PI * 44;
-            const dash = (pct / 100) * C;
-            ring.setAttribute('stroke-dasharray', dash + ' ' + C);
-            $bowCharge.classList.toggle('full', pct >= 99);
+            // Tích lực: cành + dây cung sáng dần (không còn vòng tròn quanh cung)
+            if (config?.display?.bowChargeEnabled !== true) pct = 0;
+            bowCtl?.setCharge(pct);
+            $bow.classList.toggle('charge-full', pct >= 99);
         }
 
         // ===== Hit banners (critical / headshot / first blood) =====
@@ -1780,20 +1713,41 @@
         }
 
         // ===== Bow auto-aim: rotate widget so arrow visually points at impact zone =====
-        function updateBowAim() {
+        // Tay cầm cung trên màn hình (điểm xoay) — đo trên khung chưa xoay nên không phụ thuộc góc đang ngắm.
+        function bowPivot() {
+            const r = $innerBow.getBoundingClientRect();
+            return { x: r.left + r.width * (130 / 220), y: r.top + r.height * (100 / 200) };
+        }
+        // Cung ngắm vào đâu:
+        //   đang kéo 1 phát (bám người) → đúng điểm trúng đã chọn cho phát đó (mũi tên bay đúng chỗ cung chĩa)
+        //   nghỉ + thấy người            → MẶT người (tâm đầu), bám theo khi người di chuyển
+        //   không bám người              → điểm trúng cấu hình (vòng 🎯 ĐIỂM TRÚNG)
+        let bowAimTarget = null;          // { mark:{frame,a,b}, until } — điểm trúng của phát đang kéo
+        let _aimAngle = null;
+        function aimPoint(B) {
+            if (trackWanted && trackingNow && bodyTrack) {
+                B = B || bodyTrack.body();
+                if (B && bowAimTarget && performance.now() < bowAimTarget.until) {
+                    const p = bodyTrack.toStage(bowAimTarget.mark, B);
+                    if (p) return p;
+                }
+                if (B?.head) return B.head.c;
+                if (B) return B.center;
+            }
+            const r = $impact.getBoundingClientRect();
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        }
+        function updateBowAim(B) {
             // Default ON unless explicitly disabled
             if (config?.display?.autoAimBow === false) {
-                $bow.style.transform = '';
+                $bow.style.transform = ''; _aimAngle = null;
                 return;
             }
-            const bowRect = $bow.getBoundingClientRect();
-            const impRect = $impact.getBoundingClientRect();
-            const bx = bowRect.left + bowRect.width / 2;
-            const by = bowRect.top + bowRect.height / 2;
-            const ix = impRect.left + impRect.width / 2;
-            const iy = impRect.top + impRect.height / 2;
-            // Arrow in default SVG points right (angle = 0). Compute angle from bow → impact.
-            const angle = Math.atan2(iy - by, ix - bx);
+            const pv = bowPivot(), t = aimPoint(B && B.torso ? B : null);
+            // Arrow in default SVG points right (angle = 0). Compute angle from bow → target.
+            const angle = Math.atan2(t.y - pv.y, t.x - pv.x);
+            if (_aimAngle !== null && Math.abs(angle - _aimAngle) < 0.004) return;   // đổi < 0.2° thì khỏi ghi
+            _aimAngle = angle;
             $bow.style.transform = `rotate(${angle}rad)`;
         }
 
@@ -1897,16 +1851,6 @@
         }
 
         // ===== Bow animation — charge then fire =====
-        function animateBowShot() {
-            if (!$bow) return;
-            $bow.classList.remove('firing');
-            $bow.classList.add('charging');
-            setTimeout(() => {
-                $bow.classList.remove('charging');
-                $bow.classList.add('firing');
-                setTimeout(() => $bow.classList.remove('firing'), 300);
-            }, 220);
-        }
 
         // ===== Spawn flying arrow — STRAIGHT LINE from bow → impact zone =====
         // Trajectory đi thẳng (không arc cong) → trông như mũi tên thật bay direct vào target.
@@ -1919,15 +1863,19 @@
             // Throttle: nếu quá nhiều arrow đang bay → bỏ qua arrow mới (server damage vẫn fire)
             const active = $arrowsLayer.querySelectorAll('.bc-fly-arrow').length;
             if (active >= MAX_CONCURRENT_ARROWS) return;
-            const bowRect = $bow.getBoundingClientRect();
             const impactRect = $impact.getBoundingClientRect();
-            const sx = bowRect.left + bowRect.width / 2;
-            const sy = bowRect.top + bowRect.height / 2;
+            const st = bowCtl && document.body.classList.contains('no-bow') === false ? bowCtl.anchor() : bowPivot();
+            const sx = st.x, sy = st.y;
             // Spread: % của viewport
             const spreadPct = Math.max(0, Math.min(30, Number(config?.display?.impactSpread) || 0));
             const spreadPx = (spreadPct / 100) * Math.min(window.innerWidth, window.innerHeight);
             // Thấy người → bắn vào thân/đầu thật; không thì về điểm trúng cấu hình như cũ.
-            const bodyTgt = trackWanted && bodyTrack && trackingNow ? bodyTrack.pickTarget(!!opts.headshot) : null;
+            // Điểm trúng đã chọn từ lúc nhận lệnh bắn (cung đã ngắm vào đó trong lúc kéo) → tính lại theo tư thế HIỆN TẠI.
+            let bodyTgt = null;
+            if (trackWanted && bodyTrack && trackingNow) {
+                const p = opts.mark ? bodyTrack.toStage(opts.mark) : null;
+                bodyTgt = p ? { ...p, ...opts.mark } : bodyTrack.pickTarget(!!opts.headshot);
+            }
             const tx = bodyTgt ? bodyTgt.x : impactRect.left + impactRect.width / 2 + (Math.random() * 2 - 1) * spreadPx;
             const ty = bodyTgt ? bodyTgt.y : impactRect.top + impactRect.height / 2 + (Math.random() * 2 - 1) * spreadPx;
             // Straight-line angle from source to target — arrow rotates to match trajectory
@@ -1948,11 +1896,7 @@
             const arrow = document.createElement('div');
             arrow.className = 'bc-fly-arrow';
             arrow.innerHTML = `
-                <svg viewBox="0 0 140 34">
-                    <line class="shaft" x1="10" y1="17" x2="118" y2="17" stroke-width="4" />
-                    <polygon class="head" points="132,17 113,8 113,26" />
-                    <polygon class="fletch" points="12,17 0,8 0,26" />
-                </svg>
+                <svg viewBox="0 0 140 34"><g transform="translate(10,17)">${ARROW_ART}</g></svg>
             `;
             $arrowsLayer.appendChild(arrow);
 
@@ -2073,7 +2017,12 @@
             $redflash.classList.add('flash');
         }
 
-        function showBanner(kind, mainText, subText) {
+        // kind: 'heal' | 'shield' | 'revive' — key: khoá bật/tắt trong display (mặc định bật, riêng hồi sinh tắt)
+        const BANNER_DEFAULT = { bannerAutoburst: true, bannerRevive: false, bannerHeal: true, bannerShield: true };
+        function showBanner(kind, mainText, subText, key) {
+            const d = config?.display || {};
+            if (key && (d[key] ?? BANNER_DEFAULT[key]) === false) return;
+            $banner.style.setProperty('--banner-scale', ((Number(d.bannerScale) || 50) / 100).toFixed(2));
             $banner.className = 'bc-banner ' + kind;
             $banner.innerHTML = escapeHtml(mainText) + (subText ? `<span class="bc-banner-sub">${escapeHtml(subText)}</span>` : '');
             void $banner.offsetWidth;
@@ -2096,8 +2045,21 @@
         });
         socket.on('bancung:state', applyState);
         socket.on('bancung:shot', (d) => {
-            animateBowShot();
-            spawnFlyingArrow(Number(d.arrowDurationMs) || 700, d.user || null, { blocked: !!d.blocked });
+            const dur = Number(d.arrowDurationMs) || 700;
+            const opts = { blocked: !!d.blocked };
+            const drawMs = Math.max(50, Math.min(110, dur * 0.4));
+            // Bám người: chọn điểm trúng NGAY bây giờ để cung xoay về đó trong lúc kéo dây.
+            if (trackWanted && bodyTrack && trackingNow && !opts.blocked) {
+                const tgt = bodyTrack.pickTarget(false);
+                if (tgt) {
+                    opts.mark = { frame: tgt.frame, a: tgt.a, b: tgt.b };
+                    bowAimTarget = { mark: opts.mark, until: performance.now() + drawMs + 350 };
+                    updateBowAim();
+                }
+            }
+            if (bowCtl && config?.display?.showBowWidget !== false) {
+                bowCtl.shoot(lead => spawnFlyingArrow(Math.max(90, dur - lead), d.user || null, opts), drawMs);
+            } else spawnFlyingArrow(dur, d.user || null, opts);
         });
         socket.on('bancung:hit', (d) => {
             // Đang bám được người → chớp đỏ theo hình cơ thể, KHÔNG chớp toàn màn (phần ngoài người không liên quan).
@@ -2136,7 +2098,7 @@
         socket.on('bancung:charge', (d) => updateBowCharge(d.value || 0));
         socket.on('bancung:autoburst', (d) => {
             // Show banner that auto-burst is firing
-            showBanner('shield', `⚡ AUTO BURST ${d.count}!`, 'Cung nạp đầy năng lượng');
+            showBanner('shield', `⚡ AUTO BURST ${d.count}!`, 'Cung nạp đầy năng lượng', 'bannerAutoburst');
         });
         socket.on('bancung:blocked', () => {
             // Visual already handled via bancung:shot { blocked:true } → fly-through + ping.
@@ -2155,15 +2117,15 @@
         });
         socket.on('bancung:revive', (d) => {
             const who = d.user?.nickname || (d.auto ? 'TỰ HỒI SINH' : '?');
-            showBanner('revive', '✨ HỒI SINH!', d.auto ? '(Tự động)' : ('Cứu tinh: ' + who));
+            showBanner('revive', '✨ HỒI SINH!', d.auto ? '(Tự động)' : ('Cứu tinh: ' + who), 'bannerRevive');
         });
         socket.on('bancung:heal', (d) => {
             const who = d.user?.nickname || '';
-            showBanner('heal', `+${(d.hearts || 0).toFixed(1)} ❤`, who ? ('Cảm ơn ' + who) : 'Hồi máu');
+            showBanner('heal', `+${(d.hearts || 0).toFixed(1)} ❤`, who ? ('Cảm ơn ' + who) : 'Hồi máu', 'bannerHeal');
         });
         socket.on('bancung:shield', (d) => {
             const who = d.user?.nickname || '';
-            showBanner('shield', `🛡 BẤT TỬ ${d.durationSec}s`, who ? ('từ ' + who) : '');
+            showBanner('shield', `🛡 BẤT TỬ ${d.durationSec}s`, who ? ('từ ' + who) : '', 'bannerShield');
         });
         socket.on('gameConfig', ({ gameId, config: cfg }) => {
             if (gameId !== 'bancung') return;

@@ -684,8 +684,15 @@
             </div>
 
             <div class="nd-card">
-                <div class="nd-card-title">🧹 Chữ trên màn hình khi gục</div>
-                <div class="nd-hint">Mặc định tắt hết cho màn gọn — người xem tự hiểu. Thời gian chờ và máu tự hồi chỉnh ở tab <b>Máu</b> (Cửa sổ chờ hồi sinh).</div>
+                <div class="nd-card-title">🧹 Chữ trên màn hình</div>
+                <div class="nd-hint">Tắt bớt cho màn gọn — người xem tự hiểu. Thời gian chờ và máu tự hồi chỉnh ở tab <b>Máu</b> (Cửa sổ chờ hồi sinh).</div>
+                <div style="color:#8b93a8;font-size:12px;font-weight:700;margin:6px 0 2px">Khung chữ lớn giữa màn</div>
+                <label class="nd-inline"><input type="checkbox" id="bc-bn-autoburst" ${d.bannerAutoburst !== false ? 'checked' : ''} /> ⚡ "AUTO BURST" (cung nạp đầy)</label>
+                <label class="nd-inline"><input type="checkbox" id="bc-bn-revive" ${d.bannerRevive === true ? 'checked' : ''} /> ✨ "HỒI SINH!"</label>
+                <label class="nd-inline"><input type="checkbox" id="bc-bn-heal" ${d.bannerHeal !== false ? 'checked' : ''} /> ❤ "+ máu / Hồi máu"</label>
+                <label class="nd-inline"><input type="checkbox" id="bc-bn-shield" ${d.bannerShield !== false ? 'checked' : ''} /> 🛡 "BẤT TỬ"</label>
+                <label class="nd-inline">Cỡ khung chữ <input type="range" id="bc-bn-scale" min="25" max="100" step="5" value="${d.bannerScale ?? 50}" /><span id="bc-bn-scale-v">${d.bannerScale ?? 50}%</span></label>
+                <div style="color:#8b93a8;font-size:12px;font-weight:700;margin:8px 0 2px">Khi gục</div>
                 <label class="nd-inline"><input type="checkbox" id="bc-fx-deathpanel" ${d.showDeathPanel === true ? 'checked' : ''} /> 💀 Bảng "ĐÃ GỤC" + đếm ngược + lời nhắc tặng quà hồi sinh</label>
                 <label class="nd-inline"><input type="checkbox" id="bc-fx-killing" ${d.showKillingBlow === true ? 'checked' : ''} /> ⚔ Thẻ "PHÁT KẾT LIỄU" (tên người bắn phát cuối)</label>
                 <label class="nd-inline"><input type="checkbox" id="bc-fx-survival" ${d.showSurvivalTimer === true ? 'checked' : ''} /> ⏱ Đồng hồ "SỐNG SÓT" (góc trên-phải)</label>
@@ -703,7 +710,7 @@
                 <label class="nd-inline">X (ngang) <input type="range" id="bc-bx" min="0" max="100" step="1" value="${d.bowXPercent ?? 85}" /><span id="bc-bx-v">${d.bowXPercent ?? 85}%</span></label>
                 <label class="nd-inline">Y (dọc) <input type="range" id="bc-by" min="0" max="100" step="1" value="${d.bowYPercent ?? 80}" /><span id="bc-by-v">${d.bowYPercent ?? 80}%</span></label>
                 <label class="nd-inline">Scale <input type="range" id="bc-bs" min="30" max="250" step="5" value="${d.bowScale ?? 100}" /><span id="bc-bs-v">${d.bowScale ?? 100}%</span></label>
-                <label class="nd-inline"><input type="checkbox" id="bc-autoAim" ${d.autoAimBow !== false ? 'checked' : ''} /> Tự xoay cung hướng về điểm trúng</label>
+                <label class="nd-inline"><input type="checkbox" id="bc-autoAim" ${d.autoAimBow !== false ? 'checked' : ''} /> Tự xoay cung ngắm mục tiêu (bám người: ngắm mặt, khi bắn ngắm đúng chỗ trúng)</label>
                 <div class="nd-hint">💡 Bấm <b>✏ Sửa vị trí</b> rồi kéo chuột để di chuyển, cuộn để zoom.</div>
             </div>
 
@@ -835,6 +842,9 @@
         $('#bc-track-flash', host)?.addEventListener('change', e => { d.bodyFlash = !!e.target.checked; schedulePersist(); });
         $('#bc-track-char', host)?.addEventListener('change', e => { d.bodyChar = !!e.target.checked; schedulePersist(); });
         $('#bc-track-smooth', host)?.addEventListener('change', e => { d.maskSmooth = !!e.target.checked; schedulePersist(); });
+        [['bc-bn-autoburst', 'bannerAutoburst'], ['bc-bn-revive', 'bannerRevive'], ['bc-bn-heal', 'bannerHeal'], ['bc-bn-shield', 'bannerShield']]
+            .forEach(([id, key]) => $('#' + id, host)?.addEventListener('change', e => { d[key] = !!e.target.checked; schedulePersist(); }));
+        wireRange('bc-bn-scale', 'bannerScale', '%');
         $('#bc-track-src', host)?.addEventListener('change', e => { d.trackSource = e.target.value || ''; schedulePersist(); setTimeout(loadTrackSources, 900); });
         $('#bc-track-refresh', host)?.addEventListener('click', loadTrackSources);
         let _trackKey = '';

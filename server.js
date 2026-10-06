@@ -956,6 +956,12 @@ function makeDefaultBanCungConfig() {
             deathCamZoom: true,        // dim + zoom out khi chết
             showKillingBlow: false,    // thẻ tên người gây phát kết liễu — user thấy thừa, mặc định tắt
             showDeathPanel: false,     // bảng "ĐÃ GỤC" + đếm ngược + lời nhắc hồi sinh — mặc định tắt
+            // Khung chữ lớn giữa màn (user thấy to quá "phá game") — bật/tắt từng loại + cỡ chữ
+            bannerScale: 50,           // % cỡ khung so với bản gốc
+            bannerAutoburst: true,     // "⚡ AUTO BURST"
+            bannerRevive: false,       // "✨ HỒI SINH!" — mặc định tắt
+            bannerHeal: true,          // "+1 ❤ Hồi máu"
+            bannerShield: true,        // "🛡 BẤT TỬ
             showPodium: false,         // top-3 podium khi kết thúc phiên — user không cần bảng xếp hạng
             showSurvivalTimer: false,  // đồng hồ "sống sót" — mặc định tắt
             // ===== GAMEPLAY DEPTH =====
