@@ -13,28 +13,40 @@
     const GRAVITY = 1600;       // px/s² lúc rơi
     const EDGE = 120;           // ra khỏi mép quá ngần này thì kéo về
 
-    const ACTION_TYPES = ['release', 'spray', 'racket', 'net'];
+    const ACTION_TYPES = ['release', 'spray', 'racket', 'net', 'cream'];
     const ACTION_PRESET = {
         release: { icon: '🦟', name: 'Thả muỗi' },
         spray:   { icon: '🧴', name: 'Bình xịt' },
         racket:  { icon: '🏸', name: 'Vợt điện' },
-        net:     { icon: '🛏', name: 'Mắc màn' }
+        net:     { icon: '🛏', name: 'Mắc màn' },
+        cream:   { icon: '🩹', name: 'Kem chống muỗi' }
     };
     const ACTION_DEFAULT_PARAMS = {
         release: { count: 20 },
         spray:   { radius: 600, ms: 2500, count: 50, percent: 0 },
         racket:  { seconds: 10 },
-        net:     { seconds: 15 }
+        net:     { seconds: 15 },
+        cream:   { seconds: 30 }
     };
+    // Muỗi chích (GĐ2): bay quá afterSec và thấy người → tìm điểm đậu (trán/má/cằm/cổ/vai) → đậu landSec → chích.
+    function defaultBite() {
+        return { enabled: true, afterSec: 20, landSec: 1.2, bumpSec: 30, maxBumps: 12, maxLanded: 3,
+            zones: { forehead: true, cheeks: true, chin: true, neck: true, shoulders: true } };
+    }
+    const BITE_LIMITS = { afterSec: [1, 600], landSec: [0.3, 10], bumpSec: [1, 600], maxBumps: [1, 50], maxLanded: [1, 20] };
+    const BITE_ZONE_KEYS = ['forehead', 'cheeks', 'chin', 'neck', 'shoulders'];
+    const SEEK_ARRIVE = 25;      // px: tới gần điểm đậu ngần này là đậu
+    const SLOW_AFTER_BITE_MS = 5000;
 
     // Giới hạn từng tham số theo loại — cũng là DANH SÁCH KHOÁ hợp lệ: khoá lạ bị bỏ.
     const ACTION_LIMITS = {
         release: { count: [1, 1000] },
         spray:   { radius: [100, 1500], ms: [300, 10000], count: [0, 2000], percent: [0, 100] },
         racket:  { seconds: [1, 60] },
-        net:     { seconds: [1, 120] }
+        net:     { seconds: [1, 120] },
+        cream:   { seconds: [1, 120] }
     };
-    const RACKET_MAX_MS = 60000, NET_MAX_MS = 120000;
+    const RACKET_MAX_MS = 60000, NET_MAX_MS = 120000, CREAM_MAX_MS = 120000;
     const ACTION_ICONS = ['🦟', '🧴', '🏸', '🛏', '💨', '⚡', '🌿', '🪰'];
 
     function num(v, fallback) { const n = Number(v); return Number.isFinite(n) ? n : fallback; }
@@ -96,6 +108,16 @@
         cfg.actions = Array.isArray(raw.actions)
             ? raw.actions.filter(a => a && typeof a === 'object').map((a, i) => normalizeAction(a, i, cfg))
             : defaultActions();
+        const b = raw.bite && typeof raw.bite === 'object' ? raw.bite : {};
+        const bite = defaultBite();
+        bite.enabled = b.enabled !== false;
+        for (const [k, [min, max]] of Object.entries(BITE_LIMITS)) {
+            const v = b[k];
+            if (v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v))) bite[k] = clamp(v, min, max);
+        }
+        const z = b.zones && typeof b.zones === 'object' ? b.zones : {};
+        for (const k of BITE_ZONE_KEYS) bite.zones[k] = z[k] !== false;
+        cfg.bite = bite;
         const snd = raw.sound && typeof raw.sound === 'object' ? raw.sound : {};
         cfg.sound = { enabled: snd.enabled !== false, volume: clamp(snd.volume != null ? snd.volume : def.sound.volume, 0, 1) };
         const d = raw.display && typeof raw.display === 'object' ? raw.display : {};
@@ -160,6 +182,7 @@
             spawnPerSecond: 6, maxOnScreen: 300, idleSpawnSeconds: 8, maxPerGift: 100,
             coinsPerMosquito: 1, giftRules: [],
             actions: defaultActions(),
+            bite: defaultBite(),
             sound: { enabled: true, volume: 0.5 },
             display: { showHud: true, hudXPercent: 50, hudYPercent: 8, hudScale: 100, showHitRing: true, showSkeleton: false },
             quality: 'auto'
@@ -183,14 +206,17 @@
         let face = { x: 0, y: 0, at: -Infinity };
         let events = [];
         let lastKillAt = -Infinity;
-        let racketMs = 0, netMs = 0;
+        let racketMs = 0, netMs = 0, creamMs = 0;
         let spray = null;         // { x, y, radius, ms, elapsed, limit, killed }
+        let personSeen = false;   // overlay báo pose còn tươi
+        let spots = [];           // điểm đậu trên người (sân khấu + cục bộ), overlay cập nhật mỗi khung
+        let bites = 0;
 
         function halfSize(m) { return 0.5 * BASE_SIZE * m.scale * (m.smart ? 1.15 : 1); }   // con thông minh vẽ to hơn 15%
 
         // Giết một con: lật úp, nảy nhẹ lên rồi rơi.
         function kill(m) {
-            m.state = 'dead'; m.deadAt = clock; m.vy = -250; m.vx *= 0.3;
+            m.state = 'dead'; m.deadAt = clock; m.vy = -250; m.vx *= 0.3; m.spot = null;
             score += 1; killed += 1;
         }
         // combo đếm theo CÚ đập tay có trúng (một cú giết nhiều con vẫn +1), cách cú trước < 1.5 s.
@@ -198,7 +224,7 @@
 
         // Muỗi thông minh né: vụt ngược hướng điểm đập 350 ms, đích mới cách điểm đập ≥ 400 px.
         function dodge(m, px, py) {
-            m.livesLeft -= 1; m.state = 'dodge'; m.dodgeUntil = clock + 350;
+            m.livesLeft -= 1; m.state = 'dodge'; m.dodgeUntil = clock + 350; m.spot = null; m.landedMs = 0;
             let dx = m.x - px, dy = m.y - py; const d = Math.hypot(dx, dy);
             if (d < 1) { const a = rng() * Math.PI * 2; dx = Math.cos(a); dy = Math.sin(a); } else { dx /= d; dy /= d; }
             m.vx = dx * 1400; m.vy = dy * 1400;
@@ -261,22 +287,25 @@
             else if (action.type === 'spray') sprayStart(p);
             else if (action.type === 'racket') racket(num(p.seconds, 10) * n);
             else if (action.type === 'net') net(num(p.seconds, 15) * n);
+            else if (action.type === 'cream') cream(num(p.seconds, 30) * n);
         }
 
         // Cú đập tay tại (x,y) bán kính r → số muỗi chết.
         function hit(x, y, r) {
             const px = num(x, 0), py = num(y, 0), pr = Math.max(0, num(r, 0));
             let n = 0, dodged = 0;
-            let targets = mosquitoes.filter(m => m.state === 'fly' && Math.hypot(m.x - px, m.y - py) <= pr + halfSize(m));
+            const hittable = m => m.state === 'fly' || m.state === 'seek' || m.state === 'landed';
+            let targets = mosquitoes.filter(m => hittable(m) && Math.hypot(m.x - px, m.y - py) <= pr + halfSize(m));
             if (cfg.killMode !== 'all' && targets.length > 1) {
                 // Đập từng con: chỉ con gần điểm vỗ nhất.
                 targets = [targets.reduce((a, b) => Math.hypot(a.x - px, a.y - py) <= Math.hypot(b.x - px, b.y - py) ? a : b)];
             }
+            let caught = 0;
             for (const m of targets) {
                 if (m.smart && m.livesLeft > 1) { dodge(m, px, py); dodged++; }
-                else { kill(m); n++; }
+                else { if (m.state === 'seek' || m.state === 'landed') { caught++; score += 1; } kill(m); n++; }   // kịp đập con đang chích: +2
             }
-            if (n) { registerHit(); events.push({ type: 'kill', n, x: px, y: py, combo }); }
+            if (n) { registerHit(); events.push({ type: 'kill', n, x: px, y: py, combo, caught: caught > 0 }); }
             else if (!dodged) events.push({ type: 'miss', x: px, y: py });
             return n;
         }
@@ -297,13 +326,41 @@
                 // keep: giữ đích tới khi tới nơi (không rẽ giữa chừng) — nếu không muỗi quay đầu ở giữa mặt mãi
                 return { x: goRight ? width - rng() * band : rng() * band, y: rng() * height, keep: true };
             }
-            if (cfg.faceAttract !== false && clock - face.at <= 500 && rng() < 0.15) {
+            if (cfg.faceAttract !== false && creamMs <= 0 && clock - face.at <= 500 && rng() < 0.15) {
                 const r = num(cfg.faceRadius, 260) * Math.sqrt(rng()), a = rng() * Math.PI * 2;
                 return { x: face.x + Math.cos(a) * r, y: face.y + Math.sin(a) * r };
             }
             return { x: rng() * width, y: rng() * height };
         }
         function turnDelay(m) { return m.gentle ? 2000 + rng() * 3000 : 600 + rng() * 1200; }
+        // Sau ngần này ms bay thì đi tìm người: afterSec ± 30% (không chích đồng loạt), thông minh nhanh hơn (×0.6).
+        function biteDelay(m) { return num(cfg.bite?.afterSec, 20) * 1000 * (0.7 + 0.6 * rng()) * (m.smart ? 0.6 : 1); }
+        function seekingCount() { let n = 0; for (const m of mosquitoes) if (m.state === 'seek' || m.state === 'landed') n++; return n; }
+        function landedCount() { let n = 0; for (const m of mosquitoes) if (m.state === 'landed') n++; return n; }
+        function spotByZone(zone) { for (const sp of spots) if (sp.zone === zone) return sp; return null; }
+        function setPersonSeen(seen) { personSeen = !!seen; }
+        // Overlay đẩy điểm đậu theo pose mỗi khung; con đang seek/landed bám theo điểm cùng vùng.
+        function setBiteSpots(list) {
+            spots = Array.isArray(list) ? list.filter(sp => sp && Number.isFinite(sp.x) && Number.isFinite(sp.y) && sp.zone) : [];
+            for (const m of mosquitoes) if (m.spot && (m.state === 'seek' || m.state === 'landed')) { const sp = spotByZone(m.spot.zone); if (sp) m.spot = sp; }
+        }
+        // Đẩy một con đang tìm/đậu văng khỏi người (kem): vụt ngược hướng điểm đậu 350 ms rồi bay thường.
+        function repel(m) {
+            const px = m.spot ? m.spot.x : m.x, py = m.spot ? m.spot.y : m.y;
+            let dx = m.x - px, dy = m.y - py; const d = Math.hypot(dx, dy);
+            if (d < 1) { const a = rng() * Math.PI * 2; dx = Math.cos(a); dy = Math.sin(a); } else { dx /= d; dy /= d; }
+            m.state = 'dodge'; m.dodgeUntil = clock + 350; m.vx = dx * 1400; m.vy = dy * 1400;
+            if (Math.abs(m.vx) > 1) m.dir = m.vx < 0 ? -1 : 1;
+            m.spot = null; m.landedMs = 0; m.age = 0; m.biteAt = biteDelay(m);
+            m.target = { x: rng() * width, y: rng() * height }; m.turnAt = clock + turnDelay(m);
+        }
+        function cream(seconds) {
+            creamMs = Math.min(CREAM_MAX_MS, creamMs + Math.max(0, num(seconds, 0)) * 1000);
+            let n = 0;
+            for (const m of mosquitoes) if (m.state === 'seek' || m.state === 'landed') { repel(m); n++; }
+            events.push({ type: 'cream', ms: creamMs });
+            if (n) events.push({ type: 'repel', n });
+        }
         // Đích ở mép (keep) giữ đủ thời gian bay tới + 0.5 s; đích thường đổi theo turnDelay.
         function retarget(m) {
             m.target = pickTarget(m);
@@ -319,12 +376,14 @@
             const smart = rng() * 100 < num(cfg.smartPercent, 10);
             const m = {
                 id: nextId++, x: left ? 0 : width, y: rng() * height, vx: left ? 1 : -1, vy: 0, dir: left ? 1 : -1,
+                age: 0, biteAt: 0, spot: null, landedMs: 0, slowUntil: 0,
                 scale: num(cfg.mosquitoScale, 100) / 100, gentle,
                 speedMul: gentle ? 0.25 + rng() * 0.25 : 0.8 + rng() * 0.5,
                 smart, livesLeft: smart ? Math.max(2, Math.floor(num(cfg.smartLives, 3))) : 1,
                 phase: rng() * Math.PI * 2, state: 'fly', deadAt: 0, dodgeUntil: 0,
                 target: null, turnAt: 0
             };
+            m.biteAt = biteDelay(m);
             m.target = pickTarget(m); m.turnAt = clock + turnDelay(m);
             mosquitoes.push(m);
         }
@@ -339,7 +398,7 @@
         function fly(m, dt, crowd) {
             if (!m.target || clock >= m.turnAt || Math.hypot(m.target.x - m.x, m.target.y - m.y) < 40
                 || m.x < -EDGE || m.x > width + EDGE || m.y < -EDGE || m.y > height + EDGE) retarget(m);
-            const sp = num(cfg.speed, 180) * m.speedMul * crowd;
+            const sp = num(cfg.speed, 180) * m.speedMul * crowd * (clock < m.slowUntil ? 0.7 : 1);
             const dx = m.target.x - m.x, dy = m.target.y - m.y, d = Math.hypot(dx, dy) || 1;
             m.vx = dx / d * sp; m.vy = dy / d * sp;
             m.x += m.vx * dt; m.y += m.vy * dt;
@@ -354,6 +413,7 @@
             let flying = flyingCount();
             racketMs = Math.max(0, racketMs - dtm);
             netMs = Math.max(0, netMs - dtm);
+            creamMs = Math.max(0, creamMs - dtm);
             const maxOn = Math.max(1, num(cfg.maxOnScreen, 300));
             if (netMs > 0) { spawnAcc = 0; idleAcc = 0; }   // mắc màn: không sinh gì, hàng đợi giữ nguyên
             else {
@@ -372,8 +432,34 @@
             const crowdFrom = Math.max(1, num(cfg.crowdFrom, 120));
             const crowd = flying > crowdFrom ? Math.max(0.4, crowdFrom / flying) : 1;
             if (combo && clock - lastKillAt > 1500) combo = 0;
+            const bite = cfg.bite || defaultBite();
+            const canSeek = bite.enabled !== false && personSeen && creamMs <= 0 && spots.length > 0;
+            let seeking = seekingCount();
             for (const m of mosquitoes) {
-                if (m.state === 'fly') fly(m, dt, crowd);
+                if (m.state === 'fly') {
+                    fly(m, dt, crowd);
+                    m.age += dtm;
+                    if (canSeek && m.age >= m.biteAt && seeking < Math.max(1, num(bite.maxLanded, 3))) {
+                        m.spot = spots[Math.floor(rng() * spots.length)] || spots[0];
+                        m.state = 'seek'; m.landedMs = 0; seeking++;
+                    }
+                } else if (m.state === 'seek') {
+                    if (!personSeen || !m.spot) { m.state = 'fly'; m.spot = null; continue; }
+                    const sp = num(cfg.speed, 180) * m.speedMul * 1.2;
+                    const dx = m.spot.x - m.x, dy = m.spot.y - m.y, d = Math.hypot(dx, dy) || 1;
+                    if (d <= SEEK_ARRIVE) { m.x = m.spot.x; m.y = m.spot.y; m.vx = 0; m.vy = 0; m.state = 'landed'; m.landedMs = 0; }
+                    else { m.vx = dx / d * sp; m.vy = dy / d * sp; m.x += m.vx * dt; m.y += m.vy * dt; if (Math.abs(m.vx) > 1) m.dir = m.vx < 0 ? -1 : 1; m.phase += dt * 110; }
+                } else if (m.state === 'landed') {
+                    if (!m.spot) { m.state = 'fly'; continue; }
+                    m.x = m.spot.x; m.y = m.spot.y; m.vx = 0; m.vy = 0;
+                    if (personSeen) m.landedMs += dtm;      // mất người: dừng đếm, không chích "ảo"
+                    if (m.landedMs >= num(bite.landSec, 1.2) * 1000) {
+                        bites += 1;
+                        events.push({ type: 'bite', id: m.id, x: m.x, y: m.y, frame: m.spot.frame, a: m.spot.a, b: m.spot.b, zone: m.spot.zone });
+                        m.state = 'fly'; m.spot = null; m.landedMs = 0; m.age = 0; m.biteAt = biteDelay(m); m.slowUntil = clock + SLOW_AFTER_BITE_MS;
+                        m.target = pickTarget(m); m.turnAt = clock + turnDelay(m);
+                    }
+                }
                 else if (m.state === 'dodge') {
                     m.x += m.vx * dt; m.y += m.vy * dt; m.phase += dt * 120;
                     if (clock >= m.dodgeUntil) m.state = 'fly';
@@ -387,24 +473,25 @@
         function setFace(x, y) { face.x = num(x, face.x); face.y = num(y, face.y); face.at = clock; }
         function setConfig(c) { cfg = Object.assign(defaultConfig(), c || {}); }
         function clear() { mosquitoes = []; queue = 0; spawnAcc = 0; idleAcc = 0; spray = null; }
-        function reset() { clear(); score = 0; killed = 0; combo = 0; lastKillAt = -Infinity; racketMs = 0; netMs = 0; events = []; }
+        function reset() { clear(); score = 0; killed = 0; combo = 0; bites = 0; lastKillAt = -Infinity; racketMs = 0; netMs = 0; creamMs = 0; events = []; }
 
         function snapshot() {
             const ev = events; events = [];
             return {
                 mosquitoes: mosquitoes.map(m => ({
                     id: m.id, x: m.x, y: m.y, vx: m.vx, vy: m.vy, dir: m.dir, scale: m.scale, speedMul: m.speedMul,
-                    smart: m.smart, livesLeft: m.livesLeft, phase: m.phase, state: m.state, deadAt: m.deadAt, dodgeUntil: m.dodgeUntil
+                    smart: m.smart, livesLeft: m.livesLeft, phase: m.phase, state: m.state, deadAt: m.deadAt, dodgeUntil: m.dodgeUntil,
+                    age: m.age, spot: m.spot, landedMs: m.landedMs, slowUntil: m.slowUntil
                 })),
-                clock, queue, flying: flyingCount(), score, killed, combo, racketMs, netMs,
+                clock, queue, flying: flyingCount(), score, killed, combo, racketMs, netMs, creamMs, bites, landed: landedCount(),
                 spray: spray ? { x: spray.x, y: spray.y, r: spray.radius * Math.min(1, spray.elapsed / spray.ms), msLeft: Math.max(0, spray.ms - spray.elapsed) } : null,
                 events: ev
             };
         }
 
-        return { enqueue, step, hit, sweep, release, spray: sprayStart, racket, net, applyAction, setFace, setConfig, clear, reset, snapshot };
+        return { enqueue, step, hit, sweep, release, spray: sprayStart, racket, net, cream, applyAction, setFace, setPersonSeen, setBiteSpots, setConfig, clear, reset, snapshot };
     }
 
-    return { ACTION_TYPES, ACTION_PRESET, ACTION_LIMITS, ACTION_ICONS, defaultConfig, normalizeConfig, normalizeAction,
+    return { ACTION_TYPES, ACTION_PRESET, ACTION_LIMITS, ACTION_ICONS, BITE_LIMITS, BITE_ZONE_KEYS, defaultConfig, normalizeConfig, normalizeAction,
         actionForGift, mosquitoesForGift, createEngine, BASE_SIZE, GRAVITY, MAX_QUEUE };
 });
