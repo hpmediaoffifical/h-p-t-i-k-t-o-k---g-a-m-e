@@ -301,8 +301,13 @@
             el.onended = finish;
             el.onerror = finish;
             el.onloadedmetadata = () => {
+                if (acked) return;
                 const d = Number(el.duration);
-                if (Number.isFinite(d) && d > 0) armWatchdog(d * 1000 + WATCHDOG_PAD_MS, finish);
+                if (Number.isFinite(d) && d > 0) {
+                    armWatchdog(d * 1000 + WATCHDOG_PAD_MS, finish);
+                    // Clip dài hơn 20s → server giãn hạn chờ theo đúng thời lượng (không chen lượt kế vào giữa)
+                    try { socket.emit('vipwelcome:playing', { seq: p.seq, durationMs: Math.round(d * 1000) }); } catch (e) {}
+                }
             };
             armWatchdog(WATCHDOG_NO_META_MS, finish);
             el.src = p.mediaUrl;
@@ -312,9 +317,11 @@
             if (isVideo) player.classList.add('show');
             // OBS cho tự phát có tiếng; trình duyệt thường chặn → thử tắt tiếng, vẫn bị chặn thì bỏ lượt (không kẹt hàng)
             el.play().catch(() => {
+                // Promise của clip CŨ bị huỷ sau khi đã sang clip mới → bỏ qua, đừng tắt tiếng clip mới
+                if (acked || el.getAttribute('src') !== p.mediaUrl) return;
                 if (!isVideo) { finish(); return; }
                 player.muted = true;
-                player.play().catch(finish);
+                player.play().catch(() => { if (!acked && el.getAttribute('src') === p.mediaUrl) finish(); });
             });
             preloadNext(p.preloadNext);
         }

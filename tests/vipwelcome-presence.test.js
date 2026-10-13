@@ -3,7 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createPresence, createPendingCards } = require('../lib/vipwelcome/presence.js');
 
-const OPT = { antiDupMs: 10000, cooldownMs: 0 };
+const OPT = { antiDupMs: 10000, cooldownMs: 0, source: 'member' };
+const BAR = { antiDupMs: 10000, cooldownMs: 0, source: 'barrage-grade' };
 const T0 = 1_000_000;
 
 test('lần đầu vào phòng → welcome', () => {
@@ -15,7 +16,8 @@ test('lần đầu vào phòng → welcome', () => {
 test('member + barrage dedupe: tín hiệu thứ 2 sau 2s là trùng', () => {
     const p = createPresence();
     p.onJoinSignal('u1', T0, OPT);
-    assert.equal(p.onJoinSignal('u1', T0 + 2000, OPT), 'dup');
+    assert.equal(p.onJoinSignal('u1', T0 + 2000, BAR), 'dup');
+    assert.equal(p.onJoinSignal('u1', T0 + 3000, { ...BAR, source: 'superfan' }), 'dup');
     assert.equal(p.get('u1').joinCount, 1);
 });
 
@@ -27,11 +29,22 @@ test('vào lại sau 11s, sau 5 phút → luôn welcome', () => {
     assert.equal(p.get('u1').joinCount, 3);
 });
 
-test('vào lại 3s sau tín hiệu trước vẫn trong cửa sổ chống trùng', () => {
+test('vào lại nhanh: cùng nguồn (member → member) sau 3s là lần vào MỚI', () => {
     const p = createPresence();
     p.onJoinSignal('u1', T0, OPT);
-    assert.equal(p.onJoinSignal('u1', T0 + 3000, OPT), 'dup');
-    assert.equal(p.onJoinSignal('u1', T0 + 3000, { antiDupMs: 2000, cooldownMs: 0 }), 'welcome');
+    assert.equal(p.onJoinSignal('u1', T0 + 3000, OPT), 'welcome');
+    assert.equal(p.get('u1').joinCount, 2);
+    // member + barrage của lần vào thứ 2 vẫn được gộp
+    assert.equal(p.onJoinSignal('u1', T0 + 4000, BAR), 'dup');
+    // barrage → barrage cũng là lần vào mới
+    assert.equal(p.onJoinSignal('u1', T0 + 5000, BAR), 'welcome');
+});
+
+test('lastDecision ghi quyết định gần nhất (panel không báo lỗi khi đang cooldown)', () => {
+    const p = createPresence();
+    p.onJoinSignal('u1', T0, OPT); p.markWelcomed('u1', T0);
+    p.onJoinSignal('u1', T0 + 60000, { ...OPT, cooldownMs: 120000 });
+    assert.equal(p.get('u1').lastDecision, 'cooldown');
 });
 
 test('cooldown tính từ lần đã chào thật', () => {
@@ -81,6 +94,17 @@ test('pending: cùng key chỉ giữ thẻ mới nhất', () => {
     q.put({ id: 'b', key: 'u1' }, T0 + 1000);
     assert.equal(q.size(), 1);
     assert.deepEqual(q.take(T0 + 2000).map(c => c.id), ['b']);
+});
+
+test('pending: put tự dọn mục quá hạn + chặn trần', () => {
+    const q = createPendingCards({ maxAgeMs: 60000, maxItems: 3 });
+    q.put({ id: 'old', key: 'k0' }, T0);
+    q.put({ id: 'a', key: 'k1' }, T0 + 61000);
+    assert.equal(q.size(), 1);
+    q.put({ id: 'b', key: 'k2' }, T0 + 61001); q.put({ id: 'c', key: 'k3' }, T0 + 61002); q.put({ id: 'd', key: 'k4' }, T0 + 61003);
+    assert.equal(q.size(), 3);
+    assert.equal(q.has('a'), false);
+    assert.equal(q.has('d'), true);
 });
 
 test('pending expiry: quá 60s thì bỏ', () => {

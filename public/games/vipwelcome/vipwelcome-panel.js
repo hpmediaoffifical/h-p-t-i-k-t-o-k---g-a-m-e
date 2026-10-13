@@ -755,6 +755,7 @@
             card.querySelector('[data-vw-uid]')?.addEventListener('input', (e) => {
                 const r = getRule(); if (!r) return;
                 r.uniqueId = e.target.value.replace(/^@/, '').trim();
+                delete r.userId;   // đổi sang người khác → bỏ userId đã học của người cũ
                 schedulePersist();
             });
             card.querySelector('[data-vw-trigger]')?.addEventListener('change', (e) => {
@@ -1066,7 +1067,11 @@
             const t = getTier(); if (!t) return;
             if (t.enabled === false) { flashWarn('Bậc đang tắt — bật lên để thử'); return; }
             await persistConfig().catch(() => {});
-            simulateJoin({ mode: 'one', level: t.minLevel || 0, fansLevel: t.minLevel > 0 ? 0 : (t.minFans || 0), nickname: 'Thử ' + t.name });
+            await fetch('/api/games/vipwelcome/trigger', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'testTier', payload: { profileId: profile.id, tierId: id } })
+            });
+            flashOk('Đã thử bậc ' + t.name + ' — xem overlay OBS');
         });
     }
 

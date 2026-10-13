@@ -54,6 +54,20 @@ test('list: sắp giảm dần, lọc theo uniqueId/nickname, giới hạn', () 
     assert.equal(l.list('h', { limit: 2 }).length, 2);
 });
 
+test('host/key "__proto__" không làm bẩn Object.prototype', () => {
+    const file = tmpFile();
+    const l = createGiftLedger({ file, saveDelayMs: 0 });
+    l.set('__proto__', 'enabled', 0);
+    l.add('constructor', 'prototype', 5);
+    l.add('h', '__proto__', 5);
+    assert.equal(({}).enabled, undefined);
+    assert.equal(l.get('__proto__', 'enabled'), 0);
+    l.flushSync();
+    const l2 = createGiftLedger({ file });
+    assert.equal(({}).enabled, undefined);
+    assert.equal(l2.get('h', '1'), 0);
+});
+
 test('set / reset / rekey', () => {
     const l = createGiftLedger({ file: tmpFile(), saveDelayMs: 0 });
     l.add('h', 'u:abc', 9, { uniqueId: 'abc' });

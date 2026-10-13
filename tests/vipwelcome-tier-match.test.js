@@ -44,6 +44,7 @@ test('luật @id thắng bậc, so khớp không phân biệt hoa thường và 
     assert.equal(m.media.mediaUrl, '/v.mp4');
     assert.equal(m.media.volume, 80);
     assert.equal(m.ruleId, 'p:p1:user:r1');
+    assert.equal(m.userRuleId, 'r1');
 });
 
 test('luật @id không skin/danh hiệu → mượn của bậc khớp; không media vẫn có thẻ', () => {

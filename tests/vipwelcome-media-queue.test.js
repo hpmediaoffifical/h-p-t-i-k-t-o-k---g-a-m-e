@@ -33,6 +33,15 @@ test('mục chờ quá lâu bị bỏ, trả mục kế', () => {
     assert.equal(q.size(), 0);
 });
 
+test('hết hạn theo từng mục: chỉ media vào phòng bị bỏ, quà/sub giữ lại', () => {
+    const q = createMediaQueue();
+    q.push({ key: 'j', priority: 1000, ts: T0, payload: { eventType: 'join' } });
+    q.push({ key: 'g', priority: 200, ts: T0, payload: { eventType: 'gift' } });
+    const r = q.next(T0 + 31000, it => it.payload.eventType === 'join' ? 30000 : 0);
+    assert.equal(r.item.key, 'g');
+    assert.deepEqual(r.expired.map(x => x.key), ['j']);
+});
+
 test('trim: bỏ mục ưu tiên thấp nhất khi hàng quá dài', () => {
     const q = createMediaQueue();
     q.push(item('a', 1000, T0));
