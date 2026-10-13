@@ -8538,6 +8538,7 @@ let vipWelcomeRecentLog = [];            // 50 entry gần nhất cho panel hi�
 let vipWelcomePlaying = false;           // đang chờ overlay phát xong 1 item
 let vipWelcomePlaySeq = 0;               // seq tăng mỗi lần phát — chống ack cũ (stale)
 let vipWelcomePlayFallbackTimer = null;  // overlay không ack (đóng/crash) → tự advance
+let vipWelcomePlayTargets = new Set();   // socket.id các overlay đã nhận lượt media đang phát
 const VIP_PLAY_FALLBACK_MS = 20000;      // clip chào ngắn (2-6s); 20s là dư an toàn
 
 // === Session-scoped state ===
@@ -9038,6 +9039,9 @@ function drainVipQueueOne() {
     if (mediaExists && item.payload.ruleId) {
         vipSessionRuleFireCount.set(item.payload.ruleId, (vipSessionRuleFireCount.get(item.payload.ruleId) || 0) + 1);
     }
+    // Nhớ overlay nào ĐANG giữ lượt này: OBS refresh → overlay mới vào trước khi overlay cũ rời,
+    // nên đếm số overlay không đủ — cần biết mọi overlay nhận lượt đã rời hết hay chưa.
+    try { vipWelcomePlayTargets = new Set(io.sockets.adapter.rooms.get('overlay:vipwelcome') || []); } catch (e) { vipWelcomePlayTargets = new Set(); }
     io.to('overlay:vipwelcome').emit('vipwelcome:play', item.payload);
     io.emit('vipwelcome:queue', { size: vipMediaQueue.size() });
     pushVipWelcomeLog({
@@ -10306,6 +10310,14 @@ io.on('connection', (socket) => {
     socket.on('vipwelcome:playing', (data) => { vipWelcomeOnItemPlaying(data?.seq, data?.durationMs); });
     // Thẻ vào phòng đã hiện trên overlay → mới tính là "đã chào" (cooldown/chào muộn dựa vào mốc này).
     socket.on('vipwelcome:cardShown', (data) => { if (data && typeof data.id === 'string') vipOnCardShown(data.id); });
+    // Mọi overlay đang giữ lượt media đã rời (vd OBS refresh, overlay mới không nhận lượt này) → chuyển lượt ngay,
+    // không treo tới hạn chờ ack.
+    socket.on('disconnecting', () => {
+        if (vipWelcomePlaying && vipWelcomePlayTargets.delete(socket.id) && vipWelcomePlayTargets.size === 0) {
+            console.log('[vipwelcome] Overlay đang phát đã đóng/refresh — chuyển lượt media kế.');
+            vipWelcomeOnItemDone(vipWelcomePlaySeq);
+        }
+    });
 
     // LEVEL QUEST sync — lab broadcasts cfg/state; cache + relay tới mọi overlay
     onTrusted('levelquest:cfg',   (data) => { relayCache.levelquest.cfg   = data; socket.broadcast.emit('levelquest:cfg',   data); });

@@ -80,6 +80,14 @@ test('hoạt động không bao giờ là "vào lại", kể cả sau 10 phút i
     assert.equal(p.get('u1').joinCount, 1);
 });
 
+test('trần số người: vượt maxUsers thì bỏ người cũ nhất', () => {
+    const p = createPresence({ maxUsers: 3 });
+    for (const k of ['a', 'b', 'c', 'd']) p.onActivity(k, T0, { lateEnabled: true });
+    assert.equal(p.size(), 3);
+    assert.equal(p.get('a'), undefined);
+    assert.ok(p.get('d'));
+});
+
 test('reset xoá trạng thái', () => {
     const p = createPresence();
     p.onJoinSignal('u1', T0, OPT);
