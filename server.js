@@ -269,6 +269,11 @@ const PKTIKTOK_EVENT_DEFS = [
 ];
 
 // ====== Game registry ======
+// Đập Muỗi — engine thuần dùng chung server/overlay (UMD): server dùng defaultConfig + normalizeConfig + luật quà,
+// không chép lại như Nhặt Lá nên panel/overlay/server không lệch nhau. Nạp TRƯỚC GAMES vì defaultConfig gọi ngay.
+const DapMuoi = require('./public/games/dapmuoi/game.js');
+function makeDefaultDapMuoiConfig() { return DapMuoi.defaultConfig(); }
+
 const GAMES = {
     thuytinh: {
         id: 'thuytinh',
@@ -415,6 +420,16 @@ const GAMES = {
         overlayPath: '/overlay/chemtraicay',
         defaultConfig: makeDefaultChemTraiCayConfig()
     },
+    // ĐẬP MUỖI — game camera: vỗ 2 tay (HpTracker trong overlay, feed OBS chung) đập muỗi bay ngang.
+    // Engine + luật quà ở public/games/dapmuoi/game.js (UMD, server require được). Game con của Game Camera.
+    dapmuoi: {
+        id: 'dapmuoi',
+        name: 'Đập Muỗi',
+        description: 'Vỗ 2 tay trước camera đập muỗi bay ngang khắp màn. Quà thả muỗi, bình xịt, vợt điện, mắc màn.',
+        icon: '🦟',
+        overlayPath: '/overlay/dapmuoi',
+        defaultConfig: makeDefaultDapMuoiConfig()
+    },
     // 🎥 GAME CAMERA — menu mẹ của các game camera (CAM_GAME_IDS). Một link OBS /overlay/camgames nạp
     // game đang chọn; chỉ game đó bật (camGamesApplyActive) để quà không kích hoạt game đang ẩn.
     // Mọi cài đặt ở app; overlay chỉ hiển thị + chơi.
@@ -429,7 +444,7 @@ const GAMES = {
 };
 
 // Game con của Game Camera — thứ tự = thứ tự thẻ trong menu (public/games/camgames/registry.js).
-const CAM_GAME_IDS = ['touchplay', 'chemtraicay'];
+const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi'];
 // Chỉ game đang chọn được bật; tắt Game Camera là tắt hết. Gọi sau mỗi lần lưu config camgames
 // và lúc khởi động để giữ đúng luật dù config cũ bật cả hai.
 function camGamesApplyActive() {
@@ -468,6 +483,7 @@ function makeDefaultChemTraiCayConfig() {
 }
 const CHEMTRAICAY_ACTIONS = ['apple', 'orange', 'lemon', 'pear', 'peach', 'strawberry', 'plum', 'watermelon',
     'pineapple', 'kiwi', 'bomb', 'god', 'fast', 'slow', 'rescue'];
+
 
 // 13 events default — đồng bộ với HpGame.pktiktok.defaultConfig() trong client engine.
 function makeDefaultPkTiktokConfig() {
@@ -1295,18 +1311,21 @@ const touchplayFeed = new ObsCameraFeed({
     overlayMatchers: {
         touchplay: (url) => feedUrlIs(url, 'touchplay', /touchplay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         chemtraicay: (url) => feedUrlIs(url, 'chemtraicay', /\/overlay\/chemtraicay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
-        bancung: (url) => feedUrlIs(url, 'bancung', /\/overlay\/bancung/i)
+        bancung: (url) => feedUrlIs(url, 'bancung', /\/overlay\/bancung/i),
+        dapmuoi: (url) => feedUrlIs(url, 'dapmuoi', /\/overlay\/dapmuoi/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)
     },
     getOptions: (activeGames = new Set()) => {
         const G = appConfig.games || {};
         const tp = G.touchplay || {}, c = tp.tpCfg || {};
         const bc = G.bancung || {}, bcd = bc.display || {};
         const ct = G.chemtraicay || {}, vs = ct.videoSource || {};
+        const dm = G.dapmuoi || {};
         // Nguồn camera riêng của từng game (null = game tắt / không dùng feed này).
         const per = {
             touchplay: tp.enabled !== false && c.source !== 'webcam' ? (c.obsSource || '') : null,
             chemtraicay: ct.enabled !== false && vs.mode !== 'webcam' ? ((vs.mode === 'obs-scene' ? vs.scene : vs.source) || '') : null,
-            bancung: bc.enabled !== false && bcd.bodyTrack === true ? (bcd.trackSource || '') : null
+            bancung: bc.enabled !== false && bcd.bodyTrack === true ? (bcd.trackSource || '') : null,
+            dapmuoi: dm.enabled !== false ? '' : null      // không có nguồn riêng: dùng nguồn chung Game Camera
         };
         const on = Object.keys(per).filter(k => per[k] !== null);
         // Game Camera đặt nguồn chung → dùng cho game con; không thì game đang có overlay nhận hình trước.
@@ -1751,6 +1770,8 @@ if (appConfig.games.chemtraicay) {
     appConfig.games.chemtraicay.videoSource = { ...def.videoSource, ...(appConfig.games.chemtraicay.videoSource || {}) };
     appConfig.games.chemtraicay.obsScene = { ...def.obsScene, ...(appConfig.games.chemtraicay.obsScene || {}) };
 }
+// Đập Muỗi: chuẩn hoá config cũ (khoá thiếu/rác → mặc định, actions/giftRules đúng dạng).
+if (appConfig.games.dapmuoi) appConfig.games.dapmuoi = DapMuoi.normalizeConfig(appConfig.games.dapmuoi);
 if (camGamesApplyActive()) saveAppConfig();
 if (appConfig.games.bancung) {
     const def = makeDefaultBanCungConfig();
@@ -4091,6 +4112,19 @@ function emitGift(g) {
             source: g.source || 'tiktok'
         });
     } catch (e) { /* non-fatal */ }
+    // Đập Muỗi — quà → thả muỗi / hành động (xịt / vợt / màn)
+    try {
+        handleDapMuoiGift({
+            nickname: g.nickname,
+            profilePicture: g.profilePicture || '',
+            giftId: g.giftId,
+            giftName: enriched.giftName || g.giftName,
+            giftImage: enriched.image,
+            coinValue: enriched.coinValue || 0,
+            repeatCount: g.repeatCount || 1,
+            source: g.source || 'tiktok'
+        });
+    } catch (e) { /* non-fatal */ }
     // Trồng Cây — quà mọc hoa / bướm avatar / tưới nước / nắng / cắt cây
     try {
         handleTrongCayGift({
@@ -4726,7 +4760,7 @@ app.post('/api/games/:id/config', (req, res) => {
     // Deep-merge display sub-object cho game server-authoritative — phòng case partial POST
     // (panel chỉ gửi subset of display fields). Whoever posts last wins per-field.
     const incoming = req.body || {};
-    if ((g.id === 'nhietdo' || g.id === 'bancung' || g.id === 'trongcay' || g.id === 'nhatla' || g.id === 'giftboard') && incoming.display && prevConfig.display) {
+    if ((g.id === 'nhietdo' || g.id === 'bancung' || g.id === 'trongcay' || g.id === 'nhatla' || g.id === 'giftboard' || g.id === 'dapmuoi') && incoming.display && prevConfig.display) {
         incoming.display = { ...prevConfig.display, ...incoming.display };
     }
     // Nhặt Lá giữ config từng effect khi UI chỉ cập nhật một thuộc tính (vd. số giây TOM).
@@ -4791,6 +4825,9 @@ app.post('/api/games/:id/config', (req, res) => {
         try { banCungApplyConfigToState(appConfig.games.bancung); } catch (e) {}
         try { global.__bancungApplyHotkeys?.(appConfig.games.bancung); } catch (e) {}
         broadcastBanCungState({ immediate: true });
+    }
+    if (g.id === 'dapmuoi') {
+        try { global.__dapmuoiApplyHotkeys?.(appConfig.games.dapmuoi); } catch (e) {}
     }
     if (g.id === 'nhatla') {
         try { global.__nhatlaApplyHotkeys?.(appConfig.games.nhatla); } catch (e) {}
@@ -8458,6 +8495,51 @@ setInterval(() => {
     try { if (chemRelay.sweep()) io.emit('chemtraicay:trackerStatus', { activeId: null }); } catch (e) {}
 }, 1000);
 
+// ====== ĐẬP MUỖI ======
+app.get('/overlay/dapmuoi', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'dapmuoi', 'overlay.html'));
+});
+
+function dapMuoiCfg() { return DapMuoi.normalizeConfig(appConfig.games.dapmuoi || makeDefaultDapMuoiConfig()); }
+
+function emitDapMuoiGift(payload) {
+    io.to('overlay').to('preview').emit('dapmuoi:gift', payload);
+}
+
+// Quà → hành động đang bật (ưu tiên) hoặc N muỗi (quà chỉ định / theo xu). Luật ở game.js (mosquitoesForGift).
+function handleDapMuoiGift({ nickname, profilePicture, giftId, giftName, giftImage, coinValue, repeatCount, source }) {
+    const cfg = dapMuoiCfg();
+    if (cfg.enabled === false) return;
+    const base = { nickname: nickname || '', profilePicture: profilePicture || '', giftName: giftName || '', image: giftImage || '', source: source || 'tiktok', ts: Date.now() };
+    const action = DapMuoi.actionForGift(cfg, giftId, giftName);
+    if (action) {
+        emitDapMuoiGift({ action: action.type, qty: Math.max(1, Number(repeatCount) || 1), params: action.params, name: action.name, icon: action.icon, ...base });
+        return;
+    }
+    const n = DapMuoi.mosquitoesForGift(cfg, giftId, giftName, coinValue, repeatCount);
+    if (n <= 0) return;
+    console.log(`[dapmuoi] ${base.nickname || '?'} → thả ${n} muỗi (gift ${giftId}, ${coinValue || 0}💎 ×${repeatCount || 1})`);
+    emitDapMuoiGift({ action: 'release', qty: 1, params: { count: n }, name: 'Thả muỗi', icon: '🦟', ...base });
+}
+
+app.post('/api/dapmuoi/test', (req, res) => {
+    const action = String(req.body?.action || '');
+    if (!DapMuoi.ACTION_TYPES.includes(action)) return res.status(400).json({ error: 'action không hợp lệ' });
+    const qty = Math.min(100, Math.max(1, Math.floor(Number(req.body?.qty) || 1)));
+    // params gửi kèm (từ hành động trong panel / hotkey) được chuẩn hoá qua normalizeAction; thiếu → mặc định loại.
+    const act = DapMuoi.normalizeAction({ type: action, params: req.body?.params }, 0);
+    emitDapMuoiGift({ action, qty, params: act.params, name: act.name, icon: act.icon, nickname: 'Thử nghiệm', profilePicture: '', giftName: 'Gửi thử', image: '', source: 'test', ts: Date.now() });
+    res.json({ ok: true, action, qty });
+});
+
+app.post('/api/dapmuoi/control', (req, res) => {
+    const cmd = String(req.body?.cmd || '');
+    if (!['start', 'stop', 'reset', 'clear'].includes(cmd)) return res.status(400).json({ error: 'cmd không hợp lệ' });
+    io.emit('gameCmd', { gameId: 'dapmuoi', cmd, payload: {}, seq: Date.now() });
+    res.json({ ok: true });
+});
+setTimeout(() => { try { global.__dapmuoiApplyHotkeys?.(appConfig.games.dapmuoi); } catch (e) {} }, 1500);
+
 app.get('/api/games/bancung/livestate', (req, res) => {
     res.json(banCungSnapshot());
 });
@@ -10781,6 +10863,14 @@ io.on('connection', (socket) => {
         const v = chemRelay.acceptHand(data, socket.id);
         if (!v) return;
         socket.to('overlay').to('preview').emit('chemtraicay:hand', v);
+    });
+    // Đập Muỗi: overlay báo trạng thái → panel (room preview). Không cache server-side.
+    onTrusted('dapmuoi:state', (data) => {
+        if (!data || typeof data !== 'object') return;
+        socket.to('preview').emit('dapmuoi:state', {
+            flying: Number(data.flying) || 0, queue: Number(data.queue) || 0, killed: Number(data.killed) || 0,
+            combo: Number(data.combo) || 0, racketMs: Number(data.racketMs) || 0, netMs: Number(data.netMs) || 0, ts: Date.now()
+        });
     });
     onTrusted('chemtraicay:state', (data) => {
         if (!data || typeof data !== 'object') return;
