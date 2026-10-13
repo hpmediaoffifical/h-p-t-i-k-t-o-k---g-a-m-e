@@ -5571,6 +5571,48 @@ body.game-caro #caught-popup {
 .vw-rule-card.disabled, .vw-global-card.disabled { opacity: 0.55; }
 .vw-rule-card.drag-over { border-color: #ffb800; border-style: dashed; background: rgba(255, 184, 0, 0.08); }
 
+/* Bậc vào phòng (thẻ thông tin) — viền trái theo skin */
+.vw-tier-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.vw-tier-card {
+    --vw-skin: #7b3fe4;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 10px 12px;
+    background: linear-gradient(155deg, #1f2230 0%, #181b25 100%);
+    border: 1.5px solid #2c303d; border-left: 5px solid var(--vw-skin); border-radius: 10px;
+}
+.vw-tier-card.disabled { opacity: 0.55; }
+.vw-tier-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vw-tier-name {
+    flex: 1; min-width: 120px;
+    padding: 5px 10px; font-size: 13px; font-weight: 800; text-transform: uppercase;
+    background: rgba(0,0,0,0.35); color: #fff;
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 6px;
+}
+.vw-tier-name:focus { outline: none; border-color: #ffb800; }
+.vw-tier-head input[type="number"], .vw-join-row input[type="number"] { width: 64px; }
+.vw-tier-or { font-size: 11px; color: #8b93a8; font-style: italic; }
+.vw-tier-swatch { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; background: var(--vw-skin); box-shadow: 0 0 0 2px rgba(255,255,255,.25); }
+.skin-violet  { --vw-skin: linear-gradient(135deg, #3b1d8f, #7b3fe4); }
+.skin-ice     { --vw-skin: linear-gradient(135deg, #0b3f78, #1fb3e6); }
+.skin-amber   { --vw-skin: linear-gradient(135deg, #6e2600, #e98a12); }
+.skin-flame   { --vw-skin: linear-gradient(135deg, #5c0707, #ff3b1f); }
+.skin-diamond { --vw-skin: linear-gradient(135deg, #2c6fd6, #8f5cff, #ff7ad9); }
+.vw-tier-card.skin-violet  { border-left-color: #7b3fe4; }
+.vw-tier-card.skin-ice     { border-left-color: #1fb3e6; }
+.vw-tier-card.skin-amber   { border-left-color: #e98a12; }
+.vw-tier-card.skin-flame   { border-left-color: #ff3b1f; }
+.vw-tier-card.skin-diamond { border-left-color: #8f5cff; }
+.vw-join-row { flex-wrap: wrap; gap: 10px; }
+.vw-sim { margin-top: 6px; }
+.vw-ledger-list { display: flex; flex-direction: column; gap: 4px; }
+.vw-ledger-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 10px; border-radius: 8px;
+    background: rgba(255,255,255,0.03); border: 1px solid #2c303d;
+}
+.vw-ledger-name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vw-ledger-row input[type="number"] { width: 110px; }
+
 /* Status indicator trên rule card — countdown / ready */
 .vw-rule-status {
     padding: 5px 10px; margin: -4px -6px 4px -6px;

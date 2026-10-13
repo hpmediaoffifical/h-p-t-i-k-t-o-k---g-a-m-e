@@ -28,12 +28,51 @@
         return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     }
 
+    // Thẻ vào phòng — 5 skin + bậc mặc định. PHẢI khớp lib/vipwelcome/tier-match.js (server bù field khi lưu).
+    const SKIN_DEFS = [
+        { id: 'violet',  label: 'Tím',       emoji: '💜' },
+        { id: 'ice',     label: 'Xanh băng', emoji: '🧊' },
+        { id: 'amber',   label: 'Vàng cam',  emoji: '🧡' },
+        { id: 'flame',   label: 'Đỏ lửa',    emoji: '🔥' },
+        { id: 'diamond', label: 'Kim cương', emoji: '💎' }
+    ];
+
+    function newTierId() {
+        return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    }
+
+    function newTier(patch) {
+        return Object.assign({
+            id: newTierId(), enabled: true, name: 'Bậc mới', minLevel: 0, minFans: 0, skin: 'violet', frameUrl: '',
+            mediaUrl: '', mediaName: '', mediaType: '', volume: 100, rejoinCooldownSec: 0
+        }, patch || {});
+    }
+
+    function defaultTiers() {
+        return [
+            newTier({ name: 'Tân binh', minLevel: 1, minFans: 1, skin: 'ice', enabled: false }),
+            newTier({ name: 'Hào kiệt', minLevel: 15, minFans: 5, skin: 'violet' }),
+            newTier({ name: 'Đại gia', minLevel: 25, minFans: 10, skin: 'amber' }),
+            newTier({ name: 'Huyền thoại', minLevel: 35, minFans: 15, skin: 'flame' }),
+            newTier({ name: 'Chí tôn', minLevel: 45, minFans: 20, skin: 'diamond' })
+        ];
+    }
+
+    function defaultJoinCard() {
+        return {
+            enabled: true, antiDupSec: 10, lateWelcome: true, mediaMaxWaitSec: 30, hideZeroXu: true,
+            enterText: 'VÀO PHÒNG', diagnostics: false,
+            card: { xPercent: 3, yPercent: 60, scale: 100, maxStack: 3, direction: 'up', durationMs: 5000 }
+        };
+    }
+
     function newProfile(name) {
         return {
             id: newProfileId(),
             name: name || 'Nhóm mới',
             enabled: true,
             userRules: [],
+            joinTiers: defaultTiers(),
             // Rule "Tất cả user" — 4 điều kiện lọc phụ (requireTopUser / minFansLevel / requireSubscriber /
             // requireFollowing) dựa trên dữ liệu TikTok gửi kèm event; server kiểm ở vipGlobalRulePasses.
             // labelStyle '' = theo phong cách nhóm (tab Cài đặt).
@@ -78,7 +117,8 @@
             activeProfileId: p.id,
             profiles: [p],
             queue: { maxLen: 50, perUserCooldownSec: 60, perItemMinMs: 200, rejoinThresholdSec: 60 },
-            display: { scale: 100, xPercent: 50, yPercent: 50, showText: true, textPosition: 'bottom', labelStyle: 'goldpink', showAvatar: true }
+            display: { scale: 100, xPercent: 50, yPercent: 50, showText: true, textPosition: 'bottom', labelStyle: 'goldpink', showAvatar: true },
+            joinCard: defaultJoinCard()
         };
     }
 
@@ -116,6 +156,7 @@
     }
 
     window.HpGame.vipwelcome = {
-        defaultConfig, newRuleId, newUserRule, newProfile, newProfileId, renderMessage
+        defaultConfig, newRuleId, newUserRule, newProfile, newProfileId, renderMessage,
+        SKIN_DEFS, newTier, defaultTiers, defaultJoinCard
     };
 })();
