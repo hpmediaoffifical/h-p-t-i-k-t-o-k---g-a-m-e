@@ -33,6 +33,15 @@ test('mục chờ quá lâu bị bỏ, trả mục kế', () => {
     assert.equal(q.size(), 0);
 });
 
+test('trim: bỏ mục ưu tiên thấp nhất khi hàng quá dài', () => {
+    const q = createMediaQueue();
+    q.push(item('a', 1000, T0));
+    q.push(item('b', 50, T0));
+    q.push(item('c', 135, T0));
+    assert.deepEqual(q.trim(2).map(x => x.key), ['b']);
+    assert.deepEqual(q.list().map(x => x.key), ['a', 'c']);
+});
+
 test('item không có key vẫn xếp hàng riêng; clear', () => {
     const q = createMediaQueue();
     q.push(item('', 1, T0));
