@@ -97,6 +97,12 @@
     will-change: transform;
   }
 
+  /* ===== Bám đỉnh đầu (?mode=overlay&cam=1 — chơi trong 🎥 Game Camera) =====
+     JS đặt transform lên wrapper #lqAnchor (gốc giữa mép dưới); nhấp nhô vẫn ở .quest-group nên hai
+     transform không đè nhau. Đang bám đầu thì tắt nhấp nhô — đầu người đã tự chuyển động. */
+  body.lq-cam #lqAnchor{ position: fixed; left: 0; top: 0; transform-origin: 50% 100%; will-change: transform; }
+  body.lq-tracking .quest-group{ animation: none !important; }
+
   .level-badge{
     width:var(--badge); height:var(--badge);
     position:relative; z-index:3;
@@ -400,6 +406,7 @@
   <div class="quest-timer hidden" id="questTimer">2:00:00</div>
 
   <div class="stage">
+   <div id="lqAnchor">
    <div class="quest-group" id="questGroup">
     <h1 class="quest-title" id="title">HP Media</h1>
 
@@ -438,6 +445,7 @@
       </div>
     </div>
    </div><!-- /.quest-group -->
+   </div><!-- /#lqAnchor -->
   </div>
 
   <div class="panel">
@@ -475,6 +483,19 @@
       </span>
       <span style="font-size:11px;opacity:.75;flex-basis:100%;color:#0a3d6b;">
         Bật → thanh KPI lay động nhẹ tạo cảm giác NPC đang di chuyển. Tắt → đứng yên.
+      </span>
+    </div>
+
+    <div class="enable-row" style="background:#ecfbfb; border-color:#7fd3d3;">
+      <span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#0a4b4b;font-weight:700;">
+        🎥 Trên đầu (Game Camera) — Cỡ:
+        <input id="cfgCamScale" type="number" value="55" min="20" max="150" step="5" style="width:60px;padding:4px;border:1px solid #7fd3d3;border-radius:6px;" />%
+        &nbsp;Cách đỉnh đầu:
+        <input id="cfgCamGap" type="number" value="20" min="-40" max="200" step="5" style="width:60px;padding:4px;border:1px solid #7fd3d3;border-radius:6px;" />px
+      </span>
+      <span style="font-size:11px;opacity:.8;flex-basis:100%;color:#0a4b4b;">
+        Chơi trong <b>🎥 Game Camera</b> thì thanh bay trên đỉnh đầu người thật và tự to/nhỏ theo khoảng cách tới camera.
+        Ra khỏi khung 1,5 giây thì thanh về giữa phía trên màn hình. Link riêng của Level Quest vẫn đứng yên như cũ.
       </span>
     </div>
 
@@ -683,6 +704,8 @@ const cfg = {
   floatingEnabled: false,
   floatDur: 2.8,  // seconds per bob cycle
   persistState: true,  // giữ tiến trình LIVE qua reload/kết nối lại (mặc định BẬT)
+  camScale: 55,   // % — cỡ thanh khi bám đỉnh đầu (Game Camera), nhân thêm theo cỡ đầu
+  camGap: 20,     // px — mép dưới thanh cách đỉnh đầu
 };
 
 const state = { level:0, dia:0, heart:0, share:0, finished:false,
@@ -820,6 +843,7 @@ function saveCfg(){
       timerFs: cfg.timerFs, timerColor: cfg.timerColor,
       floatingEnabled: cfg.floatingEnabled, floatDur: cfg.floatDur,
       persistState: cfg.persistState,
+      camScale: cfg.camScale, camGap: cfg.camGap,
       // Lưu cả input totals mong muốn để khôi phục đúng cấu hình
       totDia: parseInt($("cfgTotalDia")?.value)   || 30000,
       totHeart: parseInt($("cfgTotalHeart")?.value)|| 100000,
@@ -857,6 +881,8 @@ function loadCfg(){
       floatingEnabled: !!d.floatingEnabled,
       floatDur: (typeof d.floatDur === 'number') ? d.floatDur : cfg.floatDur,
       persistState: (typeof d.persistState === 'boolean') ? d.persistState : cfg.persistState,
+      camScale: Number.isFinite(d.camScale) ? d.camScale : cfg.camScale,
+      camGap: Number.isFinite(d.camGap) ? d.camGap : cfg.camGap,
     });
     // Sync UI inputs
     const set = (id, v) => { const e = $(id); if (e && v !== undefined && v !== null) e.value = v; };
@@ -868,6 +894,7 @@ function loadCfg(){
     set('cfgTickW', cfg.tickW); set('cfgTitleFont', cfg.titleFont);
     set('cfgTimerFs', cfg.timerFs); set('cfgTimerColor', cfg.timerColor);
     set('cfgFloatDur', cfg.floatDur);
+    set('cfgCamScale', cfg.camScale); set('cfgCamGap', cfg.camGap);
     if ($("enFloating")) $("enFloating").checked = !!cfg.floatingEnabled;
     if ($("enPersist"))  $("enPersist").checked  = !!cfg.persistState;
     set('cfgTotalDia', d.totDia); set('cfgTotalHeart', d.totHeart);
@@ -996,14 +1023,18 @@ function serializeCfgForSync(){
     timerDurationSec: cfg.timerDurationSec,
     timerFs: cfg.timerFs, timerColor: cfg.timerColor,
     floatingEnabled: cfg.floatingEnabled, floatDur: cfg.floatDur,
+    camScale: cfg.camScale, camGap: cfg.camGap,
   };
 }
 function applyRemoteCfg(data){
-  if (!data) return;
+  // Chỉ overlay nhận. Trang điều khiển là nguồn duy nhất — server phát lại bản cache cho MỌI socket vừa
+  // nối (kể cả chính nó lúc reconnect), nghe vào là bị bản cũ đè mất cài đặt vừa sửa.
+  if (!data || !IS_OVERLAY) return;
   Object.assign(cfg, data);
   applyFontSizes();
   updateVisibility();
   render();
+  camBoxDirty = true;   // font/KPI đổi → cỡ gốc cụm đổi → bám đầu đo lại
   // KHÔNG đụng vào timer — timer được điều khiển qua state broadcast (BẮT ĐẦU/DỪNG)
   // không bị reset khi LAB sync font/KPI/màu
 }
@@ -1442,9 +1473,59 @@ function initSocket(){
   _sock.on('levelquest:state', applyRemoteState);
 
   // Universal overlay reload — server emit khi user mở game / bắt đầu phiên → OBS tự refresh
+  // Chỉ overlay: app phát sự kiện này MỖI lần mở màn Level Quest — trang điều khiển nghe vào là tự tải lại.
   _sock.on('overlay:reload', (data) => {
+    if (!IS_OVERLAY) return;
     if (!data || !data.gameId || data.gameId === 'level-quest') location.reload();
   });
+
+  if (IS_CAM) bootCamFollow();
+}
+
+/* ============================================================
+   🎥 Bám đỉnh đầu (?mode=overlay&cam=1) — Level Quest là game con của Game Camera.
+   HeadAnchor (feed camera OBS chung + pose) → placeAbove/homePlace → followStep → transform #lqAnchor.
+   Lỗi nạp module/model: thanh nằm ở chỗ mặc định, quest vẫn chạy bình thường.
+   ============================================================ */
+const IS_CAM = IS_OVERLAY && new URLSearchParams(location.search).get('cam') === '1';
+const CAM_HOLD_MS = 1500;   // mất người: giữ chỗ cũ chừng này rồi mới về chỗ mặc định
+let camBoxDirty = true;
+async function bootCamFollow(){
+  document.body.classList.add('lq-cam');
+  const anchorEl = $("lqAnchor"), group = $("questGroup");
+  let BF = null, head = null;
+  let box = { w: 1, h: 1 }, place = null, lostAt = 0, tracking = false, lastT = performance.now();
+  window.addEventListener('resize', () => { camBoxDirty = true; });
+  const opts = () => ({ scale: (cfg.camScale || 55) / 100, gap: Number.isFinite(cfg.camGap) ? cfg.camGap : 20 });
+  function frame(now){ requestAnimationFrame(frame); tick(now); }
+  function tick(now){
+    if (!BF) return;
+    const W = innerWidth, H = innerHeight;
+    // offsetWidth/Height = cỡ gốc (không tính transform của wrapper / nhấp nhô).
+    if (camBoxDirty){ camBoxDirty = false; box = { w: group.offsetWidth || 1, h: group.offsetHeight || 1 }; }
+    const a = head ? head.get(now) : null;
+    let target;
+    if (a){ lostAt = 0; tracking = true; target = BF.placeAbove(a, box, W, H, opts()); }
+    else {
+      if (!lostAt) lostAt = now;
+      if (now - lostAt >= CAM_HOLD_MS) tracking = false;
+      target = tracking ? place : BF.homePlace(box, W, H, opts());
+    }
+    document.body.classList.toggle('lq-tracking', tracking);
+    place = BF.followStep(place, target, Math.min(100, now - lastT));
+    lastT = now;
+    anchorEl.style.transform = `translate(${(place.x - box.w / 2).toFixed(1)}px, ${(place.yBottom - box.h).toFixed(1)}px) scale(${place.s.toFixed(4)})`;
+  }
+  try {
+    BF = await import('/lib/body-frames.mjs');
+    requestAnimationFrame(frame);    // chỗ mặc định ngay cả khi tracker lỗi
+    window.__lqCamTick = tick;       // thử trong khung xem trước bị ẩn (rAF đứng im): gọi tay từng bước
+    const { HeadAnchor } = await import('/lib/head-anchor.mjs');
+    head = new HeadAnchor({ socket: _sock, gameId: 'level-quest', width: innerWidth, height: innerHeight,
+      onStatus: (t, lv) => { if (lv === 'error') console.warn('[level-quest cam]', t); } });
+    window.__lqHead = head;           // để soi/thử trong DevTools (pushFrame ảnh mẫu…)
+    await head.setEnabled(true);
+  } catch (e) { console.warn('[level-quest cam] không bật được bám đầu:', (e && e.message) || e); }
 }
 
 /* ============================================================
@@ -1465,6 +1546,15 @@ $("cfgFloatDur")?.addEventListener('change', () => {
   cfg.floatDur = Math.max(0.8, Math.min(8, parseFloat($("cfgFloatDur").value) || 2.8));
   applyFontSizes();
   saveCfg();
+});
+// 🎥 Bám đỉnh đầu (Game Camera): lưu + đồng bộ sang overlay ngay khi đổi
+$("cfgCamScale")?.addEventListener('change', () => {
+  cfg.camScale = clampInt($("cfgCamScale").value, 20, 150); $("cfgCamScale").value = cfg.camScale;
+  saveCfg(); log(`<span class="lv">🎥 Cỡ thanh trên đầu: ${cfg.camScale}%</span>`);
+});
+$("cfgCamGap")?.addEventListener('change', () => {
+  cfg.camGap = clampInt($("cfgCamGap").value, -40, 200); $("cfgCamGap").value = cfg.camGap;
+  saveCfg(); log(`<span class="lv">🎥 Cách đỉnh đầu: ${cfg.camGap}px</span>`);
 });
 
 // Bật/tắt "Giữ tiến trình" — bật thì snapshot ngay state hiện tại; tắt thì xoá bản lưu
