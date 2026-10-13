@@ -105,6 +105,7 @@ async function loadTikTokConnector() {
 loadTikTokConnector().catch((e) => console.error('[tiktok] KHÔNG nạp được tiktok-live-connector:', e?.message || e));
 const { OBSBridge } = require('./lib/obs-bridge');
 const { ObsCameraFeed } = require('./lib/touchplay-obs-feed');
+const CamRules = require('./lib/camgames');
 const { LuaSync } = require('./lib/lua-sync');
 const { OBSSettings } = require('./lib/obs-settings');
 
@@ -431,7 +432,8 @@ const GAMES = {
         defaultConfig: makeDefaultDapMuoiConfig()
     },
     // 🎥 GAME CAMERA — menu mẹ của các game camera (CAM_GAME_IDS). Một link OBS /overlay/camgames nạp
-    // game đang chọn; chỉ game đó bật (camGamesApplyActive) để quà không kích hoạt game đang ẩn.
+    // các game đang chọn (`actives`: tối đa 1 game tay + 1 game trên đầu, lib/camgames.js); chỉ các game
+    // đó bật (camGamesApplyActive) để quà không kích hoạt game đang ẩn. `active` = actives[0] cho bản cũ.
     // Mọi cài đặt ở app; overlay chỉ hiển thị + chơi.
     camgames: {
         id: 'camgames',
@@ -439,7 +441,7 @@ const GAMES = {
         description: 'Gom các game chơi bằng camera (Touch & Play, Chém Trái Cây, Đập Muỗi, Bắn Cung, Level Quest) vào một link OBS. Chọn game trong app, OBS đổi theo.',
         icon: '🎥',
         overlayPath: '/overlay/camgames',
-        defaultConfig: { enabled: true, active: 'touchplay', source: '' }
+        defaultConfig: { enabled: true, active: 'touchplay', actives: ['touchplay'], source: '' }
     }
 };
 
@@ -452,22 +454,42 @@ const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'bancung', 'level-q
 // ép tắt lúc khởi động, kẻo khách đang chơi Bắn Cung cập nhật app xong thấy game tự tắt. Thẻ trong Game
 // Camera báo "đang bật ở link riêng" + nút tắt (thanh bên không còn nút nguồn của nó).
 const CAM_STANDALONE_IDS = new Set(['bancung']);
-function camGameInHub(id) {
+// Game con KHÔNG đọc `enabled` (Level Quest: KPI đếm cả khi không được chọn, link riêng luôn hiện): hub không ghi
+// cờ đó — ghi thì Khởi động nhanh hiện "Đang TẮT" mà Thư viện lại không còn game để bật.
+const CAM_IGNORES_ENABLED = new Set(['level-quest']);
+// Các game đang chơi trong Game Camera ([] khi tắt hub).
+function camActives() {
     const cam = appConfig.games?.camgames || {};
-    return cam.enabled !== false && cam.active === id;
+    return cam.enabled === false ? [] : CamRules.activesOf(cam, CAM_GAME_IDS);
 }
-// Chỉ game đang chọn được bật; tắt Game Camera là tắt hết. Gọi sau mỗi lần lưu config camgames
+function camGameInHub(id) { return camActives().includes(id); }
+// Chơi ≥2 game cùng lúc: "quà riêng trước, quà chung sau" — game nào gán ĐÍCH DANH quà này (lib/camgames.js).
+// [] khi chỉ chơi 1 game (không lọc gì, như trước).
+function camGiftClaims(g) {
+    const act = camActives();
+    return act.length >= 2 ? CamRules.giftClaims(g, appConfig.games, act) : [];
+}
+// Nhánh bắt-mọi-quà của `id` (Đập Muỗi xu/con, Bắn Cung bắn tự do + nạp cung) nhường quà mà game đang
+// chơi cùng đã gán đích danh. Touch & Play lọc ở client theo `camClaims` trong sự kiện 'gift'.
+function camGiftYields(id, g) {
+    const act = camActives();
+    if (act.length < 2 || !act.includes(id)) return false;
+    return CamRules.claimedElsewhere(id, CamRules.giftClaims(g, appConfig.games, act), act.length);
+}
+// Chỉ các game đang chọn được bật; tắt Game Camera là tắt hết. Gọi sau mỗi lần lưu config camgames
 // (prevCam = config trước khi lưu) và lúc khởi động để giữ đúng luật dù config cũ bật cả hai.
 function camGamesApplyActive(prevCam) {
     const cam = appConfig.games.camgames = { ...GAMES.camgames.defaultConfig, ...(appConfig.games.camgames || {}) };
-    if (!CAM_GAME_IDS.includes(cam.active)) cam.active = CAM_GAME_IDS[0];
+    const sel = CamRules.applyPatch(cam, {}, CAM_GAME_IDS);
+    cam.actives = sel.actives; cam.active = sel.active;
     const hubOn = cam.enabled !== false;
+    const prevSel = prevCam && prevCam.enabled !== false ? CamRules.activesOf(prevCam, CAM_GAME_IDS) : [];
     let changed = false;
     for (const id of CAM_GAME_IDS) {
-        if (!GAMES[id]) continue;
-        const want = hubOn && id === cam.active;
+        if (!GAMES[id] || CAM_IGNORES_ENABLED.has(id)) continue;
+        const want = hubOn && cam.actives.includes(id);
         if (CAM_STANDALONE_IDS.has(id)) {
-            const had = !!prevCam && prevCam.enabled !== false && prevCam.active === id;
+            const had = prevSel.includes(id);
             if (!prevCam || had === want) continue;
         }
         const c = appConfig.games[id] = appConfig.games[id] || { ...GAMES[id].defaultConfig };
@@ -1332,6 +1354,8 @@ const touchplayFeed = new ObsCameraFeed({
     // Link OBS của app có thể là link chia sẻ /overlay/shared/<token> — không chứa chữ "touchplay"/"bancung".
     // Overlay Game Camera chứa game con trong iframe phủ kín → Browser Source của nó là overlay của mọi game con.
     overlayMatchers: {
+        // Bộ nhận diện chung chạy ngay trong overlay mẹ (public/lib/hp-cam-shared.mjs).
+        camgames: (url) => feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         touchplay: (url) => feedUrlIs(url, 'touchplay', /touchplay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         chemtraicay: (url) => feedUrlIs(url, 'chemtraicay', /\/overlay\/chemtraicay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         // Bắn Cung chơi riêng có link riêng; đang chọn trong Game Camera thì nằm trong overlay mẹ.
@@ -1802,6 +1826,9 @@ if (appConfig.games.chemtraicay) {
 // Đập Muỗi: chuẩn hoá config cũ (khoá thiếu/rác → mặc định, actions/giftRules đúng dạng).
 if (appConfig.games.dapmuoi) appConfig.games.dapmuoi = DapMuoi.normalizeConfig(appConfig.games.dapmuoi);
 if (camGamesApplyActive()) saveAppConfig();
+// Bản 906d73c..4c68a00 lỡ để hub ghi enabled=false cho Level Quest → bật lại lúc khởi động. Level Quest không đọc cờ
+// này (chỉ Khởi động nhanh hiển thị) nên luôn để bật là đúng sự thật.
+if (appConfig.games['level-quest'] && appConfig.games['level-quest'].enabled === false) { appConfig.games['level-quest'].enabled = true; saveAppConfig(); }
 // Nguồn camera chung: config cũ chưa đặt ở Game Camera → lấy nguồn mà game camera từng chọn.
 if (!appConfig.games.camgames.source) {
     const G = appConfig.games, vs = G.chemtraicay?.videoSource || {};
@@ -4038,6 +4065,7 @@ function emitGift(g) {
         sheetItem,
         image: sheetItem?.image || g.giftPicture,
         coinValue: sheetItem?.diamond ?? g.diamondCount ?? 1,
+        camClaims: camGiftClaims(g),
         ts: Date.now()
     };
     console.log(`[gift] emit → ${enriched.nickname || enriched.uniqueId} sent "${enriched.giftName || '?'}" (id=${enriched.giftId}, x${enriched.repeatCount || 1}, ${enriched.coinValue || 0}💎)`);
@@ -4838,6 +4866,8 @@ app.post('/api/games/:id/config', (req, res) => {
             autoScroll: { ...prevConfig.giftBoard.autoScroll, ...(incoming.giftBoard.autoScroll || {}) }
         };
     }
+    // Game Camera: {active} = chơi riêng, {actives} = chơi cùng lúc → chuẩn hoá theo khe (lib/camgames.js).
+    if (g.id === 'camgames') Object.assign(incoming, CamRules.applyPatch(prevConfig, incoming, CAM_GAME_IDS));
     appConfig.games[g.id] = { ...appConfig.games[g.id], ...incoming };
     if (g.id === 'thuytinh') cleanThuyTinhConfig(appConfig.games.thuytinh);   // app cũ POST config lẫn key game khác
     if (g.id === 'pktiktok') {
@@ -8264,6 +8294,7 @@ function banCungAddBowCharge(amount, contribUser) {
 function handleBanCungGift({ uniqueId, nickname, profilePicture, giftId, giftName, giftImage, coinValue, repeatCount }) {
     if (appConfig.games?.bancung?.enabled === false) return;
     if (appConfig.games?.bancung?.sessionActive === false) return;
+    if (camGiftYields('bancung', { giftId, giftName })) return;   // quà của game chơi cùng trong Game Camera
     const cfg = appConfig.games.bancung || makeDefaultBanCungConfig();
     const contribUser = uniqueId ? { uniqueId, nickname, avatar: profilePicture } : null;
     const repeat = Math.max(1, Number(repeatCount) || 1);
@@ -8381,6 +8412,11 @@ app.get('/overlay/chemtraicay', (req, res) => {
 });
 app.get('/overlay/camgames', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'camgames', 'overlay.html'));
+});
+// Quà gán đích danh ở ≥2 game đang chơi cùng lúc → 1 quà kích cả hai (panel Game Camera cảnh báo).
+app.get('/api/camgames/overlap', (req, res) => {
+    const actives = camActives();
+    res.json({ actives, overlaps: CamRules.overlapGifts(appConfig.games, actives) });
 });
 app.get('/tracker/chemtraicay', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'chemtraicay', 'tracker.html'));
@@ -8554,6 +8590,7 @@ function emitDapMuoiGift(payload) {
 function handleDapMuoiGift({ nickname, profilePicture, giftId, giftName, giftImage, coinValue, repeatCount, source }) {
     const cfg = dapMuoiCfg();
     if (cfg.enabled === false) return;
+    if (camGiftYields('dapmuoi', { giftId, giftName })) return;   // quà của game chơi cùng trong Game Camera
     const base = { nickname: nickname || '', profilePicture: profilePicture || '', giftName: giftName || '', image: giftImage || '', source: source || 'tiktok', ts: Date.now() };
     const action = DapMuoi.actionForGift(cfg, giftId, giftName);
     if (action) {

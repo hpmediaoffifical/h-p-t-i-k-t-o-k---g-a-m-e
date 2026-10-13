@@ -10,7 +10,7 @@
 //   h.get()      → { crown:{x,y}, headW } | null (mất người / pose cũ hơn 700ms)
 //   h.problem()  → lý do chưa chạy được ('' = ổn) — panel/console hiển thị, overlay không hiện chữ
 
-import { HpTracker } from '/lib/hp-tracking.mjs';
+import { HpTracker, sharedTracker } from '/lib/hp-tracking.mjs';
 import { cameraToStage } from '/lib/obs-scene-map.mjs';
 import { bodyFrames, headAnchor } from '/lib/body-frames.mjs';
 
@@ -23,7 +23,8 @@ export class HeadAnchor {
         this.onStatus = onStatus || (() => {});
         this.enabled = false;
         this.layout = null; this.feedStatus = null; this.lastFrameAt = 0; this._busy = false;
-        this.tracker = new HpTracker({ width, height, mirror: false, quality: 'auto', onStatus: (t, lv) => this.onStatus(t, lv) });
+        // Trong 🎥 Game Camera: bộ nhận diện chung của overlay mẹ (chơi kèm game khác không nhận diện 2 lần).
+        this.tracker = sharedTracker(gameId, { width, height }) || new HpTracker({ width, height, mirror: false, quality: 'auto', onStatus: (t, lv) => this.onStatus(t, lv) });
         this.tracker.want({ hands: false, pose: true, segment: false });
         this._F = null; this._poseAt = 0; this._anchor = null;
         socket.on('touchplay:frame', f => this._onFrame(f));
@@ -51,6 +52,7 @@ export class HeadAnchor {
 
     async _onFrame(f) {
         if (!this.enabled || this._busy || !f?.img) return;
+        if (this.tracker.shared) { this.lastFrameAt = performance.now(); return; }   // overlay mẹ đã giải mã + nhận diện
         this._busy = true;                  // đang giải mã thì bỏ khung mới — luôn dùng hình mới nhất
         try {
             const bmp = await createImageBitmap(new Blob([f.img], { type: 'image/jpeg' }));

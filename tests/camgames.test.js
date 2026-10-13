@@ -78,3 +78,13 @@ test('overlapGifts: quà cùng gán đích danh ở ≥2 game đang chơi', () =
     assert.deepStrictEqual(r[0].games, ['chemtraicay', 'bancung']);
     assert.deepStrictEqual(Cam.overlapGifts(cfgs, ['dapmuoi', 'bancung']), []);
 });
+
+test('registry.js khai slot khớp SLOTS của lib (game mới phải khai cả hai chỗ)', () => {
+    global.window = {};
+    delete require.cache[require.resolve('../public/games/camgames/registry.js')];
+    require('../public/games/camgames/registry.js');
+    const list = global.window.HpCamGames;
+    delete global.window;
+    assert.ok(list.length >= 5);
+    for (const g of list) assert.strictEqual(g.slot, Cam.SLOTS[g.id], g.id);
+});
