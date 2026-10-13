@@ -92,8 +92,8 @@ bao giờ lọt vào ảnh AI (Studio phải tự lo chuyện này, ở đây t�
 - Không có mặt → điểm = `cells[i] + rnd×0.10`.
 
 ### Chọn ô nước (`dirtyCell`)
-Rút 18 ô ngẫu nhiên, điểm `cells[i] + rnd×0.16`, chọn lớn nhất; nếu lớn nhất < 0.08 (màn sạch) → ô mặt
-(hoặc giữa màn nếu không có mặt).
+Xét cả 216 ô, điểm `cells[i] + rnd×0.16 − phạt đang bay`, chọn lớn nhất (Studio chỉ rút 18 ô ngẫu nhiên → hay
+bỏ sót đúng ô bẩn khi màn gần sạch); nếu `cells` lớn nhất < 0.08 (màn sạch) → ô mặt (hoặc giữa màn nếu không có mặt).
 
 ### Chạm
 - Sơn: nếu khiên bật và điểm chạm nằm trong vòm → **bị chặn**: không vết sơn, sự kiện
@@ -236,11 +236,12 @@ Nguồn camera: không có trường riêng — dùng nguồn chung Game Camera 
 - Mỗi rAF: `bodyFrames(pose)` → `engine.setFace(head)`; tay hợp lệ → hình xoá → áp lớp sơn;
   `engine.step(dt)` → vẽ sự kiện; 250 ms đo phủ một lần; vẽ `#fx`.
 - HUD: thanh "🎨 Sơn phủ 63%" (đổi màu theo %), dòng "Vừa ném: <tên>" (`showLastThrower`), đồng hồ khiên khi bật.
-  Kéo được trong app (`reviewEditMode` như Đập Muỗi, lưu `display.hudX/YPercent`).
+  Vị trí/cỡ chỉnh bằng thanh trượt trong panel (`display.hudX/YPercent`, `hudScale`) như Đập Muỗi.
 - Âm thanh WebAudio: vút (noise băng thông quét 300 ms), bẹp (noise thông thấp 90 ms + sine 120 Hz), nước (noise
   rít 400 ms), khiên chặn (sine 880 Hz 150 ms), phủ kín (3 nốt), rửa (noise dâng). Chống dồn tiếng: mỗi loại
   cách ≥ 75 ms.
-- Chế độ chuột (`?mouse=1`, test): click = ném 1 cục vào con trỏ; giữ + kéo = lau bằng "bàn tay" tròn span 140 px.
+- Chế độ chuột (`?mouse=1`, test): click = ném 1 cục (đích do engine chọn); giữ + kéo = lau bằng "bàn tay" tròn
+  span 140 px; phím C xoá, S mưa, W nước, H khiên, F người giả (thử nhắm mặt + khiên).
 - Nhận `hoasi:gift`, `gameCmd` (`start|stop|reset|clear`), `gameConfig`, `gameDisabled/Enabled` (tắt → dừng feed,
   ẩn canvas), `overlay:reload`.
 - Báo: `touchplay:overlayStat` mỗi 2 s `{ fps, aiMs, hands, phase }`; `hoasi:state` mỗi 1 s
