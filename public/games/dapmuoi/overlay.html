@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <script src="/lib/overlay-resolution.js"></script>
+<meta charset="utf-8" />
+<title>HP Đập Muỗi — Overlay</title>
+<style>
+    /* OBS browser source: 1080×1920 trong suốt. Engine tính trong hệ 1080×1920; sân khấu giữ 9:16 giữa khung. */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; color: #fff; user-select: none;
+        font-family: 'Segoe UI', Arial, sans-serif; }
+    #dm-stage { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: 0 0; }
+    #dm-canvas { position: absolute; inset: 0; width: 1080px; height: 1920px; display: block; }
+    .dm-hud { position: absolute; transform: translate(-50%, -50%); text-align: center; pointer-events: none; white-space: nowrap;
+        text-shadow: 0 2px 6px rgba(0,0,0,.8), 0 0 18px rgba(0,0,0,.6); }
+    .dm-hud .main { font-size: 52px; font-weight: 800; letter-spacing: .5px; }
+    .dm-hud .main b { color: #ffd54a; }
+    .dm-hud .combo { font-size: 44px; font-weight: 900; color: #ff6b3d; opacity: 0; transition: opacity .15s; }
+    .dm-hud .combo.on { opacity: 1; }
+    .dm-hud .chips { margin-top: 6px; font-size: 34px; font-weight: 700; display: flex; gap: 18px; justify-content: center; }
+    .dm-hud .chips span { padding: 4px 16px; border-radius: 999px; background: rgba(0,0,0,.55); border: 2px solid rgba(255,255,255,.25); }
+    .dm-hud .chips span.racket { border-color: #ffd54a; color: #ffd54a; }
+    .dm-hud .chips span.net { border-color: #7fd7ff; color: #7fd7ff; }
+    .dm-notices { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 10px; align-items: center; pointer-events: none; }
+    .dm-notice { display: flex; align-items: center; gap: 12px; padding: 10px 22px; border-radius: 999px; background: rgba(8,12,20,.85);
+        border: 2px solid rgba(255,255,255,.25); font-size: 34px; font-weight: 700; animation: dmIn .25s ease-out; }
+    .dm-notice img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+    .dm-notice.out { opacity: 0; transition: opacity .4s; }
+    @keyframes dmIn { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .dm-alert { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; max-width: 86%; padding: 18px 26px;
+        border-radius: 16px; background: rgba(120,20,20,.9); border: 2px solid #ff8a80; font-size: 30px; text-align: center; }
+    .dm-alert small { display: block; margin-top: 8px; font-size: 22px; opacity: .85; }
+    .dm-alert.on { display: block; }
+    .dm-hint { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); padding: 10px 18px; border-radius: 12px; display: none;
+        background: rgba(8,12,20,.85); border: 1px solid rgba(255,255,255,.2); font-size: 22px; color: #c9d1e3; }
+    body.dm-mouse .dm-hint { display: block; }
+</style>
+</head>
+<body>
+<div id="dm-stage">
+    <canvas id="dm-canvas" width="1080" height="1920"></canvas>
+    <div class="dm-hud" id="dm-hud">
+        <div class="main">🦟 Còn lại <b id="dm-left">0</b> &nbsp;·&nbsp; ✋ Đã đập <b id="dm-killed">0</b></div>
+        <div class="combo" id="dm-combo">COMBO ×2</div>
+        <div class="chips" id="dm-chips"></div>
+    </div>
+    <div class="dm-notices" id="dm-notices"></div>
+    <div class="dm-alert" id="dm-alert"></div>
+    <div class="dm-hint">Chế độ chuột: bấm = vỗ tay tại con trỏ · giữ kéo = vợt · phím C = xoá hết muỗi</div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/games/dapmuoi/game.js"></script>
+<script src="/games/dapmuoi/clap.js"></script>
+<script>
+(function () {
+    'use strict';
+    const W = 1080, H = 1920;
+    const Game = window.HpGame.dapmuoi;
+    const Clap = window.HpGame.dapmuoiClap;
+    const qs = new URLSearchParams(location.search);
+    const isReview = qs.get('review') === '1';
+    const mouseMode = isReview || qs.get('mouse') === '1';
+    const token = qs.get('token') || '';
+    const $ = (id) => document.getElementById(id);
+    const canvas = $('dm-canvas');
+    const ctx = canvas.getContext('2d');
+    if (mouseMode) document.body.classList.add('dm-mouse');
+
+    let cfg = Game.normalizeConfig(null);
+    const engine = Game.createEngine(cfg, { width: W, height: H });
+    const clap = Clap.createClapDetector(cfg);
+    let disabled = false;
+    let lastT = performance.now();
+    let frames = 0, fpsAt = performance.now(), fps = 0;
+
+    // ---------- bố cục: sân khấu 1080×1920 giữ 9:16 giữa khung ----------
+    let stageScale = 1, stageX = 0, stageY = 0;
+    function fitStage() {
+        const vw = innerWidth, vh = innerHeight;
+        stageScale = Math.min(vw / W, vh / H);
+        stageX = (vw - W * stageScale) / 2; stageY = (vh - H * stageScale) / 2;
+        $('dm-stage').style.transform = `translate(${stageX}px, ${stageY}px) scale(${stageScale})`;
+    }
+    fitStage(); window.addEventListener('resize', fitStage);
+    function toStage(clientX, clientY) { return { x: (clientX - stageX) / stageScale, y: (clientY - stageY) / stageScale }; }
+
+    // ---------- ảnh muỗi (SVG 320×200) ----------
+    const BODY_W = Game.BASE_SIZE, BODY_H = Game.BASE_SIZE * 200 / 320;
+    const imgBody = new Image(), imgDead = new Image();
+    imgBody.src = '/games/dapmuoi/assets/muoi-than.svg'; imgDead.src = '/games/dapmuoi/assets/muoi-lat-ngua.svg';
+    const PIVOT = { x: (112 - 160) / 320, y: (72 - 100) / 200 };     // gốc cánh so với tâm ảnh (tỉ lệ)
+    const EYE = { x: (64 - 160) / 320, y: (96 - 100) / 200, r: 8.5 / 320 };
+
+    function drawWing(w, h, angle, alpha) {
+        ctx.save();
+        ctx.translate(PIVOT.x * w, PIVOT.y * h);
+        ctx.rotate(angle);
+        ctx.globalAlpha *= alpha;
+        ctx.beginPath();
+        ctx.ellipse(w * 0.24, 0, w * 0.25, h * 0.13, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(205,232,255,.5)'; ctx.fill();
+        ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(185,220,255,.85)'; ctx.stroke();
+        ctx.restore();
+    }
+
+    function drawMosquito(m, now) {
+        const w = BODY_W * m.scale * (m.smart ? 1.15 : 1), h = BODY_H * m.scale * (m.smart ? 1.15 : 1);
+        const jx = Math.sin(now * 0.037 + m.id) * 3, jy = Math.sin(now * 0.029 + m.id * 1.7) * 4;
+        ctx.save();
+        if (m.state === 'dead') {
+            const age = now - m.deadAt;
+            const alpha = age < 600 ? 1 : Math.max(0, 1 - (age - 600) / 1900);
+            ctx.globalAlpha = alpha;
+            ctx.translate(m.x, m.y);
+            ctx.rotate(Math.sin(age / 1000 * Math.PI * 2 * 6) * 12 * Math.PI / 180);
+            ctx.scale(m.dir, 1);
+            if (imgDead.complete) ctx.drawImage(imgDead, -w / 2, -h / 2, w, h);
+            ctx.restore();
+            return;
+        }
+        if (m.state === 'dodge') {
+            // vệt mờ phía sau theo hướng ngược vận tốc
+            const vl = Math.hypot(m.vx, m.vy) || 1;
+            for (let k = 1; k <= 3; k++) {
+                ctx.save(); ctx.globalAlpha = 0.15; ctx.translate(m.x - m.vx / vl * 22 * k, m.y - m.vy / vl * 22 * k); ctx.scale(m.dir, 1);
+                if (imgBody.complete) ctx.drawImage(imgBody, -w / 2, -h / 2, w, h); ctx.restore();
+            }
+        }
+        ctx.translate(m.x + jx, m.y + jy);
+        ctx.scale(m.dir, 1);
+        const flap = Math.sin(m.phase) ;
+        drawWing(w, h, (-10 + flap * 22) * Math.PI / 180, 0.9);
+        drawWing(w, h, (4 - flap * 22) * Math.PI / 180, 0.7);
+        if (imgBody.complete) ctx.drawImage(imgBody, -w / 2, -h / 2, w, h);
+        if (m.smart) {
+            ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w, 0, Math.PI * 2); ctx.fillStyle = '#ffd54a'; ctx.fill();
+            ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w * 1.9, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,213,74,.45)'; ctx.lineWidth = 3; ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    // ---------- hiệu ứng ----------
+    const rings = [];      // { x, y, r, t0, hit }
+    const labels = [];     // { x, y, text, color, t0, size }
+    const zaps = [];       // { x, y, t0 }
+    function addRing(x, y, r, hit) { rings.push({ x, y, r, t0: performance.now(), hit }); if (rings.length > 20) rings.shift(); }
+    function addLabel(x, y, text, color, size) { labels.push({ x, y, text, color, t0: performance.now(), size: size || 40 }); if (labels.length > 30) labels.shift(); }
+
+    function drawEffects(now, s) {
+        if (cfg.display.showHitRing) for (const r of rings) {
+            const k = (now - r.t0) / 300; if (k > 1) continue;
+            ctx.save(); ctx.globalAlpha = 1 - k; ctx.lineWidth = 6; ctx.strokeStyle = r.hit ? '#ffd54a' : 'rgba(255,255,255,.8)';
+            ctx.beginPath(); ctx.arc(r.x, r.y, r.r * (0.5 + 0.5 * k), 0, Math.PI * 2); ctx.stroke();
+            ctx.beginPath(); ctx.arc(r.x, r.y, r.r * 0.3 * (1 + k), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+        }
+        if (s.spray) {
+            const g = ctx.createRadialGradient(s.spray.x, s.spray.y, 0, s.spray.x, s.spray.y, s.spray.r);
+            g.addColorStop(0, 'rgba(120,230,120,.38)'); g.addColorStop(0.7, 'rgba(120,230,120,.18)'); g.addColorStop(1, 'rgba(120,230,120,0)');
+            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(s.spray.x, s.spray.y, s.spray.r, 0, Math.PI * 2); ctx.fill();
+        }
+        for (const z of zaps) {
+            const k = (now - z.t0) / 180; if (k > 1) continue;
+            ctx.save(); ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#8fe8ff'; ctx.lineWidth = 4; ctx.shadowColor = '#4fd2ff'; ctx.shadowBlur = 12;
+            for (let i = 0; i < 4; i++) {
+                ctx.beginPath(); let x = z.x, y = z.y; ctx.moveTo(x, y);
+                for (let j = 0; j < 5; j++) { x += (Math.random() - .5) * 60; y += (Math.random() - .5) * 60; ctx.lineTo(x, y); }
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+        for (const l of labels) {
+            const k = (now - l.t0) / 900; if (k > 1) continue;
+            ctx.save(); ctx.globalAlpha = 1 - k; ctx.font = `900 ${l.size}px "Segoe UI", Arial, sans-serif`; ctx.textAlign = 'center';
+            ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.fillStyle = l.color;
+            ctx.strokeText(l.text, l.x, l.y - k * 80); ctx.fillText(l.text, l.x, l.y - k * 80); ctx.restore();
+        }
+        while (rings.length && now - rings[0].t0 > 300) rings.shift();
+        while (zaps.length && now - zaps[0].t0 > 180) zaps.shift();
+        while (labels.length && now - labels[0].t0 > 900) labels.shift();
+    }
+
+    // ---------- HUD ----------
+    function applyHud(s) {
+        const d = cfg.display, hud = $('dm-hud');
+        hud.style.display = d.showHud ? '' : 'none';
+        hud.style.left = d.hudXPercent + '%'; hud.style.top = d.hudYPercent + '%';
+        hud.style.transform = `translate(-50%, -50%) scale(${d.hudScale / 100})`;
+        $('dm-left').textContent = s.flying + (s.queue ? ` (+${s.queue})` : '');
+        $('dm-killed').textContent = s.killed;
+        const c = $('dm-combo'); c.textContent = `COMBO ×${s.combo}`; c.classList.toggle('on', s.combo >= 2);
+        const chips = [];
+        if (s.racketMs > 0) chips.push(`<span class="racket">🏸 Vợt ${Math.ceil(s.racketMs / 1000)}s</span>`);
+        if (s.netMs > 0) chips.push(`<span class="net">🛏 Màn ${Math.ceil(s.netMs / 1000)}s</span>`);
+        const el = $('dm-chips'); const html = chips.join(''); if (el.innerHTML !== html) el.innerHTML = html;
+    }
+
+    function notice(icon, text, image) {
+        const box = $('dm-notices');
+        const el = document.createElement('div'); el.className = 'dm-notice';
+        el.innerHTML = `${image ? `<img src="${String(image).replace(/"/g, '&quot;')}" alt="">` : ''}<span>${icon} ${String(text).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</span>`;
+        box.appendChild(el);
+        while (box.children.length > 4) box.removeChild(box.firstChild);
+        setTimeout(() => el.classList.add('out'), 2600); setTimeout(() => el.remove(), 3100);
+    }
+
+    // ---------- âm thanh (WebAudio, không cần file) ----------
+    const audio = { ctx: null, buzz: null, buzzGain: null, lfo: null, target: 0 };
+    function audioInit() {
+        if (audio.ctx || !cfg.sound.enabled) return;
+        try {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ac.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 520;
+            const lfo = ac.createOscillator(); lfo.frequency.value = 6; const lfoG = ac.createGain(); lfoG.gain.value = 25;
+            lfo.connect(lfoG); lfoG.connect(osc.detune);
+            const filt = ac.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 1800;
+            const g = ac.createGain(); g.gain.value = 0;
+            osc.connect(filt); filt.connect(g); g.connect(ac.destination); osc.start(); lfo.start();
+            audio.ctx = ac; audio.buzz = osc; audio.buzzGain = g; audio.lfo = lfo;
+        } catch (e) { /* không có audio */ }
+    }
+    function audioResume() { if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume().catch(() => {}); }
+    function audioBuzz(n) {
+        if (!audio.ctx) return;
+        const v = cfg.sound.enabled ? cfg.sound.volume * 0.35 * Math.min(1, Math.sqrt(n / 40)) : 0;
+        if (Math.abs(v - audio.target) > 0.002) { audio.target = v; audio.buzzGain.gain.setTargetAtTime(v, audio.ctx.currentTime, 0.12); }
+    }
+    function noise(ms, vol, lowpass) {
+        if (!audio.ctx || !cfg.sound.enabled) return;
+        const ac = audio.ctx, len = Math.floor(ac.sampleRate * ms / 1000), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+        const src = ac.createBufferSource(); src.buffer = buf; const g = ac.createGain(); g.gain.value = vol * cfg.sound.volume;
+        let node = src; if (lowpass) { const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lowpass; src.connect(f); node = f; }
+        node.connect(g); g.connect(ac.destination); src.start();
+    }
+    function tone(freq, ms, type, vol) {
+        if (!audio.ctx || !cfg.sound.enabled) return;
+        const ac = audio.ctx, o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.value = freq;
+        g.gain.value = vol * cfg.sound.volume; g.gain.setTargetAtTime(0, ac.currentTime + ms / 1000 * 0.6, ms / 1000 * 0.2);
+        o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + ms / 1000);
+    }
+    const sfx = { kill: () => noise(60, 0.9), miss: () => noise(40, 0.25, 900), spray: () => noise(1000, 0.5, 1200), zap: () => tone(90, 120, 'square', 0.4), dodge: () => tone(1400, 90, 'triangle', 0.3) };
+
+    // ---------- sự kiện engine ----------
+    function handleEvents(ev) {
+        for (const e of ev) {
+            if (e.type === 'kill') { sfx.kill(); addLabel(e.x, e.y - 40, e.n > 1 ? `+${e.n}` : '+1', '#ffd54a', 44); if (e.combo >= 2) addLabel(e.x, e.y - 100, `COMBO ×${e.combo}`, '#ff6b3d', 40); }
+            else if (e.type === 'miss') sfx.miss();
+            else if (e.type === 'dodge') { sfx.dodge(); addLabel(e.x, e.y - 60, `né! ♥${e.livesLeft}`, '#8fe8ff', 36); }
+            else if (e.type === 'spray') sfx.spray();
+            else if (e.type === 'zap') { sfx.zap(); zaps.push({ x: e.x, y: e.y, t0: performance.now() }); if (zaps.length > 12) zaps.shift(); }
+        }
+    }
+
+    // ---------- đập ----------
+    function hitAt(x, y, r, mode) {
+        audioInit(); audioResume();
+        const n = engine.hit(x, y, r);
+        addRing(x, y, r, n > 0);
+        return n;
+    }
+
+    // ---------- feed camera OBS + nhận diện (không chạy trong khung xem trước của app) ----------
+    const feed = { on: false, tracker: null, layout: null, busy: false, lastAt: 0, status: null, toStage: null, seenHands: 0, seenPose: 0 };
+    function wantFeed() { return !isReview && !disabled; }
+    async function syncFeed() {
+        const want = wantFeed();
+        if (want === feed.on) return;
+        feed.on = want;
+        if (!want) { socket.emit('touchplay:feed', false); if (feed.tracker) feed.tracker.stop(); return; }
+        try {
+            if (!feed.tracker) {
+                const [trk, map] = await Promise.all([import('/lib/hp-tracking.mjs'), import('/lib/obs-scene-map.mjs')]);
+                feed.toStage = map.cameraToStage;
+                feed.tracker = new trk.HpTracker({ width: W, height: H, quality: cfg.quality });
+                feed.tracker.want({ hands: true, pose: true, face: false });
+                window.__dm.tracker = feed.tracker;
+            }
+            if (!feed.on) return;
+            feed.tracker.quality = cfg.quality;
+            await feed.tracker.startExternal();
+            feed.lastAt = performance.now();
+            if (feed.on) socket.emit('touchplay:feed', 'dapmuoi');
+        } catch (e) { console.warn('[dapmuoi] không bật được nhận diện:', (e && e.message) || e); }
+    }
+    async function onFrame(f) {
+        if (!feed.on || feed.busy || !f || !f.img || !feed.tracker || !feed.toStage) return;
+        feed.busy = true;
+        try {
+            const bmp = await createImageBitmap(new Blob([f.img], { type: 'image/jpeg' }));
+            feed.tracker.pushFrame(bmp, feed.toStage(feed.layout, bmp.width, bmp.height, W, H, 'dapmuoi'));
+            feed.lastAt = performance.now();
+        } catch (_) {} finally { feed.busy = false; }
+    }
+    function feedProblem() {
+        const st = feed.status || {};
+        if (st.obsConnected === false) return ['App chưa kết nối OBS WebSocket.', 'OBS: Công cụ → Cài đặt WebSocket Server → bật; rồi kết nối ở mục Hiệu ứng OBS trong app.'];
+        if (!st.source) return ['Chưa chọn nguồn camera cho Game Camera.', 'Mở 🎥 Game Camera trong app → chọn Nguồn camera trong OBS.'];
+        if (st.error === 'source-missing') return [`Không tìm thấy nguồn "${st.source}" trong OBS.`, ''];
+        return [`Chưa nhận được hình từ nguồn "${st.source}".`, 'Kiểm tra camera trong scene OBS đang phát.'];
+    }
+    function showAlert(pair) {
+        const el = $('dm-alert');
+        if (!pair) { el.classList.remove('on'); return; }
+        el.innerHTML = `⚠ ${pair[0]}${pair[1] ? `<small>${pair[1]}</small>` : ''}`; el.classList.add('on');
+    }
+    // Mỗi khung: kết quả nhận diện MỚI → vỗ tay / vợt / mặt.
+    function pumpTracking(now) {
+        const t = feed.tracker; if (!feed.on || !t) return;
+        if (t.handsAt === feed.seenHands && t.poseAt === feed.seenPose) return;
+        feed.seenHands = t.handsAt; feed.seenPose = t.poseAt;
+        const hands = now - t.handsAt < 400 ? t.hands : [];
+        const pose = now - t.poseAt < 400 ? t.pose : null;
+        for (const e of clap.update({ hands, pose, now })) hitAt(e.x, e.y, e.r, e.mode);
+        if (engine.snapshot === undefined) return;
+        if (lastSnap && lastSnap.racketMs > 0) for (const h of hands) engine.sweep(h.palm.x, h.palm.y, h.size);
+        if (pose && pose[0] && (pose[0].v == null || pose[0].v >= 0.35)) engine.setFace(pose[0].x, pose[0].y);
+        if (cfg.display.showSkeleton) skeleton = { hands, pose };
+    }
+    let skeleton = null;
+    function drawSkeleton() {
+        if (!cfg.display.showSkeleton || !skeleton) return;
+        ctx.save(); ctx.strokeStyle = 'rgba(140,220,255,.8)'; ctx.fillStyle = 'rgba(140,220,255,.8)'; ctx.lineWidth = 3;
+        for (const h of skeleton.hands) { ctx.beginPath(); ctx.arc(h.palm.x, h.palm.y, 14, 0, Math.PI * 2); ctx.fill(); }
+        if (skeleton.pose) for (const i of [0, 11, 12, 15, 16]) { const p = skeleton.pose[i]; if (p) { ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); ctx.stroke(); } }
+        ctx.restore();
+    }
+
+    // ---------- chuột (test) ----------
+    let mouseDown = false;
+    if (mouseMode) {
+        window.addEventListener('pointerdown', (e) => {
+            mouseDown = true; const p = toStage(e.clientX, e.clientY);
+            hitAt(p.x, p.y, cfg.hitRadius / 100 * W, 'mouse');
+        });
+        window.addEventListener('pointermove', (e) => { if (!mouseDown || !lastSnap || lastSnap.racketMs <= 0) return; const p = toStage(e.clientX, e.clientY); engine.sweep(p.x, p.y, 60); });
+        window.addEventListener('pointerup', () => { mouseDown = false; });
+        window.addEventListener('keydown', (e) => { if (e.key === 'c' || e.key === 'C') engine.clear(); });
+    }
+
+    // ---------- vòng vẽ ----------
+    let lastSnap = null;
+    function loop() {
+        requestAnimationFrame(loop);
+        const now = performance.now();
+        const dt = Math.min(50, now - lastT); lastT = now;
+        frames++; if (now - fpsAt >= 1000) { fps = frames; frames = 0; fpsAt = now; }
+        if (disabled) return;
+        pumpTracking(now);
+        engine.step(dt);
+        const s = engine.snapshot(); lastSnap = s;
+        handleEvents(s.events);
+        ctx.clearRect(0, 0, W, H);
+        // vẽ: chết ở dưới cùng, rồi bay (thứ tự theo y cho có chiều sâu nhẹ)
+        const list = s.mosquitoes;
+        for (const m of list) if (m.state === 'dead') drawMosquito(m, now);
+        for (const m of list) if (m.state !== 'dead') drawMosquito(m, now);
+        drawEffects(now, s);
+        drawSkeleton();
+        applyHud(s);
+        audioBuzz(s.flying);
+    }
+    window.__dm = { engine, clap, tracker: null, step: (ms) => { engine.step(ms); const s = engine.snapshot(); lastSnap = s; handleEvents(s.events); applyHud(s); return s; }, get cfg() { return cfg; } };
+    requestAnimationFrame(loop);
+
+    // ---------- cấu hình ----------
+    function applyConfig(c) {
+        cfg = Game.normalizeConfig(c);
+        engine.setConfig(cfg); clap.setConfig(cfg);
+        setDisabled(cfg.enabled === false);
+        if (feed.tracker) feed.tracker.quality = cfg.quality;
+        if (!cfg.sound.enabled && audio.ctx) audioBuzz(0);
+    }
+    function setDisabled(off) {
+        if (off === disabled) return;
+        disabled = off;
+        canvas.style.display = off ? 'none' : ''; $('dm-hud').style.display = off ? 'none' : '';
+        if (off) { engine.clear(); ctx.clearRect(0, 0, W, H); audioBuzz(0); showAlert(null); }
+        syncFeed();
+    }
+
+    // ---------- socket ----------
+    const socket = io({ transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+    window.__dm.socket = socket;
+    socket.on('connect', () => {
+        socket.emit('subscribe', isReview ? 'preview' : 'overlay');
+        if (feed.on) socket.emit('touchplay:feed', 'dapmuoi');
+    });
+    socket.on('dapmuoi:gift', (d) => {
+        if (!d || !Game.ACTION_TYPES.includes(d.action)) return;
+        audioInit(); audioResume();
+        engine.applyAction({ type: d.action, params: d.params || {} }, d.qty || 1);
+        const who = d.nickname || '';
+        const what = d.name || Game.ACTION_PRESET[d.action].name;
+        const extra = d.action === 'release' ? ` ${Math.floor(Number(d.params && d.params.count) || 0) * Math.max(1, Number(d.qty) || 1)} con` : (d.qty > 1 ? ` ×${d.qty}` : '');
+        notice(d.icon || Game.ACTION_PRESET[d.action].icon, `${who ? who + ' · ' : ''}${what}${extra}`, d.profilePicture);
+    });
+    socket.on('gameCmd', (d) => {
+        if (!d || d.gameId !== 'dapmuoi') return;
+        if (d.cmd === 'clear') engine.clear();
+        else if (d.cmd === 'reset') engine.reset();
+        else if (d.cmd === 'stop') engine.clear();
+    });
+    socket.on('gameConfig', (d) => { if (d && d.gameId === 'dapmuoi') applyConfig(d.config); });
+    socket.on('gameDisabled', (d) => { if (d && d.gameId === 'dapmuoi') setDisabled(true); });
+    socket.on('gameEnabled', (d) => { if (d && d.gameId === 'dapmuoi') setDisabled(false); });
+    socket.on('touchplay:frame', onFrame);
+    socket.on('touchplay:layout', (l) => { feed.layout = l; });
+    socket.on('touchplay:feedStatus', (st) => { feed.status = st; });
+    socket.on('overlay:reload', (d) => { if (!isReview && (!d || !d.gameId || d.gameId === 'dapmuoi')) location.reload(); });
+
+    // Báo trạng thái cho panel + sức khoẻ nhận diện; cảnh báo mất hình > 4 s.
+    if (!isReview) {
+        setInterval(() => {
+            if (!socket.connected || !lastSnap) return;
+            socket.emit('dapmuoi:state', { flying: lastSnap.flying, queue: lastSnap.queue, killed: lastSnap.killed, combo: lastSnap.combo, racketMs: lastSnap.racketMs, netMs: lastSnap.netMs });
+        }, 500);
+        setInterval(() => {
+            if (!feed.on || !socket.connected || !feed.tracker) return;
+            const t = feed.tracker;
+            socket.emit('touchplay:overlayStat', { fps: t.fps, aiMs: t.aiMs, hands: performance.now() - t.handsAt < 500 ? t.hands.length : 0, pose: performance.now() - t.poseAt < 500 ? 1 : 0, delegate: t.delegate, phase: 'play' });
+        }, 2000);
+        setInterval(() => {
+            if (!feed.on || disabled) return showAlert(null);
+            showAlert(performance.now() - feed.lastAt > 4000 ? feedProblem() : null);
+        }, 1000);
+    }
+
+    // ---------- khởi động ----------
+    (async () => {
+        try {
+            const r = await fetch('/api/games/dapmuoi/config', { cache: 'no-store' });
+            if (r.ok) applyConfig(await r.json()); else applyConfig(null);
+        } catch (e) { applyConfig(null); }
+        syncFeed();
+    })();
+})();
+</script>
+</body>
+</html>

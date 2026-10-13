@@ -361,7 +361,7 @@
                     id: m.id, x: m.x, y: m.y, vx: m.vx, vy: m.vy, dir: m.dir, scale: m.scale, speedMul: m.speedMul,
                     smart: m.smart, livesLeft: m.livesLeft, phase: m.phase, state: m.state, deadAt: m.deadAt, dodgeUntil: m.dodgeUntil
                 })),
-                queue, flying: flyingCount(), score, killed, combo, racketMs, netMs,
+                clock, queue, flying: flyingCount(), score, killed, combo, racketMs, netMs,
                 spray: spray ? { x: spray.x, y: spray.y, r: spray.radius * Math.min(1, spray.elapsed / spray.ms), msLeft: Math.max(0, spray.ms - spray.elapsed) } : null,
                 events: ev
             };
