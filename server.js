@@ -472,6 +472,13 @@ function camApplyHotkeys(id) {
     if (!fn || !c) return;
     try { fn(CamRules.hotkeysAllowed(id, appConfig.games.camgames, CAM_GAME_IDS) ? c : { ...c, enabled: false }); } catch (e) {}
 }
+// Áp lại phím cả hai game theo đúng thứ tự: game phải NHẢ phím trước, game giữ phím đăng ký sau — ngược lại thì
+// globalShortcut.register của game giữ phím hỏng ở tổ hợp trùng (game kia chưa nhả) và phím đó không thuộc ai.
+function camApplyAllHotkeys() {
+    const ids = ['bancung', 'dapmuoi'];
+    const allowed = id => CamRules.hotkeysAllowed(id, appConfig.games.camgames, CAM_GAME_IDS);
+    for (const id of [...ids.filter(id => !allowed(id)), ...ids.filter(allowed)]) camApplyHotkeys(id);
+}
 // Chơi ≥2 game cùng lúc: "quà riêng trước, quà chung sau" — game nào gán ĐÍCH DANH quà này (lib/camgames.js).
 // [] khi chỉ chơi 1 game (không lọc gì, như trước).
 function camGiftClaims(g) {
@@ -4923,7 +4930,7 @@ app.post('/api/games/:id/config', (req, res) => {
         appConfig.games.camgames.hotkeyGame = CAM_GAME_IDS.includes(hk) ? hk : '';
         camGamesApplyActive(prevConfig);
         // Đổi game đang chơi / game giữ phím → phân lại phím tắt (game không đổi enabled cũng có thể đổi chủ phím).
-        camApplyHotkeys('bancung'); camApplyHotkeys('dapmuoi');
+        camApplyAllHotkeys();
     }
     const newEnabled = appConfig.games[g.id].enabled !== false;
     saveAppConfig();
