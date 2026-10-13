@@ -52,6 +52,19 @@ const FILES = [
     ['public/games/vipwelcome/joincard.css', 'giao diện thẻ vào phòng trên OBS'],
     ['public/lib/mediapipe/hand_landmarker.task', 'model tay offline cho Chém Trái Cây'],
     ['public/lib/mediapipe/vision_bundle.mjs', 'MediaPipe offline cho game camera'],
+    ['public/lib/mediapipe/pose_landmarker_lite.task', 'model body offline (Bắn Cung / Đập Muỗi / Level Quest bám người)'],
+    // 🎥 Game Camera chơi 2 game cùng lúc: luật khe/quà/phím (server require) + một bộ nhận diện chung trong overlay mẹ
+    ['lib/camgames.js', 'luật Game Camera chơi nhiều game (thiếu = server không khởi động)'],
+    ['public/lib/hp-cam-shared.mjs', 'bộ nhận diện dùng chung của overlay Game Camera'],
+    ['public/lib/body-frames.mjs', 'khung đầu/thân từ pose (Đập Muỗi chích, Level Quest bám đầu)'],
+    ['public/lib/head-anchor.mjs', 'Level Quest bám đỉnh đầu trong Game Camera'],
+    ['public/games/bancung/body-track.mjs', 'Bắn Cung bám người thật'],
+    // 🦟 Đập Muỗi: server require engine lúc khởi động
+    ['public/games/dapmuoi/game.js', 'engine Đập Muỗi (thiếu = server không khởi động)'],
+    ['public/games/dapmuoi/overlay.html', 'overlay Đập Muỗi'],
+    ['public/games/dapmuoi/clap.js', 'nhận diện vỗ tay Đập Muỗi'],
+    ['public/games/dapmuoi/bumps.js', 'nốt muỗi chích bám người'],
+    ['public/games/dapmuoi/dapmuoi-panel.js', 'panel Đập Muỗi'],
 ];
 
 // [thư mục, số bộ tối thiểu] — đọc bằng withFileTypes y như server.js.
