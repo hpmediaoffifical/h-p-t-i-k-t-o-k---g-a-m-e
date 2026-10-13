@@ -1,26 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 700" width="1080" height="700">
-  <!-- Màn (mùng) chống muỗi: treo từ MÉP TRÊN màn hình, rộng đúng 1080 sân khấu, rủ xuống ~700px rồi hở phía dưới.
-       Lưới trong suốt (thấy người bên dưới), đỉnh có vòng treo. Overlay vẽ đè lên trên mọi thứ khi "Mắc màn" đang bật. -->
   <defs>
-    <pattern id="net" width="16" height="16" patternUnits="userSpaceOnUse">
-      <path d="M0 8 H16 M8 0 V16" stroke="#ffffff" stroke-width="1" opacity=".55"/>
-    </pattern>
-    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#dff3ff" stop-opacity=".45"/><stop offset=".75" stop-color="#dff3ff" stop-opacity=".25"/><stop offset="1" stop-color="#dff3ff" stop-opacity="0"/>
-    </linearGradient>
+    <pattern id="net" width="20" height="20" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0H20M0 10H20" stroke="#eaf9ff" stroke-width="1.2" opacity=".5"/></pattern>
+    <linearGradient id="fabric" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#dff7ff" stop-opacity=".5"/><stop offset=".45" stop-color="#bcecff" stop-opacity=".24"/><stop offset=".85" stop-color="#a6e2ff" stop-opacity=".13"/><stop offset="1" stop-color="#c8efff" stop-opacity=".03"/></linearGradient>
+    <linearGradient id="topRail" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".9"/><stop offset=".45" stop-color="#bfeeff" stop-opacity=".72"/><stop offset="1" stop-color="#68c8ef" stop-opacity=".45"/></linearGradient>
+    <filter id="softGlow" x="-10%" y="-20%" width="120%" height="150%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <path id="shape" d="M0 0H1080V555 C1028 612 976 635 915 618 C854 602 818 675 744 665 C670 654 644 610 579 650 C514 690 456 646 397 628 C338 610 302 684 230 661 C158 638 114 612 64 635 C38 647 17 623 0 587Z"/>
+    <clipPath id="clip"><use href="#shape"/></clipPath>
   </defs>
-  <!-- thân màn rủ xuống, viền dưới lượn sóng -->
-  <path id="body" d="M0 0 H1080 V560 C 1000 640, 920 620, 840 660 C 760 700, 700 620, 620 660 C 540 700, 480 620, 400 660 C 320 700, 260 620, 180 660 C 100 700, 60 640, 0 580 Z" fill="url(#fade)"/>
-  <path d="M0 0 H1080 V560 C 1000 640, 920 620, 840 660 C 760 700, 700 620, 620 660 C 540 700, 480 620, 400 660 C 320 700, 260 620, 180 660 C 100 700, 60 640, 0 580 Z" fill="url(#net)"/>
-  <!-- nếp gấp dọc -->
-  <g stroke="#ffffff" stroke-width="2" opacity=".35" fill="none">
-    <path d="M140 0 C 150 200, 120 420, 150 650"/><path d="M400 0 C 410 220, 380 430, 410 660"/><path d="M700 0 C 690 220, 720 430, 690 660"/><path d="M950 0 C 940 200, 970 420, 940 650"/>
-  </g>
-  <!-- viền trên + vòng treo -->
-  <rect x="0" y="0" width="1080" height="26" fill="#ffffff" opacity=".55"/>
-  <g fill="none" stroke="#ffffff" stroke-width="6" opacity=".8">
-    <circle cx="90" cy="14" r="12"/><circle cx="315" cy="14" r="12"/><circle cx="540" cy="14" r="12"/><circle cx="765" cy="14" r="12"/><circle cx="990" cy="14" r="12"/>
-  </g>
-  <!-- viền dưới lượn -->
-  <path d="M0 580 C 60 640, 100 700, 180 660 C 260 620, 320 700, 400 660 C 480 620, 540 700, 620 660 C 700 620, 760 700, 840 660 C 920 620, 1000 640, 1080 560" fill="none" stroke="#ffffff" stroke-width="5" opacity=".7"/>
+  <use href="#shape" fill="url(#fabric)"/>
+  <use href="#shape" fill="none" stroke="#9edfff" stroke-width="4" opacity=".3"/>
+  <g clip-path="url(#clip)"><rect width="1080" height="700" fill="url(#net)"/><g fill="none" stroke="#fff" opacity=".23" stroke-width="3"><path d="M115-10 C155 180 92 398 141 647"/><path d="M310-10 C351 190 286 422 327 664"/><path d="M505-10 C536 202 481 435 515 670"/><path d="M700-10 C669 202 727 425 690 670"/><path d="M895-10 C852 192 923 400 884 638"/><path d="M1045-10 C1005 190 1061 398 1028 602"/></g><path d="M0 82 C170 52 350 105 540 76 C730 47 900 99 1080 68" fill="none" stroke="#fff" stroke-width="8" opacity=".11"/><path d="M0 340 C180 308 360 365 540 335 C720 305 900 362 1080 330" fill="none" stroke="#fff" stroke-width="7" opacity=".09"/></g>
+  <rect x="0" y="0" width="1080" height="30" rx="4" fill="url(#topRail)"/>
+  <path d="M14 7 H1066" stroke="#fff" stroke-width="7" stroke-linecap="round" opacity=".72"/>
+  <path d="M0 30H1080" stroke="#fff" stroke-width="3" opacity=".7"/>
+  <g fill="#263d49" stroke="#eafdff" stroke-width="6" filter="url(#softGlow)"><circle cx="90" cy="15" r="12"/><circle cx="315" cy="15" r="12"/><circle cx="540" cy="15" r="12"/><circle cx="765" cy="15" r="12"/><circle cx="990" cy="15" r="12"/></g>
+  <path d="M0 587 C17 623 38 647 64 635 C114 612 158 638 230 661 C302 684 338 610 397 628 C456 646 514 690 579 650 C644 610 670 654 744 665 C818 675 854 602 915 618 C976 635 1028 612 1080 555" fill="none" stroke="#e9faff" stroke-width="7" opacity=".78" filter="url(#softGlow)"/>
+  <g fill="#dff7ff" opacity=".58"><circle cx="64" cy="635" r="5"/><circle cx="230" cy="661" r="5"/><circle cx="397" cy="628" r="5"/><circle cx="579" cy="650" r="5"/><circle cx="744" cy="665" r="5"/><circle cx="915" cy="618" r="5"/></g>
 </svg>

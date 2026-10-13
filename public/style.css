@@ -9369,3 +9369,6 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
     .dm-gift-row { grid-template-columns: 36px 1fr 40px 60px 28px 30px 30px; }
     .dm-action-head { grid-template-columns: 60px 1fr 120px 28px 30px; }
 }
+
+.dm-zones { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; }
+.dm-zones .dm-zone { margin: 2px 0; }

@@ -21,6 +21,8 @@
     .dm-hud .chips span { padding: 4px 16px; border-radius: 999px; background: rgba(0,0,0,.55); border: 2px solid rgba(255,255,255,.25); }
     .dm-hud .chips span.racket { border-color: #ffd54a; color: #ffd54a; }
     .dm-hud .chips span.net { border-color: #7fd7ff; color: #7fd7ff; }
+    .dm-hud .chips span.cream { border-color: #5fe0c4; color: #5fe0c4; }
+    .dm-hud .chips span.bite { border-color: #ff5a6e; color: #ff5a6e; }
     .dm-notices { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 10px; align-items: center; pointer-events: none; }
     .dm-notice { display: flex; align-items: center; gap: 12px; padding: 10px 22px; border-radius: 999px; background: rgba(8,12,20,.85);
         border: 2px solid rgba(255,255,255,.25); font-size: 34px; font-weight: 700; animation: dmIn .25s ease-out; }
@@ -46,18 +48,20 @@
     </div>
     <div class="dm-notices" id="dm-notices"></div>
     <div class="dm-alert" id="dm-alert"></div>
-    <div class="dm-hint">Chế độ chuột: bấm = vỗ tay tại con trỏ · giữ kéo = vợt · phím C = xoá hết muỗi</div>
+    <div class="dm-hint">Chế độ chuột: bấm = vỗ tay tại con trỏ · giữ kéo = vợt · C = xoá hết muỗi · P = người giả (thử chích / kem)</div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/games/dapmuoi/game.js"></script>
 <script src="/games/dapmuoi/clap.js"></script>
+<script src="/games/dapmuoi/bumps.js"></script>
 <script>
 (function () {
     'use strict';
     const W = 1080, H = 1920;
     const Game = window.HpGame.dapmuoi;
     const Clap = window.HpGame.dapmuoiClap;
+    const Bumps = window.HpGame.dapmuoiBumps;
     const qs = new URLSearchParams(location.search);
     const isReview = qs.get('review') === '1';
     const mouseMode = isReview || qs.get('mouse') === '1';
@@ -70,6 +74,13 @@
     let cfg = Game.normalizeConfig(null);
     const engine = Game.createEngine(cfg, { width: W, height: H });
     const clap = Clap.createClapDetector(cfg);
+    const bumps = Bumps.createBumps(cfg.bite);
+    let BF = null;                 // module body-frames (ESM, nạp động)
+    let bodyF = null;              // khung đầu/thân khung AI gần nhất
+    let fakePose = false;          // chế độ chuột: phím P bật người giả giữa sân để thử chích/nốt
+    let healing = false;           // đang xoa kem (bumps.startHeal)
+    let creamFlashAt = -Infinity;
+    import('/lib/body-frames.mjs').then(m => { BF = m; }).catch(() => {});
     let disabled = false;
     let lastT = performance.now();
     let frames = 0, fpsAt = performance.now(), fps = 0;
@@ -90,8 +101,9 @@
     const imgBody = new Image(), imgDead = new Image();
     imgBody.src = '/games/dapmuoi/assets/muoi-than.svg'; imgDead.src = '/games/dapmuoi/assets/muoi-lat-ngua.svg';
     // Dụng cụ: bình xịt (200×320, vòi hướng phải), vợt điện (260×520, điểm cầm 130,470), màn (1080×700 treo mép trên)
-    const imgSpray = new Image(), imgRacket = new Image(), imgNet = new Image();
+    const imgSpray = new Image(), imgRacket = new Image(), imgNet = new Image(), imgCream = new Image(), imgBump = new Image();
     imgSpray.src = '/games/dapmuoi/assets/binh-xit.svg'; imgRacket.src = '/games/dapmuoi/assets/vot-muoi.svg'; imgNet.src = '/games/dapmuoi/assets/man-muoi.svg';
+    imgCream.src = '/games/dapmuoi/assets/kem-chong-muoi.svg'; imgBump.src = '/games/dapmuoi/assets/not-muoi-can.svg';
     let lastHands = [];            // lòng bàn tay (sân khấu) khung AI gần nhất — để vẽ vợt theo tay
     let mousePos = null;           // chế độ chuột: vợt theo con trỏ
     let netSlide = 0;              // 0 = cuộn lên, 1 = rủ hết (trượt 0.5 s)
@@ -149,12 +161,24 @@
                 if (body) ctx.drawImage(body, -w / 2, -h / 2); ctx.restore();
             }
         }
-        ctx.translate(m.x + jx, m.y + jy);
+        const landed = m.state === 'landed';
+        ctx.translate(m.x + (landed ? 0 : jx), m.y + (landed ? 0 : jy));
         ctx.scale(m.dir, 1);
-        const flap = Math.sin(m.phase) ;
-        drawWing(w, h, (-10 + flap * 22) * Math.PI / 180, 0.9);
-        drawWing(w, h, (4 - flap * 22) * Math.PI / 180, 0.7);
+        if (landed) {
+            // đang chích: cánh xếp, cả con phồng dần theo thời gian đậu
+            const k = Math.min(1, m.landedMs / (cfg.bite.landSec * 1000));
+            ctx.scale(1 + 0.12 * k, 1 + 0.18 * k);
+            drawWing(w, h, 8 * Math.PI / 180, 0.6); drawWing(w, h, 14 * Math.PI / 180, 0.45);
+        } else {
+            const flap = Math.sin(m.phase);
+            drawWing(w, h, (-10 + flap * 22) * Math.PI / 180, 0.9);
+            drawWing(w, h, (4 - flap * 22) * Math.PI / 180, 0.7);
+        }
         if (body) ctx.drawImage(body, -w / 2, -h / 2);
+        if (landed || m.state === 'seek') {
+            ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w * 1.7, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,60,60,.8)'; ctx.lineWidth = 3; ctx.stroke();
+        }
         if (m.smart) {
             ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w, 0, Math.PI * 2); ctx.fillStyle = '#ffd54a'; ctx.fill();
             ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w * 1.9, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,213,74,.45)'; ctx.lineWidth = 3; ctx.stroke();
@@ -221,6 +245,8 @@
         const chips = [];
         if (s.racketMs > 0) chips.push(`<span class="racket">🏸 Vợt ${Math.ceil(s.racketMs / 1000)}s</span>`);
         if (s.netMs > 0) chips.push(`<span class="net">🛏 Màn ${Math.ceil(s.netMs / 1000)}s</span>`);
+        if (s.creamMs > 0) chips.push(`<span class="cream">🩹 Kem ${Math.ceil(s.creamMs / 1000)}s</span>`);
+        if (s.bites > 0) chips.push(`<span class="bite">🩸 Bị chích ${s.bites}</span>`);
         const el = $('dm-chips'); const html = chips.join(''); if (el.innerHTML !== html) el.innerHTML = html;
     }
 
@@ -268,16 +294,20 @@
         g.gain.value = vol * cfg.sound.volume; g.gain.setTargetAtTime(0, ac.currentTime + ms / 1000 * 0.6, ms / 1000 * 0.2);
         o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + ms / 1000);
     }
-    const sfx = { kill: () => noise(60, 0.9), miss: () => noise(40, 0.25, 900), spray: () => noise(1000, 0.5, 1200), zap: () => tone(90, 120, 'square', 0.4), dodge: () => tone(1400, 90, 'triangle', 0.3) };
+    const sfx = { bite: () => tone(2200, 90, 'sine', 0.35), cream: () => tone(660, 220, 'sine', 0.25), kill: () => noise(60, 0.9), miss: () => noise(40, 0.25, 900), spray: () => noise(1000, 0.5, 1200), zap: () => tone(90, 120, 'square', 0.4), dodge: () => tone(1400, 90, 'triangle', 0.3) };
 
     // ---------- sự kiện engine ----------
+    let clockNow = 0;
     function handleEvents(ev) {
         for (const e of ev) {
-            if (e.type === 'kill') { sfx.kill(); addLabel(e.x, e.y - 40, e.n > 1 ? `+${e.n}` : '+1', '#ffd54a', 44); if (e.combo >= 2) addLabel(e.x, e.y - 100, `COMBO ×${e.combo}`, '#ff6b3d', 40); }
+            if (e.type === 'kill') { sfx.kill(); addLabel(e.x, e.y - 40, e.caught ? 'Kịp rồi! +2' : (e.n > 1 ? `+${e.n}` : '+1'), e.caught ? '#5fe0c4' : '#ffd54a', 44); if (e.combo >= 2) addLabel(e.x, e.y - 100, `COMBO ×${e.combo}`, '#ff6b3d', 40); }
             else if (e.type === 'miss') sfx.miss();
             else if (e.type === 'dodge') { sfx.dodge(); addLabel(e.x, e.y - 60, `né! ♥${e.livesLeft}`, '#8fe8ff', 36); }
             else if (e.type === 'spray') sfx.spray();
             else if (e.type === 'zap') { sfx.zap(); zaps.push({ x: e.x, y: e.y, t0: performance.now() }); if (zaps.length > 12) zaps.shift(); }
+            else if (e.type === 'bite') { sfx.bite(); bumps.add({ frame: e.frame, a: e.a, b: e.b, zone: e.zone }, clockNow); addLabel(e.x, e.y - 70, 'Ái!', '#ff5a6e', 46); }
+            else if (e.type === 'cream') { creamFlashAt = performance.now(); sfx.cream(); }
+            else if (e.type === 'repel') addLabel(W / 2, H * 0.3, 'Muỗi dạt ra!', '#5fe0c4', 40);
         }
     }
 
@@ -348,6 +378,7 @@
         for (const e of clap.update({ hands, pose, now: Math.max(t.handsAt, t.poseAt) || now })) hitAt(e.x, e.y, e.r, e.mode);
         if (lastSnap && lastSnap.racketMs > 0) for (const h of hands) engine.sweep(h.palm.x, h.palm.y, h.size);
         if (pose && pose[0] && (pose[0].v == null || pose[0].v >= 0.35)) engine.setFace(pose[0].x, pose[0].y);
+        pushFrames(pose);
         if (cfg.display.showSkeleton) skeleton = { hands, pose };
     }
     // Vợt điện bám tay: điểm cầm (130,470 trên ảnh 260×520) đặt vào lòng bàn tay, nghiêng ra ngoài 12°, rung nhẹ.
@@ -362,6 +393,44 @@
             ctx.restore();
         }
     }
+    // Nốt muỗi cắn bám người + tuýp kem đang xoa. Dùng đồng hồ ENGINE (s.clock) vì nốt sinh từ event của engine.
+    // Nhịp nốt (hết hạn, bắt đầu/dừng xoa kem, tiến độ xoa) — tách khỏi vẽ để __dm.step cũng chạy được khi trang ẩn.
+    let rub = null;
+    function tickBumps(s) {
+        if (s.creamMs > 0 && !healing) { healing = true; bumps.startHeal(s.clock); }
+        if (s.creamMs <= 0 && healing) { healing = false; bumps.stopHeal(); rub = null; }
+        bumps.tick(s.clock);
+        rub = healing ? bumps.heal(s.clock) : null;
+    }
+    function drawBumps(s, now) {
+        const list = bumps.list(bodyF, s.clock);
+        const headW = bodyF && bodyF.head ? bodyF.head.width : 220;
+        const d = 46 * Math.max(0.6, Math.min(2.2, headW / 220));
+        for (const b of list) {
+            ctx.save(); ctx.globalAlpha = b.alpha * (b.healing ? 1 - b.progress * 0.9 : 1);
+            const sz = d * b.scale * (b.healing ? 1 - b.progress * 0.5 : 1);
+            if (imgBump.complete && imgBump.naturalWidth) ctx.drawImage(imgBump, b.x - sz / 2, b.y - sz / 2, sz, sz);
+            else { const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, sz / 2); g.addColorStop(0, 'rgba(255,90,110,.95)'); g.addColorStop(1, 'rgba(224,42,72,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, sz / 2, 0, Math.PI * 2); ctx.fill(); }
+            ctx.restore();
+        }
+        if (rub) {
+            // tuýp kem xoa tròn quanh nốt + vệt kem trắng
+            const p = bumps.list(bodyF, s.clock).find(x => x.healing);
+            if (p) {
+                const ang = rub.progress * Math.PI * 4, r = 18;
+                const cx = p.x + Math.cos(ang) * r, cy = p.y + Math.sin(ang) * r;
+                ctx.save(); ctx.globalAlpha = 0.55; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 10; ctx.lineCap = 'round';
+                ctx.beginPath(); ctx.arc(p.x, p.y, r, ang - Math.PI * 0.9, ang); ctx.stroke(); ctx.restore();
+                if (imgCream.complete && imgCream.naturalWidth) {
+                    ctx.save(); ctx.translate(cx + 40, cy - 30); ctx.rotate(-0.5 + Math.sin(now / 80) * 0.1);
+                    ctx.drawImage(imgCream, -30, -48, 60, 96); ctx.restore();
+                }
+            }
+        }
+        // viền xanh ngọc 1 s lúc bật kem
+        const k = (now - creamFlashAt) / 1000;
+        if (k >= 0 && k < 1) { ctx.save(); ctx.globalAlpha = (1 - k) * 0.6; ctx.lineWidth = 40; ctx.strokeStyle = '#5fe0c4'; ctx.strokeRect(0, 0, W, H); ctx.restore(); }
+    }
     // Màn chống muỗi rủ từ mép trên khi Mắc màn bật (trượt xuống/lên 0.5 s).
     function drawNet(s, dtMs) {
         const want = s.netMs > 0 ? 1 : 0;
@@ -371,6 +440,23 @@
         ctx.save(); ctx.globalAlpha = Math.min(1, netSlide * 1.2);
         ctx.drawImage(imgNet, 0, -700 * (1 - netSlide), 1080, 700);
         ctx.restore();
+    }
+    // Pose → khung đầu/thân → điểm muỗi đậu cho engine. pose null (mất người) → seen=false, engine dừng chích.
+    function pushFrames(pose) {
+        if (!BF) return;
+        bodyF = BF.bodyFrames(pose, bodyF);
+        engine.setPersonSeen(bodyF.seen);
+        engine.setBiteSpots(bodyF.seen ? BF.biteSpots(bodyF, cfg.bite.zones) : []);
+    }
+    // Chế độ chuột (không có AI): phím P bật/tắt người giả đứng giữa sân để thử chích + nốt + kem.
+    function pumpFakePose() {
+        if (!fakePose || !BF) return;
+        const t = performance.now() / 1000, sx = Math.sin(t * 0.8) * 60;
+        const p = Array.from({ length: 33 }, () => ({ x: 0, y: 0, v: 0 }));
+        const set = (i, x, y) => { p[i] = { x: x + sx, y, v: 1 }; };
+        set(0, 540, 700); set(2, 500, 670); set(5, 580, 670); set(7, 440, 690); set(8, 640, 690);
+        set(11, 340, 900); set(12, 740, 900); set(23, 380, 1500); set(24, 700, 1500);
+        pushFrames(p);
     }
     let skeleton = null;
     function drawSkeleton() {
@@ -390,7 +476,7 @@
         });
         window.addEventListener('pointermove', (e) => { const p = toStage(e.clientX, e.clientY); mousePos = p; if (!mouseDown || !lastSnap || lastSnap.racketMs <= 0) return; engine.sweep(p.x, p.y, 60); });
         window.addEventListener('pointerup', () => { mouseDown = false; });
-        window.addEventListener('keydown', (e) => { if (e.key === 'c' || e.key === 'C') engine.clear(); });
+        window.addEventListener('keydown', (e) => { if (e.key === 'c' || e.key === 'C') engine.clear(); if (e.key === 'p' || e.key === 'P') { fakePose = !fakePose; if (!fakePose) pushFrames(null); } });
     }
 
     // ---------- vòng vẽ ----------
@@ -402,28 +488,31 @@
         frames++; if (now - fpsAt >= 1000) { fps = frames; frames = 0; fpsAt = now; }
         if (disabled) return;
         pumpTracking(now);
+        pumpFakePose();
         engine.step(dt);
-        const s = engine.snapshot(); lastSnap = s;
+        const s = engine.snapshot(); lastSnap = s; clockNow = s.clock;
         handleEvents(s.events);
+        tickBumps(s);
         ctx.clearRect(0, 0, W, H);
         // vẽ: chết ở dưới cùng, rồi bay (thứ tự theo y cho có chiều sâu nhẹ)
         const list = s.mosquitoes;
         for (const m of list) if (m.state === 'dead') drawMosquito(m, now, s.clock);
         for (const m of list) if (m.state !== 'dead') drawMosquito(m, now, s.clock);
         drawEffects(now, s);
+        drawBumps(s, now);
         drawRackets(s, now);
         drawNet(s, dt);
         drawSkeleton();
         applyHud(s);
         audioBuzz(s.flying);
     }
-    window.__dm = { engine, clap, tracker: null, step: (ms) => { engine.step(ms); const s = engine.snapshot(); lastSnap = s; handleEvents(s.events); applyHud(s); return s; }, get cfg() { return cfg; } };
+    window.__dm = { engine, clap, tracker: null, step: (ms) => { pumpFakePose(); engine.step(ms); const s = engine.snapshot(); lastSnap = s; clockNow = s.clock; handleEvents(s.events); tickBumps(s); applyHud(s); return s; }, get frames() { return bodyF; }, bumps, get cfg() { return cfg; } };
     requestAnimationFrame(loop);
 
     // ---------- cấu hình ----------
     function applyConfig(c) {
         cfg = Game.normalizeConfig(c);
-        engine.setConfig(cfg); clap.setConfig(cfg);
+        engine.setConfig(cfg); clap.setConfig(cfg); bumps.setConfig(cfg.bite);
         setDisabled(cfg.enabled === false);
         if (feed.tracker) feed.tracker.quality = cfg.quality;
         if (!cfg.sound.enabled && audio.ctx) audioBuzz(0);
@@ -470,7 +559,7 @@
     if (!isReview) {
         setInterval(() => {
             if (!socket.connected || !lastSnap || disabled) return;
-            socket.emit('dapmuoi:state', { flying: lastSnap.flying, queue: lastSnap.queue, killed: lastSnap.killed, combo: lastSnap.combo, racketMs: lastSnap.racketMs, netMs: lastSnap.netMs });
+            socket.emit('dapmuoi:state', { flying: lastSnap.flying, queue: lastSnap.queue, killed: lastSnap.killed, combo: lastSnap.combo, racketMs: lastSnap.racketMs, netMs: lastSnap.netMs, creamMs: lastSnap.creamMs, bites: lastSnap.bites, landed: lastSnap.landed });
         }, 500);
         setInterval(() => {
             if (!feed.on || !socket.connected || !feed.tracker) return;

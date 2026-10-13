@@ -108,6 +108,10 @@
         cfg.actions = Array.isArray(raw.actions)
             ? raw.actions.filter(a => a && typeof a === 'object').map((a, i) => normalizeAction(a, i, cfg))
             : defaultActions();
+        // Config lưu trước GĐ2 (chưa có khoá bite) → thêm hành động Kem chống muỗi một lần; lần lưu sau có bite nên không thêm lại.
+        if (raw.bite === undefined && Array.isArray(raw.actions) && raw.actions.length && !cfg.actions.some(a => a.type === 'cream')) {
+            cfg.actions.push(normalizeAction({ type: 'cream' }, cfg.actions.length, cfg));
+        }
         const b = raw.bite && typeof raw.bite === 'object' ? raw.bite : {};
         const bite = defaultBite();
         bite.enabled = b.enabled !== false;

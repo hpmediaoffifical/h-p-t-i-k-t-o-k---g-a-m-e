@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 320" width="200" height="320">
+  <!-- Tuýp kem chống muỗi (bản tạm — user đè sau). 200×320, nắp ở trên, điểm neo tâm (100,160). -->
+  <defs>
+    <linearGradient id="tube" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e9efe9"/><stop offset=".5" stop-color="#ffffff"/><stop offset="1" stop-color="#c9d3c9"/></linearGradient>
+    <linearGradient id="capg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1fa58c"/><stop offset=".5" stop-color="#5fe0c4"/><stop offset="1" stop-color="#15806b"/></linearGradient>
+  </defs>
+  <path d="M56 110 H144 L150 300 Q150 312 138 312 H62 Q50 312 50 300 Z" fill="url(#tube)" stroke="#8fa58f" stroke-width="3"/>
+  <rect x="50" y="296" width="100" height="14" rx="4" fill="#9fb59f"/>
+  <rect x="76" y="78" width="48" height="36" rx="6" fill="url(#capg)" stroke="#0f6a58" stroke-width="3"/>
+  <rect x="84" y="60" width="32" height="22" rx="5" fill="#15806b"/>
+  <!-- vệt kem trào -->
+  <path d="M100 60 C 100 44, 118 40, 118 28 C 118 18, 104 16, 100 24" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round"/>
+  <!-- nhãn -->
+  <rect x="64" y="150" width="72" height="110" rx="10" fill="#f2fff8" stroke="#1fa58c" stroke-width="3"/>
+  <path d="M100 172 C 86 186, 88 206, 100 214 C 112 206, 114 186, 100 172 Z" fill="#34c48f"/>
+  <path d="M100 176 V 214" stroke="#1a7a5d" stroke-width="2"/>
+  <text x="100" y="236" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#15806b">CHỐNG</text>
+  <text x="100" y="251" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#15806b">MUỖI</text>
+</svg>

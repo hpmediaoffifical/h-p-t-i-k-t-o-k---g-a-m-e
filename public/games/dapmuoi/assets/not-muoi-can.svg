@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Nốt muỗi cắn (bản tạm — user đè sau). 120×120, tâm (60,60), rìa trong suốt để dán lên da. -->
+  <defs>
+    <radialGradient id="bump" cx=".45" cy=".42" r=".55">
+      <stop offset="0" stop-color="#ff6a7a" stop-opacity=".95"/>
+      <stop offset=".45" stop-color="#ef3b55" stop-opacity=".8"/>
+      <stop offset=".8" stop-color="#e02a48" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#e02a48" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="shine" cx=".38" cy=".34" r=".25"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <circle cx="60" cy="60" r="58" fill="url(#bump)"/>
+  <circle cx="60" cy="60" r="58" fill="url(#shine)"/>
+  <circle cx="60" cy="58" r="6" fill="#b3122e" opacity=".75"/>
+</svg>

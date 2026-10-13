@@ -48,13 +48,15 @@
         release: { count: ['Số con', 'con'] },
         spray: { radius: ['Bán kính mây', 'px'], ms: ['Thời gian nở', 'ms'], count: ['Giết tối đa', 'con'], percent: ['Hoặc % đàn (0 = theo số)', '%'] },
         racket: { seconds: ['Thời gian vợt', 'giây'] },
-        net: { seconds: ['Ngừng sinh muỗi', 'giây'] }
+        net: { seconds: ['Ngừng sinh muỗi', 'giây'] },
+        cream: { seconds: ['Thời gian kem', 'giây'] }
     };
     const TYPE_HINT = {
         release: 'Thả thêm muỗi ngay (nhóm "hành").',
         spray: 'Đám mây xịt lan ra giữa đàn, giết dần — kể cả muỗi thông minh (nhóm "cứu").',
         racket: 'Tay streamer thành vợt điện: lướt qua muỗi là chết, không cần vỗ (nhóm "cứu").',
-        net: 'Mắc màn: ngừng sinh muỗi mới, muỗi đang bay vẫn bay (nhóm "cứu").'
+        net: 'Mắc màn: ngừng sinh muỗi mới, muỗi đang bay vẫn bay (nhóm "cứu").',
+        cream: 'Kem chống muỗi: muỗi không dám đậu, con đang đậu bị đẩy văng, và cứ 0,5 giây xoa mất một nốt muỗi cắn (nhóm "cứu").'
     };
 
     function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -147,6 +149,8 @@
         chips.push(`<span class="ctc-chip">✋ Đã đập ${Number(s.killed) || 0}</span>`);
         if (s.racketMs > 0) chips.push(`<span class="ctc-chip ok">🏸 Vợt ${Math.ceil(s.racketMs / 1000)}s</span>`);
         if (s.netMs > 0) chips.push(`<span class="ctc-chip ok">🛏 Màn ${Math.ceil(s.netMs / 1000)}s</span>`);
+        if (s.creamMs > 0) chips.push(`<span class="ctc-chip ok">🩹 Kem ${Math.ceil(s.creamMs / 1000)}s</span>`);
+        if (s.bites > 0 || s.landed > 0) chips.push(`<span class="ctc-chip warn">🩸 Bị chích ${Number(s.bites) || 0}${s.landed ? ` · ${s.landed} con đang đậu` : ''}</span>`);
         el.innerHTML = chips.join(' ');
     }
 
@@ -218,13 +222,33 @@
     // ---------- Tab 2: Muỗi ----------
     function renderMosquito() {
         const host = $('#dm-mosq-pane'); if (!host) return;
+        const bt = cfg.bite;
+        const zoneRow = (k, label) => `<label class="ctc-toggle dm-zone"><input type="checkbox" data-zone="${k}" ${bt.zones[k] !== false ? 'checked' : ''}> ${label}</label>`;
         host.innerHTML = sliderGroups(MOSQ_SETTINGS) + `
+            <div class="ctc-card">
+                <h3>🩸 MUỖI CHÍCH</h3>
+                ${toggle('dm-bite-on', 'Muỗi bay lâu tự tìm người, đậu rồi chích — nốt sưng đỏ bám theo mặt/cổ/vai', bt.enabled, 'Cần thấy người qua camera. Đập con đang đậu được +2. Quà "Kem chống muỗi" đẩy muỗi và xoa nốt.')}
+                <div class="ctc-row" data-bkey="afterSec"><label>Bay bao lâu thì đi chích</label><input type="range" min="1" max="120" step="1" value="${fmt(bt.afterSec)}"><input type="number" min="1" max="120" step="1" value="${fmt(bt.afterSec)}"><span class="unit">giây</span></div>
+                <div class="ctc-row" data-bkey="landSec"><label>Đậu bao lâu thì chích</label><input type="range" min="0.3" max="10" step="0.1" value="${fmt(bt.landSec)}"><input type="number" min="0.3" max="10" step="0.1" value="${fmt(bt.landSec)}"><span class="unit">giây</span></div>
+                <div class="ctc-row" data-bkey="bumpSec"><label>Nốt sưng tồn tại</label><input type="range" min="5" max="120" step="1" value="${fmt(bt.bumpSec)}"><input type="number" min="5" max="120" step="1" value="${fmt(bt.bumpSec)}"><span class="unit">giây</span></div>
+                <div class="ctc-row" data-bkey="maxBumps"><label>Tối đa nốt trên người</label><input type="range" min="1" max="30" step="1" value="${fmt(bt.maxBumps)}"><input type="number" min="1" max="30" step="1" value="${fmt(bt.maxBumps)}"><span class="unit">nốt</span></div>
+                <div class="ctc-row" data-bkey="maxLanded"><label>Tối đa con đậu cùng lúc</label><input type="range" min="1" max="10" step="1" step="1" value="${fmt(bt.maxLanded)}"><input type="number" min="1" max="10" step="1" value="${fmt(bt.maxLanded)}"><span class="unit">con</span></div>
+                <div class="dm-zones">${zoneRow('forehead', 'Trán')}${zoneRow('cheeks', 'Hai má')}${zoneRow('chin', 'Cằm')}${zoneRow('neck', 'Cổ')}${zoneRow('shoulders', 'Hai vai')}</div>
+            </div>
             <div class="ctc-card">
                 <h3>BÁM MẶT</h3>
                 ${toggle('dm-faceattract', 'Muỗi hay bay quanh mặt streamer (lấy từ nhận diện cơ thể)', cfg.faceAttract, 'Tắt thì muỗi bay đều khắp màn.')}
                 <div class="ctc-actions" style="margin-top:8px"><button class="danger small" id="dm-btn-mosq-defaults">↺ Mặc định muỗi</button></div>
             </div>`;
         bindSliders(host);
+        $('#dm-bite-on').addEventListener('change', (e) => { cfg.bite.enabled = e.target.checked; schedulePersist(); });
+        host.querySelectorAll('.ctc-row[data-bkey]').forEach(row => {
+            const key = row.dataset.bkey, range = row.querySelector('input[type=range]'), num = row.querySelector('input[type=number]');
+            const apply = (v) => { const n = Number(v); if (!Number.isFinite(n)) return; cfg.bite[key] = n; range.value = n; num.value = fmt(n); schedulePersist(); };
+            range.addEventListener('input', () => apply(range.value));
+            num.addEventListener('change', () => apply(num.value));
+        });
+        host.querySelectorAll('[data-zone]').forEach(cb => cb.addEventListener('change', () => { cfg.bite.zones[cb.dataset.zone] = cb.checked; schedulePersist(); }));
         $('#dm-faceattract').addEventListener('change', (e) => { cfg.faceAttract = e.target.checked; schedulePersist(); });
         $('#dm-btn-mosq-defaults').addEventListener('click', () => {
             const d = Game().defaultConfig();

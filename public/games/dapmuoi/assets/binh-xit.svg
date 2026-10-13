@@ -1,37 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 320" width="200" height="320">
-  <!-- Bình xịt muỗi: nhìn nghiêng, vòi xịt hướng sang PHẢI (overlay lật gương nếu cần). Tỉ lệ 200×320. -->
   <defs>
-    <linearGradient id="can" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#2fa84f"/><stop offset=".45" stop-color="#6fe08a"/><stop offset="1" stop-color="#1f7a38"/>
-    </linearGradient>
-    <linearGradient id="cap" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#d9d9d9"/><stop offset=".5" stop-color="#ffffff"/><stop offset="1" stop-color="#9a9a9a"/>
-    </linearGradient>
+    <linearGradient id="can" x1="0" y1="0" x2="1" y2=".1"><stop stop-color="#087c4c"/><stop offset=".22" stop-color="#2ed47a"/><stop offset=".48" stop-color="#79efaa"/><stop offset=".72" stop-color="#20b969"/><stop offset="1" stop-color="#06613d"/></linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#71808b"/><stop offset=".25" stop-color="#f4f8fb"/><stop offset=".53" stop-color="#fff"/><stop offset="1" stop-color="#7d8992"/></linearGradient>
+    <linearGradient id="red" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ff786b"/><stop offset=".35" stop-color="#e93632"/><stop offset="1" stop-color="#9f171b"/></linearGradient>
+    <radialGradient id="mist"><stop stop-color="#eaffff" stop-opacity=".95"/><stop offset="1" stop-color="#8ce8ff" stop-opacity=".15"/></radialGradient>
+    <filter id="shadow" x="-30%" y="-20%" width="180%" height="160%"><feDropShadow dx="3" dy="5" stdDeviation="4" flood-color="#021c12" flood-opacity=".55"/></filter>
+    <filter id="glow"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
   </defs>
-  <!-- thân bình -->
-  <rect x="44" y="96" width="112" height="196" rx="18" fill="url(#can)"/>
-  <rect x="44" y="276" width="112" height="22" rx="10" fill="#1a5f2c"/>
-  <rect x="44" y="96" width="112" height="22" rx="10" fill="#8ff5a8" opacity=".7"/>
-  <!-- nhãn -->
-  <rect x="58" y="150" width="84" height="92" rx="10" fill="#f6fff8" stroke="#1a5f2c" stroke-width="3"/>
-  <g transform="translate(100 196)">
-    <!-- con muỗi gạch chéo -->
-    <ellipse cx="0" cy="0" rx="22" ry="9" fill="#2a1c14"/>
-    <circle cx="-24" cy="-2" r="6" fill="#2a1c14"/>
-    <path d="M-10 -8 L 10 -22 M-4 -8 L 14 -16 M6 -6 L 22 -18" stroke="#2a1c14" stroke-width="3" stroke-linecap="round"/>
-    <circle cx="0" cy="0" r="34" fill="none" stroke="#d81e1e" stroke-width="6"/>
-    <path d="M-24 -24 L 24 24" stroke="#d81e1e" stroke-width="6" stroke-linecap="round"/>
+  <g filter="url(#shadow)">
+    <path d="M45 111 Q45 94 62 91 H138 Q155 94 155 111 V278 Q155 297 136 300 H64 Q45 297 45 278Z" fill="url(#can)" stroke="#063e29" stroke-width="5"/>
+    <path d="M49 114 Q100 126 151 114" fill="none" stroke="#a1ffc5" stroke-width="5" opacity=".55"/>
+    <path d="M58 119 V270" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".2"/>
+    <path d="M48 274 H152 V282 Q152 296 137 297 H63 Q48 296 48 282Z" fill="#064e32" opacity=".9"/>
+    <ellipse cx="100" cy="282" rx="48" ry="11" fill="#022f20" opacity=".38"/>
+    <rect x="57" y="144" width="86" height="105" rx="14" fill="#f8fff9" stroke="#075f3a" stroke-width="3"/>
+    <rect x="62" y="150" width="76" height="16" rx="8" fill="#ddf9e6"/>
+    <g transform="translate(100 202)">
+      <circle r="33" fill="#fff" stroke="#ec3040" stroke-width="5"/>
+      <ellipse cx="2" cy="1" rx="21" ry="8" fill="#30201a"/>
+      <circle cx="-21" cy="-1" r="6" fill="#241713"/>
+      <path d="M-6-6 L10-18 M1-5 L18-12 M8-3 L24-10" stroke="#30201a" stroke-width="3" stroke-linecap="round"/>
+      <path d="M-23-23 L23 23" stroke="#ec3040" stroke-width="7" stroke-linecap="round"/>
+    </g>
+    <text x="100" y="240" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="900" fill="#075c3b" stroke="#fff" stroke-width="2.5" paint-order="stroke">XỊT MUỖI</text>
+    <path d="M71 237 Q100 245 129 237" fill="none" stroke="#15965a" stroke-width="3" opacity=".45"/>
+    <rect x="78" y="69" width="44" height="31" rx="7" fill="url(#metal)" stroke="#63707a" stroke-width="2"/>
+    <path d="M72 35 H128 Q133 35 133 41 V65 Q133 75 122 77 H78 Q68 75 68 65 V43 Q68 35 72 35Z" fill="url(#red)" stroke="#91161a" stroke-width="3"/>
+    <path d="M76 41 H125" stroke="#ffb0a7" stroke-width="5" stroke-linecap="round" opacity=".7"/>
+    <path d="M127 49 H158 Q163 49 163 56 V61 Q163 67 157 67 H127Z" fill="#a61d23" stroke="#771016" stroke-width="2"/>
+    <rect x="155" y="52" width="11" height="12" rx="3" fill="#5d6971"/>
   </g>
-  <text x="100" y="262" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#1a5f2c">XỊT MUỖI</text>
-  <!-- cổ + nắp bấm -->
-  <rect x="78" y="70" width="44" height="30" rx="8" fill="url(#cap)"/>
-  <rect x="70" y="36" width="60" height="40" rx="10" fill="#e8402f"/>
-  <rect x="70" y="36" width="60" height="12" rx="6" fill="#ff8a7a" opacity=".8"/>
-  <!-- vòi hướng phải -->
-  <rect x="124" y="50" width="34" height="14" rx="6" fill="#b8302a"/>
-  <!-- tia xịt -->
-  <g stroke="#9ee8ff" stroke-width="5" stroke-linecap="round" opacity=".9">
-    <path d="M164 57 L 192 57"/><path d="M164 50 L 190 40"/><path d="M164 64 L 190 74"/>
-  </g>
-  <g fill="#c9f3ff" opacity=".8"><circle cx="186" cy="30" r="4"/><circle cx="196" cy="48" r="3"/><circle cx="196" cy="66" r="3"/><circle cx="186" cy="84" r="4"/></g>
+  <g filter="url(#glow)" stroke-linecap="round"><path d="M170 58 H195" stroke="#b8f5ff" stroke-width="5"/><path d="M170 53 L193 42 M170 63 L193 74" stroke="#9defff" stroke-width="4" opacity=".86"/><g fill="url(#mist)"><circle cx="187" cy="29" r="5"/><circle cx="197" cy="47" r="3.5"/><circle cx="198" cy="68" r="3"/><circle cx="187" cy="86" r="5"/></g></g>
 </svg>

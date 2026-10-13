@@ -136,7 +136,7 @@ test('muỗi thông minh né smartLives−1 lần rồi chết; lúc dodge bất
 // ---------- Task 3: hành động, chuẩn hoá config, luật quà ----------
 
 test('normalizeConfig: config rỗng/rác → mặc định; actions params clamp; type lạ → release', () => {
-    const c = normalizeConfig({ speed: 'abc', actions: [{ type: 'laser', params: { count: 99999, junk: 1 } }], giftRules: null });
+    const c = normalizeConfig({ bite: {}, speed: 'abc', actions: [{ type: 'laser', params: { count: 99999, junk: 1 } }], giftRules: null });   // bite:{} = config sau GĐ2
     assert.equal(c.speed, 180); assert.equal(c.actions.length, 1); assert.equal(c.actions[0].type, 'release');
     assert.deepEqual(c.actions[0].params, { count: 1000 }); assert.deepEqual(c.giftRules, []);
     assert.equal(normalizeConfig({}).actions.length, 5);
@@ -217,7 +217,7 @@ test('normalizeAction: params rác → mặc định của loại (không về m
 
 test('normalizeConfig: actions [] giữ rỗng (người dùng xoá hết), phần tử rác bị bỏ, thiếu khoá → 5 mặc định', () => {
     assert.equal(normalizeConfig({ actions: [] }).actions.length, 0);
-    assert.equal(normalizeConfig({ actions: [null, 5, { type: 'net' }] }).actions.length, 1);
+    assert.equal(normalizeConfig({ bite: {}, actions: [null, 5, { type: 'net' }] }).actions.length, 1);
     assert.equal(normalizeConfig({}).actions.length, 5);
 });
 
@@ -344,4 +344,12 @@ test('cream: cộng dồn trần 120s; đẩy văng con đang seek/landed; khôn
     run(e, 20000); assert.equal(e.snapshot().mosquitoes[0].state, 'fly');
     const c = createEngine({ ...defaultConfig(), idleSpawnSeconds: 0 });
     c.applyAction(normalizeAction({ type: 'cream', params: { seconds: 10 } }, 0), 2); assert.equal(c.snapshot().creamMs, 20000);
+});
+
+test('config lưu trước GĐ2 (không có bite) → tự thêm hành động Kem; config đã có bite thì giữ nguyên danh sách', () => {
+    const old = normalizeConfig({ actions: [{ type: 'release' }, { type: 'spray' }] });
+    assert.deepEqual(old.actions.map(a => a.type), ['release', 'spray', 'cream']);
+    const kept = normalizeConfig({ bite: { enabled: true }, actions: [{ type: 'release' }] });
+    assert.deepEqual(kept.actions.map(a => a.type), ['release']);
+    assert.equal(normalizeConfig({ actions: [] }).actions.length, 0, 'xoá hết thì không thêm');
 });

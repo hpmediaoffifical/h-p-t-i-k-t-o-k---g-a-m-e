@@ -1,45 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200">
-  <!-- Muỗi bị đập: vẫn nhìn nghiêng, thân NẰM NGANG nhưng lật úp — lưng xuống dưới, bụng (màu sáng)
-       ngửa lên, 6 chân co quắp chổng lên trời, cánh xoè cứng, mắt X. Game cho rơi + đung đưa nhẹ rồi mờ. -->
   <defs>
-    <linearGradient id="belly" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#9a7a62"/><stop offset="1" stop-color="#5a3f30"/>
-    </linearGradient>
-    <linearGradient id="wing2" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#dff3ff" stop-opacity=".6"/><stop offset="1" stop-color="#9ec9ff" stop-opacity=".2"/>
-    </linearGradient>
-    <style>.leg{fill:none;stroke:#2a1c14;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}.leg2{stroke:#4a3328}</style>
+    <linearGradient id="belly" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d2b99d"/><stop offset=".5" stop-color="#8b6a55"/><stop offset="1" stop-color="#4b352b"/></linearGradient>
+    <linearGradient id="deadWing" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f7fdff" stop-opacity=".82"/><stop offset="1" stop-color="#8ccfff" stop-opacity=".2"/></linearGradient>
+    <filter id="shadow" x="-25%" y="-35%" width="160%" height="190%"><feDropShadow dx="2" dy="7" stdDeviation="5" flood-color="#080403" flood-opacity=".6"/></filter>
+    <filter id="glow"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <style>.leg{fill:none;stroke:#241714;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}.far{stroke:#533c32;stroke-width:3.3;opacity:.76}.vein{fill:none;stroke:#9ac7e5;stroke-width:1.2;opacity:.7}</style>
   </defs>
-  <g id="muoi-lat">
-    <!-- cánh xoè cứng, hai bên thân -->
-    <path d="M112 128 C 160 150, 236 156, 266 140 C 236 122, 160 112, 112 128 Z" fill="url(#wing2)" stroke="#b9dcff" stroke-width="1.6"/>
-    <path d="M112 128 C 150 168, 210 176, 236 170 C 214 150, 160 138, 112 128 Z" fill="url(#wing2)" stroke="#b9dcff" stroke-width="1.6"/>
-    <!-- chân phía xa chổng lên -->
-    <path class="leg leg2" d="M100 88 L 80 60 L 92 28"/>
-    <path class="leg leg2" d="M114 84 L 120 50 L 136 24"/>
-    <path class="leg leg2" d="M126 86 L 160 62 L 196 44"/>
-    <!-- bụng ngửa lên (màu sáng), hơi vểnh -->
-    <path d="M122 110 C 170 116, 222 104, 250 82 C 230 72, 172 78, 122 86 Z" fill="url(#belly)"/>
-    <g fill="none" stroke="#f1e8d8" stroke-width="4" stroke-linecap="round" opacity=".7">
-      <path d="M150 112 C 152 100, 152 92, 150 84"/><path d="M176 112 C 178 100, 178 90, 176 82"/>
-      <path d="M202 106 C 204 96, 204 88, 202 80"/><path d="M226 98 C 228 90, 228 84, 226 78"/>
-    </g>
-    <!-- ngực (lưng chạm đất) -->
-    <ellipse cx="108" cy="104" rx="24" ry="20" fill="#7a5a46"/>
-    <!-- chân phía gần co quắp chổng lên -->
-    <path class="leg" d="M94 88 L 64 66 L 52 30 L 60 22"/>
-    <path class="leg" d="M108 84 L 104 48 L 96 18 L 104 12"/>
-    <path class="leg" d="M122 84 L 150 50 L 182 34 L 186 44"/>
-    <!-- đầu, mắt X -->
-    <circle cx="70" cy="100" r="15" fill="#2a1c14"/>
-    <circle cx="64" cy="104" r="8.5" fill="#b3122e"/>
-    <path d="M59 99 L 69 109 M69 99 L 59 109" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
-    <path class="leg" style="stroke-width:1.6" d="M66 114 C 56 128, 46 134, 34 138 M72 114 C 68 130, 60 140, 50 148"/>
-    <!-- vòi cong queo -->
-    <path d="M58 94 C 44 86, 30 92, 14 80" fill="none" stroke="#2a1c14" stroke-width="3.4" stroke-linecap="round"/>
-    <!-- sao choáng -->
-    <g fill="#ffd54a">
-      <path d="M40 24 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z"/><path d="M290 60 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5z"/>
-    </g>
+  <g id="muoi-lat" filter="url(#shadow)">
+    <path d="M111 124 C151 135 217 160 270 141 C235 119 165 108 111 124Z" fill="url(#deadWing)" stroke="#b9e2ff" stroke-width="2"/>
+    <path d="M111 125 C143 155 201 181 245 171 C217 145 161 130 111 125Z" fill="url(#deadWing)" stroke="#b9e2ff" stroke-width="2"/>
+    <path class="vein" d="M122 126 C166 132 219 140 257 140 M122 129 C158 148 201 162 232 169"/>
+    <g class="leg far"><path d="M99 88 L77 61 L89 27 L82 19"/><path d="M112 84 L119 49 L136 24 L132 15"/><path d="M126 86 L158 61 L195 43 L204 48"/></g>
+    <path d="M120 109 C156 121 213 109 253 84 C258 80 255 73 246 71 C201 68 155 76 120 86Z" fill="url(#belly)"/>
+    <path d="M145 112 C150 102 150 91 147 82 M173 115 C179 102 179 89 175 78 M202 109 C207 98 207 85 202 75 M228 99 C232 90 232 80 227 72" fill="none" stroke="#f5e7cf" stroke-width="5" stroke-linecap="round" opacity=".76"/>
+    <path d="M139 89 C168 78 211 76 239 78" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".25"/>
+    <ellipse cx="108" cy="103" rx="26" ry="22" fill="#725546"/>
+    <ellipse cx="103" cy="97" rx="12" ry="8" fill="#b5967e" opacity=".42"/>
+    <g class="leg"><path d="M95 89 L64 66 L51 31 L58 21"/><path d="M108 84 L104 48 L96 18 L104 10"/><path d="M122 85 L149 50 L181 34 L188 43"/></g>
+    <circle cx="70" cy="100" r="17" fill="#241612"/>
+    <circle cx="63" cy="103" r="10" fill="#9e1730"/>
+    <path d="M57 97 L69 109 M69 97 L57 109" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>
+    <path d="M65 114 C53 126 43 131 31 134 M73 114 C70 129 62 140 51 148" fill="none" stroke="#241714" stroke-width="2" stroke-linecap="round"/>
+    <path d="M57 94 C42 84 28 90 13 79" fill="none" stroke="#241714" stroke-width="4" stroke-linecap="round"/>
+    <g fill="#ffe46b" stroke="#ffad19" stroke-width="1.2" filter="url(#glow)"><path d="M39 19 l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/><path d="M286 51 l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/><circle cx="272" cy="89" r="3.5"/></g>
   </g>
 </svg>
