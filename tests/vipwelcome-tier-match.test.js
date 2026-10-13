@@ -97,6 +97,35 @@ test('migrate globalJoin: bật + có media → thành bậc, tắt globalJoin, 
     assert.ok(cfg.joinCard && cfg.joinCard.card);
 });
 
+test('Giai đoạn 3: TTS mặc định bật từ Đại gia, matchJoin trả tts; joinCard có batch/tts/hotkeys/board', () => {
+    const t = makeDefaultTiers();
+    assert.deepEqual(t.map(x => x.tts.enabled), [false, false, true, true, true]);
+    assert.equal(t[2].tts.template, '{bậc} {tên} đã tới phòng!');
+    const jc = makeDefaultJoinCard();
+    assert.deepEqual(jc.batch, { enabled: true, belowTierLevel: 25 });
+    assert.equal(jc.showVisits, true);
+    assert.deepEqual(jc.tts, { enabled: true, volume: 90 });
+    assert.deepEqual(jc.hotkeys, { enabled: false, skip: 'S', clear: 'X' });
+    assert.equal(jc.board.limit, 10);
+    const cfg = cfgWith({ userRules: [{ id: 'r1', uniqueId: 'abc', trigger: 'join', enabled: true, tts: { enabled: true, template: 'Chào {tên}' } }] });
+    assert.deepEqual(matchJoin(cfg, user({ level: 30 })).tts, { enabled: true, template: 'Chào {tên}' });
+    assert.equal(matchJoin(cfg, user({ uniqueId: 'khac', userId: '2', level: 30 })).tts.enabled, true);
+    const noTts = cfgWith({ userRules: [{ id: 'r1', uniqueId: 'abc', trigger: 'join', enabled: true }] });
+    assert.equal(matchJoin(noTts, user({ level: 30 })).tts.enabled, false);
+});
+
+test('migrate Giai đoạn 3: joinCard v1.10 cũ được bù field con, bậc cũ có tts theo minLevel', () => {
+    const cfg = { profiles: [{ id: 'p1', enabled: true, joinTiers: [{ id: 'a', name: 'Cao', minLevel: 30 }, { id: 'b', name: 'Thấp', minLevel: 5 }] }],
+        joinCard: { enabled: true, card: { maxStack: 4 }, tts: { volume: 50 } } };
+    migrateJoinConfig(cfg);
+    assert.equal(cfg.joinCard.tts.volume, 50);
+    assert.equal(cfg.joinCard.tts.enabled, true);
+    assert.equal(cfg.joinCard.batch.belowTierLevel, 25);
+    assert.equal(cfg.joinCard.board.scope, 'month');
+    assert.equal(cfg.profiles[0].joinTiers[0].tts.enabled, true);
+    assert.equal(cfg.profiles[0].joinTiers[1].tts.enabled, false);
+});
+
 test('migrate: joinCard thiếu field được bù, skin lạ về violet', () => {
     const cfg = { profiles: [{ id: 'p1', enabled: true, joinTiers: [{ id: 'x', name: 'A', minLevel: 3, skin: 'rainbow' }] }], joinCard: { card: { maxStack: 5 } } };
     migrateJoinConfig(cfg);

@@ -120,6 +120,10 @@ const vwTiers = require('./lib/vipwelcome/tier-match');
 const { createPresence: createVipPresence, createPendingCards: createVipPendingCards } = require('./lib/vipwelcome/presence');
 const { createGiftLedger: createVipGiftLedger } = require('./lib/vipwelcome/gift-ledger');
 const { createMediaQueue: createVipMediaQueue } = require('./lib/vipwelcome/media-queue');
+// Giai đoạn 3: sổ ghé phòng theo buổi, gộp thẻ khi đông, câu đọc tên
+const { createVisits: createVipVisits } = require('./lib/vipwelcome/visits');
+const { createBatcher: createVipBatcher } = require('./lib/vipwelcome/batcher');
+const { renderTts: vipRenderTts } = require('./lib/vipwelcome/tts-text');
 
 // === Mọi data source đi qua license-server (HP Media kiểm soát) ===
 // App không biết thông tin backend → installer .exe extract ra cũng không lộ gì.
@@ -2759,6 +2763,7 @@ function attachConnectionEvents(conn, lib) {
     conn.on(ControlEvent.CONNECTED, (state) => {
         liveConnected = true;
         currentRoomId = state?.roomId;
+        vipStartRoom();
         broadcast('status', { connected: true, username: currentUsername, roomId: currentRoomId });
         setLiveDashboardStatus(true, { username: currentUsername, roomId: currentRoomId });
         console.log(`[tiktok] Connected to roomId=${currentRoomId}`);
@@ -4169,6 +4174,7 @@ async function connectToUser(username, opts = {}) {
         liveConnected = true;
         streamEnded = false;
         currentRoomId = state?.roomId;
+        vipStartRoom();   // sổ ghé phòng: 1 roomId = 1 buổi (nối lại giữa buổi giữ roomId → không mở buổi mới)
         // Synthetic "host vào phòng" event — TikTok không fire MEMBER cho HOST tự kết nối live của mình.
         // roomInfo là envelope JSON của TikTok {data:{owner:{id_str, display_id, nickname, avatar_thumb, follow_info...}}, extra,
         // status_code} (cả 2.1.0 lẫn 2.4.4) — trước đây đọc roomInfo.owner.* (camelCase) nên host luôn rỗng → PK không nhận
@@ -4582,6 +4588,8 @@ app.post('/api/games/:id/config', (req, res) => {
     if (g.id === 'vipwelcome') {
         vipKeepLearnedUserIds(prevConfig, appConfig.games.vipwelcome);   // panel có thể giữ bản cũ chưa có userId
         appConfig.games.vipwelcome = migrateVipWelcomeConfig(appConfig.games.vipwelcome);
+        try { global.__vipwelcomeApplyHotkeys?.(appConfig.games.vipwelcome); } catch (e) {}
+        try { vipBoardChanged(true); } catch (e) {}   // đổi tiêu đề/phạm vi/skin bảng xếp hạng → overlay BXH cập nhật ngay
     }
     if (g.id === 'votecomment') {
         // Khi panel save config (title, rows, duration, display) → đồng bộ state.
@@ -5464,6 +5472,10 @@ app.get('/overlay/pktiktok', (req, res) => {
 });
 app.get('/overlay/vipwelcome', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'vipwelcome', 'overlay.html'));
+});
+// Bảng xếp hạng khách quen (chăm ghé phòng) — link OBS riêng
+app.get('/overlay/vipwelcome-board', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'vipwelcome', 'board.html'));
 });
 app.get('/overlay/votecomment', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'votecomment', 'overlay.html'));
@@ -8080,6 +8092,7 @@ setInterval(banCungRegenTick, 500);
 // Init state from config + register global hotkeys at startup
 try { banCungApplyConfigToState(appConfig.games.bancung || makeDefaultBanCungConfig()); } catch (e) {}
 setTimeout(() => { try { global.__bancungApplyHotkeys?.(appConfig.games.bancung); } catch (e) {} }, 1500);
+setTimeout(() => { try { global.__vipwelcomeApplyHotkeys?.(appConfig.games.vipwelcome); } catch (e) {} }, 1500);
 setTimeout(() => { try { global.__nhatlaApplyHotkeys?.(appConfig.games.nhatla); } catch (e) {} }, 1500);
 try {
     const cfg0 = appConfig.games.bancung || makeDefaultBanCungConfig();
@@ -8552,6 +8565,11 @@ const vipLedger = createVipGiftLedger({ file: path.join(DATA_DIR, 'vipwelcome-le
 // Tắt app ngay sau quà cuối → vẫn ghi sổ (lưu trễ 5s có thể chưa kịp chạy).
 process.on('exit', () => { try { vipLedger.flushSync(); } catch (e) {} });
 let vipCardSeq = 0;
+// Giai đoạn 3 — sổ ghé phòng (khách quen) + gộp thẻ khi phòng đông
+const vipVisits = createVipVisits({ file: path.join(DATA_DIR, 'vipwelcome-visits.json') });
+process.on('exit', () => { try { vipVisits.flushSync(); } catch (e) {} });
+const vipBatcher = createVipBatcher();
+let vipBatchTimer = null;
 const vipJoinLastMatch = new Map();   // key → { priority, cardId } của lần vào gần nhất (nâng thẻ khi tín hiệu trùng giàu hơn)
 // === userId ↔ uniqueId cache ===
 let vipSessionUserIdToUid = new Map();  // userId(string) → uniqueId
@@ -8567,6 +8585,8 @@ function resetVipSession() {
     vipPresence.reset();
     vipPendingCards.clear();
     vipJoinLastMatch.clear();
+    vipBatcher.clear();
+    if (vipBatchTimer) { clearTimeout(vipBatchTimer); vipBatchTimer = null; }
     vipSessionUserIdToUid.clear();
     vipSessionUidToUserId.clear();
     vipSessionRuleFireCount.clear();
@@ -8766,6 +8786,8 @@ function vipBuildCard(user, key, match, { late = false } = {}) {
         skin: match.skin || 'violet',
         frameUrl: match.frameUrl || '',
         xu: vipLedger.get(vipHostKey(), key),
+        // Khách quen: số SẼ ghi khi overlay xác nhận thẻ đã hiện (1 buổi LIVE chỉ đếm 1)
+        visit: jc.showVisits === false || enigma ? null : vipVisits.peek(vipHostKey(), key, vipRoomKey()),
         late,
         enterText: jc.enterText || 'VÀO PHÒNG',
         ruleLabel: match.label || ''
@@ -8774,14 +8796,67 @@ function vipBuildCard(user, key, match, { late = false } = {}) {
 function vipSendCard(card) {
     const now = Date.now();
     vipPendingCards.put(card, now);
+    vipBatcher.noteSent(now);   // nhịp thẻ gần đây → quyết định gộp khi phòng đông
     if (vipOverlayCount() > 0) {
         io.to('overlay:vipwelcome').emit('vipwelcome:card', card);
         vipPendingCards.markSent(card.id, now);
     }
+    const group = card.kind === 'group';
     pushVipWelcomeLog({
-        ts: now, kind: card.late ? 'late' : 'card', ruleLabel: card.ruleLabel, eventType: 'join',
-        uniqueId: card.user.uniqueId, nickname: card.user.nickname, level: card.user.level
+        ts: now, kind: card.late ? 'late' : (group ? 'group' : 'card'), ruleLabel: card.ruleLabel, eventType: 'join',
+        uniqueId: group ? '' : card.user.uniqueId, nickname: group ? `${card.total} người` : card.user.nickname, level: group ? 0 : card.user.level
     });
+}
+
+// ===== Giai đoạn 3: buổi LIVE, sổ ghé phòng, BXH, gộp thẻ =====
+// Buổi = roomId TikTok cấp mỗi lần phát; chưa có roomId (giả lập / chưa kết nối) → theo ngày.
+function vipRoomKey() {
+    return currentRoomId ? String(currentRoomId) : 'd' + new Date().toLocaleDateString('sv-SE');
+}
+function vipStartRoom() {
+    try { vipVisits.startRoom(vipHostKey(), vipRoomKey()); } catch (e) { console.warn('[vipwelcome] sổ ghé phòng:', e.message); }
+}
+function vipRecordVisit(key, meta) {
+    if (!key || vipIsFakeUserId(key)) return;   // người giả lập / thử không vào sổ thật
+    const host = vipHostKey(), room = vipRoomKey();
+    vipVisits.startRoom(host, room);
+    vipVisits.record(host, key, room, meta, Date.now());
+}
+function vipBoardPayload() {
+    const b = vipJoinCfg().board || {};
+    const scope = b.scope === 'all' ? 'all' : 'month';
+    return {
+        title: b.title || 'KHÁCH QUEN CỦA PHÒNG', scope, skin: b.skin === 'amber' ? 'amber' : 'violet',
+        items: vipVisits.top(vipHostKey(), { scope, limit: Math.max(3, Math.min(20, Number(b.limit) || 10)) }, Date.now())
+    };
+}
+let vipBoardTimer = null;
+function vipBoardChanged(immediate) {
+    const send = () => { vipBoardTimer = null; io.to('overlay:vipwelcome-board').emit('vipwelcome:board', vipBoardPayload()); };
+    if (immediate) { if (vipBoardTimer) clearTimeout(vipBoardTimer); return send(); }
+    if (!vipBoardTimer) vipBoardTimer = setTimeout(send, 2000);
+}
+// Nhóm gộp đến hạn → 1 thẻ "A, B và N người khác vào phòng" (skin của người bậc cao nhất trong nhóm).
+function vipFlushBatch() {
+    vipBatchTimer = null;
+    const g = vipBatcher.due(Date.now());
+    if (g) {
+        const top = g.items.reduce((a, b) => ((b.priority || 0) > (a.priority || 0) ? b : a), g.items[0]);
+        const id = 'g' + Date.now().toString(36) + (++vipCardSeq);
+        console.log(`[vipwelcome] Thẻ gộp: ${g.total} người (${g.items.slice(0, 3).map(m => m.nickname).join(', ')}…)`);
+        vipSendCard({
+            id, kind: 'group', key: 'group:' + id, keys: g.keys, total: g.total,
+            members: g.members.map(m => ({ nickname: m.nickname, avatar: m.avatar })),
+            metas: g.items.map(m => ({ key: m.key, uniqueId: m.uniqueId, nickname: m.nickname, avatar: m.avatar })),
+            skin: top.skin || 'violet', enterText: vipJoinCfg().enterText || 'VÀO PHÒNG', ruleLabel: `Gộp ${g.total} người`
+        });
+    }
+    vipScheduleBatchFlush();
+}
+function vipScheduleBatchFlush() {
+    if (vipBatchTimer) return;
+    const at = vipBatcher.pendingFlushAt();
+    if (at) vipBatchTimer = setTimeout(vipFlushBatch, Math.max(0, at - Date.now()));
 }
 // Overlay vừa mở / nối lại → gửi thẻ còn chờ (overlay tự bỏ id đã hiện) + chạy tiếp hàng media.
 function vipFlushPendingTo(socket) {
@@ -8795,7 +8870,16 @@ function vipFlushPendingTo(socket) {
 function vipOnCardShown(id) {
     const card = vipPendingCards.ack(id);
     if (!card) return;
-    vipPresence.markWelcomed(card.key, Date.now());
+    const now = Date.now();
+    try {
+        if (card.kind === 'group') {
+            for (const m of (card.metas || [])) { vipPresence.markWelcomed(m.key, now); vipRecordVisit(m.key, m); }
+        } else {
+            vipPresence.markWelcomed(card.key, now);
+            vipRecordVisit(card.key, card.user);
+        }
+        vipBoardChanged();
+    } catch (e) { console.warn('[vipwelcome] ghi lần ghé:', e.message); }
 }
 
 // Tín hiệu vào phòng THẬT (member / barrage / host) → thẻ + media.
@@ -8831,19 +8915,54 @@ function vipHandleJoinSignal(signal) {
         console.log(`[vipwelcome] JOIN (${signal.source}) ${who} → ${match.label}${match.media ? ' + media' : ''} (lần vào thứ ${vipPresence.get(key)?.joinCount || 1})`);
     }
     vipLearnRuleUserId(match, user);
+    // Phòng đông + bậc thấp → vào thẻ gộp "A, B và N người khác" (không media/đọc tên). Người chỉ định không bao giờ gộp.
+    if (decision === 'welcome' && match.kind !== 'user') {
+        const b = jc.batch || {};
+        const mode = vipBatcher.decide(now, {
+            priority: match.priority, enabled: b.enabled !== false, maxStack: Number(jc.card?.maxStack) || 3,
+            threshold: vwTiers.TIER_PRIORITY_BASE + Math.max(0, Number(b.belowTierLevel) || 0)
+        });
+        if (mode === 'batch') {
+            const enigma = !!user.isEnigma;
+            vipBatcher.add({
+                key, priority: match.priority, skin: match.skin, uniqueId: enigma ? '' : user.uniqueId,
+                nickname: enigma ? 'Người xem ẩn danh' : (user.nickname || user.uniqueId || 'Người xem'),
+                avatar: enigma ? '' : vipAvatarUrl(user.avatar)
+            }, now);
+            vipJoinLastMatch.set(key, { priority: match.priority, cardId: '' });
+            vipScheduleBatchFlush();
+            return;
+        }
+    }
     const card = vipBuildCard(user, key, match);
     vipJoinLastMatch.set(key, { priority: match.priority, cardId: card.id });
     vipSendCard(card);
+    const userInfo = {
+        uniqueId: user.uniqueId, nickname: user.nickname, level: user.level, profilePicture: vipAvatarUrl(user.avatar),
+        verified: !!user.verified, fansLevel: user.fansLevel, topUserNo: user.topUserNo, isSubscriber: user.isSubscriber, isModerator: user.isModerator
+    };
     if (match.media) {
-        const userInfo = {
-            uniqueId: user.uniqueId, nickname: user.nickname, level: user.level, profilePicture: vipAvatarUrl(user.avatar),
-            verified: !!user.verified, fansLevel: user.fansLevel, topUserNo: user.topUserNo, isSubscriber: user.isSubscriber, isModerator: user.isModerator
-        };
         enqueueVipWelcomePayload(buildVipPayload({
             source: match.kind === 'user' ? 'userRule' : 'joinTier', ruleId: match.ruleId, ruleLabel: match.label,
             eventType: 'join', media: match.media, message: '', user: userInfo
         }), match.priority, key);
     }
+    // Đọc tên: ngay SAU video/âm thanh của chính người đó (ưu tiên kém 0.5), chung hàng media → không đè tiếng
+    if (jc.tts?.enabled !== false && match.tts?.enabled) {
+        const text = vipRenderTts(match.tts.template, {
+            nickname: user.nickname, uniqueId: user.uniqueId, title: match.title, level: user.level,
+            fansLevel: user.fansLevel, visitNo: card.visit?.visitNo, isEnigma: user.isEnigma
+        });
+        if (text) {
+            enqueueVipWelcomePayload(buildVipPayload({
+                source: 'tts', ruleId: match.ruleId + ':tts', ruleLabel: match.label + ' (đọc tên)', eventType: 'join',
+                media: { mediaUrl: vipTtsUrl(text), mediaType: 'tts', volume: Number(jc.tts?.volume) || 90 }, message: text, user: userInfo
+            }), match.priority - 0.5, key + '|tts');
+        }
+    }
+}
+function vipTtsUrl(text) {
+    return '/api/live-translate/tts?lang=vi&text=' + encodeURIComponent(text);
 }
 
 // Hoạt động (chat/tim/quà/follow/share/top) — KHÔNG phải vào lại; chỉ chào muộn người TikTok không báo vào.
@@ -9330,11 +9449,19 @@ app.post('/api/games/vipwelcome/trigger', (req, res) => {
         });
         return res.json({ ok: true });
     }
-    if (type === 'stop') {
+    if (type === 'stop' || type === 'clearAll') {
+        // clearAll = phím tắt "xoá hết": dừng mục đang phát, xoá thẻ trên màn hình, hàng chờ, nhóm gộp đang mở
         resetVipPlaybackState();
+        vipBatcher.clear();
+        if (vipBatchTimer) { clearTimeout(vipBatchTimer); vipBatchTimer = null; }
         io.emit('vipwelcome:stop', { ts: Date.now() });
         io.emit('vipwelcome:queue', { size: 0 });
         return res.json({ ok: true });
+    }
+    if (type === 'skip') {
+        // Bỏ qua video / âm thanh / giọng đọc đang phát → overlay dừng mục đó và báo xong, hàng chạy tiếp
+        io.to('overlay:vipwelcome').emit('vipwelcome:skip', { seq: vipWelcomePlaySeq });
+        return res.json({ ok: true, playing: vipWelcomePlaying });
     }
     if (type === 'clearQueue') {
         resetVipPlaybackState();
@@ -9466,6 +9593,20 @@ app.post('/api/games/vipwelcome/simulate', express.json(), (req, res) => {
 });
 
 // Sổ xu — tổng xu người xem đã tặng kênh đang kết nối (cộng dồn mọi buổi LIVE).
+// Sổ ghé phòng — BXH khách quen theo kênh (panel + overlay BXH dùng chung)
+app.get('/api/games/vipwelcome/visits', (req, res) => {
+    const scope = req.query.scope === 'all' ? 'all' : 'month';
+    res.json({
+        host: vipHostKey(), scope,
+        items: vipVisits.top(vipHostKey(), { scope, q: String(req.query.q || ''), limit: Math.min(500, Number(req.query.limit) || 100) }, Date.now())
+    });
+});
+app.post('/api/games/vipwelcome/visits', express.json(), (req, res) => {
+    if (req.body?.action === 'reset') { vipVisits.reset(vipHostKey()); vipBoardChanged(true); return res.json({ ok: true }); }
+    res.status(400).json({ ok: false, error: 'bad_action' });
+});
+app.get('/api/games/vipwelcome/board', (req, res) => res.json(vipBoardPayload()));
+
 app.get('/api/games/vipwelcome/ledger', (req, res) => {
     const host = String(req.query.host || vipHostKey());
     res.json({ host, items: vipLedger.list(host, { q: String(req.query.q || ''), limit: Math.min(1000, Number(req.query.limit) || 200) }) });
@@ -10505,6 +10646,7 @@ io.on('connection', (socket) => {
             if (roomName === 'translateOverlay') assignTranslateSpeaker();
             // Overlay Chào Mừng VIP vừa mở/nối lại → gửi thẻ vào phòng còn chờ + chạy tiếp hàng media.
             if (roomName === 'overlay:vipwelcome') vipFlushPendingTo(socket);
+            if (roomName === 'overlay:vipwelcome-board') socket.emit('vipwelcome:board', vipBoardPayload());
             // Khi overlay/preview subscribe → gửi BOTH config + state snapshot.
             // Trước đây chỉ gửi state → OBS có thể render với default config (race).
             // Giờ gửi config trước, state sau → OBS apply config → loadState → khớp App.
