@@ -30,10 +30,10 @@
     };
     // Muỗi chích (GĐ2): bay quá afterSec và thấy người → tìm điểm đậu (trán/má/cằm/cổ/vai) → đậu landSec → chích.
     function defaultBite() {
-        return { enabled: true, afterSec: 20, landSec: 1.2, bumpSec: 30, maxBumps: 12, maxLanded: 3,
+        return { enabled: true, afterSec: 20, landSec: 1.2, gapSec: 3, bumpSec: 30, maxBumps: 12, maxLanded: 3,
             zones: { forehead: true, cheeks: true, chin: true, neck: true, shoulders: true } };
     }
-    const BITE_LIMITS = { afterSec: [1, 600], landSec: [0.3, 10], bumpSec: [1, 600], maxBumps: [1, 50], maxLanded: [1, 20] };
+    const BITE_LIMITS = { afterSec: [1, 600], landSec: [0.3, 10], gapSec: [0, 60], bumpSec: [1, 600], maxBumps: [1, 50], maxLanded: [1, 20] };
     const BITE_ZONE_KEYS = ['forehead', 'cheeks', 'chin', 'neck', 'shoulders'];
     const SEEK_ARRIVE = 25;      // px: tới gần điểm đậu ngần này là đậu
     const SLOW_AFTER_BITE_MS = 5000;
@@ -215,6 +215,7 @@
         let personSeen = false;   // overlay báo pose còn tươi
         let spots = [];           // điểm đậu trên người (sân khấu + cục bộ), overlay cập nhật mỗi khung
         let bites = 0;
+        let lastBiteAt = -Infinity;   // giãn cách toàn cục giữa hai lần chích (bite.gapSec)
 
         function halfSize(m) { return 0.5 * BASE_SIZE * m.scale * (m.smart ? 1.15 : 1); }   // con thông minh vẽ to hơn 15%
 
@@ -341,12 +342,13 @@
         function biteDelay(m) { return num(cfg.bite?.afterSec, 20) * 1000 * (0.7 + 0.6 * rng()) * (m.smart ? 0.6 : 1); }
         function seekingCount() { let n = 0; for (const m of mosquitoes) if (m.state === 'seek' || m.state === 'landed') n++; return n; }
         function landedCount() { let n = 0; for (const m of mosquitoes) if (m.state === 'landed') n++; return n; }
-        function spotByZone(zone) { for (const sp of spots) if (sp.zone === zone) return sp; return null; }
+        // Điểm đậu của con đang bám: theo id (biến thể) nếu có, không thì theo vùng.
+        function spotFor(cur) { for (const sp of spots) if (cur.id ? sp.id === cur.id : sp.zone === cur.zone) return sp; return null; }
         function setPersonSeen(seen) { personSeen = !!seen; }
         // Overlay đẩy điểm đậu theo pose mỗi khung; con đang seek/landed bám theo điểm cùng vùng.
         function setBiteSpots(list) {
             spots = Array.isArray(list) ? list.filter(sp => sp && Number.isFinite(sp.x) && Number.isFinite(sp.y) && sp.zone) : [];
-            for (const m of mosquitoes) if (m.spot && (m.state === 'seek' || m.state === 'landed')) { const sp = spotByZone(m.spot.zone); if (sp) m.spot = sp; }
+            for (const m of mosquitoes) if (m.spot && (m.state === 'seek' || m.state === 'landed')) { const sp = spotFor(m.spot); if (sp) m.spot = sp; }
         }
         // Đẩy một con đang tìm/đậu văng khỏi người (kem): vụt ngược hướng điểm đậu 350 ms rồi bay thường.
         function repel(m) {
@@ -437,7 +439,7 @@
             const crowd = flying > crowdFrom ? Math.max(0.4, crowdFrom / flying) : 1;
             if (combo && clock - lastKillAt > 1500) combo = 0;
             const bite = cfg.bite || defaultBite();
-            const canSeek = bite.enabled !== false && personSeen && creamMs <= 0 && spots.length > 0;
+            const canSeek = bite.enabled !== false && personSeen && creamMs <= 0 && spots.length > 0 && clock - lastBiteAt >= num(bite.gapSec, 3) * 1000;
             let seeking = seekingCount();
             for (const m of mosquitoes) {
                 if (m.state === 'fly') {
@@ -458,7 +460,7 @@
                     m.x = m.spot.x; m.y = m.spot.y; m.vx = 0; m.vy = 0;
                     if (personSeen) m.landedMs += dtm;      // mất người: dừng đếm, không chích "ảo"
                     if (m.landedMs >= num(bite.landSec, 1.2) * 1000) {
-                        bites += 1;
+                        bites += 1; lastBiteAt = clock;
                         events.push({ type: 'bite', id: m.id, x: m.x, y: m.y, frame: m.spot.frame, a: m.spot.a, b: m.spot.b, zone: m.spot.zone });
                         m.state = 'fly'; m.spot = null; m.landedMs = 0; m.age = 0; m.biteAt = biteDelay(m); m.slowUntil = clock + SLOW_AFTER_BITE_MS;
                         m.target = pickTarget(m); m.turnAt = clock + turnDelay(m);
@@ -477,7 +479,7 @@
         function setFace(x, y) { face.x = num(x, face.x); face.y = num(y, face.y); face.at = clock; }
         function setConfig(c) { cfg = Object.assign(defaultConfig(), c || {}); }
         function clear() { mosquitoes = []; queue = 0; spawnAcc = 0; idleAcc = 0; spray = null; }
-        function reset() { clear(); score = 0; killed = 0; combo = 0; bites = 0; lastKillAt = -Infinity; racketMs = 0; netMs = 0; creamMs = 0; events = []; }
+        function reset() { clear(); score = 0; killed = 0; combo = 0; bites = 0; lastKillAt = -Infinity; lastBiteAt = -Infinity; racketMs = 0; netMs = 0; creamMs = 0; events = []; }
 
         function snapshot() {
             const ev = events; events = [];

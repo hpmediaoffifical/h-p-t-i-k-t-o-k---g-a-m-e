@@ -98,15 +98,20 @@ export function toLocal(x, y, frame, F) {
     return { frame, a: (dx * f.v.y - dy * f.v.x) / det, b: (f.u.x * dy - f.u.y * dx) / det };
 }
 
+// Mỗi vùng 3 biến thể lệch nhau cố định (±0.1 a, ±0.08 b) → nhiều cú chích cùng vùng không chồng một điểm.
+const VARIANTS = [[0, 0], [-0.1, 0.08], [0.1, -0.08]];
 export function biteSpots(F, zones) {
     if (!F || !F.seen) return [];
     const z = zones || {};
     const out = [];
     for (const s of SPOTS) {
         if (z[s.cfg] === false) continue;
-        const p = toStage(s, F);
-        if (!p) continue;
-        out.push({ x: p.x, y: p.y, frame: s.frame, a: s.a, b: s.b, zone: s.zone });
+        for (let i = 0; i < VARIANTS.length; i++) {
+            const m = { frame: s.frame, a: s.a + VARIANTS[i][0], b: s.b + VARIANTS[i][1] };
+            const p = toStage(m, F);
+            if (!p) continue;
+            out.push({ id: s.zone + '#' + i, x: p.x, y: p.y, frame: s.frame, a: m.a, b: m.b, zone: s.zone });
+        }
     }
     return out;
 }

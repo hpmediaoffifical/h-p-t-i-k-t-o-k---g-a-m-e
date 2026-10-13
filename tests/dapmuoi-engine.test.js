@@ -280,7 +280,7 @@ function untilLanded(e) { for (let t = 0; t < 15000; t += 16) { run(e, 16); if (
 
 test('config bite mặc định + ACTION_TYPES có cream + 5 hành động mặc định', () => {
     const c = defaultConfig();
-    assert.deepEqual(c.bite, { enabled: true, afterSec: 20, landSec: 1.2, bumpSec: 30, maxBumps: 12, maxLanded: 3, zones: { forehead: true, cheeks: true, chin: true, neck: true, shoulders: true } });
+    assert.deepEqual(c.bite, { enabled: true, afterSec: 20, landSec: 1.2, gapSec: 3, bumpSec: 30, maxBumps: 12, maxLanded: 3, zones: { forehead: true, cheeks: true, chin: true, neck: true, shoulders: true } });
     assert.ok(ACTION_TYPES.includes('cream'));
     assert.equal(c.actions.length, 5); assert.equal(c.actions[4].type, 'cream'); assert.deepEqual(c.actions[4].params, { seconds: 30 });
     assert.deepEqual(normalizeConfig({}).bite, c.bite);
@@ -352,4 +352,17 @@ test('config lưu trước GĐ2 (không có bite) → tự thêm hành động K
     const kept = normalizeConfig({ bite: { enabled: true }, actions: [{ type: 'release' }] });
     assert.deepEqual(kept.actions.map(a => a.type), ['release']);
     assert.equal(normalizeConfig({ actions: [] }).actions.length, 0, 'xoá hết thì không thêm');
+});
+
+test('bite.gapSec: sau một cú chích, không con nào bắt đầu tìm người trong gapSec', () => {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 0, bite: { ...defaultConfig().bite, afterSec: 1, landSec: 0.5, maxLanded: 1, gapSec: 5 } }, { random: () => 0.5 });
+    assert.equal(defaultConfig().bite.gapSec, 3);
+    e.enqueue(4); e.step(16);
+    let firstBiteAt = -1, secondBiteAt = -1;
+    for (let t = 0; t < 30000 && secondBiteAt < 0; t += 16) {
+        e.setPersonSeen(true); e.setBiteSpots(SPOTS); e.step(16);
+        if (e.snapshot().events.some(x => x.type === 'bite')) { if (firstBiteAt < 0) firstBiteAt = t; else secondBiteAt = t; }
+    }
+    assert.ok(firstBiteAt > 0 && secondBiteAt > 0, `bite lần 1 ${firstBiteAt} lần 2 ${secondBiteAt}`);
+    assert.ok(secondBiteAt - firstBiteAt >= 5000, `cách nhau ${secondBiteAt - firstBiteAt}ms`);
 });

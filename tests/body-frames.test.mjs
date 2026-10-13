@@ -50,16 +50,28 @@ test('EMA 0.6: pose nhảy 100px thì khung lần 2 đi được 60%', () => {
     assert.ok(Math.abs(F2.head.O.x - 600) < 1e-6, `O.x=${F2.head.O.x}`);
 });
 
-test('biteSpots: 7 điểm đủ vùng, tắt cheeks còn 5, mỗi điểm có frame/a/b/zone và toạ độ sân khấu', () => {
+test('biteSpots: 7 vùng × 3 = 21 điểm, tắt cheeks còn 15, mỗi điểm có frame/a/b/zone và toạ độ sân khấu', () => {
     const F = bodyFrames(fakePose(), null);
     const all = biteSpots(F, { forehead: true, cheeks: true, chin: true, neck: true, shoulders: true });
-    assert.equal(all.length, 7);
+    assert.equal(all.length, 21);
     assert.deepEqual([...new Set(all.map(s => s.zone))].sort(), [...BITE_ZONES].sort());
     for (const s of all) { assert.ok(['head', 'torso'].includes(s.frame)); assert.ok(Number.isFinite(s.x) && Number.isFinite(s.y)); }
     const forehead = all.find(s => s.zone === 'forehead');
     assert.ok(forehead.y < 690, 'trán phía trên tai');
     const sh = all.find(s => s.zone === 'shoulderL');
     assert.ok(Math.abs(sh.x - (540 - 160)) < 1e-6 && Math.abs(sh.y - 930) < 1e-6);
-    assert.equal(biteSpots(F, { forehead: true, cheeks: false, chin: true, neck: true, shoulders: true }).length, 5);
+    assert.equal(biteSpots(F, { forehead: true, cheeks: false, chin: true, neck: true, shoulders: true }).length, 15);
     assert.deepEqual(biteSpots(bodyFrames(null, null), {}), []);
+});
+
+test('biteSpots có 3 biến thể mỗi vùng (lệch nhau, ổn định giữa 2 lần gọi) để nốt không chồng lên nhau', () => {
+    const F = bodyFrames(fakePose(), null);
+    const all = biteSpots(F, { forehead: true, cheeks: true, chin: true, neck: true, shoulders: true });
+    assert.equal(all.length, 21);
+    const fh = all.filter(s => s.zone === 'forehead');
+    assert.equal(fh.length, 3);
+    assert.ok(new Set(fh.map(s => s.a + ',' + s.b)).size === 3, 'a,b khác nhau');
+    assert.ok(fh.every(s => Math.hypot(s.x - fh[0].x, s.y - fh[0].y) < 60), 'vẫn trong vùng trán');
+    const again = biteSpots(F, { forehead: true, cheeks: true, chin: true, neck: true, shoulders: true });
+    assert.deepEqual(again.map(s => [s.a, s.b]), all.map(s => [s.a, s.b]));
 });
