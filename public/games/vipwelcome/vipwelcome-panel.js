@@ -483,6 +483,7 @@
                 });
                 if (currentTab === 'queue') fetchQueueSnapshot();
                 if (currentTab === 'ledger') fetchLedger();
+                if (currentTab === 'visits') fetchVisits();
             });
         });
     }
@@ -582,6 +583,7 @@
         renderGlobalTab();
         renderSettingsTab();
         renderLedgerShell();
+        renderVisitsShell();
     }
 
     // ============================================================
@@ -714,6 +716,7 @@
                     <input type="number" min="0" step="10" data-vw-cooldown value="${Number(r.rejoinCooldownSec) || 0}" />
                 </label>
             </div>
+            ${ttsRowHtml(r.tts, 'Chào mừng {tên} vào phòng!')}
             <div class="vw-hint">Thẻ hiện cả khi không có file — file video/âm thanh là tuỳ chọn.</div>` : `
             <div class="vw-rule-row">
                 <label class="vw-inline vw-msg-row">💬 Lời chúc:
@@ -825,6 +828,7 @@
                 r.rejoinCooldownSec = Math.max(0, parseInt(e.target.value, 10) || 0);
                 schedulePersist();
             });
+            wireTtsRow(card, getRule, 'Chào mừng {tên} vào phòng!');
             card.querySelector('[data-vw-test]')?.addEventListener('click', async () => {
                 const r = getRule(); if (!r) return;
                 if (!r.mediaUrl && r.trigger !== 'join') { flashWarn('Chưa chọn file'); return; }
@@ -910,6 +914,32 @@
         return `<span class="vw-file-badge">${src.mediaType === 'video' ? '🎞 VIDEO' : '🔊 ÂM'}</span><span class="vw-file-name">${escapeHtml(name)}</span>`;
     }
 
+    // ===== Đọc tên (TTS) — dùng chung cho bậc và luật @id "Vào phòng" =====
+    const TTS_SAMPLE = { 'tên': 'Davina', nickname: 'Davina', 'bậc': 'Hào kiệt', lv: '23', fan: '3', 'lần': '12' };
+    function ttsRowHtml(tts, defTemplate) {
+        const on = !!tts?.enabled;
+        return `<div class="vw-rule-row vw-tts-row">
+                <label class="vw-inline" title="Đọc câu này bằng giọng Google sau video/âm thanh của người đó"><input type="checkbox" data-tts-on ${on ? 'checked' : ''} /> 🗣 Đọc tên</label>
+                <input type="text" class="vw-tts-template" maxlength="120" data-tts-template value="${escapeHtml(tts?.template || defTemplate)}" placeholder="${escapeHtml(defTemplate)}" />
+                <button class="ghost mini" data-tts-listen title="Nghe thử với tên mẫu Davina">▶ Nghe</button>
+            </div>
+            <div class="vw-hint">Biến: {tên} {bậc} {lv} {fan} {lần} — emoji trong tên tự bỏ, người ẩn danh không đọc.</div>`;
+    }
+    function wireTtsRow(container, getTarget, defTemplate) {
+        const ensure = () => { const o = getTarget(); if (!o) return null; o.tts = o.tts || { enabled: false, template: defTemplate }; return o.tts; };
+        container.querySelector('[data-tts-on]')?.addEventListener('change', (e) => { const t = ensure(); if (!t) return; t.enabled = !!e.target.checked; schedulePersist(); });
+        container.querySelector('[data-tts-template]')?.addEventListener('input', (e) => { const t = ensure(); if (!t) return; t.template = e.target.value; schedulePersist(); });
+        container.querySelector('[data-tts-listen]')?.addEventListener('click', () => {
+            const tpl = container.querySelector('[data-tts-template]')?.value || defTemplate;
+            const text = tpl.replace(/\{(tên|nickname|bậc|lv|fan|lần)\}/g, (m, k) => TTS_SAMPLE[k] || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+            if (!text) return flashWarn('Câu đọc trống');
+            const vol = Math.max(0, Math.min(1, (Number(cfg.joinCard?.tts?.volume) || 90) / 100));
+            const a = new Audio('/api/live-translate/tts?lang=vi&text=' + encodeURIComponent(text));
+            a.volume = vol;
+            a.play().catch(() => flashWarn('Không phát được giọng đọc (mạng?)'));
+        });
+    }
+
     function renderTierCard(t) {
         return `<div class="vw-tier-card skin-${escapeHtml(t.skin)}${t.enabled === false ? ' disabled' : ''}" data-vw-tier="${t.id}">
             <div class="vw-tier-head">
@@ -933,6 +963,7 @@
             <div class="vw-rule-row">
                 <label class="vw-inline">🔊 <input type="range" min="0" max="100" step="5" value="${t.volume ?? 100}" data-t-volume /> <span data-t-volume-v>${t.volume ?? 100}%</span></label>
             </div>
+            ${ttsRowHtml(t.tts, '{bậc} {tên} đã tới phòng!')}
             <div class="vw-rule-actions">
                 <button class="ghost small" data-t-pick>📁 Video / âm thanh</button>
                 <button class="danger small" data-t-clear ${t.mediaUrl ? '' : 'disabled'}>🗑 Xoá file</button>
@@ -1022,6 +1053,7 @@
         const id = card.dataset.vwTier;
         const getTier = () => (profile.joinTiers || []).find(t => t.id === id);
         const num = (v) => Math.max(0, parseInt(v, 10) || 0);
+        wireTtsRow(card, getTier, '{bậc} {tên} đã tới phòng!');
         card.querySelector('[data-t-name]')?.addEventListener('input', (e) => { const t = getTier(); if (!t) return; t.name = e.target.value.trim() || 'Bậc'; schedulePersist(); });
         card.querySelector('[data-t-minlevel]')?.addEventListener('input', (e) => { const t = getTier(); if (!t) return; t.minLevel = num(e.target.value); schedulePersist(); });
         card.querySelector('[data-t-minfans]')?.addEventListener('input', (e) => { const t = getTier(); if (!t) return; t.minFans = num(e.target.value); schedulePersist(); });
@@ -1138,6 +1170,95 @@
                 flashOk('Đã lưu');
             }));
         } catch (e) { list.innerHTML = '<div class="vw-empty">Không tải được sổ xu.</div>'; }
+    }
+
+    // ============================================================
+    // TAB: 🏆 GHÉ PHÒNG — BXH khách quen (số buổi LIVE đã ghé) + cài đặt overlay BXH
+    // ============================================================
+    function renderVisitsShell() {
+        const host = $('#vw-visits-pane');
+        if (!host || host._vwWired) return;
+        host._vwWired = true;
+        const b = Object.assign({ title: 'KHÁCH QUEN CỦA PHÒNG', scope: 'month', skin: 'violet', limit: 10 }, cfg.joinCard?.board || {});
+        const boardUrl = window.buildOverlayURL ? window.buildOverlayURL('/overlay/vipwelcome-board') : (location.origin + '/overlay/vipwelcome-board');
+        host.innerHTML = `
+            <div class="vw-pane-head">
+                <div class="vw-pane-hint">Mỗi người đã ghé bao nhiêu <b>buổi LIVE</b> của kênh <b id="vw-visits-host">…</b> (ra vào nhiều lần trong 1 buổi vẫn tính 1) và 🔥 số buổi liền nhau. Ghi khi thẻ vào phòng đã hiện trên OBS.</div>
+                <select id="vw-visits-scope"><option value="month">Tháng này</option><option value="all">Từ trước tới nay</option></select>
+                <input type="text" id="vw-visits-q" class="vw-search-input" placeholder="🔍 Tìm theo tên / @id" />
+                <button id="vw-visits-refresh" class="ghost small">🔄 Tải lại</button>
+                <button id="vw-visits-reset" class="danger small">🗑 Xoá sổ kênh này</button>
+            </div>
+            <div id="vw-visits-list" class="vw-ledger-list"></div>
+            <div class="vw-setting-block">
+                <div class="vw-setting-title">📺 Bảng xếp hạng trên OBS</div>
+                <div class="vw-rule-row">
+                    <button id="vw-board-copy" class="primary small">📋 Copy link OBS bảng xếp hạng</button>
+                    <span class="vw-hint">${escapeHtml(boardUrl)}</span>
+                </div>
+                <label class="vw-inline">Tiêu đề <input type="text" maxlength="30" id="vw-board-title" value="${escapeHtml(b.title)}" /></label>
+                <label class="vw-inline">Phạm vi
+                    <select id="vw-board-scope">
+                        <option value="month" ${b.scope !== 'all' ? 'selected' : ''}>Tháng này</option>
+                        <option value="all" ${b.scope === 'all' ? 'selected' : ''}>Từ trước tới nay</option>
+                    </select>
+                </label>
+                <label class="vw-inline">Skin
+                    <select id="vw-board-skin">
+                        <option value="violet" ${b.skin !== 'amber' ? 'selected' : ''}>💜 Tím</option>
+                        <option value="amber" ${b.skin === 'amber' ? 'selected' : ''}>🧡 Vàng cam</option>
+                    </select>
+                </label>
+                <label class="vw-inline">Số dòng <input type="number" min="3" max="20" id="vw-board-limit" value="${b.limit}" /></label>
+            </div>`;
+        const setBoard = (fn) => {
+            cfg.joinCard = cfg.joinCard || window.HpGame.vipwelcome.defaultJoinCard();
+            cfg.joinCard.board = Object.assign({ title: 'KHÁCH QUEN CỦA PHÒNG', scope: 'month', skin: 'violet', limit: 10 }, cfg.joinCard.board || {});
+            fn(cfg.joinCard.board);
+            schedulePersist();
+        };
+        $('#vw-board-title').addEventListener('input', (e) => setBoard(bb => { bb.title = e.target.value.trim() || 'KHÁCH QUEN CỦA PHÒNG'; }));
+        $('#vw-board-scope').addEventListener('change', (e) => setBoard(bb => { bb.scope = e.target.value === 'all' ? 'all' : 'month'; }));
+        $('#vw-board-skin').addEventListener('change', (e) => setBoard(bb => { bb.skin = e.target.value === 'amber' ? 'amber' : 'violet'; }));
+        $('#vw-board-limit').addEventListener('input', (e) => setBoard(bb => { bb.limit = Math.max(3, Math.min(20, parseInt(e.target.value, 10) || 10)); }));
+        $('#vw-board-copy').addEventListener('click', async () => {
+            const ok = window.hpCopyText ? await window.hpCopyText(boardUrl) : false;
+            if (ok) flashOk('✓ Đã copy link OBS bảng xếp hạng'); else flashWarn('Copy thất bại — link: ' + boardUrl);
+        });
+        let t = null;
+        $('#vw-visits-q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(fetchVisits, 250); });
+        $('#vw-visits-scope').addEventListener('change', fetchVisits);
+        $('#vw-visits-refresh').addEventListener('click', fetchVisits);
+        $('#vw-visits-reset').addEventListener('click', async () => {
+            const ok = await (window.hpConfirm ? window.hpConfirm({
+                icon: '🗑', tone: 'danger', title: 'Xoá sổ ghé phòng',
+                body: `Xoá toàn bộ lịch sử ghé phòng của kênh <b>${escapeHtml($('#vw-visits-host')?.textContent || '')}</b>?<br><span style="color:#8b93a8">Không thể hoàn tác.</span>`,
+                okLabel: 'Xoá', cancelLabel: 'Huỷ'
+            }) : Promise.resolve(confirm('Xoá toàn bộ sổ ghé phòng của kênh này?')));
+            if (!ok) return;
+            await fetch('/api/games/vipwelcome/visits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reset' }) });
+            fetchVisits();
+        });
+    }
+
+    async function fetchVisits() {
+        const list = $('#vw-visits-list');
+        if (!list) return;
+        try {
+            const scope = $('#vw-visits-scope')?.value === 'all' ? 'all' : 'month';
+            const q = encodeURIComponent($('#vw-visits-q')?.value || '');
+            const j = await (await fetch(`/api/games/vipwelcome/visits?scope=${scope}&q=${q}&limit=200`)).json();
+            const hostEl = $('#vw-visits-host'); if (hostEl) hostEl.textContent = (!j.host || j.host === '_') ? '(chưa kết nối LIVE)' : '@' + j.host;
+            const items = j.items || [];
+            list.innerHTML = items.length === 0
+                ? '<div class="vw-empty">Chưa có lần ghé nào (sổ ghi khi có người thật vào phòng trong LIVE).</div>'
+                : items.map((it, i) => `<div class="vw-ledger-row">
+                    <span class="vw-q-idx">#${i + 1}</span>
+                    <span class="vw-ledger-name">${escapeHtml(it.nickname || it.uniqueId || it.key)}</span>
+                    <span class="vw-q-user">${it.uniqueId ? '@' + escapeHtml(it.uniqueId) : ''}</span>
+                    <span class="vw-q-meta">${scope === 'all' ? it.sessions : it.monthCount} buổi${it.streak >= 2 ? ` · 🔥 ${it.streak} liền` : ''} · kỷ lục ${it.bestStreak}</span>
+                </div>`).join('');
+        } catch (e) { list.innerHTML = '<div class="vw-empty">Không tải được sổ ghé phòng.</div>'; }
     }
 
     // ============================================================
@@ -1369,6 +1490,21 @@
                 <label class="vw-inline" title="Ghi dữ liệu thô TikTok gửi khi có người vào phòng vào data/logs/vipwelcome-raw.jsonl — bật khi cần gửi cho HP Media kiểm tra"><input type="checkbox" id="vw-jc-diag" ${jc.diagnostics ? 'checked' : ''} /> 🩺 Chẩn đoán: ghi dữ liệu vào phòng (logs/vipwelcome-raw.jsonl)</label>
                 <div class="vw-hint">💡 Mỗi lần TikTok báo vào phòng là chào lại — kể cả ra vào liên tục. Muốn giãn cho từng người/bậc thì đặt "Cooldown vào lại" ở tab 👤 hoặc 🏅.</div>
             </div>
+            <div class="vw-setting-block">
+                <div class="vw-setting-title">👥 Phòng đông · khách quen · giọng đọc</div>
+                <label class="vw-inline" title="Khi đang đủ số thẻ trên màn hình mà người mới vẫn vào dồn dập, gom người bậc thấp vào 1 thẻ 'A, B và N người khác'"><input type="checkbox" id="vw-jc-batch" ${jc.batch?.enabled !== false ? 'checked' : ''} /> Gộp thẻ khi phòng đông</label>
+                <label class="vw-inline">chỉ gộp người dưới LV <input type="number" min="0" max="99" id="vw-jc-batch-lv" value="${jc.batch?.belowTierLevel ?? 25}" /></label>
+                <label class="vw-inline"><input type="checkbox" id="vw-jc-visits" ${jc.showVisits !== false ? 'checked' : ''} /> Hiện "Lần đầu ghé / Ghé lần thứ N / 🔥 buổi liền" trên thẻ</label>
+                <label class="vw-inline"><input type="checkbox" id="vw-jc-tts" ${jc.tts?.enabled !== false ? 'checked' : ''} /> 🗣 Bật giọng đọc tên (từng bậc / người bật riêng)</label>
+                <label class="vw-inline">Âm lượng giọng đọc <input type="range" min="0" max="100" step="5" id="vw-jc-tts-vol" value="${jc.tts?.volume ?? 90}" /> <span id="vw-jc-tts-vol-v">${jc.tts?.volume ?? 90}%</span></label>
+            </div>
+            <div class="vw-setting-block">
+                <div class="vw-setting-title">⌨ Phím tắt (dùng được cả khi đang ở OBS / TikTok Studio)</div>
+                <label class="vw-inline"><input type="checkbox" id="vw-jc-hk" ${jc.hotkeys?.enabled ? 'checked' : ''} /> Bật phím tắt</label>
+                <label class="vw-inline">Bỏ qua mục đang phát: Ctrl+Shift+ <input type="text" maxlength="3" id="vw-jc-hk-skip" value="${escapeHtml(jc.hotkeys?.skip || 'S')}" style="width:48px" /></label>
+                <label class="vw-inline">Xoá hết thẻ + hàng chờ: Ctrl+Shift+ <input type="text" maxlength="3" id="vw-jc-hk-clear" value="${escapeHtml(jc.hotkeys?.clear || 'X')}" style="width:48px" /></label>
+                <div class="vw-hint">1 chữ cái, số hoặc F1–F12. Nếu phím đã bị phần mềm khác giữ thì phím đó không hoạt động — đổi phím khác.</div>
+            </div>
         `;
         const setJc = (fn) => { cfg.joinCard = cfg.joinCard || window.HpGame.vipwelcome.defaultJoinCard(); cfg.joinCard.card = cfg.joinCard.card || {}; fn(cfg.joinCard, cfg.joinCard.card); schedulePersist(); };
         const clampInt = (v, lo, hi, d) => Math.max(lo, Math.min(hi, parseInt(v, 10) || d));
@@ -1387,6 +1523,19 @@
         $('#vw-jc-hidezero')?.addEventListener('change', (e) => setJc(j => { j.hideZeroXu = !!e.target.checked; }));
         $('#vw-jc-antidup')?.addEventListener('input', (e) => setJc(j => { j.antiDupSec = clampInt(e.target.value, 3, 60, 10); }));
         $('#vw-jc-late')?.addEventListener('change', (e) => setJc(j => { j.lateWelcome = !!e.target.checked; }));
+        const sub = (j, k, d) => (j[k] = j[k] && typeof j[k] === 'object' ? j[k] : d);
+        $('#vw-jc-batch')?.addEventListener('change', (e) => setJc(j => { sub(j, 'batch', {}).enabled = !!e.target.checked; }));
+        $('#vw-jc-batch-lv')?.addEventListener('input', (e) => setJc(j => { sub(j, 'batch', {}).belowTierLevel = clampInt(e.target.value, 0, 99, 25); }));
+        $('#vw-jc-visits')?.addEventListener('change', (e) => setJc(j => { j.showVisits = !!e.target.checked; }));
+        $('#vw-jc-tts')?.addEventListener('change', (e) => setJc(j => { sub(j, 'tts', {}).enabled = !!e.target.checked; }));
+        $('#vw-jc-tts-vol')?.addEventListener('input', (e) => {
+            $('#vw-jc-tts-vol-v').textContent = e.target.value + '%';
+            setJc(j => { sub(j, 'tts', {}).volume = clampInt(e.target.value, 0, 100, 90); });
+        });
+        const hkKey = (v, d) => { const k = String(v || '').trim().toUpperCase(); return /^([A-Z0-9]|F([1-9]|1[0-2]))$/.test(k) ? k : d; };
+        $('#vw-jc-hk')?.addEventListener('change', (e) => setJc(j => { sub(j, 'hotkeys', {}).enabled = !!e.target.checked; }));
+        $('#vw-jc-hk-skip')?.addEventListener('change', (e) => setJc(j => { e.target.value = sub(j, 'hotkeys', {}).skip = hkKey(e.target.value, 'S'); }));
+        $('#vw-jc-hk-clear')?.addEventListener('change', (e) => setJc(j => { e.target.value = sub(j, 'hotkeys', {}).clear = hkKey(e.target.value, 'X'); }));
         $('#vw-jc-maxwait')?.addEventListener('input', (e) => setJc(j => { j.mediaMaxWaitSec = clampInt(e.target.value, 5, 300, 30); }));
         $('#vw-jc-diag')?.addEventListener('change', (e) => setJc(j => { j.diagnostics = !!e.target.checked; }));
         // Wire
