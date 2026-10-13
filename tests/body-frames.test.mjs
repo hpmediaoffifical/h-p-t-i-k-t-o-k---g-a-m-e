@@ -1,7 +1,7 @@
 // node --test tests/body-frames.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bodyFrames, toStage, toLocal, biteSpots, BITE_ZONES } from '../public/lib/body-frames.mjs';
+import { bodyFrames, toStage, toLocal, biteSpots, BITE_ZONES, headAnchor, placeAbove, homePlace, followStep } from '../public/lib/body-frames.mjs';
 
 // Pose giả: người đứng thẳng giữa sân khấu 1080×1920, nhìn vào camera.
 function fakePose(opts = {}) {
@@ -74,4 +74,74 @@ test('biteSpots có 3 biến thể mỗi vùng (lệch nhau, ổn định giữa
     assert.ok(fh.every(s => Math.hypot(s.x - fh[0].x, s.y - fh[0].y) < 60), 'vẫn trong vùng trán');
     const again = biteSpots(F, { forehead: true, cheeks: true, chin: true, neck: true, shoulders: true });
     assert.deepEqual(again.map(s => [s.a, s.b]), all.map(s => [s.a, s.b]));
+});
+
+// ---------- Level Quest bám đầu: đỉnh đầu, đặt chỗ thanh, lọc mượt ----------
+const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
+const BOX = { w: 1012, h: 260 };
+const HEAD = { crown: { x: 540, y: 546 }, headW: 200 };
+
+test('đỉnh đầu (crown) = tâm đầu lùi ngược hướng v một đoạn 0.72 × bề rộng đầu', () => {
+    const c = bodyFrames(fakePose(), null).head.crown;
+    assert.ok(near(c.x, 540) && near(c.y, 546), JSON.stringify(c));
+});
+
+test('headAnchor: có đầu → crown + bề rộng đầu; chỉ có thân → ước lượng từ vai; không thấy người → null', () => {
+    const a = headAnchor(bodyFrames(fakePose(), null));
+    assert.ok(near(a.crown.x, 540) && near(a.crown.y, 546) && near(a.headW, 200));
+    const noHead = { 0: { v: 0 }, 2: { v: 0 }, 5: { v: 0 }, 7: { v: 0 }, 8: { v: 0 } };
+    const b = headAnchor(bodyFrames(fakePose(noHead), null));
+    assert.ok(near(b.crown.x, 540) && near(b.crown.y, 520) && near(b.headW, 220), JSON.stringify(b));
+    assert.equal(headAnchor(bodyFrames(null, null)), null);
+    assert.equal(headAnchor(null), null);
+});
+
+test('placeAbove: căn giữa đỉnh đầu, mép dưới cách đỉnh gap + 8% đầu, cỡ = scale × headW/180', () => {
+    const p = placeAbove(HEAD, BOX, 1080, 1920, { scale: 0.55, gap: 20 });
+    assert.ok(near(p.x, 540) && near(p.yBottom, 510) && near(p.s, 0.55 * 200 / 180), JSON.stringify(p));
+});
+
+test('placeAbove: đứng sát mép trái/phải thì thanh bị chặn trong khung (lề 6px)', () => {
+    const bw = BOX.w * 0.55 * 200 / 180;
+    const L = placeAbove({ ...HEAD, crown: { x: 50, y: 546 } }, BOX, 1080, 1920, { scale: 0.55, gap: 20 });
+    const R = placeAbove({ ...HEAD, crown: { x: 1060, y: 546 } }, BOX, 1080, 1920, { scale: 0.55, gap: 20 });
+    assert.ok(near(L.x, bw / 2 + 6) && near(R.x, 1080 - bw / 2 - 6), JSON.stringify([L, R]));
+});
+
+test('placeAbove: hệ số cỡ đầu kẹp trong 0.65–1.4', () => {
+    assert.ok(near(placeAbove({ ...HEAD, headW: 50 }, BOX, 1080, 1920, { scale: 0.55 }).s, 0.55 * 0.65));
+    assert.ok(near(placeAbove({ ...HEAD, headW: 400 }, BOX, 1080, 1920, { scale: 0.55 }).s, 0.55 * 1.4));
+});
+
+test('placeAbove: cụm rộng hơn khung thì căn giữa khung', () => {
+    const p = placeAbove({ crown: { x: 200, y: 900 }, headW: 252 }, BOX, 1080, 1920, { scale: 1.5, gap: 20 });
+    assert.ok(near(p.x, 540) && near(p.s, 2.1), JSON.stringify(p));
+});
+
+test('placeAbove: người sát mép trên thì thanh không ra ngoài khung (mép trên ≥ 6px)', () => {
+    const p = placeAbove({ ...HEAD, crown: { x: 540, y: 100 } }, BOX, 1080, 1920, { scale: 0.55, gap: 20 });
+    assert.ok(near(p.yBottom, 6 + BOX.h * p.s), JSON.stringify(p));
+});
+
+test('homePlace: giữa ngang, mép trên cụm cách mép trên khung 30px, cỡ = scale', () => {
+    const p = homePlace(BOX, 1080, 1920, { scale: 0.55 });
+    assert.ok(near(p.x, 540) && near(p.yBottom, 30 + 260 * 0.55) && near(p.s, 0.55), JSON.stringify(p));
+});
+
+test('followStep: lần đầu nhận target; lọc mũ theo thời gian thật (tau 90ms)', () => {
+    const t = { x: 10, yBottom: 20, s: 0.5 };
+    assert.deepEqual(followStep(null, t, 16), t);
+    const p = followStep({ x: 0, yBottom: 0, s: 1 }, { x: 100, yBottom: 0, s: 1 }, 90);
+    assert.ok(near(p.x, 100 * (1 - Math.exp(-1))), JSON.stringify(p));
+});
+
+test('followStep: rung nhỏ (< 2px, < 0.01 cỡ) bỏ qua — trả lại đúng object cũ', () => {
+    const prev = { x: 100, yBottom: 100, s: 0.5 };
+    assert.equal(followStep(prev, { x: 101, yBottom: 100.5, s: 0.505 }, 16), prev);
+});
+
+test('followStep: 60 khung × 16ms thì tới gần đích (≤ 2px)', () => {
+    let p = { x: 0, yBottom: 0, s: 1 };
+    for (let i = 0; i < 60; i++) p = followStep(p, { x: 100, yBottom: 0, s: 1 }, 16);
+    assert.ok(Math.abs(p.x - 100) <= 2, JSON.stringify(p));
 });

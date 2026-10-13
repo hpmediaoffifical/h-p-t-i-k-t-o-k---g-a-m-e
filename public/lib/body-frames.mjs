@@ -13,6 +13,12 @@
 //   toStage(mark, frames)         → {x,y} | null
 //   toLocal(x, y, frame, frames)  → {frame,a,b} | null
 //   biteSpots(frames, zones)      → điểm muỗi đậu: trán / má / cằm / cổ / vai
+//
+// Thanh bám trên đầu (Level Quest trong Game Camera) — vị trí là { x: tâm ngang, yBottom: mép dưới, s: tỉ lệ }:
+//   headAnchor(frames)                        → { crown, headW } | null  (không thấy đầu thì ước lượng từ vai)
+//   placeAbove(anchor, box, W, H, {scale,gap}) → cụm cỡ gốc box={w,h} đặt trên đỉnh đầu, kẹp trong khung W×H
+//   homePlace(box, W, H, {scale})             → chỗ mặc định khi mất người: giữa ngang, sát mép trên
+//   followStep(prev, target, dt, tau)         → trượt mượt theo thời gian thật, bỏ qua rung nhỏ
 
 const VIS = 0.5;          // visibility tối thiểu để tin một điểm
 const EMA = 0.6;          // lọc rung: mới 60% + cũ 40%
@@ -76,7 +82,9 @@ export function bodyFrames(pose, prev) {
         hu = hl > shoulderW * 0.25 ? { x: hu.x / hl * width, y: hu.y / hl * width } : { x: u.x / shoulderW * width, y: u.y / shoulderW * width };
         const n = { x: -hu.y, y: hu.x }; const nl = Math.hypot(n.x, n.y) || 1;
         if (n.y < 0) { n.x = -n.x; n.y = -n.y; }
-        head = { O: c, u: hu, v: { x: n.x / nl * width, y: n.y / nl * width }, width };
+        // Tai nằm khoảng giữa đầu → đỉnh đầu cao hơn tâm ~0.72 bề rộng đầu (tóc tính vào) — công thức Bắn Cung.
+        const hv = { x: n.x / nl * width, y: n.y / nl * width };
+        head = { O: c, u: hu, v: hv, width, crown: { x: c.x - hv.x * 0.72, y: c.y - hv.y * 0.72 } };
     }
     return { seen: true, pts: P, head, torso: { O: S, u, v }, shoulderW };
 }
@@ -114,4 +122,40 @@ export function biteSpots(F, zones) {
         }
     }
     return out;
+}
+
+// ---------- Thanh bám trên đầu ----------
+const EDGE = 6;            // lề khung (px)
+const HOME_TOP = 30;       // chỗ mặc định: mép trên cụm cách mép trên khung
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+export function headAnchor(F) {
+    if (!F || !F.seen) return null;
+    if (F.head) return { crown: { x: F.head.crown.x, y: F.head.crown.y }, headW: F.head.width };
+    if (!F.torso) return null;
+    // Đầu ngoài khung / không thấy mặt: đỉnh đầu ~0.95 bề vai phía trên giữa vai, ngược hướng thân.
+    const v = F.torso.v, vl = Math.hypot(v.x, v.y) || 1, d = F.shoulderW * 0.95;
+    return { crown: { x: F.torso.O.x - v.x / vl * d, y: F.torso.O.y - v.y / vl * d }, headW: F.shoulderW * 0.55 };
+}
+
+export function placeAbove(anchor, box, W, H, { scale = 0.55, gap = 20 } = {}) {
+    // Đứng gần camera đầu to → thanh to, có giới hạn để không phá bố cục (cùng hệ số hàng tim Bắn Cung).
+    const s = scale * clamp(anchor.headW / 180, 0.65, 1.4);
+    const bw = box.w * s, bh = box.h * s;
+    const x = bw + EDGE * 2 < W ? clamp(anchor.crown.x, bw / 2 + EDGE, W - bw / 2 - EDGE) : W / 2;
+    let yBottom = anchor.crown.y - (gap + anchor.headW * 0.08);
+    if (yBottom - bh < EDGE) yBottom = EDGE + bh;          // sát mép trên: đè lên đầu chứ không ra ngoài khung
+    return { x, yBottom: Math.min(yBottom, H - EDGE), s };
+}
+
+export function homePlace(box, W, H, { scale = 0.55 } = {}) {
+    return { x: W / 2, yBottom: HOME_TOP + box.h * scale, s: scale };
+}
+
+export function followStep(prev, target, dt, tau = 90) {
+    if (!prev) return { ...target };
+    const dx = target.x - prev.x, dy = target.yBottom - prev.yBottom, ds = target.s - prev.s;
+    if (Math.abs(dx) < 2 && Math.abs(dy) < 2 && Math.abs(ds) < 0.01) return prev;
+    const a = 1 - Math.exp(-Math.max(0, dt) / tau);
+    return { x: prev.x + dx * a, yBottom: prev.yBottom + dy * a, s: prev.s + ds * a };
 }
