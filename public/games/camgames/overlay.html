@@ -5,7 +5,8 @@
 <title>Game Camera — overlay</title>
 <script src="/lib/overlay-resolution.js"></script>
 <style>
-  /* Một Browser Source cho mọi game camera: trang mẹ trong suốt, game con nằm trong iframe phủ kín.
+  /* Một Browser Source cho mọi game camera: trang mẹ trong suốt, mỗi game đang chơi một iframe phủ kín
+     (chơi 2 game cùng lúc = 2 lớp chồng: game tay dưới, game trên đầu ở trên).
      Không có nút/cài đặt nào ở đây — mọi cài đặt làm trong app (Game Camera). */
   html, body { margin: 0; height: 100%; background: transparent !important; overflow: hidden; }
   iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: transparent;
@@ -14,52 +15,64 @@
 </style>
 </head>
 <body>
-<iframe id="cg-child" allow="autoplay" title="Game Camera"></iframe>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/games/camgames/registry.js"></script>
-<script>
-(function () {
-    'use strict';
-    const frame = document.getElementById('cg-child');
-    const qs = new URLSearchParams(location.search);
-    const token = qs.get('token') || '';
-    let current = null;          // id game con đang nạp ('' = trống)
+<script type="module">
+import { createCamShared } from '/lib/hp-cam-shared.mjs';
 
-    // Chuyển tiếp query của link OBS (token máy thứ 2, res=4k…) sang game con.
-    function childUrl(game) {
-        const extra = new URLSearchParams(location.search).toString();
-        return game.overlay + (extra ? (game.overlay.includes('?') ? '&' : '?') + extra : '');
+const qs = new URLSearchParams(location.search);
+const token = qs.get('token') || '';
+const SLOT_Z = { hands: 1, head: 2 };
+const frames = new Map();          // id game → iframe đang chạy
+const socket = io({ transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+// Bộ nhận diện chung — tạo TRƯỚC khi nạp game con để game con tìm thấy (sharedTracker trong hp-tracking.mjs).
+const shared = window.__hpCamShared = createCamShared({ socket });
+
+// Chuyển tiếp query của link OBS (token máy thứ 2, res=4k…) sang game con.
+function childUrl(game) {
+    const extra = new URLSearchParams(location.search).toString();
+    return game.overlay + (extra ? (game.overlay.includes('?') ? '&' : '?') + extra : '');
+}
+
+// Config cũ chỉ có `active`; bản mới có `actives` (các game chơi cùng lúc).
+function activesOf(cfg) {
+    const list = Array.isArray(cfg.actives) && cfg.actives.length ? cfg.actives : [cfg.active];
+    return list.map(id => (window.HpCamGames || []).find(g => g.id === id)).filter(Boolean);
+}
+
+// Thêm/bớt iframe theo danh sách; game vẫn đang chơi KHÔNG nạp lại (giữ muỗi/điểm giữa live).
+function show(cfg) {
+    const want = cfg && cfg.enabled !== false ? activesOf(cfg) : [];
+    for (const [id, f] of frames) {
+        if (want.some(g => g.id === id)) continue;
+        frames.delete(id);
+        shared.need(id, null);             // game rời: thôi nhận diện phần của nó ngay, khỏi đợi iframe gỡ
+        f.classList.add('out');
+        setTimeout(() => f.remove(), 350);
     }
-
-    function show(cfg) {
-        const on = cfg && cfg.enabled !== false;
-        const game = on && (window.HpCamGames || []).find(g => g.id === cfg.active);
-        const id = game ? game.id : '';
-        if (id === current) return;
-        const prev = current;
-        current = id;
-        // Mờ dần game cũ rồi mới nạp game mới — đổi game giữa live không bị giật khung.
-        frame.classList.add('out');
-        setTimeout(() => {
-            if (current !== id) return;
-            if (!game) { frame.removeAttribute('src'); return; }
-            frame.onload = () => frame.classList.remove('out');
-            frame.src = childUrl(game);
-        }, prev ? 350 : 0);
+    for (const game of want) {
+        if (frames.has(game.id)) continue;
+        const f = document.createElement('iframe');
+        f.allow = 'autoplay'; f.title = game.name; f.className = 'out'; f.dataset.id = game.id;
+        f.style.zIndex = SLOT_Z[game.slot] || 1;
+        f.onload = () => f.classList.remove('out');
+        f.src = childUrl(game);
+        document.body.appendChild(f);
+        frames.set(game.id, f);
     }
+}
 
-    function load() {
-        fetch('/api/games/camgames/config', { cache: 'no-store' }).then(r => r.json()).then(show).catch(() => {});
-    }
+function load() {
+    fetch('/api/games/camgames/config', { cache: 'no-store' }).then(r => r.json()).then(show).catch(() => {});
+}
 
-    const socket = io({ transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
-    socket.on('connect', () => { socket.emit('subscribe', 'overlay'); load(); });
-    socket.on('gameConfig', d => { if (d && d.gameId === 'camgames') show(d.config); });
-    socket.on('gameDisabled', d => { if (d && d.gameId === 'camgames') show({ enabled: false }); });
-    socket.on('gameEnabled', d => { if (d && d.gameId === 'camgames') load(); });
-    socket.on('overlay:reload', d => { if (d && d.gameId === 'camgames') location.reload(); });
-    load();
-})();
+socket.on('connect', () => { socket.emit('subscribe', 'overlay'); load(); });
+socket.on('gameConfig', d => { if (d && d.gameId === 'camgames') show(d.config); });
+socket.on('gameDisabled', d => { if (d && d.gameId === 'camgames') show({ enabled: false }); });
+socket.on('gameEnabled', d => { if (d && d.gameId === 'camgames') load(); });
+socket.on('overlay:reload', d => { if (d && d.gameId === 'camgames') location.reload(); });
+window.__cg = { frames, shared };      // soi/thử trong DevTools
+load();
 </script>
 </body>
 </html>

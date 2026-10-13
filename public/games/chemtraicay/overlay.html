@@ -192,7 +192,10 @@
             if (!local.tracker) {
                 const [trk, map] = await Promise.all([import('/lib/hp-tracking.mjs'), import('/lib/obs-scene-map.mjs')]);
                 local.toStage = map.cameraToStage;
-                local.tracker = new trk.HpTracker({ width: W, height: H, quality: cfg.quality === 'low' ? 'low' : cfg.quality === 'high' ? 'high' : 'auto' });
+                const q = cfg.quality === 'low' ? 'low' : cfg.quality === 'high' ? 'high' : 'auto';
+                // Trong 🎥 Game Camera: bộ nhận diện chung của overlay mẹ.
+                local.tracker = trk.sharedTracker('chemtraicay', { width: W, height: H }) || new trk.HpTracker({ width: W, height: H, quality: q });
+                local.tracker.quality = q;
             }
             if (!local.on) return;
             await local.tracker.startExternal();
@@ -201,6 +204,7 @@
     }
     async function onLocalFrame(f) {
         if (!local.on || local.busy || !f || !f.img || !local.tracker || !local.toStage) return;
+        if (local.tracker.shared) return;      // overlay mẹ đã giải mã + nhận diện
         local.busy = true;      // đang giải mã thì bỏ khung mới — luôn dùng hình mới nhất
         try {
             const bmp = await createImageBitmap(new Blob([f.img], { type: 'image/jpeg' }));

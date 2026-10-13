@@ -333,7 +333,8 @@
             if (!feed.tracker) {
                 const [trk, map] = await Promise.all([import('/lib/hp-tracking.mjs'), import('/lib/obs-scene-map.mjs')]);
                 feed.toStage = map.cameraToStage;
-                feed.tracker = new trk.HpTracker({ width: W, height: H, quality: cfg.quality });
+                // Trong 🎥 Game Camera: bộ nhận diện chung của overlay mẹ.
+                feed.tracker = trk.sharedTracker('dapmuoi', { width: W, height: H }) || new trk.HpTracker({ width: W, height: H, quality: cfg.quality });
                 feed.tracker.want({ hands: true, pose: true, face: false });
                 window.__dm.tracker = feed.tracker;
             }
@@ -348,6 +349,7 @@
     }
     async function onFrame(f) {
         if (!feed.on || feed.busy || !f || !f.img || !feed.tracker || !feed.toStage) return;
+        if (feed.tracker.shared) { feed.lastAt = performance.now(); return; }   // overlay mẹ đã giải mã + nhận diện
         feed.busy = true;
         try {
             const bmp = await createImageBitmap(new Blob([f.img], { type: 'image/jpeg' }));

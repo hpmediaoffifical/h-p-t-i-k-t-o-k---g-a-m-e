@@ -13,7 +13,7 @@
 // Khung ĐẦU: O = tâm đầu, u = tai trái→tai phải, v = vuông góc hướng xuống. Người xoay/di chuyển
 // thì (a,b) giữ nguyên, điểm trên sân khấu đi theo.
 
-import { HpTracker } from '/lib/hp-tracking.mjs';
+import { HpTracker, sharedTracker } from '/lib/hp-tracking.mjs';
 import { cameraToStage, apply } from '/lib/obs-scene-map.mjs';
 import { smoothMask, toAlpha, downsample2 } from '/games/bancung/mask-smooth.mjs';
 
@@ -37,7 +37,8 @@ export class BcBodyTrack {
         this.onStatus = onStatus || (() => {});
         this.enabled = false;
         this.layout = null; this.feedStatus = null; this.lastFrameAt = 0; this._busy = false;
-        this.tracker = new HpTracker({ width, height, mirror: false, quality: 'auto', onStatus: (t, lv) => this.onStatus(t, lv) });
+        // Trong 🎥 Game Camera: bộ nhận diện chung của overlay mẹ (chơi kèm game khác không nhận diện 2 lần).
+        this.tracker = sharedTracker(gameId, { width, height }) || new HpTracker({ width, height, mirror: false, quality: 'auto', onStatus: (t, lv) => this.onStatus(t, lv) });
         // Chỉ cần body (bỏ model tay cho nhẹ) + mặt nạ người để tô đỏ / cháy đen đúng hình người.
         this.tracker.want({ hands: false, pose: true, segment: true });
         this._smooth = null;
@@ -75,6 +76,7 @@ export class BcBodyTrack {
 
     async _onFrame(f) {
         if (!this.enabled || this._busy || !f?.img) return;
+        if (this.tracker.shared) { this.lastFrameAt = performance.now(); return; }   // overlay mẹ đã giải mã + nhận diện
         this._busy = true;                  // đang giải mã thì bỏ khung mới — luôn dùng hình mới nhất
         try {
             const bmp = await createImageBitmap(new Blob([f.img], { type: 'image/jpeg' }));

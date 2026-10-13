@@ -121,6 +121,10 @@ export class HpTracker {
     want(opts) {
         Object.assign(this.wanted, opts);
         if (!this.running) return;
+        // Tay xin SAU khi đã chạy (tracker dùng chung của Game Camera: game tay vào sau) → nạp model tay.
+        if (this.wanted.hands && !this.models.hand && !this.loading.hand && !(performance.now() - (this._handFailAt || -1e9) < 10000)) this._ensure('hand').catch(() => {});
+        // Mặt nạ người xin sau khi model body đã tạo KHÔNG kèm mặt nạ → bỏ model đó, tạo lại có mặt nạ.
+        if (this.wanted.segment && this.models.pose && !this._poseSeg) { try { this.models.pose.close?.(); } catch (_) {} this.models.pose = null; this.loading.pose = null; }
         if (this.wanted.face && !this.failed.face) this._ensure('face').catch(() => {});
         if (this.wanted.pose && !this.failed.pose) this._ensure('pose').catch(() => {});
     }
@@ -133,6 +137,7 @@ export class HpTracker {
             face: [vision.FaceLandmarker, BASE + '/face_landmarker.task', { numFaces: 1, outputFaceBlendshapes: true }],
             pose: [vision.PoseLandmarker, BASE + '/pose_landmarker_lite.task', { numPoses: 1, outputSegmentationMasks: !!this.wanted.segment }]
         }[kind];
+        if (kind === 'pose') this._poseSeg = !!this.wanted.segment;
         const make = delegate => spec[0].createFromOptions(fileset, { baseOptions: { modelAssetPath: spec[1], delegate }, runningMode: 'VIDEO', ...spec[2] });
         // GPU trước (OBS bật tăng tốc phần cứng); Electron của app tắt GPU → rơi về CPU.
         if (this.delegate === 'GPU') {
@@ -145,8 +150,12 @@ export class HpTracker {
     async _ensure(kind) {
         if (this.models[kind]) return this.models[kind];
         if (!this.loading[kind]) {
-            this.loading[kind] = this._create(kind).then(m => { this.models[kind] = m; return m; })
-                .catch(e => { this.loading[kind] = null; if (kind !== 'hand') this.failed[kind] = true; this.status('Không nạp được mô hình ' + kind + ': ' + (e?.message || e), 'error'); throw e; });
+            this.loading[kind] = this._create(kind).then(m => {
+                // Đang tạo model body thì có game xin mặt nạ → bản vừa tạo thiếu mặt nạ: tạo lại.
+                if (kind === 'pose' && this.wanted.segment && !this._poseSeg) { try { m.close?.(); } catch (_) {} this.loading.pose = null; return this._ensure('pose'); }
+                this.models[kind] = m; return m;
+            })
+                .catch(e => { this.loading[kind] = null; if (kind !== 'hand') this.failed[kind] = true; else this._handFailAt = performance.now(); this.status('Không nạp được mô hình ' + kind + ': ' + (e?.message || e), 'error'); throw e; });
         }
         return this.loading[kind];
     }
@@ -293,6 +302,96 @@ export class HpTracker {
         this.pose = lm.map(p => ({ ...to(p.x, p.y), v: p.visibility ?? 1 }));
         this.poseAt = now;
     }
+}
+
+// ---------- MỘT tracker cho mọi game con trong 🎥 Game Camera ----------
+// Overlay mẹ /overlay/camgames (hp-cam-shared.mjs) chạy một HpTracker; chơi 2 game cùng lúc không phải
+// giải mã + nhận diện hai lần trên cùng luồng. Game con:
+//   const tracker = sharedTracker('dapmuoi', { width: W, height: H }) || new HpTracker({ … });
+//   socket.on('touchplay:frame', f => { if (tracker.shared) return; …giải mã + pushFrame như cũ… });
+// Ngoài Game Camera (link riêng, lab trong app) không có mẹ → null → chạy tracker riêng như cũ.
+export function sharedTracker(gameId, opts = {}) {
+    let host = null;
+    try { if (window.parent !== window) host = window.parent.__hpCamShared || null; } catch (_) {}
+    return host ? new HpSharedTracker(host, gameId, opts) : null;
+}
+
+// Cùng giao diện với HpTracker (game con không phải biết mình đang dùng chung):
+// - want()/startExternal()/stop() báo nhu cầu của game này cho mẹ; mẹ gộp (OR) nhu cầu mọi game.
+// - hands/face/pose/seg chỉ trả phần game này đã xin; toạ độ đổi sang sân khấu của game con nếu khác cỡ.
+// - Mốc *At đổi sang đồng hồ của iframe: performance.now() của mẹ chạy trước con (timeOrigin sớm hơn),
+//   không đổi thì "now - poseAt" của con luôn âm → mất người vẫn tưởng còn.
+export class HpSharedTracker {
+    constructor(host, gameId, { width, height } = {}) {
+        this.host = host; this.gameId = gameId; this.shared = true;
+        this.W = width || host.W; this.H = height || host.H;
+        this._sx = this.W / host.W; this._sy = this.H / host.H;
+        this._scaled = Math.abs(this._sx - 1) > 1e-6 || Math.abs(this._sy - 1) > 1e-6;
+        this._cache = {};
+        this._dt = performance.timeOrigin - host.timeOrigin;
+        this.wanted = { hands: true, face: false, pose: false, segment: false };
+        this.running = false; this.mode = '';
+        this._quality = 'auto'; this.mirror = false;
+        this.video = null; this.ext = null;
+    }
+    get t() { return this.host.tracker; }
+    get active() { return this.running; }
+    get quality() { return this._quality; }
+    set quality(q) { this._quality = q; this.host.quality(this.gameId, q); }
+    get delegate() { return this.t.delegate; }
+    get statusText() { return this.t.statusText; }
+    get fps() { return this.t.fps; }
+    get aiMs() { return this.t.aiMs; }
+    get tick() { return this.t.tick; }
+    _at(ts) { return ts ? ts - this._dt : 0; }
+    get handsAt() { return this._at(this.t.handsAt); }
+    get faceAt() { return this._at(this.t.faceAt); }
+    get poseAt() { return this._at(this.t.poseAt); }
+    get segAt() { return this._at(this.t.segAt); }
+
+    // Đổi toạ độ sân khấu mẹ → sân khấu con (chỉ khi khác cỡ); nhớ theo đối tượng gốc để không tính lại mỗi lần đọc.
+    _map(key, src, fn) {
+        if (!this._scaled || !src) return src;
+        const c = this._cache[key];
+        if (c && c.src === src) return c.out;
+        const out = fn(src);
+        this._cache[key] = { src, out };
+        return out;
+    }
+    _p(p) { return p && { ...p, x: p.x * this._sx, y: p.y * this._sy }; }
+    get hands() {
+        if (!this.running || !this.wanted.hands) return [];
+        const k = Math.sqrt(this._sx * this._sy);
+        return this._map('hands', this.t.hands, hs => hs.map(h => ({
+            ...h, pts: h.pts.map(p => this._p(p)), tip: this._p(h.tip), pinch: this._p(h.pinch), palm: this._p(h.palm), size: h.size * k
+        })));
+    }
+    get face() {
+        if (!this.running || !this.wanted.face) return null;
+        const k = Math.sqrt(this._sx * this._sy);
+        return this._map('face', this.t.face, f => ({ ...f, mouth: this._p(f.mouth), width: f.width * k }));
+    }
+    get pose() {
+        if (!this.running || !this.wanted.pose) return null;
+        return this._map('pose', this.t.pose, P => P.map(p => this._p(p)));
+    }
+    get seg() {
+        if (!this.running || !this.wanted.segment) return null;
+        const sx = this._sx, sy = this._sy;
+        return this._map('seg', this.t.seg, s => ({ ...s, M: [s.M[0] * sx, s.M[1] * sy, s.M[2] * sx, s.M[3] * sy, s.M[4] * sx, s.M[5] * sy] }));
+    }
+
+    status() {}
+    want(opts) { Object.assign(this.wanted, opts); if (this.running) this.host.need(this.gameId, this.wanted); }
+    async startExternal() {
+        this.running = true; this.mode = 'external';
+        this.host.need(this.gameId, this.wanted);
+        await this.host.ready;
+    }
+    async startWebcam() { throw new Error('Trong 🎥 Game Camera dùng camera trong OBS.'); }
+    async listCameras() { return []; }
+    pushFrame(bitmap) { bitmap?.close?.(); }       // mẹ đã nhận khung — game con khỏi giải mã
+    stop() { this.running = false; this.mode = ''; this.host.need(this.gameId, null); }
 }
 
 // WebGL chạy bằng phần mềm (SwiftShader / llvmpipe / Basic Render — OBS tắt "tăng tốc phần cứng",

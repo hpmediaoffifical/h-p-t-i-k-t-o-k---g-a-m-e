@@ -192,7 +192,7 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script type="module">
-import { HpTracker, poseAngles, poseError } from '/lib/hp-tracking.mjs';
+import { HpTracker, sharedTracker, poseAngles, poseError } from '/lib/hp-tracking.mjs';
 import { cameraToStage } from '/lib/obs-scene-map.mjs';
 
 const IS_OVERLAY = document.documentElement.getAttribute('data-overlay') === '1';
@@ -317,7 +317,8 @@ const ready = im => im && im.complete && im.naturalWidth > 0;
 
 // ============================================================ TRACKER
 const video = $('cam');
-const tracker = new HpTracker({ width: W, height: H, video, mirror: cfg.mirror, quality: cfg.quality, onStatus: (t, lv) => setCamState(t, lv) });
+// Trong 🎥 Game Camera: dùng bộ nhận diện chung của overlay mẹ (chơi kèm game khác không nhận diện 2 lần).
+const tracker = (IS_OVERLAY && sharedTracker('touchplay', { width: W, height: H })) || new HpTracker({ width: W, height: H, video, mirror: cfg.mirror, quality: cfg.quality, onStatus: (t, lv) => setCamState(t, lv) });
 window.__tp = { tracker, get state() { return S; }, get cfg() { return cfg; } };   // debug
 function setCamState(text, level) {
   const el = $('camState');
@@ -351,6 +352,7 @@ function stopObsFeed() {
   setCamState('tắt', 'warn');
 }
 async function onFrame(f) {
+  if (tracker.shared) { if (feed.on) feed.lastAt = performance.now(); return; }   // overlay mẹ đã giải mã + nhận diện
   if (!feed.on || feed.busy || !f?.img) return;
   feed.busy = true;     // đang giải mã thì bỏ khung mới — luôn dùng hình mới nhất, không dồn hàng
   try {
@@ -903,6 +905,8 @@ function actionForGift(coin) {
 }
 function handleGift(g) {
   if (!g || gameDisabled) return;
+  // 🎥 Game Camera chơi 2 game cùng lúc: quà game kia gán đích danh thì nhường (Touch & Play nhận theo mức xu).
+  if (Array.isArray(g.camClaims) && g.camClaims.length && !g.camClaims.includes('touchplay')) return;
   const coin = Number(g.coinValue ?? g.diamondCount ?? 1) || 1;
   const tier = actionForGift(coin);
   if (!tier) return;

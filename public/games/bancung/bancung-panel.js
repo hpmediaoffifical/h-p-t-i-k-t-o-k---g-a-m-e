@@ -863,7 +863,7 @@
             let r = null;
             try { r = await (await fetch('/api/touchplay/obs-sources', { cache: 'no-store' })).json(); } catch (e) {}
             if (Date.now() - hubWriteAt > 2000) { try { hub = await (await fetch('/api/games/camgames/config', { cache: 'no-store' })).json(); } catch (e) {} }
-            const inHub = !!hub && hub.enabled !== false && hub.active === 'bancung';
+            const inHub = !!hub && hub.enabled !== false && (Array.isArray(hub.actives) && hub.actives.length ? hub.actives : [hub.active]).includes('bancung');
             const list = (r?.sources || []).slice();
             const cur = typeof hub?.source === 'string' ? hub.source : (d.trackSource || '');
             if (cur && !list.some(x => x.name === cur)) list.unshift({ name: cur, camera: true, missing: true });
@@ -881,9 +881,9 @@
             else if (!s.source) { txt = '● Chưa có nguồn camera — chọn ở trên (hoặc ở 🎥 Game Camera).'; color = '#ffb347'; }
             else if (s.error === 'source-missing') { txt = '● Không thấy nguồn "' + s.source + '" trong OBS.'; color = '#ff6b6b'; }
             else if (s.live) {
-                const ov = s.overlay;
+                const ov = s.overlays?.bancung || (s.overlay?.phase === 'bancung' ? s.overlay : null);
                 txt = '● Đang chụp "' + s.source + '" ' + s.fps + ' hình/giây' + (s.camFound ? '' : ' · camera không có trong scene đang phát')
-                    + (ov && ov.phase === 'bancung' ? (ov.pose ? ' · overlay THẤY NGƯỜI (' + ov.fps + ' lần/giây, ' + ov.delegate + ')' : ' · overlay chưa thấy người') : ' · overlay Bắn Cung trong OBS chưa báo về');
+                    + (ov ? (ov.pose ? ' · overlay THẤY NGƯỜI (' + ov.fps + ' lần/giây, ' + ov.delegate + ')' : ' · overlay chưa thấy người') : ' · overlay Bắn Cung trong OBS chưa báo về');
                 color = s.camFound ? '#5fd38a' : '#ffb347';
             }
             else { txt = '● Sẵn sàng với nguồn "' + s.source + '" — overlay Bắn Cung trong OBS sẽ tự nhận hình.'; color = '#5fd38a'; }
