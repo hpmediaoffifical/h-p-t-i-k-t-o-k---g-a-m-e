@@ -74,3 +74,46 @@ test('setFace: faceAttract bật → trong 20s có ≥30% muỗi trong faceRadiu
     const near = eng.snapshot().mosquitoes.filter(o => Math.hypot(o.x - 540, o.y - 500) <= 260).length;
     assert.ok(near >= 30, `near=${near}`);
 });
+
+// ---------- Task 2: đập, chết, combo, muỗi thông minh ----------
+
+function one(cfgExtra = {}) {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 0, ...cfgExtra });
+    e.enqueue(1); e.step(16); return e;
+}
+
+test('hit trúng trong r + nửa cỡ muỗi: chết, score/killed +1, event kill; hụt → event miss', () => {
+    const e = one(); const m = e.snapshot().mosquitoes[0];
+    assert.equal(e.hit(m.x + 9999, m.y, 100), 0); assert.equal(e.snapshot().events[0].type, 'miss');
+    assert.equal(e.hit(m.x + 150 + 70, m.y, 150), 1);
+    const s = e.snapshot(); assert.equal(s.score, 1); assert.equal(s.killed, 1); assert.equal(s.flying, 0);
+    assert.equal(s.mosquitoes[0].state, 'dead'); assert.equal(s.events[0].type, 'kill'); assert.equal(s.events[0].n, 1);
+});
+
+test('muỗi chết rơi với g=1600, xoá khi y > H+100 hoặc sau 2.5s', () => {
+    const e = one(); const m = e.snapshot().mosquitoes[0]; e.hit(m.x, m.y, 10);
+    e.step(16); const vy1 = e.snapshot().mosquitoes[0].vy; e.step(500); const vy2 = e.snapshot().mosquitoes[0].vy;
+    assert.ok(vy2 > vy1); for (let i = 0; i < 200; i++) e.step(16);
+    assert.equal(e.snapshot().mosquitoes.length, 0);
+});
+
+test('combo: 2 cú trúng cách < 1.5s → combo 2; cách 2s → về 1', () => {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 0 });
+    e.enqueue(3); e.step(16);
+    const fly = () => e.snapshot().mosquitoes.find(o => o.state === 'fly');   // đọc toạ độ MỚI trước mỗi cú
+    let m = fly(); e.hit(m.x, m.y, 1); e.step(500); m = fly(); e.hit(m.x, m.y, 1); assert.equal(e.snapshot().combo, 2);
+    e.step(2000); m = fly(); e.hit(m.x, m.y, 1); assert.equal(e.snapshot().combo, 1);
+});
+
+test('muỗi thông minh né smartLives−1 lần rồi chết; lúc dodge bất tử, vụt xa ≥ 300px', () => {
+    const e = one({ smartPercent: 100, smartLives: 3 });
+    let m = e.snapshot().mosquitoes[0]; assert.equal(m.livesLeft, 3);
+    assert.equal(e.hit(m.x, m.y, 1), 0);
+    let s = e.snapshot(); assert.equal(s.events[0].type, 'dodge'); assert.equal(s.mosquitoes[0].state, 'dodge'); assert.equal(s.mosquitoes[0].livesLeft, 2);
+    assert.equal(e.hit(s.mosquitoes[0].x, s.mosquitoes[0].y, 2000), 0);   // bất tử lúc né
+    for (let i = 0; i < 25; i++) e.step(16);
+    m = e.snapshot().mosquitoes[0]; assert.equal(m.state, 'fly'); assert.ok(Math.hypot(m.x - s.mosquitoes[0].x, m.y - s.mosquitoes[0].y) >= 300);
+    assert.equal(e.hit(m.x, m.y, 1), 0); for (let i = 0; i < 25; i++) e.step(16);
+    m = e.snapshot().mosquitoes[0]; assert.equal(m.livesLeft, 1);
+    assert.equal(e.hit(m.x, m.y, 1), 1);
+});

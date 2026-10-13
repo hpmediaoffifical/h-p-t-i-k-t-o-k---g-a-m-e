@@ -69,6 +69,44 @@
         let score = 0, killed = 0, combo = 0;
         let face = { x: 0, y: 0, at: -Infinity };
         let events = [];
+        let lastKillAt = -Infinity;
+
+        function halfSize(m) { return 0.5 * BASE_SIZE * m.scale; }
+
+        // Giết một con: lật úp, nảy nhẹ lên rồi rơi. combo chỉ tính cho cú đập tay.
+        function kill(m, withCombo) {
+            m.state = 'dead'; m.deadAt = clock; m.vy = -250; m.vx *= 0.3;
+            score += 1; killed += 1;
+            if (withCombo) { combo = clock - lastKillAt < 1500 ? combo + 1 : 1; lastKillAt = clock; }
+        }
+
+        // Muỗi thông minh né: vụt ngược hướng điểm đập 350 ms, đích mới cách điểm đập ≥ 400 px.
+        function dodge(m, px, py) {
+            m.livesLeft -= 1; m.state = 'dodge'; m.dodgeUntil = clock + 350;
+            let dx = m.x - px, dy = m.y - py; const d = Math.hypot(dx, dy);
+            if (d < 1) { const a = rng() * Math.PI * 2; dx = Math.cos(a); dy = Math.sin(a); } else { dx /= d; dy /= d; }
+            m.vx = dx * 1400; m.vy = dy * 1400;
+            if (Math.abs(m.vx) > 1) m.dir = m.vx < 0 ? -1 : 1;
+            let t = null;
+            for (let i = 0; i < 12; i++) { t = { x: rng() * width, y: rng() * height }; if (Math.hypot(t.x - px, t.y - py) >= 400) break; }
+            m.target = t; m.turnAt = clock + turnDelay(m);
+            events.push({ type: 'dodge', id: m.id, x: m.x, y: m.y, livesLeft: m.livesLeft });
+        }
+
+        // Cú đập tay tại (x,y) bán kính r → số muỗi chết.
+        function hit(x, y, r) {
+            const px = num(x, 0), py = num(y, 0), pr = Math.max(0, num(r, 0));
+            let n = 0, dodged = 0;
+            for (const m of mosquitoes) {
+                if (m.state !== 'fly') continue;
+                if (Math.hypot(m.x - px, m.y - py) > pr + halfSize(m)) continue;
+                if (m.smart && m.livesLeft > 1) { dodge(m, px, py); dodged++; }
+                else { kill(m, true); n++; }
+            }
+            if (n) events.push({ type: 'kill', n, x: px, y: py, combo });
+            else if (!dodged) events.push({ type: 'miss', x: px, y: py });
+            return n;
+        }
 
         function flyingCount() { let n = 0; for (const m of mosquitoes) if (m.state !== 'dead') n++; return n; }
 
@@ -133,14 +171,22 @@
             // bay
             const crowdFrom = Math.max(1, num(cfg.crowdFrom, 120));
             const crowd = flying > crowdFrom ? Math.max(0.4, crowdFrom / flying) : 1;
+            if (combo && clock - lastKillAt > 1500) combo = 0;
             for (const m of mosquitoes) {
                 if (m.state === 'fly') fly(m, dt, crowd);
+                else if (m.state === 'dodge') {
+                    m.x += m.vx * dt; m.y += m.vy * dt; m.phase += dt * 120;
+                    if (clock >= m.dodgeUntil) m.state = 'fly';
+                } else {
+                    m.vy += GRAVITY * dt; m.x += m.vx * dt; m.y += m.vy * dt;
+                }
             }
+            mosquitoes = mosquitoes.filter(m => m.state !== 'dead' || (m.y <= height + 100 && clock - m.deadAt <= 2500));
         }
 
         function setFace(x, y) { face.x = num(x, face.x); face.y = num(y, face.y); face.at = clock; }
         function setConfig(c) { cfg = Object.assign(defaultConfig(), c || {}); }
-        function reset() { mosquitoes = []; queue = 0; spawnAcc = 0; idleAcc = 0; score = 0; killed = 0; combo = 0; events = []; }
+        function reset() { mosquitoes = []; queue = 0; spawnAcc = 0; idleAcc = 0; score = 0; killed = 0; combo = 0; lastKillAt = -Infinity; events = []; }
 
         function snapshot() {
             const ev = events; events = [];
@@ -153,7 +199,7 @@
             };
         }
 
-        return { enqueue, step, setFace, setConfig, reset, snapshot };
+        return { enqueue, step, hit, setFace, setConfig, reset, snapshot };
     }
 
     return { ACTION_TYPES, ACTION_PRESET, defaultConfig, createEngine, BASE_SIZE, GRAVITY, MAX_QUEUE };
