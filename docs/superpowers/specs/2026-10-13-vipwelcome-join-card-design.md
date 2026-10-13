@@ -64,8 +64,10 @@ UserInfo   = { userId, uniqueId, nickname, avatar, level, fansLevel, fansClubNam
 Key người dùng = `userId` nếu có, ngược lại `u:<uniqueId thường>` (server quy đổi uniqueId→userId qua cache sẵn có).
 
 ```
-onJoinSignal(key, now, {antiDupMs, cooldownMs}) →
-   'dup'      nếu now − lastSignalAt < antiDupMs     (member + barrage cho cùng 1 lần vào)
+onJoinSignal(key, now, {antiDupMs, cooldownMs, source}) →
+   'dup'      nếu now − lastSignalAt < antiDupMs VÀ nguồn này chưa xuất hiện trong lần vào đó
+              (member + banner cấp/fan/superfan của CÙNG 1 lần vào); cùng nguồn lặp lại = vào lại thật
+              (server: tín hiệu 'dup' giàu hơn được nâng thẻ nếu thẻ trước chưa hiện, không vượt cooldown)
    'cooldown' nếu cooldownMs > 0 và now − lastWelcomedAt < cooldownMs
    'welcome'  ngược lại
    (luôn ghi lastSignalAt = now trừ khi 'dup'; joinCount++)
