@@ -101,6 +101,8 @@
      JS đặt transform lên wrapper #lqAnchor (gốc giữa mép dưới); nhấp nhô vẫn ở .quest-group nên hai
      transform không đè nhau. Đang bám đầu thì tắt nhấp nhô — đầu người đã tự chuyển động. */
   body.lq-cam #lqAnchor{ position: fixed; left: 0; top: 0; transform-origin: 50% 100%; will-change: transform; }
+  /* Chưa đặt chỗ lần đầu (đang nạp module) thì giấu — khỏi nháy thanh cỡ gốc ở góc trái trên OBS. */
+  body.lq-cam:not(.lq-placed) #lqAnchor{ visibility: hidden; }
   body.lq-tracking .quest-group{ animation: none !important; }
 
   .level-badge{
@@ -1515,6 +1517,7 @@ async function bootCamFollow(){
     place = BF.followStep(place, target, Math.min(100, now - lastT));
     lastT = now;
     anchorEl.style.transform = `translate(${(place.x - box.w / 2).toFixed(1)}px, ${(place.yBottom - box.h).toFixed(1)}px) scale(${place.s.toFixed(4)})`;
+    document.body.classList.add('lq-placed');
   }
   try {
     BF = await import('/lib/body-frames.mjs');
@@ -1525,7 +1528,10 @@ async function bootCamFollow(){
       onStatus: (t, lv) => { if (lv === 'error') console.warn('[level-quest cam]', t); } });
     window.__lqHead = head;           // để soi/thử trong DevTools (pushFrame ảnh mẫu…)
     await head.setEnabled(true);
-  } catch (e) { console.warn('[level-quest cam] không bật được bám đầu:', (e && e.message) || e); }
+  } catch (e) {
+    console.warn('[level-quest cam] không bật được bám đầu:', (e && e.message) || e);
+    if (!BF) document.body.classList.remove('lq-cam');   // không có hàm đặt chỗ → bố cục link riêng, vẫn hiện thanh
+  }
 }
 
 /* ============================================================
