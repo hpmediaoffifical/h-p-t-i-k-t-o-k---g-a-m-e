@@ -73,7 +73,7 @@
             batch: { enabled: true, belowTierLevel: 25 },
             showVisits: true,
             tts: { enabled: true, volume: 90 },
-            hotkeys: { enabled: false, skip: 'S', clear: 'X' },
+            hotkeys: { enabled: false, skip: 'S', clear: 'C' },
             board: { title: 'KHÁCH QUEN CỦA PHÒNG', scope: 'month', skin: 'violet', limit: 10 }
         };
     }

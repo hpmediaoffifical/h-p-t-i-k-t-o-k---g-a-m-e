@@ -105,7 +105,7 @@ test('Giai đoạn 3: TTS mặc định bật từ Đại gia, matchJoin trả t
     assert.deepEqual(jc.batch, { enabled: true, belowTierLevel: 25 });
     assert.equal(jc.showVisits, true);
     assert.deepEqual(jc.tts, { enabled: true, volume: 90 });
-    assert.deepEqual(jc.hotkeys, { enabled: false, skip: 'S', clear: 'X' });
+    assert.deepEqual(jc.hotkeys, { enabled: false, skip: 'S', clear: 'C' });
     assert.equal(jc.board.limit, 10);
     const cfg = cfgWith({ userRules: [{ id: 'r1', uniqueId: 'abc', trigger: 'join', enabled: true, tts: { enabled: true, template: 'Chào {tên}' } }] });
     assert.deepEqual(matchJoin(cfg, user({ level: 30 })).tts, { enabled: true, template: 'Chào {tên}' });

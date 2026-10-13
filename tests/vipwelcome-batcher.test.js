@@ -48,3 +48,17 @@ test('add trả flushAt; cùng key trong nhóm không nhân đôi; clear', () =>
     b.add({ key: 'a' }, T0); b.add({ key: 'a' }, T0 + 1);
     assert.equal(b.due(T0 + 2500).total, 1);
 });
+
+test('has / remove: người trong nhóm đang mở được rút ra (nâng lên thẻ riêng)', () => {
+    const b = createBatcher({ groupMs: 2500 });
+    b.add({ key: 'a', nickname: 'A' }, T0);
+    b.add({ key: 'b', nickname: 'B' }, T0 + 10);
+    assert.equal(b.has('a'), true);
+    assert.equal(b.remove('a'), true);
+    assert.equal(b.has('a'), false);
+    assert.equal(b.remove('zz'), false);
+    assert.deepEqual(b.due(T0 + 2500).keys, ['b']);
+    b.add({ key: 'c' }, T0 + 3000);
+    b.remove('c');
+    assert.equal(b.due(T0 + 6000), null);   // nhóm rỗng → không phát thẻ gộp
+});

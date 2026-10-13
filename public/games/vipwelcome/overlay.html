@@ -301,18 +301,34 @@
             }
             const el = isVideo ? player : audioOnly;
             if (isVideo) clearAudio(); else clearPlayer();
-            el.onended = finish;
-            el.onerror = finish;
-            el.onloadedmetadata = () => {
+            // Đọc tên gắn kèm lượt này (p.ttsUrl): phát ngay khi clip xong / lỗi / quá giờ, rồi mới báo xong lượt
+            let ttsStarted = false;
+            const afterMedia = () => {
                 if (acked) return;
+                if (!p.ttsUrl || ttsStarted) { finish(); return; }
+                ttsStarted = true;
+                clearPlayer();
+                el.onended = el.onerror = el.onloadedmetadata = null;
+                audioOnly.onloadedmetadata = null;
+                audioOnly.onended = finish;
+                audioOnly.onerror = finish;
+                armWatchdog(WATCHDOG_NO_META_MS, finish);
+                audioOnly.src = p.ttsUrl;
+                audioOnly.volume = Math.max(0, Math.min(1, (p.ttsVolume ?? 90) / 100));
+                audioOnly.play().catch(() => { if (!acked && audioOnly.getAttribute('src') === p.ttsUrl) finish(); });
+            };
+            el.onended = afterMedia;
+            el.onerror = afterMedia;
+            el.onloadedmetadata = () => {
+                if (acked || ttsStarted) return;
                 const d = Number(el.duration);
                 if (Number.isFinite(d) && d > 0) {
-                    armWatchdog(d * 1000 + WATCHDOG_PAD_MS, finish);
-                    // Clip dài hơn 20s → server giãn hạn chờ theo đúng thời lượng (không chen lượt kế vào giữa)
-                    try { socket.emit('vipwelcome:playing', { seq: p.seq, durationMs: Math.round(d * 1000) }); } catch (e) {}
+                    armWatchdog(d * 1000 + WATCHDOG_PAD_MS, afterMedia);
+                    // Clip dài hơn 20s → server giãn hạn chờ theo đúng thời lượng (+ thời gian đọc tên nếu có)
+                    try { socket.emit('vipwelcome:playing', { seq: p.seq, durationMs: Math.round(d * 1000) + (p.ttsUrl ? 8000 : 0) }); } catch (e) {}
                 }
             };
-            armWatchdog(WATCHDOG_NO_META_MS, finish);
+            armWatchdog(WATCHDOG_NO_META_MS, afterMedia);
             el.src = p.mediaUrl;
             el.currentTime = 0;
             el.volume = vol;

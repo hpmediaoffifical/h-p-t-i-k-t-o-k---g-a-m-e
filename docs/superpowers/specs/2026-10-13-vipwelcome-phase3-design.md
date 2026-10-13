@@ -7,7 +7,7 @@
 2. Khách quen: đếm theo BUỔI LIVE (roomId; thiếu roomId → ngày `YYYY-MM-DD`). Thẻ: "🎉 Lần đầu ghé phòng" / "Ghé lần thứ N" / "🔥 K buổi liền" (K ≥ 3).
 3. Gộp thẻ: chỉ khi đông, chỉ bậc thấp (priority < 100 + belowTierLevel, mặc định 25 ⇒ dưới Đại gia); người chỉ định không bao giờ gộp.
 4. BXH: tab panel + overlay OBS riêng `/overlay/vipwelcome-board`; xếp theo số buổi ghé; phạm vi tháng này / từ trước tới nay; cột chuỗi buổi liền.
-5. Phím tắt global (Electron) tắt mặc định: Ctrl+Shift+S bỏ qua mục đang phát, Ctrl+Shift+X xoá thẻ + hàng chờ.
+5. Phím tắt global (Electron) tắt mặc định: Ctrl+Shift+S bỏ qua mục đang phát, Ctrl+Shift+C xoá thẻ + hàng chờ.
 
 ## Module mới (`lib/vipwelcome/`)
 

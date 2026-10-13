@@ -8737,6 +8737,10 @@ function vipPrepareUser(user) {
     if (vipIsFakeUserId(user.userId)) return String(user.userId);
     if (!user.uniqueId && user.userId) user.uniqueId = resolveUniqueIdFromUserId(user.userId) || '';
     rememberUserMapping(user.userId, user.uniqueId);
+    // Từng ghi sổ ghé phòng theo @id (lúc chưa biết userId) → gộp về key userId, tránh 1 người 2 dòng trên BXH
+    if (user.userId && user.uniqueId) {
+        try { vipVisits.rekey(vipHostKey(), 'u:' + String(user.uniqueId).replace(/^@/, '').toLowerCase(), String(user.userId)); } catch (e) {}
+    }
     return vipUserKey(user);
 }
 // Luật @id khớp lần đầu theo @id → nhớ userId để vẫn khớp khi người đó đổi @id.
@@ -8767,10 +8771,24 @@ function vipKeepLearnedUserIds(prevCfg, nextCfg) {
 function vipAvatarUrl(url) {
     return url ? '/api/games/vipwelcome/avatar?u=' + encodeURIComponent(url) : '';
 }
+// Ai KHÔNG được ghi vào sổ ghé phòng: người xem ẩn danh (giữ ẩn danh), chính chủ phòng (không phải khách).
+function vipNoVisit(user, key) {
+    return !!user?.isEnigma || (!!currentHostUserId && String(key) === String(currentHostUserId));
+}
+function vipTtsVolume(jc) {
+    const v = Number(jc?.tts?.volume);
+    return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 90;   // 0 = tắt tiếng thật, không về 90
+}
 function vipBuildCard(user, key, match, { late = false } = {}) {
     const jc = vipJoinCfg();
     const enigma = !!user.isEnigma;
+    // Chốt kênh + buổi LÚC TẠO thẻ: overlay xác nhận muộn (sau khi ngắt LIVE) vẫn ghi đúng buổi, không tạo buổi "theo ngày" giả
+    const host = vipHostKey(), room = vipRoomKey();
+    const noVisit = vipNoVisit(user, key);
+    const peek = noVisit ? null : vipVisits.peek(host, key, room);
     return {
+        host, room, noVisit,
+        visitNo: peek?.visitNo || 0,   // cho câu đọc {lần} kể cả khi tắt chip "lần ghé"
         id: 'c' + Date.now().toString(36) + (++vipCardSeq),
         key,
         user: {
@@ -8787,7 +8805,7 @@ function vipBuildCard(user, key, match, { late = false } = {}) {
         frameUrl: match.frameUrl || '',
         xu: vipLedger.get(vipHostKey(), key),
         // Khách quen: số SẼ ghi khi overlay xác nhận thẻ đã hiện (1 buổi LIVE chỉ đếm 1)
-        visit: jc.showVisits === false || enigma ? null : vipVisits.peek(vipHostKey(), key, vipRoomKey()),
+        visit: jc.showVisits === false ? null : peek,
         late,
         enterText: jc.enterText || 'VÀO PHÒNG',
         ruleLabel: match.label || ''
@@ -8816,11 +8834,11 @@ function vipRoomKey() {
 function vipStartRoom() {
     try { vipVisits.startRoom(vipHostKey(), vipRoomKey()); } catch (e) { console.warn('[vipwelcome] sổ ghé phòng:', e.message); }
 }
-function vipRecordVisit(key, meta) {
-    if (!key || vipIsFakeUserId(key)) return;   // người giả lập / thử không vào sổ thật
-    const host = vipHostKey(), room = vipRoomKey();
+// host/room lấy từ thẻ (chốt lúc tạo) — KHÔNG đọc lại biến toàn cục lúc overlay xác nhận.
+function vipRecordVisit(key, meta, host, room) {
+    if (!key || vipIsFakeUserId(key) || meta?.noVisit || !host || !room) return;   // giả lập / ẩn danh / chủ phòng không vào sổ
     vipVisits.startRoom(host, room);
-    vipVisits.record(host, key, room, meta, Date.now());
+    vipVisits.record(host, key, room, { uniqueId: meta.uniqueId, nickname: meta.nickname, avatar: meta.avatar }, Date.now());
 }
 function vipBoardPayload() {
     const b = vipJoinCfg().board || {};
@@ -8847,7 +8865,7 @@ function vipFlushBatch() {
         vipSendCard({
             id, kind: 'group', key: 'group:' + id, keys: g.keys, total: g.total,
             members: g.members.map(m => ({ nickname: m.nickname, avatar: m.avatar })),
-            metas: g.items.map(m => ({ key: m.key, uniqueId: m.uniqueId, nickname: m.nickname, avatar: m.avatar })),
+            metas: g.items.map(m => ({ key: m.key, uniqueId: m.uniqueId, nickname: m.nickname, avatar: m.avatar, host: m.host, room: m.room, noVisit: m.noVisit })),
             skin: top.skin || 'violet', enterText: vipJoinCfg().enterText || 'VÀO PHÒNG', ruleLabel: `Gộp ${g.total} người`
         });
     }
@@ -8873,10 +8891,10 @@ function vipOnCardShown(id) {
     const now = Date.now();
     try {
         if (card.kind === 'group') {
-            for (const m of (card.metas || [])) { vipPresence.markWelcomed(m.key, now); vipRecordVisit(m.key, m); }
+            for (const m of (card.metas || [])) { vipPresence.markWelcomed(m.key, now); vipRecordVisit(m.key, m, m.host, m.room); }
         } else {
             vipPresence.markWelcomed(card.key, now);
-            vipRecordVisit(card.key, card.user);
+            vipRecordVisit(card.key, { ...card.user, noVisit: card.noVisit }, card.host, card.room);
         }
         vipBoardChanged();
     } catch (e) { console.warn('[vipwelcome] ghi lần ghé:', e.message); }
@@ -8907,8 +8925,10 @@ function vipHandleJoinSignal(signal) {
     }
     if (decision === 'dup') {
         // Cùng 1 lần vào, tín hiệu thứ 2 (thường là banner barrage) mang LV/FAN đầy đủ hơn member:
-        // tín hiệu đầu không khớp gì, hoặc khớp bậc thấp hơn mà thẻ chưa kịp hiện → nâng thẻ lên.
-        const upgrade = !prev || (match.priority > prev.priority && vipPendingCards.has(prev.cardId));
+        // tín hiệu đầu không khớp gì, hoặc khớp bậc thấp hơn mà thẻ chưa kịp hiện / còn nằm trong nhóm gộp
+        // chưa phát → nâng thành thẻ riêng đúng bậc (rút khỏi nhóm gộp).
+        const inBatch = !!prev && prev.cardId === '' && vipBatcher.has(key);
+        const upgrade = !prev || (match.priority > prev.priority && (vipPendingCards.has(prev.cardId) || inBatch));
         if (!upgrade) { console.log(`[vipwelcome] JOIN trùng tín hiệu (${signal.source}): ${who}`); return; }
         console.log(`[vipwelcome] JOIN nâng thẻ theo ${signal.source}: ${who} → ${match.label}`);
     } else {
@@ -8927,13 +8947,15 @@ function vipHandleJoinSignal(signal) {
             vipBatcher.add({
                 key, priority: match.priority, skin: match.skin, uniqueId: enigma ? '' : user.uniqueId,
                 nickname: enigma ? 'Người xem ẩn danh' : (user.nickname || user.uniqueId || 'Người xem'),
-                avatar: enigma ? '' : vipAvatarUrl(user.avatar)
+                avatar: enigma ? '' : vipAvatarUrl(user.avatar),
+                host: vipHostKey(), room: vipRoomKey(), noVisit: vipNoVisit(user, key)
             }, now);
             vipJoinLastMatch.set(key, { priority: match.priority, cardId: '' });
             vipScheduleBatchFlush();
             return;
         }
     }
+    if (vipBatcher.has(key)) vipBatcher.remove(key);   // đang nằm trong nhóm gộp chưa phát → chỉ hiện thẻ riêng
     const card = vipBuildCard(user, key, match);
     vipJoinLastMatch.set(key, { priority: match.priority, cardId: card.id });
     vipSendCard(card);
@@ -8941,24 +8963,27 @@ function vipHandleJoinSignal(signal) {
         uniqueId: user.uniqueId, nickname: user.nickname, level: user.level, profilePicture: vipAvatarUrl(user.avatar),
         verified: !!user.verified, fansLevel: user.fansLevel, topUserNo: user.topUserNo, isSubscriber: user.isSubscriber, isModerator: user.isModerator
     };
+    // Đọc tên: gắn LUÔN vào lượt media của người đó (overlay đọc ngay khi clip kết thúc, cùng 1 lượt) → không ai chen
+    // vào giữa, không hết hạn riêng. Không có media thì đọc tên là 1 lượt riêng cùng mức ưu tiên.
+    let ttsText = '';
+    if (jc.tts?.enabled !== false && match.tts?.enabled) {
+        ttsText = vipRenderTts(match.tts.template, {
+            nickname: user.nickname, uniqueId: user.uniqueId, title: match.title, level: user.level,
+            fansLevel: user.fansLevel, visitNo: card.visitNo, isEnigma: user.isEnigma
+        });
+    }
     if (match.media) {
-        enqueueVipWelcomePayload(buildVipPayload({
+        const payload = buildVipPayload({
             source: match.kind === 'user' ? 'userRule' : 'joinTier', ruleId: match.ruleId, ruleLabel: match.label,
             eventType: 'join', media: match.media, message: '', user: userInfo
-        }), match.priority, key);
-    }
-    // Đọc tên: ngay SAU video/âm thanh của chính người đó (ưu tiên kém 0.5), chung hàng media → không đè tiếng
-    if (jc.tts?.enabled !== false && match.tts?.enabled) {
-        const text = vipRenderTts(match.tts.template, {
-            nickname: user.nickname, uniqueId: user.uniqueId, title: match.title, level: user.level,
-            fansLevel: user.fansLevel, visitNo: card.visit?.visitNo, isEnigma: user.isEnigma
         });
-        if (text) {
-            enqueueVipWelcomePayload(buildVipPayload({
-                source: 'tts', ruleId: match.ruleId + ':tts', ruleLabel: match.label + ' (đọc tên)', eventType: 'join',
-                media: { mediaUrl: vipTtsUrl(text), mediaType: 'tts', volume: Number(jc.tts?.volume) || 90 }, message: text, user: userInfo
-            }), match.priority - 0.5, key + '|tts');
-        }
+        if (ttsText) { payload.ttsUrl = vipTtsUrl(ttsText); payload.ttsVolume = vipTtsVolume(jc); payload.ttsText = ttsText; }
+        enqueueVipWelcomePayload(payload, match.priority, key);
+    } else if (ttsText) {
+        enqueueVipWelcomePayload(buildVipPayload({
+            source: 'tts', ruleId: match.ruleId + ':tts', ruleLabel: match.label + ' (đọc tên)', eventType: 'join',
+            media: { mediaUrl: vipTtsUrl(ttsText), mediaType: 'tts', volume: vipTtsVolume(jc) }, message: ttsText, user: userInfo
+        }), match.priority, key + '|tts');
     }
 }
 function vipTtsUrl(text) {

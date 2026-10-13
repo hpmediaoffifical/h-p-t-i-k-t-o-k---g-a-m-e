@@ -933,7 +933,8 @@
             const tpl = container.querySelector('[data-tts-template]')?.value || defTemplate;
             const text = tpl.replace(/\{(tên|nickname|bậc|lv|fan|lần)\}/g, (m, k) => TTS_SAMPLE[k] || '').replace(/\s+/g, ' ').trim().slice(0, 80);
             if (!text) return flashWarn('Câu đọc trống');
-            const vol = Math.max(0, Math.min(1, (Number(cfg.joinCard?.tts?.volume) || 90) / 100));
+            const rawVol = Number(cfg.joinCard?.tts?.volume);
+            const vol = Math.max(0, Math.min(1, (Number.isFinite(rawVol) ? rawVol : 90) / 100));   // 0 = tắt tiếng thật
             const a = new Audio('/api/live-translate/tts?lang=vi&text=' + encodeURIComponent(text));
             a.volume = vol;
             a.play().catch(() => flashWarn('Không phát được giọng đọc (mạng?)'));
@@ -1502,12 +1503,12 @@
                 <div class="vw-setting-title">⌨ Phím tắt (dùng được cả khi đang ở OBS / TikTok Studio)</div>
                 <label class="vw-inline"><input type="checkbox" id="vw-jc-hk" ${jc.hotkeys?.enabled ? 'checked' : ''} /> Bật phím tắt</label>
                 <label class="vw-inline">Bỏ qua mục đang phát: Ctrl+Shift+ <input type="text" maxlength="3" id="vw-jc-hk-skip" value="${escapeHtml(jc.hotkeys?.skip || 'S')}" style="width:48px" /></label>
-                <label class="vw-inline">Xoá hết thẻ + hàng chờ: Ctrl+Shift+ <input type="text" maxlength="3" id="vw-jc-hk-clear" value="${escapeHtml(jc.hotkeys?.clear || 'X')}" style="width:48px" /></label>
+                <label class="vw-inline">Xoá hết thẻ + hàng chờ: Ctrl+Shift+ <input type="text" maxlength="3" id="vw-jc-hk-clear" value="${escapeHtml(jc.hotkeys?.clear || 'C')}" style="width:48px" /></label>
                 <div class="vw-hint">1 chữ cái, số hoặc F1–F12. Nếu phím đã bị phần mềm khác giữ thì phím đó không hoạt động — đổi phím khác.</div>
             </div>
         `;
         const setJc = (fn) => { cfg.joinCard = cfg.joinCard || window.HpGame.vipwelcome.defaultJoinCard(); cfg.joinCard.card = cfg.joinCard.card || {}; fn(cfg.joinCard, cfg.joinCard.card); schedulePersist(); };
-        const clampInt = (v, lo, hi, d) => Math.max(lo, Math.min(hi, parseInt(v, 10) || d));
+        const clampInt = (v, lo, hi, d) => { const n = parseInt(v, 10); return Math.max(lo, Math.min(hi, Number.isFinite(n) ? n : d)); };   // 0 là số hợp lệ
         $('#vw-jc-enabled')?.addEventListener('change', (e) => setJc(j => { j.enabled = !!e.target.checked; }));
         for (const [id, key, suffix] of [['vw-jc-x', 'xPercent', ''], ['vw-jc-y', 'yPercent', ''], ['vw-jc-scale', 'scale', '%']]) {
             $('#' + id)?.addEventListener('input', (e) => {
@@ -1530,12 +1531,18 @@
         $('#vw-jc-tts')?.addEventListener('change', (e) => setJc(j => { sub(j, 'tts', {}).enabled = !!e.target.checked; }));
         $('#vw-jc-tts-vol')?.addEventListener('input', (e) => {
             $('#vw-jc-tts-vol-v').textContent = e.target.value + '%';
-            setJc(j => { sub(j, 'tts', {}).volume = clampInt(e.target.value, 0, 100, 90); });
+            const v = parseInt(e.target.value, 10);
+            setJc(j => { sub(j, 'tts', {}).volume = Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 90; });   // 0 hợp lệ (tắt tiếng)
         });
         const hkKey = (v, d) => { const k = String(v || '').trim().toUpperCase(); return /^([A-Z0-9]|F([1-9]|1[0-2]))$/.test(k) ? k : d; };
         $('#vw-jc-hk')?.addEventListener('change', (e) => setJc(j => { sub(j, 'hotkeys', {}).enabled = !!e.target.checked; }));
-        $('#vw-jc-hk-skip')?.addEventListener('change', (e) => setJc(j => { e.target.value = sub(j, 'hotkeys', {}).skip = hkKey(e.target.value, 'S'); }));
-        $('#vw-jc-hk-clear')?.addEventListener('change', (e) => setJc(j => { e.target.value = sub(j, 'hotkeys', {}).clear = hkKey(e.target.value, 'X'); }));
+        // Ctrl+Shift+X là phím bắn mặc định của Bắn Cung — cùng phím thì chỉ app đăng ký trước nhận được
+        const warnHk = (h) => {
+            if (h.skip === h.clear) flashWarn('Hai phím tắt đang trùng nhau — đổi một phím khác');
+            else if ([h.skip, h.clear].includes('X')) flashWarn('Ctrl+Shift+X đang là phím bắn của Bắn Cung — nếu bật cả hai, nên đổi phím');
+        };
+        $('#vw-jc-hk-skip')?.addEventListener('change', (e) => setJc(j => { const h = sub(j, 'hotkeys', {}); e.target.value = h.skip = hkKey(e.target.value, 'S'); warnHk(h); }));
+        $('#vw-jc-hk-clear')?.addEventListener('change', (e) => setJc(j => { const h = sub(j, 'hotkeys', {}); e.target.value = h.clear = hkKey(e.target.value, 'C'); warnHk(h); }));
         $('#vw-jc-maxwait')?.addEventListener('input', (e) => setJc(j => { j.mediaMaxWaitSec = clampInt(e.target.value, 5, 300, 30); }));
         $('#vw-jc-diag')?.addEventListener('change', (e) => setJc(j => { j.diagnostics = !!e.target.checked; }));
         // Wire

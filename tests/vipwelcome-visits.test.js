@@ -81,3 +81,27 @@ test('rekey gộp u:<id> về userId; reset xoá kênh', () => {
     v.reset('h');
     assert.equal(v.top('h', { scope: 'all' }, OCT).length, 0);
 });
+
+test('top: chuỗi chỉ còn hiệu lực nếu ghé buổi gần nhất hoặc buổi ngay trước', () => {
+    const v = createVisits({ file: tmpFile(), saveDelayMs: 0 });
+    ['r1', 'r2', 'r3'].forEach(r => { v.startRoom('h', r); v.record('h', 'a', r, { nickname: 'A' }, OCT); });
+    v.startRoom('h', 'r4');
+    assert.equal(v.top('h', { scope: 'all' }, OCT)[0].streak, 3);   // r4 đang diễn ra, chưa vào vẫn giữ chuỗi
+    v.startRoom('h', 'r5');
+    assert.equal(v.top('h', { scope: 'all' }, OCT)[0].streak, 0);   // đã lỡ r4 → hết chuỗi
+    assert.equal(v.top('h', { scope: 'all' }, OCT)[0].bestStreak, 3);
+});
+
+test('rekey khi cả 2 key đã có: gộp số buổi, không mất dữ liệu', () => {
+    const v = createVisits({ file: tmpFile(), saveDelayMs: 0 });
+    v.startRoom('h', 'r1'); v.record('h', 'u:abc', 'r1', { nickname: 'A' }, OCT);
+    v.startRoom('h', 'r2'); v.record('h', '77', 'r2', { nickname: 'A' }, OCT);
+    v.rekey('h', 'u:abc', '77');
+    const t = v.top('h', { scope: 'all' }, OCT);
+    assert.equal(t.length, 1);
+    assert.equal(t[0].key, '77');
+    assert.equal(t[0].sessions, 2);
+    v.startRoom('h', 'r3'); v.record('h', 'u:x', 'r3', {}, OCT); v.record('h', 'y', 'r3', {}, OCT);
+    v.rekey('h', 'u:x', 'y');   // cùng buổi r3 → không đếm 2 lần
+    assert.equal(v.top('h', { scope: 'all', q: '' }, OCT).find(x => x.key === 'y').sessions, 1);
+});
