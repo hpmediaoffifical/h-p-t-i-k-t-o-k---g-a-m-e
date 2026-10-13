@@ -436,8 +436,10 @@
     const STABLE_GAMES = new Set([
         'thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung',
         'pktiktok', 'vipwelcome', 'trongcay', 'nhatla',
-        'level-quest', 'timer', 'liveTranslate', 'chemtraicay', 'giftboard'
+        'level-quest', 'timer', 'liveTranslate', 'camgames', 'giftboard'
     ]);
+    // Game camera (Touch & Play, Chém Trái Cây…) không hiện riêng trong danh sách — vào qua 🎥 Game Camera.
+    const CAM_CHILD_GAMES = new Set((window.HpCamGames || []).map(g => g.id));
 
     // Công cụ cắt ngang mọi game (Bảng Quà Tổng) có nút RIÊNG ở đáy sidebar — KHÔNG hiện trong
     // Thư viện Game lẫn lưới trang chủ, vì hai chỗ đó là danh sách game/tính năng.
@@ -485,7 +487,7 @@
     function renderGameList() {
         dom.gameList.innerHTML = '';
         for (const g of games) {
-            if (LIBRARY_HIDDEN.has(g.id)) continue;
+            if (LIBRARY_HIDDEN.has(g.id) || CAM_CHILD_GAMES.has(g.id)) continue;
             const div = document.createElement('div');
             div.className = 'game-item';
             div.dataset.id = g.id;
@@ -561,7 +563,7 @@
     function renderHomeGrid() {
         dom.homeGrid.innerHTML = '';
         for (const g of games) {
-            if (LIBRARY_HIDDEN.has(g.id)) continue;
+            if (LIBRARY_HIDDEN.has(g.id) || CAM_CHILD_GAMES.has(g.id)) continue;
             const card = document.createElement('div');
             card.className = 'home-card';
             card.innerHTML = `<div class="ico">${g.icon}</div>
@@ -903,7 +905,7 @@
         currentGame = game;
         highlightActiveGame(gameId);
         // Body class: dùng để CSS ẩn/hiện FAB/popup theo game
-        document.body.classList.remove('game-thuytinh', 'game-caro', 'game-pktiktok', 'game-vipwelcome', 'game-votecomment', 'game-nhietdo', 'game-bancung', 'game-trongcay', 'game-nhatla', 'game-liveTranslate', 'game-chemtraicay');
+        document.body.classList.remove('game-thuytinh', 'game-caro', 'game-pktiktok', 'game-vipwelcome', 'game-votecomment', 'game-nhietdo', 'game-bancung', 'game-trongcay', 'game-nhatla', 'game-liveTranslate', 'game-chemtraicay', 'game-camgames', 'game-touchplay');
         document.body.classList.add('game-' + gameId);
         // Nhặt Lá giữ batch lá đang chạy trong RAM; chỉ reload thủ công khi cần nạp asset mới.
         if (gameId !== 'nhatla') {
@@ -929,8 +931,12 @@
         else if (gameId === 'timer') showView('view-timer');
         else if (gameId === 'giftboard') showView('view-giftboard');
         else if (gameId === 'touchplay') showView('view-touchplay');
+        else if (gameId === 'camgames') { showView('view-camgames'); window.HpCamGamesPanel?.open(socket); }
         else if (gameId === 'obs-effects') showView('view-obs-effects');
     }
+
+    // Màn Game Camera mở màn cài đặt game con; màn con có nút "← Game Camera".
+    window.hpOpenGame = openGame;
 
     function openVoteComment(game) {
         if (window.HpVoteCommentPanel && typeof window.HpVoteCommentPanel.open === 'function') {

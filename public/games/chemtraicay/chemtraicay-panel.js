@@ -264,7 +264,7 @@
         host.innerHTML = `
             <div class="ctc-card">
                 <h3>NGUỒN HÌNH & NHẬN DIỆN TAY</h3>
-                <div class="hint">Nhận diện lấy hình <b>ngay từ Scene/Source trong OBS</b> (cần OBS đã kết nối ở mục Hiệu ứng OBS), không cần mở webcam riêng và không tranh camera với OBS. Webcam chỉ là dự phòng.</div>
+                <div class="hint">Nguồn hình là <b>Source/Scene OBS</b>: overlay trong OBS <b>tự nhận diện tay</b> từ hình camera trong OBS (cần OBS đã kết nối ở mục Hiệu ứng OBS) và tự khớp vị trí/lật/cỡ camera trong scene — <b>không cần bật tracker bên dưới</b>. Chọn nguồn camera chung ở màn <b>🎥 Game Camera</b>.<br>Tracker bên dưới chỉ dùng khi chọn <b>Webcam</b> (dự phòng, chạy trong app/Chrome).</div>
                 <div class="ctc-cam-frame"><iframe id="ctc-tracker-frame" src="/tracker/chemtraicay?embed=1" allow="camera; autoplay" loading="lazy"></iframe></div>
                 <div class="ctc-actions">
                     <button class="ghost small" id="ctc-btn-chrome">🌐 Mở tracker trong Chrome</button>

@@ -198,6 +198,21 @@
                 </div>
             </section>
 
+            <!-- GAME VIEW: 🎥 GAME CAMERA — menu mẹ các game camera, 1 link OBS /overlay/camgames -->
+            <section id="view-camgames" class="view game-view camgames-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🎥 Game Camera</h2>
+                        <div class="game-sub">Các game chơi bằng camera trong OBS · một link OBS · chọn game ở đây</div>
+                    </div>
+                    <div class="overlay-bar">
+                        <button class="primary small" onclick="HpCamGamesPanel.copyLink(this)" title="Copy link overlay OBS vào clipboard — dùng cho mọi game camera">📋 Link OBS</button>
+                        <button class="ghost small" onclick="HpCamGamesPanel.reloadOverlay()" title="Buộc overlay trong OBS tải lại">🔄 Tải lại overlay</button>
+                    </div>
+                </header>
+                <div class="game-body camgames-body"><div id="cg-root"></div></div>
+            </section>
+
             <!-- GAME VIEW: TOUCH & PLAY (prototype — lab + overlay trong public/_prototype/touchplay.html) -->
             <section id="view-touchplay" class="view game-view">
                 <header class="game-header">
@@ -206,6 +221,7 @@
                         <div class="game-sub">Game webcam · chạm bóng · gắp đồ ăn đưa lên miệng · làm theo tư thế</div>
                     </div>
                     <div class="overlay-bar">
+                        <button class="ghost small" onclick="hpOpenGame('camgames')" title="Về menu Game Camera">← Game Camera</button>
                         <button class="primary small" onclick="touchplayCopyOverlay(this)" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
                         <button class="ghost small" onclick="document.getElementById('touchplay-frame').contentWindow.location.reload()" title="Reload prototype">🔄 Reload</button>
                     </div>
@@ -1657,6 +1673,7 @@
                         <h2>🍉 Chém Trái Cây</h2>
                     </div>
                     <div class="overlay-bar ctc-overlay-bar">
+                        <button class="ghost small" onclick="hpOpenGame('camgames')" title="Về menu Game Camera">← Game Camera</button>
                         <button id="ctc-btn-start" class="primary small" title="Bắt đầu ván (overlay cũng có nút giữ ngón trỏ)">▶ Bắt đầu</button>
                         <button id="ctc-btn-stop" class="ghost small" title="Dừng ván, xóa quả đang bay">⏸ Dừng</button>
                         <button id="ctc-btn-reset" class="danger small" title="Đặt lại tổng điểm về 0">↺ Đặt lại điểm</button>
@@ -2691,6 +2708,8 @@
     <script src="/games/bancung/bancung-panel.js"></script>
     <script src="/games/chemtraicay/game.js"></script>
     <script src="/games/chemtraicay/chemtraicay-panel.js"></script>
+    <script src="/games/camgames/registry.js"></script>
+    <script src="/games/camgames/camgames-panel.js"></script>
     <script src="/games/trongcay/game.js"></script>
     <script src="/games/trongcay/trongcay-panel.js"></script>
     <script src="/games/nhatla/game.js"></script>

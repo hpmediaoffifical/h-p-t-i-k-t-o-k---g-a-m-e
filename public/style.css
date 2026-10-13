@@ -9312,3 +9312,27 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
     border: 1px solid rgba(255,255,255,0.12); border-radius: 6px;
 }
 .vw-tts-template:focus { outline: none; border-color: #ffb800; }
+
+/* ===== 🎥 Game Camera (menu mẹ các game camera) ===== */
+.camgames-body { display: flex; flex-direction: column; gap: 12px; padding: 12px; min-height: 0; flex: 1; overflow: auto; }
+#cg-root { display: flex; flex-direction: column; gap: 12px; }
+.cg-card { background: #141a2b; border: 1px solid #2c3243; border-radius: 12px; padding: 12px; }
+.cg-card h3 { font-size: 12px; letter-spacing: .12em; color: #8b93a8; margin: 0 0 8px; }
+.cg-card .hint { font-size: 12px; color: #8b93a8; line-height: 1.5; margin-top: 8px; }
+.cg-status { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; min-height: 26px; }
+.cg-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; background: #161922; border: 1px solid #2a2e3a; color: #cdd3e0; }
+.cg-chip.ok { border-color: #2f7a4a; color: #9bf26b; }
+.cg-chip.warn { border-color: #7a5a1f; color: #ffd54a; }
+.cg-chip.dim { color: #8b93a8; }
+.cg-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.cg-row label { font-size: 13px; color: #cdd3e0; flex: 0 0 auto; }
+.cg-row select { flex: 1 1 200px; background: #0e1118; border: 1px solid #2c3243; color: #e6e8ee; border-radius: 6px; padding: 6px 8px; font-size: 13px; min-width: 0; }
+.cg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px; }
+.cg-game { display: flex; flex-direction: column; gap: 8px; background: #0f1219; border: 1.5px solid #232733; border-radius: 12px; padding: 14px; }
+.cg-game.on { border-color: #25f4ee; box-shadow: 0 0 0 1px rgba(37,244,238,.25), 0 6px 24px rgba(37,244,238,.08); background: linear-gradient(160deg, #10202a 0%, #0f1219 70%); }
+.cg-game-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 15px; color: #e6e8ee; }
+.cg-ico { font-size: 24px; line-height: 1; }
+.cg-badge { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #25f4ee; }
+.cg-desc { font-size: 13px; color: #b4bac8; line-height: 1.45; flex: 1; }
+.cg-track { font-size: 12px; color: #8b93a8; }
+.cg-actions { display: flex; gap: 8px; flex-wrap: wrap; }
