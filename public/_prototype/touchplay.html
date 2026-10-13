@@ -1071,7 +1071,8 @@ async function bootLab() {
     else if (feed.on && st.live) { txt = '● Đang nhận hình ' + st.fps + ' hình/giây' + (st.camFound ? ' · thấy camera trong scene "' + st.scene + '"' : ' · camera không có trong scene đang phát'); cls = st.camFound ? 'ok' : 'warn'; }
     else { txt = '● Sẵn sàng · overlay trong OBS sẽ tự nhận hình' + (st.overlayFound ? ' (đã thấy overlay trong scene)' : ''); cls = 'ok'; }
     el.textContent = txt; el.className = 'pill ' + cls;
-    const ov = st.overlay, oe = $('obsOverlay');
+    // Theo từng game (chơi kèm game khác trong 🎥 Game Camera thì ô chung là của game báo sau); server cũ chỉ có ô chung.
+    const ov = st.overlays ? st.overlays.touchplay : st.overlay, oe = $('obsOverlay');
     if (oe) {
       oe.textContent = ov ? `● Overlay trong OBS: nhận diện ${ov.fps} lần/giây · AI ${ov.aiMs}ms (${ov.delegate}) · đang thấy ${ov.hands} tay` : '● Chưa thấy overlay nào trong OBS đang chạy';
       oe.className = 'pill ' + (ov ? (ov.fps >= 10 ? 'ok' : 'warn') : 'warn');

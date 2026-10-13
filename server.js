@@ -8662,6 +8662,7 @@ app.post('/api/games/bancung/control', (req, res) => {
         io.emit('gameConfig', { gameId: 'bancung', config: appConfig.games.bancung });
         io.emit('overlay:reload', { gameId: 'bancung' });
         broadcastBanCungState({ immediate: true });
+        camApplyHotkeys('bancung');      // phím tắt Bắn Cung chỉ đăng ký khi phiên đang chạy → áp lại ngay
         console.log('[bancung] SESSION START');
     } else if (cmd === 'stop') {
         if (!appConfig.games.bancung) appConfig.games.bancung = makeDefaultBanCungConfig();
@@ -8680,6 +8681,7 @@ app.post('/api/games/bancung/control', (req, res) => {
         saveAppConfig();
         io.emit('gameConfig', { gameId: 'bancung', config: appConfig.games.bancung });
         broadcastBanCungState({ immediate: true });
+        camApplyHotkeys('bancung');      // dừng phiên → gỡ phím
         console.log('[bancung] SESSION STOP');
     } else if (cmd === 'preset') {
         const presetId = String(req.body?.preset || '').toLowerCase();

@@ -141,7 +141,8 @@
         else if (!fs.source) chips.push('<span class="ctc-chip warn">📷 Chưa chọn nguồn camera (🎥 Game Camera)</span>');
         else if (fs.error) chips.push(`<span class="ctc-chip warn">📷 ${escapeHtml(fs.source)} — ${escapeHtml(fs.error)}</span>`);
         else chips.push(`<span class="ctc-chip ${fs.live ? 'ok' : 'warn'}">📷 ${escapeHtml(fs.source)}${fs.live ? ` · ${fs.fps || 0} hình/s` : ' — chưa có hình'}${fs.camFound === false ? ' · không thấy trong scene đang phát' : ''}</span>`);
-        const ov = fs.overlay;
+        // Theo từng game (chơi kèm game khác trong 🎥 Game Camera thì ô chung là của game báo sau); server cũ chỉ có ô chung.
+        const ov = fs.overlays ? fs.overlays.dapmuoi : fs.overlay;
         if (ov) chips.push(`<span class="ctc-chip ${ov.hands ? 'ok' : ''}">🖐 ${ov.hands || 0} tay${ov.pose ? ' · 🧍 thấy người' : ''} · ${Math.round(ov.fps || 0)} lần/s · AI ${Math.round(ov.aiMs || 0)}ms</span>`);
         else chips.push('<span class="ctc-chip dim">🖐 Overlay chưa gửi tín hiệu nhận diện (mở link Game Camera trong OBS)</span>');
         const s = liveState || {};
