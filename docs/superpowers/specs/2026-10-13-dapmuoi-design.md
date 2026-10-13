@@ -14,7 +14,11 @@ Bản vẽ đã duyệt: `docs/superpowers/specs/assets/dapmuoi/muoi.svg` (bay, 
 ## 1. Phạm vi bản đầu (v1)
 
 Có:
-- Muỗi bay ngang, đổi hướng ngẫu nhiên, run lắc vo ve, hút nhẹ về mặt streamer.
+- Muỗi bay ngang, đổi hướng ngẫu nhiên, run lắc vo ve, hút nhẹ về mặt streamer. Dùng **toàn bộ** sân khấu
+  1080×1920: nhiều muỗi thì phủ kín màn hình, không dồn vào một dải.
+- Mỗi con có tốc độ riêng: một phần bay **nhẹ** (lững lờ), phần còn lại bay nhanh; đông quá thì cả đàn
+  chậm lại cho nhìn rõ.
+- **Muỗi thông minh** (một tỉ lệ nhỏ): bị đập thì né vụt đi, phải đập vài lần mới chết.
 - Vỗ 2 tay giết muỗi trong bán kính đập; tuỳ chọn "tát 1 tay"; dự phòng bằng cổ tay từ model body.
 - Sinh nền tự động (thưa → dày), trần số muỗi, hàng đợi.
 - Quà → muỗi: quà chỉ định N con, hoặc N xu = 1 con.
@@ -78,15 +82,28 @@ khung giả (2 tay khép lại, rớt 1 tay lúc chập, cổ tay, tay đứng y
 ## 4. Engine (`game.js`)
 
 ### Muỗi
-`{ id, x, y, vx, vy, dir (−1 trái/+1 phải), scale, phase (nhịp cánh), state: 'fly'|'dead', wander, deadAt }`.
+`{ id, x, y, vx, vy, dir (−1 trái/+1 phải), scale, speedMul, smart, livesLeft, phase (nhịp cánh),
+state: 'fly'|'dead'|'dodge', wander, deadAt, dodgeUntil }`.
 
-Bay: mỗi con có điểm đích ngẫu nhiên trong sân khấu; bay về đích với tốc độ `speed` (mặc định 180 px/s
-± 30%), tới gần thì chọn đích mới; rẽ gấp ngẫu nhiên mỗi 0.6–1.8 s. Cộng run lắc: `x += sin(t×37)·3`,
+Bay: mỗi con có điểm đích ngẫu nhiên trên **toàn** sân khấu (x 0–100%, y 0–100%, không chừa dải nào);
+bay về đích với tốc độ `speed × speedMul`, tới gần thì chọn đích mới; rẽ gấp ngẫu nhiên mỗi 0.6–1.8 s.
+`speedMul` rút lúc sinh: `gentlePercent` (mặc định 35%) số con là **bay nhẹ** `speedMul` 0.25–0.5 (lững lờ,
+ít rẽ gấp: 2–5 s một lần), còn lại 0.8–1.3. Khi số muỗi đang bay > `crowdFrom` (mặc định 120) thì nhân
+thêm hệ số đàn `max(0.4, crowdFrom / n)` để màn đầy muỗi vẫn nhìn rõ và nhẹ máy. Cộng run lắc: `x += sin(t×37)·3`,
 `y += sin(t×29)·4` chỉ lúc vẽ, không vào vật lý. Hút về mặt: nếu engine được báo `setFace(x, y)` trong
 500 ms gần nhất, 40% số lần chọn đích sẽ chọn điểm quanh mặt bán kính `faceRadius` (mặc định 260 px).
 Mặt lấy từ `pose[0]` (mũi); không có thì bỏ qua. `dir` theo dấu `vx` (sprite lật gương).
 
 Ra khỏi mép quá 120 px thì bị kéo lại (đích mới trong sân). Không bao giờ tự chết.
+
+### Muỗi thông minh
+Lúc sinh, `smartPercent` (mặc định 10%) số con là `smart: true`, `livesLeft = smartLives` (mặc định 3).
+Khi một cú đập chạm con thông minh còn `livesLeft > 1`: nó **không chết** mà `livesLeft -= 1`, vào trạng
+thái `dodge` trong 350 ms: vụt theo hướng ngược điểm đập với tốc độ 1400 px/s rồi về `fly` với đích mới
+xa điểm đập ≥ 400 px; trong lúc `dodge` không bị đập tiếp (bất tử ngắn, tránh một cú tính 2 lần). Cú đập
+cuối (`livesLeft == 1`) mới chết như thường. Sự kiện `{ type:'dodge', id, x, y, livesLeft }` để overlay
+hiện chữ "né!" và số mạng còn lại. Bình xịt và vợt điện **không** bị né (đó là lý do người xem tặng cứu).
+Vẽ: con thông minh to hơn 15%, mắt vàng (sprite thứ hai đổi màu mắt, cache riêng), lúc né để lại vệt mờ.
 
 ### Chết
 Đập trúng (`hit(x, y, r)`): mọi muỗi `fly` có khoảng cách tới điểm đập `≤ r + 0.5 × cỡ muỗi` → `dead`,
@@ -97,7 +114,7 @@ Sự kiện: `{ type:'kill', n, x, y, combo }`, `{ type:'miss', x, y }`.
 ### Sinh & hàng đợi
 `enqueue(n)` đẩy vào hàng đợi (trần `MAX_QUEUE` 2000). Mỗi khung xả `spawnPerSecond` (mặc định 6) con
 nếu số muỗi đang bay < `maxOnScreen` (mặc định 300). Muỗi mới vào từ mép trái/phải ngẫu nhiên, y ngẫu
-nhiên 10–85% chiều cao. Sinh nền: `idleSpawnSeconds` (mặc định 8, 0 = tắt) → mỗi N giây thêm 1 con nếu
+nhiên trên toàn chiều cao (0–100%). Sinh nền: `idleSpawnSeconds` (mặc định 8, 0 = tắt) → mỗi N giây thêm 1 con nếu
 hàng đợi rỗng và không trong trạng thái Mắc màn.
 
 ### Hành động
@@ -117,7 +134,8 @@ spray, racket, net, reset, setConfig, snapshot }`. `snapshot()` trả `{ mosquit
 combo, racketMs, netMs, spray, events }`.
 
 Test engine: sinh đúng số, trần on-screen, đập trúng/hụt theo bán kính, rơi và xoá, combo, spray giết
-đúng số, net chặn sinh, racket sweep, hàng đợi không vượt trần.
+đúng số, net chặn sinh, racket sweep, hàng đợi không vượt trần, muỗi thông minh né đúng `smartLives − 1`
+lần rồi chết, xịt/vợt giết được con thông minh, đích bay phủ cả 0–100% hai trục, hệ số đàn khi đông.
 
 ## 5. Quà
 
@@ -149,6 +167,7 @@ Hotkey: mỗi hành động có ô phím tắt như Nhặt Lá; Electron đăng 
   hitMode: 'clap', clapDistance: 1.2, clapSpeed: 900, slapSpeed: 1200, clapCooldownMs: 250,
   hitRadius: 14,                 // % bề rộng sân khấu
   speed: 180, mosquitoScale: 100, faceAttract: true, faceRadius: 260,
+  gentlePercent: 35, crowdFrom: 120, smartPercent: 10, smartLives: 3,
   spawnPerSecond: 6, maxOnScreen: 300, idleSpawnSeconds: 8, maxPerGift: 100,
   coinsPerMosquito: 1, giftRules: [],
   actions: [ /* 4 hành động mặc định: release 20, spray r600/2500ms/50, racket 10s, net 15s */ ],
@@ -188,7 +207,7 @@ Touch & Play.
 ## 8. Panel (`dapmuoi-panel.js`, section `view-dapmuoi`)
 
 Thẻ theo thứ tự: 📺 Trạng thái (OBS/feed/tay nhận được, nút Xoá hết muỗi, Thử: thả 20 / xịt / vợt / màn),
-✋ Cách đập (hitMode, độ nhạy khoảng cách/tốc độ, bán kính, hiện vòng đập), 🦟 Muỗi (tốc độ, cỡ, sinh nền,
+✋ Cách đập (hitMode, độ nhạy khoảng cách/tốc độ, bán kính, hiện vòng đập), 🦟 Muỗi (tốc độ, cỡ, % bay nhẹ, ngưỡng đàn, % thông minh + số mạng, sinh nền,
 trần, bám mặt), 🎁 Quà ra muỗi (bảng giftRules + xu/con + trần một lượt, chọn quà từ gift sheet như các
 panel khác), 🛟 Hành động (danh sách 4 loại, mỗi dòng: icon, tên, quà, tham số, hotkey, bật/tắt; nút thêm
 theo loại), 🔊 Âm thanh, 🖥 Hiển thị (HUD vị trí/cỡ), Link OBS (nhắc dùng link Game Camera).
