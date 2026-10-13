@@ -1701,6 +1701,40 @@
                 </div>
             </section>
 
+            <!-- ============ GAME VIEW: Đập Muỗi (vỗ tay qua camera OBS) ============ -->
+            <section id="view-dapmuoi" class="view game-view dm-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🦟 Đập Muỗi</h2>
+                    </div>
+                    <div class="overlay-bar dm-overlay-bar">
+                        <button class="ghost small" onclick="hpOpenGame('camgames')" title="Về menu Game Camera">← Game Camera</button>
+                        <button id="dm-btn-clear" class="ghost small" title="Xoá hết muỗi đang bay và hàng đợi, giữ điểm">🧹 Xoá hết muỗi</button>
+                        <button id="dm-btn-reset" class="danger small" title="Đặt lại Đã đập về 0">↺ Đặt lại điểm</button>
+                        <span class="nd-bar-spacer"></span>
+                        <button id="dm-btn-copy" class="primary small" title="Copy link overlay Game Camera (dùng chung cho mọi game camera)">📋 Link OBS</button>
+                        <button id="dm-btn-preview" class="ghost small" title="Mở overlay ở tab mới, chế độ chuột để thử không cần camera">🖱 Thử bằng chuột</button>
+                        <button id="dm-btn-reload" class="ghost small" title="Buộc overlay reload">🔄 Reload</button>
+                        <button id="dm-btn-save" class="primary small" title="Lưu tất cả cấu hình ngay">💾 Lưu</button>
+                    </div>
+                </header>
+                <div class="game-body dm-body">
+                    <div class="ctc-status" id="dm-status"></div>
+                    <div class="ctc-tabs">
+                        <button class="ctc-tab active" data-dm-tab="hit"><span class="ctc-tab-icon" style="--icon-bg:#3a2e1a;--icon-fg:#ffd54a">👏</span><span class="ctc-tab-text"><b>Cách đập</b><em>Vỗ 2 tay / tát · độ nhạy</em></span></button>
+                        <button class="ctc-tab" data-dm-tab="mosq"><span class="ctc-tab-icon" style="--icon-bg:#1f3a1a;--icon-fg:#9bf26b">🦟</span><span class="ctc-tab-text"><b>Muỗi</b><em>Tốc độ · cỡ · thông minh · sinh</em></span></button>
+                        <button class="ctc-tab" data-dm-tab="gifts"><span class="ctc-tab-icon" style="--icon-bg:#2a1a3a;--icon-fg:#b66bff">🎁</span><span class="ctc-tab-text"><b>Quà</b><em>Ra muỗi · Cứu & hành · Gửi thử</em></span></button>
+                        <button class="ctc-tab" data-dm-tab="display"><span class="ctc-tab-icon" style="--icon-bg:#1a2a35;--icon-fg:#25f4ee">🎨</span><span class="ctc-tab-text"><b>Hiển thị</b><em>Bảng điểm / Âm thanh / Nhận diện</em></span></button>
+                    </div>
+                    <div class="ctc-panes">
+                        <div class="ctc-pane active" data-dm-pane="hit" id="dm-hit-pane"></div>
+                        <div class="ctc-pane" data-dm-pane="mosq" id="dm-mosq-pane"></div>
+                        <div class="ctc-pane" data-dm-pane="gifts" id="dm-gifts-pane"></div>
+                        <div class="ctc-pane" data-dm-pane="display" id="dm-display-pane"></div>
+                    </div>
+                </div>
+            </section>
+
             <!-- ============ GAME VIEW: Trồng Cây ============ -->
             <section id="view-trongcay" class="view game-view trongcay-view">
                 <header class="game-header">
@@ -2708,6 +2742,8 @@
     <script src="/games/bancung/bancung-panel.js"></script>
     <script src="/games/chemtraicay/game.js"></script>
     <script src="/games/chemtraicay/chemtraicay-panel.js"></script>
+    <script src="/games/dapmuoi/game.js"></script>
+    <script src="/games/dapmuoi/dapmuoi-panel.js"></script>
     <script src="/games/camgames/registry.js"></script>
     <script src="/games/camgames/camgames-panel.js"></script>
     <script src="/games/trongcay/game.js"></script>
