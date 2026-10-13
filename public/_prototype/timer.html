@@ -31,7 +31,8 @@
   /* Card wrapping stage trong layout-right phải transparent ở overlay (không sẽ thành nền trắng trên OBS) */
   html[data-overlay="1"] .layout-right > .card { background:transparent !important; border:0 !important; box-shadow:none !important; overflow:visible !important; }
   html[data-overlay="1"] .layout-right > details.card { display:none !important; }
-  html[data-overlay="1"] .stage-meta { display:none !important; }
+  html[data-overlay="1"] .stage-meta,
+  html[data-overlay="1"] .stage-tools { display:none !important; }
   /* Trigger overlay mode: ẨN HOÀN TOÀN khi không có trigger active. Stage chính cũng ẩn. */
   html[data-overlay-trigger="1"] .stage { display:none !important; }
   html[data-overlay-trigger="1"] .trigger-host { display:none; }
@@ -76,107 +77,219 @@
     font-family: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif; }
   *, *::before, *::after { box-sizing: border-box; }
 
+  /* ============================================================
+     BỐ CỤC LAB — 5 bước từ trên xuống, mỗi thẻ 1 nhiệm vụ:
+     ① Đồng hồ ② Giao diện ③ Quà ± thời gian ④ Trigger media ⑤ Log
+     Cột phải giữ preview dính (sticky) để chỉnh gì cũng thấy ngay kết quả.
+     Class .topbar / .layout / .layout-left / .layout-right / .stage* / .card
+     BẮT BUỘC giữ nguyên tên — CSS overlay ở block <style> đầu file bám vào chúng.
+     ============================================================ */
+  :root {
+    --l-bg:     #eef1f6;
+    --l-card:   #ffffff;
+    --l-line:   #e3e8f0;
+    --l-line2:  #eef1f6;
+    --l-ink:    #1d2636;
+    --l-ink2:   #55617a;
+    --l-mut:    #8a94a8;
+    --l-soft:   #f6f8fc;
+    --l-acc:    #ff6b35;
+    --l-add:    #17a45c;
+    --l-sub:    #e12d52;
+    --l-shadow: 0 1px 2px rgba(20,30,50,.05), 0 8px 24px -18px rgba(20,30,50,.35);
+  }
+
   /* ----- Topbar (lab only) ----- */
-  .topbar { position:sticky; top:0; z-index:20; background:#11161e; color:#fff;
-    padding:10px 16px; display:flex; align-items:center; gap:12px; box-shadow:0 2px 12px rgba(0,0,0,.18); }
-  .topbar .ttl { font-weight:800; font-size:16px; letter-spacing:.4px; }
+  .topbar { position:sticky; top:0; z-index:30; background:#141a24; color:#fff;
+    padding:9px 16px; display:flex; align-items:center; gap:10px;
+    box-shadow:0 1px 0 rgba(255,255,255,.05), 0 6px 22px -10px rgba(0,0,0,.55); }
+  .topbar .brand { display:flex; align-items:center; gap:8px; padding-right:4px; }
+  .topbar .brand .ic { font-size:17px; line-height:1; }
+  .topbar .ttl { font-weight:800; font-size:15px; letter-spacing:.5px; }
   .topbar .sub { color:#9aa7bd; font-size:12px; }
   .topbar .sp { flex:1; }
-  .topbar button { background:#23304a; color:#fff; border:1px solid #34425f; border-radius:7px;
-    padding:7px 11px; font-size:12.5px; cursor:pointer; font-weight:600; }
-  .topbar button:hover { background:#2b3b5e; }
-  .topbar button.primary { background:linear-gradient(180deg,#ff7e3a,#e85a1b); border-color:#c6471a; }
-  .topbar button.primary:hover { filter:brightness(1.05); }
-  .topbar .pill { background:#1b2433; color:#9bb1d6; padding:4px 9px; border-radius:999px; font-size:11.5px;
-    border:1px solid #2b3a55; }
+  .topbar .tsep { width:1px; height:20px; background:#2c384c; margin:0 3px; }
+  .topbar button { background:#222d3f; color:#e8eefb; border:1px solid #33425c; border-radius:8px;
+    padding:7px 12px; font-size:12.5px; cursor:pointer; font-weight:700; font-family:inherit;
+    transition:background .12s, filter .12s; }
+  .topbar button:hover { background:#2c3a52; }
+  .topbar button.primary { background:linear-gradient(180deg,#ff8143,#e85a1b); border-color:#c6471a; color:#fff; }
+  .topbar button.primary:hover { filter:brightness(1.07); }
+  .topbar .pill { background:#1b2433; color:#9bb1d6; padding:5px 10px; border-radius:999px; font-size:11.5px;
+    border:1px solid #2b3a55; white-space:nowrap; }
   .topbar .dot { width:7px; height:7px; border-radius:50%; background:#666; display:inline-block; margin-right:5px; }
   .topbar .dot.on { background:#41d68a; box-shadow:0 0 6px #41d68a; }
+  @media (max-width: 900px) { .topbar { flex-wrap:wrap; } .topbar .sp { flex-basis:100%; height:0; } }
 
-  /* ----- 2-column layout: cards trái (cuộn) + preview phải (sticky) ----- */
-  .layout { display:grid; grid-template-columns: 1fr 460px; gap:14px; padding:14px; align-items:flex-start; }
-  .layout-left { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
-  .layout-left > .card.full { grid-column: 1 / -1; }
-  .layout-right { position: sticky; top: 8px; align-self: flex-start; }
-  @media (max-width: 1280px) { .layout { grid-template-columns: 1fr; } .layout-right { position:static; } }
-  @media (max-width: 780px) { .layout-left { grid-template-columns: 1fr; } }
+  /* ----- Khung 2 cột: thẻ điều khiển trái (cuộn) + preview phải (dính) ----- */
+  .layout { display:grid; grid-template-columns: minmax(0,1fr) 430px; gap:14px; padding:14px; align-items:start; }
+  .layout-left { display:grid; grid-template-columns:repeat(12, 1fr); gap:12px; align-content:start; min-width:0; }
+  .layout-left > .card { grid-column: span 12; min-width:0; }
+  .layout-left > .card.span5 { grid-column: span 5; }
+  .layout-left > .card.span7 { grid-column: span 7; }
+  .layout-left > .card.full  { grid-column: 1 / -1; }
+  .layout-right { position:sticky; top:70px; align-self:start; min-width:0; }
+  @media (max-width: 1240px) {
+    .layout { grid-template-columns:1fr; }
+    .layout-right { position:static; }
+    .layout-left > .card.span5, .layout-left > .card.span7 { grid-column: span 12; }
+  }
 
-  /* ----- Stage (preview) — gọn lại, sticky bên phải ----- */
+  /* ----- Preview ----- */
   .stage-frame { padding:0; }
-  .stage { background:#fafbfc; border-radius:14px; padding:20px 14px; min-height:240px;
-    background-image: linear-gradient(rgba(0,0,0,.04) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(0,0,0,.04) 1px, transparent 1px);
+  .stage { background:#fafbfc; border-radius:13px 13px 0 0; padding:22px 14px; min-height:236px;
+    background-image: linear-gradient(rgba(0,0,0,.035) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(0,0,0,.035) 1px, transparent 1px);
     background-size: 18px 18px;
     display:flex; align-items:center; justify-content:center;
-    border:1px solid #e2e7ef; position:relative; overflow:hidden; }
+    border-bottom:1px solid var(--l-line); position:relative; overflow:hidden; }
   .stage-inner { display:flex; align-items:center; justify-content:center; transform-origin:center;
     transition: transform .15s ease; }
-  .stage-meta { padding:8px 10px; font-size:11.5px; color:#6c7689; display:flex; gap:8px; align-items:center;
-    border-top:1px solid #e2e7ef; background:#fafbfc; border-radius:0 0 14px 14px; }
-  .stage-meta .lbl { color:#8b94a6; }
-  .stage-meta .val { font-weight:700; color:#2b3548; }
-  .card { background:#fff; border:1px solid #e2e7ef; border-radius:12px; overflow:hidden;
-    box-shadow:0 1px 2px rgba(20,30,50,.04); }
-  .card > summary { list-style:none; padding:12px 14px; cursor:pointer; user-select:none;
-    background:linear-gradient(180deg,#fafbfc,#f0f3f8); border-bottom:1px solid #e2e7ef;
-    font-weight:700; color:#2b3548; display:flex; align-items:center; gap:8px; }
-  .card > summary::-webkit-details-marker { display:none; }
-  .card > summary::after { content:'▼'; margin-left:auto; color:#8b94a6; font-size:10px; transition:transform .15s; }
-  .card[open] > summary::after { transform:rotate(180deg); }
-  .card .body { padding:12px 14px; display:flex; flex-direction:column; gap:10px; }
+  .stage-meta { padding:9px 12px; font-size:11.5px; color:var(--l-ink2); display:flex; gap:7px; align-items:center;
+    flex-wrap:wrap; border-top:1px solid var(--l-line2); background:var(--l-soft); }
+  .stage-meta .lbl { color:var(--l-mut); }
+  .stage-meta .val { font-weight:700; color:var(--l-ink); }
+  .stage-tools { display:flex; gap:6px; padding:9px 12px; border-top:1px solid var(--l-line2);
+    background:#fff; border-radius:0 0 13px 13px; flex-wrap:wrap; }
 
+  /* ----- Thẻ ----- */
+  .card { background:var(--l-card); border:1px solid var(--l-line); border-radius:13px; overflow:hidden;
+    box-shadow:var(--l-shadow); }
+  .card > summary { list-style:none; padding:11px 14px; cursor:pointer; user-select:none;
+    background:#fff; border-bottom:1px solid var(--l-line2);
+    display:flex; align-items:center; gap:11px; }
+  .card > summary::-webkit-details-marker { display:none; }
+  .card > summary .step { flex:0 0 auto; width:23px; height:23px; border-radius:50%;
+    background:var(--l-soft); border:1px solid var(--l-line); color:var(--l-ink2);
+    font-size:11.5px; font-weight:800; font-style:normal;
+    display:flex; align-items:center; justify-content:center; }
+  .card[open] > summary .step { background:var(--l-acc); border-color:#e85a1b; color:#fff; }
+  .card > summary .h { display:flex; flex-direction:column; gap:1px; min-width:0; flex:1; }
+  .card > summary .h b { font-size:13.5px; font-weight:800; color:var(--l-ink); letter-spacing:.1px; }
+  .card > summary .h em { font-style:normal; font-size:11px; color:var(--l-mut); line-height:1.35; }
+  .card > summary::after { content:'⌄'; margin-left:auto; color:var(--l-mut); font-size:15px;
+    line-height:1; transition:transform .18s; }
+  .card[open] > summary::after { transform:rotate(180deg); }
+  .card .body { padding:13px 14px; display:flex; flex-direction:column; gap:11px; }
+
+  /* ----- Điều khiển cơ bản ----- */
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .row label { color:#3a4660; font-size:12.5px; min-width:80px; }
+  .row label { color:var(--l-ink2); font-size:12.5px; min-width:84px; }
   .row > .grow { flex:1; }
   .row input[type=text], .row input[type=number], .row select {
-    border:1px solid #d9dee7; border-radius:7px; padding:6px 8px; font-size:13px; background:#fff; color:#222;
-    font-family: inherit; }
+    border:1px solid #d7dde8; border-radius:8px; padding:7px 9px; font-size:13px; background:#fff;
+    color:var(--l-ink); font-family:inherit; transition:border-color .12s, box-shadow .12s; }
+  .row input[type=text]:focus, .row input[type=number]:focus, .row select:focus {
+    outline:none; border-color:var(--l-acc); box-shadow:0 0 0 3px rgba(255,107,53,.13); }
   .row input[type=number] { width:80px; }
-  .row input[type=color] { width:36px; height:28px; border:1px solid #d9dee7; border-radius:6px; padding:0; background:#fff; cursor:pointer; }
-  .row input[type=range] { flex:1; }
+  .row input[type=color] { width:38px; height:30px; border:1px solid #d7dde8; border-radius:7px; padding:0;
+    background:#fff; cursor:pointer; }
+  .row input[type=range] { flex:1; accent-color:var(--l-acc); }
+  .hint { font-size:11.5px; color:var(--l-mut); line-height:1.5; }
+  .hint b { color:var(--l-ink2); }
+  .subbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    background:var(--l-soft); border:1px solid var(--l-line2); border-radius:9px; padding:8px 10px; }
+  .subbar label { min-width:auto; font-size:12.5px; color:var(--l-ink2); }
   .chip-row { display:flex; flex-wrap:wrap; gap:6px; }
-  .chip { background:#eef2f7; color:#2b3548; border:1px solid #d9dee7; border-radius:999px;
-    padding:5px 10px; font-size:12px; cursor:pointer; font-weight:600; }
-  .chip:hover { background:#dfe6f0; }
-  .chip.active { background:#ff6b35; color:#fff; border-color:#e85a1b; }
-  .btn { background:#23304a; color:#fff; border:1px solid #34425f; border-radius:7px;
-    padding:7px 12px; font-size:12.5px; cursor:pointer; font-weight:600; font-family:inherit; }
-  .btn:hover { background:#2b3b5e; }
-  .btn.primary { background:linear-gradient(180deg,#ff7e3a,#e85a1b); border-color:#c6471a; }
-  .btn.green { background:linear-gradient(180deg,#4ee08e,#23a85f); border-color:#1c8a4d; }
-  .btn.red { background:linear-gradient(180deg,#ff5e7a,#e62e54); border-color:#bf2244; }
-  .btn.ghost { background:#fff; color:#2b3548; border:1px solid #d9dee7; }
-  .btn.ghost:hover { background:#f5f7fb; }
-  .btn.sm { padding:4px 8px; font-size:11.5px; }
-  .small-help { font-size:11.5px; color:#8b94a6; line-height:1.4; }
+  .chip { background:#fff; color:var(--l-ink2); border:1px solid #d7dde8; border-radius:999px;
+    padding:5px 11px; font-size:12px; cursor:pointer; font-weight:700; font-family:inherit; }
+  .chip:hover { background:var(--l-soft); border-color:#b9c3d4; }
+  .chip.active { background:var(--l-acc); color:#fff; border-color:#e85a1b; }
+  .btn { background:#243149; color:#fff; border:1px solid #34425f; border-radius:8px;
+    padding:7px 12px; font-size:12.5px; cursor:pointer; font-weight:700; font-family:inherit; }
+  .btn:hover { filter:brightness(1.08); }
+  .btn.primary { background:linear-gradient(180deg,#ff8143,#e85a1b); border-color:#c6471a; }
+  .btn.green { background:linear-gradient(180deg,#35cd80,#17a45c); border-color:#128049; }
+  .btn.red { background:linear-gradient(180deg,#ff5e7a,#e12d52); border-color:#bf2244; }
+  .btn.ghost { background:#fff; color:var(--l-ink2); border:1px solid #d7dde8; }
+  .btn.ghost:hover { background:var(--l-soft); }
+  .btn.sm { padding:5px 9px; font-size:11.5px; }
+  .small-help { font-size:11.5px; color:var(--l-mut); line-height:1.45; }
 
-  /* Theme grid */
-  .theme-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
-  .theme-card { border:2px solid #d9dee7; border-radius:10px; padding:10px 6px; text-align:center;
-    cursor:pointer; background:#fff; transition:.15s; }
-  .theme-card:hover { border-color:#a8b4c6; transform:translateY(-1px); }
-  .theme-card.active { border-color:#ff6b35; background:#fff5ee; box-shadow:0 4px 14px rgba(255,107,53,.18); }
-  .theme-card .ico { font-size:24px; }
-  .theme-card .nm { font-size:11px; font-weight:700; color:#3a4660; margin-top:4px; }
+  /* ----- Lưới giao diện đồng hồ ----- */
+  .theme-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(88px,1fr)); gap:8px; }
+  .theme-card { border:1.5px solid var(--l-line); border-radius:10px; padding:9px 5px; text-align:center;
+    cursor:pointer; background:#fff; transition:.14s; }
+  .theme-card:hover { border-color:#b3bfd2; transform:translateY(-1px); }
+  .theme-card.active { border-color:var(--l-acc); background:#fff6f1;
+    box-shadow:0 5px 16px -8px rgba(255,107,53,.6); }
+  .theme-card .ico { font-size:22px; }
+  .theme-card .nm { font-size:10.5px; font-weight:700; color:var(--l-ink2); margin-top:3px; }
 
-  /* Mode tabs */
-  .mtabs { display:flex; gap:0; border:1px solid #d9dee7; border-radius:8px; overflow:hidden; }
-  .mtab { flex:1; background:#fff; border:0; padding:8px 6px; font-size:12px; cursor:pointer; font-weight:600;
-    color:#3a4660; border-right:1px solid #d9dee7; font-family:inherit; }
+  /* ----- Tab chế độ quà ----- */
+  .mtabs { display:grid; grid-template-columns:repeat(3, 1fr); border:1px solid #d7dde8;
+    border-radius:9px; overflow:hidden; background:#fff; }
+  .mtab { background:#fff; border:0; padding:9px 8px; font-size:12px; cursor:pointer; font-weight:700;
+    color:var(--l-ink2); border-right:1px solid var(--l-line); font-family:inherit; line-height:1.35; }
   .mtab:last-child { border-right:0; }
-  .mtab.active { background:#ff6b35; color:#fff; }
-  .mtab:hover:not(.active) { background:#f5f7fb; }
+  .mtab.active { background:var(--l-acc); color:#fff; }
+  .mtab:hover:not(.active) { background:var(--l-soft); }
 
-  /* Gift list */
-  .gift-pick { display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid #e2e7ef; border-radius:8px; background:#fafbfc; }
-  .gift-pick img { width:32px; height:32px; border-radius:6px; background:#eef; object-fit:contain; }
-  .gift-pick .nm { font-size:12px; font-weight:600; flex:1; }
-  .gift-pick .nm .dia { color:#9aa7bd; font-weight:500; font-size:11px; }
-  .gift-row { display:flex; gap:6px; align-items:center; padding:6px 8px; border-bottom:1px solid #f0f2f6; }
+  /* ----- Danh sách quà ----- */
+  .gift-pick { display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid var(--l-line);
+    border-radius:9px; background:var(--l-soft); }
+  .gift-pick img { width:32px; height:32px; border-radius:7px; background:#eef; object-fit:contain; }
+  .gift-pick .nm { font-size:12px; font-weight:700; flex:1; color:var(--l-ink); }
+  .gift-pick .nm .dia { color:var(--l-mut); font-weight:500; font-size:11px; }
+  .gift-pick .x { background:transparent; border:0; color:var(--l-sub); cursor:pointer; font-size:14px; }
+
+  .gtable { border:1px solid var(--l-line); border-radius:10px; overflow:hidden; background:#fff; }
+  .gthead, .fix-row { display:grid;
+    grid-template-columns: 32px minmax(96px,1.05fr) minmax(104px,1.25fr) 92px 100px 38px 28px;
+    gap:8px; align-items:center; }
+  .gthead { padding:7px 10px; background:var(--l-soft); border-bottom:1px solid var(--l-line);
+    font-size:10px; font-weight:800; color:var(--l-mut); letter-spacing:.5px; text-transform:uppercase; }
+  .fix-row { padding:7px 10px; border-bottom:1px solid var(--l-line2); }
+  .fix-row:last-child { border-bottom:0; }
+  .fix-row img { width:28px; height:28px; border-radius:6px; background:#eef; object-fit:contain; cursor:pointer; }
+  .fix-row .gn { min-width:0; cursor:pointer; line-height:1.25; }
+  .fix-row .gn b { display:block; font-size:12px; font-weight:700; color:var(--l-ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fix-row .gn small { font-size:10.5px; color:var(--l-mut); }
+  .fix-row input.lbl { width:100%; min-width:0; border:1px dashed #cfd7e4; border-radius:7px;
+    padding:5px 8px; font-size:12px; font-family:inherit; color:var(--l-ink); background:#fff; }
+  .fix-row input.lbl:focus { outline:none; border-style:solid; border-color:var(--l-acc);
+    box-shadow:0 0 0 3px rgba(255,107,53,.13); }
+  .fix-row input.lbl::placeholder { color:#b8c1d1; font-style:italic; }
+  .fix-row .act { border:0; border-radius:7px; padding:5px 6px; font-size:11px; font-weight:800;
+    cursor:pointer; color:#fff; letter-spacing:.2px; white-space:nowrap; font-family:inherit; }
+  .fix-row .act.add { background:linear-gradient(180deg,#35cd80,#17a45c); }
+  .fix-row .act.sub { background:linear-gradient(180deg,#ff5e7a,#e12d52); }
+  .fix-row .secs { display:flex; align-items:center; gap:4px; min-width:0; }
+  .fix-row .secs input { width:100%; min-width:0; border:1px solid #d7dde8; border-radius:7px;
+    padding:5px 6px; font-size:12px; font-family:inherit; text-align:right; color:var(--l-ink); }
+  .fix-row .secs input:focus { outline:none; border-color:var(--l-acc); box-shadow:0 0 0 3px rgba(255,107,53,.13); }
+  .fix-row .secs span { font-size:10.5px; color:var(--l-mut); white-space:nowrap; }
+  .fix-row .seed { background:var(--l-soft); border:1px solid var(--l-line); border-radius:7px;
+    padding:5px 4px; font-size:11px; cursor:pointer; color:var(--l-ink2); white-space:nowrap; }
+  .fix-row .seed:hover { background:#e6ecf6; }
+  .fix-row .x { background:transparent; border:0; color:var(--l-sub); cursor:pointer; font-size:14px; }
+  .g-empty { padding:16px 14px; text-align:center; color:var(--l-mut); font-size:12px; line-height:1.6; }
+  .g-empty b { color:var(--l-ink2); }
+  @media (max-width: 720px) {
+    .gthead { display:none; }
+    .fix-row { grid-template-columns:32px 1fr 92px 30px; row-gap:6px; }
+    .fix-row input.lbl { grid-column:2 / -1; }
+    .fix-row .secs { grid-column:2 / 4; }
+  }
+
+  /* Danh sách quà đơn giản (chế độ Theo xu) — không có cột giây */
+  .gift-row { display:flex; gap:8px; align-items:center; padding:6px 9px; border-bottom:1px solid var(--l-line2); }
   .gift-row:last-child { border-bottom:0; }
-  .gift-row img { width:26px; height:26px; border-radius:5px; background:#eef; object-fit:contain; }
-  .gift-row .gn { flex:1; font-size:12px; }
-  .gift-row .gn small { color:#9aa7bd; }
-  .gift-row .x { background:transparent; border:0; color:#ff4d6d; cursor:pointer; font-size:14px; }
+  .gift-row img { width:26px; height:26px; border-radius:6px; background:#eef; object-fit:contain; cursor:pointer; }
+  .gift-row .gn { flex:1; font-size:12px; color:var(--l-ink); cursor:pointer; }
+  .gift-row .gn small { color:var(--l-mut); }
+  .gift-row .x { background:transparent; border:0; color:var(--l-sub); cursor:pointer; font-size:14px; }
+
+  /* Khối phe TĂNG / GIẢM của chế độ Theo xu */
+  .side-col { border:1px solid var(--l-line); border-radius:10px; overflow:hidden; background:#fff; }
+  .side-col > .hd { padding:7px 10px; font-size:11.5px; font-weight:800; letter-spacing:.2px;
+    border-bottom:1px solid var(--l-line); }
+  .side-col.add > .hd { background:#effaf3; color:#127a45; }
+  .side-col.sub > .hd { background:#fff1f4; color:#b81f43; }
+  .side-col .ft { padding:7px 10px; border-top:1px solid var(--l-line2); background:var(--l-soft); }
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width: 720px) { .two-col { grid-template-columns:1fr; } }
 
   /* Log */
   .logbox { background:#0f1318; color:#cad6e8; font-family: 'JetBrains Mono', Consolas, monospace;
@@ -536,44 +649,46 @@
 <body>
   <!-- ============== TOPBAR (lab only) ============== -->
   <div class="topbar">
-    <div class="ttl">⏱ THỜI GIAN</div>
+    <div class="brand"><span class="ic">⏱</span><span class="ttl">THỜI GIAN</span></div>
     <span class="pill"><span class="dot" id="sockDot"></span><span id="sockTxt">Đang kết nối…</span></span>
-    <span class="pill" id="modePill">CHẾ ĐỘ: QUÀ CỐ ĐỊNH</span>
+    <span class="pill" id="modePill">CHẾ ĐỘ: QUÀ CHỈ ĐỊNH</span>
     <div class="sp"></div>
-    <button class="primary" id="btnStart" title="Bấm để bắt đầu / tạm dừng / tiếp tục">▶ BẮT ĐẦU</button>
-    <button id="btnReset">↺ Reset</button>
-    <button id="btnAddTest">+10s</button>
-    <button id="btnSubTest">−10s</button>
-    <button id="btnSave" title="Lưu mọi cài đặt vào localStorage + đồng bộ overlay">💾 Lưu</button>
+    <button class="primary" id="btnStart" title="Bắt đầu / tạm dừng / tiếp tục">▶ BẮT ĐẦU</button>
+    <button id="btnReset" title="Đưa đồng hồ về thời lượng đã đặt">↺ Reset</button>
+    <span class="tsep"></span>
+    <button id="btnAddTest" title="Thử cộng 10 giây (không cần quà thật)">+10s</button>
+    <button id="btnSubTest" title="Thử trừ 10 giây">−10s</button>
+    <span class="tsep"></span>
+    <button id="btnSave" title="Lưu ngay vào máy + app-config.json trên server, đồng bộ overlay">💾 Lưu</button>
   </div>
 
   <!-- ============== 2-COLUMN LAYOUT ============== -->
   <div class="layout">
 
-    <!-- LEFT: Control cards (grid 2-col) -->
+    <!-- TRÁI: các bước cài đặt, từ trên xuống -->
     <div class="layout-left">
 
-    <!-- COL 1: thời gian + giao diện -->
-    <details class="card" open>
-      <summary>⏱ Thời gian & Hướng</summary>
+    <!-- ① ĐỒNG HỒ -->
+    <details class="card span5" open>
+      <summary><i class="step">1</i><span class="h"><b>Đồng hồ</b><em>Hướng đếm · thời lượng · ngưỡng cảnh báo</em></span></summary>
       <div class="body">
         <div class="row">
           <label>Hướng</label>
-          <label><input type="radio" name="direction" value="down" checked> Đếm lùi</label>
-          <label><input type="radio" name="direction" value="up"> Đếm tới</label>
+          <label style="min-width:auto;"><input type="radio" name="direction" value="down" checked> Đếm lùi</label>
+          <label style="min-width:auto;"><input type="radio" name="direction" value="up"> Đếm tới</label>
         </div>
 
         <div class="row">
           <label>Thời gian</label>
-          <input id="hI" type="number" min="0" max="99" value="0" /> :
+          <input id="hI" type="number" min="0" value="0" title="Giờ — không giới hạn" /> :
           <input id="mI" type="number" min="0" max="59" value="1" /> :
           <input id="sI" type="number" min="0" max="59" value="0" />
           <span class="small-help">HH : MM : SS</span>
         </div>
 
-        <div class="row">
+        <div class="row" style="align-items:flex-start;">
           <label>Preset</label>
-          <div class="chip-row" id="presetChips">
+          <div class="chip-row grow" id="presetChips">
             <button class="chip" data-sec="30">30s</button>
             <button class="chip" data-sec="60">60s</button>
             <button class="chip" data-sec="90">90s</button>
@@ -590,7 +705,7 @@
 
         <div class="row">
           <label>Định dạng</label>
-          <select id="fmtSel">
+          <select id="fmtSel" class="grow">
             <option value="hms">HH : MM : SS</option>
             <option value="ms">MM : SS</option>
             <option value="auto" selected>Tự động (rút gọn khi &lt; 1h)</option>
@@ -610,8 +725,9 @@
       </div>
     </details>
 
-    <details class="card full" open>
-      <summary>🎨 Giao diện</summary>
+    <!-- ② GIAO DIỆN -->
+    <details class="card span7" open>
+      <summary><i class="step">2</i><span class="h"><b>Giao diện</b><em>19 kiểu đồng hồ · màu · cỡ chữ · tiêu đề</em></span></summary>
       <div class="body">
         <div class="theme-grid" id="themeGrid">
           <div class="theme-card" data-theme="digital"><div class="ico">🔢</div><div class="nm">LED Digital</div></div>
@@ -643,7 +759,7 @@
         <div class="row">
           <label>Màu chính</label>
           <input id="colorMain" type="color" value="#ff5050" />
-          <label>Phụ</label>
+          <label style="min-width:auto;">Phụ</label>
           <input id="colorSec" type="color" value="#ffa340" />
         </div>
         <div class="row">
@@ -658,72 +774,88 @@
       </div>
     </details>
 
-    <!-- Quà → ± thời gian (full width của layout-left) -->
+    <!-- ③ QUÀ → ± THỜI GIAN -->
     <details class="card full" open>
-      <summary>🎁 Quà → Tăng / Giảm thời gian</summary>
+      <summary><i class="step">3</i><span class="h"><b>Quà → Cộng / Trừ thời gian</b><em>Chọn quà nào đổi được bao nhiêu giây — mặc định 1 xu = 1 giây</em></span></summary>
       <div class="body">
         <div class="mtabs" id="modeTabs">
-          <button class="mtab active" data-mode="fixed">🎁 Quà cố định (mỗi quà = số giây riêng)</button>
-          <button class="mtab" data-mode="ratio">💎 Theo xu (X xu = Y giây)</button>
-          <button class="mtab" data-mode="side">⚔ Chọn phe (1 quà = mở phe)</button>
+          <button class="mtab active" data-mode="fixed">🎁 Quà chỉ định<br><span style="font-weight:500;font-size:10.5px;opacity:.85;">mỗi quà = số giây riêng</span></button>
+          <button class="mtab" data-mode="ratio">💎 Theo xu<br><span style="font-weight:500;font-size:10.5px;opacity:.85;">X xu = Y giây</span></button>
+          <button class="mtab" data-mode="side">⚔ Chọn phe<br><span style="font-weight:500;font-size:10.5px;opacity:.85;">1 quà = mở phe</span></button>
         </div>
 
-        <!-- MODE A: Fixed -->
+        <div class="subbar">
+          <label style="min-width:auto;"><input type="checkbox" id="autoResume" checked/>
+            Hết giờ mà có quà <b>cộng</b> thời gian → đồng hồ tự chạy tiếp <span class="small-help">(thời gian không giới hạn)</span></label>
+        </div>
+
+        <!-- MODE A: Quà chỉ định -->
         <div id="modeFixed">
-          <div class="small-help" style="margin-bottom:8px;">Mỗi quà gán hành động (+ hoặc −) và số giây riêng. Khi người xem tặng quà → cộng / trừ thời gian × số lần combo (repeatCount).</div>
-          <div style="border:1px solid #e2e7ef; border-radius:8px; overflow:hidden;">
+          <div class="hint">Mỗi quà gán <b>+ TĂNG</b> hoặc <b>− GIẢM</b> và số giây riêng — <b>không giới hạn</b>: nhập bao nhiêu giây cũng được, thêm bao nhiêu quà cũng được. Khi khán giả tặng → cộng / trừ × số lần combo.</div>
+          <div class="subbar">
+            <label style="min-width:auto;font-weight:700;">Mặc định khi thêm quà</label>
+            <input id="seedCoins" type="number" min="1" value="1" style="width:66px;" /> xu =
+            <input id="seedSecs" type="number" min="1" value="1" style="width:66px;" /> giây
+            <span class="grow"></span>
+            <button class="btn ghost sm" id="btnSeedAll" title="Tính lại số giây của MỌI quà đang có theo số xu">⟲ Áp dụng cho tất cả</button>
+          </div>
+          <div class="hint">Thêm quà mới → số giây <b>tự điền theo số xu của quà</b>. Sau đó sửa tay từng quà tuỳ ý; bấm <b>⟲💎</b> ở mỗi dòng để lấy lại theo xu. Ô <b>Tên hiển thị</b> để đặt tên riêng cho quà (bỏ trống = giữ tên gốc TikTok).</div>
+          <div class="gtable">
+            <div class="gthead" id="fixedHead" style="display:none;">
+              <span></span><span>Quà TikTok</span><span>Tên hiển thị</span><span>Tác động</span><span>Giây / lần</span><span></span><span></span>
+            </div>
             <div id="fixedList"></div>
           </div>
-          <div class="row" style="margin-top:8px;">
-            <button class="btn primary sm" onclick="openPicker('fixed-add')">+ Thêm quà TĂNG</button>
+          <div class="row">
+            <button class="btn green sm" onclick="openPicker('fixed-add')">+ Thêm quà TĂNG</button>
             <button class="btn red sm" onclick="openPicker('fixed-sub')">+ Thêm quà GIẢM</button>
           </div>
         </div>
 
-        <!-- MODE B: Ratio -->
+        <!-- MODE B: Theo xu -->
         <div id="modeRatio" style="display:none;">
-          <div class="small-help" style="margin-bottom:8px;">Chọn quà cho phe TĂNG và phe GIẢM. Khi tặng → quy đổi theo công thức <b>X xu = Y giây</b>. Số xu dư cộng dồn cho quà sau.</div>
-          <div class="row">
-            <label>Quy đổi</label>
-            <input id="ratioCoins" type="number" min="1" value="1" /> xu =
-            <input id="ratioSecs"  type="number" min="1" value="1" /> giây
+          <div class="hint">Chọn quà cho phe TĂNG và phe GIẢM. Khi tặng → quy đổi theo công thức <b>X xu = Y giây</b> (áp dụng chung cho mọi quà trong danh sách). Số xu dư cộng dồn cho quà sau.</div>
+          <div class="subbar">
+            <label style="min-width:auto;font-weight:700;">Quy đổi</label>
+            <input id="ratioCoins" type="number" min="1" value="1" style="width:66px;" /> xu =
+            <input id="ratioSecs"  type="number" min="1" value="1" style="width:66px;" /> giây
           </div>
-          <div class="row" style="margin-top:6px;">
-            <label style="color:#23a85f;font-weight:700;">⊕ Quà TĂNG</label>
+          <div class="two-col">
+            <div class="side-col add">
+              <div class="hd">⊕ QUÀ TĂNG THỜI GIAN</div>
+              <div id="ratioAddList"></div>
+              <div class="ft"><button class="btn green sm" onclick="openPicker('ratio-add')">+ Thêm quà TĂNG</button></div>
+            </div>
+            <div class="side-col sub">
+              <div class="hd">⊖ QUÀ GIẢM THỜI GIAN</div>
+              <div id="ratioSubList"></div>
+              <div class="ft"><button class="btn red sm" onclick="openPicker('ratio-sub')">+ Thêm quà GIẢM</button></div>
+            </div>
           </div>
-          <div style="border:1px solid #d8efd8; border-radius:8px; background:#f7fef7;">
-            <div id="ratioAddList"></div>
-          </div>
-          <button class="btn green sm" style="margin-top:6px;" onclick="openPicker('ratio-add')">+ Thêm quà TĂNG</button>
-          <div class="row" style="margin-top:10px;">
-            <label style="color:#e62e54;font-weight:700;">⊖ Quà GIẢM</label>
-          </div>
-          <div style="border:1px solid #f5d8df; border-radius:8px; background:#fff7f8;">
-            <div id="ratioSubList"></div>
-          </div>
-          <button class="btn red sm" style="margin-top:6px;" onclick="openPicker('ratio-sub')">+ Thêm quà GIẢM</button>
         </div>
 
-        <!-- MODE C: Choose-side -->
+        <!-- MODE C: Chọn phe -->
         <div id="modeSide" style="display:none;">
-          <div class="small-help" style="margin-bottom:8px;">Chọn 1 quà kích hoạt phe <b>TĂNG</b>, 1 quà kích hoạt phe <b>GIẢM</b>. Tặng lần đầu = mở phe. Sau đó <b>mọi quà</b> đều cộng xu vào phe đang mở (quy đổi X xu = Y giây, xu dư cộng dồn). Tặng lại đúng quà mở phe = huỷ. Hết giờ tự huỷ.</div>
-          <div class="row">
-            <label>Quy đổi</label>
-            <input id="sideCoins" type="number" min="1" value="1" /> xu =
-            <input id="sideSecs"  type="number" min="1" value="1" /> giây
+          <div class="hint">Chọn 1 quà mở phe <b>TĂNG</b>, 1 quà mở phe <b>GIẢM</b>. Tặng lần đầu = mở phe. Sau đó <b>mọi quà</b> đều cộng xu vào phe đang mở (quy đổi X xu = Y giây, xu dư cộng dồn). Tặng lại đúng quà mở phe = huỷ. Hết giờ tự huỷ.</div>
+          <div class="subbar">
+            <label style="min-width:auto;font-weight:700;">Quy đổi</label>
+            <input id="sideCoins" type="number" min="1" value="1" style="width:66px;" /> xu =
+            <input id="sideSecs"  type="number" min="1" value="1" style="width:66px;" /> giây
           </div>
-          <div class="row" style="margin-top:6px;">
-            <label style="color:#23a85f;font-weight:700;min-width:140px;">⊕ Quà MỞ PHE TĂNG</label>
-            <div id="sideAddSlot" class="grow"></div>
-            <button class="btn green sm" onclick="openPicker('side-add')">Chọn quà</button>
+          <div class="two-col">
+            <div class="side-col add">
+              <div class="hd">⊕ QUÀ MỞ PHE TĂNG</div>
+              <div style="padding:9px 10px;"><div id="sideAddSlot"></div></div>
+              <div class="ft"><button class="btn green sm" onclick="openPicker('side-add')">Chọn quà</button></div>
+            </div>
+            <div class="side-col sub">
+              <div class="hd">⊖ QUÀ MỞ PHE GIẢM</div>
+              <div style="padding:9px 10px;"><div id="sideSubSlot"></div></div>
+              <div class="ft"><button class="btn red sm" onclick="openPicker('side-sub')">Chọn quà</button></div>
+            </div>
           </div>
-          <div class="row">
-            <label style="color:#e62e54;font-weight:700;min-width:140px;">⊖ Quà MỞ PHE GIẢM</label>
-            <div id="sideSubSlot" class="grow"></div>
-            <button class="btn red sm" onclick="openPicker('side-sub')">Chọn quà</button>
-          </div>
-          <div class="row" style="margin-top:8px;background:#f0f4fa;padding:8px 10px;border-radius:8px;">
-            <span style="font-size:12.5px;font-weight:700;color:#3a4660;">Phe đang mở:</span>
+          <div class="subbar">
+            <span style="font-size:12.5px;font-weight:700;color:var(--l-ink2);">Phe đang mở:</span>
             <span id="sideIndicator" class="side-ind">(chưa mở)</span>
             <span class="grow"></span>
             <span class="small-help" id="sidePool"></span>
@@ -733,30 +865,31 @@
       </div>
     </details>
 
-    <!-- Quà kích hoạt countdown + media (overlay riêng) -->
+    <!-- ④ TRIGGER COUNTDOWN + MEDIA -->
     <details class="card full" open>
-      <summary>🎁 Quà kích hoạt countdown + media <span style="margin-left:auto; font-weight:500; font-size:11.5px; color:#9aa7bd;">— overlay OBS riêng, ẩn khi không có trigger</span></summary>
+      <summary><i class="step">4</i><span class="h"><b>Quà kích hoạt countdown + media</b><em>Overlay OBS riêng — ẩn hoàn toàn khi không có trigger</em></span></summary>
       <div class="body">
-        <div class="row" style="background:#f5f7fb;padding:8px 10px;border-radius:8px;">
+        <div class="subbar">
           <label style="min-width:auto;"><input type="checkbox" id="trgEnabled" checked/> Bật tính năng</label>
           <span class="grow"></span>
           <button class="btn primary sm" id="btnCopyTrigUrl" title="Copy URL overlay cho OBS — overlay này CHỈ hiện khi có quà kích hoạt">📋 Copy URL Overlay Trigger</button>
           <button class="btn ghost sm" onclick="window.open('/_prototype/timer.html?mode=overlay&type=trigger','_blank','width=900,height=420')">🪟 Preview</button>
         </div>
-        <div class="small-help">Mỗi dòng: chọn quà cụ thể → khi user tặng quà đó, overlay (link riêng) tự kích hoạt countdown + phát audio/video. Hết giờ → media auto stop + overlay tự ẩn. Nếu media ngắn hơn duration → auto-loop.</div>
+        <div class="hint">Mỗi dòng: chọn quà cụ thể → khi user tặng quà đó, overlay (link riêng) tự kích hoạt countdown + phát audio/video. Hết giờ → media auto stop + overlay tự ẩn. Nếu media ngắn hơn thời lượng → auto-loop.</div>
         <div id="trgList"></div>
-        <button class="btn primary sm" id="btnAddTrigger" style="margin-top:6px;">+ Thêm trigger mới</button>
+        <button class="btn primary sm" id="btnAddTrigger" style="align-self:flex-start;">+ Thêm trigger mới</button>
       </div>
     </details>
 
+    <!-- ⑤ LOG -->
     <details class="card full">
-      <summary>📜 Log sự kiện</summary>
+      <summary><i class="step">5</i><span class="h"><b>Log sự kiện</b><em>Nhật ký realtime — quà nào cộng / trừ bao nhiêu giây</em></span></summary>
       <div class="logbox" id="log"></div>
     </details>
 
     </div><!-- /layout-left -->
 
-    <!-- RIGHT: Stage preview sticky + User activity list -->
+    <!-- PHẢI: preview dính + danh sách người tặng -->
     <aside class="layout-right">
       <div class="card" style="overflow:hidden;">
         <div class="stage-frame">
@@ -770,13 +903,16 @@
           <span class="lbl">Trạng thái:</span><span class="val" id="metaState">Sẵn sàng</span>
           <span class="lbl">·</span>
           <span class="lbl">Còn:</span><span class="val" id="metaRemain">—</span>
-          <span class="lbl">·</span>
-          <span class="lbl" id="metaSideWrap" style="display:none;">Phe:</span><span class="val" id="metaSide"></span>
+          <span class="lbl" id="metaSideWrap" style="display:none;">· Phe:</span><span class="val" id="metaSide"></span>
+        </div>
+        <div class="stage-tools">
+          <button class="btn ghost sm" id="btnCopyMainUrl" title="Copy link overlay chính để dán vào Browser Source của OBS">📋 Link overlay OBS</button>
+          <button class="btn ghost sm" onclick="window.open('/_prototype/timer.html?mode=overlay','_blank','width=900,height=420')">🪟 Xem thử</button>
         </div>
       </div>
 
       <details class="card" open style="margin-top:12px;">
-        <summary>👥 User tặng quà ± thời gian</summary>
+        <summary><i class="step">👥</i><span class="h"><b>Người tặng ± thời gian</b><em>60 lượt gần nhất</em></span></summary>
         <div class="userlist" id="userList">
           <div class="empty">Chưa có hoạt động — kết nối TikTok LIVE để theo dõi.</div>
         </div>
@@ -824,7 +960,9 @@
     title: '',
     titleFs: 28,
     mode: 'fixed',              // 'fixed' | 'ratio' | 'side'
-    fixed: [],                  // [{giftId, giftName, image, action:'add'|'sub', seconds}]
+    fixed: [],                  // [{giftId, giftName, image, diamond, action:'add'|'sub', seconds}]
+    seed: { coins: 1, secs: 1 },// mặc định khi THÊM quà chỉ định: 1 xu = 1 giây (tự điền, sau đó sửa tay tuỳ ý)
+    autoResume: true,           // hết giờ mà có quà CỘNG thời gian → chạy tiếp (thời gian không giới hạn)
     ratio: { coins: 1, secs: 1, addList: [], subList: [] },
     side:  { coins: 1, secs: 1, addGift: null, subGift: null },
     // ===== Quà kích hoạt countdown + media (overlay riêng) =====
@@ -865,6 +1003,9 @@
      ============================================================ */
   const $ = (id) => document.getElementById(id);
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+  // Tên quà TikTok có thể chứa dấu nháy — nhét thẳng vào innerHTML là vỡ thuộc tính.
+  const escAttr = (s) => String(s == null ? '' : s)
+    .replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const pad2 = (n) => String(n).padStart(2, '0');
 
   function fmtTime(sec) {
@@ -889,7 +1030,8 @@
   }
 
   function readDurationFromInputs() {
-    const h = clamp(parseInt($('hI').value) || 0, 0, 99);
+    // KHÔNG chặn 99 giờ nữa — quà cộng thời gian có thể đẩy đồng hồ lên bao lâu tuỳ ý.
+    const h = Math.max(0, parseInt($('hI').value) || 0);
     const m = clamp(parseInt($('mI').value) || 0, 0, 59);
     const s = clamp(parseInt($('sI').value) || 0, 0, 59);
     return h * 3600 + m * 60 + s;
@@ -902,11 +1044,60 @@
   }
 
   /* ============================================================
-     PERSISTENCE
+     QUY ĐỔI XU → GIÂY (mặc định 1 xu = 1 giây)
+     Chỉ dùng để TỰ ĐIỀN số giây lúc thêm quà chỉ định. Không có trần:
+     số giây mỗi quà và tổng thời gian đồng hồ đều không bị chặn max.
      ============================================================ */
+  // Dùng chung cho loadCfg / applyRemoteCfg / nạp từ server — tránh 3 chỗ viết lệch nhau.
+  function normalizeCfgShape() {
+    cfg.fixed = Array.isArray(cfg.fixed) ? cfg.fixed : [];
+    cfg.ratio = Object.assign({ coins:1, secs:1, addList:[], subList:[] }, cfg.ratio || {});
+    if (!Array.isArray(cfg.ratio.addList)) cfg.ratio.addList = [];
+    if (!Array.isArray(cfg.ratio.subList)) cfg.ratio.subList = [];
+    cfg.side  = Object.assign({ coins:1, secs:1, addGift:null, subGift:null }, cfg.side || {});
+    cfg.triggers = Object.assign({ enabled:true, list:[] }, cfg.triggers || {});
+    if (!Array.isArray(cfg.triggers.list)) cfg.triggers.list = [];
+    normalizeSeed();
+  }
+  function normalizeSeed() {
+    cfg.seed = Object.assign({ coins: 1, secs: 1 }, cfg.seed || {});
+    cfg.seed.coins = Math.max(1, parseInt(cfg.seed.coins) || 1);
+    cfg.seed.secs  = Math.max(1, parseInt(cfg.seed.secs)  || 1);
+    cfg.autoResume = cfg.autoResume !== false;
+  }
+  function seedSecondsFor(diamond) {
+    const coins = Math.max(1, Number(diamond) || 1);
+    return Math.max(1, Math.round(coins * cfg.seed.secs / cfg.seed.coins));
+  }
+
+  /* ============================================================
+     PERSISTENCE — localStorage (cache nhanh) + server (nguồn chuẩn)
+     Vì sao phải đẩy lên server: localStorage buộc theo origin + profile trình duyệt.
+     Panel nằm trong iframe của app, overlay chạy trong Browser Source OBS (origin
+     hpvn.local), còn bản cài Electron lại là profile riêng — cùng một cấu hình nhưng
+     mỗi nơi giữ một bản, xoá dữ liệu duyệt web là mất sạch danh sách quà. Ghi vào
+     app-config.json qua /api/games/timer/config để mọi cửa sổ dùng chung 1 nguồn.
+     ============================================================ */
+  const CFG_API = '/api/games/timer/config';
+  let _pushTo = null;
+  let _cfgTouched = false;   // user đã chỉnh trước khi fetch server xong → đừng đè lên bản đang sửa
+  function pushCfgToServer(delay) {
+    if (IS_OVERLAY) return;
+    if (_pushTo) clearTimeout(_pushTo);
+    _pushTo = setTimeout(() => {
+      _pushTo = null;
+      fetch(CFG_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timerCfg: cfg })
+      }).catch(() => {});
+    }, (typeof delay === 'number') ? delay : 600);
+  }
   function saveCfg() {
     if (IS_OVERLAY) return;
+    _cfgTouched = true;
     try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); } catch (e) {}
+    pushCfgToServer();
     broadcastCfg();
   }
   function loadCfg() {
@@ -915,12 +1106,7 @@
       if (!raw) return;
       const saved = JSON.parse(raw);
       Object.assign(cfg, saved);
-      // backwards-compat: ensure subkeys exist
-      cfg.fixed = Array.isArray(cfg.fixed) ? cfg.fixed : [];
-      cfg.ratio = Object.assign({ coins:1, secs:1, addList:[], subList:[] }, cfg.ratio || {});
-      cfg.side  = Object.assign({ coins:1, secs:1, addGift:null, subGift:null }, cfg.side || {});
-      cfg.triggers = Object.assign({ enabled:true, list:[] }, cfg.triggers || {});
-      if (!Array.isArray(cfg.triggers.list)) cfg.triggers.list = [];
+      normalizeCfgShape();   // backwards-compat: đảm bảo đủ subkey
     } catch (e) {}
   }
 
@@ -1328,6 +1514,7 @@
         // Auto-cancel choose-side mode
         if (state.sideActive) { state.sideActive = null; state.sidePool = 0; }
         broadcastState();
+        updateStartBtn();   // nút top bar đang kẹt ở "Tạm dừng" sau khi hết giờ
       }
     } else {
       const elapsed = Math.floor((Date.now() - state.startedAt) / 1000);
@@ -1337,6 +1524,7 @@
         stopTickInterval();
         log('⏱ ĐẠT MỤC TIÊU', 'ok');
         broadcastState();
+        updateStartBtn();
       }
     }
     checkTriggerExpiry();
@@ -1344,12 +1532,12 @@
     render();
   }
 
-  function logUserActivity(g, delta, coins) {
+  function logUserActivity(g, delta, coins, nameOverride) {
     state.userHistory.unshift({
       uniqueId: g.uniqueId || '',
       nickname: g.nickname || g.uniqueId || '(ẩn danh)',
       avatar: g.profilePictureUrl || g.userImage || g.userImageUrl || '',
-      giftName: g.giftName || g.sheetItem?.name || '',
+      giftName: nameOverride || g.giftName || g.sheetItem?.name || '',
       giftImage: g.image || g.sheetItem?.image || g.giftPicture || '',
       repeat: Number(g.repeatCount) || 1,
       delta: delta,
@@ -1412,6 +1600,18 @@
         const rem = Math.max(0, Math.ceil((state.expiresAt - Date.now()) / 1000));
         state.remainSec = rem;
         if (rem > 0 && state.expired) { state.expired = false; }
+      } else if (state.expired && deltaSec > 0 && cfg.autoResume !== false) {
+        // HẾT GIỜ nhưng có quà CỘNG thời gian → hồi sinh đồng hồ, chạy tiếp.
+        // Đây là phần "thời gian không giới hạn": phiên đếm lùi kéo dài vô hạn nhờ quà.
+        state.expired = false;
+        state.pausedRemain = 0;
+        state.expiresAt = Date.now() + deltaSec * 1000;
+        state.remainSec = deltaSec;
+        state.running = true;
+        stopTickInterval();
+        _tickIv = setInterval(tick, 250);
+        log(`⏱ Đã hết giờ → quà +${deltaSec}s làm đồng hồ chạy tiếp`, 'ok');
+        updateStartBtn();
       } else if (state.pausedRemain > 0) {
         state.pausedRemain = Math.max(0, state.pausedRemain + deltaSec);
       } else {
@@ -1497,8 +1697,9 @@
     if (cfg.mode === 'fixed') {
       const m = cfg.fixed.find(x => String(x.giftId) === gid);
       if (!m) return;
+      const shown = String(m.label || '').trim() || gname;   // tên tự đặt đè tên gốc của TikTok
       const delta = (m.action === 'add' ? 1 : -1) * (Number(m.seconds) || 0) * repeat;
-      if (delta) { adjustTime(delta, `${gname} ×${repeat}`); logUserActivity(g, delta, totalCoins); }
+      if (delta) { adjustTime(delta, `${shown} ×${repeat}`); logUserActivity(g, delta, totalCoins, shown); }
     }
     else if (cfg.mode === 'ratio') {
       const inAdd = cfg.ratio.addList.find(x => String(x.giftId) === gid);
@@ -1665,7 +1866,7 @@
 
   function updateModePill() {
     const p = $('modePill'); if (!p) return;
-    p.textContent = 'CHẾ ĐỘ: ' + (cfg.mode === 'fixed' ? 'QUÀ CỐ ĐỊNH' : cfg.mode === 'ratio' ? 'THEO XU' : 'CHỌN PHE');
+    p.textContent = 'CHẾ ĐỘ: ' + (cfg.mode === 'fixed' ? 'QUÀ CHỈ ĐỊNH' : cfg.mode === 'ratio' ? 'THEO XU' : 'CHỌN PHE');
   }
 
   /* ============================================================
@@ -1692,13 +1893,14 @@
   }
   function applyRemoteCfg(data) {
     if (!data) return;
+    // ⚠ Panel là nguồn cấu hình duy nhất — chỉ GỬI, không NHẬN.
+    // Trước đây panel cũng nghe timer:cfg. Server giữ cache snapshot và phát lại cho
+    // MỌI socket vừa kết nối — kể cả chính panel lúc socket reconnect. Một snapshot cũ
+    // (chụp trước khi cài quà) về sau là Object.assign đè sạch danh sách vừa cài
+    // → đúng triệu chứng "cài đặt xong là mất".
+    if (!IS_OVERLAY) return;
     Object.assign(cfg, data);
-    cfg.fixed = Array.isArray(cfg.fixed) ? cfg.fixed : [];
-    cfg.ratio = Object.assign({ coins:1, secs:1, addList:[], subList:[] }, cfg.ratio || {});
-    cfg.side  = Object.assign({ coins:1, secs:1, addGift:null, subGift:null }, cfg.side || {});
-    cfg.triggers = Object.assign({ enabled:true, list:[] }, cfg.triggers || {});
-    if (!Array.isArray(cfg.triggers.list)) cfg.triggers.list = [];
-    if (!IS_OVERLAY) { refreshFormFromCfg(); refreshTriggerList?.(); }
+    normalizeCfgShape();
     render();
   }
   function applyRemoteState(data) {
@@ -1774,13 +1976,21 @@
     const gift = { giftId: String(g.id), giftName: g.name, image: g.image, diamond: g.diamond };
     switch (_pickerCtx.target) {
       case 'fixed-add':
-        if (!cfg.fixed.find(x => x.giftId === gift.giftId && x.action === 'add'))
-          cfg.fixed.push({ ...gift, action: 'add', seconds: 5 });
+      case 'fixed-sub': {
+        // 1 quà = 1 dòng duy nhất. onGift chỉ khớp dòng ĐẦU TIÊN theo giftId, nên nếu để
+        // cùng 1 quà nằm ở cả danh sách TĂNG lẫn GIẢM thì dòng sau không bao giờ chạy.
+        const act = (_pickerCtx.target === 'fixed-add') ? 'add' : 'sub';
+        const exist = cfg.fixed.find(x => String(x.giftId) === gift.giftId);
+        if (exist) {
+          Object.assign(exist, gift);
+          exist.action = act;
+          log(`Quà "${gift.giftName}" đã có trong danh sách → chuyển thành ${act === 'add' ? 'TĂNG' : 'GIẢM'} ${exist.seconds}s`, 'info');
+        } else {
+          // Mặc định 1 xu = 1 giây (theo ô "Mặc định khi thêm quà") — sửa lại tuỳ ý sau.
+          cfg.fixed.push({ ...gift, action: act, label: '', seconds: seedSecondsFor(gift.diamond) });
+        }
         break;
-      case 'fixed-sub':
-        if (!cfg.fixed.find(x => x.giftId === gift.giftId && x.action === 'sub'))
-          cfg.fixed.push({ ...gift, action: 'sub', seconds: 5 });
-        break;
+      }
       case 'ratio-add':
         if (!cfg.ratio.addList.find(x => x.giftId === gift.giftId))
           cfg.ratio.addList.push(gift);
@@ -1845,7 +2055,7 @@
            <span class="placeholder">Bấm để upload audio/video</span>`;
       row.innerHTML = `
         <div class="trig-gift" data-act="pick-gift" title="Chọn quà">${giftHTML}</div>
-        <input type="number" min="1" max="3600" value="${tr.durationSec||60}" title="Thời gian đếm lùi (giây)" data-act="duration" />
+        <input type="number" min="1" value="${tr.durationSec||60}" title="Thời gian đếm lùi (giây) — không giới hạn" data-act="duration" />
         <div class="trig-media ${hasMedia ? 'has-media' : ''}" data-act="pick-media" title="Bấm để upload audio/video">${mediaHTML}</div>
         <input type="number" min="0" max="100" value="${tr.volume||80}" title="Volume %" data-act="volume" />
         <button class="loop-btn ${tr.loop ? 'on' : ''}" data-act="loop" title="${tr.loop ? 'Đang loop' : 'Bấm để bật loop'}">🔁</button>
@@ -1919,18 +2129,30 @@
       fl.innerHTML = '';
       for (let i = 0; i < cfg.fixed.length; i++) {
         const x = cfg.fixed[i];
-        const row = document.createElement('div'); row.className = 'gift-row';
-        row.innerHTML = `<img src="${x.image||''}" onerror="this.style.visibility='hidden'" title="Bấm để chọn lại quà" style="cursor:pointer;"/>
-          <div class="gn" title="Bấm để chọn lại quà" style="cursor:pointer;">${x.giftName} <small>💎${x.diamond||0}</small></div>
-          <span style="font-size:11.5px;font-weight:700;color:${x.action==='add'?'#23a85f':'#e62e54'}">${x.action==='add'?'+':'−'}</span>
-          <input type="number" min="0" step="1" value="${x.seconds}" style="width:64px;" />
-          <span style="font-size:11px;color:#9aa7bd;">giây / lần</span>
+        const row = document.createElement('div'); row.className = 'fix-row';
+        row.innerHTML = `<img src="${escAttr(x.image)}" onerror="this.style.visibility='hidden'" title="Bấm để chọn lại quà"/>
+          <div class="gn" title="Bấm để chọn lại quà"><b>${escAttr(x.giftName)}</b><small>💎 ${x.diamond||0} xu</small></div>
+          <input class="lbl" type="text" value="${escAttr(x.label || '')}" placeholder="${escAttr(x.giftName)}"
+                 title="Tên hiển thị do bạn đặt — dùng trong log và danh sách người tặng. Bỏ trống = giữ tên gốc." />
+          <button class="act ${x.action}" data-act="flip" title="Bấm để đổi TĂNG ↔ GIẢM">${x.action==='add'?'+ TĂNG':'− GIẢM'}</button>
+          <div class="secs"><input type="number" min="0" step="1" value="${x.seconds}" title="Số giây mỗi lần tặng — không giới hạn" /><span>giây</span></div>
+          <button class="seed" data-act="seed" title="Lấy lại theo số xu: ${cfg.seed.coins} xu = ${cfg.seed.secs} giây → ${seedSecondsFor(x.diamond)}s">↺💎</button>
           <button class="x" title="Xoá">✕</button>`;
-        const inp = row.querySelector('input');
+        const inp = row.querySelector('.secs input');
         inp.onchange = () => { x.seconds = Math.max(0, parseInt(inp.value) || 0); saveCfg(); };
+        const lbl = row.querySelector('input.lbl');
+        lbl.onchange = () => { x.label = lbl.value.trim(); saveCfg(); };
         const repick = () => openPicker('replace-fixed:' + i);
         row.querySelector('img').onclick = repick;
         row.querySelector('.gn').onclick = repick;
+        row.querySelector('[data-act=flip]').onclick = () => {
+          x.action = (x.action === 'add') ? 'sub' : 'add';
+          refreshGiftLists(); saveCfg();
+        };
+        row.querySelector('[data-act=seed]').onclick = () => {
+          x.seconds = seedSecondsFor(x.diamond);
+          refreshGiftLists(); saveCfg();
+        };
         row.querySelector('.x').onclick = () => {
           cfg.fixed.splice(i, 1);
           refreshGiftLists(); saveCfg();
@@ -1938,8 +2160,9 @@
         fl.appendChild(row);
       }
       if (!cfg.fixed.length) {
-        fl.innerHTML = '<div style="padding:14px;text-align:center;color:#9aa7bd;font-size:12px;">Chưa có quà — nhấn nút bên dưới để thêm.</div>';
+        fl.innerHTML = '<div class="g-empty">Chưa chọn quà nào — nhấn <b>+ Thêm quà TĂNG</b> hoặc <b>+ Thêm quà GIẢM</b> bên dưới.</div>';
       }
+      const th = $('fixedHead'); if (th) th.style.display = cfg.fixed.length ? '' : 'none';
     }
     // Ratio add/sub — click vào quà để chọn lại
     const ra = $('ratioAddList'), rs = $('ratioSubList');
@@ -1958,7 +2181,7 @@
         };
         ra.appendChild(row);
       }
-      if (!cfg.ratio.addList.length) ra.innerHTML = '<div style="padding:10px;color:#9aa7bd;font-size:11.5px;text-align:center;">Chưa có quà tăng</div>';
+      if (!cfg.ratio.addList.length) ra.innerHTML = '<div class="g-empty">Chưa có quà tăng</div>';
     }
     if (rs) {
       rs.innerHTML = '';
@@ -1975,7 +2198,7 @@
         };
         rs.appendChild(row);
       }
-      if (!cfg.ratio.subList.length) rs.innerHTML = '<div style="padding:10px;color:#9aa7bd;font-size:11.5px;text-align:center;">Chưa có quà giảm</div>';
+      if (!cfg.ratio.subList.length) rs.innerHTML = '<div class="g-empty">Chưa có quà giảm</div>';
     }
     // Side slots
     const sa = $('sideAddSlot'), sb = $('sideSubSlot');
@@ -2001,6 +2224,9 @@
     $('colorSec').value = cfg.colorSec;
     $('ttlInp').value = cfg.title;
     $('ttlFs').value = cfg.titleFs; $('ttlFsVal').textContent = cfg.titleFs;
+    $('seedCoins').value = cfg.seed.coins;
+    $('seedSecs').value  = cfg.seed.secs;
+    $('autoResume').checked = cfg.autoResume !== false;
     $('ratioCoins').value = cfg.ratio.coins;
     $('ratioSecs').value  = cfg.ratio.secs;
     $('sideCoins').value  = cfg.side.coins;
@@ -2068,6 +2294,22 @@
       });
     });
 
+    $('seedCoins').addEventListener('change', e => {
+      cfg.seed.coins = Math.max(1, parseInt(e.target.value)||1); e.target.value = cfg.seed.coins;
+      refreshGiftLists(); saveCfg();
+    });
+    $('seedSecs').addEventListener('change', e => {
+      cfg.seed.secs = Math.max(1, parseInt(e.target.value)||1); e.target.value = cfg.seed.secs;
+      refreshGiftLists(); saveCfg();
+    });
+    $('btnSeedAll').addEventListener('click', () => {
+      if (!cfg.fixed.length) { log('Chưa có quà nào trong danh sách quà chỉ định', 'warn'); return; }
+      for (const x of cfg.fixed) x.seconds = seedSecondsFor(x.diamond);
+      refreshGiftLists(); saveCfg();
+      log(`↺ Đã đặt lại số giây của ${cfg.fixed.length} quà theo ${cfg.seed.coins} xu = ${cfg.seed.secs} giây`, 'ok');
+    });
+    $('autoResume').addEventListener('change', e => { cfg.autoResume = e.target.checked; saveCfg(); });
+
     $('ratioCoins').addEventListener('change', e => { cfg.ratio.coins = Math.max(1, parseInt(e.target.value)||1); saveCfg(); });
     $('ratioSecs').addEventListener('change',  e => { cfg.ratio.secs  = Math.max(1, parseInt(e.target.value)||1); saveCfg(); });
     $('sideCoins').addEventListener('change',  e => { cfg.side.coins  = Math.max(1, parseInt(e.target.value)||1); saveCfg(); });
@@ -2087,7 +2329,7 @@
     $('btnReset').addEventListener('click', () => { resetTimer(); updateStartBtn(); });
     $('btnAddTest').addEventListener('click', () => adjustTime(+10, 'thử nghiệm'));
     $('btnSubTest').addEventListener('click', () => adjustTime(-10, 'thử nghiệm'));
-    // 💾 Lưu — buộc persist + broadcast tới overlay
+    // 💾 Lưu — handler ở cuối bindControls (cạnh trgFileInput)
     // ===== Trigger card controls =====
     $('trgEnabled').addEventListener('change', e => { cfg.triggers.enabled = e.target.checked; saveCfg(); });
     $('btnAddTrigger').addEventListener('click', () => {
@@ -2097,6 +2339,13 @@
         gift: null, durationSec: 60, mediaUrl: '', mediaName: '', mediaType: '', volume: 80, loop: true, cooldownSec: 0
       });
       refreshTriggerList(); saveCfg();
+    });
+    $('btnCopyMainUrl').addEventListener('click', (e) => {
+      const btn = e.currentTarget;
+      const url = location.origin + '/_prototype/timer.html?mode=overlay';
+      const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(() => btn.textContent = '📋 Link overlay OBS', 1500); };
+      const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(() => btn.textContent = '📋 Link overlay OBS', 1500); };
+      try { navigator.clipboard.writeText(url).then(done, fail); } catch (_) { fail(); }
     });
     $('btnCopyTrigUrl').addEventListener('click', (e) => {
       const btn = e.currentTarget;
@@ -2119,12 +2368,13 @@
     $('btnSave').addEventListener('click', (e) => {
       const btn = e.currentTarget;
       try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); } catch (err) {}
+      pushCfgToServer(0);   // ghi thẳng vào app-config.json, không đợi debounce
       broadcastCfg();
       broadcastState();
       const old = btn.textContent;
       btn.textContent = '✓ Đã lưu';
       btn.disabled = true;
-      log('💾 Đã lưu mọi cài đặt — overlay đã đồng bộ', 'ok');
+      log('💾 Đã lưu mọi cài đặt (máy + server) — overlay đã đồng bộ', 'ok');
       setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 1500);
     });
   }
@@ -2140,6 +2390,7 @@
      ============================================================ */
   function init() {
     loadCfg();
+    normalizeSeed();
     refreshFormFromCfg();
     bindControls();
     state.remainSec = cfg.durationSec;
@@ -2153,22 +2404,32 @@
     renderTrigger();
     updateStartBtn();
 
-    // ★ FIX: Lab/Panel mode KHÔNG nhận gameConfig auto từ server (chỉ overlay/preview room nhận)
-    // → fetch trực tiếp HTTP để biết trạng thái BẬT/TẮT trong Thư viện Game
-    // → tránh bug: user TẮT game trong Thư viện rồi mở panel, nhạc vẫn phát khi gift đến
-    if (!IS_OVERLAY) {
-      fetch('/api/games/timer/config')
-        .then(r => r.json())
-        .then(cfg => {
-          if (cfg && cfg.enabled === false) {
-            state.gameEnabled = false;
-            log('⏻ Game ĐANG TẮT trong Thư viện Game — mọi quà sẽ bị bỏ qua. Bật lại trong "🎮 Thư viện Game" nếu muốn dùng.', 'warn');
-            // Đảm bảo không còn audio nào đang phát từ session trước
-            if (state.trigger) { state.trigger = null; renderTrigger(); broadcastTrigger(); }
-          }
-        })
-        .catch(() => {});
-    }
+    // Nạp từ server: vừa biết trạng thái BẬT/TẮT trong Thư viện Game, vừa lấy cấu hình bền
+    // (timerCfg trong app-config.json). Overlay cũng fetch — để Browser Source OBS mở khi
+    // panel chưa mở vẫn có đủ cấu hình, không phải chờ lab broadcast.
+    fetch(CFG_API)
+      .then(r => r.json())
+      .then(sc => {
+        if (!sc) return;
+        if (sc.enabled === false) {
+          state.gameEnabled = false;
+          if (!IS_OVERLAY) log('⏻ Game ĐANG TẮT trong Thư viện Game — mọi quà sẽ bị bỏ qua. Bật lại trong "🎮 Thư viện Game" nếu muốn dùng.', 'warn');
+          if (state.trigger) { state.trigger = null; renderTrigger(); broadcastTrigger(); }
+        }
+        if (sc.timerCfg && typeof sc.timerCfg === 'object') {
+          if (_cfgTouched) return;   // user đã sửa trong lúc chờ mạng → giữ bản đang sửa
+          Object.assign(cfg, sc.timerCfg);
+          normalizeCfgShape();
+          if (!IS_OVERLAY) { try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); } catch (e) {} }
+          if (!state.running) state.remainSec = cfg.durationSec;
+          if (!IS_OVERLAY) { refreshFormFromCfg(); refreshTriggerList(); broadcastCfg(); }
+          render();
+        } else if (!IS_OVERLAY) {
+          // Lần đầu sau khi nâng cấp: đẩy cấu hình đang có trong localStorage lên server.
+          pushCfgToServer(0);
+        }
+      })
+      .catch(() => {});
     // Sync trgEnabled checkbox với cfg
     const trgEn = $('trgEnabled'); if (trgEn) trgEn.checked = cfg.triggers.enabled !== false;
 
@@ -2214,6 +2475,10 @@
       _sock.on('timer:state',   applyRemoteState);
       _sock.on('timer:trigger', applyRemoteTrigger);
       _sock.on('overlay:reload', (data) => {
+        // Chỉ Browser Source OBS mới tự reload. App phát overlay:reload MỖI LẦN đổi view
+        // trong Thư viện Game — panel reload theo là mất thao tác đang dở (ô đang gõ,
+        // picker đang mở). Nút "🔄 Reload" trong app vẫn reload iframe trực tiếp.
+        if (!IS_OVERLAY) return;
         if (!data || !data.gameId || data.gameId === 'timer') location.reload();
       });
       // Đồng bộ enabled flag từ Thư viện game (toggle ⏻ trên sidebar)
