@@ -908,7 +908,8 @@
         document.body.classList.remove('game-thuytinh', 'game-caro', 'game-pktiktok', 'game-vipwelcome', 'game-votecomment', 'game-nhietdo', 'game-bancung', 'game-trongcay', 'game-nhatla', 'game-liveTranslate', 'game-chemtraicay', 'game-camgames', 'game-touchplay', 'game-dapmuoi');
         document.body.classList.add('game-' + gameId);
         // Nhặt Lá giữ batch lá đang chạy trong RAM; chỉ reload thủ công khi cần nạp asset mới.
-        if (gameId !== 'nhatla') {
+        // Đập Muỗi cũng vậy: reload là mất sạch muỗi + điểm đang chơi giữa live (có nút 🔄 Reload riêng).
+        if (gameId !== 'nhatla' && gameId !== 'dapmuoi') {
             try { socket && socket.emit('overlay:reload', { gameId }); } catch (e) {}
         }
         // Đóng các popup Hũ khi rời sang game khác (tránh popup mở treo)

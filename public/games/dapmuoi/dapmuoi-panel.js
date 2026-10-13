@@ -9,7 +9,8 @@
     let socket = null;
     let bound = false;
     let persistTimer = null;
-    let liveState = null, overlayStat = null, feedStatus = null;
+    let liveState = null, feedStatus = null;
+    let feedPoll = null;
 
     const HIT_SETTINGS = [
         { group: 'ĐỘ NHẠY VỖ TAY', items: [
@@ -73,11 +74,21 @@
                 cfg = next; renderAll();
             });
             socket.on('dapmuoi:state', (s) => { liveState = s; renderStatus(); });
-            socket.on('touchplay:overlayStat', (s) => { overlayStat = { ...s, at: Date.now() }; renderStatus(); });
-            socket.on('touchplay:feedStatus', (s) => { feedStatus = s; renderStatus(); });
         }
         if (socket) socket.emit('subscribe', 'preview');
         loadConfig();
+        // Trạng thái feed camera + sức khoẻ nhận diện của overlay chỉ phát cho room overlay
+        // (touchplay:feedStatus) — panel hỏi route như hub Game Camera, 2 giây một lần khi đang mở.
+        clearInterval(feedPoll);
+        feedPoll = setInterval(pollFeed, 2000);
+        pollFeed();
+    }
+    async function pollFeed() {
+        const view = $('#view-dapmuoi');
+        if (!view || !view.classList.contains('active')) { clearInterval(feedPoll); feedPoll = null; return; }
+        try { feedStatus = (await (await fetch('/api/touchplay/obs-sources', { cache: 'no-store' })).json()).status || null; }
+        catch (e) { feedStatus = null; }
+        renderStatus();
     }
 
     async function loadConfig() {
@@ -124,11 +135,12 @@
         const chips = [];
         const fs = feedStatus || {};
         if (fs.obsConnected === false) chips.push('<span class="ctc-chip warn">📷 Chưa kết nối OBS</span>');
-        else if (fs.source) chips.push(`<span class="ctc-chip ok">📷 ${escapeHtml(fs.source)}</span>`);
-        else chips.push('<span class="ctc-chip warn">📷 Chưa chọn nguồn camera (🎥 Game Camera)</span>');
-        if (overlayStat && Date.now() - overlayStat.at < 6000) {
-            chips.push(`<span class="ctc-chip ${overlayStat.hands ? 'ok' : ''}">🖐 ${overlayStat.hands || 0} tay · ${Math.round(overlayStat.fps || 0)} lần/s · AI ${Math.round(overlayStat.aiMs || 0)}ms</span>`);
-        } else chips.push('<span class="ctc-chip dim">🖐 Overlay chưa gửi tín hiệu nhận diện</span>');
+        else if (!fs.source) chips.push('<span class="ctc-chip warn">📷 Chưa chọn nguồn camera (🎥 Game Camera)</span>');
+        else if (fs.error) chips.push(`<span class="ctc-chip warn">📷 ${escapeHtml(fs.source)} — ${escapeHtml(fs.error)}</span>`);
+        else chips.push(`<span class="ctc-chip ${fs.live ? 'ok' : 'warn'}">📷 ${escapeHtml(fs.source)}${fs.live ? ` · ${fs.fps || 0} hình/s` : ' — chưa có hình'}${fs.camFound === false ? ' · không thấy trong scene đang phát' : ''}</span>`);
+        const ov = fs.overlay;
+        if (ov) chips.push(`<span class="ctc-chip ${ov.hands ? 'ok' : ''}">🖐 ${ov.hands || 0} tay${ov.pose ? ' · 🧍 thấy người' : ''} · ${Math.round(ov.fps || 0)} lần/s · AI ${Math.round(ov.aiMs || 0)}ms</span>`);
+        else chips.push('<span class="ctc-chip dim">🖐 Overlay chưa gửi tín hiệu nhận diện (mở link Game Camera trong OBS)</span>');
         const s = liveState || {};
         chips.push(`<span class="ctc-chip">🦟 Còn ${Number(s.flying) || 0}${s.queue ? ` (+${s.queue})` : ''}</span>`);
         chips.push(`<span class="ctc-chip">✋ Đã đập ${Number(s.killed) || 0}</span>`);
