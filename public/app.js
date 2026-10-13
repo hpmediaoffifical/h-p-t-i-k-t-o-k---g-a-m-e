@@ -4004,11 +4004,6 @@
         if (text) setCreatorCaptionTranscript('Đang nói: ' + text, 'pending');
     });
     socket.on('creatorCaption:line', (item) => {
-        if (!isCreatorCaptionPopupOpen() || !item) return;
-        const rows = Array.isArray(item.translations) ? item.translations : [];
-        setCreatorCaptionTranscript(`Đã nhận: ${item.originalText || ''}\n` + rows.map(t => `→ ${t.targetLangLabel || t.targetLang}: ${t.translatedText}`).join('\n'), 'ok');
-    });
-    socket.on('creatorCaption:line', (item) => {
         if (!item?.originalText || !isCreatorCaptionPopupOpen()) return;
         const translations = Array.isArray(item.translations) && item.translations.length
             ? item.translations.map(row => `${row.targetLangLabel || row.targetLang}: ${row.translatedText || ''}`).join('\n')
