@@ -1,7 +1,20 @@
 // node --test tests/caption-speech.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createResultTracker, restartDelay, isFatalError, createPartialThrottle } from '../public/lib/caption-speech.mjs';
+import { createResultTracker, restartDelay, isFatalError, createPartialThrottle, shouldForceCut } from '../public/lib/caption-speech.mjs';
+
+test('shouldForceCut: ngắt khi nói liên tục quá maxSeconds hoặc quá maxWords', () => {
+    assert.equal(shouldForceCut({ startedAt: 1000, now: 6999, words: 5, maxSeconds: 6, maxWords: 18 }), false);
+    assert.equal(shouldForceCut({ startedAt: 1000, now: 7000, words: 5, maxSeconds: 6, maxWords: 18 }), true);
+    assert.equal(shouldForceCut({ startedAt: 1000, now: 1500, words: 18, maxSeconds: 6, maxWords: 18 }), true);
+    assert.equal(shouldForceCut({ startedAt: 1000, now: 1500, words: 17, maxSeconds: 6, maxWords: 18 }), false);
+});
+
+test('shouldForceCut: tắt khi maxSeconds = 0 (và không giới hạn từ khi maxWords = 0); chưa bắt đầu → không ngắt', () => {
+    assert.equal(shouldForceCut({ startedAt: 1000, now: 99000, words: 500, maxSeconds: 0, maxWords: 0 }), false);
+    assert.equal(shouldForceCut({ startedAt: 1000, now: 99000, words: 5, maxSeconds: 0, maxWords: 18 }), false);
+    assert.equal(shouldForceCut({ startedAt: 0, now: 99000, words: 50, maxSeconds: 6, maxWords: 18 }), false);
+});
 
 // Giả lập SpeechRecognitionEvent: results[i] = { isFinal, 0: { transcript } }
 function ev(resultIndex, rows) {

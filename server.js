@@ -1772,6 +1772,8 @@ const DEFAULT_CREATOR_CAPTION_CONFIG = {
     style: 'card',            // card (thẻ kính) | subtitle (phụ đề trắng viền đen)
     showOriginal: true,
     showInterim: true,        // hiện chữ đang nói (chưa dịch) trên OBS
+    segmentSeconds: 6,        // nói liên tục quá N giây → trang nghe tự chốt câu để dịch sớm (0 = tắt, 3–15)
+    autoStart: true,          // LIVE kết nối (và enabled) → tự mở cửa sổ nghe
     maxItems: 3,
     holdSeconds: 12,
     autoTargetsEnabled: true,
@@ -2181,6 +2183,9 @@ function sanitizeCreatorCaptionConfig(input) {
     cfg.style = src.style === 'subtitle' ? 'subtitle' : 'card';
     cfg.showOriginal = src.showOriginal !== false;
     cfg.showInterim = src.showInterim !== false;
+    const seg = src.segmentSeconds == null ? d.segmentSeconds : parseInt(src.segmentSeconds, 10);
+    cfg.segmentSeconds = !Number.isFinite(seg) ? d.segmentSeconds : seg <= 0 ? 0 : Math.max(3, Math.min(15, seg));
+    cfg.autoStart = src.autoStart !== false;
     cfg.maxItems = Math.max(1, Math.min(6, parseInt(src.maxItems, 10) || d.maxItems));
     cfg.holdSeconds = Math.max(3, Math.min(30, parseInt(src.holdSeconds, 10) || d.holdSeconds));
     cfg.autoTargetsEnabled = src.autoTargetsEnabled !== false;
@@ -2910,6 +2915,7 @@ function attachConnectionEvents(conn, lib) {
         liveConnected = true;
         currentRoomId = state?.roomId;
         vipStartRoom();
+        captionAutoStartOnLive();
         broadcast('status', { connected: true, username: currentUsername, roomId: currentRoomId });
         setLiveDashboardStatus(true, { username: currentUsername, roomId: currentRoomId });
         console.log(`[tiktok] Connected to roomId=${currentRoomId}`);
@@ -4335,6 +4341,7 @@ async function connectToUser(username, opts = {}) {
         streamEnded = false;
         currentRoomId = state?.roomId;
         vipStartRoom();   // sổ ghé phòng: 1 roomId = 1 buổi (nối lại giữa buổi giữ roomId → không mở buổi mới)
+        captionAutoStartOnLive();   // phụ đề giọng: tự mở cửa sổ nghe Edge/Chrome nếu bật
         // Synthetic "host vào phòng" event — TikTok không fire MEMBER cho HOST tự kết nối live của mình.
         // roomInfo là envelope JSON của TikTok {data:{owner:{id_str, display_id, nickname, avatar_thumb, follow_info...}}, extra,
         // status_code} (cả 2.1.0 lẫn 2.4.4) — trước đây đọc roomInfo.owner.* (camelCase) nên host luôn rỗng → PK không nhận
@@ -4539,6 +4546,29 @@ function captionListenerStop() {
     else io.emit('creatorCaption:listener:stop');
     return captionListener.snapshot();
 }
+// Mở (hoặc bảo trang đang mở nghe lại) — idempotent nhờ máy trạng thái. → { ok, error? }
+function captionListenerOpen() {
+    const browser = sanitizeCreatorCaptionConfig(appConfig.creatorCaption).browser;
+    const r = captionListener.open({ browser });
+    if (r.action === 'spawn') {
+        if (!captionListenerSpawn(browser)) {
+            captionListener.fail('browser_not_found');
+            return { ok: false, error: 'browser_not_found' };
+        }
+    } else if (r.action === 'start' && r.socketId) {
+        io.to(r.socketId).emit('creatorCaption:listener:start');
+    }
+    return { ok: true };
+}
+// LIVE vừa kết nối → tự mở cửa sổ nghe nếu tính năng bật và autoStart (streamer không phải bấm mỗi buổi).
+function captionAutoStartOnLive() {
+    try {
+        const cfg = sanitizeCreatorCaptionConfig(appConfig.creatorCaption);
+        if (!cfg.enabled || !cfg.autoStart) return;
+        const r = captionListenerOpen();
+        if (!r.ok) console.warn('[creator-caption] tự mở cửa sổ nghe thất bại:', r.error);
+    } catch (e) { console.warn('[creator-caption] tự mở cửa sổ nghe lỗi:', e.message); }
+}
 app.get('/api/creator-caption/listener/state', (req, res) => res.json(captionListener.snapshot()));
 app.post('/api/creator-caption/listener/open', (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
@@ -4548,16 +4578,8 @@ app.post('/api/creator-caption/listener/open', (req, res) => {
         saveAppConfig();
         io.emit('creatorCaption:config', appConfig.creatorCaption);
     }
-    const browser = sanitizeCreatorCaptionConfig(appConfig.creatorCaption).browser;
-    const r = captionListener.open({ browser });
-    if (r.action === 'spawn') {
-        if (!captionListenerSpawn(browser)) {
-            captionListener.fail('browser_not_found');
-            return res.status(404).json({ ok: false, error: 'browser_not_found', state: captionListener.snapshot() });
-        }
-    } else if (r.action === 'start' && r.socketId) {
-        io.to(r.socketId).emit('creatorCaption:listener:start');
-    }
+    const r = captionListenerOpen();
+    if (!r.ok) return res.status(404).json({ ok: false, error: r.error, state: captionListener.snapshot() });
     res.json({ ok: true, state: captionListener.snapshot() });
 });
 app.post('/api/creator-caption/listener/stop', (req, res) => {

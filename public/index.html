@@ -2368,6 +2368,12 @@
             <label class="translate-check"><input type="checkbox" id="cc-enabled" /> Bật nhận giọng Creator</label>
             <label class="translate-check"><input type="checkbox" id="cc-original" checked /> Hiện cả câu gốc</label>
             <label class="translate-check"><input type="checkbox" id="cc-interim" checked /> Hiện chữ đang nói trên OBS</label>
+            <label class="translate-check"><input type="checkbox" id="cc-autostart" checked /> Tự mở cửa sổ nghe khi kết nối LIVE</label>
+            <div class="translate-row" title="Nói liền mạch không ngừng thì trình duyệt chốt câu rất muộn — tự ngắt để dịch sớm hơn. 0 = tắt">
+                <label>Tự ngắt câu sau</label>
+                <input type="range" id="cc-segment" min="0" max="15" step="1" value="6" />
+                <span class="translate-val" id="cc-segment-v">6s</span>
+            </div>
             <div class="translate-row">
                 <label>Creator nói</label>
                 <select id="cc-source">

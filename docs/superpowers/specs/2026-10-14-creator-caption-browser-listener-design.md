@@ -224,6 +224,18 @@ dịch trong ~1–3 giây sau khi ngừng nói; tắt app thì cửa sổ Edge t
 - Thử tay (ghi trong plan): nghe thật tiếng Việt trong Edge và Chrome; overlay trong OBS kiểu Thẻ + Phụ đề,
   3 ngôn ngữ; tự đóng Edge giữa chừng; tắt app; đổi ngôn ngữ nói khi đang nghe; máy đặt Cốc Cốc làm mặc định.
 
+## Bổ sung sau khi chạy thử (chat 14/10/2026 — "tự nghe realtime, tự ngắt và dịch")
+
+- **Tự ngắt câu** (`segmentSeconds`, mặc định 6, `0` = tắt, 3–15): trang nghe đo từ lúc có chữ tạm đầu tiên của
+  câu; nói liên tục quá N giây **hoặc** quá 18 từ → gọi `recognition.stop()` để trình duyệt chốt ngay đoạn đã nghe
+  (final → dịch), rồi bật lại ngay (0 ms). Luật thuần `shouldForceCut({ startedAt, now, words, maxSeconds, maxWords })`
+  trong `caption-speech.mjs`. Không dùng `abort()` (mất đoạn đang nghe).
+- **Tự mở cửa sổ nghe khi kết nối LIVE** (`autoStart`, mặc định bật): server gọi `captionAutoStartOnLive()` ở cả hai
+  điểm kết nối thành công (`createTikTokConnectionWithFallback` và `ControlEvent.CONNECTED`) khi `enabled && autoStart`;
+  idempotent nhờ máy trạng thái (đang nghe → không làm gì). Không tự dừng khi LIVE ngắt (nối lại giữa buổi sẽ làm
+  cửa sổ nhấp nháy).
+- Popup thêm checkbox "Tự mở cửa sổ nghe khi kết nối LIVE" + thanh "Tự ngắt câu sau … giây".
+
 ## Ngoài phạm vi
 
 Whisper offline; điều khiển game bằng giọng; "gọi AI qua micro"; khách nhập key Google dịch chính thức;

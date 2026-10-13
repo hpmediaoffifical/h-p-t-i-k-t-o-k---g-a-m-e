@@ -3475,6 +3475,9 @@
     const ccInterim = document.getElementById('cc-interim');
     const ccListener = document.getElementById('cc-listener');
     const btnCcReset = document.getElementById('btn-cc-reset');
+    const ccAutoStart = document.getElementById('cc-autostart');
+    const ccSegment = document.getElementById('cc-segment');
+    const ccSegmentV = document.getElementById('cc-segment-v');
     const ccTranscript = document.getElementById('cc-transcript');
     const ccAutoTargets = document.getElementById('cc-auto-targets');
     const ccAutoTargetTimeout = document.getElementById('cc-auto-target-timeout');
@@ -3727,6 +3730,10 @@
         if (ccInterim) ccInterim.checked = creatorCaptionConfig.showInterim !== false;
         if (ccBrowser) ccBrowser.value = creatorCaptionConfig.browser === 'chrome' ? 'chrome' : 'edge';
         if (ccStyle) ccStyle.value = creatorCaptionConfig.style === 'subtitle' ? 'subtitle' : 'card';
+        if (ccAutoStart) ccAutoStart.checked = creatorCaptionConfig.autoStart !== false;
+        const seg = creatorCaptionConfig.segmentSeconds == null ? 6 : Number(creatorCaptionConfig.segmentSeconds);
+        if (ccSegment) ccSegment.value = String(seg);
+        if (ccSegmentV) ccSegmentV.textContent = seg > 0 ? seg + 's' : 'Tắt';
         if (ccAutoTargets) ccAutoTargets.checked = creatorCaptionConfig.autoTargetsEnabled !== false;
         if (ccAutoTargetTimeout) ccAutoTargetTimeout.value = String(creatorCaptionConfig.autoTargetTimeoutSeconds == null ? 60 : creatorCaptionConfig.autoTargetTimeoutSeconds);
         const targets = Array.isArray(creatorCaptionConfig.targetLangs) && creatorCaptionConfig.targetLangs.length ? creatorCaptionConfig.targetLangs : [creatorCaptionConfig.targetLang || 'en'];
@@ -3744,6 +3751,8 @@
             browser: ccBrowser?.value === 'chrome' ? 'chrome' : 'edge',
             style: ccStyle?.value === 'subtitle' ? 'subtitle' : 'card',
             showInterim: ccInterim ? !!ccInterim.checked : true,
+            autoStart: ccAutoStart ? !!ccAutoStart.checked : true,
+            segmentSeconds: Number.isFinite(parseInt(ccSegment?.value || '', 10)) ? parseInt(ccSegment.value, 10) : 6,
             targetLangs: ccTargets.filter(input => input.checked).map(input => input.value),
             showOriginal: ccOriginal ? !!ccOriginal.checked : true,
             autoTargetsEnabled: ccAutoTargets ? !!ccAutoTargets.checked : true,
@@ -3956,6 +3965,9 @@
     ccInterim?.addEventListener('change', saveCreatorCaptionConfigSilent);
     ccOriginal?.addEventListener('change', saveCreatorCaptionConfigSilent);
     ccSource?.addEventListener('change', saveCreatorCaptionConfigSilent);
+    ccAutoStart?.addEventListener('change', saveCreatorCaptionConfigSilent);
+    ccSegment?.addEventListener('input', () => { const v = parseInt(ccSegment.value, 10) || 0; if (ccSegmentV) ccSegmentV.textContent = v > 0 ? v + 's' : 'Tắt'; });
+    ccSegment?.addEventListener('change', saveCreatorCaptionConfigSilent);
     ltVolume?.addEventListener('input', () => { if (ltVolumeV) ltVolumeV.textContent = (ltVolume.value || '0') + '%'; });
     ltRate?.addEventListener('input', () => { if (ltRateV) ltRateV.textContent = (parseFloat(ltRate.value || '1') || 1).toFixed(1) + 'x'; });
     ltTtsPreset?.addEventListener('change', () => {

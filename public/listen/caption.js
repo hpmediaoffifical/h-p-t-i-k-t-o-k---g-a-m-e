@@ -1,7 +1,7 @@
 // Trang nghe giọng Creator — chạy trong Edge/Chrome thật (cửa sổ --app do server mở), vì
 // Electron không có khoá dịch vụ Web Speech. Nghe bằng webkitSpeechRecognition, đẩy chữ tạm /
 // câu final / trạng thái về server qua socket.io. Logic thuần ở /lib/caption-speech.mjs.
-import { createResultTracker, restartDelay, createPartialThrottle } from '/lib/caption-speech.mjs';
+import { createResultTracker, restartDelay, createPartialThrottle, shouldForceCut } from '/lib/caption-speech.mjs';
 
 const qs = new URLSearchParams(location.search);
 const browser = qs.get('browser') === 'chrome' ? 'chrome' : 'edge';
@@ -31,6 +31,11 @@ let state = 'idle';          // báo server: starting | listening | idle | error
 let stateError = '';
 let connectedOnce = false;
 let resultCount = 0;         // số lần onresult trong phiên hiện tại (chẩn đoán)
+// Tự ngắt câu: nói liền mạch quá cfg.segmentSeconds (hoặc 18 từ) → stop() để chốt đoạn đã nghe rồi nghe tiếp ngay.
+const CUT_MAX_WORDS = 18;
+let segmentStartedAt = 0;    // lúc có chữ tạm đầu tiên của câu đang nói
+let cutting = false;         // đã gọi stop() để chốt, chờ onend
+let cuts = 0;                // số lần tự ngắt (chẩn đoán)
 const tracker = createResultTracker();
 const throttle = createPartialThrottle(100);
 let flushTimer = null;
@@ -52,7 +57,7 @@ function report() {
     socket.emit('creatorCaption:listener', {
         state, browser, lang, micLabel, error: stateError || undefined,
         // Chẩn đoán cho popup/app: trang đang ở pha nào, lỗi gần nhất, đã bao nhiêu phiên trống.
-        detail: { phase, lastError, hadResults, emptySessions, networkErrors, results: resultCount }
+        detail: { phase, lastError, hadResults, emptySessions, networkErrors, results: resultCount, cuts }
     });
 }
 function setState(next, err) {
@@ -114,6 +119,16 @@ function ensureRecognizer() {
         }
         // Sau câu final: xoá dòng tạm trên OBS ngay (partial '' đi thẳng, không qua tiết lưu).
         sendPartial(finals.length ? '' : partial);
+        if (finals.length || !partial) { segmentStartedAt = 0; return; }
+        if (!segmentStartedAt) segmentStartedAt = Date.now();
+        const maxSeconds = Number(cfg.segmentSeconds);
+        if (!cutting && shouldForceCut({ startedAt: segmentStartedAt, now: Date.now(), words: partial.split(/\s+/).length,
+            maxSeconds: Number.isFinite(maxSeconds) ? maxSeconds : 6, maxWords: CUT_MAX_WORDS })) {
+            cutting = true;
+            cuts += 1;
+            segmentStartedAt = 0;
+            try { rec.stop(); } catch (e) { cutting = false; }   // stop() (không abort) → trình duyệt chốt final cho đoạn đã nghe
+        }
     };
     rec.onerror = (ev) => {
         lastError = ev.error || 'error';
@@ -122,9 +137,11 @@ function ensureRecognizer() {
     };
     rec.onend = () => {
         phase = 'idle';
+        segmentStartedAt = 0;
         sendPartial('');
         if (!active) { setState('idle'); return; }
         if (langSwitch) { langSwitch = false; startListening(); return; }
+        if (cutting) { cutting = false; startListening(); return; }   // vừa tự ngắt câu → nghe tiếp ngay
         emptySessions = hadResults ? 0 : emptySessions + 1;
         const d = restartDelay({ reason: lastError, hadResults, emptySessions, networkErrors });
         if (d < 0) {
@@ -151,6 +168,8 @@ function startListening() {
     tracker.newSession();
     hadResults = false;
     resultCount = 0;
+    segmentStartedAt = 0;
+    cutting = false;
     lastError = '';
     phase = 'starting';
     setState('starting');

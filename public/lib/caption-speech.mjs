@@ -53,6 +53,16 @@ export function restartDelay({ reason = '', hadResults = false, emptySessions = 
     return Math.min(5000, 500 * Math.max(1, emptySessions));
 }
 
+// Tự ngắt câu: streamer nói liền mạch thì trình duyệt chốt câu rất muộn (câu dài, dịch tới trễ).
+// Từ lúc có chữ tạm đầu tiên (startedAt) mà quá maxSeconds hoặc quá maxWords từ → caller gọi
+// recognition.stop() để chốt ngay đoạn đã nghe. maxSeconds = 0 → tắt theo thời gian; maxWords = 0 → tắt theo từ.
+export function shouldForceCut({ startedAt = 0, now = 0, words = 0, maxSeconds = 6, maxWords = 18 } = {}) {
+    if (!startedAt) return false;
+    if (maxSeconds > 0 && now - startedAt >= maxSeconds * 1000) return true;
+    if (maxWords > 0 && words >= maxWords) return true;
+    return false;
+}
+
 // Tiết lưu chữ tạm: tối đa 1 lần / intervalMs, bỏ text trùng text vừa gửi; chuỗi rỗng (xoá dòng
 // tạm) đi ngay. flush() trả text đang giữ (gọi khi phiên kết thúc).
 export function createPartialThrottle(intervalMs = 100, now = () => Date.now()) {
