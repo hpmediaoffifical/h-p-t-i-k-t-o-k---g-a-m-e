@@ -2363,8 +2363,11 @@
                 <button id="btn-cc-toggle" class="primary block">BẮT ĐẦU NGHE</button>
                 <button id="btn-cc-test" class="ghost block">Test phụ đề</button>
             </div>
+            <!-- Trạng thái cửa sổ nghe (Edge/Chrome) — server phát creatorCaption:listenerState -->
+            <div id="cc-listener" class="translate-status" hidden></div>
             <label class="translate-check"><input type="checkbox" id="cc-enabled" /> Bật nhận giọng Creator</label>
             <label class="translate-check"><input type="checkbox" id="cc-original" checked /> Hiện cả câu gốc</label>
+            <label class="translate-check"><input type="checkbox" id="cc-interim" checked /> Hiện chữ đang nói trên OBS</label>
             <div class="translate-row">
                 <label>Creator nói</label>
                 <select id="cc-source">
@@ -2374,27 +2377,25 @@
                     <option value="ru-RU">Russian</option><option value="pt-BR">Portuguese</option><option value="hi-IN">Hindi</option><option value="ar-SA">Arabic</option><option value="tr-TR">Turkish</option>
                 </select>
             </div>
-            <div class="translate-row cc-local-row" hidden>
-                <label>Whisper EXE</label>
-                <input id="cc-whisper-exe" type="text" placeholder="Để trống = dùng whisper tích hợp sẵn" />
-            </div>
-            <div class="translate-row cc-local-row" hidden>
-                <label>Model local</label>
-                <input id="cc-whisper-model" type="text" placeholder="Để trống = dùng ggml-base tích hợp sẵn" />
+            <div class="translate-row">
+                <label>Nghe bằng</label>
+                <select id="cc-browser">
+                    <option value="edge">Edge (có sẵn trên Windows)</option>
+                    <option value="chrome">Chrome</option>
+                </select>
+                <button id="btn-cc-reset" class="ghost mini" style="white-space:nowrap" title="Xoá quyền micro đã lưu của cửa sổ nghe — dùng khi lỡ bấm Chặn">Đặt lại micro</button>
             </div>
             <div class="translate-row">
-                <label>Micro</label>
-                <select id="cc-mic"><option value="default">Micro mặc định của máy</option></select>
-                <button id="btn-cc-mic-test" class="ghost mini" title="Kiểm tra quyền micro">✓</button>
-            </div>
-            <div id="cc-wave" class="cc-wave" aria-hidden="true">
-                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                <label>Kiểu overlay</label>
+                <select id="cc-style">
+                    <option value="card">Thẻ (nền kính, chữ chạy)</option>
+                    <option value="subtitle">Phụ đề (chữ trắng viền đen)</option>
+                </select>
             </div>
             <div class="cc-transcript-box">
                 <div class="cc-transcript-label">Test nhận giọng</div>
-                <div id="cc-transcript" class="cc-transcript">Bấm BẮT ĐẦU NGHE rồi nói. Câu nghe được sẽ hiện ở đây trước khi dịch.</div>
+                <div id="cc-transcript" class="cc-transcript">Bấm BẮT ĐẦU NGHE — một cửa sổ Edge nhỏ sẽ mở; cho phép micro rồi nói, chữ hiện ở đây trước khi lên OBS.</div>
             </div>
-            <div class="translate-row"><label>Dừng nói sau</label><input type="range" id="cc-silence" min="0.5" max="8" step="0.5" value="2" /><span class="translate-val" id="cc-silence-v">2s</span></div>
             <label class="translate-check"><input type="checkbox" id="cc-auto-targets" checked /> Tự bật ngôn ngữ phụ đề theo người xem đang chat</label>
             <div class="translate-row">
                 <label>Tự tắt sau</label>

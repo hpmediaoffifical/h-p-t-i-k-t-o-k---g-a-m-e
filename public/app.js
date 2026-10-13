@@ -977,6 +977,7 @@
         if (caption) caption.hidden = false;
         loadLiveTranslateConfig?.();
         loadCreatorCaptionConfig?.();
+        refreshCaptionListenerState?.();
         autoSyncTranslateRules?.();
     }
 
@@ -3469,14 +3470,12 @@
     const ccEnabled = document.getElementById('cc-enabled');
     const ccOriginal = document.getElementById('cc-original');
     const ccSource = document.getElementById('cc-source');
-    const ccWhisperExe = document.getElementById('cc-whisper-exe');
-    const ccWhisperModel = document.getElementById('cc-whisper-model');
-    const ccMic = document.getElementById('cc-mic');
-    const btnCcMicTest = document.getElementById('btn-cc-mic-test');
-    const ccWave = document.getElementById('cc-wave');
+    const ccBrowser = document.getElementById('cc-browser');
+    const ccStyle = document.getElementById('cc-style');
+    const ccInterim = document.getElementById('cc-interim');
+    const ccListener = document.getElementById('cc-listener');
+    const btnCcReset = document.getElementById('btn-cc-reset');
     const ccTranscript = document.getElementById('cc-transcript');
-    const ccSilence = document.getElementById('cc-silence');
-    const ccSilenceV = document.getElementById('cc-silence-v');
     const ccAutoTargets = document.getElementById('cc-auto-targets');
     const ccAutoTargetTimeout = document.getElementById('cc-auto-target-timeout');
     const ccTargets = Array.from(document.querySelectorAll('input[name="cc-targets"]'));
@@ -3488,27 +3487,7 @@
     let liveTranslateConfig = null;
     let liveTranslateAutoSaving = false;
     let creatorCaptionConfig = null;
-    let creatorCaptionRecognition = null;
-    let creatorCaptionListening = false;
-    let creatorCaptionRestarting = false;
-    let creatorCaptionBuffer = '';
-    let creatorCaptionSilenceTimer = null;
-    let creatorCaptionMicStream = null;
-    let creatorCaptionAudioCtx = null;
-    let creatorCaptionAnalyser = null;
-    let creatorCaptionWaveRaf = 0;
-    let creatorCaptionLastResultAt = 0;
-    let creatorCaptionNoResultTimer = null;
-    let creatorCaptionRecorder = null;
-    let creatorCaptionRecordTimer = null;
-    let creatorCaptionChunkPeak = 0;
-    let creatorCaptionChunkLevelSum = 0;
-    let creatorCaptionChunkLevelCount = 0;
-    let creatorCaptionChunkActiveFrames = 0;
-    let creatorCaptionTranscribing = false;
-    let creatorCaptionLastTranscribeAt = 0;
-    let creatorCaptionRateLimitedUntil = 0;
-    let creatorCaptionLastSkipNoticeAt = 0;
+    let captionListenerState = { status: 'idle' };   // snapshot cửa sổ nghe (server phát creatorCaption:listenerState)
     const creatorCaptionAutoTargetTimers = new Map();
     const creatorCaptionAutoTargets = new Set();
     const missingCreatorCaptionTargetLangs = new Set();
@@ -3528,23 +3507,6 @@
         if (!ccTranscript) return;
         ccTranscript.textContent = text || 'Bấm BẮT ĐẦU NGHE rồi nói. Câu nghe được sẽ hiện ở đây trước khi dịch.';
         ccTranscript.className = 'cc-transcript' + (cls ? ' ' + cls : '');
-    }
-    function updateCreatorCaptionProviderUi() {
-        document.querySelectorAll('.cc-local-row').forEach(row => { row.hidden = true; });
-    }
-    function scheduleCreatorCaptionNoResultCheck(stage) {
-        if (creatorCaptionNoResultTimer) clearTimeout(creatorCaptionNoResultTimer);
-        const startAt = Date.now();
-        creatorCaptionNoResultTimer = setTimeout(() => {
-            if (!creatorCaptionListening) return;
-            if (creatorCaptionLastResultAt >= startAt) return;
-            setCreatorCaptionTranscript(
-                `${stage || 'Có tín hiệu âm thanh'} nhưng chưa chuyển được thành chữ.\n` +
-                'Nếu sóng âm vẫn nhảy, micro OK; lỗi nằm ở engine Speech-to-Text của Chromium/Electron hoặc ngôn ngữ nhận giọng.',
-                'err'
-            );
-            setCreatorCaptionStatus('Micro có tín hiệu nhưng chưa nhận được chữ. Thử nói rõ hơn hoặc đổi Creator nói sang đúng ngôn ngữ.', 'err');
-        }, 8000);
     }
     function setTranslateUnread(n) {
         unreadTranslations = Math.max(0, n);
@@ -3762,19 +3724,14 @@
         if (ccEnabled) ccEnabled.checked = creatorCaptionConfig.enabled === true;
         if (ccOriginal) ccOriginal.checked = creatorCaptionConfig.showOriginal !== false;
         if (ccSource) ccSource.value = creatorCaptionConfig.sourceLang || 'vi-VN';
-        if (ccWhisperExe) ccWhisperExe.value = creatorCaptionConfig.whisperLocalExe || '';
-        if (ccWhisperModel) ccWhisperModel.value = creatorCaptionConfig.whisperLocalModel || '';
-        updateCreatorCaptionProviderUi();
-        if (ccSilence) ccSilence.value = String(creatorCaptionConfig.silenceSeconds == null ? 2 : creatorCaptionConfig.silenceSeconds);
-        if (ccSilenceV) ccSilenceV.textContent = (creatorCaptionConfig.silenceSeconds == null ? 2 : creatorCaptionConfig.silenceSeconds) + 's';
+        if (ccInterim) ccInterim.checked = creatorCaptionConfig.showInterim !== false;
+        if (ccBrowser) ccBrowser.value = creatorCaptionConfig.browser === 'chrome' ? 'chrome' : 'edge';
+        if (ccStyle) ccStyle.value = creatorCaptionConfig.style === 'subtitle' ? 'subtitle' : 'card';
         if (ccAutoTargets) ccAutoTargets.checked = creatorCaptionConfig.autoTargetsEnabled !== false;
         if (ccAutoTargetTimeout) ccAutoTargetTimeout.value = String(creatorCaptionConfig.autoTargetTimeoutSeconds == null ? 60 : creatorCaptionConfig.autoTargetTimeoutSeconds);
         const targets = Array.isArray(creatorCaptionConfig.targetLangs) && creatorCaptionConfig.targetLangs.length ? creatorCaptionConfig.targetLangs : [creatorCaptionConfig.targetLang || 'en'];
         ccTargets.forEach(input => { input.checked = targets.includes(input.value); });
-        if (btnCcToggle) {
-            btnCcToggle.textContent = creatorCaptionListening ? 'DỪNG NGHE' : 'BẮT ĐẦU NGHE';
-            btnCcToggle.classList.toggle('listening', creatorCaptionListening);
-        }
+        renderCaptionListenerState(captionListenerState);
     }
     async function loadCreatorCaptionConfig() {
         try { applyCreatorCaptionConfig(await (await fetch('/api/creator-caption/config')).json()); }
@@ -3784,11 +3741,11 @@
         const body = {
             enabled: !!ccEnabled?.checked,
             sourceLang: ccSource?.value || 'vi-VN',
-            whisperLocalExe: ccWhisperExe?.value || '',
-            whisperLocalModel: ccWhisperModel?.value || '',
+            browser: ccBrowser?.value === 'chrome' ? 'chrome' : 'edge',
+            style: ccStyle?.value === 'subtitle' ? 'subtitle' : 'card',
+            showInterim: ccInterim ? !!ccInterim.checked : true,
             targetLangs: ccTargets.filter(input => input.checked).map(input => input.value),
             showOriginal: ccOriginal ? !!ccOriginal.checked : true,
-            silenceSeconds: Number.isFinite(parseFloat(ccSilence?.value || '')) ? parseFloat(ccSilence.value) : 2,
             autoTargetsEnabled: ccAutoTargets ? !!ccAutoTargets.checked : true,
             autoTargetTimeoutSeconds: Number.isFinite(parseInt(ccAutoTargetTimeout?.value || '', 10)) ? parseInt(ccAutoTargetTimeout.value, 10) : 60
         };
@@ -3800,22 +3757,9 @@
         applyCreatorCaptionConfig(json.config);
         return json.config;
     }
-    function getSpeechRecognitionCtor() {
-        return window.SpeechRecognition || window.webkitSpeechRecognition || null;
-    }
     function getSelectedCreatorCaptionTargets() {
         const targets = ccTargets.filter(input => input.checked).map(input => input.value);
         return targets.length ? targets : ['en'];
-    }
-    function flushCreatorCaptionBuffer(cfg) {
-        const text = creatorCaptionBuffer.trim().replace(/\s{2,}/g, ' ');
-        creatorCaptionBuffer = '';
-        if (creatorCaptionSilenceTimer) clearTimeout(creatorCaptionSilenceTimer);
-        creatorCaptionSilenceTimer = null;
-        if (text) {
-            setCreatorCaptionTranscript(`Đã nhận giọng:\n${text}\n\nĐang gửi đi dịch...`, 'ok');
-            socket.emit('creatorCaption:speech', { text, sourceLang: cfg.sourceLang, targetLangs: getSelectedCreatorCaptionTargets() });
-        }
     }
     function clearCreatorCaptionAutoTarget(lang) {
         const timer = creatorCaptionAutoTargetTimers.get(lang);
@@ -3862,6 +3806,7 @@
         }
         if (input.checked && !creatorCaptionAutoTargets.has(lang)) return;
         if (!input.checked) {
+            if (ccTargets.filter(x => x.checked).length >= CC_MAX_TARGETS) return;   // đã đủ 5 ngôn ngữ
             input.checked = true;
             creatorCaptionAutoTargets.add(lang);
             saveCreatorCaptionConfigSilent();
@@ -3869,324 +3814,102 @@
         scheduleCreatorCaptionAutoTargetOff(lang);
         setCreatorCaptionStatus(`Đã tự bật phụ đề ${input.parentElement?.textContent?.trim() || lang} theo bình luận người xem`, 'ok');
     }
-    function scheduleCreatorCaptionFlush(cfg) {
-        if (creatorCaptionSilenceTimer) clearTimeout(creatorCaptionSilenceTimer);
-        const waitMs = Math.max(500, Math.min(8000, (parseFloat(cfg.silenceSeconds || ccSilence?.value || 2) || 2) * 1000));
-        creatorCaptionSilenceTimer = setTimeout(() => flushCreatorCaptionBuffer(cfg), waitMs);
-    }
-    async function refreshCreatorCaptionMicrophones() {
-        if (!ccMic || !navigator.mediaDevices?.enumerateDevices) return;
-        try {
-            const selected = ccMic.value || 'default';
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const mics = devices.filter(d => d.kind === 'audioinput');
-            ccMic.innerHTML = '<option value="default">Micro mặc định của máy</option>' + mics.map((d, i) => `<option value="${d.deviceId}">${d.label || `Micro ${i + 1}`}</option>`).join('');
-            if (Array.from(ccMic.options).some(opt => opt.value === selected)) ccMic.value = selected;
-        } catch (e) {}
-    }
-    function resetCreatorCaptionWave() {
-        ccWave?.classList.remove('listening');
-        ccWave?.querySelectorAll('span').forEach(bar => { bar.style.height = '6px'; bar.style.opacity = '0.38'; });
-    }
-    function stopCreatorCaptionMicMonitor() {
-        if (creatorCaptionWaveRaf) cancelAnimationFrame(creatorCaptionWaveRaf);
-        creatorCaptionWaveRaf = 0;
-        if (creatorCaptionNoResultTimer) clearTimeout(creatorCaptionNoResultTimer);
-        creatorCaptionNoResultTimer = null;
-        try { creatorCaptionMicStream?.getTracks().forEach(t => t.stop()); } catch (e) {}
-        creatorCaptionMicStream = null;
-        try { creatorCaptionAudioCtx?.close(); } catch (e) {}
-        creatorCaptionAudioCtx = null;
-        creatorCaptionAnalyser = null;
-        resetCreatorCaptionWave();
-    }
-    async function startCreatorCaptionMicMonitor() {
-        if (!navigator.mediaDevices?.getUserMedia) throw new Error('Máy này không hỗ trợ micro');
-        stopCreatorCaptionMicMonitor();
-        const selectedMic = ccMic?.value || 'default';
-        const audio = selectedMic && selectedMic !== 'default'
-            ? { deviceId: { exact: selectedMic }, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-            : { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-        creatorCaptionMicStream = await navigator.mediaDevices.getUserMedia({ audio });
-        await refreshCreatorCaptionMicrophones();
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx || !ccWave) return;
-        creatorCaptionAudioCtx = new AudioCtx();
-        if (creatorCaptionAudioCtx.state === 'suspended') await creatorCaptionAudioCtx.resume();
-        creatorCaptionAnalyser = creatorCaptionAudioCtx.createAnalyser();
-        creatorCaptionAnalyser.fftSize = 256;
-        creatorCaptionAudioCtx.createMediaStreamSource(creatorCaptionMicStream).connect(creatorCaptionAnalyser);
-        const data = new Uint8Array(creatorCaptionAnalyser.frequencyBinCount);
-        const bars = Array.from(ccWave.querySelectorAll('span'));
-        ccWave.classList.add('listening');
-        const draw = () => {
-            if (!creatorCaptionAnalyser || !bars.length) return;
-            creatorCaptionAnalyser.getByteFrequencyData(data);
-            const step = Math.max(1, Math.floor(data.length / bars.length));
-            bars.forEach((bar, i) => {
-                let sum = 0;
-                for (let j = 0; j < step; j++) sum += data[i * step + j] || 0;
-                const level = sum / step / 255;
-                creatorCaptionChunkPeak = Math.max(creatorCaptionChunkPeak, level);
-                creatorCaptionChunkLevelSum += level;
-                creatorCaptionChunkLevelCount += 1;
-                if (level >= 0.09) creatorCaptionChunkActiveFrames += 1;
-                const height = Math.max(6, Math.round(6 + level * 28));
-                bar.style.height = height + 'px';
-                bar.style.opacity = String(0.42 + Math.min(0.58, level * 1.6));
-            });
-            creatorCaptionWaveRaf = requestAnimationFrame(draw);
-        };
-        draw();
-    }
-    async function testCreatorCaptionMicrophone() {
-        if (!navigator.mediaDevices?.getUserMedia) { setCreatorCaptionStatus('Máy này không hỗ trợ kiểm tra micro', 'err'); return; }
-        try {
-            const deviceId = ccMic?.value && ccMic.value !== 'default' ? { exact: ccMic.value } : undefined;
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: deviceId ? { deviceId } : true });
-            stream.getTracks().forEach(t => t.stop());
-            await refreshCreatorCaptionMicrophones();
-            setCreatorCaptionStatus('Micro đã sẵn sàng. App sẽ chỉ gửi đoạn có giọng rõ vào Whisper local.', 'ok');
-        } catch (e) { setCreatorCaptionStatus('Không truy cập được micro: ' + e.message, 'err'); }
-    }
-    function blobToBase64(blob) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
-            reader.onerror = () => reject(reader.error || new Error('read_audio_failed'));
-            reader.readAsDataURL(blob);
-        });
-    }
-    function encodeWavFromAudioBuffer(audioBuffer) {
-        const channels = Math.min(2, audioBuffer.numberOfChannels || 1);
-        const sampleRate = audioBuffer.sampleRate;
-        const samples = audioBuffer.length;
-        const bytesPerSample = 2;
-        const blockAlign = channels * bytesPerSample;
-        const buffer = new ArrayBuffer(44 + samples * blockAlign);
-        const view = new DataView(buffer);
-        function writeString(offset, text) {
-            for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
+    // ===== Cửa sổ nghe giọng Creator (Edge/Chrome) =====
+    // Electron không nghe được Web Speech API → server mở trang /listen/caption trong Edge/Chrome;
+    // popup chỉ bấm mở/dừng và hiện trạng thái server phát qua creatorCaption:listenerState.
+    const CC_MAX_TARGETS = 5;
+    const CC_LISTENER_ERROR_TEXT = {
+        browser_not_found: 'Không tìm thấy Edge lẫn Chrome trên máy. Cài Microsoft Edge (microsoft.com/edge) rồi thử lại.',
+        listener_timeout: 'Cửa sổ nghe chưa kết nối được với app — bấm BẮT ĐẦU NGHE lại. Nếu cửa sổ không mở, đổi "Nghe bằng" sang Chrome.',
+        'not-allowed': 'Chưa cho phép micro trong cửa sổ nghe. Bấm 🎙 BẮT ĐẦU trong cửa sổ đó và chọn Cho phép; nếu đã lỡ Chặn, bấm "Đặt lại quyền micro".',
+        'audio-capture': 'Cửa sổ nghe không thấy micro — kiểm tra micro mặc định trong Windows rồi bấm BẮT ĐẦU NGHE lại.',
+        network: 'Nhận diện giọng mất mạng nhiều lần — kiểm tra kết nối rồi bấm 🎙 BẮT ĐẦU trong cửa sổ nghe.',
+        unsupported: 'Trình duyệt vừa mở không hỗ trợ nhận diện giọng — chọn "Nghe bằng" Edge hoặc Chrome.',
+        'language-not-supported': 'Trình duyệt không hỗ trợ ngôn ngữ "Creator nói" đã chọn.'
+    };
+    function captionBrowserLabel(b) { return b === 'chrome' ? 'Chrome' : 'Edge'; }
+    function renderCaptionListenerState(state) {
+        captionListenerState = state || { status: 'idle' };
+        const s = captionListenerState;
+        const busy = s.status === 'opening' || s.status === 'listening';
+        if (btnCcToggle) {
+            btnCcToggle.textContent = busy ? 'DỪNG NGHE' : 'BẮT ĐẦU NGHE';
+            btnCcToggle.classList.toggle('listening', busy);
         }
-        writeString(0, 'RIFF');
-        view.setUint32(4, 36 + samples * blockAlign, true);
-        writeString(8, 'WAVE');
-        writeString(12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, channels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * blockAlign, true);
-        view.setUint16(32, blockAlign, true);
-        view.setUint16(34, 16, true);
-        writeString(36, 'data');
-        view.setUint32(40, samples * blockAlign, true);
-        const data = [];
-        for (let ch = 0; ch < channels; ch++) data.push(audioBuffer.getChannelData(ch));
-        let offset = 44;
-        for (let i = 0; i < samples; i++) {
-            for (let ch = 0; ch < channels; ch++) {
-                const s = Math.max(-1, Math.min(1, data[ch][i] || 0));
-                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-                offset += 2;
-            }
-        }
-        return new Blob([buffer], { type: 'audio/wav' });
+        if (!ccListener) return;
+        const b = captionBrowserLabel(s.browser);
+        let text = '';
+        let cls = '';
+        if (s.status === 'opening') text = `Đang mở ${b}… Nếu được hỏi, hãy chọn Cho phép micro.`;
+        else if (s.status === 'listening') { text = `🎙 Đang nghe trong ${b}` + (s.micLabel ? ` · micro: ${s.micLabel}` : ''); cls = 'ok'; }
+        else if (s.status === 'error') { text = CC_LISTENER_ERROR_TEXT[s.error] || ('Cửa sổ nghe lỗi: ' + (s.error || 'không rõ')); cls = 'err'; }
+        else if (s.everListened) text = 'Cửa sổ nghe đã đóng.';
+        ccListener.textContent = text;
+        ccListener.className = 'translate-status' + (cls ? ' ' + cls : '');
+        ccListener.hidden = !text;
     }
-    function analyzeCreatorCaptionAudio(audioBuffer) {
-        const channels = Math.min(2, audioBuffer.numberOfChannels || 1);
-        const sampleRate = audioBuffer.sampleRate || 48000;
-        const samples = audioBuffer.length || 0;
-        const frameSize = Math.max(1, Math.round(sampleRate * 0.02));
-        let peak = 0;
-        let sumSquares = 0;
-        let voicedMs = 0;
-        let frameSquares = 0;
-        let frameCount = 0;
-        for (let i = 0; i < samples; i++) {
-            let sample = 0;
-            for (let ch = 0; ch < channels; ch++) sample += audioBuffer.getChannelData(ch)[i] || 0;
-            sample /= channels;
-            const abs = Math.abs(sample);
-            peak = Math.max(peak, abs);
-            const square = sample * sample;
-            sumSquares += square;
-            frameSquares += square;
-            frameCount += 1;
-            if (frameCount >= frameSize || i === samples - 1) {
-                const frameRms = Math.sqrt(frameSquares / Math.max(1, frameCount));
-                if (frameRms >= 0.012) voicedMs += (frameCount / sampleRate) * 1000;
-                frameSquares = 0;
-                frameCount = 0;
-            }
-        }
-        return {
-            durationMs: samples ? (samples / sampleRate) * 1000 : 0,
-            peak,
-            rms: samples ? Math.sqrt(sumSquares / samples) : 0,
-            voicedMs
-        };
-    }
-    async function convertBlobToWav(blob) {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) throw new Error('browser_no_audio_context');
-        const ctx = new AudioCtx();
-        try {
-            const arrayBuffer = await blob.arrayBuffer();
-            const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-            return { blob: encodeWavFromAudioBuffer(audioBuffer), metrics: analyzeCreatorCaptionAudio(audioBuffer) };
-        } finally {
-            try { await ctx.close(); } catch (e) {}
-        }
-    }
-    async function sendCreatorCaptionAudio(blob, metrics, cfg) {
-        // Whisper hallucinates from silence/noise. Require sustained voice-like energy, not just one spike.
-        const peak = metrics?.peak || 0;
-        const avgLevel = metrics?.avgLevel || 0;
-        const activeFrames = metrics?.activeFrames || 0;
-        if (!blob || blob.size < 6000 || creatorCaptionTranscribing) return;
-        if (peak < 0.10 || avgLevel < 0.012 || activeFrames < 6) {
-            if (peak >= 0.06 && Date.now() - creatorCaptionLastSkipNoticeAt > 5000) {
-                creatorCaptionLastSkipNoticeAt = Date.now();
-                setCreatorCaptionTranscript('Đã nghe thấy âm thanh nhưng chưa đủ rõ để nhận giọng. Hãy nói gần mic/rõ hơn.', 'pending');
-            }
-            return;
-        }
-        const now = Date.now();
-        if (now < creatorCaptionRateLimitedUntil) return;
-        if (now - creatorCaptionLastTranscribeAt < 2500) return;
-        creatorCaptionTranscribing = true;
-        const providerLabel = 'Whisper local';
-        try {
-            setCreatorCaptionTranscript(`Đang gửi audio sang ${providerLabel} để nhận chữ...`, 'pending');
-            creatorCaptionLastTranscribeAt = Date.now();
-            const converted = await convertBlobToWav(blob);
-            const sendBlob = converted.blob;
-            const audioMetrics = converted.metrics || {};
-            if (audioMetrics.peak < 0.055 || audioMetrics.rms < 0.0065 || audioMetrics.voicedMs < 260) {
-                if (audioMetrics.peak >= 0.035 && Date.now() - creatorCaptionLastSkipNoticeAt > 5000) {
-                    creatorCaptionLastSkipNoticeAt = Date.now();
-                    setCreatorCaptionTranscript('Đã nghe âm thanh nhưng chưa đủ giống giọng nói. Bỏ qua để tránh phụ đề ảo.', 'pending');
-                }
-                return;
-            }
-            const audioBase64 = await blobToBase64(sendBlob);
-            const res = await fetch('/api/creator-caption/transcribe', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    audioBase64,
-                    mimeType: sendBlob.type || blob.type || 'audio/webm',
-                    audioMetrics,
-                    sourceLang: cfg.sourceLang,
-                    targetLangs: getSelectedCreatorCaptionTargets()
-                })
-            });
-            const json = await res.json();
-            if (!res.ok || !json.ok) throw new Error(json.error || 'transcribe_failed');
-            if (json.text) {
-                setCreatorCaptionTranscript(`${providerLabel} đã nhận giọng:\n${json.text}\n\nĐang dịch ra OBS...`, 'ok');
-                setCreatorCaptionStatus(`Đã nhận giọng bằng ${providerLabel} và đang dịch`, 'ok');
-            } else {
-                setCreatorCaptionTranscript(`${providerLabel} không nhận được chữ trong đoạn audio này. Hãy nói rõ hơn/gần mic hơn.`, 'pending');
-            }
-        } catch (e) {
-            setCreatorCaptionTranscript(`${providerLabel} STT lỗi: ` + e.message, 'err');
-            setCreatorCaptionStatus(`${providerLabel} STT lỗi: ` + e.message, 'err');
-        } finally {
-            creatorCaptionTranscribing = false;
-        }
-    }
-    function startCreatorCaptionLocalRecorder(cfg) {
-        if (!window.MediaRecorder) throw new Error('Máy này không hỗ trợ MediaRecorder');
-        const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
-        const mimeType = types.find(t => MediaRecorder.isTypeSupported?.(t)) || '';
-        const recordOnce = () => {
-            if (!creatorCaptionListening || !creatorCaptionMicStream) return;
-            const chunks = [];
-            creatorCaptionChunkPeak = 0;
-            creatorCaptionChunkLevelSum = 0;
-            creatorCaptionChunkLevelCount = 0;
-            creatorCaptionChunkActiveFrames = 0;
-            creatorCaptionRecorder = new MediaRecorder(creatorCaptionMicStream, mimeType ? { mimeType } : undefined);
-            creatorCaptionRecorder.ondataavailable = (ev) => {
-                if (ev.data && ev.data.size > 0) chunks.push(ev.data);
-            };
-            creatorCaptionRecorder.onstop = () => {
-                const metrics = {
-                    peak: creatorCaptionChunkPeak,
-                    avgLevel: creatorCaptionChunkLevelCount ? creatorCaptionChunkLevelSum / creatorCaptionChunkLevelCount : 0,
-                    activeFrames: creatorCaptionChunkActiveFrames
-                };
-                creatorCaptionChunkPeak = 0;
-                creatorCaptionChunkLevelSum = 0;
-                creatorCaptionChunkLevelCount = 0;
-                creatorCaptionChunkActiveFrames = 0;
-                if (chunks.length) {
-                    const blob = new Blob(chunks, { type: creatorCaptionRecorder?.mimeType || mimeType || 'audio/webm' });
-                    sendCreatorCaptionAudio(blob, metrics, cfg);
-                }
-                creatorCaptionRecorder = null;
-                if (creatorCaptionListening) creatorCaptionRecordTimer = setTimeout(recordOnce, 150);
-            };
-            creatorCaptionRecorder.onerror = (ev) => setCreatorCaptionStatus('Thu audio lỗi: ' + (ev.error?.message || 'recorder_error'), 'err');
-            creatorCaptionRecorder.start();
-            creatorCaptionRecordTimer = setTimeout(() => {
-                try { if (creatorCaptionRecorder?.state === 'recording') creatorCaptionRecorder.stop(); } catch (e) {}
-            }, 3000);
-        };
-        recordOnce();
-    }
-    function stopCreatorCaptionLocalRecorder() {
-        if (creatorCaptionRecordTimer) clearTimeout(creatorCaptionRecordTimer);
-        creatorCaptionRecordTimer = null;
-        try {
-            if (creatorCaptionRecorder && creatorCaptionRecorder.state !== 'inactive') creatorCaptionRecorder.stop();
-        } catch (e) {}
-        creatorCaptionRecorder = null;
-        creatorCaptionTranscribing = false;
-        creatorCaptionChunkPeak = 0;
-        creatorCaptionChunkLevelSum = 0;
-        creatorCaptionChunkLevelCount = 0;
-        creatorCaptionChunkActiveFrames = 0;
-        creatorCaptionLastTranscribeAt = 0;
-        creatorCaptionRateLimitedUntil = 0;
-        creatorCaptionLastSkipNoticeAt = 0;
+    async function refreshCaptionListenerState() {
+        try { renderCaptionListenerState(await (await fetch('/api/creator-caption/listener/state')).json()); } catch (e) {}
     }
     async function startCreatorCaptionListening() {
         try {
             if (ccEnabled) ccEnabled.checked = true;
             const cfg = await saveCreatorCaptionConfig();
-            setCreatorCaptionStatus('Đang xin quyền micro...', '');
-            await startCreatorCaptionMicMonitor();
-            setCreatorCaptionTranscript('Micro đã mở. Whisper local chỉ ghi nhận khi phát hiện giọng nói rõ...', 'pending');
-            creatorCaptionLastResultAt = 0;
-            creatorCaptionListening = true;
-            startCreatorCaptionLocalRecorder(cfg);
-            applyCreatorCaptionConfig(cfg);
-            setCreatorCaptionStatus('Đang nghe bằng Whisper local...', 'ok');
+            setCreatorCaptionStatus('', '');
+            setCreatorCaptionTranscript(`Đang mở cửa sổ nghe bằng ${captionBrowserLabel(cfg.browser)}…`, 'pending');
+            const res = await fetch('/api/creator-caption/listener/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ browser: cfg.browser }) });
+            const json = await res.json();
+            if (json.state) renderCaptionListenerState(json.state);
+            if (!res.ok || !json.ok) throw new Error(json.error || 'listener_open_failed');
         } catch (e) {
-            stopCreatorCaptionLocalRecorder();
-            stopCreatorCaptionMicMonitor();
-            creatorCaptionListening = false;
-            applyCreatorCaptionConfig(creatorCaptionConfig);
-            setCreatorCaptionStatus('Không bật được micro: ' + e.message, 'err');
+            setCreatorCaptionStatus('Không mở được cửa sổ nghe: ' + (CC_LISTENER_ERROR_TEXT[e.message] || e.message), 'err');
         }
     }
-    function stopCreatorCaptionListening() {
-        creatorCaptionListening = false;
-        creatorCaptionRestarting = false;
-        if (creatorCaptionConfig) flushCreatorCaptionBuffer(creatorCaptionConfig);
-        try { creatorCaptionRecognition?.stop(); } catch (e) {}
-        creatorCaptionRecognition = null;
-        stopCreatorCaptionLocalRecorder();
-        stopCreatorCaptionMicMonitor();
-        setCreatorCaptionTranscript('', 'pending');
-        applyCreatorCaptionConfig(creatorCaptionConfig);
-        setCreatorCaptionStatus('Đã dừng nghe giọng Creator', '');
+    async function stopCreatorCaptionListening() {
+        try {
+            const res = await fetch('/api/creator-caption/listener/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+            const json = await res.json();
+            if (json.state) renderCaptionListenerState(json.state);
+            setCreatorCaptionTranscript('', 'pending');
+            setCreatorCaptionStatus('Đã dừng nghe giọng Creator', '');
+        } catch (e) { setCreatorCaptionStatus('Dừng nghe lỗi: ' + e.message, 'err'); }
     }
+    // Chống bấm kép: 2 click liền nhau từng tạo stop rồi open → server thấy trang còn nối nên gửi start
+    // lại, cửa sổ Edge không đóng. Khoá khi đang gửi + đổi trạng thái tạm ngay để lần bấm sau đi đúng nhánh.
+    let captionToggleBusy = false;
     async function toggleCreatorCaptionListening() {
-        if (creatorCaptionListening || creatorCaptionRestarting) stopCreatorCaptionListening();
-        else await startCreatorCaptionListening();
+        if (captionToggleBusy) return;
+        captionToggleBusy = true;
+        if (btnCcToggle) btnCcToggle.disabled = true;
+        try {
+            const s = captionListenerState.status;
+            if (s === 'opening' || s === 'listening') {
+                renderCaptionListenerState({ ...captionListenerState, status: 'idle' });
+                await stopCreatorCaptionListening();
+            } else {
+                renderCaptionListenerState({ ...captionListenerState, status: 'opening', error: '' });
+                await startCreatorCaptionListening();
+            }
+        } finally {
+            captionToggleBusy = false;
+            if (btnCcToggle) btnCcToggle.disabled = false;
+        }
+    }
+    // Lỡ bấm "Chặn" micro trong cửa sổ nghe → trình duyệt nhớ mãi; xoá profile riêng của HP để hỏi lại.
+    async function resetCreatorCaptionMicPermission() {
+        const ok = await hpConfirm({
+            icon: '🎙️', title: 'Đặt lại quyền micro?',
+            body: 'Xoá dữ liệu cửa sổ nghe (chỉ profile riêng của HP, không đụng Edge/Chrome cá nhân). Lần mở sau trình duyệt sẽ hỏi lại quyền micro.',
+            okLabel: 'Đặt lại'
+        });
+        if (!ok) return;
+        try {
+            const res = await fetch('/api/creator-caption/listener/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+            const json = await res.json();
+            if (!res.ok || !json.ok) throw new Error(json.error || 'reset_failed');
+            if (json.state) renderCaptionListenerState(json.state);
+            setCreatorCaptionStatus('Đã đặt lại quyền micro — bấm BẮT ĐẦU NGHE, chọn Cho phép khi được hỏi.', 'ok');
+        } catch (e) { setCreatorCaptionStatus('Đặt lại quyền micro lỗi: ' + e.message, 'err'); }
     }
     async function copyCreatorCaptionOverlayUrl() {
         const url = buildOverlayURL('/overlay/creator-caption');
@@ -4226,7 +3949,13 @@
     btnCcToggle?.addEventListener('click', toggleCreatorCaptionListening);
     btnCcCopy?.addEventListener('click', copyCreatorCaptionOverlayUrl);
     btnCcTest?.addEventListener('click', testCreatorCaption);
-    btnCcMicTest?.addEventListener('click', testCreatorCaptionMicrophone);
+    btnCcReset?.addEventListener('click', resetCreatorCaptionMicPermission);
+    // Đổi trình duyệt / kiểu overlay / chữ đang nói → lưu ngay (server phát config cho trang nghe + overlay)
+    ccBrowser?.addEventListener('change', saveCreatorCaptionConfigSilent);
+    ccStyle?.addEventListener('change', saveCreatorCaptionConfigSilent);
+    ccInterim?.addEventListener('change', saveCreatorCaptionConfigSilent);
+    ccOriginal?.addEventListener('change', saveCreatorCaptionConfigSilent);
+    ccSource?.addEventListener('change', saveCreatorCaptionConfigSilent);
     ltVolume?.addEventListener('input', () => { if (ltVolumeV) ltVolumeV.textContent = (ltVolume.value || '0') + '%'; });
     ltRate?.addEventListener('input', () => { if (ltRateV) ltRateV.textContent = (parseFloat(ltRate.value || '1') || 1).toFixed(1) + 'x'; });
     ltTtsPreset?.addEventListener('change', () => {
@@ -4237,9 +3966,6 @@
     ltTtsSource?.addEventListener('change', () => {
         saveLiveTranslateConfig({ silent: false });
     });
-    ccSilence?.addEventListener('input', () => { if (ccSilenceV) ccSilenceV.textContent = (parseFloat(ccSilence.value || '2') || 2) + 's'; });
-    ccWhisperExe?.addEventListener('change', saveCreatorCaptionConfigSilent);
-    ccWhisperModel?.addEventListener('change', saveCreatorCaptionConfigSilent);
     ccAutoTargets?.addEventListener('change', () => {
         if (!ccAutoTargets.checked) {
             for (const lang of Array.from(creatorCaptionAutoTargets)) clearCreatorCaptionAutoTarget(lang);
@@ -4251,6 +3977,11 @@
         saveCreatorCaptionConfigSilent();
     });
     ccTargets.forEach(input => input.addEventListener('change', () => {
+        if (input.checked && ccTargets.filter(x => x.checked).length > CC_MAX_TARGETS) {
+            input.checked = false;
+            setCreatorCaptionStatus(`Tối đa ${CC_MAX_TARGETS} ngôn ngữ dịch cùng lúc`, 'err');
+            return;
+        }
         if (!input.checked) clearCreatorCaptionAutoTarget(input.value);
         saveCreatorCaptionConfigSilent();
     }));
@@ -4265,13 +3996,17 @@
     socket.on('translate:rules', updateTranslateSheetStatus);
     socket.on('translate:comment', (item) => { if (!isTranslatePopupOpen()) setTranslateUnread(unreadTranslations + 1); handleCreatorCaptionAutoTarget(item); });
     socket.on('creatorCaption:config', applyCreatorCaptionConfig);
-    socket.on('creatorCaption:debug', (item) => {
+    socket.on('creatorCaption:listenerState', renderCaptionListenerState);
+    // Ô "Test nhận giọng": chữ đang nói (chưa dịch) rồi câu đã dịch — cùng dữ liệu overlay nhận.
+    socket.on('creatorCaption:partial', (p) => {
         if (!isCreatorCaptionPopupOpen()) return;
-        const text = item?.text || item?.message || '';
-        if (!text) return;
-        if (item.type === 'final') setCreatorCaptionTranscript(`Đã nhận giọng:\n${text}\n\nĐang gửi đi dịch...`, 'ok');
-        else if (item.type === 'interim') setCreatorCaptionTranscript(`Đang nghe:\n${text}`, 'pending');
-        else setCreatorCaptionStatus(text, item.type === 'error' ? 'err' : 'ok');
+        const text = p?.text || '';
+        if (text) setCreatorCaptionTranscript('Đang nói: ' + text, 'pending');
+    });
+    socket.on('creatorCaption:line', (item) => {
+        if (!isCreatorCaptionPopupOpen() || !item) return;
+        const rows = Array.isArray(item.translations) ? item.translations : [];
+        setCreatorCaptionTranscript(`Đã nhận: ${item.originalText || ''}\n` + rows.map(t => `→ ${t.targetLangLabel || t.targetLang}: ${t.translatedText}`).join('\n'), 'ok');
     });
     socket.on('creatorCaption:line', (item) => {
         if (!item?.originalText || !isCreatorCaptionPopupOpen()) return;
