@@ -1,7 +1,7 @@
 // node --test tests/body-frames.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bodyFrames, toStage, toLocal, biteSpots, BITE_ZONES, headAnchor, placeAbove, homePlace, followStep } from '../public/lib/body-frames.mjs';
+import { bodyFrames, toStage, toLocal, biteSpots, BITE_ZONES, headAnchor, placeAbove, homePlace, followStep, rescaleAnchor } from '../public/lib/body-frames.mjs';
 
 // Pose giả: người đứng thẳng giữa sân khấu 1080×1920, nhìn vào camera.
 function fakePose(opts = {}) {
@@ -144,4 +144,31 @@ test('followStep: 60 khung × 16ms thì tới gần đích (≤ 2px)', () => {
     let p = { x: 0, yBottom: 0, s: 1 };
     for (let i = 0; i < 60; i++) p = followStep(p, { x: 100, yBottom: 0, s: 1 }, 16);
     assert.ok(Math.abs(p.x - 100) <= 2, JSON.stringify(p));
+});
+
+test('headAnchor: ngồi sát camera, hai vai ra ngoài khung → vẫn có đỉnh đầu từ tai (không mất người)', () => {
+    const noBody = { 11: { v: 0 }, 12: { v: 0 }, 23: { v: 0 }, 24: { v: 0 } };
+    const F = bodyFrames(fakePose(noBody), null);
+    assert.equal(F.seen, false, 'Đập Muỗi vẫn coi là không thấy người (cần vai)');
+    const a = headAnchor(F);
+    assert.ok(a && near(a.crown.x, 540) && near(a.crown.y, 546) && near(a.headW, 200), JSON.stringify(a));
+});
+
+test('headAnchor: không vai, không tai → ước lượng từ hai mắt (bề rộng đầu = 2.3 × khoảng mắt)', () => {
+    const P = { 7: { v: 0 }, 8: { v: 0 }, 11: { v: 0 }, 12: { v: 0 }, 23: { v: 0 }, 24: { v: 0 } };
+    const a = headAnchor(bodyFrames(fakePose(P), null));
+    assert.ok(a && near(a.crown.x, 540) && near(a.headW, 184) && near(a.crown.y, 690 - 0.72 * 184), JSON.stringify(a));
+});
+
+test('headAnchor: không vai, chỉ thấy mũi → null (không đoán được cỡ đầu)', () => {
+    const P = { 2: { v: 0 }, 5: { v: 0 }, 7: { v: 0 }, 8: { v: 0 }, 11: { v: 0 }, 12: { v: 0 }, 23: { v: 0 }, 24: { v: 0 } };
+    assert.equal(headAnchor(bodyFrames(fakePose(P), null)), null);
+});
+
+test('rescaleAnchor: đổi toạ độ đỉnh đầu từ cỡ khung cũ sang cỡ trang hiện tại (đổi cỡ Browser Source)', () => {
+    const a = rescaleAnchor({ crown: { x: 540, y: 546 }, headW: 200 }, 1080, 1920, 2160, 3840);
+    assert.ok(near(a.crown.x, 1080) && near(a.crown.y, 1092) && near(a.headW, 400), JSON.stringify(a));
+    const same = { crown: { x: 1, y: 2 }, headW: 3 };
+    assert.equal(rescaleAnchor(same, 1080, 1920, 1080, 1920), same, 'cùng cỡ → trả lại nguyên object');
+    assert.equal(rescaleAnchor(null, 1080, 1920, 540, 960), null);
 });

@@ -68,25 +68,36 @@ export function bodyFrames(pose, prev) {
         if (n.y < 0) { n.x = -n.x; n.y = -n.y; }
         v = { x: n.x * shoulderW * 1.4, y: n.y * shoulderW * 1.4 };
     }
-    let head = null;
+    return { seen: true, pts: P, head: headFrom(P, ok, { u, shoulderW }), torso: { O: S, u, v }, shoulderW };
+}
+
+// Khung đầu từ tai / mắt / mũi. sh = { u, shoulderW } khi thấy vai: kẹp bề rộng đầu theo vai và lấy hướng vai làm
+// dự phòng. Không thấy vai (ngồi sát camera — chỉ headAnchor dùng) thì cần tai hoặc mắt; chỉ mũi → null.
+function headFrom(P, ok, sh) {
     const ears = ok(7) && ok(8), eyes = ok(2) && ok(5);
-    if (ears || eyes || ok(0)) {
-        let c, hu, width;
-        if (ears) { const [a, b] = P[7].x <= P[8].x ? [P[7], P[8]] : [P[8], P[7]]; c = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; hu = { x: b.x - a.x, y: b.y - a.y }; width = Math.hypot(hu.x, hu.y); }
-        else if (eyes) { const [a, b] = P[2].x <= P[5].x ? [P[2], P[5]] : [P[5], P[2]]; c = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + 20 }; width = Math.hypot(b.x - a.x, b.y - a.y) * 2.3; hu = { x: b.x - a.x, y: b.y - a.y }; }
-        else { c = { x: P[0].x, y: P[0].y - shoulderW * 0.1 }; width = shoulderW * 0.55; hu = { x: width, y: 0 }; }
+    if (!(ears || eyes || (sh && ok(0)))) return null;
+    const eyeW = eyes ? Math.hypot(P[5].x - P[2].x, P[5].y - P[2].y) * 2.3 : 0;
+    let c, hu, width;
+    if (ears) { const [a, b] = P[7].x <= P[8].x ? [P[7], P[8]] : [P[8], P[7]]; c = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; hu = { x: b.x - a.x, y: b.y - a.y }; width = Math.hypot(hu.x, hu.y); }
+    else if (eyes) { const [a, b] = P[2].x <= P[5].x ? [P[2], P[5]] : [P[5], P[2]]; c = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + 20 }; width = eyeW; hu = { x: b.x - a.x, y: b.y - a.y }; }
+    else { c = { x: P[0].x, y: P[0].y - sh.shoulderW * 0.1 }; width = sh.shoulderW * 0.55; hu = { x: width, y: 0 }; }
+    const hl = Math.hypot(hu.x, hu.y);
+    if (sh) {
+        const { u, shoulderW } = sh;
         // Quay nghiêng thì hai tai chồng nhau → khoảng tai rất nhỏ; đầu người không hẹp hơn ~0.45 bề vai.
         width = Math.max(shoulderW * 0.45, Math.min(shoulderW * 0.9, width || shoulderW * 0.55));
         // Hướng ngang của đầu: theo tai/mắt nếu đủ xa nhau, không thì theo vai; độ dài = bề rộng đầu.
-        const hl = Math.hypot(hu.x, hu.y);
         hu = hl > shoulderW * 0.25 ? { x: hu.x / hl * width, y: hu.y / hl * width } : { x: u.x / shoulderW * width, y: u.y / shoulderW * width };
-        const n = { x: -hu.y, y: hu.x }; const nl = Math.hypot(n.x, n.y) || 1;
-        if (n.y < 0) { n.x = -n.x; n.y = -n.y; }
-        // Tai nằm khoảng giữa đầu → đỉnh đầu cao hơn tâm ~0.72 bề rộng đầu (tóc tính vào) — công thức Bắn Cung.
-        const hv = { x: n.x / nl * width, y: n.y / nl * width };
-        head = { O: c, u: hu, v: hv, width, crown: { x: c.x - hv.x * 0.72, y: c.y - hv.y * 0.72 } };
+    } else {
+        width = Math.max(width, eyeW);              // không có vai để kẹp: tai chồng nhau thì lấy theo mắt
+        if (!(hl > 1e-6) || !(width > 1e-6)) return null;
+        hu = { x: hu.x / hl * width, y: hu.y / hl * width };
     }
-    return { seen: true, pts: P, head, torso: { O: S, u, v }, shoulderW };
+    const n = { x: -hu.y, y: hu.x }; const nl = Math.hypot(n.x, n.y) || 1;
+    if (n.y < 0) { n.x = -n.x; n.y = -n.y; }
+    // Tai nằm khoảng giữa đầu → đỉnh đầu cao hơn tâm ~0.72 bề rộng đầu (tóc tính vào) — công thức Bắn Cung.
+    const hv = { x: n.x / nl * width, y: n.y / nl * width };
+    return { O: c, u: hu, v: hv, width, crown: { x: c.x - hv.x * 0.72, y: c.y - hv.y * 0.72 } };
 }
 
 export function toStage(mark, F) {
@@ -130,7 +141,12 @@ const HOME_TOP = 30;       // chỗ mặc định: mép trên cụm cách mép t
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export function headAnchor(F) {
-    if (!F || !F.seen) return null;
+    if (!F) return null;
+    if (!F.seen) {
+        // Không thấy vai (ngồi sát camera, chỉ có mặt) — vẫn đặt được thanh nếu thấy tai/mắt.
+        const P = F.pts, h = P ? headFrom(P, i => P[i] && P[i].v >= VIS, null) : null;
+        return h ? { crown: h.crown, headW: h.width } : null;
+    }
     if (F.head) return { crown: { x: F.head.crown.x, y: F.head.crown.y }, headW: F.head.width };
     if (!F.torso) return null;
     // Đầu ngoài khung / không thấy mặt: đỉnh đầu ~0.95 bề vai phía trên giữa vai, ngược hướng thân.
@@ -158,4 +174,12 @@ export function followStep(prev, target, dt, tau = 90) {
     if (Math.abs(dx) < 2 && Math.abs(dy) < 2 && Math.abs(ds) < 0.01) return prev;
     const a = 1 - Math.exp(-Math.max(0, dt) / tau);
     return { x: prev.x + dx * a, yBottom: prev.yBottom + dy * a, s: prev.s + ds * a };
+}
+
+// Toạ độ pose tính theo cỡ khung lúc tạo tracker; Browser Source đổi cỡ mà không tải lại thì đổi tỉ lệ sang cỡ
+// trang hiện tại (bố cục overlay co giãn theo khung nên tỉ lệ thẳng là đúng).
+export function rescaleAnchor(a, fromW, fromH, toW, toH) {
+    if (!a || (fromW === toW && fromH === toH) || !fromW || !fromH) return a;
+    const sx = toW / fromW, sy = toH / fromH;
+    return { crown: { x: a.crown.x * sx, y: a.crown.y * sy }, headW: a.headW * sx };
 }
