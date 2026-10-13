@@ -63,6 +63,13 @@ export function shouldForceCut({ startedAt = 0, now = 0, words = 0, maxSeconds =
     return false;
 }
 
+// Giới hạn tự ngắt từ cấu hình: segmentSeconds = 0 → TẮT HẲN (cả giới hạn từ), không thì N giây + maxWords từ.
+export function cutLimits(segmentSeconds, maxWords = 18) {
+    const s = Number(segmentSeconds);
+    const maxSeconds = Number.isFinite(s) ? s : 6;
+    return maxSeconds > 0 ? { maxSeconds, maxWords } : { maxSeconds: 0, maxWords: 0 };
+}
+
 // Tiết lưu chữ tạm: tối đa 1 lần / intervalMs, bỏ text trùng text vừa gửi; chuỗi rỗng (xoá dòng
 // tạm) đi ngay. flush() trả text đang giữ (gọi khi phiên kết thúc).
 export function createPartialThrottle(intervalMs = 100, now = () => Date.now()) {

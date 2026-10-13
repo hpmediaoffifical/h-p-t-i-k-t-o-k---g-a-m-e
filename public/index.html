@@ -2369,7 +2369,7 @@
             <label class="translate-check"><input type="checkbox" id="cc-original" checked /> Hiện cả câu gốc</label>
             <label class="translate-check"><input type="checkbox" id="cc-interim" checked /> Hiện chữ đang nói trên OBS</label>
             <label class="translate-check"><input type="checkbox" id="cc-autostart" checked /> Tự mở cửa sổ nghe khi kết nối LIVE</label>
-            <div class="translate-row" title="Nói liền mạch không ngừng thì trình duyệt chốt câu rất muộn — tự ngắt để dịch sớm hơn. 0 = tắt">
+            <div class="translate-row" id="cc-segment-row" title="Nói liền mạch không ngừng thì trình duyệt chốt câu rất muộn — tự ngắt để dịch sớm hơn. 0 = tắt">
                 <label>Tự ngắt câu sau</label>
                 <input type="range" id="cc-segment" min="0" max="15" step="1" value="6" />
                 <span class="translate-val" id="cc-segment-v">6s</span>
@@ -2392,12 +2392,25 @@
                 <button id="btn-cc-reset" class="ghost mini" style="white-space:nowrap" title="Xoá quyền micro đã lưu của cửa sổ nghe — dùng khi lỡ bấm Chặn">Đặt lại micro</button>
             </div>
             <div class="translate-row">
+                <label>Chế độ</label>
+                <select id="cc-mode">
+                    <option value="auto">Tự động — nghe liên tục, tự ngắt câu</option>
+                    <option value="manual">Bấm/Dừng — bấm phím nghe, bấm lại dừng rồi dịch</option>
+                </select>
+            </div>
+            <div class="translate-row" title="Bấm vào ô rồi nhấn tổ hợp phím (vd Ctrl+Shift+L, F9). Backspace để xoá. Đang nghe → tạm dừng; đang nghỉ → nghe lại; chưa mở → mở cửa sổ nghe">
+                <label>Phím tắt Nghe/Dừng</label>
+                <input id="cc-hotkey" type="text" readonly placeholder="Bấm tổ hợp phím…" style="cursor:pointer" />
+            </div>
+            <div class="translate-row">
                 <label>Kiểu overlay</label>
                 <select id="cc-style">
                     <option value="card">Thẻ (nền kính, chữ chạy)</option>
                     <option value="subtitle">Phụ đề (chữ trắng viền đen)</option>
                 </select>
             </div>
+            <label class="translate-check" title="Câu mới tới sớm thì xếp hàng, mỗi câu giữ đủ lâu theo độ dài để người xem kịp đọc"><input type="checkbox" id="cc-pace" checked /> Giữ mỗi câu đủ lâu để đọc</label>
+            <label class="translate-check" title="Thu nhỏ cửa sổ nghe ngay sau khi có quyền micro — nhận diện vẫn chạy"><input type="checkbox" id="cc-background" checked /> Chạy ngầm (thu nhỏ cửa sổ nghe)</label>
             <div class="cc-transcript-box">
                 <div class="cc-transcript-label">Test nhận giọng</div>
                 <div id="cc-transcript" class="cc-transcript">Bấm BẮT ĐẦU NGHE — một cửa sổ Edge nhỏ sẽ mở; cho phép micro rồi nói, chữ hiện ở đây trước khi lên OBS.</div>

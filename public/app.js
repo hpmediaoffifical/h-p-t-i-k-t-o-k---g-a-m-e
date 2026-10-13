@@ -3478,6 +3478,11 @@
     const ccAutoStart = document.getElementById('cc-autostart');
     const ccSegment = document.getElementById('cc-segment');
     const ccSegmentV = document.getElementById('cc-segment-v');
+    const ccSegmentRow = document.getElementById('cc-segment-row');
+    const ccMode = document.getElementById('cc-mode');
+    const ccHotkey = document.getElementById('cc-hotkey');
+    const ccPace = document.getElementById('cc-pace');
+    const ccBackground = document.getElementById('cc-background');
     const ccTranscript = document.getElementById('cc-transcript');
     const ccAutoTargets = document.getElementById('cc-auto-targets');
     const ccAutoTargetTimeout = document.getElementById('cc-auto-target-timeout');
@@ -3731,6 +3736,11 @@
         if (ccBrowser) ccBrowser.value = creatorCaptionConfig.browser === 'chrome' ? 'chrome' : 'edge';
         if (ccStyle) ccStyle.value = creatorCaptionConfig.style === 'subtitle' ? 'subtitle' : 'card';
         if (ccAutoStart) ccAutoStart.checked = creatorCaptionConfig.autoStart !== false;
+        if (ccMode) ccMode.value = creatorCaptionConfig.mode === 'manual' ? 'manual' : 'auto';
+        if (ccHotkey) ccHotkey.value = creatorCaptionConfig.hotkey || '';
+        if (ccPace) ccPace.checked = creatorCaptionConfig.paceLines !== false;
+        if (ccBackground) ccBackground.checked = creatorCaptionConfig.background !== false;
+        if (ccSegmentRow) ccSegmentRow.hidden = creatorCaptionConfig.mode === 'manual';
         const seg = creatorCaptionConfig.segmentSeconds == null ? 6 : Number(creatorCaptionConfig.segmentSeconds);
         if (ccSegment) ccSegment.value = String(seg);
         if (ccSegmentV) ccSegmentV.textContent = seg > 0 ? seg + 's' : 'Tắt';
@@ -3752,6 +3762,10 @@
             style: ccStyle?.value === 'subtitle' ? 'subtitle' : 'card',
             showInterim: ccInterim ? !!ccInterim.checked : true,
             autoStart: ccAutoStart ? !!ccAutoStart.checked : true,
+            mode: ccMode?.value === 'manual' ? 'manual' : 'auto',
+            hotkey: ccHotkey ? ccHotkey.value : undefined,
+            paceLines: ccPace ? !!ccPace.checked : true,
+            background: ccBackground ? !!ccBackground.checked : true,
             segmentSeconds: Number.isFinite(parseInt(ccSegment?.value || '', 10)) ? parseInt(ccSegment.value, 10) : 6,
             targetLangs: ccTargets.filter(input => input.checked).map(input => input.value),
             showOriginal: ccOriginal ? !!ccOriginal.checked : true,
@@ -3830,7 +3844,7 @@
     const CC_LISTENER_ERROR_TEXT = {
         browser_not_found: 'Không tìm thấy Edge lẫn Chrome trên máy. Cài Microsoft Edge (microsoft.com/edge) rồi thử lại.',
         listener_timeout: 'Cửa sổ nghe chưa kết nối được với app — bấm BẮT ĐẦU NGHE lại. Nếu cửa sổ không mở, đổi "Nghe bằng" sang Chrome.',
-        'not-allowed': 'Chưa cho phép micro trong cửa sổ nghe. Bấm 🎙 BẮT ĐẦU trong cửa sổ đó và chọn Cho phép; nếu đã lỡ Chặn, bấm "Đặt lại quyền micro".',
+        'not-allowed': 'Chưa cho phép micro trong cửa sổ nghe. Bấm 🎙 BẮT ĐẦU trong cửa sổ đó và chọn Cho phép; nếu đã lỡ Chặn, bấm "Đặt lại micro".',
         'audio-capture': 'Cửa sổ nghe không thấy micro — kiểm tra micro mặc định trong Windows rồi bấm BẮT ĐẦU NGHE lại.',
         network: 'Nhận diện giọng mất mạng nhiều lần — kiểm tra kết nối rồi bấm 🎙 BẮT ĐẦU trong cửa sổ nghe.',
         unsupported: 'Trình duyệt vừa mở không hỗ trợ nhận diện giọng — chọn "Nghe bằng" Edge hoặc Chrome.',
@@ -3849,9 +3863,15 @@
         const b = captionBrowserLabel(s.browser);
         let text = '';
         let cls = '';
+        const hk = creatorCaptionConfig?.hotkey || '';
+        const manual = creatorCaptionConfig?.mode === 'manual';
         if (s.status === 'opening') text = `Đang mở ${b}… Nếu được hỏi, hãy chọn Cho phép micro.`;
-        else if (s.status === 'listening') { text = `🎙 Đang nghe trong ${b}` + (s.micLabel ? ` · micro: ${s.micLabel}` : ''); cls = 'ok'; }
+        else if (s.status === 'listening') {
+            text = `🎙 Đang nghe trong ${b}` + (s.micLabel ? ` · micro: ${s.micLabel}` : '') + (hk ? ` · ${hk}: ${manual ? 'dừng & dịch' : 'tạm dừng'}` : '');
+            cls = 'ok';
+        }
         else if (s.status === 'error') { text = CC_LISTENER_ERROR_TEXT[s.error] || ('Cửa sổ nghe lỗi: ' + (s.error || 'không rõ')); cls = 'err'; }
+        else if (s.socketId) text = `⏸ Cửa sổ nghe đang mở, chưa nghe — bấm ${hk || 'BẮT ĐẦU NGHE'} để nghe${manual ? ', bấm lại để dừng & dịch' : ''}.`;
         else if (s.everListened) text = 'Cửa sổ nghe đã đóng.';
         ccListener.textContent = text;
         ccListener.className = 'translate-status' + (cls ? ' ' + cls : '');
@@ -3966,7 +3986,37 @@
     ccOriginal?.addEventListener('change', saveCreatorCaptionConfigSilent);
     ccSource?.addEventListener('change', saveCreatorCaptionConfigSilent);
     ccAutoStart?.addEventListener('change', saveCreatorCaptionConfigSilent);
-    ccSegment?.addEventListener('input', () => { const v = parseInt(ccSegment.value, 10) || 0; if (ccSegmentV) ccSegmentV.textContent = v > 0 ? v + 's' : 'Tắt'; });
+    ccPace?.addEventListener('change', saveCreatorCaptionConfigSilent);
+    ccBackground?.addEventListener('change', saveCreatorCaptionConfigSilent);
+    ccMode?.addEventListener('change', () => { if (ccSegmentRow) ccSegmentRow.hidden = ccMode.value === 'manual'; saveCreatorCaptionConfigSilent(); });
+    // Ô phím tắt: ghi nhận trực tiếp tổ hợp người dùng bấm (như Nhặt Lá/Đập Muỗi); Backspace/Delete/Esc xoá.
+    function ccHotkeyFromEvent(event) {
+        if (['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) return null;
+        let key = '';
+        if (/^Key[A-Z]$/.test(event.code)) key = event.code.slice(3);
+        else if (/^Digit[0-9]$/.test(event.code)) key = event.code.slice(5);
+        else if (/^F(?:[1-9]|1[0-2])$/.test(event.key)) key = event.key.toUpperCase();
+        else if (event.key === ' ') key = 'Space';
+        else if (event.key.length === 1) key = event.key.toUpperCase();
+        if (!key) return null;
+        const parts = [];
+        if (event.ctrlKey || event.metaKey) parts.push('Control');
+        if (event.altKey) parts.push('Alt');
+        if (event.shiftKey) parts.push('Shift');
+        parts.push(key);
+        return parts.join('+');
+    }
+    ccHotkey?.addEventListener('keydown', (event) => {
+        event.preventDefault();
+        if (['Backspace', 'Delete', 'Escape'].includes(event.key)) { ccHotkey.value = ''; saveCreatorCaptionConfigSilent(); return; }
+        const hk = ccHotkeyFromEvent(event);
+        if (hk) { ccHotkey.value = hk; saveCreatorCaptionConfigSilent(); }
+    });
+    ccSegment?.addEventListener('input', () => {
+        let v = parseInt(ccSegment.value, 10) || 0;
+        if (v > 0 && v < 3) { v = 3; ccSegment.value = '3'; }   // server chỉ nhận 0 hoặc 3–15
+        if (ccSegmentV) ccSegmentV.textContent = v > 0 ? v + 's' : 'Tắt';
+    });
     ccSegment?.addEventListener('change', saveCreatorCaptionConfigSilent);
     ltVolume?.addEventListener('input', () => { if (ltVolumeV) ltVolumeV.textContent = (ltVolume.value || '0') + '%'; });
     ltRate?.addEventListener('input', () => { if (ltRateV) ltRateV.textContent = (parseFloat(ltRate.value || '1') || 1).toFixed(1) + 'x'; });
@@ -4026,7 +4076,7 @@
     setTranslateUnread(0);
     loadLiveTranslateConfig();
     loadCreatorCaptionConfig();
-    refreshCreatorCaptionMicrophones();
+    refreshCaptionListenerState();
 
     // ===== Tab switching trong tabbed-card =====
     document.querySelectorAll('.tabbed-card .tab').forEach(btn => {

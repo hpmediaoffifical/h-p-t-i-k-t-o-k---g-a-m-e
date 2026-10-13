@@ -3,6 +3,8 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Chrome/Edge không đề nghị "Dịch trang này" cho cửa sổ nghe -->
+    <meta name="google" content="notranslate" />
     <title>HP Phụ đề giọng — cửa sổ nghe</title>
     <style>
         html, body { margin: 0; height: 100%; background: #0f1218; color: #e6e8ee; font: 14px/1.4 'Segoe UI', system-ui, sans-serif; }
@@ -28,6 +30,7 @@
         #status.warn { color: #ffd166; }
         button { border: 0; border-radius: 8px; padding: 7px 12px; font-weight: 800; cursor: pointer; font-size: 13px; }
         #btn-stop { background: #2a3142; color: #e6e8ee; }
+        #btn-close { background: #1f2533; color: #8b93a8; padding: 7px 10px; }
         #btn-start { background: linear-gradient(135deg, #25F4EE, #16c6c0); color: #041113; display: none; }
         #btn-start.show { display: inline-block; }
     </style>
@@ -43,7 +46,8 @@
     <footer>
         <div id="status">Đang kết nối app…</div>
         <button id="btn-start">🎙 BẮT ĐẦU</button>
-        <button id="btn-stop">DỪNG</button>
+        <button id="btn-stop" title="Dừng nghe, cửa sổ vẫn mở">⏸ TẠM DỪNG</button>
+        <button id="btn-close" title="Dừng và đóng cửa sổ">✕</button>
     </footer>
     <script src="/socket.io/socket.io.js"></script>
     <script type="module" src="/listen/caption.js"></script>

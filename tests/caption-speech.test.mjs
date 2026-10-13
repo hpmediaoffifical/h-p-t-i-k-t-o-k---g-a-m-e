@@ -1,7 +1,14 @@
 // node --test tests/caption-speech.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createResultTracker, restartDelay, isFatalError, createPartialThrottle, shouldForceCut } from '../public/lib/caption-speech.mjs';
+import { createResultTracker, restartDelay, isFatalError, createPartialThrottle, shouldForceCut, cutLimits } from '../public/lib/caption-speech.mjs';
+
+test('cutLimits: 0 → tắt hẳn (cả giới hạn từ); N giây → N + 18 từ; giá trị hỏng → mặc định 6', () => {
+    assert.deepEqual(cutLimits(0), { maxSeconds: 0, maxWords: 0 });
+    assert.deepEqual(cutLimits(6), { maxSeconds: 6, maxWords: 18 });
+    assert.deepEqual(cutLimits('abc'), { maxSeconds: 6, maxWords: 18 });
+    assert.deepEqual(cutLimits(10, 25), { maxSeconds: 10, maxWords: 25 });
+});
 
 test('shouldForceCut: ngắt khi nói liên tục quá maxSeconds hoặc quá maxWords', () => {
     assert.equal(shouldForceCut({ startedAt: 1000, now: 6999, words: 5, maxSeconds: 6, maxWords: 18 }), false);

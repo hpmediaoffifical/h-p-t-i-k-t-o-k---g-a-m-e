@@ -65,7 +65,11 @@
       },
       {
         "from": "tools",
-        "to": "tools"
+        "to": "tools",
+        "filter": [
+          "**/*",
+          "!whisper/**"
+        ]
       },
       {
         "from": "seed",

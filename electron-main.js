@@ -416,6 +416,8 @@ function actualFullQuit() {
     isQuitting = true;
 
     // === Tier 0: Chốt prefs MỌI cửa sổ nổi TRƯỚC khi destroy (destroy không bắn 'close'/'beforeunload') ===
+    // Cửa sổ nghe Edge/Chrome (Phụ đề giọng) phải nhận lệnh đóng TRƯỚC khi io.close() — app.exit() không bắn before-quit.
+    try { require('./server.js').captionListenerStop(); } catch (e) {}
     try { flushQuickLaunchPrefs(); } catch (e) {}
     try { flushCaroPreviewPrefs(); } catch (e) {}
     try { flushGiftListPrefs(); } catch (e) {}
@@ -1760,10 +1762,36 @@ function applyDapMuoiHotkeys(cfg) {
 }
 global.__dapmuoiApplyHotkeys = applyDapMuoiHotkeys;
 
+// ============================================================
+// PHỤ ĐỀ GIỌNG CREATOR — phím tắt toàn cục Nghe/Tạm dừng: gọi route toggle của server
+// (đang nghe → tạm dừng, cửa sổ Edge/Chrome vẫn mở; đang nghỉ → nghe lại; chưa mở → mở và nghe).
+// ============================================================
+let _captionAccel = '';
+function unregisterCaptionHotkey() {
+    if (_captionAccel) { try { globalShortcut.unregister(_captionAccel); } catch (_) {} _captionAccel = ''; }
+}
+function applyCaptionHotkey(cfg) {
+    unregisterCaptionHotkey();
+    if (!cfg || cfg.enabled !== true) return;
+    const accel = String(cfg.hotkey || '').trim();
+    if (!accel) return;
+    try {
+        const ok = globalShortcut.register(accel, async () => {
+            try {
+                const fetch = require('node-fetch');
+                await fetch(`${APP_URL}/api/creator-caption/listener/toggle`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+            } catch (e) { console.warn('[caption-hotkey] api fail:', e.message); }
+        });
+        if (ok) { _captionAccel = accel; console.log('[caption] phím tắt Nghe/Dừng:', accel); }
+        else console.warn('[caption-hotkey] phím đã bị app khác giữ:', accel);
+    } catch (e) { console.warn('[caption-hotkey] register fail:', accel, e.message); }
+}
+global.__captionApplyHotkey = applyCaptionHotkey;
+
 app.on('before-quit', () => {
     isQuitting = true;
-    try { unregisterBancungHotkeys(); unregisterNhatLaHotkeys(); unregisterDapMuoiHotkeys(); } catch (_) {}
-    // Cửa sổ nghe giọng Creator (Edge/Chrome) tự đóng theo app.
+    try { unregisterBancungHotkeys(); unregisterNhatLaHotkeys(); unregisterDapMuoiHotkeys(); unregisterCaptionHotkey(); } catch (_) {}
+    // Cửa sổ nghe giọng Creator: đường thoát qua app.quit() (key bị thu hồi…) — đường thoát thường đi qua actualFullQuit Tier 0.
     try { require('./server.js').captionListenerStop(); } catch (_) {}
 });
 app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch (_) {} });

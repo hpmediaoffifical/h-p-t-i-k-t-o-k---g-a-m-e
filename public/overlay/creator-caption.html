@@ -136,14 +136,23 @@
 <body>
     <div id="wrap"></div>
     <script src="/socket.io/socket.io.js"></script>
-    <script>
+    <script type="module">
+    import { createLinePacer } from '/lib/caption-pace.mjs';
     (function () {
         const wrap = document.getElementById('wrap');
         const socket = io({ reconnection: true, reconnectionDelay: 600, reconnectionDelayMax: 5000 });
-        let config = { showOriginal: true, showInterim: true, style: 'card', maxItems: 3, holdSeconds: 12 };
+        let config = { showOriginal: true, showInterim: true, style: 'card', maxItems: 3, holdSeconds: 12, paceLines: true };
         const INTERIM_HIDE_MS = 8000;
         let interimEl = null;
         let interimTimer = null;
+        // Giữ nhịp đọc: câu tới dồn dập thì xếp hàng, mỗi câu giữ tối thiểu theo độ dài (public/lib/caption-pace.mjs).
+        let pacerTimer = null;
+        const pacer = createLinePacer({ show: (item) => renderLine(item) });
+        function pumpPacer() {
+            clearTimeout(pacerTimer);
+            pacer.tick();
+            if (pacer.pending()) pacerTimer = setTimeout(pumpPacer, Math.max(50, pacer.waitMs()));
+        }
 
         function trimItems(max) {
             const lines = Array.from(wrap.querySelectorAll('.line'));
@@ -190,7 +199,13 @@
             interimTimer = setTimeout(hideInterim, INTERIM_HIDE_MS);
         }
         function addLine(item) {
-            hideInterim();   // câu final tới → dòng tạm xoá ngay
+            if (config.paceLines === false) { renderLine(item); return; }
+            pacer.push(item);
+            pumpPacer();
+        }
+        function renderLine(item) {
+            // Không xoá dòng tạm ở đây: câu dịch tới trễ 1–3s, lúc đó chữ tạm đã là câu KẾ TIẾP. Trang nghe
+            // gửi partial '' ngay sau mỗi final nên dòng tạm tự xoá đúng lúc.
             const style = item.style === 'subtitle' || (!item.style && config.style === 'subtitle') ? 'subtitle' : 'card';
             const el = document.createElement('div');
             el.className = 'line ' + style + (item.error ? ' error' : '');

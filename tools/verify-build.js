@@ -55,6 +55,12 @@ const FILES = [
     ['public/lib/mediapipe/pose_landmarker_lite.task', 'model body offline (Bắn Cung / Đập Muỗi / Level Quest bám người)'],
     // 🎥 Game Camera chơi 2 game cùng lúc: luật khe/quà/phím (server require) + một bộ nhận diện chung trong overlay mẹ
     ['lib/camgames.js', 'luật Game Camera chơi nhiều game (thiếu = server không khởi động)'],
+    ['lib/caption-listener.js', 'Phụ đề giọng: tìm Edge/Chrome + máy trạng thái cửa sổ nghe (thiếu = server không khởi động)'],
+    ['lib/win-minimize.js', 'Phụ đề giọng: thu nhỏ cửa sổ nghe (chạy ngầm)'],
+    ['public/listen/caption.html', 'Phụ đề giọng: trang nghe mở trong Edge/Chrome'],
+    ['public/listen/caption.js', 'Phụ đề giọng: logic trang nghe'],
+    ['public/lib/caption-speech.mjs', 'Phụ đề giọng: gộp kết quả nhận diện / bật lại / tự ngắt'],
+    ['public/lib/caption-pace.mjs', 'Phụ đề giọng: overlay giữ nhịp đọc'],
     ['public/lib/hp-cam-shared.mjs', 'bộ nhận diện dùng chung của overlay Game Camera'],
     ['public/lib/body-frames.mjs', 'khung đầu/thân từ pose (Đập Muỗi chích, Level Quest bám đầu)'],
     ['public/lib/head-anchor.mjs', 'Level Quest bám đỉnh đầu trong Game Camera'],

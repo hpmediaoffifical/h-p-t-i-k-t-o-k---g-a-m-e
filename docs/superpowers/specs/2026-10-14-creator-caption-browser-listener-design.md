@@ -236,6 +236,45 @@ dịch trong ~1–3 giây sau khi ngừng nói; tắt app thì cửa sổ Edge t
   cửa sổ nhấp nháy).
 - Popup thêm checkbox "Tự mở cửa sổ nghe khi kết nối LIVE" + thanh "Tự ngắt câu sau … giây".
 
+## Bổ sung 2 (chat 14/10/2026 — "chưa kịp đọc đã dịch tiếp"; "chế độ auto và bấm/dừng (có phím tắt)")
+
+**Hai chế độ** (`mode`, mặc định `auto`):
+- `auto`: như hiện tại — mở cửa sổ là nghe liên tục, tự ngắt câu theo `segmentSeconds`, tự bật lại sau mỗi phiên.
+- `manual` (Bấm/Dừng): cửa sổ mở ở trạng thái **sẵn sàng** (không nghe). Bấm phím tắt → nghe; bấm lại → `stop()`
+  (không `abort()`, để trình duyệt chốt đoạn vừa nói) → dịch trọn đoạn → về sẵn sàng. Không tự ngắt câu; phiên
+  trình duyệt tự kết thúc giữa chừng (im lặng) thì vẫn bật lại cho tới khi bấm dừng.
+
+**Phím tắt toàn cục** (`hotkey`, mặc định `Control+Shift+L`; chuỗi 1 ký tự → `Control+Shift+<KÝ TỰ>` như Nhặt Lá):
+Electron đăng ký `globalShortcut` qua `global.__captionApplyHotkey(cfg)` (gọi khi lưu cấu hình + lúc khởi động, chỉ
+khi `enabled`), bấm → `POST /api/creator-caption/listener/toggle`: đang nghe → **tạm dừng** (gửi
+`creatorCaption:listener:stop { close:false }`, cửa sổ vẫn mở); cửa sổ mở mà đang nghỉ → `listener:start`; chưa có cửa
+sổ → mở với `startWhenReady` (trang báo `idle` lần đầu → server gửi `start`). Ở `auto`, phím tắt = tạm dừng/nghe tiếp.
+Popup: trạng thái `idle` mà còn socket → "⏸ Cửa sổ nghe đang mở, tạm dừng — bấm <phím> hoặc BẮT ĐẦU NGHE".
+
+**Giữ nhịp đọc trên overlay** (`paceLines`, mặc định bật): mỗi câu được giữ tối thiểu
+`minShowMs = clamp(1500 + 60 × số ký tự bản dịch dài nhất, 2500, 9000)`; câu tới sớm hơn thì xếp hàng (tối đa 4, quá thì
+bỏ câu cũ nhất để không trễ dần). Chữ đang nói vẫn cập nhật ngay nên người xem không mất dấu. Luật thuần
+`createLinePacer`/`minShowMs` trong `public/lib/caption-pace.mjs` (test `tests/caption-pace.test.mjs`).
+
+Trang nghe: `listener:stop` nhận `{ close }`; DỪNG trong popup vẫn đóng cửa sổ. Dừng bằng `stop()` thay vì `abort()`
+(kể cả DỪNG trong popup) để không mất câu cuối; `abort()` chỉ dùng khi đổi ngôn ngữ. Ngắt/dừng mà trình duyệt không
+chốt final → gửi chữ tạm cuối làm câu.
+
+**Chạy ngầm** (`background`, mặc định bật — "các lần sau tự chạy ngầm"): trang báo đang nghe lần đầu (quyền micro đã
+cấp) → server thu nhỏ cửa sổ qua `lib/win-minimize.js` (PowerShell `ShowWindowAsync(…, 6)` theo tiêu đề
+"HP Phụ đề giọng"). Không xin micro sớm bằng `getUserMedia` (mở/nhả thiết bị làm SpeechRecognition báo
+`audio-capture` trên micro ảo ASIO). Trang nghe có `<meta name="google" content="notranslate">` + cờ
+`--disable-features=TranslateUI,Translate` để Chrome/Edge không hỏi "Dịch trang".
+
+**Sau review (14/10/2026):** (1) `app.js` còn gọi hàm đã xoá → smoke test `tests/app-smoke.test.js` nạp app.js trong
+`vm`; (2) mọi đường thoát (`actualFullQuit` Tier 0, tự cập nhật, before-quit) gọi `captionListenerStop()`; trang nghe
+dùng `volatile.emit` cho chữ tạm/nhịp tim, câu final chỉ gửi khi đang nối + `ts` (server bỏ câu > 30s); (3) cờ
+`captionUserStopped`: DỪNG/đóng cửa sổ khi đang nghe → LIVE nối lại giữa buổi KHÔNG tự mở; buổi mới
+(`!preserveSession`) mới xoá cờ; (4) config cũ (chưa có `browser`) mà `enabled=true` → `autoStart=false`; (5)
+`segmentSeconds=0` tắt cả giới hạn 18 từ; stop phát rộng `io.emit`; DỪNG lúc đang mở dở → trang nối tới bị bảo đóng;
+reset xoá đúng profile của trình duyệt đã mở thật; bỏ tick "Bật nhận giọng" → đóng cửa sổ; overlay không xoá chữ
+tạm khi câu dịch tới trễ; `tools/whisper` không đóng vào bộ cài.
+
 ## Ngoài phạm vi
 
 Whisper offline; điều khiển game bằng giọng; "gọi AI qua micro"; khách nhập key Google dịch chính thức;

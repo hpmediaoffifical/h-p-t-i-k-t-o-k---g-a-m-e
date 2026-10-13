@@ -1774,6 +1774,10 @@ const DEFAULT_CREATOR_CAPTION_CONFIG = {
     showInterim: true,        // hiện chữ đang nói (chưa dịch) trên OBS
     segmentSeconds: 6,        // nói liên tục quá N giây → trang nghe tự chốt câu để dịch sớm (0 = tắt, 3–15)
     autoStart: true,          // LIVE kết nối (và enabled) → tự mở cửa sổ nghe
+    mode: 'auto',             // auto: nghe liên tục + tự ngắt câu | manual: bấm phím tắt nghe, bấm lại dừng rồi dịch
+    hotkey: 'Control+Shift+L',// phím tắt toàn cục Nghe/Tạm dừng ('' = không đăng ký)
+    paceLines: true,          // overlay giữ mỗi câu đủ lâu để đọc, câu mới xếp hàng
+    background: true,         // chạy ngầm: thu nhỏ cửa sổ nghe sau khi đã có quyền micro
     maxItems: 3,
     holdSeconds: 12,
     autoTargetsEnabled: true,
@@ -2185,7 +2189,13 @@ function sanitizeCreatorCaptionConfig(input) {
     cfg.showInterim = src.showInterim !== false;
     const seg = src.segmentSeconds == null ? d.segmentSeconds : parseInt(src.segmentSeconds, 10);
     cfg.segmentSeconds = !Number.isFinite(seg) ? d.segmentSeconds : seg <= 0 ? 0 : Math.max(3, Math.min(15, seg));
-    cfg.autoStart = src.autoStart !== false;
+    // Config cũ (trước v1.15: chưa có khoá browser) mà enabled=true thường do khách bấm "Test phụ đề" → KHÔNG tự mở
+    // cửa sổ Edge mỗi buổi; config mới/khoá có sẵn thì theo giá trị.
+    cfg.autoStart = src.autoStart == null ? !(src.browser == null && src.enabled === true) : src.autoStart !== false;
+    cfg.mode = src.mode === 'manual' ? 'manual' : 'auto';
+    cfg.hotkey = CaptionListener.normalizeHotkey(src.hotkey == null ? d.hotkey : src.hotkey);
+    cfg.paceLines = src.paceLines !== false;
+    cfg.background = src.background !== false;
     cfg.maxItems = Math.max(1, Math.min(6, parseInt(src.maxItems, 10) || d.maxItems));
     cfg.holdSeconds = Math.max(3, Math.min(30, parseInt(src.holdSeconds, 10) || d.holdSeconds));
     cfg.autoTargetsEnabled = src.autoTargetsEnabled !== false;
@@ -4341,7 +4351,7 @@ async function connectToUser(username, opts = {}) {
         streamEnded = false;
         currentRoomId = state?.roomId;
         vipStartRoom();   // sổ ghé phòng: 1 roomId = 1 buổi (nối lại giữa buổi giữ roomId → không mở buổi mới)
-        captionAutoStartOnLive();   // phụ đề giọng: tự mở cửa sổ nghe Edge/Chrome nếu bật
+        captionAutoStartOnLive({ newSession: !preserveSession });   // phụ đề giọng: tự mở cửa sổ nghe Edge/Chrome nếu bật
         // Synthetic "host vào phòng" event — TikTok không fire MEMBER cho HOST tự kết nối live của mình.
         // roomInfo là envelope JSON của TikTok {data:{owner:{id_str, display_id, nickname, avatar_thumb, follow_info...}}, extra,
         // status_code} (cả 2.1.0 lẫn 2.4.4) — trước đây đọc roomInfo.owner.* (camelCase) nên host luôn rỗng → PK không nhận
@@ -4506,9 +4516,13 @@ app.get('/api/creator-caption/config', (req, res) => {
 });
 
 app.post('/api/creator-caption/config', (req, res) => {
+    const wasEnabled = sanitizeCreatorCaptionConfig(appConfig.creatorCaption).enabled;
     appConfig.creatorCaption = sanitizeCreatorCaptionConfig(req.body || {});
     saveAppConfig();
     io.emit('creatorCaption:config', appConfig.creatorCaption);
+    try { global.__captionApplyHotkey?.(appConfig.creatorCaption); } catch (e) {}   // phím tắt Nghe/Dừng (Electron)
+    // Bỏ tick "Bật nhận giọng Creator" khi đang nghe → đóng cửa sổ nghe (server đã bỏ hết chữ, để nghe tiếp là vô nghĩa).
+    if (wasEnabled && !appConfig.creatorCaption.enabled) { try { captionListenerStop(); } catch (e) {} }
     res.json({ ok: true, config: appConfig.creatorCaption });
 });
 
@@ -4536,20 +4550,29 @@ function captionListenerSpawn(browser) {
     const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
     child.on('error', (e) => console.warn('[creator-caption] mở trình duyệt lỗi:', e.message));
     child.unref();
+    captionSpawnedBrowser = found.browser;
     console.log(`[creator-caption] mở ${found.browser}${found.fallback ? ' (thay cho ' + browser + ')' : ''}: ${found.exe}`);
     return found;
 }
-// Dừng nghe + bảo trang nghe tự đóng cửa sổ. Gọi cả khi app tắt (electron-main before-quit / SIGINT).
-function captionListenerStop() {
-    const r = captionListener.stop();
-    if (r.socketId && io.sockets.sockets.get(r.socketId)) io.to(r.socketId).emit('creatorCaption:listener:stop');
-    else io.emit('creatorCaption:listener:stop');
+let captionUserStopped = false;   // streamer đã DỪNG / đóng cửa sổ → LIVE nối lại giữa buổi KHÔNG tự mở (lời riêng không lên sóng)
+let captionCancelOpen = false;    // DỪNG khi cửa sổ đang mở dở → trang nối tới thì bảo đóng luôn
+let captionSpawnedBrowser = '';   // trình duyệt thực sự đã mở (có thể là dự phòng) — route reset xoá đúng profile
+// Dừng nghe + bảo trang nghe tự đóng cửa sổ. Phát rộng (không chỉ socket đang giữ) để cửa sổ mồ côi/thứ hai
+// cũng đóng. Gọi cả khi app tắt (electron-main actualFullQuit/before-quit, SIGINT, tự cập nhật).
+function captionListenerStop({ byUser = true } = {}) {
+    const before = captionListener.snapshot();
+    if (before.status === 'opening' && !before.socketId) captionCancelOpen = true;
+    captionListener.stop();
+    if (byUser) captionUserStopped = true;
+    io.emit('creatorCaption:listener:stop', { close: true });
     return captionListener.snapshot();
 }
 // Mở (hoặc bảo trang đang mở nghe lại) — idempotent nhờ máy trạng thái. → { ok, error? }
-function captionListenerOpen() {
+function captionListenerOpen({ startWhenReady = false } = {}) {
+    captionUserStopped = false;
+    captionCancelOpen = false;
     const browser = sanitizeCreatorCaptionConfig(appConfig.creatorCaption).browser;
-    const r = captionListener.open({ browser });
+    const r = captionListener.open({ browser, startWhenReady });
     if (r.action === 'spawn') {
         if (!captionListenerSpawn(browser)) {
             captionListener.fail('browser_not_found');
@@ -4560,11 +4583,37 @@ function captionListenerOpen() {
     }
     return { ok: true };
 }
+// Phím tắt Nghe/Tạm dừng: đang nghe → tạm dừng (cửa sổ vẫn mở); đang nghỉ → nghe lại; chưa có cửa sổ → mở và
+// nghe ngay khi trang sẵn sàng (chế độ Bấm/Dừng không tự nghe khi mở).
+function captionListenerToggle() {
+    captionCancelOpen = false;
+    const browser = sanitizeCreatorCaptionConfig(appConfig.creatorCaption).browser;
+    const r = captionListener.toggle({ browser });
+    if (r.action !== 'pause') captionUserStopped = false;
+    if (r.action === 'pause' && r.socketId) io.to(r.socketId).emit('creatorCaption:listener:stop', { close: false });
+    else if (r.action === 'start' && r.socketId) io.to(r.socketId).emit('creatorCaption:listener:start');
+    else if (r.action === 'spawn') {
+        if (!captionListenerSpawn(browser)) { captionListener.fail('browser_not_found'); return { ok: false, error: 'browser_not_found' }; }
+    }
+    return { ok: true, action: r.action };
+}
+// Chạy ngầm: thu nhỏ cửa sổ nghe khi trang báo ĐANG NGHE (quyền micro đã cấp) — mỗi socket một lần,
+// để lời hỏi quyền micro lần đầu vẫn hiện ra cho người dùng bấm Cho phép.
+const captionMinimizedSockets = new Set();
+function captionMaybeMinimize(socketId, info) {
+    if (!info || info.state !== 'listening' || captionMinimizedSockets.has(socketId)) return;
+    if (!sanitizeCreatorCaptionConfig(appConfig.creatorCaption).background) return;
+    captionMinimizedSockets.add(socketId);
+    console.log('[creator-caption] chạy ngầm: thu nhỏ cửa sổ nghe');
+    setTimeout(() => { try { require('./lib/win-minimize').minimizeWindowByTitle('HP Phụ đề giọng'); } catch (e) {} }, 600);
+}
 // LIVE vừa kết nối → tự mở cửa sổ nghe nếu tính năng bật và autoStart (streamer không phải bấm mỗi buổi).
-function captionAutoStartOnLive() {
+// Buổi LIVE MỚI (không phải nối lại giữa buổi) mới xoá cờ "đã DỪNG"; nối lại thì tôn trọng streamer đã dừng.
+function captionAutoStartOnLive({ newSession = false } = {}) {
     try {
+        if (newSession) captionUserStopped = false;
         const cfg = sanitizeCreatorCaptionConfig(appConfig.creatorCaption);
-        if (!cfg.enabled || !cfg.autoStart) return;
+        if (!cfg.enabled || !cfg.autoStart || captionUserStopped) return;
         const r = captionListenerOpen();
         if (!r.ok) console.warn('[creator-caption] tự mở cửa sổ nghe thất bại:', r.error);
     } catch (e) { console.warn('[creator-caption] tự mở cửa sổ nghe lỗi:', e.message); }
@@ -4586,18 +4635,29 @@ app.post('/api/creator-caption/listener/stop', (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
     res.json({ ok: true, state: captionListenerStop() });
 });
+app.post('/api/creator-caption/listener/toggle', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    const r = captionListenerToggle();
+    if (!r.ok) return res.status(404).json({ ok: false, error: r.error, state: captionListener.snapshot() });
+    res.json({ ok: true, action: r.action, state: captionListener.snapshot() });
+});
+setTimeout(() => { try { global.__captionApplyHotkey?.(sanitizeCreatorCaptionConfig(appConfig.creatorCaption)); } catch (e) {} }, 1500);
 // Người dùng lỡ bấm "Chặn" micro → trình duyệt nhớ mãi trong profile. Xoá profile riêng của HP
-// (chỉ thư mục <data>/caption-listener/<browser>) để lần mở sau hỏi lại quyền.
-app.post('/api/creator-caption/listener/reset', (req, res) => {
+// (chỉ thư mục <data>/caption-listener/<browser đã mở thật>) để lần mở sau hỏi lại quyền.
+app.post('/api/creator-caption/listener/reset', async (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
     captionListenerStop();
-    const browser = sanitizeCreatorCaptionConfig(appConfig.creatorCaption).browser;
+    const browser = CaptionListener.normalizeBrowser(captionSpawnedBrowser || sanitizeCreatorCaptionConfig(appConfig.creatorCaption).browser);
     const profileDir = path.join(DATA_DIR, 'caption-listener', browser);
-    setTimeout(() => {   // chờ trình duyệt đóng cửa sổ, nhả khoá file profile
-        try { fs.rmSync(profileDir, { recursive: true, force: true }); console.log('[creator-caption] đã xoá profile', profileDir); }
-        catch (e) { console.warn('[creator-caption] xoá profile lỗi:', e.message); }
-    }, 1200);
-    res.json({ ok: true, state: captionListener.snapshot() });
+    await new Promise(r => setTimeout(r, 2000));   // chờ trình duyệt đóng cửa sổ, nhả khoá file profile
+    try {
+        fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+        console.log('[creator-caption] đã xoá profile', profileDir);
+        res.json({ ok: true, browser, state: captionListener.snapshot() });
+    } catch (e) {
+        console.warn('[creator-caption] xoá profile lỗi:', e.message);
+        res.status(500).json({ ok: false, error: 'profile_busy', state: captionListener.snapshot() });
+    }
 });
 app.get('/listen/caption', (req, res) => res.sendFile(path.join(__dirname, 'public', 'listen', 'caption.html')));
 
@@ -5374,7 +5434,8 @@ log.Close
                 windowsHide: true
             }).unref();
 
-            // Cho UI 1.5s render message xong rồi mới quit
+            // Cho UI 1.5s render message xong rồi mới quit (app.exit không qua before-quit → tự đóng cửa sổ nghe ở đây)
+            try { captionListenerStop(); } catch (e) {}
             setTimeout(() => {
                 if (_electronApp) {
                     try { _electronApp.exit(0); } catch (e) { process.exit(0); }
@@ -10826,6 +10887,8 @@ io.on('connection', (socket) => {
     // Trang nghe (Edge/Chrome) → câu final đi dịch; chữ tạm phát thẳng cho overlay/popup (không dịch);
     // trạng thái nghe lưu vào máy trạng thái → popup biết cửa sổ đang mở/nghe/lỗi.
     onTrusted('creatorCaption:speech', (payload) => {
+        // Câu quá cũ (trang nghe đệm lúc mất kết nối) → bỏ, không đổ dồn lên OBS.
+        if (payload && Number(payload.ts) > 0 && Date.now() - Number(payload.ts) > 30000) return;
         processCreatorCaptionSpeech(payload).catch(e => console.warn('[creator-caption] translate failed:', e.message));
     });
     onTrusted('creatorCaption:partial', (payload) => {
@@ -10833,8 +10896,16 @@ io.on('connection', (socket) => {
         io.emit('creatorCaption:partial', { text: String(payload?.text || '').slice(0, 300), ts: Date.now() });
     });
     onTrusted('creatorCaption:listener', (payload) => {
+        // DỪNG lúc cửa sổ còn đang mở dở → trang vừa nối tới: bảo đóng luôn, không nhận làm cửa sổ đang giữ.
+        if (captionCancelOpen) {
+            captionCancelOpen = false;
+            io.to(socket.id).emit('creatorCaption:listener:stop', { close: true });
+            return;
+        }
         captionListener.attach(socket.id);
-        captionListener.report(socket.id, payload || {});
+        const act = captionListener.report(socket.id, payload || {});
+        if (act && act.action === 'start') io.to(socket.id).emit('creatorCaption:listener:start');   // mở bằng phím tắt → nghe ngay
+        captionMaybeMinimize(socket.id, payload);
     });
     // Universal overlay reload — panel/app can force ALL OBS browser sources of a game to refresh
     // Use case: user mở game lần đầu → OBS source bị cache → emit để OBS tự reload
@@ -11059,7 +11130,11 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         if (nhatLaActiveDragSocketId === socket.id) nhatLaActiveDragSocketId = null;
         if (chemRelay.dropSocket(socket.id)) io.emit('chemtraicay:trackerStatus', { activeId: null });
-        captionListener.detach(socket.id);   // người dùng đóng cửa sổ Edge → popup biết ngay
+        // Người dùng tự đóng cửa sổ Edge khi đang nghe → coi như đã DỪNG (LIVE nối lại không tự mở); popup biết ngay.
+        const before = captionListener.snapshot();
+        captionListener.detach(socket.id);
+        if (before.socketId === socket.id && before.status === 'listening') captionUserStopped = true;
+        captionMinimizedSockets.delete(socket.id);
     });
 
     socket.on('subscribe', (roomName) => {
