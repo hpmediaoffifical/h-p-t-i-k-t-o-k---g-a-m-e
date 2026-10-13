@@ -56,8 +56,11 @@
                     <select id="cg-source"><option value="">— Chọn nguồn camera —</option></select>
                     <button class="ghost small" id="cg-refresh" title="Tải lại danh sách nguồn">🔄</button>
                 </div>
+                <details class="cg-howto">
+                    <summary>ⓘ Cách dùng — 1 link OBS cho mọi game, chơi 2 game cùng lúc</summary>
                 <div class="hint">Trong OBS chỉ cần <b>một Browser Source</b> 1080×1920 với link <b>📋 Link OBS</b> ở trên, đặt <b>phía trên</b> nguồn camera và phủ kín khung hình. Đổi game ở dưới thì OBS đổi theo, không phải sửa scene. Cần kết nối OBS WebSocket ở mục <b>Hiệu ứng OBS</b>.</div>
                 <div class="hint"><b>Chơi cùng lúc:</b> bấm <b>＋ Chơi kèm</b> để ghép <b>1 game dùng tay</b> (Touch &amp; Play / Chém Trái Cây / Đập Muỗi) với <b>1 game trên đầu</b> (Bắn Cung / Level Quest). Hai game dùng chung một lần nhận diện nên máy không nặng gấp đôi. Quà đã gán riêng cho game nào thì chỉ game đó nhận; quà chưa gán ở đâu mới vào game nhận mọi quà.</div>
+                </details>
                 <div class="cg-status" id="cg-overlap"></div>
             </div>
             <div class="cg-grid" id="cg-grid"></div>`;
@@ -88,7 +91,7 @@
                 <div class="cg-track">Nhận diện: ${esc(g.track)}</div>
                 ${g.note ? `<div class="cg-track">💡 ${esc(g.note)}</div>` : ''}
                 <div class="cg-actions">
-                    <button class="${on ? 'ghost' : 'primary'} small" data-play="${esc(g.id)}" ${on ? 'disabled' : ''}>${on ? '✓ Đang chơi' : canWith ? '▶ Chơi riêng' : '▶ Chơi game này'}</button>
+                    <button class="${on ? 'ghost' : 'btn-outline'} small" data-play="${esc(g.id)}" ${on ? 'disabled' : ''}>${on ? '✓ Đang chơi' : canWith ? '▶ Chơi riêng' : '▶ Chơi game này'}</button>
                     ${canWith ? `<button class="ghost small" data-with="${esc(g.id)}" title="${esc(withTitle)}">＋ Chơi kèm</button>` : ''}
                     ${on && now.length > 1 ? `<button class="ghost small" data-drop="${esc(g.id)}" title="Thôi chơi game này, giữ game còn lại">✕ Bỏ</button>` : ''}
                     ${keyOwner && on && g.hotkeys && keyOwner !== g.id ? `<button class="ghost small" data-keys="${esc(g.id)}" title="Chuyển phím tắt toàn cục sang game này (game kia tạm nhả phím)">⌨ Nhận phím tắt</button>` : ''}

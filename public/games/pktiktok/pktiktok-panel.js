@@ -124,7 +124,7 @@
                 </div>
                 <div class="pkfx-card-actions">
                     <button type="button" class="ghost small" data-pkfx-pick>📁 Chọn</button>
-                    <button type="button" class="primary small" data-pkfx-test ${hasFile ? '' : 'disabled'}>▶ TEST</button>
+                    <button type="button" class="btn-outline small" data-pkfx-test ${hasFile ? '' : 'disabled'}>▶ TEST</button>
                     <button type="button" class="danger small" data-pkfx-clear ${hasFile ? '' : 'disabled'}>🗑</button>
                 </div>
             </div>`;

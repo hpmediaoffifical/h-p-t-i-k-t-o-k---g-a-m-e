@@ -165,7 +165,9 @@ button, .feat, .ghost, .primary, .danger, .pill, .tab, .tab-btn {
     min-height: 0;
     height: 100%;
 }
-.brand { display: flex; align-items: center; gap: 8px; padding: 2px 4px 5px; }
+.brand { display: flex; align-items: center; gap: 8px; padding: 2px 4px 5px; border-radius: 9px; cursor: pointer; transition: background .15s ease; }
+.brand:hover { background: rgba(255, 255, 255, 0.04); }
+.brand:focus-visible { outline: 2px solid rgba(127, 182, 255, .6); outline-offset: 1px; }
 .brand-logo {
     width: 34px; height: 34px; border-radius: 9px;
     object-fit: cover;
@@ -596,6 +598,21 @@ button.secondary { background: #2c3243; color: #e6e8ee; }
 button.secondary:hover:not(:disabled) { background: #353c50; }
 button.ghost { background: transparent; color: #b9c0d4; border: 1px solid #2c3243; }
 button.ghost:hover:not(:disabled) { background: #1a1f2b; color: #fff; }
+/* Viền màu nhấn: việc phụ/cài đặt 1 lần (📋 Link OBS, ▶ TEST, ▶ Chơi riêng) — không tranh với nút đặc màu
+   duy nhất của vùng (Kết nối LIVE, ▶ BẮT ĐẦU phiên). Rê vào mới đổ đặc. */
+button.obs-link, button.btn-outline {
+    background: rgba(255, 61, 85, 0.07); color: #ff9a85;
+    border: 1px solid rgba(255, 107, 61, 0.5);
+}
+button.obs-link:hover:not(:disabled), button.btn-outline:hover:not(:disabled) {
+    background: linear-gradient(135deg, #ff2d55, #ff6b3d); color: #fff; border-color: transparent;
+}
+/* Nguy hiểm (xoá / reset / tắt hẳn): đỏ nhạt có viền — rõ là nguy hiểm nhưng không nổi hơn nút chính */
+button.danger {
+    background: rgba(239, 68, 68, 0.1); color: #ffb4b4;
+    border: 1px solid rgba(239, 68, 68, 0.38);
+}
+button.danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.28); color: #fff; border-color: rgba(239, 68, 68, 0.72); }
 button.block { width: 100%; }
 button.small { padding: 5px 12px; font-size: 12px; }
 button.mini { padding: 2px 8px; font-size: 11px; }
@@ -627,10 +644,10 @@ button.mini { padding: 2px 8px; font-size: 11px; }
 @keyframes pulse { 50% { opacity: 0.4; } }
 
 /* Game list */
-.game-list { display: flex; flex-direction: column; gap: 6px; }
+.game-list { display: flex; flex-direction: column; gap: 4px; }
 .game-item {
     display: flex; align-items: center; gap: 8px;
-    padding: 7px 8px;
+    padding: 4px 6px 4px 8px;
     background: #0f1218;
     border: 1px solid #1f2533;
     border-radius: 8px;
@@ -647,7 +664,7 @@ button.mini { padding: 2px 8px; font-size: 11px; }
 /* Game toggle button — same eject icon style as connect */
 .game-toggle {
     flex-shrink: 0;
-    width: 28px; height: 28px;
+    width: 26px; height: 26px;
     padding: 0; border-radius: 50%;
     border: 1.5px solid transparent;
     background: transparent;
@@ -703,10 +720,18 @@ button.mini { padding: 2px 8px; font-size: 11px; }
 .side-fab-row {
     display: flex;
     justify-content: center;
-    align-items: center;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 2px;
     padding: 4px 0 2px;
 }
+.side-fab { width: 46px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.side-fab-lbl {
+    font-size: 9.5px; font-weight: 600; line-height: 1.1; color: #8b93a8;
+    white-space: nowrap; letter-spacing: -0.1px; pointer-events: none;
+}
+.side-fab:hover .side-fab-lbl { color: #e6e8ee; }
+.sidebar.collapsed .side-fab-lbl { display: none; }
+.sidebar.collapsed .side-fab { width: auto; }
 /* Mọi nút trong hàng dùng chung 1 cỡ tròn 40px (đè mọi rule cũ — kể cả vị trí fixed
    theo từng game như body.game-thuytinh ...). */
 .side-fab-row .comments-fab,
@@ -750,7 +775,26 @@ button.mini { padding: 2px 8px; font-size: 11px; }
 .side-soundfx-circle:active,
 .side-settings-circle:active { transform: scale(0.95); }
 /* Sidebar thu gọn: 5 nút xếp dọc cho vừa bề ngang hẹp */
-.sidebar.collapsed .side-fab-row { flex-direction: column; gap: 8px; }
+.sidebar.collapsed .side-fab-row { flex-direction: column; align-items: center; gap: 8px; }
+/* Cùng một nền trung tính cho 4 nút (đè nền gradient riêng từng nút) — icon emoji đã đủ phân biệt, nhãn nói rõ */
+.side-fab-row .comments-fab,
+.side-fab-row .comments-fab.unknown-fab,
+.side-fab-row .side-soundfx-circle,
+.side-fab-row .side-settings-circle {
+    background: #1b2030;
+    border: 1px solid #2c3345;
+    box-shadow: none;
+    font-size: 18px;
+}
+.side-fab-row .comments-fab.unknown-fab { opacity: 1; }
+.side-fab-row .comments-fab:hover,
+.side-fab-row .side-soundfx-circle:hover,
+.side-fab-row .side-settings-circle:hover { border-color: #ff6b3d; transform: none; background: #222839; }
+/* 🆕 có quà mới → nền hổ phách + nhịp sáng (ug-pulse) để mắt bắt được */
+.side-fab-row .comments-fab.unknown-fab.has-new { background: linear-gradient(135deg, #f59e0b, #ef4444); border-color: transparent; }
+/* 🚀 Khởi động nhanh — nút chính của hàng */
+.side-fab-row .quick-launch-fab { font-size: 18px; box-shadow: 0 4px 14px rgba(255, 61, 127, 0.35); }
+.side-fab-row .quick-launch-fab:hover { transform: none; box-shadow: 0 6px 18px rgba(255, 61, 127, 0.5); }
 .side-footer {
     display: flex;
     flex-direction: column;
@@ -814,110 +858,19 @@ button.mini { padding: 2px 8px; font-size: 11px; }
 .hero h1 { font-size: 24px; margin: 0 0 6px; }
 .hero-h2 { font-size: 20px; margin: 26px 0 6px; color: #e3e7f1; }
 .hero-sub { color: #8b93a8; font-size: 14px; margin: 0 0 18px; }
-.home-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 12px;
-}
-.home-card {
-    background: #161a23;
-    border: 1px solid #1f2533;
-    border-radius: 12px;
-    padding: 15px;
-    cursor: pointer;
-    transition: border-color .15s ease, transform .1s ease;
-}
-.home-card:hover { border-color: #ff6b3d; transform: translateY(-2px); }
-.home-card .ico { font-size: 36px; }
-.home-card .gn { font-size: 16px; font-weight: 700; margin-top: 8px; }
-.home-card .gd { font-size: 12px; color: #8b93a8; margin-top: 4px; }
-.home-card .game-dev-notice { margin-top: 8px; }
-
-/* 🚀 Khởi động nhanh — quick launch card grid trên Home */
-.quick-launch {
-    background: linear-gradient(135deg, #1a1f2e 0%, #1f1525 100%);
-    border: 1px solid #2a3046;
-    border-radius: 16px;
-    padding: 18px 20px 20px;
-    margin-bottom: 22px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-}
-.quick-launch-head h1 {
-    font-size: 22px;
-    margin: 0 0 6px;
+/* 🏠 Trang chủ = 🚀 Khởi động nhanh nhúng (iframe /quick-launch?embed=1 — tự cao theo nội dung qua postMessage) */
+.home-hero { padding: 18px 20px 24px; }
+.home-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.home-head-txt { min-width: 0; }
+.home-head h1 {
+    font-size: 22px; margin: 0 0 4px; display: inline-block;
     background: linear-gradient(90deg, #ff6b3d, #ff3d7f);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    display: inline-block;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.quick-launch-head .hero-sub { margin-bottom: 18px; font-size: 13px; }
-.quick-launch-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-    gap: 10px;
-}
-.ql-card {
-    background: #1a1e2a;
-    border: 1px solid #262c3c;
-    border-radius: 12px;
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    transition: border-color .15s ease, transform .1s ease, box-shadow .15s ease;
-    position: relative;
-}
-.ql-card:hover { border-color: #3a4359; transform: translateY(-1px); }
-.ql-card.is-on { border-color: #23a85f; box-shadow: 0 0 0 1px #23a85f33, 0 4px 12px rgba(35, 168, 95, 0.15); }
-.ql-card.is-off { opacity: 0.85; }
-.ql-card-head { display: flex; align-items: center; gap: 10px; }
-.ql-card-ico { font-size: 28px; line-height: 1; flex-shrink: 0; }
-.ql-card-meta { flex: 1; min-width: 0; }
-.ql-card-name { font-size: 14px; font-weight: 700; color: #e3e7f1; line-height: 1.25; }
-.ql-card-state {
-    font-size: 11px;
-    margin-top: 2px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-.ql-card-state.on { color: #34d77a; }
-.ql-card-state.off { color: #8b93a8; }
-.ql-card-state .dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: currentColor;
-    box-shadow: 0 0 6px currentColor;
-}
-.ql-card-actions { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; }
-.ql-btn {
-    border: 0;
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background .15s ease, transform .05s ease;
-    white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-}
-.ql-btn:active { transform: scale(0.97); }
-.ql-btn-start { background: #23a85f; color: #fff; }
-.ql-btn-start:hover { background: #2bbf6e; }
-.ql-btn-start:disabled { background: #1f3a2a; color: #6b7785; cursor: not-allowed; }
-.ql-btn-stop { background: #c63d3d; color: #fff; }
-.ql-btn-stop:hover { background: #d94747; }
-.ql-btn-stop:disabled { background: #3a2026; color: #6b7785; cursor: not-allowed; }
-.ql-btn-open {
-    background: #262c3c;
-    color: #c8cee0;
-    padding: 8px;
-    min-width: 34px;
-}
-.ql-btn-open:hover { background: #2f3650; }
+.home-head .hero-sub { margin: 0; font-size: 13px; }
+.home-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.home-ql-frame { display: block; width: 100%; height: 240px; border: 0; background: transparent; color-scheme: dark; }
+.home-hint { margin: 12px 2px 0; }
 
 /* 🚀 FAB nổi góc dưới-phải — luôn hiện trên mọi view (kể cả khi đang chơi game) */
 .quick-launch-fab {
@@ -1208,6 +1161,11 @@ button.mini { padding: 2px 8px; font-size: 11px; }
 
 /* Gift stream — FIX cao 5 hàng, dư thì cuộn trong. Tránh card "nhảy" khi quà mới về,
    dẫn đến user vô tình bấm nhầm quà (1 hàng ≈ 44px + 5px gap, 5 hàng + padding ≈ 250px). */
+.gift-stream:empty::before {
+    content: 'Chưa có quà — kết nối LIVE ở khung bên trái, quà khán giả tặng sẽ hiện ở đây.';
+    margin: auto; max-width: 260px; text-align: center;
+    font-size: 12px; line-height: 1.5; color: #6b7387;
+}
 .gift-stream {
     height: 250px;
     min-height: 250px;
@@ -9319,6 +9277,15 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .cg-card { background: #141a2b; border: 1px solid #2c3243; border-radius: 12px; padding: 12px; }
 .cg-card h3 { font-size: 12px; letter-spacing: .12em; color: #8b93a8; margin: 0 0 8px; }
 .cg-card .hint { font-size: 12px; color: #8b93a8; line-height: 1.5; margin-top: 8px; }
+/* Hướng dẫn dài gói gọn — mở khi cần (mặc định đóng, không đẩy lưới game xuống dưới) */
+.cg-howto { margin-top: 8px; }
+.cg-howto > summary {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none;
+    font-size: 12px; font-weight: 600; color: #9fb4d8; padding: 3px 8px; border-radius: 6px;
+}
+.cg-howto > summary::-webkit-details-marker { display: none; }
+.cg-howto > summary:hover { background: rgba(127, 182, 255, 0.08); color: #c9dbf7; }
+.cg-howto[open] > summary { color: #c9dbf7; }
 .cg-status { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; min-height: 26px; }
 .cg-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; background: #161922; border: 1px solid #2a2e3a; color: #cdd3e0; }
 .cg-chip.ok { border-color: #2f7a4a; color: #9bf26b; }

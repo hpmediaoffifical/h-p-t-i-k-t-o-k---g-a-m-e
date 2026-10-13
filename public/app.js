@@ -243,8 +243,7 @@
         lstatFollow: $('#lstat-follow'),
         lstatShare: $('#lstat-share'),
         gameList: $('#game-list'),
-        homeGrid: $('#home-grid'),
-        quickLaunchGrid: $('#quick-launch-grid'),
+        homeQlFrame: $('#home-ql-frame'),
         quickLaunchFab: $('#quick-launch-fab'),
         giftCountHint: $('#gift-count-hint'),
         // Game view
@@ -480,10 +479,15 @@
             }).catch(() => {});
         } catch (e) {}
         renderGameList();
-        renderHomeGrid();
-        renderQuickLaunch();
         syncGiftboardSideButton();
     }
+    const SIDE_OFF_CONFIRM = {
+        trongcay: {
+            icon: '🌳', title: 'Tắt Trồng Cây?',
+            body: 'Tắt game sẽ <b>XOÁ vườn hiện tại</b> và danh sách người đóng góp — không hoàn tác được.<br><span style="color:#8b93a8">Muốn tạm dừng mà giữ vườn: dùng ⏸ trong Khởi động nhanh.</span>',
+            okLabel: 'Tắt & xoá vườn'
+        }
+    };
     function renderGameList() {
         dom.gameList.innerHTML = '';
         for (const g of games) {
@@ -512,6 +516,8 @@
                 const btn = e.currentTarget;
                 const cur = !btn.classList.contains('off');   // currently on?
                 const next = !cur;
+                // TẮT game mà server xoá dữ liệu khi enabled true→false → hỏi trước (1 click là mất, không hoàn tác)
+                if (!next && SIDE_OFF_CONFIRM[g.id] && !(await hpConfirm({ ...SIDE_OFF_CONFIRM[g.id], cancelLabel: 'Huỷ', tone: 'danger' }))) return;
                 btn.classList.toggle('on', next);
                 btn.classList.toggle('off', !next);
                 btn.title = next ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT';
@@ -520,7 +526,7 @@
                     const lsKey = g.id === 'obs-effects' ? 'hp-obs-effects-enabled' : 'hp-live-translate-tool-enabled';
                     localStorage.setItem(lsKey, next ? 'true' : 'false');
                     if (g.config) g.config.enabled = next;
-                    updateQuickLaunchCardState(g.id);
+                    syncSideToggle(g.id);
                     // ★ obs-effects: trạng thái bật/tắt PHẢI lên server vì việc nhận quà/trigger effect
                     // chạy ở server. Không đẩy lên → tắt UI nhưng server vẫn enqueue (bug cũ).
                     if (g.id === 'obs-effects') {
@@ -550,7 +556,7 @@
                         currentGame.config = { ...(currentGame.config || {}), enabled: next };
                         if (gameInstance && g.id === 'thuytinh') gameInstance.setConfig({ enabled: next });
                     }
-                    updateQuickLaunchCardState(g.id);
+                    syncSideToggle(g.id);
                 } catch (err) {
                     // revert
                     btn.classList.toggle('on', !next);
@@ -560,114 +566,57 @@
             dom.gameList.appendChild(div);
         }
     }
-    function renderHomeGrid() {
-        dom.homeGrid.innerHTML = '';
-        for (const g of games) {
-            if (LIBRARY_HIDDEN.has(g.id) || CAM_CHILD_GAMES.has(g.id)) continue;
-            const card = document.createElement('div');
-            card.className = 'home-card';
-            card.innerHTML = `<div class="ico">${g.icon}</div>
-                <div class="gn">${g.name}</div>
-                ${renderGameDevelopmentNotice(g)}`;
-            card.addEventListener('click', () => openGame(g.id));
-            dom.homeGrid.appendChild(card);
-        }
-    }
-
-    // ===== 🚀 Khởi động nhanh =====
-    // Grid chỉ chứa các game đã ổn định (STABLE_GAMES). Mỗi card:
-    //   ▶ Bắt đầu  → POST enabled=true (hoặc set localStorage cho liveTranslate virtual)
-    //   ⏹ Tắt     → POST enabled=false
-    //   ⚙ Mở      → vào game view chi tiết
-    // State indicator tự re-render khi config thay đổi (qua updateQuickLaunchCardState).
-    function quickLaunchEntries() {
-        return games.filter(g => STABLE_GAMES.has(g.id));
-    }
     function isGameEnabled(g) {
         const cfg = g.config || {};
         return !('enabled' in cfg) || cfg.enabled !== false;
     }
-    // Tooltip nút ⏹ theo game — TẮT (enabled=false) có side-effect riêng ở server
-    // (server.js POST /api/games/:id/config): dừng media / xoá hàng đợi / reset vườn.
-    const QL_STOP_TITLE = {
-        pktiktok:   'Tắt game — dừng ngay hiệu ứng PK đang phát',
-        vipwelcome: 'Tắt game — dừng phát + xoá hàng đợi chào VIP',
-        trongcay:   'Tắt game — XOÁ vườn hiện tại (muốn tạm dừng giữ vườn: dùng ⏸ ở cửa sổ Khởi động nhanh)',
-        bancung:    'Tắt game — HP về đầy',
-        giftboard:  'Tắt bảng — Bảng Quà Tổng ẩn khỏi OBS (vị trí, cỡ, cài đặt giữ nguyên)',
-    };
-    // ⏹ TẮT của game mà server xoá dữ liệu khi enabled true→false → hỏi trước, tooltip thôi chưa đủ.
-    const QL_STOP_CONFIRM = {
-        trongcay: {
-            icon: '🌳', title: 'Tắt Trồng Cây?',
-            body: 'Tắt game sẽ <b>XOÁ vườn hiện tại</b> và danh sách người đóng góp — không hoàn tác được.<br><span style="color:#8b93a8">Muốn tạm dừng mà giữ vườn: dùng ⏸ trong cửa sổ Khởi động nhanh.</span>',
-            okLabel: 'Tắt & xoá vườn'
-        }
-    };
-    async function confirmQuickLaunchStop(g) {
-        const c = QL_STOP_CONFIRM[g.id];
-        return c ? hpConfirm({ ...c, cancelLabel: 'Huỷ', tone: 'danger' }) : true;
-    }
-    function buildQuickLaunchCard(g) {
-        const enabled = isGameEnabled(g);
-        const card = document.createElement('div');
-        card.className = 'ql-card ' + (enabled ? 'is-on' : 'is-off');
-        card.dataset.gameId = g.id;
-        card.innerHTML = `
-            <div class="ql-card-head">
-                <span class="ql-card-ico">${g.icon}</span>
-                <div class="ql-card-meta">
-                    <div class="ql-card-name">${g.name}</div>
-                    <span class="ql-card-state ${enabled ? 'on' : 'off'}">
-                        <span class="dot"></span>
-                        <span class="ql-card-state-text">${enabled ? 'Đang BẬT' : 'Đang TẮT'}</span>
-                    </span>
-                </div>
-            </div>
-            <div class="ql-card-actions">
-                <button class="ql-btn ql-btn-start" data-action="start" ${enabled ? 'disabled' : ''} title="Bật game ngay">▶ Bắt đầu</button>
-                <button class="ql-btn ql-btn-stop"  data-action="stop"  ${enabled ? '' : 'disabled'} title="${QL_STOP_TITLE[g.id] || 'Tắt game'}">⏹ Tắt</button>
-                <button class="ql-btn ql-btn-open"  data-action="open"  title="Mở cài đặt chi tiết">⚙</button>
-            </div>
-        `;
-        card.addEventListener('click', (e) => {
-            const btn = e.target.closest('[data-action]');
-            if (!btn) return;
-            const action = btn.dataset.action;
-            if (action === 'open') { openGame(g.id); return; }
-            // Đọc state HIỆN TẠI (g.config có thể đã đổi sau khi user vừa bấm) — KHÔNG dùng closure `enabled`
-            const curOn = isGameEnabled(g);
-            if (action === 'start' && !curOn) setGameEnabled(g, true);
-            else if (action === 'stop' && curOn) confirmQuickLaunchStop(g).then(ok => { if (ok && isGameEnabled(g)) setGameEnabled(g, false); });
-        });
-        return card;
-    }
-    function renderQuickLaunch() {
-        const host = dom.quickLaunchGrid;
-        if (!host) return;
-        host.innerHTML = '';
-        for (const g of quickLaunchEntries()) host.appendChild(buildQuickLaunchCard(g));
-    }
-    function updateQuickLaunchCardState(gameId) {
-        // Cả 2 grid (Home + popup) phải sync — selectAll thay vì querySelector
-        const cards = document.querySelectorAll(`.ql-card[data-game-id="${gameId}"]`);
-        if (!cards.length) return;
+    // Nút ⏻ trong Thư viện Game phản ánh đúng config — gọi mỗi khi enabled đổi (kể cả đổi từ cửa sổ
+    // Khởi động nhanh / thiết bị khác qua socket 'gameConfig'), không chỉ khi bấm chính nút đó.
+    function syncSideToggle(gameId) {
         const g = games.find(x => x.id === gameId);
-        if (!g) return;
-        const enabled = isGameEnabled(g);
-        cards.forEach(card => {
-            card.classList.toggle('is-on', enabled);
-            card.classList.toggle('is-off', !enabled);
-            const state = card.querySelector('.ql-card-state');
-            const stateText = card.querySelector('.ql-card-state-text');
-            if (state) { state.classList.toggle('on', enabled); state.classList.toggle('off', !enabled); }
-            if (stateText) stateText.textContent = enabled ? 'Đang BẬT' : 'Đang TẮT';
-            const startBtn = card.querySelector('.ql-btn-start');
-            const stopBtn = card.querySelector('.ql-btn-stop');
-            if (startBtn) startBtn.disabled = enabled;
-            if (stopBtn) stopBtn.disabled = !enabled;
-        });
+        const btn = document.querySelector(`[data-game-toggle="${gameId}"]`);
+        if (!g || !btn) return;
+        const on = isGameEnabled(g);
+        btn.classList.toggle('on', on);
+        btn.classList.toggle('off', !on);
+        btn.title = (on ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT') + (g.virtual ? ' tool chạy ngầm' : ' game chạy ngầm');
     }
+
+    // ===== 🏠 Trang chủ = 🚀 Khởi động nhanh (khung nhúng /quick-launch?embed=1) =====
+    // Bấm logo HP → về Trang chủ. Màn đang mở được nhớ (hp-last-view) → mở lại app là về đúng chỗ.
+    const LAST_VIEW_KEY = 'hp-last-view';
+    function rememberView(id) { try { localStorage.setItem(LAST_VIEW_KEY, id); } catch (_) {} }
+    // Body class game-<id>: CSS ẩn/hiện FAB/popup theo game. Gỡ MỌI class game-* (danh sách cũ thiếu vài game → dồn class).
+    function clearGameBodyClasses() {
+        [...document.body.classList].filter(c => c.startsWith('game-')).forEach(c => document.body.classList.remove(c));
+    }
+    function goHome() {
+        showView('view-home');
+        highlightActiveGame(null);
+        clearGameBodyClasses();
+        document.getElementById('police-popup')?.setAttribute('hidden', '');
+        document.getElementById('caught-popup')?.setAttribute('hidden', '');
+        rememberView('home');
+    }
+    const brandHome = document.getElementById('brand-home');
+    brandHome?.addEventListener('click', goHome);
+    brandHome?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goHome(); } });
+    // Khung nhúng báo chiều cao nội dung (iframe tự cao theo) + bấm ⚙ trên thẻ → mở game ở app chính
+    window.addEventListener('message', (e) => {
+        const frame = dom.homeQlFrame;
+        if (!frame || e.origin !== location.origin || e.source !== frame.contentWindow) return;
+        const d = e.data || {};
+        if (d.type === 'hp-ql:height' && Number.isFinite(d.h)) frame.style.height = Math.max(60, Math.ceil(d.h)) + 'px';
+        else if (d.type === 'hp-ql:open' && typeof d.gameId === 'string') openGame(d.gameId);
+        else if (d.type === 'hp-ql:modal') frame.style.minHeight = d.open ? 'min(560px, calc(100vh - 140px))' : '';
+    });
+    document.getElementById('home-ql-sort')?.addEventListener('click', () => {
+        try { dom.homeQlFrame?.contentWindow?.postMessage({ type: 'hp-ql:settings' }, location.origin); } catch (_) {}
+    });
+    document.getElementById('home-ql-popout')?.addEventListener('click', () => {
+        window.open('/quick-launch', '_blank', 'width=380,height=560,resizable=yes,scrollbars=no');
+    });
+
     // FAB click → mở cửa sổ Khởi động nhanh tách rời. Trong Electron, setWindowOpenHandler
     // catch URL /quick-launch và tạo BrowserWindow always-on-top (xem electron-main.js).
     // Trong browser thường → window.open mở tab/popup mới với size hint.
@@ -858,7 +807,7 @@
     async function setGameEnabled(g, next) {
         // Optimistic UI
         if (g.config) g.config.enabled = next;
-        updateQuickLaunchCardState(g.id);
+        syncSideToggle(g.id);
         // Sync với sidebar toggle (cùng UI state)
         const sideBtn = document.querySelector(`[data-game-toggle="${g.id}"]`);
         if (sideBtn) {
@@ -890,7 +839,7 @@
         } catch (err) {
             // Revert UI on failure
             if (g.config) g.config.enabled = !next;
-            updateQuickLaunchCardState(g.id);
+            syncSideToggle(g.id);
         }
     }
     // 📋 Bảng Quà Tổng — nút riêng ở đáy sidebar: mở view + chip BẬT/TẮT theo config server
@@ -918,8 +867,9 @@
         currentGame = game;
         highlightActiveGame(gameId);
         // Body class: dùng để CSS ẩn/hiện FAB/popup theo game
-        document.body.classList.remove('game-thuytinh', 'game-caro', 'game-pktiktok', 'game-vipwelcome', 'game-votecomment', 'game-nhietdo', 'game-bancung', 'game-trongcay', 'game-nhatla', 'game-liveTranslate', 'game-chemtraicay', 'game-camgames', 'game-touchplay', 'game-dapmuoi');
+        clearGameBodyClasses();
         document.body.classList.add('game-' + gameId);
+        rememberView(gameId);
         // Nhặt Lá giữ batch lá đang chạy trong RAM; chỉ reload thủ công khi cần nạp asset mới.
         // Đập Muỗi cũng vậy: reload là mất sạch muỗi + điểm đang chơi giữa live (có nút 🔄 Reload riêng).
         if (gameId !== 'nhatla' && gameId !== 'dapmuoi') {
@@ -3367,7 +3317,7 @@
         const targetGame = games.find(x => x.id === gameId);
         if (targetGame) {
             targetGame.config = config;
-            updateQuickLaunchCardState(gameId);
+            syncSideToggle(gameId);
             if (gameId === 'giftboard') syncGiftboardSideButton();
         }
         // gameInstance LUÔN là engine Hũ Thủy Tinh → CHỈ config của Hũ mới được đổ vào engine.
@@ -6657,7 +6607,10 @@
             if (u?.username) dom.usernameInput.value = u.username;
         } catch (e) {}
         await loadGames();
-        if (games.length) openGame(games[0].id);
+        let last = 'home';
+        try { last = localStorage.getItem(LAST_VIEW_KEY) || 'home'; } catch (_) {}
+        if (last !== 'home' && games.some(g => g.id === last)) openGame(last);
+        else goHome();
         initSidebarToggle();
         // CHỈ check 1 lần khi mở app — KHÔNG có setInterval định kỳ.
         // Silent (không toast lỗi) để không làm phiền khi mạng chập chờn lúc mở app.

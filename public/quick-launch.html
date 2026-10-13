@@ -14,6 +14,7 @@
        Thứ bậc nút: chỉ game ĐANG CHẠY được tô nổi; ▶/⏸ luôn ở mép phải; ↺ ẩn tới khi rê chuột.
        ============================================================ */
     :root {
+        color-scheme: dark;   /* khớp iframe Trang chủ (color-scheme khác nhau → Chromium vẽ nền trắng đục) */
         --bg: #0b0d12;
         --surface: #12161f;
         --surface-h: #151a25;
@@ -296,6 +297,18 @@
     .btn-reset:hover { color: #ff8b8b; background: rgba(217, 65, 65, .14); }
     .btn:focus-visible { outline: 2px solid rgba(127, 182, 255, .6); outline-offset: 1px; }
 
+    /* ⚙ Mở cài đặt chi tiết — chỉ có khi nhúng trong Trang chủ app chính (?embed=1) */
+    .btn-open { width: 26px; color: var(--faint); }
+    .card:hover .btn-open { color: var(--muted); }
+    .btn-open:hover { color: var(--text) !important; background: var(--surface-3); }
+
+    /* ===== Nhúng trong Trang chủ app chính (?embed=1): bỏ khung cửa sổ, app chính đã có Kết nối TikTok.
+       Lưới dùng thứ tự bố cục Ngang; chiều cao báo lên trang cha (iframe tự cao theo nội dung). ===== */
+    body.embed { background: transparent; box-shadow: none; height: auto; }
+    body.embed header, body.embed .conn, body.embed #stg-window-section { display: none !important; }
+    body.embed main { padding: 0; overflow: visible; scrollbar-gutter: auto; }
+    html.embed { height: auto; background: transparent; }
+
     /* ===== Kéo-thả ===== */
     .sort-dragging {
         background: #1b2131 !important; border-color: #4a6aa0 !important;
@@ -472,7 +485,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div class="stg-section">
+                <div class="stg-section" id="stg-window-section">
                     <div class="stg-title"><span>Cửa sổ</span></div>
                     <label class="stg-row">
                         <div class="stg-text">
@@ -518,6 +531,10 @@
     (() => {
         const $ = (id) => document.getElementById(id);
         const L = window.HpQlLayout;
+        // ?embed=1: nhúng trong Trang chủ app chính — không khung cửa sổ, luôn lưới (thứ tự bố cục Ngang)
+        const EMBED = new URLSearchParams(location.search).get('embed') === '1';
+        if (EMBED) { document.documentElement.classList.add('embed'); document.body.classList.add('embed'); }
+        const toParent = (msg) => { try { window.parent.postMessage(msg, location.origin); } catch (_) {} };
         const mainEl    = document.querySelector('main');
         const gridEl    = $('grid');
         const pinBtn    = $('btn-pin');
@@ -556,7 +573,8 @@
             spin:  '<svg class="ico spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></svg>',
             grip:  '<svg class="ico fill" viewBox="0 0 8 14"><circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="6" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="6" cy="12" r="1.2"/></svg>',
             up:    '<svg class="ico" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>',
-            down:  '<svg class="ico" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>'
+            down:  '<svg class="ico" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
+            gear:  '<svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>'
         };
 
         // Whitelist game ổn định — phải khớp STABLE_GAMES trong app.js
@@ -938,6 +956,7 @@
             const resetBtn = NO_RESET.includes(g.id)
                 ? '<span class="btn-spacer"></span>'
                 : `<button class="btn btn-reset" data-act="reset" title="${tipFor(g, 'reset')}">${ICON.reset}</button>`;
+            const openBtn = EMBED ? `<button class="btn btn-open" data-act="open" title="Mở cài đặt chi tiết">${ICON.gear}</button>` : '';
             card.innerHTML = `
                 <span class="card-grip">${ICON.grip}</span>
                 <span class="card-ico">${g.icon}</span>
@@ -949,6 +968,7 @@
                     </div>
                 </div>
                 <div class="card-actions">
+                    ${openBtn}
                     ${resetBtn}
                     <button class="btn btn-toggle ${isRun ? 'is-pause' : 'is-play'}" data-act="${isRun ? 'stop' : 'start'}"
                             title="${tipFor(g, isRun ? 'stop' : 'start')}">${isRun ? ICON.pause : ICON.play}</button>
@@ -993,6 +1013,7 @@
             vipwelcome: 'Dừng video chào VIP đang phát + xoá hàng đợi chào?'
         };
         function fireAction(g, action) {
+            if (action === 'open') { toParent({ type: 'hp-ql:open', gameId: g.id }); return; }
             if (action === 'reset' && RESET_CONFIRM[g.id] && !confirm(RESET_CONFIRM[g.id])) return;
             const card = gridEl.querySelector(`.card[data-game-id="${g.id}"]`);
             const isReset = action === 'reset';
@@ -1162,11 +1183,12 @@
         const segBtns = Array.from(document.querySelectorAll('.seg-btn[data-layout]'));
         const qp = new URLSearchParams(location.search);
         const qpLayout = qp.get('layout');
-        let curLayout = (qpLayout === 'ngang' || qpLayout === 'doc')
-            ? qpLayout
-            : (localStorage.getItem(LAYOUT_KEY) === 'ngang' ? 'ngang' : 'doc');
+        let curLayout = EMBED ? 'ngang'
+            : (qpLayout === 'ngang' || qpLayout === 'doc')
+                ? qpLayout
+                : (localStorage.getItem(LAYOUT_KEY) === 'ngang' ? 'ngang' : 'doc');
         let fitMode = qp.get('fit') !== '0';
-        localStorage.setItem(LAYOUT_KEY, curLayout);
+        if (!EMBED) localStorage.setItem(LAYOUT_KEY, curLayout);   // nhúng không được đổi bố cục của cửa sổ rời
 
         function applyLayoutCss(mode) {
             document.body.classList.toggle('layout-ngang', mode === 'ngang');
@@ -1211,7 +1233,16 @@
         }
         // Ôm sát nội dung: chốt BỀ RỘNG trước → chờ viewport đổi thật → đo → đặt CHIỀU CAO. Không đụng x/y.
         let _hugRaf = 0;
+        // Nhúng: không có cửa sổ để co — chỉ chia cột theo thẻ dài nhất + báo chiều cao cho iframe cha
+        let _embedH = 0;
+        function embedFit() {
+            if (gridEl.children.length) gridEl.style.setProperty('--colw', naturalCardWidth() + 'px');
+            const h = Math.ceil($('content').getBoundingClientRect().height + (bannerEl.hidden ? 0 : bannerEl.offsetHeight));
+            if (h !== _embedH) { _embedH = h; toParent({ type: 'hp-ql:height', h }); }
+        }
+        if (EMBED && window.ResizeObserver) new ResizeObserver(() => embedFit()).observe($('content'));
         function fitWindow(baseW) {
+            if (EMBED) { embedFit(); return; }
             const base = (Number.isFinite(baseW) && baseW > 0) ? baseW : window.innerWidth;
             if (!gridEl.children.length && !games.length) return;    // chưa tải game → render() sẽ gọi lại
             // Ngoài chế độ ôm sát vẫn cập nhật --colw để lưới Ngang chia cột theo thẻ dài nhất
@@ -1279,7 +1310,7 @@
         // Electron đã có 'userResized' (lúc thả chuột) — không ôm sát giữa chừng khi user còn đang kéo.
         let _rsTimer;
         window.addEventListener('resize', () => {
-            if (ipc) return;
+            if (ipc || EMBED) return;
             clearTimeout(_rsTimer);
             _rsTimer = setTimeout(() => {
                 if (fitMode && window.innerWidth === _lastSet.w && window.innerHeight !== _lastSet.h) {
@@ -1357,8 +1388,12 @@
                 } catch (_) {}
             }
             settingsOverlay.classList.add('show');
+            if (EMBED) toParent({ type: 'hp-ql:modal', open: true });   // khung nhúng thấp → xin trang cha nới cao khi mở cài đặt
         }
-        function closeSettings() { settingsOverlay.classList.remove('show'); }
+        function closeSettings() {
+            settingsOverlay.classList.remove('show');
+            if (EMBED) toParent({ type: 'hp-ql:modal', open: false });
+        }
         settingsBtn.addEventListener('click', openSettings);
         settingsClose.addEventListener('click', closeSettings);
         settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay) closeSettings(); });
@@ -1386,8 +1421,14 @@
             render();   // phản hồi tức thì
         });
 
+        // Trang cha (Trang chủ app chính) mở ⚙ Sắp xếp & ẩn game của khung nhúng
+        window.addEventListener('message', (e) => {
+            if (e.origin !== location.origin || e.source !== window.parent) return;
+            if (e.data?.type === 'hp-ql:settings') openSettings();
+        });
+
         loadGames();
-        fetchLastUsername();
+        if (!EMBED) fetchLastUsername();
         updateConnUi();
     })();
     </script>
