@@ -92,9 +92,19 @@ test('hit trúng trong r + nửa cỡ muỗi: chết, score/killed +1, event kil
 
 test('muỗi chết rơi với g=1600, xoá khi y > H+100 hoặc sau 2.5s', () => {
     const e = one(); const m = e.snapshot().mosquitoes[0]; e.hit(m.x, m.y, 10);
-    e.step(16); const vy1 = e.snapshot().mosquitoes[0].vy; e.step(500); const vy2 = e.snapshot().mosquitoes[0].vy;
+    e.step(16); const vy1 = e.snapshot().mosquitoes[0].vy;
+    for (let i = 0; i < 12; i++) e.step(16);                   // ~200ms: vẫn còn trên sân (chưa quá 2.5s, chưa rơi khỏi đáy)
+    const vy2 = e.snapshot().mosquitoes[0].vy;
     assert.ok(vy2 > vy1); for (let i = 0; i < 200; i++) e.step(16);
     assert.equal(e.snapshot().mosquitoes.length, 0);
+});
+
+test('combo đếm theo CÚ đập: 1 cú giết 2 con vẫn là combo 1', () => {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 0 });
+    e.enqueue(2); e.step(16);
+    const [a, b] = e.snapshot().mosquitoes;
+    assert.equal(e.hit((a.x + b.x) / 2, (a.y + b.y) / 2, 3000), 2);
+    assert.equal(e.snapshot().combo, 1);
 });
 
 test('combo: 2 cú trúng cách < 1.5s → combo 2; cách 2s → về 1', () => {

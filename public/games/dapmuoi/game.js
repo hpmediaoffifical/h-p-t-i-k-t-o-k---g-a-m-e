@@ -177,12 +177,13 @@
 
         function halfSize(m) { return 0.5 * BASE_SIZE * m.scale; }
 
-        // Giết một con: lật úp, nảy nhẹ lên rồi rơi. combo chỉ tính cho cú đập tay.
-        function kill(m, withCombo) {
+        // Giết một con: lật úp, nảy nhẹ lên rồi rơi.
+        function kill(m) {
             m.state = 'dead'; m.deadAt = clock; m.vy = -250; m.vx *= 0.3;
             score += 1; killed += 1;
-            if (withCombo) { combo = clock - lastKillAt < 1500 ? combo + 1 : 1; lastKillAt = clock; }
         }
+        // combo đếm theo CÚ đập tay có trúng (một cú giết nhiều con vẫn +1), cách cú trước < 1.5 s.
+        function registerHit() { combo = clock - lastKillAt < 1500 ? combo + 1 : 1; lastKillAt = clock; }
 
         // Muỗi thông minh né: vụt ngược hướng điểm đập 350 ms, đích mới cách điểm đập ≥ 400 px.
         function dodge(m, px, py) {
@@ -205,7 +206,7 @@
             for (const m of mosquitoes) {
                 if (m.state === 'dead') continue;
                 if (Math.hypot(m.x - px, m.y - py) > pr + halfSize(m)) continue;
-                kill(m, false); n++;
+                kill(m); n++;
             }
             if (n) events.push({ type: 'zap', n, x: px, y: py });
             return n;
@@ -235,7 +236,7 @@
                 if (spray.killed >= spray.limit) break;
                 if (m.state === 'dead') continue;
                 if (Math.hypot(m.x - spray.x, m.y - spray.y) > r + halfSize(m)) continue;
-                kill(m, false); spray.killed++;
+                kill(m); spray.killed++;
             }
             if (spray.elapsed >= spray.ms) spray = null;
         }
@@ -259,9 +260,9 @@
                 if (m.state !== 'fly') continue;
                 if (Math.hypot(m.x - px, m.y - py) > pr + halfSize(m)) continue;
                 if (m.smart && m.livesLeft > 1) { dodge(m, px, py); dodged++; }
-                else { kill(m, true); n++; }
+                else { kill(m); n++; }
             }
-            if (n) events.push({ type: 'kill', n, x: px, y: py, combo });
+            if (n) { registerHit(); events.push({ type: 'kill', n, x: px, y: py, combo }); }
             else if (!dodged) events.push({ type: 'miss', x: px, y: py });
             return n;
         }
