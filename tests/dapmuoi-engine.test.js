@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createEngine, defaultConfig } = require('../public/games/dapmuoi/game.js');
+const { createEngine, defaultConfig, normalizeConfig, normalizeAction, actionForGift, mosquitoesForGift } = require('../public/games/dapmuoi/game.js');
 
 // ---------- Task 1: config, sinh, bay ----------
 
@@ -116,4 +116,67 @@ test('muỗi thông minh né smartLives−1 lần rồi chết; lúc dodge bất
     assert.equal(e.hit(m.x, m.y, 1), 0); for (let i = 0; i < 25; i++) e.step(16);
     m = e.snapshot().mosquitoes[0]; assert.equal(m.livesLeft, 1);
     assert.equal(e.hit(m.x, m.y, 1), 1);
+});
+
+// ---------- Task 3: hành động, chuẩn hoá config, luật quà ----------
+
+test('normalizeConfig: config rỗng/rác → mặc định; actions params clamp; type lạ → release', () => {
+    const c = normalizeConfig({ speed: 'abc', actions: [{ type: 'laser', params: { count: 99999, junk: 1 } }], giftRules: null });
+    assert.equal(c.speed, 180); assert.equal(c.actions.length, 1); assert.equal(c.actions[0].type, 'release');
+    assert.deepEqual(c.actions[0].params, { count: 1000 }); assert.deepEqual(c.giftRules, []);
+    assert.equal(normalizeConfig({}).actions.length, 4);
+    assert.equal(normalizeConfig(null).actions.length, 4);
+});
+
+test('actionForGift ưu tiên id, dự phòng tên; action tắt bỏ qua', () => {
+    const c = normalizeConfig({ actions: [{ type: 'spray', giftId: '5655', giftName: 'Rose', enabled: true }, { type: 'net', giftId: '1', giftName: 'GG', enabled: false }] });
+    assert.equal(actionForGift(c, '5655', '').type, 'spray'); assert.equal(actionForGift(c, '', 'rose').type, 'spray'); assert.equal(actionForGift(c, '1', 'GG'), null);
+});
+
+test('mosquitoesForGift: action → 0; rule → count×repeat; rule tắt → 0; xu/con; trần maxPerGift', () => {
+    const c = normalizeConfig({ coinsPerMosquito: 5, maxPerGift: 100, actions: [{ type: 'spray', giftId: '9' }], giftRules: [{ giftId: '7', count: 3, enabled: true }, { giftId: '8', count: 3, enabled: false }] });
+    assert.equal(mosquitoesForGift(c, '9', '', 500, 1), 0); assert.equal(mosquitoesForGift(c, '7', '', 1, 4), 12);
+    assert.equal(mosquitoesForGift(c, '8', '', 500, 1), 0); assert.equal(mosquitoesForGift(c, '1', '', 23, 2), 9);
+    assert.equal(mosquitoesForGift(c, '1', '', 5000, 1), 100); assert.equal(mosquitoesForGift({ ...c, coinsPerMosquito: 0 }, '1', '', 500, 1), 0);
+});
+
+test('spray: mây nở tới radius trong ms, giết tối đa count (kể cả smart), không combo', () => {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 100 });
+    e.enqueue(100); e.step(16);
+    e.spray({ radius: 3000, ms: 1000, count: 30, percent: 0 });
+    assert.ok(e.snapshot().spray && e.snapshot().spray.r < 3000);
+    for (let i = 0; i < 70; i++) e.step(16);
+    const s = e.snapshot(); assert.equal(s.killed, 30); assert.equal(s.combo, 0); assert.equal(s.spray, null);
+});
+
+test('spray percent=50 giết nửa số đang bay', () => {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0 }); e.enqueue(40); e.step(16);
+    e.spray({ radius: 3000, ms: 100, count: 0, percent: 50 }); for (let i = 0; i < 10; i++) e.step(16);
+    assert.equal(e.snapshot().killed, 20);
+});
+
+test('racket: sweep chỉ giết khi racketMs>0, giết cả smart, cộng dồn trần 60s', () => {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 100 }); e.enqueue(1); e.step(16);
+    const m = e.snapshot().mosquitoes[0];
+    assert.equal(e.sweep(m.x, m.y, 100), 0);
+    e.racket(50); e.racket(50); assert.equal(e.snapshot().racketMs, 60000);
+    assert.equal(e.sweep(m.x, m.y, 100), 1);
+});
+
+test('net cộng dồn, trần 120s', () => {
+    const e = createEngine(defaultConfig());
+    e.net(2); e.net(200); assert.equal(e.snapshot().netMs, 120000);
+});
+
+test('net: chặn xả hàng đợi và sinh nền, hết màn xả tiếp (quà trong lúc màn không mất)', () => {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 10, idleSpawnSeconds: 1 });
+    e.net(2); e.enqueue(5); for (let i = 0; i < 100; i++) e.step(16);                 // 1.6s còn màn
+    assert.equal(e.snapshot().flying, 0); assert.equal(e.snapshot().queue, 5);
+    for (let i = 0; i < 100; i++) e.step(16); assert.equal(e.snapshot().flying, 5);   // 3.2s: hết màn, xả 5
+});
+
+test('applyAction × qty', () => {
+    const e = createEngine({ ...defaultConfig(), idleSpawnSeconds: 0 });
+    e.applyAction(normalizeAction({ type: 'release', params: { count: 7 } }, 0), 3); assert.equal(e.snapshot().queue, 21);
+    e.applyAction(normalizeAction({ type: 'racket', params: { seconds: 10 } }, 1), 2); assert.equal(e.snapshot().racketMs, 20000);
 });
