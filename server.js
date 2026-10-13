@@ -8686,7 +8686,7 @@ function vipJoinCfg() {
     return appConfig.games.vipwelcome?.joinCard || vwTiers.makeDefaultJoinCard();
 }
 function vipHostKey() {
-    return String(currentUsername || currentHostProfile?.uniqueId || '_').replace(/^@/, '').toLowerCase();
+    return String(currentUsername || currentHostProfile?.uniqueId || appConfig.lastUsername || '_').replace(/^@/, '').toLowerCase();
 }
 // Key 1 người: userId (ổn định kể cả khi đổi @id); chỉ có @id thì quy đổi qua cache, không được thì 'u:<id>'.
 function vipUserKey(user) {
@@ -9187,7 +9187,7 @@ app.post('/api/games/vipwelcome/trigger', (req, res) => {
                 vipShowTestJoin({ uniqueId: String(rule.uniqueId || 'tester').replace(/^@/, ''), nickname: payload?.nickname || rule.uniqueId || 'Người Thử', level: Number(payload?.level) || 30, fansLevel: Number(payload?.fansLevel) || 5 }, {
                     kind: 'user', ruleId: 'p:' + profile.id + ':user:' + rule.id, title: rule.title || 'VIP', skin: rule.skin || 'violet',
                     frameUrl: rule.frameUrl || '', media: rule.mediaUrl ? { mediaUrl: rule.mediaUrl, mediaType: rule.mediaType, volume: rule.volume } : null,
-                    priority: VIP_PRIORITY_TEST, label: `[${profileLabel}] Thử @${rule.uniqueId}`
+                    priority: VIP_PRIORITY_TEST, label: `[${profileLabel}] Thử @${String(rule.uniqueId || "").replace(/^@/, "")}`
                 });
                 return res.json({ ok: true });
             }

@@ -1281,8 +1281,10 @@
                             </div>
                             <div class="card-tabs vw-tabs">
                                 <button class="tab vw-tab active" data-vw-tab="users">👤 Người chỉ định</button>
+                                <button class="tab vw-tab" data-vw-tab="tiers">🏅 Bậc vào phòng</button>
                                 <button class="tab vw-tab" data-vw-tab="global">🌐 Tất cả user</button>
                                 <button class="tab vw-tab" data-vw-tab="settings">⚙ Cài đặt</button>
+                                <button class="tab vw-tab" data-vw-tab="ledger">💎 Sổ xu</button>
                                 <button class="tab vw-tab" data-vw-tab="queue">📜 Hàng đợi (<span id="vipwelcome-queue-size">0</span>)</button>
                             </div>
 
@@ -1295,12 +1297,11 @@
                                     <button id="vw-btn-add-user-rule" class="primary small">➕ Thêm user</button>
                                 </div>
                                 <div class="vw-note">
-                                    <b>📡 Cách phát hiện user vào phòng (theo thứ tự ưu tiên):</b>
-                                    <br>① <b>Top contributors list</b> (~30s/lần, TỰ ĐỘNG) — bắt được user top trong phòng KHÔNG cần tương tác. Đây là cách CHÍNH.
-                                    <br>② <b>Member event</b> — TikTok tự gửi cho viewer "đáng kể" vào phòng.
-                                    <br>③ <b>❤️ Táp tim / Comment / Follow</b> — fallback nếu user không trong top: chỉ cần táp 1 cái tim → fire ngay.
-                                    <br><b>🔁 Vào lại phòng:</b> sau khi user vắng mặt <b>30 giây</b> (không có signal), nếu họ quay lại sẽ fire effect LẠI. Ở liên tục trong phòng → KHÔNG re-fire (tránh spam).
-                                    <br><b>⚠ Giới hạn TikTok:</b> User level rất thấp + lurk hoàn toàn + không trong top → không phát hiện được (giới hạn protobuf TikTok).
+                                    <b>📡 Cách nhận biết người vào phòng:</b>
+                                    <br>① <b>Thông báo vào phòng của TikTok</b> — sự kiện "member" + banner vào phòng (người cấp cao / fan club TikTok gửi qua banner, app nghe cả hai).
+                                    <br>② <b>Chào muộn</b> — ai TikTok không báo vào phòng thì lần đầu họ chat / thả tim / tặng quà sẽ hiện thẻ "đang ở trong phòng" (tắt được trong Cài đặt).
+                                    <br><b>🔁 Vào lại phòng:</b> MỖI LẦN TikTok báo vào phòng là chào lại — kể cả ra rồi vào lại ngay. Chỉ gộp tín hiệu trùng trong vài giây; muốn giãn thì đặt "Cooldown vào lại" cho từng người / từng bậc.
+                                    <br><b>Trigger "Vào phòng"</b> hiện thẻ thông tin (avatar, LV, FAN LV, 💎) + phát video/âm thanh nếu có; chọn skin + danh hiệu riêng cho người đó.
                                 </div>
                                 <div id="vw-user-rules-list" class="vw-user-rules-list"></div>
                             </div>
@@ -1308,9 +1309,14 @@
                             <!-- TAB: Tất cả user -->
                             <div class="tab-pane vw-pane" data-vw-pane="global">
                                 <div class="vw-pane-hint">Trigger cho BẤT KỲ user nào trong phòng LIVE. Đặt Min Level đủ cao để tránh spam. Các điều kiện TOP / Fan club / Sub / Follow lọc theo dữ liệu TikTok gửi kèm từng sự kiện — chỉ tick khi thật sự cần, tick nhiều rule sẽ ít phát hơn.</div>
-                                <div id="vw-global-join-card"></div>
+                                <div class="vw-note">🚪 <b>Vào phòng</b> cho mọi người đã chuyển sang tab <b>🏅 Bậc vào phòng</b> (thẻ thông tin theo LV / FAN LV). Cài đặt "Vào phòng" cũ đã tự chuyển thành bậc <b>"Tất cả user (cũ)"</b>.</div>
                                 <div id="vw-global-gift-card"></div>
                                 <div id="vw-global-subscribe-card"></div>
+                            </div>
+
+                            <!-- TAB: Bậc vào phòng (thẻ thông tin) -->
+                            <div class="tab-pane vw-pane" data-vw-pane="tiers">
+                                <div id="vw-tiers-pane"></div>
                             </div>
 
                             <!-- TAB: Settings -->
@@ -1318,10 +1324,15 @@
                                 <div id="vw-settings-pane"></div>
                             </div>
 
+                            <!-- TAB: Sổ xu -->
+                            <div class="tab-pane vw-pane" data-vw-pane="ledger">
+                                <div id="vw-ledger-pane"></div>
+                            </div>
+
                             <!-- TAB: Queue -->
                             <div class="tab-pane vw-pane" data-vw-pane="queue">
                                 <div class="vw-pane-head">
-                                    <div class="vw-pane-hint">Server quản lý hàng đợi — overlay nhận từng item theo nhịp <code>perItemMinMs</code>.</div>
+                                    <div class="vw-pane-hint">Hàng đợi video/âm thanh (thẻ vào phòng hiện ngay, không xếp hàng). Ưu tiên: người chỉ định → bậc cao → bậc thấp; chờ quá lâu thì bỏ media.</div>
                                     <div>
                                         <button id="vipwelcome-btn-clear-queue" class="ghost small" title="Chỉ xoá các item đang đợi phát">🗑 Xoá hàng đợi</button>
                                         <button id="vipwelcome-btn-clear-log" class="ghost small" title="Xoá toàn bộ log để giảm spam">🧹 Xoá log</button>

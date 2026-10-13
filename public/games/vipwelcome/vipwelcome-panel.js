@@ -59,9 +59,9 @@
     // Các rule "Tất cả user" của 1 profile: key trong profile, host card trong index.html,
     // ruleType gửi lên /trigger, nhãn hiển thị. Thêm rule global mới = thêm 1 dòng ở đây
     // (+ default trong game.js newProfile + <div id=host> trong index.html).
+    // (Vào phòng cho mọi người đã chuyển sang tab "Bậc vào phòng" — profile.joinTiers.)
     const GLOBAL_KINDS = {
-        join:      { key: 'globalJoin',      host: '#vw-global-join-card',      ruleType: 'globalJoin',      emoji: '🚪', title: 'Vào phòng',          testLabel: 'Tất cả vào phòng',    ph: 'VD: Chào {nickname} cấp {level}!' },
-        gift:      { key: 'globalGift',      host: '#vw-global-gift-card',      ruleType: 'globalGift',      emoji: '🚀', title: 'Lên cấp',            testLabel: 'Tất cả lên cấp',      ph: 'VD: Chúc mừng {nickname} lên cấp {level}!' },
+        gift:     { key: 'globalGift',      host: '#vw-global-gift-card',      ruleType: 'globalGift',      emoji: '🚀', title: 'Lên cấp',            testLabel: 'Tất cả lên cấp',      ph: 'VD: Chúc mừng {nickname} lên cấp {level}!' },
         subscribe: { key: 'globalSubscribe', host: '#vw-global-subscribe-card', ruleType: 'globalSubscribe', emoji: '⭐', title: 'Đăng ký kênh (Sub)', testLabel: 'Tất cả đăng ký kênh', ph: 'VD: Cảm ơn {nickname} đã đăng ký kênh! {sub}' }
     };
 
@@ -96,20 +96,19 @@
                 let text = '';
                 let cls = 'vw-rule-status';
                 if (s.detectedButNotPlayed) {
-                    // VIP đã vào phòng nhưng effect KHÔNG phát (cấu hình sai) — cảnh báo đỏ.
-                    text = '⚠ VIP đã vào phòng nhưng KHÔNG phát được! Kiểm tra: nhóm (profile) có BẬT? rule có ✓? có chọn media? trigger = "Vào phòng"?';
+                    // Đã vào phòng nhưng overlay chưa hiện thẻ — OBS chưa mở link / nhóm tắt / rule tắt.
+                    text = j.overlays > 0
+                        ? '⚠ Đã vào phòng nhưng KHÔNG hiện được! Kiểm tra: nhóm (profile) có BẬT? rule có ✓? trigger = "Vào phòng"?'
+                        : '⚠ Đã vào phòng nhưng chưa có overlay OBS nào mở — thêm link OBS vào Browser Source.';
                     cls += ' status-error';
                 } else if (s.status === 'idle') {
-                    text = '⏳ Chưa thấy user trong phiên — sẵn sàng fire khi user xuất hiện';
+                    text = '⏳ Chưa thấy vào phòng trong phiên — sẵn sàng chào khi vào';
                     cls += ' status-idle';
-                } else if (s.status === 'fired') {
-                    text = `✅ Đã fire — chờ user xuất hiện lại (sau ${s.thresholdSec}s vắng mặt)`;
-                    cls += ' status-fired';
-                } else if (s.status === 'inRoom') {
-                    text = `👁 User đang trong phòng (đã fire ${s.secondsSinceFire}s trước) — chờ vắng mặt ${s.secondsUntilRejoinEligible}s nữa mới re-fire`;
+                } else if (s.status === 'detected') {
+                    text = `👁 Vừa vào phòng ${s.secondsSinceSignal}s trước — đang chờ overlay hiện thẻ`;
                     cls += ' status-inroom';
-                } else if (s.status === 'readyForRejoin') {
-                    text = `🟢 SẴN SÀNG re-fire! (user đã vắng mặt ${s.secondsSinceSeen}s${s.droppedOutOfSeq ? ' + rời khỏi top contributors' : ''})`;
+                } else if (s.status === 'welcomed') {
+                    text = `✅ Đã chào ${s.secondsSinceWelcome}s trước · vào phòng ${s.joinCount} lần — vào lại sẽ chào tiếp`;
                     cls += ' status-ready';
                 }
                 el.className = cls;
@@ -404,7 +403,7 @@
                     <input type="checkbox" data-vw-profile-enabled ${p.enabled ? 'checked' : ''} />
                 </label>
                 <span class="vw-profile-name">${escapeHtml(p.name)}</span>
-                <span class="vw-profile-count" title="Số rule cá nhân + số rule chung">${(p.userRules?.length || 0)}+${(p.globalJoin?.enabled ? 1 : 0) + (p.globalGift?.enabled ? 1 : 0) + (p.globalSubscribe?.enabled ? 1 : 0)}</span>
+                <span class="vw-profile-count" title="Số rule cá nhân + số rule chung (gồm bậc vào phòng đang bật)">${(p.userRules?.length || 0)}+${(p.joinTiers || []).filter(t => t.enabled !== false).length + (p.globalGift?.enabled ? 1 : 0) + (p.globalSubscribe?.enabled ? 1 : 0)}</span>
             </div>`;
         }).join('');
         // Wire chips — toàn chip clickable để chọn nhóm (hit area lớn).
@@ -454,6 +453,8 @@
         const pdef = window.HpGame.vipwelcome.newProfile('');
         for (const K of Object.values(GLOBAL_KINDS)) p[K.key] = deepMerge(pdef[K.key], p[K.key] || {});
         if (!Array.isArray(p.userRules)) p.userRules = [];
+        if (!Array.isArray(p.joinTiers)) p.joinTiers = window.HpGame.vipwelcome.defaultTiers();
+        p.joinTiers = p.joinTiers.map(t => window.HpGame.vipwelcome.newTier(t));
         return p;
     }
 
@@ -481,6 +482,7 @@
                     p.classList.toggle('active', p.dataset.vwPane === currentTab);
                 });
                 if (currentTab === 'queue') fetchQueueSnapshot();
+                if (currentTab === 'ledger') fetchLedger();
             });
         });
     }
@@ -576,8 +578,10 @@
         syncPowerBtn();
         renderProfileChips();
         renderUserRulesTab();
+        renderTiersTab();
         renderGlobalTab();
         renderSettingsTab();
+        renderLedgerShell();
     }
 
     // ============================================================
@@ -635,7 +639,8 @@
         if (!profile) return flashWarn('Không có nhóm');
         const items = [];
         for (const r of (profile.userRules || [])) {
-            if (r.enabled !== false && r.mediaUrl) {
+            // Vào phòng: thẻ hiện được cả khi không có media
+            if (r.enabled !== false && (r.mediaUrl || r.trigger === 'join')) {
                 items.push({ kind: 'user', ruleId: r.id, label: '@' + r.uniqueId });
             }
         }
@@ -666,6 +671,7 @@
         const fileName = r.mediaName || (r.mediaUrl ? r.mediaUrl.split('/').pop() : '');
         const typeBadge = hasFile ? (r.mediaType === 'video' ? '🎞 VIDEO' : (r.mediaType === 'audio' ? '🔊 ÂM' : '📄')) : '';
         const triggerDef = TRIGGER_DEFS.find(t => t.id === r.trigger) || TRIGGER_DEFS[0];
+        const isJoin = (r.trigger || 'join') === 'join';
         const ruleStyleOptions = ['<option value="">— Theo phong cách nhóm —</option>']
             .concat(LABEL_STYLE_DEFS.map(s => `<option value="${s.id}" ${r.labelStyle === s.id ? 'selected' : ''}>${s.emoji} ${escapeHtml(s.label)}</option>`));
         return `<div class="vw-rule-card${r.enabled === false ? ' disabled' : ''}${hasFile ? ' has-file' : ''}" data-vw-rule="${r.id}">
@@ -694,6 +700,21 @@
                     <span data-vw-volume-v>${r.volume ?? 100}%</span>
                 </label>
             </div>
+            ${isJoin ? `<div class="vw-rule-row vw-join-row">
+                <label class="vw-inline" title="Nhãn trên thẻ (vd HÀO KIỆT). Để trống = theo bậc người đó đạt">🏷 Danh hiệu
+                    <input type="text" maxlength="18" placeholder="Theo bậc" data-vw-title value="${escapeHtml(r.title || '')}" />
+                </label>
+                <label class="vw-inline">🎨 Skin thẻ
+                    <select data-vw-skin>
+                        <option value="">— Theo bậc —</option>
+                        ${skinOptions(r.skin)}
+                    </select>
+                </label>
+                <label class="vw-inline" title="0 = lần nào vào phòng cũng chào">⏱ Cooldown vào lại (giây)
+                    <input type="number" min="0" step="10" data-vw-cooldown value="${Number(r.rejoinCooldownSec) || 0}" />
+                </label>
+            </div>
+            <div class="vw-hint">Thẻ hiện cả khi không có file — file video/âm thanh là tuỳ chọn.</div>` : `
             <div class="vw-rule-row">
                 <label class="vw-inline vw-msg-row">💬 Lời chúc:
                     <input type="text" placeholder="VD: Chào {nickname} đã ghé phòng!" data-vw-message value="${escapeHtml(r.message || '')}" />
@@ -705,10 +726,10 @@
                         ${ruleStyleOptions.join('')}
                     </select>
                 </label>
-            </div>
+            </div>`}
             <div class="vw-rule-actions">
                 <button class="ghost small" data-vw-pick>📁 Chọn file</button>
-                <button class="primary small" data-vw-test ${hasFile ? '' : 'disabled'}>▶ TEST</button>
+                <button class="primary small" data-vw-test ${hasFile || isJoin ? '' : 'disabled'}>▶ TEST</button>
                 <button class="danger small" data-vw-clear-file ${hasFile ? '' : 'disabled'}>🗑 Xoá file</button>
             </div>
         </div>`;
@@ -788,9 +809,25 @@
                 r.mediaUrl = ''; r.mediaName = ''; r.mediaType = '';
                 renderUserRulesTab(); persistConfig();
             });
+            card.querySelector('[data-vw-title]')?.addEventListener('input', (e) => {
+                const r = getRule(); if (!r) return;
+                r.title = e.target.value.trim();
+                schedulePersist();
+            });
+            card.querySelector('[data-vw-skin]')?.addEventListener('change', (e) => {
+                const r = getRule(); if (!r) return;
+                r.skin = e.target.value || '';
+                schedulePersist();
+            });
+            card.querySelector('[data-vw-cooldown]')?.addEventListener('input', (e) => {
+                const r = getRule(); if (!r) return;
+                r.rejoinCooldownSec = Math.max(0, parseInt(e.target.value, 10) || 0);
+                schedulePersist();
+            });
             card.querySelector('[data-vw-test]')?.addEventListener('click', async () => {
                 const r = getRule(); if (!r) return;
-                if (!r.mediaUrl) { flashWarn('Chưa chọn file'); return; }
+                if (!r.mediaUrl && r.trigger !== 'join') { flashWarn('Chưa chọn file'); return; }
+                await persistConfig().catch(() => {});   // thử đúng skin/danh hiệu vừa sửa
                 await fetch('/api/games/vipwelcome/trigger', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -856,6 +893,246 @@
             r.mediaName = file.name;
             r.mediaType = meta.type;
         }, () => renderUserRulesTab());
+    }
+
+    // ============================================================
+    // TAB: BẬC VÀO PHÒNG (thẻ thông tin theo LV hoặc FAN LV)
+    // ============================================================
+    function skinOptions(selected) {
+        return window.HpGame.vipwelcome.SKIN_DEFS
+            .map(s => `<option value="${s.id}" ${selected === s.id ? 'selected' : ''}>${s.emoji} ${escapeHtml(s.label)}</option>`).join('');
+    }
+
+    function mediaBadge(src) {
+        if (!src.mediaUrl) return '<span class="vw-file-empty">Chưa có video/âm thanh — chỉ hiện thẻ</span>';
+        const name = src.mediaName || src.mediaUrl.split('/').pop();
+        return `<span class="vw-file-badge">${src.mediaType === 'video' ? '🎞 VIDEO' : '🔊 ÂM'}</span><span class="vw-file-name">${escapeHtml(name)}</span>`;
+    }
+
+    function renderTierCard(t) {
+        return `<div class="vw-tier-card skin-${escapeHtml(t.skin)}${t.enabled === false ? ' disabled' : ''}" data-vw-tier="${t.id}">
+            <div class="vw-tier-head">
+                <span class="vw-tier-swatch skin-${escapeHtml(t.skin)}"></span>
+                <input type="text" class="vw-tier-name" maxlength="18" data-t-name value="${escapeHtml(t.name)}" title="Tên bậc = danh hiệu in trên thẻ" />
+                <label class="vw-inline">LV ≥ <input type="number" min="0" max="99" data-t-minlevel value="${t.minLevel || 0}" /></label>
+                <span class="vw-tier-or">hoặc</span>
+                <label class="vw-inline">FAN ≥ <input type="number" min="0" max="99" data-t-minfans value="${t.minFans || 0}" /></label>
+                <label class="vw-rule-toggle" title="Bật / Tắt bậc"><input type="checkbox" data-t-enabled ${t.enabled === false ? '' : 'checked'} /></label>
+                <button class="ghost mini danger" data-t-delete title="Xoá bậc">🗑</button>
+            </div>
+            <div class="vw-rule-row">
+                <label class="vw-inline">🎨 Skin <select data-t-skin>${skinOptions(t.skin)}</select></label>
+                <label class="vw-inline" title="Ảnh PNG trong suốt đè lên khung avatar mặc định">🖼 Khung avatar
+                    <button class="ghost mini" data-t-frame>${t.frameUrl ? '🔁 Đổi' : '📁 Chọn PNG'}</button>
+                    ${t.frameUrl ? '<button class="ghost mini danger" data-t-frame-clear title="Bỏ khung PNG">✕</button>' : ''}
+                </label>
+                <label class="vw-inline" title="0 = lần nào vào phòng cũng chào">⏱ Cooldown vào lại (giây) <input type="number" min="0" step="10" data-t-cooldown value="${t.rejoinCooldownSec || 0}" /></label>
+            </div>
+            <div class="vw-rule-file">${mediaBadge(t)}</div>
+            <div class="vw-rule-row">
+                <label class="vw-inline">🔊 <input type="range" min="0" max="100" step="5" value="${t.volume ?? 100}" data-t-volume /> <span data-t-volume-v>${t.volume ?? 100}%</span></label>
+            </div>
+            <div class="vw-rule-actions">
+                <button class="ghost small" data-t-pick>📁 Video / âm thanh</button>
+                <button class="danger small" data-t-clear ${t.mediaUrl ? '' : 'disabled'}>🗑 Xoá file</button>
+                <button class="primary small" data-t-test>▶ Thử</button>
+            </div>
+        </div>`;
+    }
+
+    function renderTiersTab() {
+        const host = $('#vw-tiers-pane');
+        if (!host) return;
+        const profile = activeProfile();
+        if (!profile) { host.innerHTML = ''; return; }
+        const tiers = profile.joinTiers || [];
+        const sim = host._sim || { level: 23, fansLevel: 3, nickname: 'Davina', source: 'member', mod: false, sub: false, top: 0, friend: false, enigma: false };
+        host._sim = sim;
+        host.innerHTML = `
+            <div class="vw-pane-head">
+                <div class="vw-pane-hint">Mỗi bậc khớp khi <b>LV ≥ x HOẶC FAN LV ≥ y</b> (0 = không xét; cả hai 0 = mọi người). Người xem nhận bậc cao nhất họ đạt; người chỉ định (tab 👤) luôn được ưu tiên. Nhóm <b>"${escapeHtml(profile.name || '')}"</b>.</div>
+                <button id="vw-btn-add-tier" class="primary small">➕ Thêm bậc</button>
+            </div>
+            <div class="vw-tier-list">${tiers.map(renderTierCard).join('') || '<div class="vw-empty">Chưa có bậc nào.</div>'}</div>
+            <div class="vw-setting-block vw-sim">
+                <div class="vw-setting-title">🧪 Giả lập người vào phòng <span class="vw-hint">(đi đúng đường như LIVE thật — mở link OBS để xem)</span></div>
+                <div class="vw-rule-row">
+                    <label class="vw-inline">Tên <input type="text" id="vw-sim-nick" value="${escapeHtml(sim.nickname)}" /></label>
+                    <label class="vw-inline">LV <input type="number" min="0" max="99" id="vw-sim-lv" value="${sim.level}" /></label>
+                    <label class="vw-inline">FAN <input type="number" min="0" max="99" id="vw-sim-fan" value="${sim.fansLevel}" /></label>
+                    <label class="vw-inline">Nguồn
+                        <select id="vw-sim-source">
+                            <option value="member" ${sim.source === 'member' ? 'selected' : ''}>Member</option>
+                            <option value="barrage-grade" ${sim.source === 'barrage-grade' ? 'selected' : ''}>Banner theo cấp</option>
+                            <option value="barrage-fans" ${sim.source === 'barrage-fans' ? 'selected' : ''}>Banner fan club</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="vw-rule-row">
+                    <label class="vw-inline"><input type="checkbox" id="vw-sim-mod" ${sim.mod ? 'checked' : ''} /> MOD</label>
+                    <label class="vw-inline"><input type="checkbox" id="vw-sim-sub" ${sim.sub ? 'checked' : ''} /> SUB</label>
+                    <label class="vw-inline"><input type="checkbox" id="vw-sim-friend" ${sim.friend ? 'checked' : ''} /> Bạn bè</label>
+                    <label class="vw-inline">TOP <input type="number" min="0" max="3" id="vw-sim-top" value="${sim.top}" /></label>
+                    <label class="vw-inline"><input type="checkbox" id="vw-sim-enigma" ${sim.enigma ? 'checked' : ''} /> Ẩn danh</label>
+                </div>
+                <div class="vw-rule-actions">
+                    <button class="primary small" data-sim="one">🚪 1 người vào</button>
+                    <button class="ghost small" data-sim="burst">👥 10 người cùng lúc</button>
+                    <button class="ghost small" data-sim="rejoin">🔁 Vào → ra → vào lại</button>
+                </div>
+            </div>`;
+        const readSim = () => {
+            sim.nickname = $('#vw-sim-nick').value || 'Người thử';
+            sim.level = Math.max(0, parseInt($('#vw-sim-lv').value, 10) || 0);
+            sim.fansLevel = Math.max(0, parseInt($('#vw-sim-fan').value, 10) || 0);
+            sim.source = $('#vw-sim-source').value;
+            sim.mod = $('#vw-sim-mod').checked; sim.sub = $('#vw-sim-sub').checked; sim.friend = $('#vw-sim-friend').checked;
+            sim.top = Math.max(0, Math.min(3, parseInt($('#vw-sim-top').value, 10) || 0));
+            sim.enigma = $('#vw-sim-enigma').checked;
+        };
+        host.querySelectorAll('[data-sim]').forEach(btn => btn.addEventListener('click', async () => {
+            readSim();
+            await persistConfig().catch(() => {});
+            const r = await simulateJoin({
+                mode: btn.dataset.sim, level: sim.level, fansLevel: sim.fansLevel, nickname: sim.nickname, source: sim.source,
+                isModerator: sim.mod, isSubscriber: sim.sub, isFriend: sim.friend, topUserNo: sim.top, enigma: sim.enigma
+            });
+            if (r?.expect) flashOk('Kỳ vọng: ' + r.expect);
+        }));
+        $('#vw-btn-add-tier')?.addEventListener('click', () => {
+            profile.joinTiers.push(window.HpGame.vipwelcome.newTier({ name: 'Bậc mới', minLevel: 10 }));
+            renderTiersTab(); persistConfig();
+        });
+        host.querySelectorAll('.vw-tier-card').forEach(card => wireTierCard(card, profile));
+    }
+
+    async function simulateJoin(body) {
+        try {
+            const r = await fetch('/api/games/vipwelcome/simulate', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            });
+            const j = await r.json();
+            if (!j.ok) flashWarn('Giả lập lỗi'); else if (!j.expect) flashOk('Đã giả lập — xem overlay OBS');
+            return j;
+        } catch (e) { flashWarn('Giả lập lỗi: ' + e.message); return null; }
+    }
+
+    function wireTierCard(card, profile) {
+        const id = card.dataset.vwTier;
+        const getTier = () => (profile.joinTiers || []).find(t => t.id === id);
+        const num = (v) => Math.max(0, parseInt(v, 10) || 0);
+        card.querySelector('[data-t-name]')?.addEventListener('input', (e) => { const t = getTier(); if (!t) return; t.name = e.target.value.trim() || 'Bậc'; schedulePersist(); });
+        card.querySelector('[data-t-minlevel]')?.addEventListener('input', (e) => { const t = getTier(); if (!t) return; t.minLevel = num(e.target.value); schedulePersist(); });
+        card.querySelector('[data-t-minfans]')?.addEventListener('input', (e) => { const t = getTier(); if (!t) return; t.minFans = num(e.target.value); schedulePersist(); });
+        card.querySelector('[data-t-cooldown]')?.addEventListener('input', (e) => { const t = getTier(); if (!t) return; t.rejoinCooldownSec = num(e.target.value); schedulePersist(); });
+        card.querySelector('[data-t-enabled]')?.addEventListener('change', (e) => {
+            const t = getTier(); if (!t) return;
+            t.enabled = !!e.target.checked; card.classList.toggle('disabled', !t.enabled); schedulePersist();
+        });
+        card.querySelector('[data-t-skin]')?.addEventListener('change', (e) => { const t = getTier(); if (!t) return; t.skin = e.target.value; renderTiersTab(); schedulePersist(); });
+        const vol = card.querySelector('[data-t-volume]');
+        vol?.addEventListener('input', () => {
+            const t = getTier(); if (!t) return;
+            t.volume = +vol.value; card.querySelector('[data-t-volume-v]').textContent = vol.value + '%'; schedulePersist();
+        });
+        card.querySelector('[data-t-delete]')?.addEventListener('click', async () => {
+            const t = getTier(); if (!t) return;
+            const ok = await (window.hpConfirm ? window.hpConfirm({
+                icon: '🗑', tone: 'danger', title: 'Xoá bậc',
+                body: `Xoá bậc <b>${escapeHtml(t.name)}</b>?`, okLabel: 'Xoá', cancelLabel: 'Huỷ'
+            }) : Promise.resolve(confirm(`Xoá bậc ${t.name}?`)));
+            if (!ok) return;
+            profile.joinTiers = profile.joinTiers.filter(x => x.id !== id);
+            renderTiersTab(); persistConfig();
+        });
+        card.querySelector('[data-t-pick]')?.addEventListener('click', () => pickFile('media', (f) => uploadFileToTarget(f, (meta) => {
+            const t = getTier(); if (!t) return;
+            t.mediaUrl = meta.url; t.mediaName = f.name; t.mediaType = meta.type;
+        }, renderTiersTab)));
+        card.querySelector('[data-t-clear]')?.addEventListener('click', () => {
+            const t = getTier(); if (!t || !t.mediaUrl) return;
+            t.mediaUrl = ''; t.mediaName = ''; t.mediaType = '';
+            renderTiersTab(); persistConfig();
+        });
+        card.querySelector('[data-t-frame]')?.addEventListener('click', () => pickFile('image', (f) => uploadFileToTarget(f, (meta) => {
+            const t = getTier(); if (!t) return;
+            t.frameUrl = meta.url;
+        }, renderTiersTab, { image: true })));
+        card.querySelector('[data-t-frame-clear]')?.addEventListener('click', () => {
+            const t = getTier(); if (!t) return;
+            t.frameUrl = ''; renderTiersTab(); persistConfig();
+        });
+        card.querySelector('[data-t-test]')?.addEventListener('click', async () => {
+            const t = getTier(); if (!t) return;
+            if (t.enabled === false) { flashWarn('Bậc đang tắt — bật lên để thử'); return; }
+            await persistConfig().catch(() => {});
+            simulateJoin({ mode: 'one', level: t.minLevel || 0, fansLevel: t.minLevel > 0 ? 0 : (t.minFans || 0), nickname: 'Thử ' + t.name });
+        });
+    }
+
+    function pickFile(kind, onFile) {
+        const inp = document.createElement('input');
+        inp.type = 'file';
+        inp.accept = kind === 'image' ? 'image/png,image/webp,.png,.webp' : 'video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,.mp4,.webm,.mp3,.wav,.ogg,.m4a';
+        inp.style.display = 'none';
+        document.body.appendChild(inp);
+        inp.onchange = () => { const f = inp.files?.[0]; inp.remove(); if (f) onFile(f); };
+        inp.click();
+    }
+
+    // ============================================================
+    // TAB: SỔ XU (tổng xu người xem đã tặng kênh — cộng dồn mọi buổi LIVE)
+    // ============================================================
+    function renderLedgerShell() {
+        const host = $('#vw-ledger-pane');
+        if (!host || host._vwWired) return;
+        host._vwWired = true;
+        host.innerHTML = `
+            <div class="vw-pane-head">
+                <div class="vw-pane-hint">💎 trên thẻ vào phòng = tổng xu người đó đã tặng kênh <b id="vw-ledger-host">…</b>, app tự cộng dồn qua mọi buổi LIVE (TikTok không cho xem lịch sử). Sửa số trực tiếp nếu cần.</div>
+                <input type="text" id="vw-ledger-q" class="vw-search-input" placeholder="🔍 Tìm theo tên / @id" />
+                <button id="vw-ledger-refresh" class="ghost small">🔄 Tải lại</button>
+                <button id="vw-ledger-reset" class="danger small">🗑 Xoá sổ kênh này</button>
+            </div>
+            <div id="vw-ledger-list" class="vw-ledger-list"></div>`;
+        let t = null;
+        $('#vw-ledger-q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(fetchLedger, 250); });
+        $('#vw-ledger-refresh').addEventListener('click', fetchLedger);
+        $('#vw-ledger-reset').addEventListener('click', async () => {
+            const host = $('#vw-ledger-host')?.textContent || '';
+            const ok = await (window.hpConfirm ? window.hpConfirm({
+                icon: '🗑', tone: 'danger', title: 'Xoá sổ xu',
+                body: `Xoá toàn bộ tổng xu của kênh <b>@${escapeHtml(host)}</b>?<br><span style="color:#8b93a8">Không thể hoàn tác.</span>`,
+                okLabel: 'Xoá', cancelLabel: 'Huỷ'
+            }) : Promise.resolve(confirm('Xoá toàn bộ sổ xu của kênh này?')));
+            if (!ok) return;
+            await fetch('/api/games/vipwelcome/ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reset' }) });
+            fetchLedger();
+        });
+    }
+
+    async function fetchLedger() {
+        const list = $('#vw-ledger-list');
+        if (!list) return;
+        try {
+            const q = encodeURIComponent($('#vw-ledger-q')?.value || '');
+            const j = await (await fetch(`/api/games/vipwelcome/ledger?q=${q}&limit=200`)).json();
+            const hostEl = $('#vw-ledger-host'); if (hostEl) hostEl.textContent = (!j.host || j.host === '_') ? '(chưa kết nối LIVE)' : '@' + j.host;
+            const items = j.items || [];
+            list.innerHTML = items.length === 0
+                ? '<div class="vw-empty">Chưa có ai tặng quà (sổ cộng khi có quà thật từ TikTok).</div>'
+                : items.map((it, i) => `<div class="vw-ledger-row" data-key="${escapeHtml(it.key)}">
+                    <span class="vw-q-idx">#${i + 1}</span>
+                    <span class="vw-ledger-name">${escapeHtml(it.nickname || it.uniqueId || it.key)}</span>
+                    <span class="vw-q-user">${it.uniqueId ? '@' + escapeHtml(it.uniqueId) : ''}</span>
+                    <label class="vw-inline">💎 <input type="number" min="0" step="1" value="${it.xu}" data-ledger-xu /></label>
+                </div>`).join('');
+            list.querySelectorAll('[data-ledger-xu]').forEach(inp => inp.addEventListener('change', async () => {
+                const key = inp.closest('.vw-ledger-row').dataset.key;
+                await fetch('/api/games/vipwelcome/ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set', key, xu: Math.max(0, parseInt(inp.value, 10) || 0) }) });
+                flashOk('Đã lưu');
+            }));
+        } catch (e) { list.innerHTML = '<div class="vw-empty">Không tải được sổ xu.</div>'; }
     }
 
     // ============================================================
@@ -1019,6 +1296,8 @@
         if (!host) return;
         const d = cfg.display || {};
         const q = cfg.queue || {};
+        const jc = cfg.joinCard || window.HpGame.vipwelcome.defaultJoinCard();
+        const c = jc.card || {};
         const currentStyle = d.labelStyle || 'goldpink';
         const styleSwatches = LABEL_STYLE_DEFS.map(s => `
             <div class="vw-style-swatch${currentStyle === s.id ? ' active' : ''}" data-vw-style="${s.id}" title="${escapeHtml(s.label)}">
@@ -1028,7 +1307,7 @@
         `).join('');
         host.innerHTML = `
             <div class="vw-setting-block">
-                <div class="vw-setting-title">🎬 Hiển thị overlay</div>
+                <div class="vw-setting-title">🎬 Khu video (và lời chúc của trigger khác)</div>
                 <label class="vw-inline">Scale <input type="range" min="50" max="150" step="5" id="vw-set-scale" value="${d.scale || 100}" />
                     <span id="vw-set-scale-v">${d.scale || 100}%</span>
                 </label>
@@ -1058,10 +1337,53 @@
                 <label class="vw-inline">Tối đa item chờ <input type="number" min="1" max="500" step="1" id="vw-set-qmax" value="${q.maxLen || 50}" /></label>
                 <label class="vw-inline">Cooldown / user (giây) — chỉ áp dụng cho Lên cấp <input type="number" min="0" step="5" id="vw-set-cooldown" value="${q.perUserCooldownSec || 60}" /></label>
                 <label class="vw-inline">Khoảng cách giữa 2 lượt (ms) <input type="number" min="0" step="50" id="vw-set-gap" value="${q.perItemMinMs ?? 200}" /></label>
-                <label class="vw-inline">🔁 Vắng mặt N giây = vào lại <input type="number" min="10" max="600" step="5" id="vw-set-rejoin" value="${q.rejoinThresholdSec || 60}" /></label>
-                <div class="vw-hint">💡 Hàng đợi phát <b>nối tiếp theo danh sách</b>: mỗi lượt chào phát XONG mới tới lượt sau (không chồng, không sót). <b>Tối đa item chờ</b> = số người đang xếp hàng tối đa (đông quá thì bỏ bớt người CŨ nhất). <b>Khoảng cách giữa 2 lượt</b> = nghỉ giữa 2 clip. <b>Vắng mặt N giây = vào lại</b>: user biến mất N giây → quay lại sẽ chào LẠI.</div>
+                <div class="vw-hint">💡 Video/âm thanh phát <b>nối tiếp</b>: lượt trước XONG mới tới lượt sau, ưu tiên người chỉ định → bậc cao. <b>Tối đa item chờ</b> = đông quá thì bỏ mục ưu tiên thấp nhất. <b>Khoảng cách giữa 2 lượt</b> = nghỉ giữa 2 clip.</div>
+            </div>
+            <div class="vw-setting-block">
+                <div class="vw-setting-title">🪪 Thẻ vào phòng</div>
+                <label class="vw-inline"><input type="checkbox" id="vw-jc-enabled" ${jc.enabled !== false ? 'checked' : ''} /> Bật thẻ vào phòng</label>
+                <label class="vw-inline">X% <input type="range" min="0" max="80" step="1" id="vw-jc-x" value="${c.xPercent ?? 3}" /> <span id="vw-jc-x-v">${c.xPercent ?? 3}</span></label>
+                <label class="vw-inline">Y% <input type="range" min="5" max="100" step="1" id="vw-jc-y" value="${c.yPercent ?? 60}" /> <span id="vw-jc-y-v">${c.yPercent ?? 60}</span></label>
+                <label class="vw-inline">Cỡ <input type="range" min="50" max="160" step="5" id="vw-jc-scale" value="${c.scale || 100}" /> <span id="vw-jc-scale-v">${c.scale || 100}%</span></label>
+                <label class="vw-inline">Số thẻ hiện cùng lúc <input type="number" min="1" max="6" id="vw-jc-stack" value="${c.maxStack || 3}" /></label>
+                <label class="vw-inline">Thẻ mới
+                    <select id="vw-jc-dir">
+                        <option value="up" ${c.direction !== 'down' ? 'selected' : ''}>ở dưới, đẩy thẻ cũ lên</option>
+                        <option value="down" ${c.direction === 'down' ? 'selected' : ''}>ở trên, đẩy thẻ cũ xuống</option>
+                    </select>
+                </label>
+                <label class="vw-inline">Hiện mỗi thẻ (giây) <input type="number" min="2" max="20" step="0.5" id="vw-jc-dur" value="${(c.durationMs || 5000) / 1000}" /></label>
+                <label class="vw-inline">Chữ "vào phòng" <input type="text" maxlength="20" id="vw-jc-text" value="${escapeHtml(jc.enterText || 'VÀO PHÒNG')}" /></label>
+                <label class="vw-inline"><input type="checkbox" id="vw-jc-hidezero" ${jc.hideZeroXu !== false ? 'checked' : ''} /> Ẩn 💎 khi chưa tặng xu nào</label>
+            </div>
+            <div class="vw-setting-block">
+                <div class="vw-setting-title">🔁 Vào phòng / vào lại</div>
+                <label class="vw-inline" title="TikTok có thể gửi 2 thông báo cho cùng 1 lần vào (member + banner) — gộp trong khoảng này">Gộp tín hiệu trùng trong (giây) <input type="number" min="3" max="60" id="vw-jc-antidup" value="${jc.antiDupSec || 10}" /></label>
+                <label class="vw-inline"><input type="checkbox" id="vw-jc-late" ${jc.lateWelcome !== false ? 'checked' : ''} /> Chào muộn người TikTok không báo vào phòng (khi họ chat / thả tim / tặng quà lần đầu)</label>
+                <label class="vw-inline">Bỏ video/âm thanh nếu chờ quá (giây) <input type="number" min="5" max="300" id="vw-jc-maxwait" value="${jc.mediaMaxWaitSec || 30}" /></label>
+                <label class="vw-inline" title="Ghi dữ liệu thô TikTok gửi khi có người vào phòng vào data/logs/vipwelcome-raw.jsonl — bật khi cần gửi cho HP Media kiểm tra"><input type="checkbox" id="vw-jc-diag" ${jc.diagnostics ? 'checked' : ''} /> 🩺 Chẩn đoán: ghi dữ liệu vào phòng (logs/vipwelcome-raw.jsonl)</label>
+                <div class="vw-hint">💡 Mỗi lần TikTok báo vào phòng là chào lại — kể cả ra vào liên tục. Muốn giãn cho từng người/bậc thì đặt "Cooldown vào lại" ở tab 👤 hoặc 🏅.</div>
             </div>
         `;
+        const setJc = (fn) => { cfg.joinCard = cfg.joinCard || window.HpGame.vipwelcome.defaultJoinCard(); cfg.joinCard.card = cfg.joinCard.card || {}; fn(cfg.joinCard, cfg.joinCard.card); schedulePersist(); };
+        const clampInt = (v, lo, hi, d) => Math.max(lo, Math.min(hi, parseInt(v, 10) || d));
+        $('#vw-jc-enabled')?.addEventListener('change', (e) => setJc(j => { j.enabled = !!e.target.checked; }));
+        for (const [id, key, suffix] of [['vw-jc-x', 'xPercent', ''], ['vw-jc-y', 'yPercent', ''], ['vw-jc-scale', 'scale', '%']]) {
+            $('#' + id)?.addEventListener('input', (e) => {
+                const v = parseInt(e.target.value, 10);
+                $('#' + id + '-v').textContent = v + suffix;
+                setJc((j, cc) => { cc[key] = v; });
+            });
+        }
+        $('#vw-jc-stack')?.addEventListener('input', (e) => setJc((j, cc) => { cc.maxStack = clampInt(e.target.value, 1, 6, 3); }));
+        $('#vw-jc-dir')?.addEventListener('change', (e) => setJc((j, cc) => { cc.direction = e.target.value === 'down' ? 'down' : 'up'; }));
+        $('#vw-jc-dur')?.addEventListener('input', (e) => setJc((j, cc) => { cc.durationMs = Math.round(Math.max(2, Math.min(20, parseFloat(e.target.value) || 5)) * 1000); }));
+        $('#vw-jc-text')?.addEventListener('input', (e) => setJc(j => { j.enterText = e.target.value.trim() || 'VÀO PHÒNG'; }));
+        $('#vw-jc-hidezero')?.addEventListener('change', (e) => setJc(j => { j.hideZeroXu = !!e.target.checked; }));
+        $('#vw-jc-antidup')?.addEventListener('input', (e) => setJc(j => { j.antiDupSec = clampInt(e.target.value, 3, 60, 10); }));
+        $('#vw-jc-late')?.addEventListener('change', (e) => setJc(j => { j.lateWelcome = !!e.target.checked; }));
+        $('#vw-jc-maxwait')?.addEventListener('input', (e) => setJc(j => { j.mediaMaxWaitSec = clampInt(e.target.value, 5, 300, 30); }));
+        $('#vw-jc-diag')?.addEventListener('change', (e) => setJc(j => { j.diagnostics = !!e.target.checked; }));
         // Wire
         const wireRange = (id, key, fmt) => {
             const el = $(`#${id}`); if (!el) return;
@@ -1081,7 +1403,6 @@
         $('#vw-set-qmax')?.addEventListener('input', (e) => { cfg.queue.maxLen = Math.max(1, Math.min(500, parseInt(e.target.value, 10) || 50)); schedulePersist(); });
         $('#vw-set-cooldown')?.addEventListener('input', (e) => { cfg.queue.perUserCooldownSec = Math.max(0, parseInt(e.target.value, 10) || 0); schedulePersist(); });
         $('#vw-set-gap')?.addEventListener('input', (e) => { cfg.queue.perItemMinMs = Math.max(0, parseInt(e.target.value, 10) || 0); schedulePersist(); });
-        $('#vw-set-rejoin')?.addEventListener('input', (e) => { cfg.queue.rejoinThresholdSec = Math.max(10, Math.min(600, parseInt(e.target.value, 10) || 60)); schedulePersist(); });
         // Style swatches — click chọn phong cách lời chúc
         document.querySelectorAll('#vw-style-grid .vw-style-swatch').forEach(el => {
             el.addEventListener('click', async () => {
@@ -1148,6 +1469,12 @@
         } else if (e.kind === 'drop') {
             ico = '🗑';
             extra = `Drop ${e.dropped || 1} item — ${escapeHtml(e.ruleLabel || '')}`;
+        } else if (e.kind === 'card' || e.kind === 'late') {
+            ico = e.kind === 'late' ? '🕘' : '🪪';
+            extra = `${e.kind === 'late' ? 'Chào muộn' : 'Thẻ vào phòng'}: ${escapeHtml(e.nickname || '')} @${escapeHtml(e.uniqueId || '?')} (LV ${e.level || 0}) — ${escapeHtml(e.ruleLabel || '')}`;
+        } else if (e.kind === 'expire') {
+            ico = '⏱';
+            extra = `Bỏ media chờ quá lâu: @${escapeHtml(e.uniqueId || '?')} — ${escapeHtml(e.ruleLabel || '')}`;
         }
         return `<div class="vw-log-line vw-log-${e.kind}">${time} ${ico} ${extra}</div>`;
     }
@@ -1166,10 +1493,11 @@
     // ============================================================
     // Helpers
     // ============================================================
-    async function uploadFileToTarget(file, applyMeta, onDone) {
+    async function uploadFileToTarget(file, applyMeta, onDone, opts) {
         const ext = (file.name.split('.').pop() || '').toLowerCase();
-        if (!['mp4', 'webm', 'mp3', 'wav', 'ogg', 'm4a'].includes(ext)) {
-            flashWarn('Chỉ chấp nhận: mp4, webm, mp3, wav, ogg, m4a');
+        const allowed = opts?.image ? ['png', 'webp'] : ['mp4', 'webm', 'mp3', 'wav', 'ogg', 'm4a'];
+        if (!allowed.includes(ext)) {
+            flashWarn('Chỉ chấp nhận: ' + allowed.join(', '));
             return;
         }
         if (file.size > 30 * 1024 * 1024) {
@@ -1185,7 +1513,7 @@
             });
             const json = await r.json();
             if (!r.ok || !json.ok) throw new Error(json?.error || 'Upload thất bại');
-            applyMeta({ url: json.url, type: ['mp4', 'webm'].includes(ext) ? 'video' : 'audio' });
+            applyMeta({ url: json.url, type: ['mp4', 'webm'].includes(ext) ? 'video' : (opts?.image ? 'image' : 'audio') });
             await persistConfig();
             if (typeof onDone === 'function') onDone();
             flashOk(`Đã tải lên ${file.name}`);
