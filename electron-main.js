@@ -1748,7 +1748,42 @@ function applyDapMuoiHotkeys(cfg) {
 }
 global.__dapmuoiApplyHotkeys = applyDapMuoiHotkeys;
 
-app.on('before-quit', () => { isQuitting = true; try { unregisterBancungHotkeys(); unregisterNhatLaHotkeys(); unregisterDapMuoiHotkeys(); } catch (_) {} });
+// ============================================================
+// HỌA SĨ — phím tắt toàn cục: mỗi hành động (cfg.actions[]) đang bật có hotkey → POST /api/hoasi/test
+// với đúng loại + tham số. Server.js gọi global.__hoasiApplyHotkeys(cfg) khi lưu + lúc khởi động.
+// ============================================================
+let _hoasiAccels = [];
+function unregisterHoaSiHotkeys() {
+    for (const a of _hoasiAccels) { try { globalShortcut.unregister(a); } catch (_) {} }
+    _hoasiAccels = [];
+}
+function applyHoaSiHotkeys(cfg) {
+    unregisterHoaSiHotkeys();
+    if (!cfg || cfg.enabled === false) return;
+    const actions = Array.isArray(cfg.actions) ? cfg.actions : [];
+    const taken = new Set();
+    for (const act of actions) {
+        if (!act || act.enabled === false) continue;
+        let accel = String(act.hotkey || '').trim();
+        if (/^[a-z0-9]$/i.test(accel)) accel = `Control+Shift+${accel.toUpperCase()}`;
+        if (!accel || taken.has(accel)) { if (accel) console.warn(`[hoasi-hotkey] "${accel}" trùng — bỏ qua ${act.name}`); continue; }
+        const body = { action: act.type, qty: 1, params: act.params || {} };
+        try {
+            const ok = globalShortcut.register(accel, async () => {
+                try {
+                    const fetch = require('node-fetch');
+                    await fetch(`${APP_URL}/api/hoasi/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                } catch (e) { console.warn('[hoasi-hotkey] api fail:', e.message); }
+            });
+            if (ok) { _hoasiAccels.push(accel); taken.add(accel); }
+            else console.warn('[hoasi-hotkey] accelerator unavailable:', accel);
+        } catch (e) { console.warn('[hoasi-hotkey] register fail:', accel, e.message); }
+    }
+    if (_hoasiAccels.length) console.log(`[hoasi] global hotkeys registered: ${_hoasiAccels.join(', ')}`);
+}
+global.__hoasiApplyHotkeys = applyHoaSiHotkeys;
+
+app.on('before-quit', () => { isQuitting = true; try { unregisterBancungHotkeys(); unregisterNhatLaHotkeys(); unregisterDapMuoiHotkeys(); unregisterHoaSiHotkeys(); } catch (_) {} });
 app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch (_) {} });
 app.on('window-all-closed', () => {
     // Theo behavior cũ: macOS auto-quit, Windows giữ ở tray.

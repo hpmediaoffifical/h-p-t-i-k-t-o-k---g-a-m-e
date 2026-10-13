@@ -23,6 +23,12 @@
             desc: 'Vỗ hai tay đập muỗi bay ngang khắp màn. Quà thả muỗi, bình xịt, vợt điện, mắc màn.',
             track: 'Hai bàn tay · cổ tay',
             overlay: '/overlay/dapmuoi'
+        },
+        {
+            id: 'hoasi', name: 'Họa Sĩ', icon: '🎨',
+            desc: 'Khán giả tặng quà ném sơn vào mặt; streamer lấy tay lau sạch. Phủ kín 95% thì sơn chảy rồi tự rửa.',
+            track: 'Bàn tay · đầu',
+            overlay: '/overlay/hoasi'
         }
     ];
 })();

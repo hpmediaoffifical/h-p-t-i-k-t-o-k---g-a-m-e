@@ -273,6 +273,8 @@ const PKTIKTOK_EVENT_DEFS = [
 // không chép lại như Nhặt Lá nên panel/overlay/server không lệch nhau. Nạp TRƯỚC GAMES vì defaultConfig gọi ngay.
 const DapMuoi = require('./public/games/dapmuoi/game.js');
 function makeDefaultDapMuoiConfig() { return DapMuoi.defaultConfig(); }
+// Họa Sĩ — cùng kiểu: engine UMD public/games/hoasi/game.js, server dùng defaultConfig/normalizeConfig/giftPlan.
+const HoaSi = require('./public/games/hoasi/game.js');
 
 const GAMES = {
     thuytinh: {
@@ -430,6 +432,16 @@ const GAMES = {
         overlayPath: '/overlay/dapmuoi',
         defaultConfig: makeDefaultDapMuoiConfig()
     },
+    // HỌA SĨ — game camera: quà ném sơn lên màn (nhắm mặt), streamer lau bằng tay thật (HpTracker trong overlay).
+    // Engine + luật quà ở public/games/hoasi/game.js. Game con của Game Camera.
+    hoasi: {
+        id: 'hoasi',
+        name: 'Họa Sĩ',
+        description: 'Khán giả tặng quà ném sơn vào mặt streamer; streamer lấy tay lau sạch. Phủ kín 95% thì sơn chảy rồi tự rửa.',
+        icon: '🎨',
+        overlayPath: '/overlay/hoasi',
+        defaultConfig: HoaSi.defaultConfig()
+    },
     // 🎥 GAME CAMERA — menu mẹ của các game camera (CAM_GAME_IDS). Một link OBS /overlay/camgames nạp
     // game đang chọn; chỉ game đó bật (camGamesApplyActive) để quà không kích hoạt game đang ẩn.
     // Mọi cài đặt ở app; overlay chỉ hiển thị + chơi.
@@ -444,7 +456,7 @@ const GAMES = {
 };
 
 // Game con của Game Camera — thứ tự = thứ tự thẻ trong menu (public/games/camgames/registry.js).
-const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi'];
+const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'hoasi'];
 // Chỉ game đang chọn được bật; tắt Game Camera là tắt hết. Gọi sau mỗi lần lưu config camgames
 // và lúc khởi động để giữ đúng luật dù config cũ bật cả hai.
 function camGamesApplyActive() {
@@ -462,6 +474,7 @@ function camGamesApplyActive() {
         io.emit(want ? 'gameEnabled' : 'gameDisabled', { gameId: id, ts: Date.now() });
         // Đập Muỗi: phím tắt toàn cục đi theo enabled — tắt game thì gỡ phím, bật lại thì đăng ký lại.
         if (id === 'dapmuoi') { try { global.__dapmuoiApplyHotkeys?.(c); } catch (e) {} }
+        if (id === 'hoasi') { try { global.__hoasiApplyHotkeys?.(c); } catch (e) {} }
     }
     return changed;
 }
@@ -1314,7 +1327,8 @@ const touchplayFeed = new ObsCameraFeed({
         touchplay: (url) => feedUrlIs(url, 'touchplay', /touchplay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         chemtraicay: (url) => feedUrlIs(url, 'chemtraicay', /\/overlay\/chemtraicay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         bancung: (url) => feedUrlIs(url, 'bancung', /\/overlay\/bancung/i),
-        dapmuoi: (url) => feedUrlIs(url, 'dapmuoi', /\/overlay\/dapmuoi/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)
+        dapmuoi: (url) => feedUrlIs(url, 'dapmuoi', /\/overlay\/dapmuoi/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
+        hoasi: (url) => feedUrlIs(url, 'hoasi', /\/overlay\/hoasi/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)
     },
     getOptions: (activeGames = new Set()) => {
         const G = appConfig.games || {};
@@ -1322,12 +1336,14 @@ const touchplayFeed = new ObsCameraFeed({
         const bc = G.bancung || {}, bcd = bc.display || {};
         const ct = G.chemtraicay || {}, vs = ct.videoSource || {};
         const dm = G.dapmuoi || {};
+        const hs = G.hoasi || {};
         // Nguồn camera riêng của từng game (null = game tắt / không dùng feed này).
         const per = {
             touchplay: tp.enabled !== false && c.source !== 'webcam' ? (c.obsSource || '') : null,
             chemtraicay: ct.enabled !== false && vs.mode !== 'webcam' ? ((vs.mode === 'obs-scene' ? vs.scene : vs.source) || '') : null,
             bancung: bc.enabled !== false && bcd.bodyTrack === true ? (bcd.trackSource || '') : null,
-            dapmuoi: dm.enabled !== false ? '' : null      // không có nguồn riêng: dùng nguồn chung Game Camera
+            dapmuoi: dm.enabled !== false ? '' : null,     // không có nguồn riêng: dùng nguồn chung Game Camera
+            hoasi: hs.enabled !== false ? '' : null
         };
         const on = Object.keys(per).filter(k => per[k] !== null);
         // Game Camera đặt nguồn chung → dùng cho game con; không thì game đang có overlay nhận hình trước.
@@ -1774,6 +1790,7 @@ if (appConfig.games.chemtraicay) {
 }
 // Đập Muỗi: chuẩn hoá config cũ (khoá thiếu/rác → mặc định, actions/giftRules đúng dạng).
 if (appConfig.games.dapmuoi) appConfig.games.dapmuoi = DapMuoi.normalizeConfig(appConfig.games.dapmuoi);
+if (appConfig.games.hoasi) appConfig.games.hoasi = HoaSi.normalizeConfig(appConfig.games.hoasi);
 if (camGamesApplyActive()) saveAppConfig();
 if (appConfig.games.bancung) {
     const def = makeDefaultBanCungConfig();
@@ -4127,6 +4144,19 @@ function emitGift(g) {
             source: g.source || 'tiktok'
         });
     } catch (e) { /* non-fatal */ }
+    // Họa Sĩ — quà → ném sơn / mưa sơn / nước / khiên / rửa
+    try {
+        handleHoaSiGift({
+            nickname: g.nickname,
+            profilePicture: g.profilePicture || '',
+            giftId: g.giftId,
+            giftName: enriched.giftName || g.giftName,
+            giftImage: enriched.image,
+            coinValue: enriched.coinValue || 0,
+            repeatCount: g.repeatCount || 1,
+            source: g.source || 'tiktok'
+        });
+    } catch (e) { /* non-fatal */ }
     // Trồng Cây — quà mọc hoa / bướm avatar / tưới nước / nắng / cắt cây
     try {
         handleTrongCayGift({
@@ -4762,7 +4792,7 @@ app.post('/api/games/:id/config', (req, res) => {
     // Deep-merge display sub-object cho game server-authoritative — phòng case partial POST
     // (panel chỉ gửi subset of display fields). Whoever posts last wins per-field.
     const incoming = req.body || {};
-    if ((g.id === 'nhietdo' || g.id === 'bancung' || g.id === 'trongcay' || g.id === 'nhatla' || g.id === 'giftboard' || g.id === 'dapmuoi') && incoming.display && prevConfig.display) {
+    if ((g.id === 'nhietdo' || g.id === 'bancung' || g.id === 'trongcay' || g.id === 'nhatla' || g.id === 'giftboard' || g.id === 'dapmuoi' || g.id === 'hoasi') && incoming.display && prevConfig.display) {
         incoming.display = { ...prevConfig.display, ...incoming.display };
     }
     // Nhặt Lá giữ config từng effect khi UI chỉ cập nhật một thuộc tính (vd. số giây TOM).
@@ -4827,6 +4857,9 @@ app.post('/api/games/:id/config', (req, res) => {
         try { banCungApplyConfigToState(appConfig.games.bancung); } catch (e) {}
         try { global.__bancungApplyHotkeys?.(appConfig.games.bancung); } catch (e) {}
         broadcastBanCungState({ immediate: true });
+    }
+    if (g.id === 'hoasi') {
+        try { global.__hoasiApplyHotkeys?.(appConfig.games.hoasi); } catch (e) {}
     }
     if (g.id === 'dapmuoi') {
         try { global.__dapmuoiApplyHotkeys?.(appConfig.games.dapmuoi); } catch (e) {}
@@ -8550,6 +8583,41 @@ app.post('/api/dapmuoi/control', (req, res) => {
 });
 setTimeout(() => { try { global.__dapmuoiApplyHotkeys?.(appConfig.games.dapmuoi); } catch (e) {} }, 1500);
 
+// ====== HỌA SĨ ======
+app.get('/overlay/hoasi', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'hoasi', 'overlay.html'));
+});
+
+function hoaSiCfg() { return HoaSi.normalizeConfig(appConfig.games.hoasi || HoaSi.defaultConfig()); }
+function emitHoaSiGift(payload) {
+    io.to('overlay').to('preview').emit('hoasi:gift', payload);
+}
+
+// Quà → việc overlay làm (giftPlan đã nhân combo + trần): hành động gắn quà, hoặc N cục sơn (rule / theo xu).
+function handleHoaSiGift({ nickname, profilePicture, giftId, giftName, giftImage, coinValue, repeatCount, source }) {
+    const plan = HoaSi.giftPlan(hoaSiCfg(), { giftId, giftName, coinValue, repeatCount });
+    if (!plan) return;
+    console.log(`[hoasi] ${nickname || '?'} → ${plan.name} ${JSON.stringify(plan.params)} (gift ${giftId}, ${coinValue || 0}💎 ×${repeatCount || 1})`);
+    emitHoaSiGift({ ...plan, qty: 1, nickname: nickname || '', profilePicture: profilePicture || '', giftName: giftName || '', image: giftImage || '', source: source || 'tiktok', ts: Date.now() });
+}
+
+app.post('/api/hoasi/test', (req, res) => {
+    const action = String(req.body?.action || '');
+    if (!HoaSi.ACTION_TYPES.includes(action)) return res.status(400).json({ error: 'action không hợp lệ' });
+    // params từ hành động trong panel / hotkey được chuẩn hoá theo giới hạn loại; thiếu → mặc định loại.
+    const act = HoaSi.normalizeAction({ type: action, params: req.body?.params }, 0);
+    emitHoaSiGift({ action, qty: 1, params: act.params, name: act.name, icon: act.icon, nickname: 'Thử nghiệm', profilePicture: '', giftName: 'Gửi thử', image: '', source: 'test', ts: Date.now() });
+    res.json({ ok: true, action });
+});
+
+app.post('/api/hoasi/control', (req, res) => {
+    const cmd = String(req.body?.cmd || '');
+    if (!['start', 'stop', 'reset', 'clear'].includes(cmd)) return res.status(400).json({ error: 'cmd không hợp lệ' });
+    io.emit('gameCmd', { gameId: 'hoasi', cmd, payload: {}, seq: Date.now() });
+    res.json({ ok: true });
+});
+setTimeout(() => { try { global.__hoasiApplyHotkeys?.(appConfig.games.hoasi); } catch (e) {} }, 1500);
+
 app.get('/api/games/bancung/livestate', (req, res) => {
     res.json(banCungSnapshot());
 });
@@ -10880,6 +10948,14 @@ io.on('connection', (socket) => {
         socket.to('preview').emit('dapmuoi:state', {
             flying: Number(data.flying) || 0, queue: Number(data.queue) || 0, killed: Number(data.killed) || 0,
             combo: Number(data.combo) || 0, racketMs: Number(data.racketMs) || 0, netMs: Number(data.netMs) || 0, ts: Date.now()
+        });
+    });
+    onTrusted('hoasi:state', (data) => {
+        if (!data || typeof data !== 'object') return;
+        socket.to('preview').emit('hoasi:state', {
+            coverage: Math.max(0, Math.min(1, Number(data.coverage) || 0)), queue: Number(data.queue) || 0,
+            phase: ['play', 'full', 'washing'].includes(data.phase) ? data.phase : 'play',
+            shieldMs: Number(data.shieldMs) || 0, lastBy: String(data.lastBy || '').slice(0, 80), ts: Date.now()
         });
     });
     onTrusted('chemtraicay:state', (data) => {
