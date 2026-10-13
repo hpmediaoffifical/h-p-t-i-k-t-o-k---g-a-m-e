@@ -29,6 +29,16 @@ const FILES = [
     ['public/games/nhatla/game.js', 'engine helper Nhặt Lá'],
     ['public/games/nhatla/board.html', 'overlay bảng quà Nhặt Lá'],
     ['public/games/nhatla/board.css', 'kiểu dáng bảng quà — panel và overlay dùng chung'],
+    // server.js require() các module này lúc khởi động — thiếu 1 file là app không mở được
+    ['lib/vipwelcome/join-signals.js', 'nhận diện vào phòng (thiếu = server không khởi động)'],
+    ['lib/vipwelcome/presence.js', 'vào/ra/vào lại (thiếu = server không khởi động)'],
+    ['lib/vipwelcome/tier-match.js', 'bậc thẻ vào phòng (thiếu = server không khởi động)'],
+    ['lib/vipwelcome/gift-ledger.js', 'sổ xu (thiếu = server không khởi động)'],
+    ['lib/vipwelcome/media-queue.js', 'hàng media VIP (thiếu = server không khởi động)'],
+    ['lib/chemtraicay-relay.js', 'relay tay Chém Trái Cây (thiếu = server không khởi động)'],
+    ['public/games/vipwelcome/joincard.css', 'giao diện thẻ vào phòng trên OBS'],
+    ['public/lib/mediapipe/hand_landmarker.task', 'model tay offline cho Chém Trái Cây'],
+    ['public/lib/mediapipe/vision_bundle.mjs', 'MediaPipe offline cho game camera'],
 ];
 
 // [thư mục, số bộ tối thiểu] — đọc bằng withFileTypes y như server.js.
