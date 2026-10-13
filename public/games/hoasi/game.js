@@ -180,8 +180,213 @@
         return n > 0 ? { action: 'paint', params: { count: n }, name: ACTION_PRESET.paint.name, icon: ACTION_PRESET.paint.icon } : null;
     }
 
+    const MAX_QUEUE = 500;          // trần hàng đợi cục sơn — bão quà không thành hàng giờ ném
+    const MAX_FLIGHTS = 60;         // cục bay cùng lúc tối đa; dư thì chờ
+    const WATER_GAP_MS = 240;       // nhịp tia nước (như Studio giữ V)
+    const FACE_FRESH_MS = 1000;     // mặt cũ hơn ngần này coi như mất (không nhắm, không khiên)
+    const SUB_MS = 50;              // step lớn (test / trang ẩn) chia nhỏ cho đúng thứ tự sự kiện
+
+    function createEngine(config, opts) {
+        opts = opts || {};
+        const W = opts.width || 1080, H = opts.height || 1920;
+        const rng = opts.random || Math.random;
+        const N = COLS * ROWS, CW = W / COLS, CH = H / ROWS;
+        let cfg = normalizeConfig(config);
+        let clock = 0, nextId = 1, budget = 0;
+        const cells = new Float32Array(N);
+        let coverage = 0;
+        let queue = [];                 // người ném từng cục đang chờ
+        let scheduled = [];             // { at, kind, cell (−1 = chọn lúc phóng), by } — mưa sơn, tia nước
+        let flights = [];               // cục đang bay
+        let face = null, faceAt = -Infinity;
+        let shieldUntil = 0;
+        let lastBy = '';
+        let events = [];
+
+        const cellOf = (x, y) => Math.min(ROWS - 1, Math.max(0, Math.floor(y / CH))) * COLS + Math.min(COLS - 1, Math.max(0, Math.floor(x / CW)));
+        const center = (i) => ({ x: (i % COLS + 0.5) * CW, y: (Math.floor(i / COLS) + 0.5) * CH });
+        const faceValid = () => !!face && clock - faceAt <= FACE_FRESH_MS;
+        const shieldMs = () => Math.max(0, shieldUntil - clock);
+
+        // Vòm khiên quanh đầu (px sân khấu). Mất mặt → không có vòm: thà không chặn còn hơn chặn nhầm chỗ.
+        function dome() {
+            if (shieldMs() <= 0 || !faceValid()) return null;
+            const rx = clamp(face.width * 0.8 * cfg.shieldScale / 100, 0.12 * W, 0.40 * W), ry = rx * 1.15;
+            return { cx: face.x, cy: face.y + 0.18 * ry, rx, ry };
+        }
+        const inDome = (d, x, y) => !!d && ((x - d.cx) / d.rx) ** 2 + ((y - d.cy) / d.ry) ** 2 <= 1;
+
+        function inflight(kind) {
+            const m = new Uint8Array(N);
+            for (const f of flights) if (f.kind === kind) m[f.cell] = 1;
+            return m;
+        }
+
+        // Ô cho cục sơn (theo Studio cleanCell): ô quanh mặt chưa phủ 55% thì chỉ bắn vào đó, rồi mới lan ra.
+        function cleanCell() {
+            const aim = cfg.aimFace && faceValid();
+            const fc = aim ? cellOf(face.x, face.y) : -1, fr = Math.floor(fc / COLS), fcol = fc % COLS;
+            let faceOpen = false;
+            if (aim) {
+                let sum = 0, n = 0;
+                for (let r = fr - 1; r <= fr + 1; r++) for (let c = fcol - 1; c <= fcol + 1; c++) {
+                    if (r >= 0 && c >= 0 && r < ROWS && c < COLS) { sum += cells[r * COLS + c]; n++; }
+                }
+                faceOpen = n > 0 && sum / n < 0.55;
+            }
+            const d = dome(), fly = inflight('paint');
+            // Ô sau khiên luôn sạch → không loại ra thì mọi phát nhắm vào đó và bị chặn hết (game đứng).
+            const best = (restrict, near) => {
+                let bi = -1, bv = Infinity;
+                for (let i = 0; i < N; i++) {
+                    const dist = aim ? Math.abs(Math.floor(i / COLS) - fr) + Math.abs(i % COLS - fcol) : 0;
+                    if (restrict && dist > 1.5) continue;
+                    const c = center(i);
+                    if (inDome(d, c.x, c.y)) continue;
+                    const q = cells[i] + rng() * 0.10 + (near ? dist * 0.006 : 0) + (fly[i] ? 0.5 : 0);
+                    if (q < bv) { bv = q; bi = i; }
+                }
+                return bi;
+            };
+            let i = aim && faceOpen ? best(true, false) : -1;
+            if (i < 0) i = best(false, aim);
+            return i >= 0 ? i : Math.floor(rng() * N);
+        }
+
+        // Ô cho tia nước: bẩn nhất trên cả lưới; màn sạch → mặt (không mặt thì giữa màn).
+        function dirtyCell() {
+            let max = 0;
+            for (let i = 0; i < N; i++) if (cells[i] > max) max = cells[i];
+            if (max < 0.08) return faceValid() ? cellOf(face.x, face.y) : Math.floor(ROWS / 2) * COLS + Math.floor(COLS / 2);
+            const fly = inflight('water');
+            let bi = 0, bv = -Infinity;
+            for (let i = 0; i < N; i++) {
+                const q = cells[i] + rng() * 0.16 - (fly[i] ? 0.5 : 0);
+                if (q > bv) { bv = q; bi = i; }
+            }
+            return bi;
+        }
+
+        function launch(kind, cell, by) {
+            if (cell < 0) cell = kind === 'water' ? dirtyCell() : cleanCell();
+            const col = cell % COLS, row = Math.floor(cell / COLS);
+            const x1 = clamp((col + 0.25 + rng() * 0.5) * CW, 0.03 * W, 0.97 * W);
+            const y1 = clamp((row + 0.25 + rng() * 0.5) * CH, 0.03 * H, 0.97 * H);
+            const x0 = W * (0.3 + rng() * 0.4), y0 = 0.98 * H;
+            const f = {
+                id: nextId++, kind, cell, by: by || '',
+                x0, y0, cx: (x0 + x1) / 2 + (rng() - 0.5) * 0.2 * W, cy: Math.min(y0, y1) - 0.18 * H, x1, y1,
+                t0: clock, ms: cfg.flightMs,
+                r: (kind === 'water' ? cfg.waterSize : cfg.paintSize) / 100 * W,
+                color: kind === 'water' ? '#8fe3ff' : PALETTE[Math.floor(rng() * PALETTE.length) % PALETTE.length]
+            };
+            flights.push(f);
+            events.push({ type: 'launch', id: f.id, kind, cell, by: f.by });
+        }
+
+        function impact(f) {
+            if (f.kind === 'water') {
+                // Nước luôn xuyên khiên: nước là của phe cứu streamer.
+                events.push({ type: 'wash', x: f.x1, y: f.y1, r: f.r, strength: 0.9 });
+                events.push({ type: 'wash', x: clamp(f.x1 + (rng() - 0.5) * 0.16 * W, 0.03 * W, 0.97 * W),
+                    y: clamp(f.y1 + (rng() - 0.5) * 0.12 * H, 0.03 * H, 0.97 * H), r: f.r * 0.62, strength: 0.76 });
+                cells[f.cell] *= 0.1;
+                return;
+            }
+            if (inDome(dome(), f.x1, f.y1)) { events.push({ type: 'block', x: f.x1, y: f.y1, color: f.color }); return; }
+            events.push({ type: 'splat', x: f.x1, y: f.y1, r: f.r, color: f.color, cell: f.cell, by: f.by, seed: Math.floor(rng() * 2147483647) });
+            cells[f.cell] = 1;
+            if (f.by) lastBy = f.by;
+        }
+
+        function tick(dt) {
+            clock += dt;
+            // Lịch (mưa sơn, nước): tới giờ là phóng, không chịu nhịp shotsPerSecond; đủ cục bay thì chờ.
+            if (scheduled.length) {
+                scheduled.sort((a, b) => a.at - b.at);
+                while (scheduled.length && scheduled[0].at <= clock && flights.length < MAX_FLIGHTS) {
+                    const s = scheduled.shift();
+                    launch(s.kind, s.cell, s.by);
+                }
+            }
+            // Hàng đợi ném: nhịp shotsPerSecond; hàng rỗng chỉ để dành 1 phát (quà tới là bay ngay, không dồn cục).
+            const rate = cfg.shotsPerSecond;
+            budget = Math.min(queue.length ? rate : 1, budget + dt / 1000 * rate);
+            while (budget >= 1 - 1e-9 && queue.length && flights.length < MAX_FLIGHTS) { budget -= 1; launch('paint', -1, queue.shift()); }
+            for (let k = flights.length - 1; k >= 0; k--) {
+                const f = flights[k];
+                if (clock - f.t0 >= f.ms) { flights.splice(k, 1); impact(f); }
+            }
+        }
+
+        function step(dtMs) {
+            events = [];
+            let left = Math.max(0, num(dtMs, 0));
+            while (left > 0) { const d = Math.min(SUB_MS, left); tick(d); left -= d; }
+            return events;
+        }
+
+        function enqueuePaint(n, by) {
+            const add = Math.max(0, Math.min(Math.floor(num(n, 0)), MAX_QUEUE - queue.length));
+            for (let i = 0; i < add; i++) queue.push(by || '');
+            return add;
+        }
+        function storm(seconds, percent, by) {
+            const sec = clamp(num(seconds, 10), 2, STORM_MAX_SEC);
+            const n = Math.round(N * clamp(num(percent, 100), 10, 100) / 100);
+            const order = Array.from({ length: N }, (_, i) => i);
+            for (let i = N - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
+            const gap = sec * 1000 / n;
+            for (let i = 0; i < n; i++) scheduled.push({ at: clock + i * gap, kind: 'paint', cell: order[i], by: by || '' });
+            return n;
+        }
+        function water(n, by) {
+            const k = Math.max(1, Math.min(MAX_QUEUE, Math.floor(num(n, 1))));
+            for (let i = 0; i < k; i++) scheduled.push({ at: clock + i * WATER_GAP_MS, kind: 'water', cell: -1, by: by || '' });
+            return k;
+        }
+        function shield(seconds) {
+            shieldUntil = Math.min(clock + SHIELD_MAX_SEC * 1000, Math.max(clock, shieldUntil) + clamp(num(seconds, 10), 0, SHIELD_MAX_SEC) * 1000);
+            return shieldMs();
+        }
+        function applyAction(a, by) {
+            if (!a || !ACTION_TYPES.includes(a.type)) return;
+            const p = a.params || {}, d = ACTION_DEFAULT_PARAMS[a.type];
+            if (a.type === 'paint') enqueuePaint(num(p.count, d.count), by);
+            else if (a.type === 'storm') storm(num(p.seconds, d.seconds), num(p.percent, d.percent), by);
+            else if (a.type === 'water') water(num(p.count, d.count), by);
+            else if (a.type === 'shield') shield(num(p.seconds, d.seconds));
+        }
+
+        function setFace(head) {
+            if (head && Number.isFinite(Number(head.x)) && Number.isFinite(Number(head.y))) {
+                face = { x: Number(head.x), y: Number(head.y), width: num(head.width, 300) };
+                faceAt = clock;
+            } else face = null;
+        }
+        function setCoverage(list, total) {
+            if (list && list.length === N) for (let i = 0; i < N; i++) cells[i] = clamp(list[i], 0, 1);
+            coverage = clamp(num(total, 0), 0, 1);
+        }
+        function setConfig(c) { cfg = normalizeConfig(c); }
+
+        function flightView(f) {
+            const t = Math.min(1, (clock - f.t0) / f.ms), u = 1 - t;
+            return { id: f.id, kind: f.kind, t, r: f.r, color: f.color,
+                x: u * u * f.x0 + 2 * u * t * f.cx + t * t * f.x1, y: u * u * f.y0 + 2 * u * t * f.cy + t * t * f.y1 };
+        }
+        function snapshot() {
+            return {
+                clock, flights: flights.map(flightView), queue: queue.length, scheduled: scheduled.length,
+                coverage, cells, phase: 'play', shieldMs: shieldMs(), dome: dome(), lastBy, events
+            };
+        }
+
+        return { step, applyAction, enqueuePaint, storm, water, shield, setFace, setCoverage, setConfig, snapshot };
+    }
+
     return {
         COLS, ROWS, PALETTE, ACTION_TYPES, ACTION_PRESET, ACTION_DEFAULT_PARAMS, ACTION_LIMITS, ACTION_ICONS,
-        defaultConfig, normalizeConfig, normalizeAction, actionForGift, shotsForGift, giftPlan
+        defaultConfig, normalizeConfig, normalizeAction, actionForGift, shotsForGift, giftPlan, createEngine
     };
 });

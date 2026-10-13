@@ -103,3 +103,140 @@ test('giftPlan nhân repeat có trần', () => {
     assert.equal(giftPlan(cfg, { giftId: 'zz', coinValue: 0, repeatCount: 1 }), null);
     assert.equal(giftPlan(normalizeConfig({ enabled: false }), { giftId: 'zz', coinValue: 9 }), null);
 });
+
+// ---------- Task 2: cục bay, chọn ô, nước, mưa, khiên ----------
+const { createEngine, COLS } = G;
+const FACE = { x: 540, y: 600, width: 300 };          // ô mặt: hàng 5, cột 6 → 66
+const FACE_CELL = 66, CENTER_CELL = 9 * 12 + 6;
+const rc = (i) => [Math.floor(i / COLS), i % COLS];
+const manhattan = (a, b) => { const [r1, c1] = rc(a), [r2, c2] = rc(b); return Math.abs(r1 - r2) + Math.abs(c1 - c2); };
+const cellCenter = (i) => ({ x: (i % 12 + 0.5) * 90, y: (Math.floor(i / 12) + 0.5) * 1920 / 18 });
+const inDome = (d, p) => ((p.x - d.cx) / d.rx) ** 2 + ((p.y - d.cy) / d.ry) ** 2 <= 1;
+// Chạy ms theo bước 10 ms; hook chạy trước mỗi bước (giữ mặt "tươi" như overlay gửi mỗi khung AI).
+function run(eng, ms, hook) { const ev = []; for (let t = 0; t < ms; t += 10) { if (hook) hook(eng); ev.push(...eng.step(10)); } return ev; }
+const of = (ev, type) => ev.filter(e => e.type === type);
+const mk = (over) => createEngine({ ...defaultConfig(), ...over }, { random: seeded(7) });
+const cov = (fill, set) => { const c = new Array(216).fill(fill); for (const [i, v] of Object.entries(set || {})) c[i] = v; return c; };
+
+test('nhịp phóng shotsPerSecond, hàng đợi trần 500', () => {
+    const eng = mk();
+    assert.equal(eng.enqueuePaint(20, 'a'), 20);
+    assert.equal(of(run(eng, 1000), 'launch').length, 6);
+    assert.equal(eng.snapshot().queue, 14);
+    assert.equal(eng.enqueuePaint(1000, 'b'), 486);
+});
+
+test('cục bay tới đích sau flightMs, rơi đúng ô', () => {
+    const eng = mk();
+    eng.enqueuePaint(1, 'An');
+    const l = of(run(eng, 200), 'launch'); assert.equal(l.length, 1);
+    const t1 = eng.snapshot().flights[0].t;
+    assert.equal(of(run(eng, 400), 'splat').length, 0);
+    assert.ok(eng.snapshot().flights[0].t > t1);
+    const s = of(run(eng, 100), 'splat'); assert.equal(s.length, 1);
+    assert.equal(s[0].cell, l[0].cell); assert.equal(s[0].by, 'An');
+    assert.equal(Math.floor(s[0].x / 90), s[0].cell % 12);
+    assert.equal(Math.floor(s[0].y / (1920 / 18)), Math.floor(s[0].cell / 12));
+    assert.ok(Math.abs(s[0].r - 113.4) < 0.01);
+    assert.equal(eng.snapshot().cells[s[0].cell], 1); assert.equal(eng.snapshot().lastBy, 'An');
+    assert.equal(eng.snapshot().flights.length, 0);
+});
+
+test('nhắm mặt trước: phát đầu vào 3×3 quanh mặt', () => {
+    const eng = mk({ shotsPerSecond: 30 });
+    eng.enqueuePaint(10, 'a');
+    const l = of(run(eng, 400, e => e.setFace(FACE)), 'launch');
+    assert.equal(l.length, 10);
+    for (const e of l) assert.ok(manhattan(e.cell, FACE_CELL) <= 2 && Math.abs(rc(e.cell)[0] - 5) <= 1 && Math.abs(rc(e.cell)[1] - 6) <= 1, 'ô ' + e.cell);
+});
+
+test('mặt phủ ≥55% thì lan ra quanh mặt', () => {
+    const eng = mk({ shotsPerSecond: 30 });
+    const box = {}; for (let r = 4; r <= 6; r++) for (let c = 5; c <= 7; c++) box[r * 12 + c] = 1;
+    eng.setCoverage(cov(0, box), 9 / 216);
+    eng.enqueuePaint(5, 'a');
+    const l = of(run(eng, 300, e => e.setFace(FACE)), 'launch');
+    assert.equal(l.length, 5);
+    for (const e of l) { assert.ok(!(e.cell in box), 'trong 3×3: ' + e.cell); assert.ok(manhattan(e.cell, FACE_CELL) <= 6, 'xa quá: ' + e.cell); }
+});
+
+test('không có mặt chọn ô ít phủ nhất', () => {
+    const eng = mk();
+    eng.setCoverage(cov(1, { 100: 0 }), 215 / 216);
+    eng.enqueuePaint(1, 'a');
+    assert.equal(of(run(eng, 300), 'launch')[0].cell, 100);
+});
+
+test('phạt ô đang bay: 2 phát liền vào 2 ô khác nhau', () => {
+    const eng = mk({ shotsPerSecond: 30 });
+    eng.setCoverage(cov(1, { 10: 0, 11: 0 }), 214 / 216);
+    eng.enqueuePaint(2, 'a');
+    const l = of(run(eng, 100), 'launch');
+    assert.deepEqual(l.map(e => e.cell).sort((a, b) => a - b), [10, 11]);
+});
+
+test('nước nhắm ô bẩn nhất và rửa ô đó', () => {
+    const eng = mk();
+    eng.setCoverage(cov(0, { 77: 1 }), 1 / 216);
+    eng.water(1, 'w');
+    const ev = run(eng, 600);
+    const l = of(ev, 'launch'); assert.equal(l.length, 1); assert.equal(l[0].kind, 'water'); assert.equal(l[0].cell, 77);
+    const w = of(ev, 'wash'); assert.equal(w.length, 2);
+    assert.equal(w[0].strength, 0.9); assert.equal(w[1].strength, 0.76);
+    assert.ok(Math.abs(w[1].r - w[0].r * 0.62) < 0.01); assert.ok(Math.abs(w[0].r - 156.6) < 0.01);
+    assert.ok(Math.abs(eng.snapshot().cells[77] - 0.1) < 1e-6);
+});
+
+test('nước khi màn sạch nhắm mặt, không mặt thì giữa màn; cách 240 ms', () => {
+    const eng = mk();
+    eng.water(2, 'w');
+    const at = [];
+    for (let t = 0; t < 400; t += 10) { eng.setFace(FACE); for (const e of eng.step(10)) if (e.type === 'launch') at.push([eng.snapshot().clock, e.cell]); }
+    assert.equal(at.length, 2); assert.equal(at[0][1], FACE_CELL); assert.equal(at[1][1], FACE_CELL);
+    assert.ok(Math.abs(at[1][0] - at[0][0] - 240) <= 10);
+    const e2 = mk(); e2.water(1, 'w');
+    assert.equal(of(run(e2, 50), 'launch')[0].cell, CENTER_CELL);
+});
+
+test('mưa hẹn đủ ô trong seconds, không chịu nhịp', () => {
+    const eng = mk();
+    eng.storm(10, 50, 'm');
+    const a = of(run(eng, 5000), 'launch');
+    assert.ok(a.length >= 50 && a.length <= 58, 'ở 5s: ' + a.length);
+    const b = a.concat(of(run(eng, 5600), 'launch'));
+    assert.equal(b.length, 108);
+    assert.equal(new Set(b.map(e => e.cell)).size, 108);
+});
+
+test('khiên: bỏ ô trong vòm, chặn sơn, nước xuyên', () => {
+    const hook = e => e.setFace(FACE);
+    const e1 = mk({ shotsPerSecond: 30 });
+    e1.shield(10); e1.enqueuePaint(30, 'a');
+    const l = of(run(e1, 1500, hook), 'launch');
+    const dome = e1.snapshot().dome; assert.ok(dome);
+    assert.equal(dome.cx, 540); assert.equal(dome.rx, 240); assert.ok(Math.abs(dome.ry - 276) < 1e-9);
+    assert.equal(l.length, 30);
+    for (const e of l) assert.ok(!inDome(dome, cellCenter(e.cell)), 'ô trong vòm: ' + e.cell);
+
+    const e2 = mk(); e2.shield(10); e2.storm(2, 100, 's');
+    const ev = run(e2, 3000, hook), d2 = e2.snapshot().dome;
+    const splats = of(ev, 'splat'), blocks = of(ev, 'block');
+    assert.ok(blocks.length >= 1);
+    assert.equal(splats.length + blocks.length, 216);
+    for (const s of splats) assert.ok(!inDome(d2, s), 'vết trong vòm');
+
+    const e3 = mk(); e3.shield(10); e3.setCoverage(cov(0, { [FACE_CELL]: 1 }), 1 / 216); e3.water(1, 'w');
+    const ev3 = run(e3, 600, hook);
+    assert.equal(of(ev3, 'wash').length, 2); assert.equal(of(ev3, 'block').length, 0);
+});
+
+test('khiên cộng dồn trần 60s, mất mặt quá 1s thì tắt vòm', () => {
+    const eng = mk();
+    eng.shield(50); eng.shield(50);
+    assert.equal(eng.snapshot().shieldMs, 60000);
+    eng.setFace(FACE); assert.ok(eng.snapshot().dome);
+    run(eng, 1500);
+    assert.equal(eng.snapshot().dome, null);
+    assert.ok(eng.snapshot().shieldMs > 0);
+    eng.setFace(null); assert.equal(eng.snapshot().dome, null);
+});
