@@ -46,7 +46,12 @@
         const type = ACTION_TYPES.includes(raw.type) ? raw.type : 'release';
         const params = { ...ACTION_DEFAULT_PARAMS[type] };
         const saved = raw.params && typeof raw.params === 'object' ? raw.params : {};
-        for (const [k, [min, max]] of Object.entries(ACTION_LIMITS[type])) if (saved[k] != null) params[k] = clamp(saved[k], min, max);
+        // Giá trị không phải số (config sửa tay / API) → giữ MẶC ĐỊNH của loại, không kẹp về min
+        // (min của spray.count là 0 → bình xịt không giết con nào mà không ai hiểu vì sao).
+        for (const [k, [min, max]] of Object.entries(ACTION_LIMITS[type])) {
+            const v = saved[k];
+            if (v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v))) params[k] = clamp(v, min, max);
+        }
         return {
             id: str(raw.id || ('act-' + index + '-' + Date.now()), 60),
             type, icon: str(raw.icon || ACTION_PRESET[type].icon, 8), name: str(raw.name || ACTION_PRESET[type].name, 60),
@@ -86,7 +91,10 @@
         cfg.faceAttract = raw.faceAttract !== false;
         cfg.quality = ['low', 'auto', 'high'].includes(raw.quality) ? raw.quality : 'auto';
         cfg.giftRules = Array.isArray(raw.giftRules) ? raw.giftRules.map(normalizeRule) : [];
-        cfg.actions = Array.isArray(raw.actions) && raw.actions.length ? raw.actions.map((a, i) => normalizeAction(a, i, cfg)) : defaultActions();
+        // Thiếu khoá (config cũ) → 4 hành động mặc định; mảng rỗng là người dùng đã xoá hết → giữ rỗng.
+        cfg.actions = Array.isArray(raw.actions)
+            ? raw.actions.filter(a => a && typeof a === 'object').map((a, i) => normalizeAction(a, i, cfg))
+            : defaultActions();
         const snd = raw.sound && typeof raw.sound === 'object' ? raw.sound : {};
         cfg.sound = { enabled: snd.enabled !== false, volume: clamp(snd.volume != null ? snd.volume : def.sound.volume, 0, 1) };
         const d = raw.display && typeof raw.display === 'object' ? raw.display : {};
@@ -175,7 +183,7 @@
         let racketMs = 0, netMs = 0;
         let spray = null;         // { x, y, radius, ms, elapsed, limit, killed }
 
-        function halfSize(m) { return 0.5 * BASE_SIZE * m.scale; }
+        function halfSize(m) { return 0.5 * BASE_SIZE * m.scale * (m.smart ? 1.15 : 1); }   // con thông minh vẽ to hơn 15%
 
         // Giết một con: lật úp, nảy nhẹ lên rồi rơi.
         function kill(m) {
@@ -327,7 +335,9 @@
                 // xả hàng đợi
                 spawnAcc += num(cfg.spawnPerSecond, 6) * dt;
                 while (spawnAcc >= 1 && queue > 0 && flying < maxOn) { spawnAcc -= 1; queue--; spawn(); flying++; }
-                if (!queue) spawnAcc = Math.min(spawnAcc, 1);
+                // Hết hàng đợi HOẶC màn đầy thì không tích luỹ: giết xong màn phải lấp lại theo
+                // spawnPerSecond, không bật ra cả loạt trong một khung.
+                if (!queue || flying >= maxOn) spawnAcc = Math.min(spawnAcc, 1);
                 // sinh nền
                 const idle = num(cfg.idleSpawnSeconds, 8);
                 if (idle > 0 && !queue) { idleAcc += dt; if (idleAcc >= idle) { idleAcc = 0; if (flying < maxOn) { spawn(); flying++; } } } else idleAcc = 0;

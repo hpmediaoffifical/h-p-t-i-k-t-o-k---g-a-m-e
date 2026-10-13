@@ -104,18 +104,34 @@
         ctx.restore();
     }
 
-    function drawMosquito(m, now) {
+    // Cache bitmap theo (ảnh, cỡ): vẽ SVG thẳng mỗi khung là rasterize lại — 300 con là tụt khung.
+    const spriteCache = new Map();
+    function sprite(img, w, h) {
+        const key = (img === imgDead ? 'd' : 'b') + Math.round(w) + 'x' + Math.round(h);
+        let c = spriteCache.get(key);
+        if (c) return c;
+        if (!img.complete || !img.naturalWidth) return null;
+        c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        if (spriteCache.size > 24) spriteCache.delete(spriteCache.keys().next().value);
+        spriteCache.set(key, c);
+        return c;
+    }
+
+    // now: performance.now() cho nhịp cánh/run lắc; clock: đồng hồ ENGINE (m.deadAt cùng hệ) cho mờ dần.
+    function drawMosquito(m, now, clock) {
         const w = BODY_W * m.scale * (m.smart ? 1.15 : 1), h = BODY_H * m.scale * (m.smart ? 1.15 : 1);
         const jx = Math.sin(now * 0.037 + m.id) * 3, jy = Math.sin(now * 0.029 + m.id * 1.7) * 4;
+        const body = sprite(imgBody, w, h), dead = sprite(imgDead, w, h);
         ctx.save();
         if (m.state === 'dead') {
-            const age = now - m.deadAt;
+            const age = clock - m.deadAt;
             const alpha = age < 600 ? 1 : Math.max(0, 1 - (age - 600) / 1900);
             ctx.globalAlpha = alpha;
             ctx.translate(m.x, m.y);
             ctx.rotate(Math.sin(age / 1000 * Math.PI * 2 * 6) * 12 * Math.PI / 180);
             ctx.scale(m.dir, 1);
-            if (imgDead.complete) ctx.drawImage(imgDead, -w / 2, -h / 2, w, h);
+            if (dead) ctx.drawImage(dead, -w / 2, -h / 2);
             ctx.restore();
             return;
         }
@@ -124,7 +140,7 @@
             const vl = Math.hypot(m.vx, m.vy) || 1;
             for (let k = 1; k <= 3; k++) {
                 ctx.save(); ctx.globalAlpha = 0.15; ctx.translate(m.x - m.vx / vl * 22 * k, m.y - m.vy / vl * 22 * k); ctx.scale(m.dir, 1);
-                if (imgBody.complete) ctx.drawImage(imgBody, -w / 2, -h / 2, w, h); ctx.restore();
+                if (body) ctx.drawImage(body, -w / 2, -h / 2); ctx.restore();
             }
         }
         ctx.translate(m.x + jx, m.y + jy);
@@ -132,7 +148,7 @@
         const flap = Math.sin(m.phase) ;
         drawWing(w, h, (-10 + flap * 22) * Math.PI / 180, 0.9);
         drawWing(w, h, (4 - flap * 22) * Math.PI / 180, 0.7);
-        if (imgBody.complete) ctx.drawImage(imgBody, -w / 2, -h / 2, w, h);
+        if (body) ctx.drawImage(body, -w / 2, -h / 2);
         if (m.smart) {
             ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w, 0, Math.PI * 2); ctx.fillStyle = '#ffd54a'; ctx.fill();
             ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w * 1.9, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,213,74,.45)'; ctx.lineWidth = 3; ctx.stroke();
@@ -279,6 +295,8 @@
             if (!feed.on) return;
             feed.tracker.quality = cfg.quality;
             await feed.tracker.startExternal();
+            // want() gọi trước startExternal chỉ ghi nhớ — model body chỉ nạp khi tracker đang chạy (như Bắn Cung).
+            feed.tracker.want({ hands: true, pose: true, face: false });
             feed.lastAt = performance.now();
             if (feed.on) socket.emit('touchplay:feed', 'dapmuoi');
         } catch (e) { console.warn('[dapmuoi] không bật được nhận diện:', (e && e.message) || e); }
@@ -296,8 +314,9 @@
         const st = feed.status || {};
         if (st.obsConnected === false) return ['App chưa kết nối OBS WebSocket.', 'OBS: Công cụ → Cài đặt WebSocket Server → bật; rồi kết nối ở mục Hiệu ứng OBS trong app.'];
         if (!st.source) return ['Chưa chọn nguồn camera cho Game Camera.', 'Mở 🎥 Game Camera trong app → chọn Nguồn camera trong OBS.'];
-        if (st.error === 'source-missing') return [`Không tìm thấy nguồn "${st.source}" trong OBS.`, ''];
-        return [`Chưa nhận được hình từ nguồn "${st.source}".`, 'Kiểm tra camera trong scene OBS đang phát.'];
+        const src = String(st.source).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+        if (st.error === 'source-missing') return [`Không tìm thấy nguồn "${src}" trong OBS.`, ''];
+        return [`Chưa nhận được hình từ nguồn "${src}".`, 'Kiểm tra camera trong scene OBS đang phát.'];
     }
     function showAlert(pair) {
         const el = $('dm-alert');
@@ -311,8 +330,8 @@
         feed.seenHands = t.handsAt; feed.seenPose = t.poseAt;
         const hands = now - t.handsAt < 400 ? t.hands : [];
         const pose = now - t.poseAt < 400 ? t.pose : null;
-        for (const e of clap.update({ hands, pose, now })) hitAt(e.x, e.y, e.r, e.mode);
-        if (engine.snapshot === undefined) return;
+        // Tốc độ khép tính theo thời điểm AI ra kết quả (handsAt), không theo nhịp rAF — lệch 16ms trên chu kỳ ~40ms làm sai ±30%.
+        for (const e of clap.update({ hands, pose, now: Math.max(t.handsAt, t.poseAt) || now })) hitAt(e.x, e.y, e.r, e.mode);
         if (lastSnap && lastSnap.racketMs > 0) for (const h of hands) engine.sweep(h.palm.x, h.palm.y, h.size);
         if (pose && pose[0] && (pose[0].v == null || pose[0].v >= 0.35)) engine.setFace(pose[0].x, pose[0].y);
         if (cfg.display.showSkeleton) skeleton = { hands, pose };
@@ -353,8 +372,8 @@
         ctx.clearRect(0, 0, W, H);
         // vẽ: chết ở dưới cùng, rồi bay (thứ tự theo y cho có chiều sâu nhẹ)
         const list = s.mosquitoes;
-        for (const m of list) if (m.state === 'dead') drawMosquito(m, now);
-        for (const m of list) if (m.state !== 'dead') drawMosquito(m, now);
+        for (const m of list) if (m.state === 'dead') drawMosquito(m, now, s.clock);
+        for (const m of list) if (m.state !== 'dead') drawMosquito(m, now, s.clock);
         drawEffects(now, s);
         drawSkeleton();
         applyHud(s);
@@ -387,7 +406,7 @@
         if (feed.on) socket.emit('touchplay:feed', 'dapmuoi');
     });
     socket.on('dapmuoi:gift', (d) => {
-        if (!d || !Game.ACTION_TYPES.includes(d.action)) return;
+        if (disabled || !d || !Game.ACTION_TYPES.includes(d.action)) return;   // game tắt (hub chọn game khác) → bỏ, không dồn
         audioInit(); audioResume();
         engine.applyAction({ type: d.action, params: d.params || {} }, d.qty || 1);
         const who = d.nickname || '';
@@ -412,7 +431,7 @@
     // Báo trạng thái cho panel + sức khoẻ nhận diện; cảnh báo mất hình > 4 s.
     if (!isReview) {
         setInterval(() => {
-            if (!socket.connected || !lastSnap) return;
+            if (!socket.connected || !lastSnap || disabled) return;
             socket.emit('dapmuoi:state', { flying: lastSnap.flying, queue: lastSnap.queue, killed: lastSnap.killed, combo: lastSnap.combo, racketMs: lastSnap.racketMs, netMs: lastSnap.netMs });
         }, 500);
         setInterval(() => {

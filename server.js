@@ -460,6 +460,8 @@ function camGamesApplyActive() {
         c.enabled = want; changed = true;
         io.emit('gameConfig', { gameId: id, config: c });
         io.emit(want ? 'gameEnabled' : 'gameDisabled', { gameId: id, ts: Date.now() });
+        // Đập Muỗi: phím tắt toàn cục đi theo enabled — tắt game thì gỡ phím, bật lại thì đăng ký lại.
+        if (id === 'dapmuoi') { try { global.__dapmuoiApplyHotkeys?.(c); } catch (e) {} }
     }
     return changed;
 }
@@ -8501,6 +8503,7 @@ app.get('/overlay/dapmuoi', (req, res) => {
 });
 
 function dapMuoiCfg() { return DapMuoi.normalizeConfig(appConfig.games.dapmuoi || makeDefaultDapMuoiConfig()); }
+const DAPMUOI_ACTION_MAX_REPEAT = 10;   // combo quà nhân xịt/vợt/màn tối đa 10 lượt (engine còn trần 60s/120s)
 
 function emitDapMuoiGift(payload) {
     io.to('overlay').to('preview').emit('dapmuoi:gift', payload);
@@ -8513,7 +8516,14 @@ function handleDapMuoiGift({ nickname, profilePicture, giftId, giftName, giftIma
     const base = { nickname: nickname || '', profilePicture: profilePicture || '', giftName: giftName || '', image: giftImage || '', source: source || 'tiktok', ts: Date.now() };
     const action = DapMuoi.actionForGift(cfg, giftId, giftName);
     if (action) {
-        emitDapMuoiGift({ action: action.type, qty: Math.max(1, Number(repeatCount) || 1), params: action.params, name: action.name, icon: action.icon, ...base });
+        const repeat = Math.max(1, Number(repeatCount) || 1);
+        if (action.type === 'release') {
+            // Thả muỗi theo hành động vẫn chịu trần một lượt maxPerGift như quà thường (combo ×99 không ra 2000 con).
+            const count = Math.min(Math.max(1, Number(cfg.maxPerGift) || 100), Math.max(1, Math.floor(Number(action.params?.count) || 20)) * repeat);
+            emitDapMuoiGift({ action: 'release', qty: 1, params: { count }, name: action.name, icon: action.icon, ...base });
+        } else {
+            emitDapMuoiGift({ action: action.type, qty: Math.min(DAPMUOI_ACTION_MAX_REPEAT, repeat), params: action.params, name: action.name, icon: action.icon, ...base });
+        }
         return;
     }
     const n = DapMuoi.mosquitoesForGift(cfg, giftId, giftName, coinValue, repeatCount);

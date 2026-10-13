@@ -190,3 +190,40 @@ test('applyAction × qty', () => {
     e.applyAction(normalizeAction({ type: 'release', params: { count: 7 } }, 0), 3); assert.equal(e.snapshot().queue, 21);
     e.applyAction(normalizeAction({ type: 'racket', params: { seconds: 10 } }, 1), 2); assert.equal(e.snapshot().racketMs, 20000);
 });
+
+// ---------- Sửa sau review ----------
+
+test('màn đầy không tích spawnAcc: giết xong, lấp lại theo spawnPerSecond chứ không bùng ngay', () => {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 6, maxOnScreen: 20, idleSpawnSeconds: 0, smartPercent: 0 });
+    e.enqueue(500);
+    for (let i = 0; i < 600; i++) e.step(16);                         // ~10s màn đầy
+    assert.equal(e.snapshot().flying, 20);
+    e.spray({ radius: 3000, ms: 100, count: 15, percent: 0 });
+    for (let i = 0; i < 10; i++) e.step(16);                          // mây giết 15 trong 0.16s
+    assert.ok(e.snapshot().flying <= 7, 'sau xịt còn ≤ 7');
+    for (let i = 0; i < 20; i++) e.step(16);                          // +0.32s → tối đa thêm ~2–3 con
+    assert.ok(e.snapshot().flying <= 10, `0.3s sau xịt chỉ được lấp ≤ 3 con, thấy ${e.snapshot().flying}`);
+});
+
+test('normalizeAction: params rác → mặc định của loại (không về min)', () => {
+    const a = normalizeAction({ type: 'spray', params: { count: 'abc', ms: 'x', radius: 99999 } }, 0);
+    assert.deepEqual(a.params, { radius: 1500, ms: 2500, count: 50, percent: 0 });
+});
+
+test('normalizeConfig: actions [] giữ rỗng (người dùng xoá hết), phần tử rác bị bỏ, thiếu khoá → 4 mặc định', () => {
+    assert.equal(normalizeConfig({ actions: [] }).actions.length, 0);
+    assert.equal(normalizeConfig({ actions: [null, 5, { type: 'net' }] }).actions.length, 1);
+    assert.equal(normalizeConfig({}).actions.length, 4);
+});
+
+test('muỗi thông minh vùng trúng to hơn 15% như hình vẽ', () => {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 100, smartLives: 2 });
+    e.enqueue(1); e.step(16);
+    const m = e.snapshot().mosquitoes[0];
+    // bán kính đập 0 + nửa cỡ 75×1.15 = 86.25 → điểm cách 80 phải CHẠM (con thông minh còn 2 mạng thì né, không chết)
+    assert.equal(e.hit(m.x + 80, m.y, 0), 0);
+    assert.equal(e.snapshot().events[0].type, 'dodge');
+    const n = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 0 });
+    n.enqueue(1); n.step(16); const k = n.snapshot().mosquitoes[0];
+    assert.equal(n.hit(k.x + 80, k.y, 0), 0); assert.equal(n.snapshot().events[0].type, 'miss');   // con thường cùng khoảng cách: hụt
+});

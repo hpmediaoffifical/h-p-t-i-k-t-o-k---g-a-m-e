@@ -99,7 +99,8 @@
             if (window.hpCopyText) window.hpCopyText(url); else navigator.clipboard.writeText(url).catch(() => {});
             flashBtn($('#dm-btn-copy'), '✓ Đã copy');
         });
-        $('#dm-btn-preview').addEventListener('click', () => window.open(location.origin + '/overlay/dapmuoi?mouse=1', '_blank'));
+        // review=1: không nạp MediaPipe, không đăng ký feed, không phát dapmuoi:state — không đụng overlay thật trong OBS.
+        $('#dm-btn-preview').addEventListener('click', () => window.open(location.origin + '/overlay/dapmuoi?review=1&mouse=1', '_blank'));
         $('#dm-btn-reload').addEventListener('click', () => { if (socket) socket.emit('overlay:reload', { gameId: 'dapmuoi' }); flashBtn($('#dm-btn-reload'), '✓'); });
         $('#dm-btn-save').addEventListener('click', async () => { clearTimeout(persistTimer); await persistConfig(); flashBtn($('#dm-btn-save'), '✓ Đã lưu'); });
         $('#dm-btn-clear').addEventListener('click', () => control('clear'));
@@ -413,7 +414,7 @@
             <div class="ctc-card">
                 <h3>NHẬN DIỆN</h3>
                 <div class="ctc-row"><label>Chất lượng hình đưa vào AI</label>
-                    <select id="dm-quality"><option value="low" ${cfg.quality === 'low' ? 'selected' : ''}>Nhẹ máy (640)</option><option value="auto" ${cfg.quality === 'auto' ? 'selected' : ''}>Tự động (960)</option><option value="high" ${cfg.quality === 'high' ? 'selected' : ''}>Nét (1280)</option></select>
+                    <select id="dm-quality"><option value="low" ${cfg.quality === 'low' ? 'selected' : ''}>Nhẹ máy</option><option value="auto" ${cfg.quality === 'auto' ? 'selected' : ''}>Tự động</option><option value="high" ${cfg.quality === 'high' ? 'selected' : ''}>Nét (tốn CPU)</option></select>
                     <span></span><span class="unit"></span></div>
                 <div class="hint">Nguồn camera lấy từ 🎥 Game Camera (dùng chung cho mọi game camera). Overlay trong OBS là link Game Camera; chọn "▶ Chơi game này" ở Đập Muỗi để OBS chuyển sang.</div>
             </div>`;
