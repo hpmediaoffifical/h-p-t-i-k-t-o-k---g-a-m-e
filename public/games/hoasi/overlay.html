@@ -118,6 +118,12 @@
     function drawSplat(e) {
         const rnd = prng(e.seed), a = cfg.paintOpacity / 100, x = e.x * K, y = e.y * K, r = e.r * K;
         pctx.save(); pctx.globalCompositeOperation = 'source-over';
+        // Khiên đang bật: cắt bỏ phần văng vào trong vòm (vết sát mép vòm tràn tới ~1.4 r) — mặt sau khiên phải sạch.
+        if (e.dome) {
+            const d = e.dome;
+            pctx.beginPath(); pctx.rect(0, 0, PW, PH); pctx.ellipse(d.cx * K, d.cy * K, d.rx * K, d.ry * K, 0, 0, Math.PI * 2);
+            pctx.clip('evenodd');
+        }
         for (let i = 0; i < 6; i++) softDisc(pctx, x + (rnd() - 0.5) * r, y + (rnd() - 0.5) * r, r * (0.28 + rnd() * 0.38), e.color, a);
         pctx.fillStyle = rgba(e.color, a);
         const drops = 5 + Math.floor(rnd() * 5);

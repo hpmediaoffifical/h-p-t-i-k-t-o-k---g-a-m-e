@@ -229,15 +229,20 @@
         function cleanCell() {
             const aim = cfg.aimFace && faceValid();
             const fc = aim ? cellOf(face.x, face.y) : -1, fr = Math.floor(fc / COLS), fcol = fc % COLS;
+            const d = dome(), fly = inflight('paint');
+            // Ô quanh mặt chưa phủ 55%? Chỉ tính ô NGOÀI vòm khiên: ô sau khiên luôn sạch, tính vào thì trung bình
+            // không bao giờ đủ 55% → cứ bắn mãi vào 1–2 ô cạnh vòm (game đứng).
             let faceOpen = false;
             if (aim) {
                 let sum = 0, n = 0;
                 for (let r = fr - 1; r <= fr + 1; r++) for (let c = fcol - 1; c <= fcol + 1; c++) {
-                    if (r >= 0 && c >= 0 && r < ROWS && c < COLS) { sum += cells[r * COLS + c]; n++; }
+                    if (r < 0 || c < 0 || r >= ROWS || c >= COLS) continue;
+                    const cc = center(r * COLS + c);
+                    if (inDome(d, cc.x, cc.y)) continue;
+                    sum += cells[r * COLS + c]; n++;
                 }
                 faceOpen = n > 0 && sum / n < 0.55;
             }
-            const d = dome(), fly = inflight('paint');
             // Ô sau khiên luôn sạch → không loại ra thì mọi phát nhắm vào đó và bị chặn hết (game đứng).
             const best = (restrict, near) => {
                 let bi = -1, bv = Infinity;
@@ -296,8 +301,10 @@
                 cells[f.cell] *= 0.1;
                 return;
             }
-            if (inDome(dome(), f.x1, f.y1)) { emit({ type: 'block', x: f.x1, y: f.y1, color: f.color }); return; }
-            emit({ type: 'splat', x: f.x1, y: f.y1, r: f.r, color: f.color, cell: f.cell, by: f.by, seed: Math.floor(rng() * 2147483647) });
+            const d = dome();
+            if (inDome(d, f.x1, f.y1)) { emit({ type: 'block', x: f.x1, y: f.y1, color: f.color }); return; }
+            // dome kèm theo để overlay cắt phần sơn văng vào trong vòm (vết sát mép vòm vẫn tràn ~1.4 r).
+            emit({ type: 'splat', x: f.x1, y: f.y1, r: f.r, color: f.color, cell: f.cell, by: f.by, seed: Math.floor(rng() * 2147483647), dome: d });
             cells[f.cell] = 1;
             if (f.by) lastBy = f.by;
         }
@@ -337,6 +344,7 @@
             // Đang PHỦ KÍN / đang rửa: hàng đợi đứng, lịch dời theo (không bắn dồn sau khi rửa); cục đang bay vẫn bay.
             if (phase !== 'play') {
                 for (const s of scheduled) s.at += dt;
+                if (shieldUntil > clock - dt) shieldUntil += dt;
                 landFlights();
                 return;
             }

@@ -334,3 +334,40 @@ test('wash / clear / reset', () => {
     assert.equal(s.queue, 0); assert.equal(s.scheduled, 0); assert.equal(s.shieldMs, 0);
     assert.equal(s.flights.length, 0); assert.equal(s.lastBy, ''); assert.equal(s.phase, 'play');
 });
+
+// ---------- Sửa sau review ----------
+test('vết sơn mang theo vòm khi khiên bật (overlay cắt phần tràn vào vòm)', () => {
+    const hook = e => e.setFace(FACE);
+    const e1 = mk(); e1.shield(10); e1.storm(2, 100, 's');
+    const sp = of(run(e1, 3000, hook), 'splat');
+    assert.ok(sp.length > 0);
+    for (const s of sp) { assert.ok(s.dome, 'thiếu dome'); assert.equal(s.dome.cx, 540); assert.equal(s.dome.rx, 240); }
+    const e2 = mk(); e2.enqueuePaint(3, 'a');
+    for (const s of of(run(e2, 1200, hook), 'splat')) assert.equal(s.dome, null);
+});
+
+test('faceOpen chỉ tính ô ngoài vòm — đầu nhỏ + khiên không dồn mọi phát vào 1–2 ô', () => {
+    // Đầu rộng 150 → vòm rx 129.6: 4/9 ô 3×3 quanh mặt nằm trong vòm (luôn sạch).
+    const SMALL = { x: 540, y: 600, width: 150 };
+    const eng = mk({ shotsPerSecond: 30 });
+    eng.shield(30);
+    const box = {}; for (let r = 4; r <= 6; r++) for (let c = 5; c <= 7; c++) box[r * 12 + c] = 0.9;
+    for (const i of [5 * 12 + 5, 5 * 12 + 6, 6 * 12 + 5, 6 * 12 + 6]) box[i] = 0;   // ô trong vòm: sạch
+    eng.setCoverage(cov(0, box), 0.02);
+    eng.enqueuePaint(20, 'a');
+    const l = of(run(eng, 700, e => e.setFace(SMALL)), 'launch');
+    assert.equal(l.length, 20);
+    const stuck = l.filter(e => e.cell === 4 * 12 + 6 || e.cell === 5 * 12 + 7).length;
+    assert.equal(stuck, 0, 'vẫn bắn vào ô đã phủ 0.9 cạnh vòm: ' + stuck);
+});
+
+test('khiên không hao trong lúc PHỦ KÍN / đang rửa', () => {
+    const eng = fullEngine({ full: { autoWash: false } });
+    run(eng, 1600);
+    assert.equal(eng.snapshot().phase, 'full');
+    eng.shield(10);
+    run(eng, 3000);
+    assert.ok(Math.abs(eng.snapshot().shieldMs - 10000) <= 10, 'còn ' + eng.snapshot().shieldMs);
+    eng.wash('x'); run(eng, 500);
+    assert.ok(Math.abs(eng.snapshot().shieldMs - 10000) <= 10);
+});

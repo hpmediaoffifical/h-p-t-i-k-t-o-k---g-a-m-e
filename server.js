@@ -105,6 +105,7 @@ async function loadTikTokConnector() {
 loadTikTokConnector().catch((e) => console.error('[tiktok] KHÔNG nạp được tiktok-live-connector:', e?.message || e));
 const { OBSBridge } = require('./lib/obs-bridge');
 const { ObsCameraFeed } = require('./lib/touchplay-obs-feed');
+const { hotkeyApplyOrder } = require('./lib/camgames-hotkeys');
 const { LuaSync } = require('./lib/lua-sync');
 const { OBSSettings } = require('./lib/obs-settings');
 
@@ -464,6 +465,7 @@ function camGamesApplyActive() {
     if (!CAM_GAME_IDS.includes(cam.active)) cam.active = CAM_GAME_IDS[0];
     const hubOn = cam.enabled !== false;
     let changed = false;
+    const hotkeyChanges = [];
     for (const id of CAM_GAME_IDS) {
         if (!GAMES[id]) continue;
         const c = appConfig.games[id] = appConfig.games[id] || { ...GAMES[id].defaultConfig };
@@ -472,9 +474,13 @@ function camGamesApplyActive() {
         c.enabled = want; changed = true;
         io.emit('gameConfig', { gameId: id, config: c });
         io.emit(want ? 'gameEnabled' : 'gameDisabled', { gameId: id, ts: Date.now() });
-        // Đập Muỗi: phím tắt toàn cục đi theo enabled — tắt game thì gỡ phím, bật lại thì đăng ký lại.
-        if (id === 'dapmuoi') { try { global.__dapmuoiApplyHotkeys?.(c); } catch (e) {} }
-        if (id === 'hoasi') { try { global.__hoasiApplyHotkeys?.(c); } catch (e) {} }
+        hotkeyChanges.push({ id, on: want, cfg: c });
+    }
+    // Phím tắt toàn cục đi theo enabled — game TẮT nhả phím trước, game BẬT đăng ký sau (Đập Muỗi và Họa Sĩ
+    // có thể dùng chung tổ hợp phím; đăng ký trước khi nhả là Electron từ chối).
+    const appliers = { dapmuoi: '__dapmuoiApplyHotkeys', hoasi: '__hoasiApplyHotkeys' };
+    for (const ch of hotkeyApplyOrder(hotkeyChanges)) {
+        if (appliers[ch.id]) { try { global[appliers[ch.id]]?.(ch.cfg); } catch (e) {} }
     }
     return changed;
 }
