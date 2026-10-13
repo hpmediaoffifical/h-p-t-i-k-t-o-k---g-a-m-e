@@ -13,6 +13,7 @@
     let cfg = { enabled: true, active: 'touchplay', source: '' };
     let feed = null;          // kết quả /api/touchplay/obs-sources
     const soloOn = {};        // game `standalone` (Bắn Cung) đang bật ở link OBS riêng: { id: true }
+    const POSE_GAMES = new Set(['bancung', 'level-quest']);   // overlay báo phase = id game; các game này đếm người, không đếm tay
     let socket = null, pollTimer = 0, built = false;
 
     function viewActive() { return !!$('#view-camgames')?.classList.contains('active'); }
@@ -80,8 +81,8 @@
             chips.push(st.source ? `<span class="cg-chip ${st.error === 'source-missing' ? 'warn' : 'ok'}">📷 ${esc(st.source)}${st.error === 'source-missing' ? ' — không thấy trong OBS' : ''}</span>` : '<span class="cg-chip warn">📷 Chưa chọn nguồn camera</span>');
             if (st.live) chips.push(`<span class="cg-chip ok">Đang gửi hình ${st.fps} hình/giây${st.camFound ? ' · scene "' + esc(st.scene) + '"' : ''}</span>`);
             const ov = st.overlay;
-            // Bắn Cung nhận diện cơ thể (pose) chứ không đếm tay.
-            const seen = ov && ov.phase === 'bancung' ? (ov.pose ? 'thấy người' : 'chưa thấy người') : `thấy ${ov?.hands} tay`;
+            // Bắn Cung / Level Quest nhận diện cơ thể (pose) chứ không đếm tay.
+            const seen = ov && POSE_GAMES.has(ov.phase) ? (ov.pose ? 'thấy người' : 'chưa thấy người') : `thấy ${ov?.hands} tay`;
             chips.push(ov
                 ? `<span class="cg-chip ${ov.fps >= 10 ? 'ok' : 'warn'}">🖐 Overlay OBS: ${ov.fps} lần/giây · AI ${ov.aiMs}ms · ${seen}</span>`
                 : '<span class="cg-chip dim">🖐 Chưa thấy overlay Game Camera chạy trong OBS</span>');

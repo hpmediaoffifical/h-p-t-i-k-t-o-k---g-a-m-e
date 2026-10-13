@@ -436,7 +436,7 @@ const GAMES = {
     camgames: {
         id: 'camgames',
         name: 'Game Camera',
-        description: 'Gom các game chơi bằng camera (Touch & Play, Chém Trái Cây, Đập Muỗi, Bắn Cung) vào một link OBS. Chọn game trong app, OBS đổi theo.',
+        description: 'Gom các game chơi bằng camera (Touch & Play, Chém Trái Cây, Đập Muỗi, Bắn Cung, Level Quest) vào một link OBS. Chọn game trong app, OBS đổi theo.',
         icon: '🎥',
         overlayPath: '/overlay/camgames',
         defaultConfig: { enabled: true, active: 'touchplay', source: '' }
@@ -444,7 +444,9 @@ const GAMES = {
 };
 
 // Game con của Game Camera — thứ tự = thứ tự thẻ trong menu (public/games/camgames/registry.js).
-const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'bancung'];
+// Level Quest không vào CAM_STANDALONE_IDS dù còn link riêng: nó không đọc `enabled` (KPI đếm cả khi đang
+// chọn game khác, link riêng luôn hiện) → bật/tắt cờ đó vô hại, thẻ không cần nút ⏻ Tắt.
+const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'bancung', 'level-quest'];
 // Game con có link OBS riêng từ trước khi vào Game Camera (khách cũ dán /overlay/bancung trong scene).
 // Game Camera chỉ bật nó khi streamer CHỌN VÀO và tắt khi chọn sang game khác / tắt Game Camera — không
 // ép tắt lúc khởi động, kẻo khách đang chơi Bắn Cung cập nhật app xong thấy game tự tắt. Thẻ trong Game
@@ -1334,7 +1336,9 @@ const touchplayFeed = new ObsCameraFeed({
         chemtraicay: (url) => feedUrlIs(url, 'chemtraicay', /\/overlay\/chemtraicay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         // Bắn Cung chơi riêng có link riêng; đang chọn trong Game Camera thì nằm trong overlay mẹ.
         bancung: (url) => feedUrlIs(url, 'bancung', /\/overlay\/bancung/i) || (camGameInHub('bancung') && feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)),
-        dapmuoi: (url) => feedUrlIs(url, 'dapmuoi', /\/overlay\/dapmuoi/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)
+        dapmuoi: (url) => feedUrlIs(url, 'dapmuoi', /\/overlay\/dapmuoi/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
+        // Level Quest chỉ bám đầu khi chơi trong Game Camera (link riêng đứng yên, không cần feed).
+        'level-quest': (url) => camGameInHub('level-quest') && feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)
     },
     getOptions: (activeGames = new Set()) => {
         const G = appConfig.games || {};
@@ -1349,7 +1353,8 @@ const touchplayFeed = new ObsCameraFeed({
             touchplay: tp.enabled !== false && c.source !== 'webcam' ? (c.obsSource || '') : null,
             chemtraicay: ct.enabled !== false && vs.mode !== 'webcam' ? ((vs.mode === 'obs-scene' ? vs.scene : vs.source) || '') : null,
             bancung: bc.enabled !== false && (bcd.bodyTrack === true || camGameInHub('bancung')) ? (bcd.trackSource || '') : null,
-            dapmuoi: dm.enabled !== false ? '' : null      // không có nguồn riêng: dùng nguồn chung Game Camera
+            dapmuoi: dm.enabled !== false ? '' : null,     // không có nguồn riêng: dùng nguồn chung Game Camera
+            'level-quest': camGameInHub('level-quest') ? '' : null   // như trên; chỉ khi đang chọn trong Game Camera
         };
         const on = Object.keys(per).filter(k => per[k] !== null);
         // Nguồn camera CHUNG của Game Camera (màn Touch & Play / Bắn Cung cũng ghi vào đây) dùng cho mọi

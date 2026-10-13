@@ -36,6 +36,14 @@
             // cam=1: overlay luôn bám người (không cần bật ô "Bám theo NGƯỜI THẬT").
             overlay: '/overlay/bancung?cam=1',
             standalone: true
+        },
+        {
+            id: 'level-quest', name: 'Level Quest', icon: '🎯',
+            desc: 'Thanh level kiểu Liên Quân bay trên đầu: 💎 / ❤ / 🔄 lấp đầy để lên cấp.',
+            track: 'Đầu · vai',
+            note: 'KPI vẫn đếm khi đang chơi game khác.',
+            // cam=1: thanh bám đỉnh đầu. Không `standalone`: Level Quest không đọc enabled, link riêng luôn hiện.
+            overlay: '/_prototype/level-quest.html?mode=overlay&cam=1'
         }
     ];
 })();

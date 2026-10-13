@@ -114,15 +114,18 @@
                 </div>
             </section>
 
-            <!-- GAME VIEW: LEVEL QUEST (prototype, chưa register vào server-side GAMES) -->
+            <!-- GAME VIEW: LEVEL QUEST — game con của 🎥 Game Camera (thanh bám đỉnh đầu qua link Game Camera);
+                 link riêng /_prototype/level-quest.html?mode=overlay vẫn chạy, đứng yên. Trang trong iframe là
+                 bảng điều khiển + bộ đếm KPI (luôn nạp, kể cả khi Game Camera đang chọn game khác). -->
             <section id="view-level-quest" class="view game-view">
                 <header class="game-header">
                     <div>
                         <h2>🎯 LEVEL QUEST</h2>
-                        <div class="game-sub">Quest bar Liên Quân-style cho NPC creator — overlay OBS riêng (prototype)</div>
+                        <div class="game-sub">Quest bar Liên Quân-style cho NPC creator — chơi trong 🎥 Game Camera thì thanh bay trên đầu</div>
                     </div>
                     <div class="overlay-bar">
-                        <button class="primary small" id="btn-lq-copy" onclick="lqCopyOverlay(this)" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
+                        <button class="ghost small" onclick="hpOpenGame('camgames')" title="Về menu Game Camera">← Game Camera</button>
+                        <button class="primary small" id="btn-lq-copy" onclick="lqCopyOverlay(this)" title="Link Level Quest riêng, không bám người — trong Game Camera dùng 📋 Link OBS của Game Camera">📋 Link riêng (đứng yên)</button>
                         <button class="ghost small" onclick="window.open('/_prototype/level-quest.html?mode=overlay','_blank','width=1080,height=400')">🪟 Xem overlay</button>
                         <button class="ghost small" onclick="document.getElementById('lq-frame').contentWindow.location.reload()" title="Reload prototype">🔄 Reload</button>
                     </div>
@@ -130,8 +133,9 @@
                       // Copy với fallback cho Electron / iframe context (clipboard API có thể fail im lặng)
                       function lqCopyOverlay(btn){
                         const url = location.origin + '/_prototype/level-quest.html?mode=overlay';
-                        const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(()=>btn.textContent='📋 Link OBS', 1500); };
-                        const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(()=>btn.textContent='📋 Link OBS', 1500); };
+                        const label = '📋 Link riêng (đứng yên)';
+                        const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(()=>btn.textContent=label, 1500); };
+                        const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(()=>btn.textContent=label, 1500); };
                         if (navigator.clipboard && navigator.clipboard.writeText) {
                           navigator.clipboard.writeText(url).then(done).catch(()=>{
                             // Fallback: execCommand
