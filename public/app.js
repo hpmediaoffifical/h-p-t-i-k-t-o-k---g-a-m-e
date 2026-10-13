@@ -436,7 +436,7 @@
     const STABLE_GAMES = new Set([
         'thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung',
         'pktiktok', 'vipwelcome', 'trongcay', 'nhatla',
-        'level-quest', 'timer', 'liveTranslate', 'chemtraicay'
+        'level-quest', 'timer', 'liveTranslate', 'chemtraicay', 'giftboard'
     ]);
 
     // Công cụ cắt ngang mọi game (Bảng Quà Tổng) có nút RIÊNG ở đáy sidebar — KHÔNG hiện trong
@@ -592,6 +592,7 @@
         vipwelcome: 'Tắt game — dừng phát + xoá hàng đợi chào VIP',
         trongcay:   'Tắt game — XOÁ vườn hiện tại (muốn tạm dừng giữ vườn: dùng ⏸ ở cửa sổ Khởi động nhanh)',
         bancung:    'Tắt game — HP về đầy',
+        giftboard:  'Tắt bảng — Bảng Quà Tổng ẩn khỏi OBS (vị trí, cỡ, cài đặt giữ nguyên)',
     };
     // ⏹ TẮT của game mà server xoá dữ liệu khi enabled true→false → hỏi trước, tooltip thôi chưa đủ.
     const QL_STOP_CONFIRM = {
