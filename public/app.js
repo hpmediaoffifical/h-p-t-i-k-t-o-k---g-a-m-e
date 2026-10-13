@@ -905,7 +905,7 @@
         currentGame = game;
         highlightActiveGame(gameId);
         // Body class: dùng để CSS ẩn/hiện FAB/popup theo game
-        document.body.classList.remove('game-thuytinh', 'game-caro', 'game-pktiktok', 'game-vipwelcome', 'game-votecomment', 'game-nhietdo', 'game-bancung', 'game-trongcay', 'game-nhatla', 'game-liveTranslate', 'game-chemtraicay', 'game-camgames', 'game-touchplay');
+        document.body.classList.remove('game-thuytinh', 'game-caro', 'game-pktiktok', 'game-vipwelcome', 'game-votecomment', 'game-nhietdo', 'game-bancung', 'game-trongcay', 'game-nhatla', 'game-liveTranslate', 'game-chemtraicay', 'game-camgames', 'game-touchplay', 'game-dapmuoi');
         document.body.classList.add('game-' + gameId);
         // Nhặt Lá giữ batch lá đang chạy trong RAM; chỉ reload thủ công khi cần nạp asset mới.
         if (gameId !== 'nhatla') {
@@ -924,6 +924,7 @@
         else if (gameId === 'nhietdo') openNhietDo(game);
         else if (gameId === 'bancung') openBanCung(game);
         else if (gameId === 'chemtraicay') openChemTraiCay(game);
+        else if (gameId === 'dapmuoi') openDapMuoi(game);
         else if (gameId === 'trongcay') openTrongCay(game);
         else if (gameId === 'nhatla') openNhatLa(game);
         else if (gameId === 'liveTranslate') openLiveTranslateView();
@@ -961,6 +962,15 @@
             window.HpChemTraiCayPanel.open(socket);
         } else {
             console.error('[chemtraicay] HpChemTraiCayPanel chưa load');
+        }
+    }
+
+    function openDapMuoi(game) {
+        if (!window.__giftSheet) window.__giftSheet = giftSheet;
+        if (window.HpDapMuoiPanel && typeof window.HpDapMuoiPanel.open === 'function') {
+            window.HpDapMuoiPanel.open(socket);
+        } else {
+            console.error('[dapmuoi] HpDapMuoiPanel chưa load');
         }
     }
 

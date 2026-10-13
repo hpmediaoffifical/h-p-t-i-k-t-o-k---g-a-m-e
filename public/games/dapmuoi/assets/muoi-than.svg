@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200">
+  <!-- Thân muỗi KHÔNG CÁNH, nhìn nghiêng, đầu quay trái. Overlay vẽ cánh bằng canvas quanh gốc (112,72) để tự nhịp.
+       Bay sang phải thì overlay lật gương. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a3328"/><stop offset="1" stop-color="#1f1510"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#dff3ff" stop-opacity=".8"/><stop offset="1" stop-color="#9ec9ff" stop-opacity=".25"/>
+    </linearGradient>
+  </defs>
+  <g id="muoi">
+    <!-- chân phía xa (mờ hơn) -->
+    <path class="leg leg2" d="M100 112 L 72 138 L 60 176"/>
+    <path class="leg leg2" d="M112 116 L 118 150 L 108 186"/>
+    <path class="leg leg2" d="M124 114 L 166 140 L 206 178"/>
+    <!-- bụng sọc (thon về sau, hơi chúc xuống) -->
+    <path d="M122 90 C 170 84, 222 96, 250 118 C 230 128, 172 122, 122 114 Z" fill="url(#body)"/>
+    <g fill="#e9e2d6" opacity=".85">
+      <path d="M150 88 C 152 100, 152 108, 150 116" fill="none" stroke="#e9e2d6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M176 88 C 178 100, 178 110, 176 118" fill="none" stroke="#e9e2d6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M202 94 C 204 104, 204 112, 202 120" fill="none" stroke="#e9e2d6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M226 102 C 228 110, 228 116, 226 122" fill="none" stroke="#e9e2d6" stroke-width="3.5" stroke-linecap="round"/>
+    </g>
+    <!-- ngực gù -->
+    <ellipse cx="108" cy="96" rx="24" ry="20" fill="url(#body)"/>
+    <ellipse cx="104" cy="88" rx="9" ry="7" fill="#6b4c3a" opacity=".5"/>
+    <!-- chân phía gần -->
+    <path class="leg" d="M94 112 L 60 132 L 44 176"/>
+    <path class="leg" d="M108 116 L 100 150 L 88 190"/>
+    <path class="leg" d="M122 116 L 150 150 L 184 186"/>
+    <!-- đầu + mắt to + râu -->
+    <circle cx="70" cy="100" r="15" fill="#2a1c14"/>
+    <circle cx="64" cy="96" r="8.5" fill="#b3122e"/><circle cx="61" cy="93" r="3" fill="#fff" opacity=".9"/>
+    <path class="leg" style="stroke-width:1.6" d="M66 86 C 56 72, 46 66, 34 62 M72 86 C 68 70, 60 60, 50 52"/>
+    <!-- vòi hút chĩa xuống phía trước -->
+    <path d="M58 106 L 10 124" stroke="#2a1c14" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M16 122 L 10 124" stroke="#b3122e" stroke-width="3.4" stroke-linecap="round"/>
+  </g>
+</svg>

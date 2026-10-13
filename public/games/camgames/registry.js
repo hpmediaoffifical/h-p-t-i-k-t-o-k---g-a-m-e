@@ -17,6 +17,12 @@
             desc: 'Vung ngón trỏ chém quả bay lên, né bom. Quà sinh quả, bom, Thần Chém, Tăng/Giảm tốc.',
             track: 'Ngón trỏ hai tay',
             overlay: '/overlay/chemtraicay'
+        },
+        {
+            id: 'dapmuoi', name: 'Đập Muỗi', icon: '🦟',
+            desc: 'Vỗ hai tay đập muỗi bay ngang khắp màn. Quà thả muỗi, bình xịt, vợt điện, mắc màn.',
+            track: 'Hai bàn tay · cổ tay',
+            overlay: '/overlay/dapmuoi'
         }
     ];
 })();

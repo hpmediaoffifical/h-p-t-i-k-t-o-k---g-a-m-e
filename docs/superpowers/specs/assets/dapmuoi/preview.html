@@ -1,0 +1,255 @@
+<!doctype html><html lang="vi"><meta charset="utf-8"><title>Muỗi preview</title><style>body{margin:0;background:#0d1b2a;color:#fff;font:14px system-ui;display:flex;flex-direction:column;gap:14px;align-items:center;padding:12px}figure{margin:0;text-align:center}figure svg{width:360px;height:225px;background:rgba(255,255,255,.05);border-radius:16px}.row{display:flex;gap:12px;align-items:center}.row svg{width:150px;height:94px}.flip svg{transform:scaleX(-1)}</style>
+<figure>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200">
+  <!-- Muỗi nhìn NGHIÊNG, thân nằm ngang, đầu quay sang TRÁI (bay sang phải thì game lật scaleX(-1)).
+       Cánh nhịp bằng CSS quanh gốc cánh trên lưng. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a3328"/><stop offset="1" stop-color="#1f1510"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#dff3ff" stop-opacity=".8"/><stop offset="1" stop-color="#9ec9ff" stop-opacity=".25"/>
+    </linearGradient>
+    <style>
+      .leg{fill:none;stroke:#2a1c14;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}
+      .leg2{stroke:#4a3328}
+      .wing{fill:url(#wing);stroke:#b9dcff;stroke-width:1.6}
+      #w1,#w2{transform-origin:112px 72px}
+      #w1{animation:flap .07s linear infinite alternate}
+      #w2{animation:flap .07s linear infinite alternate-reverse}
+      @keyframes flap{from{transform:rotate(-16deg)}to{transform:rotate(22deg)}}
+    </style>
+  </defs>
+  <g id="muoi">
+    <!-- chân phía xa (mờ hơn) -->
+    <path class="leg leg2" d="M100 112 L 72 138 L 60 176"/>
+    <path class="leg leg2" d="M112 116 L 118 150 L 108 186"/>
+    <path class="leg leg2" d="M124 114 L 166 140 L 206 178"/>
+    <!-- cánh (2 lớp, nhịp lệch pha) -->
+    <path id="w2" class="wing" d="M112 72 C 160 40, 236 36, 262 58 C 236 76, 160 84, 112 72 Z"/>
+    <path id="w1" class="wing" d="M112 72 C 156 48, 228 46, 256 66 C 226 82, 156 88, 112 72 Z"/>
+    <path d="M112 72 L 250 62 M112 72 L 200 54" fill="none" stroke="#8fbff0" stroke-width="1" opacity=".7"/>
+    <!-- bụng sọc (thon về sau, hơi chúc xuống) -->
+    <path d="M122 90 C 170 84, 222 96, 250 118 C 230 128, 172 122, 122 114 Z" fill="url(#body)"/>
+    <g fill="#e9e2d6" opacity=".85">
+      <path d="M150 88 C 152 100, 152 108, 150 116" fill="none" stroke="#e9e2d6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M176 88 C 178 100, 178 110, 176 118" fill="none" stroke="#e9e2d6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M202 94 C 204 104, 204 112, 202 120" fill="none" stroke="#e9e2d6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M226 102 C 228 110, 228 116, 226 122" fill="none" stroke="#e9e2d6" stroke-width="3.5" stroke-linecap="round"/>
+    </g>
+    <!-- ngực gù -->
+    <ellipse cx="108" cy="96" rx="24" ry="20" fill="url(#body)"/>
+    <ellipse cx="104" cy="88" rx="9" ry="7" fill="#6b4c3a" opacity=".5"/>
+    <!-- chân phía gần -->
+    <path class="leg" d="M94 112 L 60 132 L 44 176"/>
+    <path class="leg" d="M108 116 L 100 150 L 88 190"/>
+    <path class="leg" d="M122 116 L 150 150 L 184 186"/>
+    <!-- đầu + mắt to + râu -->
+    <circle cx="70" cy="100" r="15" fill="#2a1c14"/>
+    <circle cx="64" cy="96" r="8.5" fill="#b3122e"/><circle cx="61" cy="93" r="3" fill="#fff" opacity=".9"/>
+    <path class="leg" style="stroke-width:1.6" d="M66 86 C 56 72, 46 66, 34 62 M72 86 C 68 70, 60 60, 50 52"/>
+    <!-- vòi hút chĩa xuống phía trước -->
+    <path d="M58 106 L 10 124" stroke="#2a1c14" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M16 122 L 10 124" stroke="#b3122e" stroke-width="3.4" stroke-linecap="round"/>
+  </g>
+</svg>
+<figcaption>Đang bay ngang (đầu quay trái, cánh nhịp)</figcaption></figure><figure>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200">
+  <!-- Muỗi bị đập: vẫn nhìn nghiêng, thân NẰM NGANG nhưng lật úp — lưng xuống dưới, bụng (màu sáng)
+       ngửa lên, 6 chân co quắp chổng lên trời, cánh xoè cứng, mắt X. Game cho rơi + đung đưa nhẹ rồi mờ. -->
+  <defs>
+    <linearGradient id="belly" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9a7a62"/><stop offset="1" stop-color="#5a3f30"/>
+    </linearGradient>
+    <linearGradient id="wing2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#dff3ff" stop-opacity=".6"/><stop offset="1" stop-color="#9ec9ff" stop-opacity=".2"/>
+    </linearGradient>
+    <style>.leg{fill:none;stroke:#2a1c14;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}.leg2{stroke:#4a3328}</style>
+  </defs>
+  <g id="muoi-lat">
+    <!-- cánh xoè cứng, hai bên thân -->
+    <path d="M112 128 C 160 150, 236 156, 266 140 C 236 122, 160 112, 112 128 Z" fill="url(#wing2)" stroke="#b9dcff" stroke-width="1.6"/>
+    <path d="M112 128 C 150 168, 210 176, 236 170 C 214 150, 160 138, 112 128 Z" fill="url(#wing2)" stroke="#b9dcff" stroke-width="1.6"/>
+    <!-- chân phía xa chổng lên -->
+    <path class="leg leg2" d="M100 88 L 80 60 L 92 28"/>
+    <path class="leg leg2" d="M114 84 L 120 50 L 136 24"/>
+    <path class="leg leg2" d="M126 86 L 160 62 L 196 44"/>
+    <!-- bụng ngửa lên (màu sáng), hơi vểnh -->
+    <path d="M122 110 C 170 116, 222 104, 250 82 C 230 72, 172 78, 122 86 Z" fill="url(#belly)"/>
+    <g fill="none" stroke="#f1e8d8" stroke-width="4" stroke-linecap="round" opacity=".7">
+      <path d="M150 112 C 152 100, 152 92, 150 84"/><path d="M176 112 C 178 100, 178 90, 176 82"/>
+      <path d="M202 106 C 204 96, 204 88, 202 80"/><path d="M226 98 C 228 90, 228 84, 226 78"/>
+    </g>
+    <!-- ngực (lưng chạm đất) -->
+    <ellipse cx="108" cy="104" rx="24" ry="20" fill="#7a5a46"/>
+    <!-- chân phía gần co quắp chổng lên -->
+    <path class="leg" d="M94 88 L 64 66 L 52 30 L 60 22"/>
+    <path class="leg" d="M108 84 L 104 48 L 96 18 L 104 12"/>
+    <path class="leg" d="M122 84 L 150 50 L 182 34 L 186 44"/>
+    <!-- đầu, mắt X -->
+    <circle cx="70" cy="100" r="15" fill="#2a1c14"/>
+    <circle cx="64" cy="104" r="8.5" fill="#b3122e"/>
+    <path d="M59 99 L 69 109 M69 99 L 59 109" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+    <path class="leg" style="stroke-width:1.6" d="M66 114 C 56 128, 46 134, 34 138 M72 114 C 68 130, 60 140, 50 148"/>
+    <!-- vòi cong queo -->
+    <path d="M58 94 C 44 86, 30 92, 14 80" fill="none" stroke="#2a1c14" stroke-width="3.4" stroke-linecap="round"/>
+    <!-- sao choáng -->
+    <g fill="#ffd54a">
+      <path d="M40 24 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z"/><path d="M290 60 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5z"/>
+    </g>
+  </g>
+</svg>
+<figcaption>Bị đập: lật úp, lưng dưới đất, chân chổng lên, rơi xuống</figcaption></figure><div class="row"><span class="flip">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200">
+  <!-- Muỗi nhìn NGHIÊNG, thân nằm ngang, đầu quay sang TRÁI (bay sang phải thì game lật scaleX(-1)).
+       Cánh nhịp bằng CSS quanh gốc cánh trên lưng. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a3328"/><stop offset="1" stop-color="#1f1510"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#dff3ff" stop-opacity=".8"/><stop offset="1" stop-color="#9ec9ff" stop-opacity=".25"/>
+    </linearGradient>
+    <style>
+      .leg{fill:none;stroke:#2a1c14;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}
+      .leg2{stroke:#4a3328}
+      .wing{fill:url(#wing);stroke:#b9dcff;stroke-width:1.6}
+      #w1,#w2{transform-origin:112px 72px}
+      #w1{animation:flap .07s linear infinite alternate}
+      #w2{animation:flap .07s linear infinite alternate-reverse}
+      @keyframes flap{from{transform:rotate(-16deg)}to{transform:rotate(22deg)}}
+    </style>
+  </defs>
+  <g id="muoi">
+    <!-- chân phía xa (mờ hơn) -->
+    <path class="leg leg2" d="M100 112 L 72 138 L 60 176"/>
+    <path class="leg leg2" d="M112 116 L 118 150 L 108 186"/>
+    <path class="leg leg2" d="M124 114 L 166 140 L 206 178"/>
+    <!-- cánh (2 lớp, nhịp lệch pha) -->
+    <path id="w2" class="wing" d="M112 72 C 160 40, 236 36, 262 58 C 236 76, 160 84, 112 72 Z"/>
+    <path id="w1" class="wing" d="M112 72 C 156 48, 228 46, 256 66 C 226 82, 156 88, 112 72 Z"/>
+    <path d="M112 72 L 250 62 M112 72 L 200 54" fill="none" stroke="#8fbff0" stroke-width="1" opacity=".7"/>
+    <!-- bụng sọc (thon về sau, hơi chúc xuống) -->
+    <path d="M122 90 C 170 84, 222 96, 250 118 C 230 128, 172 122, 122 114 Z" fill="url(#body)"/>
+    <g fill="#e9e2d6" opacity=".85">
+      <path d="M150 88 C 152 100, 152 108, 150 116" fill="none" stroke="#e9e2d6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M176 88 C 178 100, 178 110, 176 118" fill="none" stroke="#e9e2d6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M202 94 C 204 104, 204 112, 202 120" fill="none" stroke="#e9e2d6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M226 102 C 228 110, 228 116, 226 122" fill="none" stroke="#e9e2d6" stroke-width="3.5" stroke-linecap="round"/>
+    </g>
+    <!-- ngực gù -->
+    <ellipse cx="108" cy="96" rx="24" ry="20" fill="url(#body)"/>
+    <ellipse cx="104" cy="88" rx="9" ry="7" fill="#6b4c3a" opacity=".5"/>
+    <!-- chân phía gần -->
+    <path class="leg" d="M94 112 L 60 132 L 44 176"/>
+    <path class="leg" d="M108 116 L 100 150 L 88 190"/>
+    <path class="leg" d="M122 116 L 150 150 L 184 186"/>
+    <!-- đầu + mắt to + râu -->
+    <circle cx="70" cy="100" r="15" fill="#2a1c14"/>
+    <circle cx="64" cy="96" r="8.5" fill="#b3122e"/><circle cx="61" cy="93" r="3" fill="#fff" opacity=".9"/>
+    <path class="leg" style="stroke-width:1.6" d="M66 86 C 56 72, 46 66, 34 62 M72 86 C 68 70, 60 60, 50 52"/>
+    <!-- vòi hút chĩa xuống phía trước -->
+    <path d="M58 106 L 10 124" stroke="#2a1c14" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M16 122 L 10 124" stroke="#b3122e" stroke-width="3.4" stroke-linecap="round"/>
+  </g>
+</svg>
+</span>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200">
+  <!-- Muỗi nhìn NGHIÊNG, thân nằm ngang, đầu quay sang TRÁI (bay sang phải thì game lật scaleX(-1)).
+       Cánh nhịp bằng CSS quanh gốc cánh trên lưng. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a3328"/><stop offset="1" stop-color="#1f1510"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#dff3ff" stop-opacity=".8"/><stop offset="1" stop-color="#9ec9ff" stop-opacity=".25"/>
+    </linearGradient>
+    <style>
+      .leg{fill:none;stroke:#2a1c14;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}
+      .leg2{stroke:#4a3328}
+      .wing{fill:url(#wing);stroke:#b9dcff;stroke-width:1.6}
+      #w1,#w2{transform-origin:112px 72px}
+      #w1{animation:flap .07s linear infinite alternate}
+      #w2{animation:flap .07s linear infinite alternate-reverse}
+      @keyframes flap{from{transform:rotate(-16deg)}to{transform:rotate(22deg)}}
+    </style>
+  </defs>
+  <g id="muoi">
+    <!-- chân phía xa (mờ hơn) -->
+    <path class="leg leg2" d="M100 112 L 72 138 L 60 176"/>
+    <path class="leg leg2" d="M112 116 L 118 150 L 108 186"/>
+    <path class="leg leg2" d="M124 114 L 166 140 L 206 178"/>
+    <!-- cánh (2 lớp, nhịp lệch pha) -->
+    <path id="w2" class="wing" d="M112 72 C 160 40, 236 36, 262 58 C 236 76, 160 84, 112 72 Z"/>
+    <path id="w1" class="wing" d="M112 72 C 156 48, 228 46, 256 66 C 226 82, 156 88, 112 72 Z"/>
+    <path d="M112 72 L 250 62 M112 72 L 200 54" fill="none" stroke="#8fbff0" stroke-width="1" opacity=".7"/>
+    <!-- bụng sọc (thon về sau, hơi chúc xuống) -->
+    <path d="M122 90 C 170 84, 222 96, 250 118 C 230 128, 172 122, 122 114 Z" fill="url(#body)"/>
+    <g fill="#e9e2d6" opacity=".85">
+      <path d="M150 88 C 152 100, 152 108, 150 116" fill="none" stroke="#e9e2d6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M176 88 C 178 100, 178 110, 176 118" fill="none" stroke="#e9e2d6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M202 94 C 204 104, 204 112, 202 120" fill="none" stroke="#e9e2d6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M226 102 C 228 110, 228 116, 226 122" fill="none" stroke="#e9e2d6" stroke-width="3.5" stroke-linecap="round"/>
+    </g>
+    <!-- ngực gù -->
+    <ellipse cx="108" cy="96" rx="24" ry="20" fill="url(#body)"/>
+    <ellipse cx="104" cy="88" rx="9" ry="7" fill="#6b4c3a" opacity=".5"/>
+    <!-- chân phía gần -->
+    <path class="leg" d="M94 112 L 60 132 L 44 176"/>
+    <path class="leg" d="M108 116 L 100 150 L 88 190"/>
+    <path class="leg" d="M122 116 L 150 150 L 184 186"/>
+    <!-- đầu + mắt to + râu -->
+    <circle cx="70" cy="100" r="15" fill="#2a1c14"/>
+    <circle cx="64" cy="96" r="8.5" fill="#b3122e"/><circle cx="61" cy="93" r="3" fill="#fff" opacity=".9"/>
+    <path class="leg" style="stroke-width:1.6" d="M66 86 C 56 72, 46 66, 34 62 M72 86 C 68 70, 60 60, 50 52"/>
+    <!-- vòi hút chĩa xuống phía trước -->
+    <path d="M58 106 L 10 124" stroke="#2a1c14" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M16 122 L 10 124" stroke="#b3122e" stroke-width="3.4" stroke-linecap="round"/>
+  </g>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200">
+  <!-- Muỗi bị đập: vẫn nhìn nghiêng, thân NẰM NGANG nhưng lật úp — lưng xuống dưới, bụng (màu sáng)
+       ngửa lên, 6 chân co quắp chổng lên trời, cánh xoè cứng, mắt X. Game cho rơi + đung đưa nhẹ rồi mờ. -->
+  <defs>
+    <linearGradient id="belly" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9a7a62"/><stop offset="1" stop-color="#5a3f30"/>
+    </linearGradient>
+    <linearGradient id="wing2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#dff3ff" stop-opacity=".6"/><stop offset="1" stop-color="#9ec9ff" stop-opacity=".2"/>
+    </linearGradient>
+    <style>.leg{fill:none;stroke:#2a1c14;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}.leg2{stroke:#4a3328}</style>
+  </defs>
+  <g id="muoi-lat">
+    <!-- cánh xoè cứng, hai bên thân -->
+    <path d="M112 128 C 160 150, 236 156, 266 140 C 236 122, 160 112, 112 128 Z" fill="url(#wing2)" stroke="#b9dcff" stroke-width="1.6"/>
+    <path d="M112 128 C 150 168, 210 176, 236 170 C 214 150, 160 138, 112 128 Z" fill="url(#wing2)" stroke="#b9dcff" stroke-width="1.6"/>
+    <!-- chân phía xa chổng lên -->
+    <path class="leg leg2" d="M100 88 L 80 60 L 92 28"/>
+    <path class="leg leg2" d="M114 84 L 120 50 L 136 24"/>
+    <path class="leg leg2" d="M126 86 L 160 62 L 196 44"/>
+    <!-- bụng ngửa lên (màu sáng), hơi vểnh -->
+    <path d="M122 110 C 170 116, 222 104, 250 82 C 230 72, 172 78, 122 86 Z" fill="url(#belly)"/>
+    <g fill="none" stroke="#f1e8d8" stroke-width="4" stroke-linecap="round" opacity=".7">
+      <path d="M150 112 C 152 100, 152 92, 150 84"/><path d="M176 112 C 178 100, 178 90, 176 82"/>
+      <path d="M202 106 C 204 96, 204 88, 202 80"/><path d="M226 98 C 228 90, 228 84, 226 78"/>
+    </g>
+    <!-- ngực (lưng chạm đất) -->
+    <ellipse cx="108" cy="104" rx="24" ry="20" fill="#7a5a46"/>
+    <!-- chân phía gần co quắp chổng lên -->
+    <path class="leg" d="M94 88 L 64 66 L 52 30 L 60 22"/>
+    <path class="leg" d="M108 84 L 104 48 L 96 18 L 104 12"/>
+    <path class="leg" d="M122 84 L 150 50 L 182 34 L 186 44"/>
+    <!-- đầu, mắt X -->
+    <circle cx="70" cy="100" r="15" fill="#2a1c14"/>
+    <circle cx="64" cy="104" r="8.5" fill="#b3122e"/>
+    <path d="M59 99 L 69 109 M69 99 L 59 109" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+    <path class="leg" style="stroke-width:1.6" d="M66 114 C 56 128, 46 134, 34 138 M72 114 C 68 130, 60 140, 50 148"/>
+    <!-- vòi cong queo -->
+    <path d="M58 94 C 44 86, 30 92, 14 80" fill="none" stroke="#2a1c14" stroke-width="3.4" stroke-linecap="round"/>
+    <!-- sao choáng -->
+    <g fill="#ffd54a">
+      <path d="M40 24 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z"/><path d="M290 60 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5z"/>
+    </g>
+  </g>
+</svg>
+</div><div>Cỡ thật trên overlay (~150px ngang) — bay phải = lật gương</div></html>
