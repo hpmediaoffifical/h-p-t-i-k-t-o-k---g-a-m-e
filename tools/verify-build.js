@@ -39,6 +39,7 @@ const FILES = [
     ['lib/vipwelcome/batcher.js', 'gộp thẻ khi đông (thiếu = server không khởi động)'],
     ['lib/vipwelcome/tts-text.js', 'câu đọc tên (thiếu = server không khởi động)'],
     ['public/games/vipwelcome/board.html', 'overlay BXH khách quen'],
+    ['public/_prototype/giftboard.html', 'Bảng Quà Tổng — nút ở đáy sidebar + link OBS'],
     ['lib/chemtraicay-relay.js', 'relay tay Chém Trái Cây (thiếu = server không khởi động)'],
     ['public/games/vipwelcome/joincard.css', 'giao diện thẻ vào phòng trên OBS'],
     ['public/lib/mediapipe/hand_landmarker.task', 'model tay offline cho Chém Trái Cây'],
