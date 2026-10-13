@@ -441,7 +441,7 @@ const GAMES = {
         description: 'Gom các game chơi bằng camera (Touch & Play, Chém Trái Cây, Đập Muỗi, Bắn Cung, Level Quest) vào một link OBS. Chọn game trong app, OBS đổi theo.',
         icon: '🎥',
         overlayPath: '/overlay/camgames',
-        defaultConfig: { enabled: true, active: 'touchplay', actives: ['touchplay'], source: '' }
+        defaultConfig: { ...CamRules.DEFAULT_CONFIG }   // KHÔNG có actives — config cũ chỉ có `active` phải giữ nguyên game
     }
 };
 
@@ -463,6 +463,15 @@ function camActives() {
     return cam.enabled === false ? [] : CamRules.activesOf(cam, CAM_GAME_IDS);
 }
 function camGameInHub(id) { return camActives().includes(id); }
+// Phím tắt toàn cục của game camera: chơi 2 game cùng có phím thì chỉ game streamer bấm vào gần nhất trong
+// Game Camera (`hotkeyGame`) giữ phím, game kia tạm nhả (đưa cấu hình enabled:false cho electron-main → gỡ phím).
+// Mọi chỗ áp phím tắt Bắn Cung / Đập Muỗi đi qua đây để luật không bị chỗ khác đăng ký đè.
+function camApplyHotkeys(id) {
+    const fn = id === 'bancung' ? global.__bancungApplyHotkeys : id === 'dapmuoi' ? global.__dapmuoiApplyHotkeys : null;
+    const c = appConfig.games?.[id];
+    if (!fn || !c) return;
+    try { fn(CamRules.hotkeysAllowed(id, appConfig.games.camgames, CAM_GAME_IDS) ? c : { ...c, enabled: false }); } catch (e) {}
+}
 // Chơi ≥2 game cùng lúc: "quà riêng trước, quà chung sau" — game nào gán ĐÍCH DANH quà này (lib/camgames.js).
 // [] khi chỉ chơi 1 game (không lọc gì, như trước).
 function camGiftClaims(g) {
@@ -499,11 +508,11 @@ function camGamesApplyActive(prevCam) {
         io.emit('gameConfig', { gameId: id, config: c });
         io.emit(want ? 'gameEnabled' : 'gameDisabled', { gameId: id, ts: Date.now() });
         // Đập Muỗi: phím tắt toàn cục đi theo enabled — tắt game thì gỡ phím, bật lại thì đăng ký lại.
-        if (id === 'dapmuoi') { try { global.__dapmuoiApplyHotkeys?.(c); } catch (e) {} }
+        if (id === 'dapmuoi') camApplyHotkeys('dapmuoi');
         // Bắn Cung: như khi tắt ở thanh bên — đầy máu lại (khỏi "chết treo" lúc bật lại) + phím tắt theo enabled.
         if (id === 'bancung') {
             if (!want) { try { banCungReset(); } catch (e) {} }
-            try { global.__bancungApplyHotkeys?.(c); } catch (e) {}
+            camApplyHotkeys('bancung');
         }
     }
     return changed;
@@ -4892,11 +4901,11 @@ app.post('/api/games/:id/config', (req, res) => {
     }
     if (g.id === 'bancung') {
         try { banCungApplyConfigToState(appConfig.games.bancung); } catch (e) {}
-        try { global.__bancungApplyHotkeys?.(appConfig.games.bancung); } catch (e) {}
+        camApplyHotkeys('bancung');
         broadcastBanCungState({ immediate: true });
     }
     if (g.id === 'dapmuoi') {
-        try { global.__dapmuoiApplyHotkeys?.(appConfig.games.dapmuoi); } catch (e) {}
+        camApplyHotkeys('dapmuoi');
     }
     if (g.id === 'nhatla') {
         try { global.__nhatlaApplyHotkeys?.(appConfig.games.nhatla); } catch (e) {}
@@ -4910,7 +4919,11 @@ app.post('/api/games/:id/config', (req, res) => {
     if (g.id === 'camgames') {
         if (typeof appConfig.games.camgames.source !== 'string') appConfig.games.camgames.source = '';
         appConfig.games.camgames.source = appConfig.games.camgames.source.slice(0, 200);
+        const hk = appConfig.games.camgames.hotkeyGame;
+        appConfig.games.camgames.hotkeyGame = CAM_GAME_IDS.includes(hk) ? hk : '';
         camGamesApplyActive(prevConfig);
+        // Đổi game đang chơi / game giữ phím → phân lại phím tắt (game không đổi enabled cũng có thể đổi chủ phím).
+        camApplyHotkeys('bancung'); camApplyHotkeys('dapmuoi');
     }
     const newEnabled = appConfig.games[g.id].enabled !== false;
     saveAppConfig();
@@ -8388,7 +8401,7 @@ setInterval(banCungRegenTick, 500);
 
 // Init state from config + register global hotkeys at startup
 try { banCungApplyConfigToState(appConfig.games.bancung || makeDefaultBanCungConfig()); } catch (e) {}
-setTimeout(() => { try { global.__bancungApplyHotkeys?.(appConfig.games.bancung); } catch (e) {} }, 1500);
+setTimeout(() => camApplyHotkeys('bancung'), 1500);
 setTimeout(() => { try { global.__vipwelcomeApplyHotkeys?.(appConfig.games.vipwelcome); } catch (e) {} }, 1500);
 setTimeout(() => { try { global.__nhatlaApplyHotkeys?.(appConfig.games.nhatla); } catch (e) {} }, 1500);
 try {
@@ -8626,7 +8639,7 @@ app.post('/api/dapmuoi/control', (req, res) => {
     io.emit('gameCmd', { gameId: 'dapmuoi', cmd, payload: {}, seq: Date.now() });
     res.json({ ok: true });
 });
-setTimeout(() => { try { global.__dapmuoiApplyHotkeys?.(appConfig.games.dapmuoi); } catch (e) {} }, 1500);
+setTimeout(() => camApplyHotkeys('dapmuoi'), 1500);
 
 app.get('/api/games/bancung/livestate', (req, res) => {
     res.json(banCungSnapshot());

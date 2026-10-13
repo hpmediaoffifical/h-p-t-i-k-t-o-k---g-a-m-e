@@ -337,11 +337,13 @@ function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<'
 // ---------- nguồn camera trong OBS (server chụp nguồn → gửi JPEG + bố cục scene) ----------
 let renderObsState = null;   // lab gán hàm vẽ trạng thái nguồn OBS
 const feed = { on: false, layout: null, status: null, lastAt: 0, busy: false, bitmapW: 0, bitmapH: 0, M: null };
+// Trong 🎥 Game Camera: chỉ nhận trạng thái/bố cục, khung camera do overlay mẹ nhận + nhận diện.
+const feedReg = () => tracker.shared ? { id: 'touchplay', frames: false } : true;
 async function startObsFeed() {
   if (feed.on) return;
   feed.on = true; feed.lastAt = performance.now();
   try { await tracker.startExternal(); } catch (e) { setCamState(e.message || String(e), 'error'); }
-  socket?.emit('touchplay:feed', true);
+  socket?.emit('touchplay:feed', feedReg());
   applyCameraLook();
 }
 function stopObsFeed() {
@@ -927,7 +929,7 @@ if (typeof io === 'function') {
   socket = io({ transports: ['websocket', 'polling'] });
   socket.on('connect', () => {
     socket.emit('subscribe', IS_OVERLAY ? 'overlay' : 'preview');
-    if (feed.on) socket.emit('touchplay:feed', true);     // nối lại sau khi app khởi động lại
+    if (feed.on) socket.emit('touchplay:feed', feedReg());     // nối lại sau khi app khởi động lại
     const el = $('sockState'); if (el) { el.textContent = '● Đã nối app'; el.className = 'pill ok'; }
   });
   socket.on('disconnect', () => { const el = $('sockState'); if (el) { el.textContent = '● Mất kết nối app'; el.className = 'pill bad'; } });
@@ -985,7 +987,7 @@ if (IS_OVERLAY) {
   // Mất hình camera > 4 giây → báo ngay trên overlay (streamer thấy lúc dựng scene); có hình là tự ẩn.
   setInterval(() => {
     if (!feed.on || gameDisabled) return showAlert('');
-    showAlert(performance.now() - feed.lastAt > 4000 ? feedProblem() : '');
+    showAlert(performance.now() - (tracker.shared ? tracker.lastFrameAt : feed.lastAt) > 4000 ? feedProblem() : '');
   }, 1000);
 } else {
   await bootLab();

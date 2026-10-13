@@ -344,9 +344,11 @@
             // want() gọi trước startExternal chỉ ghi nhớ — model body chỉ nạp khi tracker đang chạy (như Bắn Cung).
             feed.tracker.want({ hands: true, pose: true, face: false });
             feed.lastAt = performance.now();
-            if (feed.on) socket.emit('touchplay:feed', 'dapmuoi');
+            if (feed.on) socket.emit('touchplay:feed', feedReg());
         } catch (e) { console.warn('[dapmuoi] không bật được nhận diện:', (e && e.message) || e); }
     }
+    // Trong 🎥 Game Camera: chỉ nhận trạng thái/bố cục, khung camera do overlay mẹ nhận + nhận diện.
+    function feedReg() { return feed.tracker && feed.tracker.shared ? { id: 'dapmuoi', frames: false } : 'dapmuoi'; }
     async function onFrame(f) {
         if (!feed.on || feed.busy || !f || !f.img || !feed.tracker || !feed.toStage) return;
         if (feed.tracker.shared) { feed.lastAt = performance.now(); return; }   // overlay mẹ đã giải mã + nhận diện
@@ -568,7 +570,7 @@
     window.__dm.socket = socket;
     socket.on('connect', () => {
         socket.emit('subscribe', isReview ? 'preview' : 'overlay');
-        if (feed.on) socket.emit('touchplay:feed', 'dapmuoi');
+        if (feed.on) socket.emit('touchplay:feed', feedReg());
     });
     socket.on('dapmuoi:gift', (d) => {
         if (disabled || !d || !Game.ACTION_TYPES.includes(d.action)) return;   // game tắt (hub chọn game khác) → bỏ, không dồn
@@ -606,7 +608,7 @@
         }, 2000);
         setInterval(() => {
             if (!feed.on || disabled) return showAlert(null);
-            showAlert(performance.now() - feed.lastAt > 4000 ? feedProblem() : null);
+            showAlert(performance.now() - (feed.tracker && feed.tracker.shared ? feed.tracker.lastFrameAt : feed.lastAt) > 4000 ? feedProblem() : null);
         }, 1000);
     }
 

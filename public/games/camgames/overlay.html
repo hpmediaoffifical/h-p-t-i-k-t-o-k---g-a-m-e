@@ -46,7 +46,7 @@ function show(cfg) {
     for (const [id, f] of frames) {
         if (want.some(g => g.id === id)) continue;
         frames.delete(id);
-        shared.need(id, null);             // game rời: thôi nhận diện phần của nó ngay, khỏi đợi iframe gỡ
+        shared.drop(id);                   // game rời: thôi nhận diện phần của nó ngay, khỏi đợi iframe gỡ
         f.classList.add('out');
         setTimeout(() => f.remove(), 350);
     }
@@ -59,6 +59,13 @@ function show(cfg) {
         f.src = childUrl(game);
         document.body.appendChild(f);
         frames.set(game.id, f);
+    }
+    // Lớp trên (game bám đầu) phủ kín màn: có game tay bên dưới thì cho chuột xuyên qua — kẻo tay/vợt/chém
+    // bằng chuột của game dưới (thử trong cửa sổ Tương tác của OBS) không nhận được gì.
+    const hasHands = want.some(g => g.slot === 'hands');
+    for (const [id, f] of frames) {
+        const g = want.find(x => x.id === id);
+        f.style.pointerEvents = hasHands && g && g.slot !== 'hands' ? 'none' : '';
     }
 }
 

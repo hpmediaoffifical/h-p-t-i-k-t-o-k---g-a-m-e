@@ -230,7 +230,8 @@ export class HpTracker {
             const r = this.models.pose.detectForVideo(this.full, ts);
             try {
                 this._readPose(r, now, (nx, ny) => apply(M, nx * w, ny * h));
-                this._readSeg(r, now, M, w, h);
+                // Model body tạo kèm mặt nạ (Bắn Cung từng mở) nhưng giờ không game nào cần → khỏi chép mặt nạ GPU→CPU.
+                if (this.wanted.segment) this._readSeg(r, now, M, w, h); else this.seg = null;
             } finally { r?.close?.(); }     // mặt nạ nằm trong bộ nhớ WASM/GPU — không đóng là rò
         } else if (!this.wanted.pose) this.pose = null;
 
@@ -324,20 +325,22 @@ export function sharedTracker(gameId, opts = {}) {
 export class HpSharedTracker {
     constructor(host, gameId, { width, height } = {}) {
         this.host = host; this.gameId = gameId; this.shared = true;
+        // Khoá riêng mỗi bản: game rời rồi vào lại trong lúc mờ dần, stop() muộn của bản cũ không xoá bản mới.
+        this.key = gameId + '#' + Math.random().toString(36).slice(2, 9);
         this.W = width || host.W; this.H = height || host.H;
-        this._sx = this.W / host.W; this._sy = this.H / host.H;
-        this._scaled = Math.abs(this._sx - 1) > 1e-6 || Math.abs(this._sy - 1) > 1e-6;
-        this._cache = {};
+        this._cache = {}; this._xfKey = ''; this._xform = null;
         this._dt = performance.timeOrigin - host.timeOrigin;
         this.wanted = { hands: true, face: false, pose: false, segment: false };
         this.running = false; this.mode = '';
         this._quality = 'auto'; this.mirror = false;
         this.video = null; this.ext = null;
+        // Trang con đóng / nạp lại không kịp gọi stop() → gỡ nhu cầu của bản này khỏi bộ chung.
+        addEventListener('pagehide', () => this.stop());
     }
     get t() { return this.host.tracker; }
     get active() { return this.running; }
     get quality() { return this._quality; }
-    set quality(q) { this._quality = q; this.host.quality(this.gameId, q); }
+    set quality(q) { this._quality = q; if (this.running) this.host.quality(this.key, q); }
     get delegate() { return this.t.delegate; }
     get statusText() { return this.t.statusText; }
     get fps() { return this.t.fps; }
@@ -348,50 +351,67 @@ export class HpSharedTracker {
     get faceAt() { return this._at(this.t.faceAt); }
     get poseAt() { return this._at(this.t.poseAt); }
     get segAt() { return this._at(this.t.segAt); }
+    get lastFrameAt() { return this._at(this.host.lastFrameAt); }   // khung camera cuối mẹ nhận (đồng hồ của con)
 
-    // Đổi toạ độ sân khấu mẹ → sân khấu con (chỉ khi khác cỡ); nhớ theo đối tượng gốc để không tính lại mỗi lần đọc.
+    // Sân khấu mẹ (host.W×H) và sân khấu con (W×H) cùng "contain" khung trang (iframe phủ kín trang mẹ) →
+    // đổi bằng MỘT tỉ lệ + dời. Kéo giãn riêng từng trục chỉ đúng khi trang 9:16; Browser Source ngang thì lệch.
+    _xf() {
+        const vw = innerWidth, vh = innerHeight, key = vw + 'x' + vh;
+        if (key === this._xfKey) return this._xform;
+        this._xfKey = key; this._cache = {};
+        const HW = this.host.W, HH = this.host.H, CW = this.W, CH = this.H;
+        let x = null;
+        if (CW !== HW || CH !== HH) {
+            if (!(vw > 0 && vh > 0)) x = { k: Math.min(CW / HW, CH / HH), ox: 0, oy: 0 };   // trang chưa có cỡ
+            else {
+                const sh = Math.min(HW / vw, HH / vh), sc = Math.min(CW / vw, CH / vh), k = sc / sh;
+                x = { k, ox: (CW - vw * sc) / 2 - (HW - vw * sh) / 2 * k, oy: (CH - vh * sc) / 2 - (HH - vh * sh) / 2 * k };
+            }
+        }
+        return (this._xform = x);
+    }
+    // Nhớ theo đối tượng gốc của mẹ (mỗi lần nhận diện tạo mảng/đối tượng mới) → không tính lại mỗi lần đọc.
     _map(key, src, fn) {
-        if (!this._scaled || !src) return src;
+        const x = this._xf();
+        if (!x || !src) return src;
         const c = this._cache[key];
         if (c && c.src === src) return c.out;
-        const out = fn(src);
+        const out = fn(src, x);
         this._cache[key] = { src, out };
         return out;
     }
-    _p(p) { return p && { ...p, x: p.x * this._sx, y: p.y * this._sy }; }
+    _p(p, x) { return p && { ...p, x: p.x * x.k + x.ox, y: p.y * x.k + x.oy }; }
     get hands() {
         if (!this.running || !this.wanted.hands) return [];
-        const k = Math.sqrt(this._sx * this._sy);
-        return this._map('hands', this.t.hands, hs => hs.map(h => ({
-            ...h, pts: h.pts.map(p => this._p(p)), tip: this._p(h.tip), pinch: this._p(h.pinch), palm: this._p(h.palm), size: h.size * k
+        return this._map('hands', this.t.hands, (hs, x) => hs.map(h => ({
+            ...h, pts: h.pts.map(p => this._p(p, x)), tip: this._p(h.tip, x), pinch: this._p(h.pinch, x), palm: this._p(h.palm, x), size: h.size * x.k
         })));
     }
     get face() {
         if (!this.running || !this.wanted.face) return null;
-        const k = Math.sqrt(this._sx * this._sy);
-        return this._map('face', this.t.face, f => ({ ...f, mouth: this._p(f.mouth), width: f.width * k }));
+        return this._map('face', this.t.face, (f, x) => ({ ...f, mouth: this._p(f.mouth, x), width: f.width * x.k }));
     }
     get pose() {
         if (!this.running || !this.wanted.pose) return null;
-        return this._map('pose', this.t.pose, P => P.map(p => this._p(p)));
+        return this._map('pose', this.t.pose, (P, x) => P.map(p => this._p(p, x)));
     }
     get seg() {
         if (!this.running || !this.wanted.segment) return null;
-        const sx = this._sx, sy = this._sy;
-        return this._map('seg', this.t.seg, s => ({ ...s, M: [s.M[0] * sx, s.M[1] * sy, s.M[2] * sx, s.M[3] * sy, s.M[4] * sx, s.M[5] * sy] }));
+        return this._map('seg', this.t.seg, (s, x) => ({ ...s, M: [s.M[0] * x.k, s.M[1] * x.k, s.M[2] * x.k, s.M[3] * x.k, s.M[4] * x.k + x.ox, s.M[5] * x.k + x.oy] }));
     }
 
     status() {}
-    want(opts) { Object.assign(this.wanted, opts); if (this.running) this.host.need(this.gameId, this.wanted); }
+    want(opts) { Object.assign(this.wanted, opts); if (this.running) this.host.need(this.key, this.wanted); }
     async startExternal() {
         this.running = true; this.mode = 'external';
-        this.host.need(this.gameId, this.wanted);
+        this.host.need(this.key, this.wanted);
+        this.host.quality(this.key, this._quality);
         await this.host.ready;
     }
     async startWebcam() { throw new Error('Trong 🎥 Game Camera dùng camera trong OBS.'); }
     async listCameras() { return []; }
     pushFrame(bitmap) { bitmap?.close?.(); }       // mẹ đã nhận khung — game con khỏi giải mã
-    stop() { this.running = false; this.mode = ''; this.host.need(this.gameId, null); }
+    stop() { this.running = false; this.mode = ''; this.host.need(this.key, null); }
 }
 
 // WebGL chạy bằng phần mềm (SwiftShader / llvmpipe / Basic Render — OBS tắt "tăng tốc phần cứng",

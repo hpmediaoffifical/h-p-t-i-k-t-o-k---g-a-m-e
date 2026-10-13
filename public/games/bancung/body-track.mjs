@@ -55,7 +55,7 @@ export class BcBodyTrack {
         socket.on('touchplay:frame', f => this._onFrame(f));
         socket.on('touchplay:layout', l => { this.layout = l; });
         socket.on('touchplay:feedStatus', st => { this.feedStatus = st; });
-        socket.on('connect', () => { if (this.enabled) socket.emit(FEED_EVT, this.gameId); });   // app khởi động lại → nối lại
+        socket.on('connect', () => { if (this.enabled) socket.emit(FEED_EVT, this._feedReg()); });   // app khởi động lại → nối lại
         this._statTimer = setInterval(() => this._reportStat(), 2000);
     }
 
@@ -66,13 +66,16 @@ export class BcBodyTrack {
         if (on) {
             try { await this.tracker.startExternal(); } catch (e) { this.onStatus(e?.message || String(e), 'error'); }
             this.tracker.want({ hands: false, pose: true, segment: true });
-            if (this.socket.connected) this.socket.emit(FEED_EVT, this.gameId);   // báo id → server ưu tiên nguồn camera của Bắn Cung
+            if (this.socket.connected) this.socket.emit(FEED_EVT, this._feedReg());   // báo id → server ưu tiên nguồn camera của Bắn Cung
         } else {
             this.socket.emit(FEED_EVT, false);
             this.tracker.stop();
             this._smooth = null;
         }
     }
+
+    // Trong 🎥 Game Camera: chỉ nhận trạng thái/bố cục, khung camera do overlay mẹ nhận + nhận diện.
+    _feedReg() { return this.tracker.shared ? { id: this.gameId, frames: false } : this.gameId; }
 
     async _onFrame(f) {
         if (!this.enabled || this._busy || !f?.img) return;
@@ -249,7 +252,7 @@ export class BcBodyTrack {
         if (st.obsConnected === false) return 'App chưa kết nối OBS WebSocket (mục Hiệu ứng OBS trong app).';
         if (st.source === '') return 'Chưa chọn nguồn camera trong OBS cho Bắn Cung.';
         if (st.error === 'source-missing') return 'Không tìm thấy nguồn "' + st.source + '" trong OBS.';
-        if (performance.now() - this.lastFrameAt > 4000) return 'Chưa nhận được hình camera từ OBS.';
+        if (performance.now() - (this.tracker.shared ? this.tracker.lastFrameAt : this.lastFrameAt) > 4000) return 'Chưa nhận được hình camera từ OBS.';
         return '';
     }
 

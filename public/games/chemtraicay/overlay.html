@@ -199,9 +199,11 @@
             }
             if (!local.on) return;
             await local.tracker.startExternal();
-            if (local.on) socket.emit('touchplay:feed', 'chemtraicay');
+            if (local.on) socket.emit('touchplay:feed', feedReg());
         } catch (e) { console.warn('[chemtraicay] không bật được nhận diện trong overlay:', (e && e.message) || e); }
     }
+    // Trong 🎥 Game Camera: chỉ nhận trạng thái/bố cục, khung camera do overlay mẹ nhận + nhận diện.
+    function feedReg() { return local.tracker && local.tracker.shared ? { id: 'chemtraicay', frames: false } : 'chemtraicay'; }
     async function onLocalFrame(f) {
         if (!local.on || local.busy || !f || !f.img || !local.tracker || !local.toStage) return;
         if (local.tracker.shared) return;      // overlay mẹ đã giải mã + nhận diện
@@ -235,7 +237,7 @@
     socket.on('connect', () => {
         $('ctc-dot').classList.add('on');
         socket.emit('subscribe', isReview ? 'preview' : 'overlay');
-        if (local.on) socket.emit('touchplay:feed', 'chemtraicay');     // app vừa khởi động lại → đăng ký lại
+        if (local.on) socket.emit('touchplay:feed', feedReg());     // app vừa khởi động lại → đăng ký lại
         fetch('/api/games/chemtraicay/config').then(r => r.json()).then(applyConfig).catch(() => {});
     });
     socket.on('disconnect', () => $('ctc-dot').classList.remove('on'));

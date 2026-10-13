@@ -5,6 +5,8 @@
  *   note:    dòng nhắc thêm dưới thẻ (tuỳ chọn).
  *   slot:    'hands' (chơi bằng tay) | 'head' (đồ bám trên đầu/người). Chơi cùng lúc tối đa 1 game mỗi khe —
  *            cùng giá trị SLOTS trong lib/camgames.js.
+ *   hotkeys: game có phím tắt toàn cục (HOTKEY_GAMES trong lib/camgames.js). Chơi 2 game cùng có phím thì chỉ game
+ *            streamer bấm vào gần nhất giữ phím (camgames.hotkeyGame), game kia tạm nhả.
  *   standalone: game còn link OBS riêng từ trước (khách cũ dán sẵn trong scene). Game Camera chỉ bật/tắt nó
  *               khi chọn vào / chọn sang game khác (CAM_STANDALONE_IDS trong server.js); đang bật mà không
  *               được chọn thì thẻ báo "đang bật ở link riêng" kèm nút tắt — thanh bên không còn nút nguồn của nó.
@@ -28,14 +30,14 @@
         },
         {
             id: 'dapmuoi', name: 'Đập Muỗi', icon: '🦟',
-            slot: 'hands',
+            slot: 'hands', hotkeys: true,
             desc: 'Vỗ hai tay đập muỗi bay ngang khắp màn. Quà thả muỗi, bình xịt, vợt điện, mắc màn.',
             track: 'Hai bàn tay · cổ tay',
             overlay: '/overlay/dapmuoi'
         },
         {
             id: 'bancung', name: 'Bắn Cung', icon: '🏹',
-            slot: 'head',
+            slot: 'head', hotkeys: true,
             desc: 'Quà bắn tên vào người thật trên camera: trúng thì người phủ đỏ, hết máu cháy đen rồi tự hồi.',
             track: 'Cơ thể · hình người',
             note: 'Vào ⚙ Cài đặt bấm ▶ BẮT ĐẦU thì mới nhận quà.',

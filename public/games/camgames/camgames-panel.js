@@ -36,6 +36,12 @@
     }
     const actives = () => norm(Array.isArray(cfg.actives) && cfg.actives.length ? cfg.actives : [cfg.active]);
     const playing = () => (cfg.enabled !== false ? actives() : []);
+    // Phím tắt toàn cục: chơi 2 game cùng có phím thì chỉ game bấm vào gần nhất giữ phím (lib/camgames.js hotkeyOwner).
+    function hotkeyOwner() {
+        const withKeys = playing().filter(id => gameOf(id)?.hotkeys);
+        if (withKeys.length < 2) return null;
+        return withKeys.includes(cfg.hotkeyGame) ? cfg.hotkeyGame : withKeys[0];
+    }
 
     function build() {
         const root = $('#cg-root');
@@ -63,7 +69,7 @@
     function renderGrid() {
         const grid = $('#cg-grid');
         if (!grid) return;
-        const now = playing(), cur = actives();
+        const now = playing(), cur = actives(), keyOwner = hotkeyOwner();
         grid.innerHTML = games().map(g => {
             const on = now.includes(g.id);
             const solo = !on && g.standalone && soloOn[g.id];
@@ -76,6 +82,7 @@
             return `<div class="cg-game ${on ? 'on' : ''}" data-id="${esc(g.id)}">
                 <div class="cg-game-head"><span class="cg-ico">${g.icon}</span><b>${esc(g.name)}</b>
                     ${on ? '<span class="cg-badge">● ĐANG CHƠI TRÊN OBS</span>' : ''}
+                    ${keyOwner === g.id ? '<span class="cg-badge keys" title="Phím tắt toàn cục đang thuộc game này; game chơi cùng tạm nhả phím (quà vẫn chạy bình thường)">⌨ GIỮ PHÍM TẮT</span>' : ''}
                     ${solo ? '<span class="cg-badge solo" title="Game vẫn nhận quà qua link OBS riêng của nó">● ĐANG BẬT Ở LINK RIÊNG</span>' : ''}</div>
                 <div class="cg-desc">${esc(g.desc)}</div>
                 <div class="cg-track">Nhận diện: ${esc(g.track)}</div>
@@ -84,20 +91,27 @@
                     <button class="${on ? 'ghost' : 'primary'} small" data-play="${esc(g.id)}" ${on ? 'disabled' : ''}>${on ? '✓ Đang chơi' : canWith ? '▶ Chơi riêng' : '▶ Chơi game này'}</button>
                     ${canWith ? `<button class="ghost small" data-with="${esc(g.id)}" title="${esc(withTitle)}">＋ Chơi kèm</button>` : ''}
                     ${on && now.length > 1 ? `<button class="ghost small" data-drop="${esc(g.id)}" title="Thôi chơi game này, giữ game còn lại">✕ Bỏ</button>` : ''}
+                    ${keyOwner && on && g.hotkeys && keyOwner !== g.id ? `<button class="ghost small" data-keys="${esc(g.id)}" title="Chuyển phím tắt toàn cục sang game này (game kia tạm nhả phím)">⌨ Nhận phím tắt</button>` : ''}
                     <button class="ghost small" data-settings="${esc(g.id)}">⚙ Cài đặt</button>
                     ${solo ? `<button class="ghost small" data-solo-off="${esc(g.id)}" title="Tắt game ở link riêng — quà không còn kích hoạt nó">⏻ Tắt</button>` : ''}
                 </div>
             </div>`;
         }).join('');
         grid.querySelectorAll('[data-play]').forEach(b => b.addEventListener('click', () => save({ active: b.dataset.play, enabled: true })));
-        grid.querySelectorAll('[data-with]').forEach(b => b.addEventListener('click', () => save({ actives: norm([...actives(), b.dataset.with]), enabled: true })));
+        // Bấm vào game nào thì game đó giữ phím tắt (chơi kèm / ⚙ Cài đặt / ⌨ Nhận phím tắt).
+        grid.querySelectorAll('[data-with]').forEach(b => b.addEventListener('click', () => save({ actives: norm([...actives(), b.dataset.with]), enabled: true, hotkeyGame: b.dataset.with })));
+        grid.querySelectorAll('[data-keys]').forEach(b => b.addEventListener('click', () => save({ hotkeyGame: b.dataset.keys })));
         grid.querySelectorAll('[data-drop]').forEach(b => b.addEventListener('click', () => save({ actives: actives().filter(x => x !== b.dataset.drop) })));
         grid.querySelectorAll('[data-solo-off]').forEach(b => b.addEventListener('click', async () => {
             const id = b.dataset.soloOff;
             soloOn[id] = false; renderGrid();
             try { await fetch('/api/games/' + encodeURIComponent(id) + '/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: false }) }); } catch (_) {}
         }));
-        grid.querySelectorAll('[data-settings]').forEach(b => b.addEventListener('click', () => window.hpOpenGame?.(b.dataset.settings)));
+        grid.querySelectorAll('[data-settings]').forEach(b => b.addEventListener('click', () => {
+            const id = b.dataset.settings;
+            if (playing().includes(id) && gameOf(id)?.hotkeys && cfg.hotkeyGame !== id) save({ hotkeyGame: id });
+            window.hpOpenGame?.(id);
+        }));
     }
 
     function renderStatus() {

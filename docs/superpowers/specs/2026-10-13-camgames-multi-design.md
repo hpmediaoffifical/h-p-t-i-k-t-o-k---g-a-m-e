@@ -59,6 +59,17 @@ Mỗi game một `<iframe>` chồng nhau (khe `hands` dưới, `head` trên), n�
 - Dòng trạng thái: một chip/ game đang chơi (lần/giây, AI ms, thấy tay/người) — server giữ `overlayStat` theo từng game (`status.overlays`), `status.overlay` giữ như cũ.
 - Cảnh báo quà trùng (API `GET /api/camgames/overlap`).
 
+### 3.6 Phím tắt (user chốt 14/10/2026)
+
+Thực tế quà chạy tự động theo quà chỉ định / xu, phím tắt chỉ phụ. Chơi 2 game cùng có phím tắt toàn cục (Bắn Cung + Đập Muỗi) thì **game streamer bấm vào gần nhất giữ phím** (`camgames.hotkeyGame`: "＋ Chơi kèm", "⚙ Cài đặt", "⌨ Nhận phím tắt"), game kia tạm nhả (server đưa cấu hình `enabled:false` cho `electron-main` → gỡ phím). Chưa bấm thì game đầu danh sách. Thẻ hiện "⌨ GIỮ PHÍM TẮT".
+
+### 3.7 Sửa sau review độc lập (14/10/2026)
+
+- `defaultConfig` không có `actives` (có thì config cũ `{active}` bị đè thành Touch & Play lúc khởi động) — `CamRules.DEFAULT_CONFIG`.
+- Chỉ game SẼ xử lý quà mới giành quà (Bắn Cung phải bật + ▶ BẮT ĐẦU), so khớp đúng như handler (Bắn Cung / Chém Trái Cây chỉ theo id).
+- Proxy đổi toạ độ bằng "contain" (một tỉ lệ + dời) — Browser Source ngang không còn lệch.
+- Chất lượng tính lại khi game rời; bỏ chép mặt nạ khi không game nào cần; khoá theo từng bản tracker + gỡ khi `pagehide`; lớp trên cho chuột xuyên qua khi có game tay bên dưới; game con dùng chung không nhận khung JPEG.
+
 ## 4. Kiểm thử
 
 - `tests/camgames.test.js`: chuẩn hoá actives (khe, trùng, rỗng, config cũ), quà gán/quà chung.
