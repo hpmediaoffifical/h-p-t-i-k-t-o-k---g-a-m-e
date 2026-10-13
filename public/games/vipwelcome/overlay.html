@@ -5,6 +5,7 @@
 <meta charset="utf-8" />
 <title>HP VIP Welcome — OBS Overlay</title>
 <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+<link rel="stylesheet" href="/games/vipwelcome/joincard.css" />
 <style>
     html, body { margin: 0; padding: 0; height: 100%; width: 100%; background: transparent; overflow: hidden; font-family: Inter, "Segoe UI", Arial, sans-serif; }
     #stage { position: fixed; inset: 0; background: transparent; overflow: hidden; pointer-events: none; }
@@ -159,19 +160,23 @@
     .debug-pill.hidden { display: none; }
     body.offline #content { display: none; }
     body.offline .debug-pill { display: none !important; }
+    body.offline #jc-stack { display: none; }
 </style>
 </head>
 <body>
     <div id="stage">
         <div id="content">
-            <video id="player" playsinline></video>
-            <audio id="audioOnly"></audio>
+            <video id="player" playsinline preload="auto"></video>
+            <audio id="audioOnly" preload="auto"></audio>
+            <video id="preloader" preload="auto" muted playsinline style="display:none"></video>
             <div id="label" class="pos-bottom style-goldpink">
                 <img id="avatar" alt="" />
                 <span id="label-text"></span>
             </div>
         </div>
     </div>
+    <!-- Thẻ vào phòng: xếp chồng song song, tách khỏi khu media -->
+    <div id="jc-stack" class="dir-up"></div>
     <div class="debug-pill" id="debug">connecting…</div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -255,40 +260,63 @@
             labelTimer = setTimeout(hideLabel, durationMs || 3500);
         }
 
+        // ===== Media (video/âm thanh) — phát lần lượt, server chờ ack 'vipwelcome:done' mới gửi lượt kế =====
+        const preloader = document.getElementById('preloader');
+        let playWatchdog = null;
+        const WATCHDOG_NO_META_MS = 15000;   // không đọc được thời lượng clip
+        const WATCHDOG_PAD_MS = 2000;        // thời lượng clip + 2s
+        function armWatchdog(ms, onTimeout) {
+            clearTimeout(playWatchdog);
+            playWatchdog = setTimeout(onTimeout, ms);
+        }
+        function preloadNext(url) {
+            if (!url || !/\.(mp4|webm|mov)(\?|$)/i.test(url)) return;
+            try { if (preloader.getAttribute('src') !== url) { preloader.src = url; preloader.load(); } } catch (e) {}
+        }
+
         function playMedia(p) {
             // Báo server đã phát xong lượt này → server gửi lượt kế (drain serial theo ack).
             let acked = false;
-            const ack = () => { if (acked) return; acked = true; try { socket.emit('vipwelcome:done', { seq: p && p.seq }); } catch (e) {} };
-            if (!p || !p.mediaUrl) { ack(); playing = false; advanceQueue(); return; }
+            const finish = () => {
+                if (acked) return;
+                acked = true;
+                clearTimeout(playWatchdog);
+                clearPlayer(); clearAudio();
+                try { socket.emit('vipwelcome:done', { seq: p && p.seq }); } catch (e) {}
+                playing = false;
+                advanceQueue();
+            };
+            if (!p || !p.mediaUrl) { finish(); return; }
             const isVideo = (p.mediaType === 'video') || /\.(mp4|webm|mov)(\?|$)/i.test(p.mediaUrl);
             const vol = Math.max(0, Math.min(1, (p.volume ?? 100) / 100));
-            // Show label nếu config showText và payload có message
-            if (currentCfg?.display?.showText !== false && p.message) {
+            // Nhãn chữ cũ cho trigger KHÔNG phải vào phòng (vào phòng đã có thẻ riêng)
+            if (p.eventType !== 'join' && currentCfg?.display?.showText !== false && p.message) {
                 showLabel(p.message, undefined, {
                     styleOverride: p.labelStyle || '',
                     avatarUrl: p.user?.profilePicture || ''
                 });
             }
-            if (isVideo) {
-                clearAudio();
-                player.src = p.mediaUrl;
-                player.volume = vol;
-                player.classList.add('show');
-                player.play().catch(() => {
-                    player.muted = true;
-                    player.play().catch(() => {});
-                });
-                player.muted = false;
-                player.onended = () => { clearPlayer(); ack(); playing = false; advanceQueue(); };
-                player.onerror = () => { clearPlayer(); ack(); playing = false; advanceQueue(); };
-            } else {
-                clearPlayer();
-                audioOnly.src = p.mediaUrl;
-                audioOnly.volume = vol;
-                audioOnly.play().catch(() => {});
-                audioOnly.onended = () => { ack(); playing = false; advanceQueue(); };
-                audioOnly.onerror = () => { ack(); playing = false; advanceQueue(); };
-            }
+            const el = isVideo ? player : audioOnly;
+            if (isVideo) clearAudio(); else clearPlayer();
+            el.onended = finish;
+            el.onerror = finish;
+            el.onloadedmetadata = () => {
+                const d = Number(el.duration);
+                if (Number.isFinite(d) && d > 0) armWatchdog(d * 1000 + WATCHDOG_PAD_MS, finish);
+            };
+            armWatchdog(WATCHDOG_NO_META_MS, finish);
+            el.src = p.mediaUrl;
+            el.currentTime = 0;
+            el.volume = vol;
+            el.muted = false;
+            if (isVideo) player.classList.add('show');
+            // OBS cho tự phát có tiếng; trình duyệt thường chặn → thử tắt tiếng, vẫn bị chặn thì bỏ lượt (không kẹt hàng)
+            el.play().catch(() => {
+                if (!isVideo) { finish(); return; }
+                player.muted = true;
+                player.play().catch(finish);
+            });
+            preloadNext(p.preloadNext);
         }
 
         function advanceQueue() {
@@ -298,24 +326,130 @@
             playMedia(next);
         }
         const CLIENT_QUEUE_MAX = 20;
-        const PLAY_WATCHDOG_MS = 25000;
-        let playWatchdog = null;
         function fire(payload) {
             if (!payload || !payload.mediaUrl) return;
             if (queue.some(q => q.seq != null && q.seq === payload.seq)) return;   // server gửi lại cùng lượt → bỏ
             queue.push(payload);
             while (queue.length > CLIENT_QUEUE_MAX) queue.shift();               // không phình vô hạn khi clip kẹt
             if (!playing) advanceQueue();
-            // Watchdog: clip không bắn onended/onerror (codec lỗi, file hỏng) → sau 25s tự sang lượt kế
-            clearTimeout(playWatchdog);
-            playWatchdog = setTimeout(() => { if (playing) { clearPlayer(); clearAudio(); playing = false; advanceQueue(); } }, PLAY_WATCHDOG_MS);
         }
+
+        // ===== Thẻ vào phòng — hiện song song, tối đa maxStack thẻ, thẻ mới đẩy thẻ cũ =====
+        const stackEl = document.getElementById('jc-stack');
+        const seenCards = new Set();
+        const SEEN_MAX = 500;
+        function cardCfg() {
+            return Object.assign({ xPercent: 3, yPercent: 60, scale: 100, maxStack: 3, direction: 'up', durationMs: 5000 }, currentCfg?.joinCard?.card || {});
+        }
+        function applyCardLayout() {
+            const c = cardCfg();
+            const base = Math.min(window.innerWidth / 1080, window.innerHeight / 1920);
+            stackEl.style.setProperty('--jc-x', c.xPercent + '%');
+            stackEl.style.setProperty('--jc-y', c.yPercent + '%');
+            stackEl.style.setProperty('--jc-scale', String(base * (c.scale || 100) / 100));
+            stackEl.classList.toggle('dir-up', c.direction !== 'down');
+            stackEl.classList.toggle('dir-down', c.direction === 'down');
+        }
+        function el(tag, cls, text) {
+            const e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (text != null) e.textContent = text;
+            return e;
+        }
+        function countUp(node, target) {
+            const t0 = performance.now(), dur = 1200;
+            const step = (t) => {
+                const k = Math.min(1, (t - t0) / dur);
+                node.textContent = Math.round(target * (1 - Math.pow(1 - k, 3))).toLocaleString('vi-VN');
+                if (k < 1) requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
+            setTimeout(() => { node.textContent = target.toLocaleString('vi-VN'); }, dur + 100);   // rAF có thể bị dừng khi trang ẩn
+        }
+        function buildCard(c) {
+            const skins = ['violet', 'ice', 'amber', 'flame', 'diamond'];
+            const card = el('div', 'jc-card skin-' + (skins.includes(c.skin) ? c.skin : 'violet') + (c.late ? ' jc-late' : '') + (c.frameUrl ? ' has-frame' : ''));
+            const u = c.user || {};
+            // Avatar + khung
+            const wrap = el('div', 'jc-ava-wrap');
+            wrap.appendChild(el('div', 'jc-ring'));
+            const ava = el('img', 'jc-ava');
+            ava.alt = '';
+            ava.onerror = () => { ava.onerror = null; ava.src = '/api/games/vipwelcome/avatar'; };   // route trả avatar mặc định
+            ava.src = u.avatar || '/api/games/vipwelcome/avatar';
+            wrap.appendChild(ava);
+            if (c.frameUrl) { const fr = el('img', 'jc-frame'); fr.alt = ''; fr.src = c.frameUrl; fr.onerror = () => { card.classList.remove('has-frame'); fr.remove(); }; wrap.appendChild(fr); }
+            card.appendChild(wrap);
+            // Hàng chip trên: danh hiệu · LV · FAN LV · VÀO PHÒNG
+            const top = el('div', 'jc-top');
+            if (c.title) top.appendChild(el('span', 'jc-chip jc-title', c.title));
+            if (u.level > 0) top.appendChild(el('span', 'jc-chip jc-lv', 'LV ' + u.level));
+            if (u.fansLevel > 0) top.appendChild(el('span', 'jc-chip jc-fan', 'FAN LV.' + u.fansLevel));
+            top.appendChild(el('span', 'jc-enter', c.late ? 'ĐANG Ở TRONG PHÒNG' : (c.enterText || 'VÀO PHÒNG')));
+            card.appendChild(top);
+            // Thân: tên + 💎
+            const body = el('div', 'jc-body');
+            body.appendChild(el('span', 'jc-name', u.nickname || u.uniqueId || 'Người xem'));
+            const xu = el('span', 'jc-xu');
+            xu.appendChild(el('span', 'gem', '💎'));
+            const xuNum = el('b', '', '0');
+            xu.appendChild(xuNum);
+            const hideZero = currentCfg?.joinCard?.hideZeroXu !== false;
+            if (!(c.xu > 0) && hideZero) xu.classList.add('hidden');
+            body.appendChild(xu);
+            card.appendChild(body);
+            // Dòng phụ: @id + vai trò
+            const sub = el('div', 'jc-sub');
+            if (u.uniqueId) sub.appendChild(el('span', 'jc-uid', '@' + u.uniqueId));
+            const r = c.roles || {};
+            if (r.top > 0) sub.appendChild(el('span', 'jc-role top', 'TOP ' + r.top));
+            if (r.mod) sub.appendChild(el('span', 'jc-role mod', 'MOD'));
+            if (r.sub) sub.appendChild(el('span', 'jc-role sub', 'SUB'));
+            if (r.friend) sub.appendChild(el('span', 'jc-role friend', 'BẠN BÈ'));
+            card.appendChild(sub);
+            // Ánh quét + lấp lánh
+            card.appendChild(el('div', 'jc-shine'));
+            [[118, 18, 0], [260, 140, .5], [420, 8, .9], [600, 120, 1.3], [40, 130, 1.6]].forEach(([x, y, d]) => {
+                const s = el('span', 'jc-spark');
+                s.style.left = x + 'px'; s.style.top = y + 'px'; s.style.animationDelay = d + 's';
+                card.appendChild(s);
+            });
+            return { card, xuNum, xu: Number(c.xu) || 0 };
+        }
+        function removeCard(card, fast) {
+            if (!card || card.classList.contains('out')) return;
+            clearTimeout(card._jcTimer);
+            card.classList.add('out');
+            if (fast) card.classList.add('fast');
+            setTimeout(() => card.remove(), fast ? 280 : 440);
+        }
+        function showCard(c) {
+            if (!c || !c.id || seenCards.has(c.id)) return;
+            seenCards.add(c.id);
+            if (seenCards.size > SEEN_MAX) seenCards.delete(seenCards.values().next().value);
+            const cc = cardCfg();
+            const live = [...stackEl.querySelectorAll('.jc-card:not(.out)')];
+            // Đầy → thẻ cũ nhất rút ngắn, ra nhanh
+            const max = Math.max(1, Number(cc.maxStack) || 3);
+            const oldestFirst = cc.direction === 'down' ? live.reverse() : live;
+            for (let i = 0; i <= oldestFirst.length - max; i++) removeCard(oldestFirst[i], true);
+            const { card, xuNum, xu } = buildCard(c);
+            if (cc.direction === 'down') stackEl.prepend(card); else stackEl.appendChild(card);
+            if (xu > 0) countUp(xuNum, xu);
+            card._jcTimer = setTimeout(() => removeCard(card, false), Math.max(1500, Number(cc.durationMs) || 5000));
+            try { socket.emit('vipwelcome:cardShown', { id: c.id }); } catch (e) {}
+        }
+        function clearCards() {
+            stackEl.innerHTML = '';
+        }
+        window.addEventListener('resize', applyCardLayout);
+        applyCardLayout();
 
         let offlineTimer = null;
         const OFFLINE_GRACE_MS = 3000;
         function showOffline() {
             document.body.classList.add('offline');
-            clearPlayer(); clearAudio(); hideLabel();
+            clearPlayer(); clearAudio(); hideLabel(); clearCards();
             queue.length = 0; playing = false;
         }
         function hideOffline() { document.body.classList.remove('offline'); }
@@ -335,6 +469,7 @@
                 const r = await fetch('/api/games/vipwelcome/config');
                 currentCfg = await r.json();
                 applyDisplay();
+                applyCardLayout();
             } catch (e) {}
             socket.emit('subscribe', 'overlay');
             socket.emit('subscribe', 'overlay:vipwelcome');   // room riêng → server đếm đúng overlay VIP đang mở
@@ -357,12 +492,15 @@
             if (gameId !== 'vipwelcome') return;
             currentCfg = config;
             applyDisplay();
+            applyCardLayout();
         });
 
         socket.on('vipwelcome:play', (payload) => { fire(payload); });
+        socket.on('vipwelcome:card', (card) => { showCard(card); });
         socket.on('vipwelcome:stop', () => {
             queue.length = 0;
-            clearPlayer(); clearAudio(); hideLabel();
+            clearTimeout(playWatchdog);
+            clearPlayer(); clearAudio(); hideLabel(); clearCards();
             playing = false;
         });
         // Force reload — gửi từ app sau khi user đổi setting để OBS browser source cập nhật
@@ -375,7 +513,7 @@
         });
 
         fetch('/api/games/vipwelcome/config').then(r => r.json()).then(cfg => {
-            currentCfg = cfg; applyDisplay();
+            currentCfg = cfg; applyDisplay(); applyCardLayout();
         }).catch(() => { showOffline(); });
     })();
     </script>
