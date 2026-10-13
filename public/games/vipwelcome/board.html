@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>HP VIP Welcome — BXH khách quen</title>
+<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+<style>
+    /* Bảng xếp hạng khách quen (chăm ghé phòng) — OBS Browser Source nền trong suốt. Thiết kế theo khung
+       1080 rộng, tự co theo bề ngang nguồn. */
+    html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; font-family: 'Segoe UI', 'Roboto', Arial, sans-serif; }
+    #board {
+        --a: #3b1d8f; --b: #7b3fe4; --edge: #c9b5ff; --glow: rgba(150, 110, 255, .6); --chip: #ffd76a;
+        position: fixed; left: 24px; top: 24px; width: 560px;
+        transform-origin: left top; transform: scale(var(--s, 1));
+        color: #fff;
+        filter: drop-shadow(0 12px 22px rgba(0,0,0,.45));
+    }
+    #board.skin-amber { --a: #6e2600; --b: #e98a12; --edge: #ffe39c; --glow: rgba(255, 190, 70, .6); --chip: #fff3c4; }
+    .bd-head {
+        padding: 14px 22px; border-radius: 18px 18px 6px 6px;
+        background: linear-gradient(100deg, var(--a), var(--b));
+        border: 2px solid var(--edge);
+        display: flex; align-items: baseline; gap: 12px;
+    }
+    .bd-title { font-size: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-weight: 900; letter-spacing: 1px; text-shadow: 0 2px 0 rgba(0,0,0,.35), 0 0 14px var(--glow); }
+    .bd-scope { margin-left: auto; font-size: 16px; font-weight: 800; color: var(--chip); white-space: nowrap; }
+    .bd-list { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+    .bd-row {
+        display: flex; align-items: center; gap: 12px;
+        padding: 8px 16px 8px 10px; border-radius: 12px;
+        background: linear-gradient(100deg, rgba(20, 14, 40, .82), rgba(20, 14, 40, .6));
+        border: 1.5px solid rgba(255,255,255,.14);
+        animation: bdIn 420ms ease-out both;
+    }
+    .bd-row:nth-child(1) { border-color: #ffd76a; box-shadow: 0 0 16px rgba(255, 215, 106, .45); }
+    .bd-row:nth-child(2) { border-color: #dfe6ef; }
+    .bd-row:nth-child(3) { border-color: #f0a35e; }
+    @keyframes bdIn { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: none; } }
+    .bd-rank { width: 40px; text-align: center; font-size: 26px; font-weight: 900; }
+    .bd-ava { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; border: 2px solid var(--edge); background: #1b1235; flex-shrink: 0; }
+    .bd-name { flex: 1; min-width: 0; font-size: 24px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bd-count { font-size: 22px; font-weight: 900; color: var(--chip); white-space: nowrap; }
+    .bd-count small { font-size: 14px; font-weight: 700; opacity: .85; margin-left: 3px; }
+    .bd-streak { font-size: 16px; font-weight: 900; padding: 2px 8px; border-radius: 8px; background: linear-gradient(180deg, #ffb347, #ff5e3a); white-space: nowrap; }
+    .bd-empty { padding: 14px 18px; border-radius: 12px; background: rgba(20, 14, 40, .7); font-size: 20px; opacity: .85; }
+</style>
+</head>
+<body>
+    <div id="board">
+        <div class="bd-head"><span class="bd-title" id="bd-title">KHÁCH QUEN CỦA PHÒNG</span><span class="bd-scope" id="bd-scope"></span></div>
+        <div class="bd-list" id="bd-list"></div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+    (function () {
+        const board = document.getElementById('board');
+        const list = document.getElementById('bd-list');
+        const MEDALS = ['🥇', '🥈', '🥉'];
+        function fit() { board.style.setProperty('--s', String(Math.max(0.3, window.innerWidth / 1080))); }
+        window.addEventListener('resize', fit); fit();
+        function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+        function render(p) {
+            if (!p) return;
+            document.getElementById('bd-title').textContent = p.title || 'KHÁCH QUEN CỦA PHÒNG';
+            document.getElementById('bd-scope').textContent = p.scope === 'all' ? 'TỪ TRƯỚC TỚI NAY' : 'THÁNG NÀY';
+            board.className = p.skin === 'amber' ? 'skin-amber' : '';
+            list.innerHTML = '';
+            const items = p.items || [];
+            if (!items.length) { list.appendChild(el('div', 'bd-empty', 'Chưa có khách ghé phòng — vào LIVE nào!')); return; }
+            items.forEach((it, i) => {
+                const row = el('div', 'bd-row');
+                row.style.animationDelay = (i * 60) + 'ms';
+                row.appendChild(el('span', 'bd-rank', MEDALS[i] || String(i + 1)));
+                const a = el('img', 'bd-ava');
+                a.alt = '';
+                a.onerror = () => { a.onerror = null; a.src = '/api/games/vipwelcome/avatar'; };
+                a.src = it.avatar || '/api/games/vipwelcome/avatar';
+                row.appendChild(a);
+                row.appendChild(el('span', 'bd-name', it.nickname || it.uniqueId || 'Người xem'));
+                if (it.streak >= 3) row.appendChild(el('span', 'bd-streak', '🔥 ' + it.streak));
+                const c = el('span', 'bd-count', String(p.scope === 'all' ? it.sessions : it.monthCount));
+                c.appendChild(el('small', '', 'buổi'));
+                row.appendChild(c);
+                list.appendChild(row);
+            });
+        }
+        const socket = io({ reconnection: true, reconnectionDelay: 600, reconnectionDelayMax: 5000 });
+        socket.on('connect', () => socket.emit('subscribe', 'overlay:vipwelcome-board'));
+        socket.on('vipwelcome:board', render);
+        socket.on('overlay:reload', (d) => { if (!d || !d.gameId || d.gameId === 'vipwelcome') location.reload(); });
+        fetch('/api/games/vipwelcome/board').then(r => r.json()).then(render).catch(() => {});
+    })();
+    </script>
+</body>
+</html>

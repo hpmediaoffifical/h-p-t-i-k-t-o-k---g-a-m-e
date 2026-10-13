@@ -9269,3 +9269,13 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
     .ctc-row { grid-template-columns: 1fr 1fr 70px 50px; }
     .ctc-gift-row { grid-template-columns: 36px 1fr 120px 56px 28px 30px 30px; }
 }
+
+/* VIP Welcome — Giai đoạn 3: dòng đọc tên */
+.vw-tts-row { align-items: center; gap: 8px; flex-wrap: wrap; }
+.vw-tts-template {
+    flex: 1; min-width: 180px;
+    padding: 4px 8px; font-size: 12px;
+    background: rgba(0,0,0,0.35); color: #fff;
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 6px;
+}
+.vw-tts-template:focus { outline: none; border-color: #ffb800; }

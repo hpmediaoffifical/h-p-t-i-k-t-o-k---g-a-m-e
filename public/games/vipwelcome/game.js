@@ -41,11 +41,18 @@
         return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     }
 
+    // Giọng đọc mặc định bật từ bậc Đại gia (minLevel ≥ 25) — khớp tier-match.js
+    const TTS_TIER_TEMPLATE = '{bậc} {tên} đã tới phòng!';
+    const TTS_USER_TEMPLATE = 'Chào mừng {tên} vào phòng!';
+
     function newTier(patch) {
-        return Object.assign({
+        const t = Object.assign({
             id: newTierId(), enabled: true, name: 'Bậc mới', minLevel: 0, minFans: 0, skin: 'violet', frameUrl: '',
             mediaUrl: '', mediaName: '', mediaType: '', volume: 100, rejoinCooldownSec: 0
         }, patch || {});
+        const tts = t.tts && typeof t.tts === 'object' ? t.tts : {};
+        t.tts = { enabled: tts.enabled == null ? (Number(t.minLevel) || 0) >= 25 : !!tts.enabled, template: tts.template || TTS_TIER_TEMPLATE };
+        return t;
     }
 
     function defaultTiers() {
@@ -62,7 +69,12 @@
         return {
             enabled: true, antiDupSec: 10, lateWelcome: true, mediaMaxWaitSec: 30, hideZeroXu: true,
             enterText: 'VÀO PHÒNG', diagnostics: false,
-            card: { xPercent: 3, yPercent: 60, scale: 100, maxStack: 3, direction: 'up', durationMs: 5000 }
+            card: { xPercent: 3, yPercent: 60, scale: 100, maxStack: 3, direction: 'up', durationMs: 5000 },
+            batch: { enabled: true, belowTierLevel: 25 },
+            showVisits: true,
+            tts: { enabled: true, volume: 90 },
+            hotkeys: { enabled: false, skip: 'S', clear: 'C' },
+            board: { title: 'KHÁCH QUEN CỦA PHÒNG', scope: 'month', skin: 'violet', limit: 10 }
         };
     }
 

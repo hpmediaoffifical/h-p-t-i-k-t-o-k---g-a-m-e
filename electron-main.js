@@ -1581,6 +1581,39 @@ function applyBancungHotkeys(cfg) {
 global.__bancungApplyHotkeys = applyBancungHotkeys;
 
 // ============================================================
+// CHÀO MỪNG VIP — phím tắt toàn cục (tắt mặc định): Ctrl+Shift+<phím> bỏ qua mục đang phát / xoá hết thẻ.
+// Server.js gọi global.__vipwelcomeApplyHotkeys(cfg) khi lưu cấu hình + lúc khởi động.
+// ============================================================
+let _vipwelcomeAccels = [];
+function applyVipwelcomeHotkeys(cfg) {
+    for (const a of _vipwelcomeAccels) { try { globalShortcut.unregister(a); } catch (_) {} }
+    _vipwelcomeAccels = [];
+    const hk = cfg?.joinCard?.hotkeys || {};
+    if (cfg?.enabled === false || hk.enabled !== true) return;
+    const call = async (type) => {
+        try {
+            const fetch = require('node-fetch');
+            await fetch(`${APP_URL}/api/games/vipwelcome/trigger`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type })
+            });
+        } catch (e) { console.warn('[vipwelcome-hotkey] api fail:', e.message); }
+    };
+    const reg = (key, type) => {
+        const k = String(key || '').trim().toUpperCase();
+        if (!/^([A-Z0-9]|F([1-9]|1[0-2]))$/.test(k)) return;   // 1 phím chữ/số/F1–F12; tiền tố Ctrl+Shift tự thêm
+        const accel = 'CommandOrControl+Shift+' + k;
+        try {
+            if (globalShortcut.register(accel, () => call(type))) _vipwelcomeAccels.push(accel);
+            else console.warn('[vipwelcome-hotkey] phím đã bị app khác giữ:', accel);
+        } catch (e) { console.warn('[vipwelcome-hotkey] register fail:', accel, e.message); }
+    };
+    reg(hk.skip, 'skip');
+    reg(hk.clear, 'clearAll');
+    if (_vipwelcomeAccels.length) console.log(`[vipwelcome] phím tắt: ${_vipwelcomeAccels.join(', ')}`);
+}
+global.__vipwelcomeApplyHotkeys = applyVipwelcomeHotkeys;
+
+// ============================================================
 // NHẶT LÁ — global test hotkeys cho từng hiệu ứng quà.
 // UI ghi nhận trực tiếp tổ hợp người dùng bấm (vd Control+Shift+1, Alt+Q, F6).
 // ============================================================
