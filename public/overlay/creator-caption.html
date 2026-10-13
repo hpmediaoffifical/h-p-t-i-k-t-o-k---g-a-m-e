@@ -73,6 +73,64 @@
         .line.leaving { opacity: 0; transform: translateY(18px) scale(0.96); filter: blur(8px); transition: opacity .28s ease, transform .28s ease, filter .28s ease; }
         @keyframes captionIn { from { opacity: 0; transform: translateY(24px) scale(0.94); filter: blur(10px); } to { opacity: 1; transform: none; filter: none; } }
         @keyframes karaokeWord { to { opacity: 1; transform: none; filter: none; } }
+
+        /* Dòng chữ ĐANG NÓI (chưa dịch) — câu gốc mờ + "…" nhấp nháy, nằm dưới cụm phụ đề. */
+        #interim {
+            display: none;
+            max-width: 100%;
+            text-align: center;
+            font-size: clamp(18px, 1.8vw, 28px);
+            line-height: 1.3;
+            font-style: italic;
+            color: #d3d3d3;
+            opacity: 0.85;
+            text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 0 6px rgba(0,0,0,0.6);
+            white-space: pre-wrap;
+        }
+        #interim.show { display: block; }
+        #interim::after {
+            content: '…';
+            display: inline-block;
+            width: 1.2em;
+            text-align: left;
+            animation: dots 1.2s steps(3, end) infinite;
+        }
+        @keyframes dots {
+            0%   { clip-path: inset(0 100% 0 0); }
+            33%  { clip-path: inset(0 66% 0 0); }
+            66%  { clip-path: inset(0 33% 0 0); }
+            100% { clip-path: inset(0 0 0 0); }
+        }
+
+        /* Kiểu PHỤ ĐỀ: không nền, chữ trắng viền đen, mỗi ngôn ngữ một dòng, câu gốc nhỏ nghiêng trong ngoặc. */
+        .line.subtitle {
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: none;
+            box-shadow: none;
+            backdrop-filter: none;
+        }
+        .line.subtitle .route, .line.subtitle .lang-label { display: none; }
+        .line.subtitle .translated {
+            font-size: 36px;
+            line-height: 1.25;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 0 6px rgba(0,0,0,0.6);
+            white-space: pre-wrap;
+        }
+        .line.subtitle .translated + .translated { margin-top: 4px; }
+        .line.subtitle .word { opacity: 1; transform: none; filter: none; animation: none; color: inherit; text-shadow: inherit; }
+        .line.subtitle .original {
+            margin-top: 6px;
+            font-size: 24px;
+            font-style: italic;
+            color: #d3d3d3;
+            text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 0 6px rgba(0,0,0,0.6);
+        }
+        .line.subtitle .original::before { content: '('; }
+        .line.subtitle .original::after { content: ')'; }
     </style>
 </head>
 <body>
@@ -82,10 +140,14 @@
     (function () {
         const wrap = document.getElementById('wrap');
         const socket = io({ reconnection: true, reconnectionDelay: 600, reconnectionDelayMax: 5000 });
-        let config = { showOriginal: true, maxItems: 3, holdSeconds: 12 };
+        let config = { showOriginal: true, showInterim: true, style: 'card', maxItems: 3, holdSeconds: 12 };
+        const INTERIM_HIDE_MS = 8000;
+        let interimEl = null;
+        let interimTimer = null;
 
         function trimItems(max) {
-            while (wrap.children.length > max) wrap.removeChild(wrap.firstElementChild);
+            const lines = Array.from(wrap.querySelectorAll('.line'));
+            while (lines.length > max) lines.shift().remove();
         }
         function appendKaraokeText(parent, text) {
             const words = String(text || '').split(/(\s+)/).filter(Boolean);
@@ -104,9 +166,34 @@
                 wordIndex += 1;
             }
         }
+        function ensureInterim() {
+            if (!interimEl) {
+                interimEl = document.createElement('div');
+                interimEl.id = 'interim';
+            }
+            // Luôn nằm cuối cụm (dưới câu đã dịch gần nhất).
+            if (wrap.lastElementChild !== interimEl) wrap.appendChild(interimEl);
+            return interimEl;
+        }
+        function hideInterim() {
+            if (interimTimer) clearTimeout(interimTimer);
+            interimTimer = null;
+            if (interimEl) { interimEl.classList.remove('show'); interimEl.textContent = ''; }
+        }
+        function showInterim(text) {
+            const t = String(text || '').trim();
+            if (!t || config.showInterim === false) { hideInterim(); return; }
+            const el = ensureInterim();
+            el.textContent = t;
+            el.classList.add('show');
+            if (interimTimer) clearTimeout(interimTimer);
+            interimTimer = setTimeout(hideInterim, INTERIM_HIDE_MS);
+        }
         function addLine(item) {
+            hideInterim();   // câu final tới → dòng tạm xoá ngay
+            const style = item.style === 'subtitle' || (!item.style && config.style === 'subtitle') ? 'subtitle' : 'card';
             const el = document.createElement('div');
-            el.className = 'line' + (item.error ? ' error' : '');
+            el.className = 'line ' + style + (item.error ? ' error' : '');
             const route = document.createElement('div');
             route.className = 'route';
             const translations = Array.isArray(item.translations) && item.translations.length ? item.translations : [{ targetLangLabel: item.targetLangLabel, translatedText: item.translatedText }];
@@ -122,13 +209,15 @@
                 appendKaraokeText(translated, row.translatedText || item.originalText || '');
                 el.appendChild(translated);
             }
-            if ((item.showOriginal ?? config.showOriginal) && item.originalText && item.originalText !== item.translatedText) {
+            const allSame = translations.every(x => (x.translatedText || '') === item.originalText);
+            if ((item.showOriginal ?? config.showOriginal) && item.originalText && !allSame) {
                 const original = document.createElement('div');
                 original.className = 'original';
                 original.textContent = item.originalText;
                 el.appendChild(original);
             }
-            wrap.appendChild(el);
+            if (interimEl && interimEl.parentElement === wrap) wrap.insertBefore(el, interimEl);
+            else wrap.appendChild(el);
             trimItems(item.maxItems || config.maxItems || 3);
             setTimeout(() => {
                 el.classList.add('leaving');
@@ -137,8 +226,12 @@
         }
 
         socket.on('connect', () => socket.emit('subscribe', 'creatorCaptionOverlay'));
-        socket.on('creatorCaption:config', cfg => { config = { ...config, ...(cfg || {}) }; });
+        socket.on('creatorCaption:config', cfg => {
+            config = { ...config, ...(cfg || {}) };
+            if (config.showInterim === false) hideInterim();
+        });
         socket.on('creatorCaption:line', addLine);
+        socket.on('creatorCaption:partial', p => showInterim(p && p.text));
     })();
     </script>
 </body>
