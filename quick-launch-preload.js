@@ -23,6 +23,11 @@ contextBridge.exposeInMainWorld('hpQuickLaunch', {
         ipcRenderer.removeAllListeners('quick-launch:applyLayout');
         ipcRenderer.on('quick-launch:applyLayout', (_e, payload) => { try { cb(payload || {}); } catch (_) {} });
     },
+    // Main báo user vừa THẢ chuột sau khi kéo đổi kích thước → renderer ôm sát lại (Ngang gọt khít số cột)
+    onUserResized: (cb) => {
+        ipcRenderer.removeAllListeners('quick-launch:userResized');
+        ipcRenderer.on('quick-launch:userResized', () => { try { cb(); } catch (_) {} });
+    },
     close: () => ipcRenderer.send('quick-launch:close'),
     // Main process bắn 'quick-launch:initPin' với giá trị Pin đã lưu khi mở cửa sổ →
     // renderer dùng để sync UI nút 📌 đúng trạng thái persist.

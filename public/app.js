@@ -688,9 +688,12 @@
     // KHÔNG đụng sidebar toggle ⏻ (Bật/Tắt overlay OBS — khác việc start session). ===
     async function handleQuickLaunchCmd({ gameId, action }) {
         switch (gameId) {
-            case 'thuytinh':
+            case 'thuytinh': {
                 // Game không có khái niệm "start/stop session" — quà tự rơi khi enabled.
-                // reset = "↺ HŨ MỚI" (xóa quà + reset counters). start/stop = no-op.
+                // start/stop = BẬT/TẮT (giống ⏻ Thư viện). reset = "↺ HŨ MỚI" (xóa quà + reset counters).
+                const gTt = games.find(x => x.id === 'thuytinh');
+                if (action === 'start') { if (gTt && !isGameEnabled(gTt)) await setGameEnabled(gTt, true); break; }
+                if (action === 'stop')  { if (gTt && isGameEnabled(gTt)) await setGameEnabled(gTt, false); break; }
                 if (action === 'reset') {
                     try {
                         gameInstance?.resetSession?.();
@@ -698,6 +701,16 @@
                     } catch (e) { console.warn('[quick-launch] thuytinh reset fail:', e); }
                 }
                 break;
+            }
+            case 'camgames':
+            case 'giftboard': {
+                // Không có "phiên" và không có reset — ▶/⏸ = BẬT/TẮT config.enabled (giống ⏻ Thư viện).
+                const g = games.find(x => x.id === gameId);
+                if (!g) break;
+                if (action === 'start' && !isGameEnabled(g)) await setGameEnabled(g, true);
+                else if (action === 'stop' && isGameEnabled(g)) await setGameEnabled(g, false);
+                break;
+            }
             case 'caro':
                 try {
                     const caro = window.HpCaroPanel?.instance?.();

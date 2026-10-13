@@ -9,11 +9,14 @@
     /* ============================================================
        Khởi động nhanh — cửa sổ điều khiển nhanh (Electron frameless / popup trình duyệt)
        Một bộ thẻ game DÙNG CHUNG cho cả 2 bố cục:
-         Dọc  = 1 cột (danh sách)      Ngang = lưới nhiều cột tự chia đều theo bề rộng
+         Dọc  = 1 cột (danh sách)      Ngang = lưới nhiều cột
+       Tự ôm sát: Dọc rộng đúng bằng thẻ dài nhất; Ngang gọt khít N cột (luật trong /lib/quick-launch-layout.js).
+       Thứ bậc nút: chỉ game ĐANG CHẠY được tô nổi; ▶/⏸ luôn ở mép phải; ↺ ẩn tới khi rê chuột.
        ============================================================ */
     :root {
         --bg: #0b0d12;
         --surface: #12161f;
+        --surface-h: #151a25;
         --surface-2: #181d29;
         --surface-3: #202634;
         --line: #232a3a;
@@ -31,9 +34,10 @@
         --red: #d94141;
         --red-h: #e85252;
         --blue: #7fb6ff;
-        --radius: 9px;
+        --radius: 8px;
     }
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     html, body {
         margin: 0; padding: 0; height: 100%; overflow: hidden;
         background: var(--bg); color: var(--text);
@@ -42,6 +46,7 @@
         -webkit-font-smoothing: antialiased;
     }
     body { display: flex; flex-direction: column; box-shadow: inset 0 0 0 1px var(--line); }
+    body.is-sorting, body.is-sorting * { cursor: grabbing !important; }
     button { font-family: inherit; }
     svg { display: block; }
     .ico {
@@ -61,24 +66,33 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .spin { animation: spin .8s linear infinite; }
 
-    /* ===== Header — vùng kéo cửa sổ ===== */
+    /* ===== Header — vùng kéo cửa sổ. Không đẩy bề rộng: hẹp thì giấu chữ tiêu đề ===== */
     header {
         -webkit-app-region: drag;
-        flex-shrink: 0; height: 42px;
-        display: flex; align-items: center; gap: 10px;
-        padding: 0 8px 0 12px;
+        container-type: inline-size;
+        flex-shrink: 0; height: 38px;
+        display: flex; align-items: center; gap: 8px;
+        padding: 0 6px 0 12px;
         background: linear-gradient(180deg, #151a25 0%, #11151e 100%);
         border-bottom: 1px solid var(--line);
     }
     .brand { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; }
-    .brand-ico { font-size: 15px; line-height: 1; }
+    .brand-ico { font-size: 14px; line-height: 1; }
     .brand h1 {
-        margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .1px;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        margin: 0; font-size: 12.5px; font-weight: 700; letter-spacing: .1px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
         background: linear-gradient(90deg, var(--brand-a), var(--brand-b));
         -webkit-background-clip: text; background-clip: text; color: transparent;
     }
-    .actions { -webkit-app-region: no-drag; display: flex; align-items: center; gap: 4px; }
+    @container (max-width: 349px) { .brand h1 { display: none; } }
+    .run-badge {
+        flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
+        height: 18px; padding: 0 7px; border-radius: 9px;
+        font-size: 10.5px; font-weight: 700; color: var(--live); white-space: nowrap;
+        background: rgba(255, 138, 61, .12); border: 1px solid rgba(255, 138, 61, .3);
+    }
+    .run-badge .dot { width: 5px; height: 5px; animation: pulse 1.2s ease-in-out infinite; }
+    .actions { -webkit-app-region: no-drag; flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
     .hdr-btn {
         width: 28px; height: 28px;
         display: inline-flex; align-items: center; justify-content: center;
@@ -86,58 +100,66 @@
         color: var(--muted); cursor: pointer; padding: 0;
         transition: background .12s ease, color .12s ease, border-color .12s ease;
     }
+    .hdr-btn .ico { width: 15px; height: 15px; }
     .hdr-btn:hover { background: var(--surface-3); color: var(--text); }
-    .hdr-btn.is-on { background: #203050; color: var(--blue); border-color: #2f4a78; }
+    .hdr-btn.is-on { background: #1b2740; color: var(--blue); border-color: #2f4a78; }
     .hdr-btn.hdr-close:hover { background: #3a1c22; color: #ff7b7b; }
+    .hdr-btn.hdr-fit { color: var(--blue); }
     /* Segmented control Dọc | Ngang */
     .seg {
-        display: inline-flex; gap: 2px; padding: 2px; margin-right: 4px;
+        display: inline-flex; gap: 2px; padding: 2px; margin-right: 2px;
         background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
     }
     .seg-btn {
-        width: 28px; height: 24px; border: 0; border-radius: 6px; padding: 0;
+        width: 26px; height: 22px; border: 0; border-radius: 6px; padding: 0;
         background: transparent; color: var(--faint); cursor: pointer;
         display: inline-flex; align-items: center; justify-content: center;
         transition: background .12s ease, color .12s ease;
     }
+    .seg-btn .ico { width: 15px; height: 15px; }
     .seg-btn:hover { color: var(--text); }
     .seg-btn.is-on { background: #2a3a58; color: #8cc0ff; }
 
-    /* ===== Nội dung ===== */
-    main { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 10px 12px; }
+    /* Dải báo — CHỈ hiện khi có sự cố (mất kết nối app, không tải được game) */
+    .banner {
+        flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+        padding: 5px 12px; font-size: 11px; font-weight: 600; color: #ff9a9a;
+        background: #2a1418; border-bottom: 1px solid rgba(217, 65, 65, .35);
+    }
+    .banner .dot { width: 6px; height: 6px; color: var(--red); }
+
+    /* ===== Nội dung — gutter thanh cuộn cố định → thanh cuộn hiện/ẩn không làm lệch cột ===== */
+    main {
+        flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+        padding: 8px 2px 8px 8px; scrollbar-gutter: stable;
+    }
     #content { display: flex; flex-direction: column; gap: 8px; }
     main::-webkit-scrollbar { width: 6px; }
     main::-webkit-scrollbar-track { background: transparent; }
     main::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
     main::-webkit-scrollbar-thumb:hover { background: #3d465c; }
 
-    /* ===== Thẻ Kết nối TikTok — luôn full bề rộng, tách bạch với lưới game ===== */
+    /* ===== Kết nối TikTok — 1 dòng: [📡] [@ ID] [Kết nối]  ·  LIVE: [📡 LIVE] @id [Ngắt] ===== */
     .conn {
-        display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 7px 8px;
-        padding: 8px 10px;
-        background: linear-gradient(135deg, #151a28 0%, #181523 100%);
-        border: 1px solid #272d42; border-radius: var(--radius);
+        display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+        padding: 6px;
+        background: var(--surface); border: 1px solid var(--line); border-radius: 9px;
         transition: border-color .15s ease, box-shadow .15s ease;
     }
     .conn.is-live {
-        border-color: rgba(255, 107, 61, .6);
-        box-shadow: 0 0 0 1px rgba(255, 107, 61, .14), 0 4px 14px rgba(255, 107, 61, .12);
+        border-color: rgba(255, 107, 61, .5);
+        background: linear-gradient(90deg, #22171a 0%, var(--surface) 70%);
+        box-shadow: 0 0 0 1px rgba(255, 107, 61, .1);
     }
-    .conn-head { display: flex; align-items: center; gap: 7px; font-weight: 700; min-width: 0; }
-    .conn-head .ico { width: 15px; height: 15px; color: var(--live); }
-    .conn-title { white-space: nowrap; }
-    .chip {
-        justify-self: end; min-width: 0; max-width: 100%;
-        display: inline-flex; align-items: center; gap: 5px;
-        font-size: 10px; font-weight: 600; color: var(--muted);
-        padding: 2px 7px; border-radius: 999px;
-        background: #1b2030; border: 1px solid var(--line);
+    .conn-lead {
+        flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
+        padding: 0 2px; color: var(--live); font-weight: 800; font-size: 11px; letter-spacing: .3px;
     }
-    .chip .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .chip.is-live { color: var(--live); background: #2a1a18; border-color: rgba(255, 107, 61, .3); }
-    .chip.is-live .dot { animation: pulse 1.2s ease-in-out infinite; }
-    .conn-row { grid-column: 1 / -1; display: flex; gap: 6px; min-width: 0; }
-    .conn-input-wrap { position: relative; flex: 1; min-width: 0; }
+    .conn-lead .ico { width: 15px; height: 15px; }
+    .conn-live { display: none; }
+    .conn.is-live .conn-live { display: inline; }
+    .conn.is-live .conn-lead .ico { animation: pulse 1.6s ease-in-out infinite; border-radius: 50%; }
+    .conn-input-wrap { position: relative; flex: 1 1 0; min-width: 0; }
     .conn-at {
         position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
         color: var(--faint); font-weight: 700; pointer-events: none;
@@ -145,25 +167,30 @@
     .conn-input {
         width: 100%; height: 30px;
         background: #0d1017; border: 1px solid var(--line-2); border-radius: 7px;
-        color: var(--text); padding: 0 9px 0 22px; font-size: 12px; font-family: inherit; outline: none;
+        color: var(--text); padding: 0 8px 0 22px; font-size: 12px; font-family: inherit; outline: none;
+        text-overflow: ellipsis;
         transition: border-color .12s ease, box-shadow .12s ease;
     }
     .conn-input::placeholder { color: var(--faint); }
     .conn-input:focus { border-color: #4a6aa0; box-shadow: 0 0 0 2px rgba(74, 106, 160, .18); }
-    .conn-input:disabled { color: var(--muted); }
+    .conn.is-live .conn-input:disabled {
+        background: transparent; border-color: transparent; padding-left: 12px;
+        color: var(--text); font-weight: 700; -webkit-text-fill-color: var(--text); opacity: 1;
+    }
+    .conn.is-live .conn-at { left: 0; color: var(--muted); }
     .conn-btn {
-        height: 30px; border: 0; border-radius: 7px; padding: 0 13px;
+        flex-shrink: 0; height: 30px; border: 1px solid transparent; border-radius: 7px; padding: 0 12px;
         font-size: 12px; font-weight: 700; color: #fff; background: var(--green);
         cursor: pointer; white-space: nowrap;
-        transition: background .12s ease, transform .05s ease;
+        transition: background .12s ease, transform .05s ease, color .12s ease;
     }
     .conn-btn:hover { background: var(--green-h); }
     .conn-btn:active { transform: scale(.97); }
-    .conn-btn:disabled { background: #1f3a2a; color: #6b7785; cursor: not-allowed; }
-    .conn-btn.is-disc { background: var(--red); }
-    .conn-btn.is-disc:hover { background: var(--red-h); }
+    .conn-btn:disabled { background: #1f3a2a; color: #6b7785; cursor: wait; }
+    .conn-btn.is-disc { background: transparent; color: #ff8080; border-color: rgba(217, 65, 65, .45); }
+    .conn-btn.is-disc:hover { background: var(--red); color: #fff; }
     .conn-err {
-        grid-column: 1 / -1; display: none; margin: 0;
+        flex-basis: 100%; display: none; margin: 0 2px;
         font-size: 11px; line-height: 1.35; color: #ff8080;
     }
     .conn-err.show { display: block; }
@@ -180,7 +207,7 @@
         padding: 6px 9px; cursor: pointer; transition: background .1s ease;
     }
     .conn-sugg-item:hover, .conn-sugg-item.is-active { background: #1c2233; }
-    .conn-sugg-item .sugg-name { flex: 1; color: #c8cee0; }
+    .conn-sugg-item .sugg-name { flex: 1; min-width: 0; color: #c8cee0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .conn-sugg-item .sugg-name b { color: var(--live); font-weight: 700; }
     .conn-sugg-item .sugg-del {
         background: transparent; border: 0; color: var(--faint); cursor: pointer;
@@ -190,141 +217,192 @@
     .conn-sugg::-webkit-scrollbar { width: 5px; }
     .conn-sugg::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
 
-    /* ===== Lưới game — 1 thẻ chung, số cột theo bố cục ===== */
-    #grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
+    /* ===== Lưới game ===== */
+    #grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    /* NGANG: cột rộng tối thiểu = thẻ dài nhất (--colw do JS đo); tự ôm sát thì cửa sổ gọt khít N cột */
+    body.layout-ngang #grid { grid-template-columns: repeat(auto-fill, minmax(min(var(--colw, 232px), 100%), 1fr)); gap: 6px; }
+    /* Đo bề rộng tự nhiên: 1 cột max-content (đồng bộ, không kịp vẽ ra màn hình) */
+    body.measuring #grid { grid-template-columns: max-content !important; width: max-content; }
+
     .card {
-        position: relative; min-width: 0; overflow: hidden;
+        position: relative; min-width: 0; height: 44px;
         display: flex; align-items: center; gap: 9px;
-        padding: 6px 7px 6px 11px;
+        padding: 0 6px 0 10px;
         background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-        transition: background .15s ease, border-color .15s ease;
+        cursor: grab; user-select: none; -webkit-user-select: none;
+        transition: background .12s ease, border-color .12s ease;
     }
-    /* Vạch trạng thái bên trái: xanh = sẵn sàng, cam = đang chạy, xám = đã tắt */
-    .card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--line-2); }
-    .card.is-on::before { background: var(--green); opacity: .8; }
-    .card.is-live { background: linear-gradient(90deg, #241a1d 0%, #171a23 65%); border-color: rgba(255, 107, 61, .45); }
-    .card.is-live::before { background: var(--live); box-shadow: 0 0 8px var(--live); }
-    .card.is-off .card-ico, .card.is-off .card-name { opacity: .55; }
+    .card:hover { background: var(--surface-h); border-color: var(--line-2); }
+    /* Tay nắm ⋮⋮ — gợi ý "kéo được", chỉ hiện khi rê chuột */
+    .card-grip {
+        position: absolute; left: 1px; top: 50%; transform: translateY(-50%);
+        color: var(--faint); opacity: 0; transition: opacity .12s ease; pointer-events: none;
+    }
+    .card-grip .ico { width: 8px; height: 14px; }
+    .card:hover .card-grip { opacity: .9; }
+    /* CHỈ game đang chạy được tô nổi — mắt bắt ngay giữa danh sách dài */
+    .card.is-live { background: linear-gradient(90deg, #2a1c1c 0%, #171a23 70%); border-color: rgba(255, 107, 61, .5); }
+    .card.is-live::after {
+        content: ''; position: absolute; left: -1px; top: 8px; bottom: 8px; width: 3px;
+        border-radius: 0 3px 3px 0; background: var(--live); box-shadow: 0 0 8px var(--live);
+    }
+    .card.is-off .card-ico, .card.is-off .card-name { opacity: .5; }
     .card-ico {
-        width: 30px; height: 30px; flex-shrink: 0;
+        width: 28px; height: 28px; flex-shrink: 0;
         display: flex; align-items: center; justify-content: center;
-        font-size: 17px; line-height: 1;
-        background: var(--surface-2); border-radius: 8px;
+        font-size: 16px; line-height: 1;
+        background: var(--surface-2); border-radius: 7px;
     }
     .card.is-live .card-ico { background: #2c2023; }
-    .card-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .card-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
     .card-name {
-        font-size: 12px; font-weight: 700; line-height: 1.2;
+        max-width: 150px;   /* tên quá dài → "…" (đủ tên ở tooltip), không kéo cửa sổ rộng ra */
+        font-size: 12px; font-weight: 700; line-height: 1.25;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .card-state { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 10.5px; font-weight: 600; }
     .card-state .state-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-state .dot { box-shadow: none; }
     .card-state.on   { color: var(--green); }
     .card-state.off  { color: var(--faint); }
     .card-state.live { color: var(--live); }
     .card-state.live .dot { animation: pulse 1.2s ease-in-out infinite; }
-    .card-actions { flex-shrink: 0; display: flex; gap: 4px; }
+
+    /* Nút: ↺ (phụ) bên trái · ▶/⏸ (chính) mép phải — luôn cùng 1 cột */
+    .card-actions { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
     .btn {
-        height: 28px; border: 0; border-radius: 7px; padding: 0; color: #fff; cursor: pointer;
+        height: 28px; border: 1px solid transparent; border-radius: 7px; padding: 0;
+        color: #fff; background: transparent; cursor: pointer;
         display: inline-flex; align-items: center; justify-content: center;
-        transition: background .12s ease, transform .05s ease, opacity .12s ease;
+        transition: background .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease, transform .05s ease;
     }
-    .btn:active { transform: scale(.96); }
+    .btn:active { transform: scale(.95); }
     .btn:disabled { cursor: wait; opacity: .6; }
     .btn .ico { width: 14px; height: 14px; }
-    /* ▶ (chưa chạy → bắt đầu) xanh · ⏸ (đang chạy → dừng) cam · ↺ reset trung tính */
-    .btn-toggle { width: 42px; }
-    .btn-toggle.is-play  { background: var(--green); }
-    .btn-toggle.is-play:hover  { background: var(--green-h); }
+    .btn-spacer { width: 26px; flex-shrink: 0; }
+    .btn-toggle { width: 40px; }
+    /* Sẵn sàng: viền xanh nhạt, rê vào mới đổ đặc */
+    .card.is-on  .btn-toggle.is-play { color: var(--green-h); background: rgba(34, 179, 95, .12); border-color: rgba(34, 179, 95, .4); }
+    .card.is-on  .btn-toggle.is-play:hover { color: #fff; background: var(--green); border-color: var(--green); }
+    /* Đã tắt: xám, rê vào mới xanh */
+    .card.is-off .btn-toggle.is-play { color: var(--muted); background: var(--surface-3); }
+    .card.is-off .btn-toggle.is-play:hover { color: #fff; background: var(--green); }
+    /* Đang chạy: cam đặc — nút nổi nhất cửa sổ */
     .btn-toggle.is-pause { background: var(--amber); }
     .btn-toggle.is-pause:hover { background: var(--amber-h); }
-    .btn-reset { width: 28px; background: var(--surface-3); color: var(--muted); }
-    .btn-reset:hover { background: #2d3548; color: var(--text); }
+    /* ↺ Reset: ẩn tới khi rê vào thẻ (luôn hiện ở thẻ đang chạy), ánh đỏ khi trỏ vào — giảm bấm nhầm */
+    .btn-reset { width: 26px; color: var(--faint); opacity: 0; }
+    .card:hover .btn-reset, .card.is-live .btn-reset, .btn-reset:focus-visible, .btn-reset:disabled { opacity: 1; }
+    .btn-reset:hover { color: #ff8b8b; background: rgba(217, 65, 65, .14); }
+    .btn:focus-visible { outline: 2px solid rgba(127, 182, 255, .6); outline-offset: 1px; }
 
-    /* ===== NGANG: Kết nối gọn 1 dòng, game xếp lưới nhiều cột (tự chia đều, không lởm chởm) ===== */
-    body.layout-ngang .conn {
-        display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 10px;
+    /* ===== Kéo-thả ===== */
+    .sort-dragging {
+        background: #1b2131 !important; border-color: #4a6aa0 !important;
+        box-shadow: 0 10px 26px rgba(0, 0, 0, .55); transition: none !important;
     }
-    body.layout-ngang .conn-head { flex: 0 0 auto; order: 1; }
-    body.layout-ngang .conn-row  { flex: 1 1 260px; order: 2; }
-    body.layout-ngang .chip      { flex: 0 0 auto; order: 3; }
-    body.layout-ngang .conn-err  { flex-basis: 100%; order: 4; }
-    body.layout-ngang #grid { grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); }
-
-    /* ===== Footer — trạng thái ===== */
-    footer {
-        flex-shrink: 0; height: 26px;
-        display: flex; align-items: center; justify-content: space-between; gap: 8px;
-        padding: 0 12px; font-size: 10.5px; color: var(--faint);
-        background: #0d1017; border-top: 1px solid #1a1f2c;
+    .sort-ph { visibility: hidden; }
+    .toast {
+        position: fixed; left: 50%; bottom: 10px; z-index: 300;
+        transform: translateX(-50%) translateY(8px); opacity: 0; pointer-events: none;
+        background: #1d2433; border: 1px solid var(--line-2); border-radius: 7px;
+        color: var(--text); padding: 6px 10px; font-size: 11px; white-space: nowrap;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, .5);
+        transition: opacity .18s ease, transform .18s ease;
     }
-    .conn-state { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
-    .conn-state span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .conn-state .dot { width: 7px; height: 7px; background: var(--red); box-shadow: none; }
-    .conn-state.connected .dot { background: var(--green); box-shadow: 0 0 5px var(--green); }
-    #run-count { font-weight: 600; white-space: nowrap; }
-    #run-count.has { color: var(--live); }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
     /* ===== Cài đặt (modal) ===== */
     .modal {
         position: fixed; inset: 0; z-index: 200; display: none;
-        align-items: center; justify-content: center; padding: 14px;
+        align-items: center; justify-content: center; padding: 6px;
         background: rgba(5, 7, 12, .78); backdrop-filter: blur(3px);
     }
     .modal.show { display: flex; }
     .modal-card {
-        width: 100%; max-width: 400px; max-height: calc(100vh - 28px);
+        width: 100%; max-width: 400px; max-height: calc(100vh - 12px);
         display: flex; flex-direction: column; overflow: hidden;
         background: #141822; border: 1px solid var(--line-2); border-radius: 12px;
         box-shadow: 0 14px 40px rgba(0, 0, 0, .6);
     }
     .modal-head {
         display: flex; align-items: center; gap: 8px;
-        padding: 10px 10px 10px 14px; font-size: 13px; font-weight: 700;
+        padding: 8px 8px 8px 14px; font-size: 13px; font-weight: 700;
         border-bottom: 1px solid var(--line);
     }
     .modal-head .ico { color: var(--muted); }
     .modal-head .hdr-btn { margin-left: auto; }
-    .modal-body { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 10px 12px; }
+    .modal-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 4px 10px 6px; }
     .modal-body::-webkit-scrollbar { width: 5px; }
     .modal-body::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
     .stg-section { padding: 8px 0 4px; }
     .stg-section + .stg-section { border-top: 1px solid var(--line); margin-top: 4px; }
     .stg-title {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
         font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
         color: var(--faint); padding: 4px 6px 6px;
     }
+    .stg-title .mode { color: var(--muted); }
+    .stg-link {
+        flex-shrink: 0; background: transparent; border: 0; padding: 2px 4px; border-radius: 4px; cursor: pointer;
+        font: inherit; font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--blue);
+    }
+    .stg-link:hover { background: #1b2740; }
     .stg-row {
         position: relative; display: flex; align-items: center; gap: 10px;
         padding: 7px 8px; border-radius: 7px; cursor: pointer; user-select: none;
         transition: background .1s ease;
     }
     .stg-row:hover { background: #1c2233; }
-    .stg-row[hidden] { display: none; }   /* hàng chỉ có ý nghĩa trong Electron (vd Tự mở) */
-    .stg-row input[type="checkbox"] { position: absolute; opacity: 0; width: 0; height: 0; }
-    .stg-row .stg-ico { width: 24px; text-align: center; font-size: 16px; line-height: 1; flex-shrink: 0; }
+    input.sw-input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .stg-ico { width: 22px; text-align: center; font-size: 15px; line-height: 1; flex-shrink: 0; }
     .stg-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .stg-name { font-size: 12px; font-weight: 600; color: var(--text); }
-    .stg-desc { font-size: 10.5px; line-height: 1.35; color: var(--muted); }
+    .stg-desc { font-size: 10.5px; line-height: 1.4; color: var(--muted); }
     /* Công tắc */
     .sw {
-        position: relative; flex-shrink: 0; width: 34px; height: 20px; border-radius: 10px;
+        position: relative; flex-shrink: 0; width: 32px; height: 18px; border-radius: 9px;
         background: var(--line-2); transition: background .15s ease;
     }
     .sw::after {
-        content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+        content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
         border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .4);
         transition: transform .15s ease;
     }
-    .stg-row input:checked + .sw { background: var(--green); }
-    .stg-row input:checked + .sw::after { transform: translateX(14px); }
-    .stg-row input:focus-visible + .sw { box-shadow: 0 0 0 2px rgba(127, 182, 255, .5); }
-    .stg-note { margin: 4px 8px 2px; font-size: 10.5px; line-height: 1.45; color: var(--faint); }
+    input:checked + .sw { background: var(--green); }
+    input:checked + .sw::after { transform: translateX(14px); }
+    input:focus-visible + .sw { box-shadow: 0 0 0 2px rgba(127, 182, 255, .5); }
+    .stg-note { margin: 6px 8px 2px; font-size: 10.5px; line-height: 1.45; color: var(--faint); }
+    /* Thứ tự & hiển thị */
+    .ord-row {
+        display: flex; align-items: center; gap: 5px;
+        height: 32px; padding: 0 4px 0 0; border-radius: 7px; background: #141822;
+        user-select: none; -webkit-user-select: none;
+    }
+    .ord-row:hover { background: #1c2233; }
+    .ord-grip { width: 16px; height: 28px; display: flex; align-items: center; justify-content: center; color: var(--faint); cursor: grab; flex-shrink: 0; }
+    .ord-grip:hover { color: var(--text); }
+    .ord-grip .ico { width: 8px; height: 14px; }
+    .ord-name { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ord-row.is-hidden .ord-name, .ord-row.is-hidden .stg-ico { opacity: .45; }
+    /* ↑↓ xếp chồng 1 cột — nút phụ (kéo ⋮⋮ là cách chính), dành chỗ cho tên game */
+    .ord-mvs { flex-shrink: 0; display: flex; flex-direction: column; gap: 1px; }
+    .ord-mv {
+        width: 22px; height: 14px; flex-shrink: 0; padding: 0; border: 0; border-radius: 4px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: transparent; color: var(--faint); cursor: pointer;
+    }
+    .ord-mv .ico { width: 12px; height: 12px; }
+    .ord-mv:hover:not(:disabled) { background: var(--surface-3); color: var(--text); }
+    .ord-mv:disabled { opacity: .25; cursor: default; }
+    .ord-mv:focus-visible { outline: 2px solid rgba(127, 182, 255, .6); }
+    .ord-sw { position: relative; display: flex; align-items: center; padding: 4px 0 4px 2px; cursor: pointer; }
     .legend { display: flex; flex-direction: column; gap: 5px; padding: 2px 8px 4px; }
     .legend-row { display: flex; align-items: center; gap: 9px; font-size: 11px; color: var(--muted); }
-    .legend-row .btn { height: 22px; pointer-events: none; }
+    .legend-row .btn { height: 22px; pointer-events: none; opacity: 1; }
     .legend-row .btn.btn-toggle { width: 34px; }
-    .legend-row .btn.btn-reset { width: 22px; }
+    .legend-row .btn.btn-reset { width: 22px; color: var(--muted); background: var(--surface-3); }
+    .legend-row .btn.is-play { color: var(--green-h); background: rgba(34, 179, 95, .12); border-color: rgba(34, 179, 95, .4); }
     .legend-row .btn .ico { width: 12px; height: 12px; }
     .legend-row b { color: var(--text); font-weight: 600; }
     </style>
@@ -334,6 +412,7 @@
         <div class="brand">
             <span class="brand-ico">🚀</span>
             <h1>Khởi động nhanh</h1>
+            <span id="run-badge" class="run-badge" hidden><span class="dot"></span><span id="run-badge-n">0</span></span>
         </div>
         <div class="actions">
             <div class="seg" role="group" aria-label="Bố cục cửa sổ">
@@ -344,7 +423,10 @@
                     <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
                 </button>
             </div>
-            <button id="btn-settings" class="hdr-btn" title="Cài đặt — cửa sổ &amp; game hiển thị">
+            <button id="btn-fit" class="hdr-btn hdr-fit" title="Ôm sát lại — co cửa sổ vừa khít nội dung" hidden>
+                <svg class="ico" viewBox="0 0 24 24"><path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/></svg>
+            </button>
+            <button id="btn-settings" class="hdr-btn" title="Cài đặt — cửa sổ, thứ tự &amp; game hiển thị">
                 <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
             <button id="btn-pin" class="hdr-btn is-on" title="Luôn hiện trên cùng (Always on top)">
@@ -355,36 +437,31 @@
             </button>
         </div>
     </header>
+    <div id="app-banner" class="banner" role="status" hidden><span class="dot"></span><span id="app-banner-txt"></span></div>
 
     <main>
         <div id="content">
             <!-- 🔗 Kết nối TikTok — nhập ID + gợi ý từ lịch sử -->
             <section id="conn-card" class="conn">
-                <div class="conn-head">
+                <span class="conn-lead" title="Kết nối phòng TikTok LIVE">
                     <svg class="ico" viewBox="0 0 24 24"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>
-                    <span class="conn-title">Kết nối TikTok</span>
+                    <span class="conn-live">LIVE</span>
+                </span>
+                <div class="conn-input-wrap">
+                    <span class="conn-at">@</span>
+                    <input id="conn-input" class="conn-input" type="text"
+                           placeholder="username TikTok" autocomplete="off" spellcheck="false" />
+                    <div id="conn-sugg" class="conn-sugg" role="listbox"></div>
                 </div>
-                <span id="conn-chip" class="chip"><span class="dot"></span><span id="conn-chip-txt" class="txt">Chưa kết nối</span></span>
-                <div class="conn-row">
-                    <div class="conn-input-wrap">
-                        <span class="conn-at">@</span>
-                        <input id="conn-input" class="conn-input" type="text"
-                               placeholder="username TikTok" autocomplete="off" spellcheck="false" />
-                        <div id="conn-sugg" class="conn-sugg" role="listbox"></div>
-                    </div>
-                    <button id="conn-btn" class="conn-btn">Kết nối</button>
-                </div>
+                <button id="conn-btn" class="conn-btn">Kết nối</button>
                 <p id="conn-err" class="conn-err"></p>
             </section>
             <div id="grid"></div>
         </div>
     </main>
-    <footer>
-        <span id="conn-state" class="conn-state"><span class="dot"></span><span id="conn-text">Đang kết nối…</span></span>
-        <span id="run-count">Chưa có game chạy</span>
-    </footer>
+    <div id="toast" class="toast" role="status"></div>
 
-    <!-- ⚙ Cài đặt: cửa sổ + chọn game hiển thị -->
+    <!-- ⚙ Cài đặt: cửa sổ + thứ tự & game hiển thị -->
     <div id="settings-overlay" class="modal">
         <div class="modal-card">
             <div class="modal-head">
@@ -396,13 +473,13 @@
             </div>
             <div class="modal-body">
                 <div class="stg-section">
-                    <div class="stg-title">Cửa sổ</div>
+                    <div class="stg-title"><span>Cửa sổ</span></div>
                     <label class="stg-row">
                         <div class="stg-text">
-                            <span class="stg-name">Tự ôm sát chiều cao <span id="stg-fit-mode" style="color:var(--faint);font-weight:500"></span></span>
-                            <span class="stg-desc">Cửa sổ tự co giãn vừa khít nội dung. Tự tắt khi bạn kéo chiều cao bằng tay — chiều cao đó được giữ nguyên.</span>
+                            <span class="stg-name">Tự ôm sát nội dung <span id="stg-fit-mode" style="color:var(--faint);font-weight:500"></span></span>
+                            <span class="stg-desc">Dọc rộng đúng bằng tên game dài nhất; Ngang gọt khít số cột khi bạn thả chuột; chiều cao luôn vừa khít. Tự tắt khi bạn kéo chiều cao bằng tay — bấm nút co trên thanh tiêu đề để bật lại.</span>
                         </div>
-                        <input type="checkbox" id="stg-fit" />
+                        <input type="checkbox" id="stg-fit" class="sw-input" />
                         <span class="sw"></span>
                     </label>
                     <label class="stg-row" id="stg-autoopen-row" hidden>
@@ -410,22 +487,25 @@
                             <span class="stg-name">Tự mở khi khởi động app</span>
                             <span class="stg-desc">Cửa sổ này hiện ngay khi HP Action LIVE mở xong.</span>
                         </div>
-                        <input type="checkbox" id="stg-autoopen" />
+                        <input type="checkbox" id="stg-autoopen" class="sw-input" />
                         <span class="sw"></span>
                     </label>
                     <p class="stg-note">Vị trí và kích thước được lưu <b>riêng</b> cho bố cục Dọc và Ngang. Kéo chỉnh xong là tự lưu — chuyển qua lại luôn về đúng chỗ đã chỉnh.</p>
                 </div>
                 <div class="stg-section">
-                    <div class="stg-title">Game hiển thị</div>
+                    <div class="stg-title">
+                        <span>Thứ tự &amp; hiển thị · <span id="stg-order-mode" class="mode"></span></span>
+                        <button id="stg-order-reset" class="stg-link" title="Khôi phục thứ tự gốc cho bố cục đang mở">↺ Mặc định</button>
+                    </div>
                     <div id="settings-body"></div>
-                    <p class="stg-note">Game bị ẩn vẫn chạy bình thường ở app chính — chỉ không hiện trong cửa sổ này.</p>
+                    <p class="stg-note">Kéo ⋮⋮ hoặc bấm ↑ ↓ — kéo thẳng thẻ ngoài cửa sổ cũng được. Dọc và Ngang nhớ thứ tự <b>riêng</b> (bố cục chưa sắp riêng thì theo bố cục kia). Tắt công tắc = ẩn khỏi cửa sổ này; game vẫn chạy bình thường ở app chính.</p>
                 </div>
                 <div class="stg-section">
-                    <div class="stg-title">Ký hiệu nút</div>
+                    <div class="stg-title"><span>Ký hiệu nút</span></div>
                     <div class="legend">
                         <div class="legend-row"><span class="btn btn-toggle is-play"><svg class="ico fill" viewBox="0 0 24 24"><path d="M7 4.6v14.8a1 1 0 0 0 1.52.85l11.6-7.4a1 1 0 0 0 0-1.7L8.52 3.75A1 1 0 0 0 7 4.6z"/></svg></span><span><b>Bắt đầu</b> / tiếp tục phiên (game không có phiên: BẬT)</span></div>
                         <div class="legend-row"><span class="btn btn-toggle is-pause"><svg class="ico fill" viewBox="0 0 24 24"><rect x="5.5" y="4" width="4.5" height="16" rx="1.2"/><rect x="14" y="4" width="4.5" height="16" rx="1.2"/></svg></span><span><b>Dừng</b> — giữ tiến trình (game không có phiên: TẮT)</span></div>
-                        <div class="legend-row"><span class="btn btn-reset"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/></svg></span><span><b>Reset</b> — chạy lại từ đầu, xoá tiến trình</span></div>
+                        <div class="legend-row"><span class="btn btn-reset"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/></svg></span><span><b>Reset</b> — chạy lại từ đầu, xoá tiến trình. Hiện khi rê chuột vào thẻ.</span></div>
                     </div>
                 </div>
             </div>
@@ -433,20 +513,24 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/lib/quick-launch-layout.js"></script>
     <script>
     (() => {
         const $ = (id) => document.getElementById(id);
+        const L = window.HpQlLayout;
+        const mainEl    = document.querySelector('main');
         const gridEl    = $('grid');
         const pinBtn    = $('btn-pin');
         const closeBtn  = $('btn-close');
-        const connEl    = $('conn-state');
-        const connTxt   = $('conn-text');
-        const runCount  = $('run-count');
+        const fitBtn    = $('btn-fit');
+        const runBadge  = $('run-badge');
+        const runBadgeN = $('run-badge-n');
+        const bannerEl  = $('app-banner');
+        const bannerTxt = $('app-banner-txt');
+        const toastEl   = $('toast');
 
         // 🔗 Kết nối TikTok
         const connCard   = $('conn-card');
-        const connChip   = $('conn-chip');
-        const connChipTx = $('conn-chip-txt');
         const connInput  = $('conn-input');
         const connBtn    = $('conn-btn');
         const connSugg   = $('conn-sugg');
@@ -459,6 +543,8 @@
         const settingsClose = $('btn-settings-close');
         const stgFit = $('stg-fit');
         const stgFitMode = $('stg-fit-mode');
+        const stgOrderMode = $('stg-order-mode');
+        const stgOrderReset = $('stg-order-reset');
         const stgAutoOpenRow = $('stg-autoopen-row');
         const stgAutoOpen = $('stg-autoopen');
 
@@ -467,11 +553,14 @@
             play:  '<svg class="ico fill" viewBox="0 0 24 24"><path d="M7 4.6v14.8a1 1 0 0 0 1.52.85l11.6-7.4a1 1 0 0 0 0-1.7L8.52 3.75A1 1 0 0 0 7 4.6z"/></svg>',
             pause: '<svg class="ico fill" viewBox="0 0 24 24"><rect x="5.5" y="4" width="4.5" height="16" rx="1.2"/><rect x="14" y="4" width="4.5" height="16" rx="1.2"/></svg>',
             reset: '<svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/></svg>',
-            spin:  '<svg class="ico spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></svg>'
+            spin:  '<svg class="ico spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></svg>',
+            grip:  '<svg class="ico fill" viewBox="0 0 8 14"><circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="6" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="6" cy="12" r="1.2"/></svg>',
+            up:    '<svg class="ico" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>',
+            down:  '<svg class="ico" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>'
         };
 
         // Whitelist game ổn định — phải khớp STABLE_GAMES trong app.js
-        // (thứ tự mảng = thứ tự thẻ; icon/tên lấy từ /api/games nên không cần map ở đây)
+        // (thứ tự mảng = thứ tự GỐC; user sắp lại bằng kéo-thả, lưu riêng Dọc/Ngang ở ORDER_KEY)
         const STABLE_IDS = [
             'thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung',
             'pktiktok', 'vipwelcome', 'trongcay', 'nhatla',
@@ -482,6 +571,8 @@
         // localStorage: array các gameId user ĐÃ ẨN qua ⚙ Cài đặt. Lưu danh sách ẨN (không phải danh
         // sách hiện) để game mới thêm vào STABLE_IDS luôn hiện với cả user đã từng cấu hình.
         const HIDDEN_KEY = 'hp-quick-launch-hidden-games';
+        // localStorage: thứ tự thẻ theo bố cục { doc: [ids] | null, ngang: [ids] | null } — luật ở HpQlLayout.
+        const ORDER_KEY = 'hp-quick-launch-order';
         // Key cũ lưu danh sách HIỆN — migrate 1 lần: ẩn = id đã biết lúc đó trừ id đang hiện.
         const LEGACY_VISIBLE_KEY = 'hp-quick-launch-visible-games';
         const LEGACY_IDS = ['thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung', 'level-quest', 'timer', 'liveTranslate'];
@@ -509,23 +600,49 @@
         function isGameVisible(gameId) {
             return !loadHiddenGames().includes(gameId);
         }
+        function loadOrderStore() {
+            try { return JSON.parse(localStorage.getItem(ORDER_KEY) || 'null') || {}; } catch (_) { return {}; }
+        }
+        function saveOrderStore(store) {
+            try { localStorage.setItem(ORDER_KEY, JSON.stringify(store || {})); } catch (_) {}
+        }
 
-        let games = [];   // [{ id, name, icon, config, virtual }]
+        let games = [];   // [{ id, name, icon, config, virtual }] — theo thứ tự GỐC (STABLE_IDS)
         const running = Object.create(null);
+
+        // Thứ tự đầy đủ (kể cả game đang ẩn) của bố cục đang mở
+        function currentOrder() {
+            return L.resolveOrder(loadOrderStore(), curLayout, games.map(g => g.id));
+        }
+        function orderedGames() {
+            const byId = new Map(games.map(g => [g.id, g]));
+            return currentOrder().map(id => byId.get(id)).filter(Boolean);
+        }
 
         // TikTok connection state — sync qua socket 'status'
         let tiktokConnected = false;
         let tiktokUsername  = '';
 
+        // Dải báo chỉ hiện khi có sự cố → thường ngày cửa sổ gọn, không tốn 1 dòng trạng thái
+        let bannerMsg = { socket: '', games: '' };
+        function setBanner(key, msg) {
+            bannerMsg[key] = msg || '';
+            const text = bannerMsg.socket || bannerMsg.games;
+            const changed = bannerEl.hidden === !!text || bannerTxt.textContent !== text;
+            bannerTxt.textContent = text;
+            bannerEl.hidden = !text;
+            if (changed) fitWindow();
+        }
+
         // Socket — listen gameConfig updates để sync khi user toggle ở app chính
         const socket = io({ reconnection: true, reconnectionDelay: 600 });
-        socket.on('connect',    () => { connEl.classList.add('connected');    connTxt.textContent = 'Đã kết nối app'; });
-        socket.on('disconnect', () => { connEl.classList.remove('connected'); connTxt.textContent = 'Mất kết nối — đang thử lại…'; });
+        socket.on('connect',    () => setBanner('socket', ''));
+        socket.on('disconnect', () => setBanner('socket', 'Mất kết nối app — đang thử lại…'));
         socket.on('gameConfig', ({ gameId, config }) => {
             const g = games.find(x => x.id === gameId);
             if (!g) return;
             g.config = config;
-            syncRunningFromConfig(g);   // PK/VIP/Nhặt Lá/Trồng Cây: running suy từ config
+            syncRunningFromConfig(g);   // PK/VIP/Nhặt Lá/Hũ/Game Camera/Bảng Quà/Trồng Cây: running suy từ config
             updateCard(gameId);
         });
         // Sync trạng thái TikTok LIVE giữa app chính + cửa sổ Khởi động nhanh
@@ -552,11 +669,14 @@
 
         const isEnabled = (g) => !g.config || !('enabled' in g.config) || g.config.enabled !== false;
 
-        // Game KHÔNG có "phiên" riêng → Đang chạy = đang BẬT (config.enabled); ▶/⏸ = BẬT/TẮT.
+        // Game KHÔNG có "phiên" riêng → Đang chạy = đang BẬT (config.enabled); ▶/⏸ = BẬT/TẮT
+        // (app.js handleQuickLaunchCmd đổi config.enabled như ⏻ ở Thư viện).
         // Trồng Cây có phiên trong config.sessionActive (POST /api/games/trongcay/control start/stop
         // đổi + emit gameConfig) → running khi vừa BẬT vừa trong phiên. Server không gửi
         // trongcay:state lúc connect nên config (từ /api/games + 'gameConfig') là nguồn chính.
-        const ENABLED_IS_RUNNING = ['pktiktok', 'vipwelcome', 'nhatla'];
+        const ENABLED_IS_RUNNING = ['pktiktok', 'vipwelcome', 'nhatla', 'thuytinh', 'camgames', 'giftboard'];
+        // Game không có thao tác "chạy lại từ đầu" → không có nút ↺ (giữ ô trống để ▶ vẫn thẳng cột)
+        const NO_RESET = ['camgames', 'giftboard'];
         function syncRunningFromConfig(g) {
             if (!g) return;
             if (ENABLED_IS_RUNNING.includes(g.id)) setRunning(g.id, isEnabled(g));
@@ -579,6 +699,13 @@
             nhatla:     { start: 'BẬT — nhận quà rơi lá',
                           stop:  'TẮT — không nhận quà rơi lá (lá đang có vẫn giữ)',
                           reset: 'Xoá sạch lá + bảng TOP người tặng' },
+            thuytinh:   { start: 'BẬT — hũ nhận quà rơi',
+                          stop:  'TẮT — hũ ngừng nhận quà',
+                          reset: 'Hũ mới — xoá quà trong hũ + bộ đếm' },
+            camgames:   { start: 'BẬT Game Camera',
+                          stop:  'TẮT Game Camera (cài đặt giữ nguyên)' },
+            giftboard:  { start: 'BẬT — Bảng Quà Tổng hiện trên OBS',
+                          stop:  'TẮT — ẩn bảng khỏi OBS (vị trí, cỡ, cài đặt giữ nguyên)' },
             trongcay:   { start: 'Bắt đầu / tiếp tục phiên trồng cây (overlay OBS sẽ tải lại)',
                           stop:  'Tạm dừng phiên (giữ nguyên vườn)',
                           reset: 'Reset — xoá vườn + người đóng góp, trồng lại từ đầu' },
@@ -668,28 +795,28 @@
         });
 
         function showConnErr(msg) {
+            const was = connErr.classList.contains('show');
             connErr.textContent = msg || '';
             connErr.classList.toggle('show', !!msg);
-            if (fitMode) hugHeight();   // dòng lỗi hiện/ẩn làm nội dung cao/thấp đi
+            if (was !== !!msg) fitWindow();   // dòng lỗi hiện/ẩn làm nội dung cao/thấp đi
         }
         function updateConnUi() {
             connCard.classList.toggle('is-live', tiktokConnected);
-            connChip.classList.toggle('is-live', tiktokConnected);
             if (tiktokConnected) {
-                connChipTx.textContent = 'LIVE @' + tiktokUsername;
-                connChip.title = 'Đang kết nối phòng LIVE @' + tiktokUsername;
+                connCard.title = 'Đang kết nối phòng LIVE @' + tiktokUsername;
                 connInput.value = tiktokUsername;
                 connInput.disabled = true;
                 connBtn.textContent = 'Ngắt';
+                connBtn.title = 'Ngắt kết nối khỏi @' + tiktokUsername;
                 connBtn.classList.add('is-disc');
                 connBtn.disabled = false;
                 hideSuggestions();
                 showConnErr('');
             } else {
-                connChipTx.textContent = 'Chưa kết nối';
-                connChip.title = '';
+                connCard.title = '';
                 connInput.disabled = false;
                 connBtn.textContent = 'Kết nối';
+                connBtn.title = 'Kết nối phòng TikTok LIVE';
                 connBtn.classList.remove('is-disc');
                 connBtn.disabled = false;
             }
@@ -713,7 +840,7 @@
             const username = (connInput.value || '').trim().replace(/^@/, '');
             if (!username) { connInput.focus(); showConnErr('Vui lòng nhập TikTok ID'); return; }
             connBtn.disabled = true;
-            connBtn.textContent = 'Đang kết nối…';
+            connBtn.textContent = '…';
             showConnErr('');
             hideSuggestions();
             try {
@@ -767,35 +894,40 @@
                 games.sort((a, b) => STABLE_IDS.indexOf(a.id) - STABLE_IDS.indexOf(b.id));
                 // Game không có socket state riêng → trạng thái Đang chạy suy từ config ngay lúc load
                 games.forEach(syncRunningFromConfig);
+                setBanner('games', '');
                 render();
             } catch (e) {
-                connTxt.textContent = 'Không tải được danh sách game';
+                setBanner('games', 'Không tải được danh sách game');
             }
         }
 
-        function render() {
+        // baseW: bề rộng gốc cho bố cục Ngang khi main vừa đổi slot (renderer chưa kịp nhận size mới)
+        let renderPending = false;
+        function render(baseW) {
+            if (sorter.isDragging()) { renderPending = true; return; }   // đang kéo thẻ → vẽ lại sau khi thả
             gridEl.innerHTML = '';
-            for (const g of games) {
-                if (!isGameVisible(g.id)) continue;   // user đã tích tắt ở ⚙ Cài đặt
+            for (const g of orderedGames()) {
+                if (!isGameVisible(g.id)) continue;   // user đã tắt ở ⚙ Cài đặt
                 gridEl.appendChild(buildCard(g));
             }
             updateRunCount();
-            if (fitMode) hugHeight();   // số thẻ đổi → chiều cao đổi
+            fitWindow(baseW);   // số thẻ / độ dài tên đổi → kích thước đổi
         }
 
         function updateRunCount() {
             const n = games.filter(g => isGameVisible(g.id) && running[g.id]).length;
-            runCount.textContent = n > 0 ? `${n} game đang chạy` : 'Chưa có game chạy';
-            runCount.classList.toggle('has', n > 0);
+            runBadgeN.textContent = n;
+            runBadge.title = n + ' game đang chạy';
+            runBadge.hidden = n === 0;
         }
 
         function stateOf(g) {
             const enabled = isEnabled(g);
-            if (running[g.id]) return { cls: 'live', label: 'Đang chạy' };
-            if (enabled)       return { cls: 'on',   label: 'Sẵn sàng' };
-            // Game không có phiên: chính nút ⏸ ở đây đã TẮT nó — không chỉ riêng ở Thư viện
-            const label = ENABLED_IS_RUNNING.includes(g.id) ? 'Đã TẮT' : 'Đã TẮT ở Thư viện';
-            return { cls: 'off', label };
+            if (running[g.id]) return { cls: 'live', label: 'Đang chạy', tip: '' };
+            if (enabled)       return { cls: 'on',   label: 'Sẵn sàng', tip: '' };
+            // Game không có phiên: chính nút ▶ ở đây BẬT lại được — không chỉ riêng ở Thư viện
+            const tip = ENABLED_IS_RUNNING.includes(g.id) ? 'Đã TẮT — bấm ▶ để BẬT' : 'Đã TẮT ở Thư viện';
+            return { cls: 'off', label: 'Đã tắt', tip };
         }
         function buildCard(g) {
             const st = stateOf(g);
@@ -803,19 +935,23 @@
             card.className = 'card is-' + st.cls;
             card.dataset.gameId = g.id;
             const isRun = !!running[g.id];
+            const resetBtn = NO_RESET.includes(g.id)
+                ? '<span class="btn-spacer"></span>'
+                : `<button class="btn btn-reset" data-act="reset" title="${tipFor(g, 'reset')}">${ICON.reset}</button>`;
             card.innerHTML = `
+                <span class="card-grip">${ICON.grip}</span>
                 <span class="card-ico">${g.icon}</span>
                 <div class="card-meta">
-                    <div class="card-name" title="${escapeHtml(g.name)}">${escapeHtml(g.name)}</div>
-                    <div class="card-state ${st.cls}">
+                    <div class="card-name" title="${escapeHtml(g.name)} — kéo thẻ để đổi thứ tự">${escapeHtml(g.name)}</div>
+                    <div class="card-state ${st.cls}" title="${st.tip}">
                         <span class="dot"></span>
                         <span class="state-txt">${st.label}</span>
                     </div>
                 </div>
                 <div class="card-actions">
+                    ${resetBtn}
                     <button class="btn btn-toggle ${isRun ? 'is-pause' : 'is-play'}" data-act="${isRun ? 'stop' : 'start'}"
                             title="${tipFor(g, isRun ? 'stop' : 'start')}">${isRun ? ICON.pause : ICON.play}</button>
-                    <button class="btn btn-reset" data-act="reset" title="${tipFor(g, 'reset')}">${ICON.reset}</button>
                 </div>
             `;
             card.addEventListener('click', (e) => {
@@ -836,7 +972,7 @@
             card.classList.add('is-' + st.cls);
             const state = card.querySelector('.card-state');
             const stateTxt = card.querySelector('.state-txt');
-            if (state) state.className = 'card-state ' + st.cls;
+            if (state) { state.className = 'card-state ' + st.cls; state.title = st.tip; }
             if (stateTxt) stateTxt.textContent = st.label;
             // Cập nhật toggle button theo trạng thái running
             const tBtn = card.querySelector('.btn-toggle');
@@ -882,6 +1018,115 @@
         function escapeRegex(s) {
             return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
+        let _toastT = 0;
+        function toast(msg) {
+            toastEl.textContent = msg;
+            toastEl.classList.add('show');
+            clearTimeout(_toastT);
+            _toastT = setTimeout(() => toastEl.classList.remove('show'), 1500);
+        }
+        const layoutName = (mode) => (mode === 'ngang' ? 'Ngang' : 'Dọc');
+
+        // ============================================
+        // Kéo-thả sắp xếp — pointer events, chạy cho cả danh sách (Dọc) lẫn lưới (Ngang)
+        // ============================================
+        // Ngưỡng 5px: bấm thường không thành kéo. Thẻ nhấc lên bám theo chuột (position:fixed), chỗ trống
+        // là bản sao ẩn; các thẻ khác trượt về chỗ mới (FLIP). Thả tay → onDrop(ids theo thứ tự mới).
+        function makeSortable(container, { itemSel, handleSel, ignoreSel, scrollEl, onDrop }) {
+            let d = null;
+            container.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0 || d) return;
+                const item = e.target.closest(itemSel);
+                if (!item || item.parentNode !== container) return;
+                if (handleSel && !e.target.closest(handleSel)) return;
+                if (ignoreSel && e.target.closest(ignoreSel)) return;
+                d = { item, pid: e.pointerId, x0: e.clientX, y0: e.clientY, started: false };
+            });
+            window.addEventListener('pointermove', (e) => {
+                if (!d || e.pointerId !== d.pid) return;
+                if (!d.started) {
+                    if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 5) return;
+                    begin(e);
+                }
+                follow(e);
+            });
+            window.addEventListener('pointerup', end);
+            window.addEventListener('pointercancel', end);
+            window.addEventListener('blur', end);
+
+            function begin(e) {
+                const r = d.item.getBoundingClientRect();
+                d.started = true;
+                d.ox = e.clientX - r.left;
+                d.oy = e.clientY - r.top;
+                d.ph = d.item.cloneNode(true);
+                d.ph.classList.add('sort-ph');
+                container.insertBefore(d.ph, d.item);
+                Object.assign(d.item.style, {
+                    position: 'fixed', left: r.left + 'px', top: r.top + 'px',
+                    width: r.width + 'px', height: r.height + 'px', margin: '0', zIndex: '150', pointerEvents: 'none'
+                });
+                d.item.classList.add('sort-dragging');
+                document.body.classList.add('is-sorting');
+                try { container.setPointerCapture(d.pid); } catch (_) {}
+            }
+            function follow(e) {
+                d.item.style.left = (e.clientX - d.ox) + 'px';
+                d.item.style.top  = (e.clientY - d.oy) + 'px';
+                if (scrollEl) {   // kéo sát mép trên/dưới vùng cuộn → tự cuộn
+                    const sr = scrollEl.getBoundingClientRect();
+                    if (e.clientY < sr.top + 24) scrollEl.scrollTop -= 12;
+                    else if (e.clientY > sr.bottom - 24) scrollEl.scrollTop += 12;
+                }
+                const over = document.elementFromPoint(e.clientX, e.clientY)?.closest(itemSel);
+                if (!over || over === d.ph || over.parentNode !== container) return;
+                if (over.getAnimations().length) return;   // thẻ đang trượt → chờ yên rồi mới tính (chống giật qua lại)
+                const sibs = Array.from(container.children);
+                const before = sibs.indexOf(over) < sibs.indexOf(d.ph);
+                flip(() => container.insertBefore(d.ph, before ? over : over.nextSibling));
+            }
+            function flip(mutate) {
+                const els = Array.from(container.children).filter(el => el !== d.item);
+                const first = new Map(els.map(el => [el, el.getBoundingClientRect()]));
+                mutate();
+                for (const el of els) {
+                    const a = first.get(el), b = el.getBoundingClientRect();
+                    const dx = a.left - b.left, dy = a.top - b.top;
+                    if (dx || dy) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }],
+                        { duration: 150, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+                }
+            }
+            function end() {
+                if (!d) return;
+                const dd = d; d = null;
+                if (!dd.started) return;
+                const from = dd.item.getBoundingClientRect();
+                dd.item.removeAttribute('style');
+                dd.item.classList.remove('sort-dragging');
+                dd.ph.replaceWith(dd.item);
+                document.body.classList.remove('is-sorting');
+                const to = dd.item.getBoundingClientRect();
+                dd.item.animate([{ transform: `translate(${from.left - to.left}px, ${from.top - to.top}px)` }, { transform: 'none' }],
+                    { duration: 140, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+                // Thả tay trên label/nút sẽ sinh 1 click → nuốt đúng click đó (không bật/tắt nhầm)
+                const swallow = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+                window.addEventListener('click', swallow, { capture: true, once: true });
+                setTimeout(() => window.removeEventListener('click', swallow, true), 0);
+                onDrop(Array.from(container.querySelectorAll(itemSel)).map(el => el.dataset.gameId));
+            }
+            return { isDragging: () => !!(d && d.started) };
+        }
+
+        // Thẻ ngoài cửa sổ: kéo chỗ nào cũng được trừ các nút
+        const sorter = makeSortable(gridEl, {
+            itemSel: '.card', ignoreSel: 'button', scrollEl: mainEl,
+            onDrop: (visibleIds) => {
+                const next = L.applyVisibleOrder(currentOrder(), visibleIds);
+                saveOrderStore(L.setLayoutOrder(loadOrderStore(), curLayout, next));
+                toast('✓ Đã lưu thứ tự — bố cục ' + layoutName(curLayout));
+                if (renderPending) { renderPending = false; render(); }
+            }
+        });
 
         // Header buttons — bridge tới Electron qua IPC nếu có
         const ipc = (typeof window !== 'undefined' && window.hpQuickLaunch) ? window.hpQuickLaunch : null;
@@ -907,10 +1152,13 @@
         // không race IPC). Fallback trình duyệt thường: localStorage.
         //   - Vị trí + kích thước: Electron main lưu RIÊNG từng bố cục (quick-launch.json: doc/ngang),
         //     đổi bố cục là main setBounds đúng slot đó rồi bắn 'applyLayout'.
-        //   - fitMode (tự ôm sát chiều cao): renderer đo nội dung → setSize. Main tự tắt fit khi user
-        //     kéo chiều cao bằng tay (will-resize) và báo qua 'fitChanged' → chiều cao của user được giữ.
+        //   - fitMode (tự ôm sát): renderer đo nội dung → setSize. Dọc: rộng = thẻ dài nhất (main chặn kéo
+        //     bề rộng); Ngang: gọt khít N cột theo bề rộng user vừa kéo (main báo 'userResized' khi thả chuột).
+        //     Main tự tắt fit khi user kéo CHIỀU CAO bằng tay (will-resize) và báo qua 'fitChanged'.
         const LAYOUT_KEY = 'hp-ql-layout';
         const H_MIN = 150;
+        const W_MIN = 240;        // khớp minWidth cửa sổ Electron
+        const W_FIT_MIN = 260;    // tự ôm sát không hẹp hơn mức này — ô nhập ID TikTok còn đọc được
         const segBtns = Array.from(document.querySelectorAll('.seg-btn[data-layout]'));
         const qp = new URLSearchParams(location.search);
         const qpLayout = qp.get('layout');
@@ -932,23 +1180,43 @@
         }
         function measureContentHeight() {
             const header = document.querySelector('header');
-            const main = document.querySelector('main');
-            const footer = document.querySelector('footer');
             const content = $('content');
-            const cs = getComputedStyle(main);
+            const cs = getComputedStyle(mainEl);
             const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
-            return Math.ceil(header.offsetHeight + pad + content.getBoundingClientRect().height + footer.offsetHeight);
+            const banner = bannerEl.hidden ? 0 : bannerEl.offsetHeight;
+            return Math.ceil(header.offsetHeight + banner + pad + content.getBoundingClientRect().height);
         }
         function maxWindowHeight() {
             const sh = (window.screen && window.screen.availHeight) || 1000;
             return Math.max(H_MIN, Math.min(960, sh - 16));
         }
-        // Ôm sát CHIỀU CAO theo nội dung, GIỮ bề rộng (w truyền vào, hoặc bề rộng hiện tại).
-        // Đặt bề rộng trước → chờ viewport đổi thật → đo → đặt chiều cao. Không đụng x/y.
+        // Bề rộng tự nhiên của thẻ dài nhất: ép lưới thành 1 cột max-content, đo, trả lại (đồng bộ → không nháy).
+        function naturalCardWidth() {
+            document.body.classList.add('measuring');
+            const w = gridEl.getBoundingClientRect().width;
+            document.body.classList.remove('measuring');
+            return Math.ceil(w);
+        }
+        // Bề rộng cửa sổ khi ôm sát. chrome = mọi thứ ngoài lưới (lề trái/phải + gutter thanh cuộn).
+        function fitTargetWidth(baseW) {
+            const cards = gridEl.children.length;
+            if (!cards) return Math.max(W_MIN, Math.round(baseW));
+            const chrome = window.innerWidth - gridEl.getBoundingClientRect().width;
+            const colW = naturalCardWidth();
+            gridEl.style.setProperty('--colw', colW + 'px');
+            if (curLayout !== 'ngang') return Math.max(W_MIN, L.fitWidth({ colW, chrome, min: W_FIT_MIN }));
+            const gap = parseFloat(getComputedStyle(gridEl).columnGap) || 0;
+            // +1px mỗi cột: chừa khe làm tròn để auto-fill chắc chắn xếp đủ N cột
+            return Math.max(W_MIN, L.snapColumns(baseW, { colW: colW + 1, gap, chrome, count: cards }).width);
+        }
+        // Ôm sát nội dung: chốt BỀ RỘNG trước → chờ viewport đổi thật → đo → đặt CHIỀU CAO. Không đụng x/y.
         let _hugRaf = 0;
-        function hugHeight(w) {
-            if (!fitMode) return;
-            const ww = Math.max(320, (Number.isFinite(w) && w > 0) ? Math.round(w) : Math.round(window.innerWidth));
+        function fitWindow(baseW) {
+            const base = (Number.isFinite(baseW) && baseW > 0) ? baseW : window.innerWidth;
+            if (!gridEl.children.length && !games.length) return;    // chưa tải game → render() sẽ gọi lại
+            // Ngoài chế độ ôm sát vẫn cập nhật --colw để lưới Ngang chia cột theo thẻ dài nhất
+            if (!fitMode) { if (gridEl.children.length) gridEl.style.setProperty('--colw', naturalCardWidth() + 'px'); return; }
+            const ww = Math.max(W_MIN, Math.round(fitTargetWidth(base)));
             cancelAnimationFrame(_hugRaf);
             const finish = () => {
                 const h = Math.max(H_MIN, Math.min(measureContentHeight(), maxWindowHeight()));
@@ -966,20 +1234,30 @@
             };
             _hugRaf = requestAnimationFrame(wait);
         }
+        function syncFitUi() {
+            fitBtn.hidden = fitMode;
+            syncSettingsUi();
+        }
 
         applyLayoutCss(curLayout);
-        // Electron: main bắn 'applyLayout' lúc mở + khi ĐỔI bố cục (đã setBounds đúng slot) → áp CSS + ôm sát nếu fit.
+        syncFitUi();
+        // Electron: main bắn 'applyLayout' lúc mở + khi ĐỔI bố cục (đã setBounds đúng slot) → áp CSS + thứ tự + ôm sát.
         if (ipc?.onApplyLayout) {
             ipc.onApplyLayout(({ mode, w, fit }) => {
                 curLayout = mode === 'ngang' ? 'ngang' : 'doc';
                 fitMode = fit !== false;
                 localStorage.setItem(LAYOUT_KEY, curLayout);
                 applyLayoutCss(curLayout);
-                if (games.length) hugHeight(w);   // chưa tải game → render() sẽ ôm sát sau
+                syncFitUi();
+                if (games.length) render(w);   // mỗi bố cục có thứ tự riêng; chưa tải game → loadGames() sẽ render
             });
         }
         if (ipc?.onFitChanged) {
-            ipc.onFitChanged(({ fit }) => { fitMode = fit !== false; syncSettingsUi(); });
+            ipc.onFitChanged(({ fit }) => { fitMode = fit !== false; syncFitUi(); });
+        }
+        // Electron: user vừa THẢ chuột sau khi kéo đổi kích thước → Ngang gọt khít số cột + ôm chiều cao
+        if (ipc?.onUserResized) {
+            ipc.onUserResized(() => { if (fitMode) fitWindow(); });
         }
         segBtns.forEach(b => b.addEventListener('click', () => {
             const mode = b.dataset.layout;
@@ -988,46 +1266,86 @@
             localStorage.setItem(LAYOUT_KEY, mode);
             applyLayoutCss(mode);                            // đổi giao diện ngay cho mượt
             if (ipc?.setLayout) ipc.setLayout(mode);         // main chốt slot cũ → khôi phục slot mới → bắn applyLayout
-            else hugHeight();                                // trình duyệt thường → tự ôm sát
+            else render();                                   // trình duyệt thường → vẽ thứ tự bố cục mới + ôm sát
         }));
+        fitBtn.addEventListener('click', () => {
+            fitMode = true;
+            if (ipc?.setFit) ipc.setFit(true);
+            syncFitUi();
+            fitWindow();
+        });
 
-        // User kéo tay đổi bề rộng → thẻ tự xếp lại (CSS) → ôm sát lại chiều cao nếu đang fit.
-        // Kéo chiều cao: Electron main đã tắt fit (fitChanged) trước khi debounce này chạy → không ép lại.
-        // Trình duyệt thường (không IPC): tự nhận biết đổi chiều cao không do mình → tắt fit.
+        // Trình duyệt thường (không IPC): tự nhận biết đổi chiều cao không do mình → tắt fit; còn lại ôm sát lại.
+        // Electron đã có 'userResized' (lúc thả chuột) — không ôm sát giữa chừng khi user còn đang kéo.
         let _rsTimer;
         window.addEventListener('resize', () => {
+            if (ipc) return;
             clearTimeout(_rsTimer);
             _rsTimer = setTimeout(() => {
-                if (!ipc && fitMode && window.innerWidth === _lastSet.w && window.innerHeight !== _lastSet.h) {
-                    fitMode = false; syncSettingsUi(); return;
+                if (fitMode && window.innerWidth === _lastSet.w && window.innerHeight !== _lastSet.h) {
+                    fitMode = false; syncFitUi(); return;
                 }
-                if (fitMode) hugHeight();
+                if (fitMode) fitWindow();
             }, 180);
         });
 
         // ============================================
-        // ⚙ Cài đặt — cửa sổ + chọn game hiển thị
+        // ⚙ Cài đặt — cửa sổ + thứ tự & game hiển thị
         // ============================================
         function syncSettingsUi() {
             if (stgFit) stgFit.checked = !!fitMode;
-            if (stgFitMode) stgFitMode.textContent = '(bố cục ' + (curLayout === 'ngang' ? 'Ngang' : 'Dọc') + ')';
+            if (stgFitMode) stgFitMode.textContent = '(bố cục ' + layoutName(curLayout) + ')';
+            if (stgOrderMode) stgOrderMode.textContent = layoutName(curLayout);
         }
         function renderSettingsBody() {
             settingsBody.innerHTML = '';
-            // Chỉ hiện game đã load (đã filter STABLE_IDS) — không hardcode danh sách
-            // để tránh out-of-sync khi thêm/xóa game ở STABLE_IDS.
-            for (const g of games) {
-                const row = document.createElement('label');
-                row.className = 'stg-row';
+            const list = orderedGames();
+            list.forEach((g, i) => {
+                const visible = isGameVisible(g.id);
+                const row = document.createElement('div');
+                row.className = 'ord-row' + (visible ? '' : ' is-hidden');
+                row.dataset.gameId = g.id;
                 row.innerHTML = `
+                    <span class="ord-grip" title="Kéo để đổi thứ tự">${ICON.grip}</span>
                     <span class="stg-ico">${g.icon}</span>
-                    <span class="stg-text"><span class="stg-name">${escapeHtml(g.name)}</span></span>
-                    <input type="checkbox" data-game-id="${g.id}" ${isGameVisible(g.id) ? 'checked' : ''} />
-                    <span class="sw"></span>
+                    <span class="ord-name" title="${escapeHtml(g.name)}">${escapeHtml(g.name)}</span>
+                    <span class="ord-mvs">
+                        <button class="ord-mv" data-mv="-1" title="Lên trên" ${i === 0 ? 'disabled' : ''}>${ICON.up}</button>
+                        <button class="ord-mv" data-mv="1" title="Xuống dưới" ${i === list.length - 1 ? 'disabled' : ''}>${ICON.down}</button>
+                    </span>
+                    <label class="ord-sw" title="${visible ? 'Đang hiện — tắt để ẩn khỏi cửa sổ này' : 'Đang ẩn — bật để hiện'}">
+                        <input type="checkbox" class="sw-input" data-game-id="${g.id}" ${visible ? 'checked' : ''} />
+                        <span class="sw"></span>
+                    </label>
                 `;
                 settingsBody.appendChild(row);
-            }
+            });
         }
+        function saveFullOrder(order) {
+            saveOrderStore(L.setLayoutOrder(loadOrderStore(), curLayout, order));
+            renderSettingsBody();
+            render();
+        }
+        makeSortable(settingsBody, {
+            itemSel: '.ord-row', handleSel: '.ord-grip', scrollEl: settingsBody.closest('.modal-body'),
+            onDrop: (ids) => saveFullOrder(L.applyVisibleOrder(currentOrder(), ids))
+        });
+        settingsBody.addEventListener('click', (e) => {
+            const mv = e.target.closest('.ord-mv');
+            if (!mv || mv.disabled) return;
+            const id = mv.closest('.ord-row').dataset.gameId;
+            const delta = Number(mv.dataset.mv);
+            saveFullOrder(L.moveId(currentOrder(), id, delta));
+            // Giữ focus trên nút vừa bấm (bấm ↑ liên tục bằng bàn phím / chuột)
+            const again = settingsBody.querySelector(`.ord-row[data-game-id="${id}"] .ord-mv[data-mv="${delta}"]`);
+            if (again && !again.disabled) again.focus();
+        });
+        stgOrderReset.addEventListener('click', () => {
+            saveOrderStore(L.resetLayoutOrder(loadOrderStore(), curLayout));
+            renderSettingsBody();
+            render();
+            toast('↺ Thứ tự gốc — bố cục ' + layoutName(curLayout));
+        });
         async function openSettings() {
             renderSettingsBody();
             syncSettingsUi();
@@ -1050,19 +1368,22 @@
         stgFit.addEventListener('change', () => {
             fitMode = stgFit.checked;
             if (ipc?.setFit) ipc.setFit(fitMode);
-            if (fitMode) hugHeight();
+            syncFitUi();
+            if (fitMode) fitWindow();
         });
         stgAutoOpen.addEventListener('change', () => { if (ipc?.setAutoOpen) ipc.setAutoOpen(stgAutoOpen.checked); });
-        // Tích/bỏ tích — cập nhật ngay localStorage + re-render grid
+        // Bật/tắt hiện — cập nhật ngay localStorage + vẽ lại lưới
         settingsBody.addEventListener('change', (e) => {
             const cb = e.target.closest('input[type="checkbox"][data-game-id]');
             if (!cb) return;
             const gid = cb.dataset.gameId;
-            // Bỏ tích = thêm vào danh sách ẨN; tích = gỡ khỏi danh sách ẨN
+            // Tắt = thêm vào danh sách ẨN; bật = gỡ khỏi danh sách ẨN
             const next = loadHiddenGames().filter(x => x !== gid);
             if (!cb.checked) next.push(gid);
             saveHiddenGames(next);
-            render();   // re-render grid sau mỗi lần tích — phản hồi tức thì
+            const row = cb.closest('.ord-row');
+            row?.classList.toggle('is-hidden', !cb.checked);
+            render();   // phản hồi tức thì
         });
 
         loadGames();

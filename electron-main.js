@@ -670,9 +670,10 @@ ipcMain.on('open-soundfx', () => openSoundfxApp());
 //     doc:   { x, y, w, h, fit },      // slot bố cục DỌC
 //     ngang: { x, y, w, h, fit } }     // slot bố cục NGANG
 // Mỗi bố cục có slot RIÊNG → kéo chỉnh xong là tự lưu; đổi qua lại luôn về đúng vị trí + kích thước.
-// fit = true (mặc định): chiều cao tự ôm sát nội dung (renderer đo rồi setSize). Tự chuyển false
-// khi user kéo CHIỀU CAO bằng tay (will-resize chỉ bắn với resize thủ công) → từ đó chiều cao là
-// của user, không bị ép lại. Bật lại trong ⚙ Cài đặt của cửa sổ.
+// fit = true (mặc định): cửa sổ tự ôm sát nội dung (renderer đo rồi setSize) — Dọc rộng đúng bằng thẻ
+// dài nhất (kéo bề rộng bị chặn), Ngang gọt khít N cột sau khi user thả chuột ('quick-launch:userResized').
+// Tự chuyển false khi user kéo CHIỀU CAO bằng tay (will-resize chỉ bắn với resize thủ công) → từ đó kích
+// thước là của user, không bị ép lại. Bật lại bằng nút co trên thanh tiêu đề hoặc ⚙ Cài đặt.
 function getQuickLaunchPrefsPath() {
     try { return path.join(app.getPath('userData'), 'data', 'quick-launch.json'); }
     catch { return null; }
@@ -706,8 +707,9 @@ function saveQuickLaunchPrefs(patch) {
 }
 // qlLayout = bố cục đang dùng → mọi lần lưu bounds ghi vào đúng slot này.
 let qlLayout = 'doc';
+const QL_MIN_W = 240;   // khớp W_MIN trong public/quick-launch.html (Dọc ôm sát ~260px)
 function qlDefaultSize(layout) {
-    return layout === 'ngang' ? { w: 760, h: 320 } : { w: 380, h: 560 };
+    return layout === 'ngang' ? { w: 760, h: 320 } : { w: 280, h: 560 };
 }
 function qlSlotOf(prefs, layout, useLegacy = false) {
     const s = prefs && prefs[layout];
@@ -762,9 +764,9 @@ function openQuickLaunchWindow() {
     const fit = qlFitOf(prefs, qlLayout);
     const def = qlDefaultSize(qlLayout);
     const opts = {
-        width: Math.max(320, parseInt(slot.w, 10) || def.w),
+        width: Math.max(QL_MIN_W, parseInt(slot.w, 10) || def.w),
         height: Math.max(150, parseInt(slot.h, 10) || def.h),
-        minWidth: 320,
+        minWidth: QL_MIN_W,
         minHeight: 150,   // cho phép bố cục Ngang thấp gọn (ôm sát card)
         resizable: true,
         maximizable: false,
@@ -797,18 +799,28 @@ function openQuickLaunchWindow() {
     // Mọi lần dời/đổi size (tay hay code) → chốt vào slot bố cục đang dùng → đổi qua lại không mất chỗ
     win.on('moved',  qlPersistBounds);
     win.on('resize', qlPersistBounds);
-    // User kéo TAY đổi CHIỀU CAO → bố cục hiện tại chuyển sang chiều cao cố định (fit=false).
+    // User kéo TAY đổi CHIỀU CAO → bố cục hiện tại chuyển sang kích thước cố định (fit=false).
     // will-resize chỉ bắn khi resize thủ công (setSize/setBounds từ code KHÔNG bắn) → không nhầm với
-    // lần renderer tự ôm sát. Chỉ kéo bề rộng (chiều cao giữ nguyên) → vẫn ôm sát như cũ.
-    win.on('will-resize', (_e, newBounds) => {
+    // lần renderer tự ôm sát. Chỉ kéo bề rộng (chiều cao giữ nguyên) → vẫn ôm sát: Dọc chặn hẳn (bề rộng
+    // = thẻ dài nhất), Ngang cho kéo để chọn số cột rồi gọt khít khi thả chuột ('resized' bên dưới).
+    win.on('will-resize', (e, newBounds) => {
         try {
             if (!newBounds || !win || win.isDestroyed()) return;
             const cur = win.getBounds();
-            if (Math.abs((newBounds.height || cur.height) - cur.height) < 1) return;
-            if (!qlFitOf(loadQuickLaunchPrefs(), qlLayout)) return;   // đã tắt sẵn
+            const fit = qlFitOf(loadQuickLaunchPrefs(), qlLayout);
+            if (Math.abs((newBounds.height || cur.height) - cur.height) < 1) {
+                if (fit && qlLayout === 'doc' && Math.abs((newBounds.width || cur.width) - cur.width) >= 1) e.preventDefault();
+                return;
+            }
+            if (!fit) return;   // đã tắt sẵn
             qlPatchSlot(qlLayout, { fit: false });
             win.webContents.send('quick-launch:fitChanged', { mode: qlLayout, fit: false });
         } catch {}
+    });
+    // 'resized' bắn MỘT lần khi user thả chuột sau khi kéo đổi kích thước → renderer ôm sát lại
+    // (Ngang gọt khít số cột). Không ôm sát giữa chừng lúc còn kéo → không giành giật với tay user.
+    win.on('resized', () => {
+        try { if (!win.isDestroyed()) win.webContents.send('quick-launch:userResized'); } catch {}
     });
     win.on('close', () => { flushQuickLaunchPrefs(); });
     win.on('closed', () => { quickLaunchWindow = null; });
@@ -837,7 +849,7 @@ ipcMain.on('quick-launch:setLayout', (e, mode) => {
     //    mặc định; renderer sẽ ôm sát chiều cao (fit mặc định true).
     const slot = qlSlotOf(loadQuickLaunchPrefs(), next);
     const def = qlDefaultSize(next);
-    const w = Math.max(320, parseInt(slot.w, 10) || def.w);
+    const w = Math.max(QL_MIN_W, parseInt(slot.w, 10) || def.w);
     const h = Math.max(150, parseInt(slot.h, 10) || def.h);
     try {
         const cur = win.getBounds();
@@ -857,7 +869,7 @@ ipcMain.on('quick-launch:setLayout', (e, mode) => {
 });
 ipcMain.on('quick-launch:setSize', (e, size) => {
     if (!quickLaunchWindow || quickLaunchWindow.isDestroyed()) return;
-    const w = Math.max(320, Math.round(Number(size?.w) || 0));
+    const w = Math.max(QL_MIN_W, Math.round(Number(size?.w) || 0));
     const h = Math.max(150, Math.round(Number(size?.h) || 0));
     if (!w || !h) return;
     try { quickLaunchWindow.setSize(w, h, true); } catch {}
