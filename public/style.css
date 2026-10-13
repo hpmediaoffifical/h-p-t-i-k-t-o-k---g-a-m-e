@@ -8758,10 +8758,20 @@ details.card > .obse-collapse-body { padding: 0 16px 16px; }
 .obse-row-actionname:focus {
     outline: none; border-color: #3b82f6; background: #11151f;
 }
-.obse-row {
-    /* update grid layout — thêm cột actionName, cột cuối: cooldown (giây) */
-    grid-template-columns: 1fr 180px 130px 100px auto auto !important;
+/* Cột của hàng mapping: xem rule ".obse-row" ở khối "Grid update" phía dưới (đã có cột Scene hiệu ứng). */
+/* Scene hiệu ứng — cột chính của hàng mapping */
+.obse-row-scene {
+    background: #0e1118; border: 1px solid #2b3a5c;
+    border-radius: 6px; padding: 7px 8px;
+    color: #e6e8ee; font-size: 12px; font-weight: 600;
+    min-width: 0; font-family: inherit;
 }
+.obse-row-scene:focus { outline: none; border-color: #3b82f6; background: #11151f; }
+.obse-row-scene option { font-weight: 400; }
+/* Thẻ 📖 Cách dùng (hướng dẫn 3 bước) */
+.obse-guide-steps { margin: 0; padding-left: 18px; font-size: 12px; color: #c8cad4; line-height: 1.55; }
+.obse-guide-steps li + li { margin-top: 4px; }
+.obse-guide-note { margin-top: 8px; font-size: 11px; color: #8b93a8; line-height: 1.5; }
 .obse-queue-card { margin-top: 12px; }
 .obse-queue-list { display: flex; flex-direction: column; gap: 6px; }
 .obse-queue-row {
@@ -8925,7 +8935,8 @@ details.card > .obse-collapse-body { padding: 0 16px 16px; }
 
 /* Grid update: thêm cột enable toggle ở đầu */
 .obse-row {
-    grid-template-columns: 40px 1fr 180px 130px 100px auto auto !important;
+    /* toggle | quà | Scene hiệu ứng (chính) | hotkey (tùy chọn) | tên hành động | giây | 🔥 | 🗑 */
+    grid-template-columns: 40px minmax(150px, 1fr) minmax(170px, 1.1fr) 140px 120px 82px 32px 32px !important;
 }
 
 /* Save indicator — flash nhỏ ở góc title */

@@ -4754,6 +4754,8 @@
         // State
         let cachedConfig  = { url: '', password: '', autoConnect: false, mapping: [] };
         let cachedHotkeys = [];
+        let cachedScenes  = [];          // tên Scene trong OBS (dropdown "Scene hiệu ứng")
+        let cachedSceneCurrent = '';
         let saveTimer = null;
         let gpTargetMappingId = null;   // mapping id đang chờ chọn quà
         let grmMode = 'create';          // 'create' | 'rename'
@@ -4806,7 +4808,7 @@
                 $auto.checked = cachedConfig.autoConnect;
                 if (j.status) setStatus(j.status);
                 renderGroups();
-                if (j.status && j.status.connected) fetchHotkeys();
+                if (j.status && j.status.connected) { fetchHotkeys(); fetchScenes(); }
             } catch (e) { showError('Load config lỗi: ' + e.message); }
         }
         // Normalize mỗi mapping có đầy đủ fields + unique id
@@ -4817,6 +4819,7 @@
                 giftName: m.giftName || '',
                 giftImage: m.giftImage || '',
                 hotkey: m.hotkey || '',
+                scene: m.scene || '',            // Scene hiệu ứng trong OBS (đường chính)
                 actionName: m.actionName || '',
                 cooldownMs: Math.max(0, Number(m.cooldownMs) || 0),
                 group: m.group || '',
@@ -4840,14 +4843,16 @@
         }
         // Cache suggested duration để khỏi gọi server nhiều lần cho cùng 1 hotkey
         const _hotkeyDurationCache = {};
-        async function fetchSuggestedDurationMs(hotkey) {
-            if (!hotkey) return 0;
-            if (_hotkeyDurationCache[hotkey] != null) return _hotkeyDurationCache[hotkey];
+        async function fetchSuggestedDurationMs(hotkey, scene) {
+            if (!hotkey && !scene) return 0;
+            const key = (hotkey || '') + '|' + (scene || '');
+            if (_hotkeyDurationCache[key] != null) return _hotkeyDurationCache[key];
             try {
-                const r = await fetch('/api/obs-bridge/lua-duration?hotkey=' + encodeURIComponent(hotkey));
+                const r = await fetch('/api/obs-bridge/lua-duration?hotkey=' + encodeURIComponent(hotkey || '')
+                    + '&scene=' + encodeURIComponent(scene || ''));
                 const j = await r.json();
                 const ms = Number(j?.ms) || 0;
-                _hotkeyDurationCache[hotkey] = ms;
+                _hotkeyDurationCache[key] = ms;
                 return ms;
             } catch (e) { return 0; }
         }
@@ -5691,6 +5696,9 @@
                 if (j.status && j.status.connected && cachedHotkeys.length === 0) {
                     fetchHotkeys();
                 }
+                if (j.status && j.status.connected && cachedScenes.length === 0) {
+                    fetchScenes();
+                }
                 // Auto-check BG removal 1 lần sau khi connect (giúp user biết có cần cài plugin không)
                 if (j.status && j.status.connected && !window.__bgRemovalChecked && $btnCheckBg) {
                     window.__bgRemovalChecked = true;
@@ -5718,7 +5726,7 @@
         const $btnQueueClr2 = document.getElementById('btn-obse-queue-clear2');
         if ($btnQueueClr2) {
             $btnQueueClr2.onclick = async () => {
-                if (!confirm('Xóa tất cả effect đang chờ trong hàng đợi?')) return;
+                if (!confirm('Xóa hết hàng đợi? Hiệu ứng Scene đang chạy (nếu có) sẽ quay về Scene cũ ngay.')) return;
                 try {
                     const r = await fetch('/api/obs-bridge/queue/clear', { method: 'POST' });
                     const j = await r.json();
@@ -5780,7 +5788,7 @@
                     ${iconHtml}
                     <div class="obse-queue-info">
                         <span class="obse-queue-name">${escapeHtml(displayName)}</span>
-                        <span class="obse-queue-meta">${groupBadge}${groupBadge ? ' · ' : ''}${escapeHtml(it.hotkey || '')}</span>
+                        <span class="obse-queue-meta">${groupBadge}${groupBadge ? ' · ' : ''}${escapeHtml(it.scene ? '🎬 ' + it.scene + (it.hotkey ? ' + ' + it.hotkey : '') : (it.hotkey || ''))}</span>
                     </div>
                     ${statusBadge}
                 `;
@@ -5811,7 +5819,7 @@
                 const j = await r.json();
                 if (j.status) setStatus(j.status);
                 if (!j.ok) showError(j.error || 'Kết nối thất bại');
-                else fetchHotkeys();
+                else { fetchHotkeys(); fetchScenes(); }
             } catch (e) { showError(e.message); $btnConn.disabled = false; }
         }
         async function doDisconnect() {
@@ -5827,6 +5835,17 @@
                 const j = await r.json();
                 if (j.ok) {
                     cachedHotkeys = j.effectHotkeys || [];
+                    renderGroups();
+                }
+            } catch (e) {}
+        }
+        async function fetchScenes() {
+            try {
+                const r = await fetch('/api/obs-bridge/scenes');
+                const j = await r.json();
+                if (j.ok) {
+                    cachedScenes = Array.isArray(j.scenes) ? j.scenes : [];
+                    cachedSceneCurrent = j.current || '';
                     renderGroups();
                 }
             } catch (e) {}
@@ -6021,11 +6040,52 @@
             btnGift.onclick = () => openGiftPicker(m.id);
             row.appendChild(btnGift);
 
-            // Hotkey select
+            // ★ Scene hiệu ứng — cột chính. Quà về → app chuyển OBS sang scene này, LUA trong scene
+            //   (đã bật "🎬 Tự chạy khi chuyển sang Scene") tự phát, đủ giây → app tự quay về scene cũ.
+            const selScene = document.createElement('select');
+            selScene.className = 'obse-row-scene';
+            selScene.title = 'Scene hiệu ứng trong OBS.\nQuà về: chuyển sang scene này → LUA tự chạy → hết số giây bên phải → tự quay về scene đang phát trước đó.';
+            const optSceneEmpty = document.createElement('option');
+            optSceneEmpty.value = '';
+            optSceneEmpty.textContent = cachedScenes.length ? '— chọn Scene hiệu ứng —' : '— kết nối OBS để lấy Scene —';
+            selScene.appendChild(optSceneEmpty);
+            const seenScenes = new Set();
+            cachedScenes.forEach(name => {
+                const o = document.createElement('option');
+                o.value = name; o.textContent = '🎬 ' + name;
+                selScene.appendChild(o);
+                seenScenes.add(name);
+            });
+            if (m.scene && !seenScenes.has(m.scene)) {
+                const o = document.createElement('option');
+                o.value = m.scene;
+                o.textContent = '🎬 ' + m.scene + (cachedScenes.length ? ' (không thấy trong OBS)' : ' (offline)');
+                selScene.appendChild(o);
+            }
+            selScene.value = m.scene || '';
+            selScene.onchange = async () => {
+                m.scene = selScene.value;
+                saveConfig();
+                if (m.scene && (!m.cooldownMs || m.cooldownMs === 0)) {
+                    const suggested = await fetchSuggestedDurationMs(m.hotkey, m.scene);
+                    if (suggested > 0) {
+                        m.cooldownMs = suggested;
+                        saveConfig();
+                        renderGroups();
+                        toast(`✓ Đã đề xuất ${(suggested/1000).toFixed(1)}s cho Scene "${m.scene}" — chỉnh lại nếu cần`, 'success', 4000);
+                    } else {
+                        toast(`Nhập số giây hiệu ứng chạy xong cho Scene "${m.scene}" (để trống = 8s)`, 'info', 3500);
+                    }
+                }
+            };
+            row.appendChild(selScene);
+
+            // Hotkey — TÙY CHỌN: chỉ cần khi LUA chưa bật "Tự chạy khi chuyển sang Scene" (app bấm hộ sau khi đổi scene)
             const sel = document.createElement('select');
             sel.className = 'obse-row-hotkey';
+            sel.title = 'Tùy chọn. Chỉ chọn khi LUA CHƯA bật "🎬 Tự chạy khi chuyển sang Scene" — app sẽ bấm hotkey hộ ngay sau khi chuyển scene.';
             const optEmpty = document.createElement('option');
-            optEmpty.value = ''; optEmpty.textContent = '— chọn effect —';
+            optEmpty.value = ''; optEmpty.textContent = '— hotkey (tùy chọn) —';
             sel.appendChild(optEmpty);
             const seen = new Set();
             cachedHotkeys.forEach(hk => {
@@ -6047,7 +6107,7 @@
                 // Auto-suggest duration nếu mapping chưa có cooldown HOẶC user chưa custom
                 // (chỉ overwrite khi cooldown=0 — tránh đè giá trị user đã chỉnh)
                 if (m.hotkey && (!m.cooldownMs || m.cooldownMs === 0)) {
-                    const suggested = await fetchSuggestedDurationMs(m.hotkey);
+                    const suggested = await fetchSuggestedDurationMs(m.hotkey, m.scene);
                     if (suggested > 0) {
                         m.cooldownMs = suggested;
                         saveConfig();
@@ -6092,28 +6152,31 @@
             const btnTest = document.createElement('button');
             btnTest.className = 'obse-row-test';
             btnTest.textContent = '🔥';
-            btnTest.title = 'Test trigger ngay (bỏ qua cooldown + queue)';
+            btnTest.title = 'Chạy thử y như quà thật: chuyển Scene → LUA chạy → giữ đủ giây → quay về scene cũ (đi qua hàng đợi)';
             btnTest.onclick = async () => {
-                if (!m.hotkey) {
-                    toast('⚠ Row này chưa chọn effect — pick effect từ dropdown trước', 'error');
+                if (!m.scene && !m.hotkey) {
+                    toast('⚠ Hàng này chưa chọn Scene hiệu ứng', 'error');
                     return;
                 }
                 btnTest.disabled = true;
                 try {
-                    const r = await fetch('/api/obs-bridge/trigger', {
+                    await saveConfig(true);   // server tìm mapping theo id → cần bản mới nhất trước khi chạy thử
+                    const r = await fetch('/api/obs-bridge/test-mapping', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ hotkey: m.hotkey })
+                        body: JSON.stringify({ id: m.id })
                     });
                     const j = await r.json();
                     if (!j.ok) {
                         const reasonMap = {
                             'unlicensed': 'License invalid — kích hoạt license trước',
-                            'disconnected': 'Chưa kết nối OBS — bấm "Kết nối" bên trái',
-                            'error': j.error || 'OBS trả lỗi'
+                            'disconnected': 'Chưa kết nối OBS — bấm "Kết nối" bên trên',
+                            'not-found': 'Chưa lưu mapping — bấm 💾 LƯU rồi thử lại',
+                            'empty': 'Hàng này chưa chọn Scene hiệu ứng'
                         };
-                        toast('✗ ' + (reasonMap[j.reason] || j.reason || 'unknown'), 'error', 4000);
+                        toast('✗ ' + (reasonMap[j.reason] || j.error || j.reason || 'unknown'), 'error', 4000);
                     } else {
-                        toast(`✓ Đã trigger "${m.hotkey}" — xem OBS preview`, 'success');
+                        const what = m.scene ? `Scene "${m.scene}"` : `hotkey "${m.hotkey}"`;
+                        toast(j.pending > 1 ? `✓ Đã xếp ${what} vào hàng đợi (#${j.pending})` : `✓ Đang chạy ${what} — xem OBS`, 'success');
                     }
                 } catch (e) { toast('✗ ' + e.message, 'error'); }
                 finally { setTimeout(() => btnTest.disabled = false, 300); }
@@ -6234,8 +6297,8 @@
         $btnConn.onclick = doConnect;
         $btnDisc.onclick = doDisconnect;
         $btnRefresh.onclick = async () => {
-            await fetchHotkeys();
-            toast(`✓ Đã tải ${cachedHotkeys.length} effect hotkey từ OBS`, 'success');
+            await Promise.all([fetchHotkeys(), fetchScenes()]);
+            toast(`✓ Đã tải ${cachedScenes.length} Scene + ${cachedHotkeys.length} hotkey từ OBS`, 'success');
         };
         $btnAddGroup.onclick = () => openGroupModal('create');
 

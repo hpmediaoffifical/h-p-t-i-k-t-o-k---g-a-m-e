@@ -1784,12 +1784,12 @@
                 <div id="live-translate-workspace" class="live-translate-workspace"></div>
             </section>
 
-            <!-- GAME VIEW: HIỆU ỨNG OBS — bridge OBS WebSocket trigger Lua effects -->
+            <!-- GAME VIEW: HIỆU ỨNG OBS — quà chỉ định → chuyển Scene hiệu ứng (LUA tự chạy) → quay về Scene cũ -->
             <section id="view-obs-effects" class="view game-view">
                 <header class="game-header">
                     <div>
                         <h2>🎬 Hiệu ứng OBS</h2>
-                        <div class="game-sub">Trigger Lua effects trong OBS qua WebSocket khi nhận gift TikTok</div>
+                        <div class="game-sub">Quà chỉ định về → OBS tự chuyển sang Scene hiệu ứng → LUA tự chạy → đủ giây tự quay về Scene đang phát trước đó</div>
                     </div>
                     <div class="overlay-bar">
                         <span class="obse-queue-pill" id="obse-queue-pill" hidden title="Số effect đang chờ trong hàng đợi">
@@ -1829,8 +1829,23 @@
                             </div>
                         </div>
 
-                        <!-- 📚 LUA Effects (auto-sync từ hpvn.media) — collapsible -->
-                        <details class="card obse-lua-sync-card" id="obse-lua-sync-details" open>
+                        <!-- 📖 Cách dùng — luồng Scene, không cần hotkey -->
+                        <details class="card obse-guide-card" id="obse-guide-details" open>
+                            <summary class="obse-collapse-summary">
+                                <span class="obse-card-title">📖 Cách dùng (3 bước)</span>
+                            </summary>
+                            <div class="obse-collapse-body">
+                                <ol class="obse-guide-steps">
+                                    <li><b>Trong OBS</b>: mỗi hiệu ứng 1 Scene riêng (NPC + source của hiệu ứng), nạp LUA ở <i>Tools → Scripts</i>.</li>
+                                    <li><b>Trong LUA</b>: bật <b>🎬 Tự chạy khi chuyển sang Scene</b> và chọn đúng Scene đó.</li>
+                                    <li><b>Ở đây</b>: bấm <b>Kết nối</b> → thêm hàng → chọn <b>quà</b> + <b>Scene</b> + <b>số giây</b> hiệu ứng chạy xong.</li>
+                                </ol>
+                                <div class="obse-guide-note">Quà về: app nhớ Scene đang phát (nhóm NPC) → chuyển sang Scene hiệu ứng → LUA tự chạy → đủ giây → tự quay về. Nhiều quà thì xếp hàng phát lần lượt. Hotkey chỉ cần khi LUA chưa có mục tự chạy theo Scene.</div>
+                            </div>
+                        </details>
+
+                        <!-- 📚 LUA Effects (auto-sync từ hpvn.media) — collapsible, gập mặc định -->
+                        <details class="card obse-lua-sync-card" id="obse-lua-sync-details">
                             <summary class="obse-collapse-summary">
                                 <span class="obse-card-title">📚 LUA Effects</span>
                                 <button id="btn-obse-lua-settings" class="obse-btn ghost mini" title="Cài đặt auto-sync" onclick="event.stopPropagation()">⚙</button>
@@ -1892,14 +1907,14 @@
                     <main class="obse-col-right">
                         <div class="card obse-mappings-card">
                             <div class="obse-mappings-head">
-                                <h3 class="obse-card-title">🎁 Mapping Gift → Effect</h3>
+                                <h3 class="obse-card-title">🎁 Quà chỉ định → Scene hiệu ứng</h3>
                                 <div class="obse-mappings-actions">
                                     <span id="obse-save-indicator" class="obse-save-indicator">💾 Tự động lưu</span>
                                     <button id="btn-obse-manual-save" class="obse-btn primary" hidden title="Lưu thủ công (Ctrl+S)">💾 LƯU</button>
                                     <label class="obse-autosave-toggle" title="Tắt nếu thấy lag khi gõ nhanh">
                                         <input type="checkbox" id="btn-obse-autosave-toggle" checked> Auto
                                     </label>
-                                    <button id="btn-obse-refresh-hotkeys" class="obse-btn ghost" title="Tải lại danh sách hotkey từ OBS">↻ Refresh hotkeys</button>
+                                    <button id="btn-obse-refresh-hotkeys" class="obse-btn ghost" title="Tải lại danh sách Scene + hotkey từ OBS">↻ Tải lại Scene</button>
                                     <button id="btn-obse-add-group" class="obse-btn primary">+ Tạo nhóm mới</button>
                                 </div>
                             </div>

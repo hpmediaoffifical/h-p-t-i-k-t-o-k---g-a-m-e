@@ -1158,7 +1158,10 @@ const appConfig = loadAppConfig();
 if (!appConfig.games || typeof appConfig.games !== 'object') appConfig.games = {};   // file cấu hình cũ/tay thiếu 'games' → không sập
 if (!appConfig.license || typeof appConfig.license !== 'object') appConfig.license = { key: '', email: '' };
 
-// ====== OBS Bridge — kết nối OBS Studio qua WebSocket để trigger Lua effects ======
+// ====== OBS Bridge — kết nối OBS Studio qua WebSocket để chạy Lua effects ======
+// Luồng chính (v1.9.8+): quà chỉ định về → nhớ Scene đang phát (nhóm NPC) → chuyển sang Scene hiệu ứng
+// → LUA trong scene đó (bật "🎬 Tự chạy khi chuyển sang Scene") tự phát → đủ số giây → tự quay về Scene cũ.
+// Hotkey chỉ còn là tùy chọn cho LUA chưa có mục tự chạy theo Scene (app bấm hộ sau khi đổi scene).
 // License-gated: chỉ trigger nếu license activated.
 if (!appConfig.shareTokens) appConfig.shareTokens = {};   // { gameId: uuid } — link /overlay/shared/<uuid>
 if (!appConfig.obsBridge) {
@@ -1167,7 +1170,7 @@ if (!appConfig.obsBridge) {
         url: 'ws://localhost:4455',
         password: '',
         autoConnect: false,
-        mapping: [],            // Array<{ giftId, hotkey, cooldownMs, enabled }>
+        mapping: [],            // Array<{ giftId, scene, hotkey?, cooldownMs, enabled }> — scene = Scene hiệu ứng trong OBS
         groupsDisabled: []      // Array<string> — group names BẬT CỜ TẮT (skip enqueue)
     };
 }
@@ -1194,11 +1197,27 @@ const OBS_LUA_DURATION_REGISTRY = {
     'effect_may_giat_trigger': 7000,   // Washing machine
     'effect_mario_trigger': 15000,     // Mario v5: 4 keyframes (hold+lerp) + mushroom + final_hold
 };
-function obsBridgeSuggestDurationMs(hotkey) {
-    if (!hotkey) return 0;
-    if (OBS_LUA_DURATION_REGISTRY[hotkey] != null) return OBS_LUA_DURATION_REGISTRY[hotkey];
-    // Fallback heuristic: hotkey có chứa "effect_" → trả về 8s (an toàn)
-    if (/^effect_/.test(hotkey)) return 8000;
+// Gợi ý theo TÊN SCENE hiệu ứng (mapping quà → Scene không cần hotkey): so từ khóa sau khi bỏ dấu,
+// bỏ khoảng trắng/ký tự lạ. "Chảo Đập" → "chaodap", "Lò xo NPC" → "loxonpc". Thứ tự: khóa dài trước.
+const OBS_LUA_DURATION_BY_KEYWORD = [
+    ['mario', 15000], ['loxo', 10000], ['dapbua', 9000], ['hoden', 9000],
+    ['chaodap', 8000], ['chao', 8000], ['maygiat', 7000], ['chay', 6000]
+];
+function obsBridgeNormalizeName(s) {
+    return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+function obsBridgeSuggestDurationMs(hotkey, sceneName) {
+    if (hotkey) {
+        if (OBS_LUA_DURATION_REGISTRY[hotkey] != null) return OBS_LUA_DURATION_REGISTRY[hotkey];
+        // Fallback heuristic: hotkey có chứa "effect_" → trả về 8s (an toàn)
+        if (/^effect_/.test(hotkey)) return 8000;
+    }
+    const key = obsBridgeNormalizeName(sceneName);
+    if (key) {
+        const hit = OBS_LUA_DURATION_BY_KEYWORD.find(([kw]) => key.includes(kw));
+        if (hit) return hit[1];
+    }
     return 0;
 }
 const obsBridge = new OBSBridge({
@@ -1297,36 +1316,48 @@ function obsBridgeEnqueueForGift(giftId, repeatCount, opts = {}) {
     }
     const mapping = (appConfig.obsBridge && appConfig.obsBridge.mapping) || [];
     const match = mapping.find(m => String(m.giftId) === String(giftId));
-    if (!match || !match.hotkey) return { enqueued: 0, reason: 'no-mapping' };
+    // Hàng hợp lệ = có Scene hiệu ứng (đường chính) HOẶC hotkey (đường cũ)
+    if (!match || (!match.scene && !match.hotkey)) return { enqueued: 0, reason: 'no-mapping' };
 
     // ⛔ Skip nếu mapping bị TẮT (enabled === false)
     if (match.enabled === false) {
-        console.log(`[obs-bridge] SKIP giftId=${giftId} hotkey='${match.hotkey}': mapping DISABLED`);
+        console.log(`[obs-bridge] SKIP giftId=${giftId} scene='${match.scene || ''}' hotkey='${match.hotkey || ''}': mapping DISABLED`);
         return { enqueued: 0, reason: 'mapping-disabled' };
     }
     // ⛔ Skip nếu CẢ NHÓM bị TẮT
     const groupName = String(match.group || '');
     const groupsDisabled = (appConfig.obsBridge && appConfig.obsBridge.groupsDisabled) || [];
     if (groupsDisabled.includes(groupName)) {
-        console.log(`[obs-bridge] SKIP giftId=${giftId} hotkey='${match.hotkey}': group '${groupName}' DISABLED`);
+        console.log(`[obs-bridge] SKIP giftId=${giftId} scene='${match.scene || ''}' hotkey='${match.hotkey || ''}': group '${groupName}' DISABLED`);
         return { enqueued: 0, reason: 'group-disabled' };
     }
+    return obsBridgeEnqueueMapping(match, repeatCount, { ...opts, giftId });
+}
 
+// Xếp 1 hàng mapping vào hàng đợi — KHÔNG kiểm tra cờ bật/tắt (caller lo). Dùng chung cho quà thật
+// (obsBridgeEnqueueForGift) và nút 🔥 chạy thử (/api/obs-bridge/test-mapping) để test đi đúng đường thật.
+function obsBridgeEnqueueMapping(match, repeatCount, opts = {}) {
     const groupKey = OBS_QUEUE_KEY;                       // ★ luôn dùng key global
-    const groupLabel = groupName;                          // label hiển thị UI
+    const groupLabel = String(match.group || '');          // label hiển thị UI
     const queue = obsBridgeGetGroupQueue(groupKey);
+    const giftId = String(opts.giftId != null ? opts.giftId : (match.giftId || ''));
 
     let n = Math.max(1, Math.min(100, Number(repeatCount) || 1));
     // Cap TOTAL (max 100 items đợi cho toàn bộ queue)
     if (queue.length + n > OBS_QUEUE_PER_GROUP_CAP) {
         n = Math.max(0, OBS_QUEUE_PER_GROUP_CAP - queue.length);
     }
-    const intervalMs = Math.max(200, Number(match.cooldownMs) || 1000);
+    const scene = String(match.scene || '');
+    let intervalMs = Math.max(200, Number(match.cooldownMs) || 1000);
+    // Đường Scene: intervalMs = thời gian GIỮ scene hiệu ứng trước khi quay về. Chưa đặt giây → lấy gợi ý
+    // theo LUA/tên scene, không đoán được thì 8s — để 200ms thì vừa chuyển đã quay về, LUA chưa kịp chạy.
+    if (scene && !(Number(match.cooldownMs) > 0)) intervalMs = obsBridgeSuggestDurationMs(match.hotkey, scene) || 8000;
     for (let i = 0; i < n; i++) {
         queue.push({
-            hotkey: match.hotkey,
+            hotkey: match.hotkey || '',
+            scene,
             intervalMs,
-            giftId: String(giftId),
+            giftId,
             giftName: match.giftName || '',
             giftImage: match.giftImage || '',
             actionName: match.actionName || '',   // dùng để hiển thị trong UI queue list
@@ -1336,9 +1367,66 @@ function obsBridgeEnqueueForGift(giftId, repeatCount, opts = {}) {
             enqueuedAt: Date.now()
         });
     }
-    console.log(`[obs-bridge] ENQUEUE ${n}× '${match.hotkey}' giftId=${giftId} groupLabel='${groupLabel}' source='${opts.source || 'gift'}' (queue=${queue.length}, intervalMs=${intervalMs})`);
+    const what = [scene ? `scene='${scene}'` : '', match.hotkey ? `hotkey='${match.hotkey}'` : ''].filter(Boolean).join(' + ');
+    console.log(`[obs-bridge] ENQUEUE ${n}× ${what} giftId=${giftId} groupLabel='${groupLabel}' source='${opts.source || 'gift'}' (queue=${queue.length}, intervalMs=${intervalMs})`);
     obsBridgeDrainGroup(groupKey);
     return { enqueued: n, pending: queue.length, group: groupLabel };
+}
+
+// ===== Chạy 1 item — đường Scene (chính) hoặc đường hotkey (cũ) =====
+// Scene "nhà" = scene đang phát lúc quà về (nhóm NPC). Nhớ lại để quay về; nếu lúc quà về OBS đang đứng
+// ở 1 scene hiệu ứng (streamer vừa test tay / effect trước chưa kịp về) thì dùng scene nhà đã nhớ trước đó.
+let obsBridgeHomeScene = '';
+let obsBridgeAbortSeq = 0;             // tăng khi "Xóa hàng đợi" → item Scene đang giữ quay về scene nhà NGAY
+const OBS_SCENE_SETTLE_MS = 150;       // chờ OBS đổi scene xong trước khi bấm hotkey hộ
+const OBS_SCENE_RETURN_GAP_MS = 300;   // nghỉ sau khi về scene nhà → lần chuyển kế vẫn bắn SCENE_CHANGED cho LUA
+const obsSleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+function obsBridgeIsEffectScene(name) {
+    if (!name) return false;
+    const mapping = (appConfig.obsBridge && Array.isArray(appConfig.obsBridge.mapping)) ? appConfig.obsBridge.mapping : [];
+    return mapping.some(m => m && m.scene && String(m.scene) === String(name));
+}
+
+async function obsBridgeFireItem(item) {
+    if (!item.scene) {
+        // Đường cũ: chỉ bấm hotkey, LUA tự lo trong scene hiện tại; spacing do vòng drain xử lý.
+        return obsBridge.triggerHotkey(item.hotkey);
+    }
+    // 1. Nhớ scene đang phát (nhóm NPC) để quay về
+    let home = await obsBridge.getCurrentScene();
+    if (!home || obsBridgeIsEffectScene(home)) home = obsBridgeHomeScene;
+    else obsBridgeHomeScene = home;
+    // 2. Chuyển sang scene hiệu ứng → LUA (đã bật "Tự chạy khi chuyển sang Scene") tự phát
+    const sw = await obsBridge.setCurrentScene(item.scene);
+    if (!sw.ok) return { ...sw, step: 'switch-to-scene', scene: item.scene, home };
+    // 3. Hotkey tùy chọn — cho LUA chưa bật tự chạy theo Scene
+    let hk = { ok: true, skipped: true };
+    if (item.hotkey) {
+        await obsSleep(OBS_SCENE_SETTLE_MS);
+        hk = await obsBridge.triggerHotkey(item.hotkey);
+    }
+    // 4. Giữ scene hiệu ứng đủ thời gian LUA chạy xong — poll 100ms để "Xóa hàng đợi" cắt ngang được
+    const holdMs = Math.max(0, (Number(item.intervalMs) || 0) - (item.hotkey ? OBS_SCENE_SETTLE_MS : 0));
+    const seq = obsBridgeAbortSeq;
+    const holdEnd = Date.now() + holdMs;
+    while (Date.now() < holdEnd && obsBridgeAbortSeq === seq) {
+        await obsSleep(Math.max(10, Math.min(100, holdEnd - Date.now())));
+    }
+    const aborted = obsBridgeAbortSeq !== seq;
+    if (aborted) console.log(`[obs-bridge] scene '${item.scene}': bị xóa hàng đợi → quay về scene nhà ngay`);
+    // 5. Quay về scene nhà — chỉ khi OBS vẫn đang ở scene hiệu ứng (streamer tự đổi tay giữa chừng thì tôn trọng)
+    let back = { ok: true, skipped: true };
+    const nowScene = await obsBridge.getCurrentScene();
+    if (home && nowScene === item.scene) {
+        back = await obsBridge.setCurrentScene(home);
+        await obsSleep(OBS_SCENE_RETURN_GAP_MS);
+    } else if (!home) {
+        console.log(`[obs-bridge] scene '${item.scene}': không biết scene nhà để quay về (lần đầu đã đứng sẵn ở scene hiệu ứng)`);
+    } else if (nowScene !== item.scene) {
+        console.log(`[obs-bridge] scene '${item.scene}': streamer đã tự đổi sang '${nowScene}' → không tự quay về`);
+    }
+    return { ok: !!(sw.ok && hk.ok && back.ok), scene: item.scene, home, returned: !back.skipped, aborted, hotkeyResult: hk, backResult: back };
 }
 
 async function obsBridgeDrainGroup(groupKey) {
@@ -1364,21 +1452,23 @@ async function obsBridgeDrainGroup(groupKey) {
                 }
                 queue.shift();
                 obsBridgeNowFiring.set(groupKey, { ...item, firedAt: Date.now() });
-                console.log(`[obs-bridge] queue fire: hotkey='${item.hotkey}' giftId='${item.giftId}' source='${item.source}' (remaining=${queue.length})`);
+                console.log(`[obs-bridge] queue fire: ${item.scene ? `scene='${item.scene}' ` : ''}hotkey='${item.hotkey || ''}' giftId='${item.giftId}' source='${item.source}' holdMs=${item.intervalMs} (remaining=${queue.length})`);
                 try {
-                    const result = await obsBridge.triggerHotkey(item.hotkey);
+                    const result = await obsBridgeFireItem(item);
                     obsBridgeQueueLastResult = {
-                        ...result, hotkey: item.hotkey, giftId: item.giftId,
+                        ...result, hotkey: item.hotkey, scene: item.scene || '', giftId: item.giftId,
                         group: item.groupLabel || '', ts: Date.now()
                     };
                 } catch (e) {
                     obsBridgeQueueLastResult = {
                         ok: false, reason: 'exception', error: String(e),
-                        hotkey: item.hotkey, group: item.groupLabel || '', ts: Date.now()
+                        hotkey: item.hotkey, scene: item.scene || '', group: item.groupLabel || '', ts: Date.now()
                     };
                 }
                 obsBridgeLastTriggerAt.set(groupKey, Date.now());
-                obsBridgeLastIntervalMs.set(groupKey, item.intervalMs);
+                // Đường Scene: obsBridgeFireItem đã giữ đủ intervalMs rồi mới quay về → item kế chạy ngay,
+                // không chờ thêm lần nữa. Chỉ đường hotkey cũ mới cần spacing theo duration.
+                obsBridgeLastIntervalMs.set(groupKey, item.scene ? 0 : item.intervalMs);
             }
             // POST-DRAIN: chờ effect CUỐI play xong DURATION trước khi clear nowFiring
             // → UI countdown đếm tới 0 tự nhiên thay vì biến mất ngay
@@ -1400,6 +1490,7 @@ async function obsBridgeDrainGroup(groupKey) {
 }
 
 function obsBridgeQueueClear() {
+    obsBridgeAbortSeq++;   // item Scene đang giữ (nếu có) thấy seq đổi → quay về scene nhà ngay, không chờ hết giây
     let removed = 0;
     for (const q of obsBridgeQueues.values()) {
         removed += q.length;
@@ -1419,6 +1510,7 @@ function obsBridgeQueueStatus() {
             status: 'running',
             group: fItem.groupLabel || '',     // ★ label hiển thị (không phải internal key)
             hotkey: fItem.hotkey,
+            scene: fItem.scene || '',
             giftId: fItem.giftId,
             giftName: fItem.giftName || '',
             giftImage: fItem.giftImage || '',
@@ -1438,6 +1530,7 @@ function obsBridgeQueueStatus() {
                 status: 'waiting',
                 group: it.groupLabel || '',     // ★ label hiển thị
                 hotkey: it.hotkey,
+                scene: it.scene || '',
                 giftId: it.giftId,
                 giftName: it.giftName || '',
                 giftImage: it.giftImage || '',
@@ -9803,11 +9896,12 @@ app.get('/api/obs-bridge/config', (req, res) => {
     });
 });
 
-// GET /api/obs-bridge/lua-duration?hotkey=effect_xxx — gợi ý duration (ms) cho LUA đã biết
+// GET /api/obs-bridge/lua-duration?hotkey=effect_xxx&scene=... — gợi ý duration (ms) theo hotkey hoặc tên Scene
 app.get('/api/obs-bridge/lua-duration', (req, res) => {
     const hotkey = String(req.query.hotkey || '').trim();
-    const ms = obsBridgeSuggestDurationMs(hotkey);
-    res.json({ hotkey, ms, suggested: ms > 0 });
+    const scene = String(req.query.scene || '').trim();
+    const ms = obsBridgeSuggestDurationMs(hotkey, scene);
+    res.json({ hotkey, scene, ms, suggested: ms > 0 });
 });
 
 // ====== 📚 LUA Sync — REST API ======
@@ -10377,7 +10471,8 @@ app.put('/api/obs-bridge/config', express.json(), (req, res) => {
                 giftName:   String(m.giftName || '').trim().slice(0, 200),
                 giftImage:  String(m.giftImage || '').trim().slice(0, 500),
                 actionName: String(m.actionName || '').trim().slice(0, 80),   // tên hành động hiển thị trong queue
-                hotkey:     String(m.hotkey || '').trim(),
+                hotkey:     String(m.hotkey || '').trim(),                    // tùy chọn — LUA chưa tự chạy theo Scene
+                scene:      String(m.scene || '').trim().slice(0, 120),       // Scene hiệu ứng trong OBS (đường chính)
                 cooldownMs: Math.max(0, Number(m.cooldownMs) || 0),
                 group:      String(m.group || '').trim().slice(0, 40),
                 enabled:    m.enabled !== false   // default true; chỉ false khi explicit set
@@ -10429,6 +10524,29 @@ app.get('/api/obs-bridge/hotkeys', async (req, res) => {
     // Lọc chỉ effect_/hp_ để UI gợi ý
     const effectHotkeys = hotkeys.filter(h => /^(effect_|hp_)/i.test(h));
     res.json({ ok: true, hotkeys, effectHotkeys });
+});
+
+// GET /api/obs-bridge/scenes — danh sách Scene trong OBS (dropdown "Scene hiệu ứng" của mapping)
+app.get('/api/obs-bridge/scenes', async (req, res) => {
+    if (!obsBridge.isConnected()) {
+        return res.json({ ok: false, error: 'Chưa kết nối OBS', scenes: [], current: '' });
+    }
+    const r = await obsBridge.listScenes();
+    res.json({ ok: !!r.ok, error: r.ok ? undefined : (r.error || r.reason), scenes: r.scenes || [],
+        current: r.current || '', homeScene: obsBridgeHomeScene });
+});
+
+// POST /api/obs-bridge/test-mapping — bấm 🔥 chạy thử 1 hàng y như quà thật (qua hàng đợi):
+// chuyển Scene → LUA chạy → giữ đủ giây → quay về. Bỏ qua cờ tắt hàng/nhóm/master vì là thao tác tay.
+app.post('/api/obs-bridge/test-mapping', express.json(), (req, res) => {
+    const id = String((req.body && req.body.id) || '');
+    const mapping = (appConfig.obsBridge && Array.isArray(appConfig.obsBridge.mapping)) ? appConfig.obsBridge.mapping : [];
+    const m = mapping.find(x => x && String(x.id) === id);
+    if (!m) return res.status(404).json({ ok: false, reason: 'not-found', error: 'Không thấy mapping — lưu rồi thử lại' });
+    if (!m.scene && !m.hotkey) return res.status(400).json({ ok: false, reason: 'empty', error: 'Hàng này chưa chọn Scene hiệu ứng' });
+    if (!obsBridge.isConnected()) return res.json({ ok: false, reason: 'disconnected', error: 'Chưa kết nối OBS' });
+    const r = obsBridgeEnqueueMapping(m, 1, { source: 'test' });
+    res.json({ ok: true, ...r, queue: obsBridgeQueueStatus() });
 });
 
 // POST /api/obs-bridge/trigger — test trigger 1 hotkey (bypass cooldown + mapping)
