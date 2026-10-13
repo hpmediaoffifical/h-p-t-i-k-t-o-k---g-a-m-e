@@ -274,12 +274,14 @@
             try { if (preloader.getAttribute('src') !== url) { preloader.src = url; preloader.load(); } } catch (e) {}
         }
 
+        let currentFinish = null;   // phím tắt "bỏ qua" gọi hàm này để kết thúc mục đang phát
         function playMedia(p) {
             // Báo server đã phát xong lượt này → server gửi lượt kế (drain serial theo ack).
             let acked = false;
             const finish = () => {
                 if (acked) return;
                 acked = true;
+                if (currentFinish === finish) currentFinish = null;
                 clearTimeout(playWatchdog);
                 clearPlayer(); clearAudio();
                 try { socket.emit('vipwelcome:done', { seq: p && p.seq }); } catch (e) {}
@@ -287,6 +289,7 @@
                 advanceQueue();
             };
             if (!p || !p.mediaUrl) { finish(); return; }
+            currentFinish = finish;
             const isVideo = (p.mediaType === 'video') || /\.(mp4|webm|mov)(\?|$)/i.test(p.mediaUrl);
             const vol = Math.max(0, Math.min(1, (p.volume ?? 100) / 100));
             // Nhãn chữ cũ cho trigger KHÔNG phải vào phòng (vào phòng đã có thẻ riêng)
@@ -373,7 +376,34 @@
             requestAnimationFrame(step);
             setTimeout(() => { node.textContent = target.toLocaleString('vi-VN'); }, dur + 100);   // rAF có thể bị dừng khi trang ẩn
         }
+        // Thẻ gộp khi phòng đông: chồng ≤3 avatar + "A, B và N người khác"
+        function buildGroupCard(c) {
+            const skins = ['violet', 'ice', 'amber', 'flame', 'diamond'];
+            const card = el('div', 'jc-card jc-group skin-' + (skins.includes(c.skin) ? c.skin : 'violet'));
+            const avs = el('div', 'jc-group-avas');
+            (c.members || []).slice(0, 3).forEach((m, i) => {
+                const a = el('img', 'jc-group-ava');
+                a.alt = '';
+                a.style.zIndex = String(3 - i);
+                a.onerror = () => { a.onerror = null; a.src = '/api/games/vipwelcome/avatar'; };
+                a.src = m.avatar || '/api/games/vipwelcome/avatar';
+                avs.appendChild(a);
+            });
+            card.appendChild(avs);
+            const top = el('div', 'jc-top');
+            top.appendChild(el('span', 'jc-chip jc-title', (c.total || 0) + ' NGƯỜI'));
+            top.appendChild(el('span', 'jc-enter', c.enterText || 'VÀO PHÒNG'));
+            card.appendChild(top);
+            const body = el('div', 'jc-body');
+            const names = (c.members || []).slice(0, 2).map(m => m.nickname || 'Người xem');
+            const rest = Math.max(0, (c.total || 0) - names.length);
+            body.appendChild(el('span', 'jc-name', names.join(', ') + (rest > 0 ? ' và ' + rest + ' người khác' : '')));
+            card.appendChild(body);
+            card.appendChild(el('div', 'jc-shine'));
+            return { card, xuNum: null, xu: 0 };
+        }
         function buildCard(c) {
+            if (c.kind === 'group') return buildGroupCard(c);
             const skins = ['violet', 'ice', 'amber', 'flame', 'diamond'];
             const card = el('div', 'jc-card skin-' + (skins.includes(c.skin) ? c.skin : 'violet') + (c.late ? ' jc-late' : '') + (c.frameUrl ? ' has-frame' : ''));
             const u = c.user || {};
@@ -413,6 +443,12 @@
             if (r.mod) sub.appendChild(el('span', 'jc-role mod', 'MOD'));
             if (r.sub) sub.appendChild(el('span', 'jc-role sub', 'SUB'));
             if (r.friend) sub.appendChild(el('span', 'jc-role friend', 'BẠN BÈ'));
+            // Khách quen: lần đầu / lần thứ N / chuỗi buổi liền (từ 3 buổi)
+            const v = c.visit;
+            if (v && v.visitNo > 0) {
+                sub.appendChild(el('span', 'jc-visit' + (v.isFirst ? ' first' : ''), v.isFirst ? '🎉 Lần đầu ghé phòng' : 'Ghé lần thứ ' + v.visitNo));
+                if (v.streak >= 3) sub.appendChild(el('span', 'jc-visit streak', '🔥 ' + v.streak + ' buổi liền'));
+            }
             card.appendChild(sub);
             // Ánh quét + lấp lánh
             card.appendChild(el('div', 'jc-shine'));
@@ -504,9 +540,12 @@
 
         socket.on('vipwelcome:play', (payload) => { fire(payload); });
         socket.on('vipwelcome:card', (card) => { showCard(card); });
+        // Phím tắt "bỏ qua": kết thúc mục đang phát (video/âm thanh/giọng đọc) → báo xong → server phát mục kế
+        socket.on('vipwelcome:skip', () => { if (currentFinish) currentFinish(); });
         socket.on('vipwelcome:stop', () => {
             queue.length = 0;
             clearTimeout(playWatchdog);
+            currentFinish = null;
             clearPlayer(); clearAudio(); hideLabel(); clearCards();
             playing = false;
         });

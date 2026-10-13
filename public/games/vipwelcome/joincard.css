@@ -189,3 +189,28 @@
     animation: jcPrism 4s linear infinite;
 }
 @keyframes jcPrism { from { background-position: 0 0; } to { background-position: 200% 0; } }
+
+/* ===== Giai đoạn 3 ===== */
+/* Chip khách quen ở dòng dưới */
+.jc-visit {
+    padding: 1px 8px; border-radius: 5px; font-size: 13px; font-weight: 900; letter-spacing: .4px;
+    background: rgba(255,255,255,.14); border: 1px solid var(--jc-edge);
+    text-shadow: 0 1px 3px rgba(0,0,0,.7); white-space: nowrap;
+}
+.jc-visit.first { background: linear-gradient(180deg, #4ade80, #16a34a); border-color: #bbf7d0; }
+.jc-visit.streak { background: linear-gradient(180deg, #ffb347, #ff5e3a); border-color: #ffe0b8; }
+
+/* Thẻ gộp "A, B và N người khác" — chồng 3 avatar bên trái */
+.jc-card.jc-group .jc-body { padding-left: 132px; }
+.jc-card.jc-group .jc-top { left: 170px; }
+.jc-card.jc-group .jc-name { font-size: 26px; }
+.jc-group-avas {
+    position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
+    display: flex; z-index: 3;
+}
+.jc-group-ava {
+    width: 92px; height: 92px; border-radius: 50%; object-fit: cover; background: #1b1235;
+    border: 3px solid var(--jc-edge); box-shadow: 0 0 14px var(--jc-glow);
+    margin-left: -34px; position: relative;
+}
+.jc-group-ava:first-child { margin-left: 0; }
