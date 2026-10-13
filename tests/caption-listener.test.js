@@ -111,6 +111,20 @@ test('state: attach + report listening → listening, timer timeout bị huỷ',
     assert.equal(st.open({ browser: 'edge' }).action, 'none');
 });
 
+test('state: report mang detail (pha/lỗi gần nhất/bộ đếm) → snapshot.detail, đổi detail cũng phát onChange', () => {
+    const { st, changes } = makeState();
+    st.open({ browser: 'edge' });
+    st.attach('s1');
+    st.report('s1', { state: 'listening', detail: { phase: 'listening', lastError: '', emptySessions: 0 } });
+    assert.deepEqual(st.snapshot().detail, { phase: 'listening', lastError: '', emptySessions: 0 });
+    const n = changes.length;
+    st.report('s1', { state: 'listening', detail: { phase: 'idle', lastError: 'no-speech', emptySessions: 3 } });
+    assert.equal(st.snapshot().detail.lastError, 'no-speech');
+    assert.equal(changes.length, n + 1);
+    st.report('s1', { state: 'listening', detail: { phase: 'idle', lastError: 'no-speech', emptySessions: 3 } });
+    assert.equal(changes.length, n + 1);   // detail y hệt → không phát lại
+});
+
 test('state: report starting cũng tính là listening', () => {
     const { st } = makeState();
     st.open({ browser: 'edge' });

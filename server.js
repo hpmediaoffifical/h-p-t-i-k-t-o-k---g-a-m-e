@@ -2237,8 +2237,14 @@ async function processCreatorCaptionSpeech(payload) {
     lastCreatorCaptionNorm = norm;
     lastCreatorCaptionAt = now;
     try {
+        const srcShort = sourceLangForTranslate(cfg.sourceLang);
         const translations = await Promise.all(cfg.targetLangs.map(async targetLang => {
-            const result = await translateTextToTarget(originalText, sourceLangForTranslate(cfg.sourceLang), targetLang);
+            // Đích trùng ngôn ngữ đang nói (vd "tự bật theo người xem" thêm vi khi Creator nói tiếng Việt):
+            // dùng nguyên câu gốc — dịch vi→vi làm Google trả rỗng rồi MyMemory trả thông báo lỗi.
+            if (targetLang === srcShort) {
+                return { targetLang, targetLangLabel: liveTranslateLangLabel(targetLang), translatedText: originalText, sourceLang: srcShort, sourceLangLabel: liveTranslateLangLabel(srcShort) };
+            }
+            const result = await translateTextToTarget(originalText, srcShort, targetLang);
             return {
                 targetLang,
                 targetLangLabel: liveTranslateLangLabel(targetLang),
@@ -4557,6 +4563,19 @@ app.post('/api/creator-caption/listener/open', (req, res) => {
 app.post('/api/creator-caption/listener/stop', (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
     res.json({ ok: true, state: captionListenerStop() });
+});
+// Người dùng lỡ bấm "Chặn" micro → trình duyệt nhớ mãi trong profile. Xoá profile riêng của HP
+// (chỉ thư mục <data>/caption-listener/<browser>) để lần mở sau hỏi lại quyền.
+app.post('/api/creator-caption/listener/reset', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    captionListenerStop();
+    const browser = sanitizeCreatorCaptionConfig(appConfig.creatorCaption).browser;
+    const profileDir = path.join(DATA_DIR, 'caption-listener', browser);
+    setTimeout(() => {   // chờ trình duyệt đóng cửa sổ, nhả khoá file profile
+        try { fs.rmSync(profileDir, { recursive: true, force: true }); console.log('[creator-caption] đã xoá profile', profileDir); }
+        catch (e) { console.warn('[creator-caption] xoá profile lỗi:', e.message); }
+    }, 1200);
+    res.json({ ok: true, state: captionListener.snapshot() });
 });
 app.get('/listen/caption', (req, res) => res.sendFile(path.join(__dirname, 'public', 'listen', 'caption.html')));
 

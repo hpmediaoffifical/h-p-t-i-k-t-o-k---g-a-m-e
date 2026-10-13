@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HP Phụ đề giọng — cửa sổ nghe</title>
+    <style>
+        html, body { margin: 0; height: 100%; background: #0f1218; color: #e6e8ee; font: 14px/1.4 'Segoe UI', system-ui, sans-serif; }
+        body { display: flex; flex-direction: column; padding: 12px 14px; box-sizing: border-box; gap: 8px; }
+        header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        h1 { margin: 0; font-size: 15px; font-weight: 900; color: #e6fffd; }
+        .meta { color: #8b93a8; font-size: 12px; white-space: nowrap; }
+        .meta b { color: #25F4EE; font-weight: 700; }
+        #mic { color: #8b93a8; font-size: 12px; min-height: 16px; }
+        #mic b { color: #d7dcef; font-weight: 600; }
+        #mic-hint { display: none; margin-top: 2px; color: #ffd166; }
+        #interim { flex: 1; min-height: 56px; padding: 8px 10px; border: 1px solid rgba(37,244,238,.22); border-radius: 10px;
+                   background: rgba(37,244,238,.06); color: #bffefa; font-size: 18px; font-style: italic; overflow: hidden; }
+        #interim:empty::before { content: 'Nói đi, chữ sẽ hiện ở đây…'; color: #4f5870; font-style: normal; font-size: 14px; }
+        #interim.listening:not(:empty)::after { content: '…'; display: inline-block; width: 1.2em; animation: dots 1.2s steps(3, end) infinite; }
+        @keyframes dots { 0% { clip-path: inset(0 100% 0 0); } 33% { clip-path: inset(0 66% 0 0); } 66% { clip-path: inset(0 33% 0 0); } 100% { clip-path: inset(0 0 0 0); } }
+        #last { color: #fff; font-size: 13px; min-height: 18px; }
+        #last:empty::before { content: 'Câu đã gửi: —'; color: #4f5870; }
+        footer { display: flex; align-items: center; gap: 8px; }
+        #status { flex: 1; font-size: 12px; color: #8b93a8; }
+        #status.ok { color: #25F4EE; }
+        #status.err { color: #ff8da6; }
+        #status.warn { color: #ffd166; }
+        button { border: 0; border-radius: 8px; padding: 7px 12px; font-weight: 800; cursor: pointer; font-size: 13px; }
+        #btn-stop { background: #2a3142; color: #e6e8ee; }
+        #btn-start { background: linear-gradient(135deg, #25F4EE, #16c6c0); color: #041113; display: none; }
+        #btn-start.show { display: inline-block; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🎙️ HP Phụ đề giọng</h1>
+        <div class="meta">Nghe bằng <b id="browser">Edge</b> · <b id="lang">vi-VN</b></div>
+    </header>
+    <div id="mic">Micro: <b id="mic-label">đang chờ quyền…</b><div id="mic-hint"></div></div>
+    <div id="interim"></div>
+    <div id="last"></div>
+    <footer>
+        <div id="status">Đang kết nối app…</div>
+        <button id="btn-start">🎙 BẮT ĐẦU</button>
+        <button id="btn-stop">DỪNG</button>
+    </footer>
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="/listen/caption.js"></script>
+</body>
+</html>
