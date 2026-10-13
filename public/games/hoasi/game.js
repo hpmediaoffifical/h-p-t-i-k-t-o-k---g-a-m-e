@@ -201,7 +201,10 @@
         let face = null, faceAt = -Infinity;
         let shieldUntil = 0;
         let lastBy = '';
-        let events = [];
+        let events = [], pending = [], stepping = false;
+        // Pha: 'play' → (phủ ≥ percent giữ holdSec) 'full' → (tự rửa / Rửa sạch) 'washing' → washDone → 'play'.
+        let phase = 'play', held = 0, latched = false, fullAt = 0, washAt = 0, washMs = 0;
+        const emit = (e) => (stepping ? events : pending).push(e);
 
         const cellOf = (x, y) => Math.min(ROWS - 1, Math.max(0, Math.floor(y / CH))) * COLS + Math.min(COLS - 1, Math.max(0, Math.floor(x / CW)));
         const center = (i) => ({ x: (i % COLS + 0.5) * CW, y: (Math.floor(i / COLS) + 0.5) * CH });
@@ -281,26 +284,62 @@
                 color: kind === 'water' ? '#8fe3ff' : PALETTE[Math.floor(rng() * PALETTE.length) % PALETTE.length]
             };
             flights.push(f);
-            events.push({ type: 'launch', id: f.id, kind, cell, by: f.by });
+            emit({ type: 'launch', id: f.id, kind, cell, by: f.by });
         }
 
         function impact(f) {
             if (f.kind === 'water') {
                 // Nước luôn xuyên khiên: nước là của phe cứu streamer.
-                events.push({ type: 'wash', x: f.x1, y: f.y1, r: f.r, strength: 0.9 });
-                events.push({ type: 'wash', x: clamp(f.x1 + (rng() - 0.5) * 0.16 * W, 0.03 * W, 0.97 * W),
+                emit({ type: 'wash', x: f.x1, y: f.y1, r: f.r, strength: 0.9 });
+                emit({ type: 'wash', x: clamp(f.x1 + (rng() - 0.5) * 0.16 * W, 0.03 * W, 0.97 * W),
                     y: clamp(f.y1 + (rng() - 0.5) * 0.12 * H, 0.03 * H, 0.97 * H), r: f.r * 0.62, strength: 0.76 });
                 cells[f.cell] *= 0.1;
                 return;
             }
-            if (inDome(dome(), f.x1, f.y1)) { events.push({ type: 'block', x: f.x1, y: f.y1, color: f.color }); return; }
-            events.push({ type: 'splat', x: f.x1, y: f.y1, r: f.r, color: f.color, cell: f.cell, by: f.by, seed: Math.floor(rng() * 2147483647) });
+            if (inDome(dome(), f.x1, f.y1)) { emit({ type: 'block', x: f.x1, y: f.y1, color: f.color }); return; }
+            emit({ type: 'splat', x: f.x1, y: f.y1, r: f.r, color: f.color, cell: f.cell, by: f.by, seed: Math.floor(rng() * 2147483647) });
             cells[f.cell] = 1;
             if (f.by) lastBy = f.by;
         }
 
+        function startWash(ms) { phase = 'washing'; washAt = clock; washMs = ms; emit({ type: 'washStart', ms }); }
+        function cleared(type) {
+            cells.fill(0); coverage = 0; phase = 'play'; held = 0; latched = false;
+            emit({ type });
+        }
+        function washDone() { if (phase === 'washing') cleared('washDone'); }
+        function clear() { cleared('clear'); }
+        function wash() { if (phase !== 'washing') startWash(800); }
+        function reset() {
+            queue = []; scheduled = []; flights = []; shieldUntil = 0; lastBy = ''; budget = 0;
+            cleared('clear');
+        }
+
+        function tickPhase(dt) {
+            const f = cfg.full, low = (f.percent - 10) / 100;
+            if (phase === 'play') {
+                if (latched && coverage < low) latched = false;
+                if (f.enabled && !latched && coverage >= f.percent / 100) {
+                    held += dt;
+                    if (held >= f.holdSec * 1000) { phase = 'full'; latched = true; fullAt = clock; held = 0; emit({ type: 'full', by: lastBy }); }
+                } else held = 0;
+            } else if (phase === 'full') {
+                if (f.autoWash) { if (clock - fullAt >= f.washAfterSec * 1000) startWash(1200); }
+                else if (coverage < low) { phase = 'play'; latched = false; }
+            } else if (phase === 'washing' && clock - washAt >= washMs + 3000) {
+                cleared('washDone');      // overlay không báo xong (đang ẩn / lỗi) → tự xong, game không kẹt
+            }
+        }
+
         function tick(dt) {
             clock += dt;
+            tickPhase(dt);
+            // Đang PHỦ KÍN / đang rửa: hàng đợi đứng, lịch dời theo (không bắn dồn sau khi rửa); cục đang bay vẫn bay.
+            if (phase !== 'play') {
+                for (const s of scheduled) s.at += dt;
+                landFlights();
+                return;
+            }
             // Lịch (mưa sơn, nước): tới giờ là phóng, không chịu nhịp shotsPerSecond; đủ cục bay thì chờ.
             if (scheduled.length) {
                 scheduled.sort((a, b) => a.at - b.at);
@@ -313,6 +352,9 @@
             const rate = cfg.shotsPerSecond;
             budget = Math.min(queue.length ? rate : 1, budget + dt / 1000 * rate);
             while (budget >= 1 - 1e-9 && queue.length && flights.length < MAX_FLIGHTS) { budget -= 1; launch('paint', -1, queue.shift()); }
+            landFlights();
+        }
+        function landFlights() {
             for (let k = flights.length - 1; k >= 0; k--) {
                 const f = flights[k];
                 if (clock - f.t0 >= f.ms) { flights.splice(k, 1); impact(f); }
@@ -320,9 +362,10 @@
         }
 
         function step(dtMs) {
-            events = [];
+            events = pending; pending = []; stepping = true;
             let left = Math.max(0, num(dtMs, 0));
-            while (left > 0) { const d = Math.min(SUB_MS, left); tick(d); left -= d; }
+            try { while (left > 0) { const d = Math.min(SUB_MS, left); tick(d); left -= d; } }
+            finally { stepping = false; }
             return events;
         }
 
@@ -356,6 +399,7 @@
             else if (a.type === 'storm') storm(num(p.seconds, d.seconds), num(p.percent, d.percent), by);
             else if (a.type === 'water') water(num(p.count, d.count), by);
             else if (a.type === 'shield') shield(num(p.seconds, d.seconds));
+            else if (a.type === 'wash') wash(by);
         }
 
         function setFace(head) {
@@ -378,11 +422,11 @@
         function snapshot() {
             return {
                 clock, flights: flights.map(flightView), queue: queue.length, scheduled: scheduled.length,
-                coverage, cells, phase: 'play', shieldMs: shieldMs(), dome: dome(), lastBy, events
+                coverage, cells, phase, shieldMs: shieldMs(), dome: dome(), lastBy, events
             };
         }
 
-        return { step, applyAction, enqueuePaint, storm, water, shield, setFace, setCoverage, setConfig, snapshot };
+        return { step, applyAction, enqueuePaint, storm, water, shield, wash, washDone, clear, reset, setFace, setCoverage, setConfig, snapshot };
     }
 
     return {

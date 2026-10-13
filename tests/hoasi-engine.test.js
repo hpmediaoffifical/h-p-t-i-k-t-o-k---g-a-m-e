@@ -240,3 +240,97 @@ test('khiên cộng dồn trần 60s, mất mặt quá 1s thì tắt vòm', () =
     assert.ok(eng.snapshot().shieldMs > 0);
     eng.setFace(null); assert.equal(eng.snapshot().dome, null);
 });
+
+// ---------- Task 3: PHỦ KÍN, rửa, xoá ----------
+const ALL = (v) => new Array(216).fill(v);
+function fullEngine(over) {
+    const eng = mk(over);
+    eng.enqueuePaint(1, 'An'); run(eng, 700);              // 1 cú ném để có lastBy
+    eng.setCoverage(ALL(1), 0.96);
+    return eng;
+}
+
+test('PHỦ KÍN sau holdSec, chỉ một lần', () => {
+    const eng = fullEngine({ full: { autoWash: false } });
+    assert.equal(of(run(eng, 1400), 'full').length, 0);
+    const f = of(run(eng, 200), 'full');
+    assert.equal(f.length, 1); assert.equal(f[0].by, 'An');
+    assert.equal(eng.snapshot().phase, 'full');
+    assert.equal(of(run(eng, 2000), 'full').length, 0);
+});
+
+test('pha full dừng phóng', () => {
+    const eng = fullEngine({ full: { autoWash: false } });
+    run(eng, 1600);
+    eng.enqueuePaint(5, 'b');
+    assert.equal(of(run(eng, 1000), 'launch').length, 0);
+});
+
+test('tự rửa sau washAfterSec rồi chạy tiếp hàng đợi', () => {
+    const eng = fullEngine();
+    run(eng, 1500);
+    assert.equal(eng.snapshot().phase, 'full');
+    eng.enqueuePaint(3, 'b');
+    assert.equal(of(run(eng, 3900), 'washStart').length, 0);
+    const ws = of(run(eng, 200), 'washStart');
+    assert.equal(ws.length, 1); assert.equal(ws[0].ms, 1200);
+    assert.equal(eng.snapshot().phase, 'washing');
+    eng.washDone();
+    const ev = run(eng, 1000);
+    assert.equal(of(ev, 'washDone').length, 1);
+    const s = eng.snapshot();
+    assert.equal(s.phase, 'play'); assert.equal(s.coverage, 0);
+    assert.ok(Array.from(s.cells).every((v, i) => v === 0 || of(ev, 'splat').some(e => e.cell === i)));
+    assert.ok(of(ev, 'launch').length >= 1);
+});
+
+test('không tự rửa: lau dưới ngưỡng thì về play', () => {
+    const eng = fullEngine({ full: { autoWash: false } });
+    run(eng, 1600);
+    eng.setCoverage(ALL(0.8), 0.86); run(eng, 100);
+    assert.equal(eng.snapshot().phase, 'full');
+    eng.setCoverage(ALL(0.8), 0.80); run(eng, 100);
+    assert.equal(eng.snapshot().phase, 'play');
+});
+
+test('lịch mưa đóng băng khi đang rửa', () => {
+    const eng = mk();
+    eng.storm(2, 100, 's');
+    const a = of(run(eng, 1000), 'launch').length;
+    assert.ok(a >= 100 && a <= 112, 'trước khi rửa: ' + a);
+    eng.wash('x');
+    assert.equal(of(run(eng, 3000), 'launch').length, 0);
+    eng.washDone();
+    assert.equal(a + of(run(eng, 1100), 'launch').length, 216);
+});
+
+test('full.enabled false không bao giờ full', () => {
+    const eng = mk({ full: { enabled: false } });
+    eng.setCoverage(ALL(1), 1);
+    assert.equal(of(run(eng, 3000), 'full').length, 0);
+    assert.equal(eng.snapshot().phase, 'play');
+});
+
+test('rửa tự xong nếu overlay không báo washDone', () => {
+    const eng = mk();
+    eng.wash('x');
+    const ev = run(eng, 4000);
+    assert.equal(of(ev, 'washStart').length, 1); assert.equal(of(ev, 'washDone').length, 1);
+    assert.equal(eng.snapshot().phase, 'play');
+});
+
+test('wash / clear / reset', () => {
+    const eng = mk();
+    eng.wash('x');
+    const w = of(eng.step(10), 'washStart'); assert.equal(w.length, 1); assert.equal(w[0].ms, 800);
+    eng.washDone(); eng.step(10);
+    eng.setCoverage(ALL(0.5), 0.5);
+    eng.clear();
+    assert.equal(of(eng.step(10), 'clear').length, 1);
+    assert.ok(Array.from(eng.snapshot().cells).every(v => v === 0)); assert.equal(eng.snapshot().coverage, 0);
+    eng.enqueuePaint(50, 'a'); eng.storm(10, 100, 's'); eng.water(3, 'w'); eng.shield(20); run(eng, 300);
+    eng.reset();
+    const s = eng.snapshot();
+    assert.equal(s.queue, 0); assert.equal(s.scheduled, 0); assert.equal(s.shieldMs, 0);
+    assert.equal(s.flights.length, 0); assert.equal(s.lastBy, ''); assert.equal(s.phase, 'play');
+});
