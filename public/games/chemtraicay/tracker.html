@@ -43,7 +43,7 @@
         <h2>Nguồn hình</h2>
         <div class="modes">
             <button data-mode="obs-source" title="Lấy hình đúng nguồn camera trong Scene — giống Touch &amp; Play">Camera trong OBS</button>
-            <button data-mode="obs-scene" title="Lấy cả Scene (gồm overlay) — tọa độ khớp 1:1">Cả Scene OBS</button>
+            <button data-mode="obs-scene" title="Chụp toàn bộ một Scene quét riêng (chỉ chứa camera) — tọa độ khớp 1:1, không đụng Scene đang phát">Scene quét riêng</button>
             <button data-mode="webcam" title="Dự phòng: mở webcam trực tiếp">Webcam</button>
         </div>
         <div id="obs-opts">
@@ -51,6 +51,14 @@
             <div class="row" id="row-source"><label>Source</label><select id="sel-source"></select></div>
             <div class="row"><label>Nhịp</label><select id="sel-fps"><option value="10">10 hình/giây (nhẹ)</option><option value="15">15 hình/giây</option><option value="20">20 hình/giây (mượt)</option></select></div>
             <div class="row"><label>Cỡ hình</label><select id="sel-width"><option value="480">480 px</option><option value="640">640 px</option><option value="960">960 px</option></select></div>
+            <div id="scan-opts" class="hidden">
+                <div class="hint"><b>Scene quét riêng</b>: chụp toàn bộ nội dung Scene đã chọn ở trên (không cần đang phát, OBS không chuyển cảnh). Tạo Scene chỉ chứa camera để quả/overlay không che tay:</div>
+                <div class="row"><label>Scene live</label><select id="sel-live-scene"></select></div>
+                <div class="row"><label>Camera</label><select id="sel-live-source"></select></div>
+                <div class="row"><label>Tên Scene quét</label><input type="text" id="inp-scan-name" value="CTC Quét" style="flex:1;background:#0e1118;border:1px solid #2c3243;color:#e6e8ee;border-radius:6px;padding:6px 8px;font-size:13px"></div>
+                <button class="ghost" id="btn-make-scan" style="width:100%;margin-top:6px">✨ Tạo / cập nhật Scene quét từ camera</button>
+                <div class="hint" id="scan-msg"></div>
+            </div>
             <div class="hint">Lấy ngay hình đang hiện trong OBS (cần OBS đã kết nối ở mục <b>Hiệu ứng OBS</b>). Không mở webcam riêng, không trùng camera với OBS.</div>
         </div>
         <div id="cam-opts" class="hidden">

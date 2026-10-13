@@ -51,7 +51,7 @@ Config `videoSource { mode: 'obs-source' | 'obs-scene' | 'webcam', scene: '', so
 
 | mode | Lấy hình | Ánh xạ tọa độ |
 |---|---|---|
-| `obs-scene` | Server gọi obs-websocket `GetSourceScreenshot { sourceName: scene, imageFormat:'jpg', imageWidth, imageCompressionQuality:60 }` theo yêu cầu của tracker | 1:1 với overlay: điểm chuẩn hóa (x,y) → (x·1080, y·1920). Không cần gương. |
+| `obs-scene` ("Scene quét riêng") | Server chụp **toàn bộ Scene đã chọn** (không cần đang phát, OBS không chuyển cảnh) qua `GetSourceScreenshot { sourceName: scene, … }`. Nút "Tạo / cập nhật Scene quét từ camera" gọi `POST /api/chemtraicay/obs-scan-scene {liveScene, source, scanScene='CTC Quét'}` → `ensureScanScene()` tạo Scene chỉ chứa tham chiếu camera với transform y hệt Scene live (`pickTransformForCopy`), không ghi gì vào Scene live. | 1:1 với overlay (cùng canvas OBS); overlay **luôn** bỏ qua `camRect` ở mode này, tracker lưu `camRect = null` khi chuyển sang. |
 | `obs-source` (mặc định) | Như trên nhưng `sourceName` = input camera trong scene (danh sách từ `GetSceneItemList`) | Qua `camRect`; tracker **tự** gọi `GetSceneItemTransform` khi chọn source và mỗi lần bật nhận diện để điền `camRect` (position, scale, crop, bounds; bỏ qua xoay); panel có nút "Lấy vùng camera từ OBS" để làm lại. Tránh quả che tay khi nhận diện. |
 | `webcam` | `getUserMedia` trong trang tracker | Qua `camRect`; `camRect = null` → tự tính "cover" từ `aspect` (16:9 → rộng 316 %, x −108 %, cao 100 %). `mirror` chỉ áp cho mode này. |
 

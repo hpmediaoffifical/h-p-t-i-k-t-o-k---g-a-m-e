@@ -52,7 +52,13 @@
         if (!bound) { bindShell(); bound = true; }
         if (socket && !socket.__ctcAttached) {
             socket.__ctcAttached = true;
-            socket.on('gameConfig', ({ gameId, config }) => { if (gameId === 'chemtraicay' && !persistTimer) { cfg = merge(config); renderAll(); } });
+            socket.on('gameConfig', ({ gameId, config }) => {
+                if (gameId !== 'chemtraicay' || persistTimer) return;
+                const next = merge(config);
+                // Echo đúng bản vừa lưu → không vẽ lại (giữ slider đang kéo). Khác (tracker/overlay đổi) → vẽ lại.
+                if (cfg && JSON.stringify(next) === JSON.stringify(cfg)) return;
+                cfg = next; renderAll();
+            });
             socket.on('chemtraicay:state', (s) => { liveState = s; renderStatus(); });
             socket.on('chemtraicay:trackerStatus', ({ activeId }) => { activeTracker = activeId || null; renderStatus(); });
         }

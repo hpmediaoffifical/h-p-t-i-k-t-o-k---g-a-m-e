@@ -131,12 +131,13 @@
 
     // ---------- ánh xạ tay → overlay ----------
     function resolveCamRect() {
-        const mode = cfg.videoSource && cfg.videoSource.mode || 'obs-scene';
+        const mode = cfg.videoSource && cfg.videoSource.mode || 'obs-source';
+        // Scene quét riêng: hình chụp là cả Scene (cùng canvas OBS) → luôn 1:1, bỏ qua khung cũ của mode Source.
+        if (mode === 'obs-scene') return { x: 0, y: 0, w: W, h: H, flipX: false, flipY: false };
         const cr = cfg.camRect;
         if (cr && Number.isFinite(Number(cr.widthPercent)) && Number(cr.widthPercent) > 0) {
             return { x: Number(cr.xPercent) / 100 * W, y: Number(cr.yPercent) / 100 * H, w: Number(cr.widthPercent) / 100 * W, h: Number(cr.heightPercent) / 100 * H, flipX: !!cr.flipX, flipY: !!cr.flipY };
         }
-        if (mode === 'obs-scene') return { x: 0, y: 0, w: W, h: H, flipX: false, flipY: false };
         const h = H, w = H * lastAspect;      // cover
         return { x: (W - w) / 2, y: 0, w, h, flipX: false, flipY: false };
     }
@@ -386,8 +387,6 @@
             }
             ctx.restore();
         }
-        const snap = engine.snapshot;
-        void snap;
     }
 
     function drawBlades(bl) {
@@ -472,6 +471,7 @@
         const s = engine.snapshot();
         handleEvents(s.events);
         if (!s.playing && endTimer <= 0) updateHoldTarget();
+        else if (endTimer > 0) engine.holdTarget(0, 0, 0);   // màn kết thúc 4 s: ngón để giữa màn không restart sớm
         if (endTimer > 0) { endTimer -= dt; if (endTimer <= 0) $('ctc-end').style.display = 'none'; }
         if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) $('ctc-combo').classList.remove('show'); }
 
