@@ -670,9 +670,10 @@
                     <br>Cần: app đã kết nối <b>OBS WebSocket</b> (mục Hiệu ứng OBS) và Browser Source Bắn Cung nằm <b>trên</b> camera trong scene.
                 </div>
                 <label class="nd-inline">Nguồn camera
-                    <select id="bc-track-src" style="min-width:220px"><option value="">— dùng nguồn Touch &amp; Play đã chọn —</option></select>
+                    <select id="bc-track-src" style="min-width:220px"><option value="">— chọn nguồn camera —</option></select>
                     <button class="ghost small" id="bc-track-refresh" title="Tải lại danh sách nguồn từ OBS">↻</button>
                 </label>
+                <div class="nd-hint">Nguồn này dùng <b>chung cho mọi game trong 🎥 Game Camera</b> — đổi ở đây hay ở Game Camera đều như nhau.</div>
                 <div class="nd-hint" id="bc-track-status">Đang hỏi OBS…</div>
                 <label class="nd-inline"><input type="checkbox" id="bc-track-blood" ${d.bloodMarks !== false ? 'checked' : ''} /> 🩸 Vết đỏ nhạt chỗ trúng (mờ dần sau 4 giây)</label>
                 <label class="nd-inline"><input type="checkbox" id="bc-track-flash" ${d.bodyFlash !== false ? 'checked' : ''} /> 🔴 Trúng thì cả người phủ đỏ nhạt (thay chớp đỏ toàn màn hình)</label>
@@ -845,7 +846,15 @@
         [['bc-bn-autoburst', 'bannerAutoburst'], ['bc-bn-revive', 'bannerRevive'], ['bc-bn-heal', 'bannerHeal'], ['bc-bn-shield', 'bannerShield']]
             .forEach(([id, key]) => $('#' + id, host)?.addEventListener('change', e => { d[key] = !!e.target.checked; schedulePersist(); }));
         wireRange('bc-bn-scale', 'bannerScale', '%');
-        $('#bc-track-src', host)?.addEventListener('change', e => { d.trackSource = e.target.value || ''; schedulePersist(); setTimeout(loadTrackSources, 900); });
+        // Nguồn camera CHUNG của 🎥 Game Camera (camgames.source): đọc/ghi ở đó; d.trackSource giữ bản sao cho config cũ.
+        let hub = null, hubWriteAt = 0;
+        $('#bc-track-src', host)?.addEventListener('change', e => {
+            const name = e.target.value || '';
+            d.trackSource = name; schedulePersist();
+            hubWriteAt = Date.now(); if (hub) hub.source = name;
+            fetch('/api/games/camgames/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: name }) }).catch(() => {});
+            setTimeout(loadTrackSources, 900);
+        });
         $('#bc-track-refresh', host)?.addEventListener('click', loadTrackSources);
         let _trackKey = '';
         async function loadTrackSources() {
@@ -853,21 +862,23 @@
             if (!sel || !st || !host.isConnected) return;
             let r = null;
             try { r = await (await fetch('/api/touchplay/obs-sources', { cache: 'no-store' })).json(); } catch (e) {}
+            if (Date.now() - hubWriteAt > 2000) { try { hub = await (await fetch('/api/games/camgames/config', { cache: 'no-store' })).json(); } catch (e) {} }
+            const inHub = !!hub && hub.enabled !== false && hub.active === 'bancung';
             const list = (r?.sources || []).slice();
-            const cur = d.trackSource || '';
+            const cur = typeof hub?.source === 'string' ? hub.source : (d.trackSource || '');
             if (cur && !list.some(x => x.name === cur)) list.unshift({ name: cur, camera: true, missing: true });
             // Chỉ vẽ lại khi danh sách đổi — đang mở dropdown mà vẽ lại thì bị đóng ngang.
             const key = JSON.stringify([list.map(x => x.name), cur]);
             if (key !== _trackKey) {
                 _trackKey = key;
-                sel.innerHTML = '<option value="">— dùng nguồn Touch &amp; Play đã chọn —</option>' + list.map(x =>
+                sel.innerHTML = '<option value="">— chọn nguồn camera —</option>' + list.map(x =>
                     `<option value="${escapeHtml(x.name)}"${x.name === cur ? ' selected' : ''}>${x.camera ? '📷 ' : ''}${escapeHtml(x.name)}${x.missing ? ' (không thấy trong OBS)' : ''}</option>`).join('');
             }
             const s = r?.status || {};
             let txt, color = '#8b93a8';
             if (!r || s.obsConnected === false) { txt = '● Chưa kết nối OBS WebSocket — vào mục Hiệu ứng OBS để kết nối.'; color = '#ff6b6b'; }
-            else if (!d.bodyTrack) { txt = '● Đã nối OBS. Bật ô trên để bắt đầu bám theo người.'; }
-            else if (!s.source) { txt = '● Chưa có nguồn camera — chọn ở trên (hoặc chọn trong Touch & Play).'; color = '#ffb347'; }
+            else if (!d.bodyTrack && !inHub) { txt = '● Đã nối OBS. Bật ô trên để bắt đầu bám theo người (chơi trong 🎥 Game Camera thì luôn bám người).'; }
+            else if (!s.source) { txt = '● Chưa có nguồn camera — chọn ở trên (hoặc ở 🎥 Game Camera).'; color = '#ffb347'; }
             else if (s.error === 'source-missing') { txt = '● Không thấy nguồn "' + s.source + '" trong OBS.'; color = '#ff6b6b'; }
             else if (s.live) {
                 const ov = s.overlay;

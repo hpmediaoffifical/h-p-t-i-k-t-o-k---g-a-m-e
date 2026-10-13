@@ -436,7 +436,7 @@ const GAMES = {
     camgames: {
         id: 'camgames',
         name: 'Game Camera',
-        description: 'Gom các game chơi bằng camera (Touch & Play, Chém Trái Cây) vào một link OBS. Chọn game trong app, OBS đổi theo.',
+        description: 'Gom các game chơi bằng camera (Touch & Play, Chém Trái Cây, Đập Muỗi, Bắn Cung) vào một link OBS. Chọn game trong app, OBS đổi theo.',
         icon: '🎥',
         overlayPath: '/overlay/camgames',
         defaultConfig: { enabled: true, active: 'touchplay', source: '' }
@@ -444,24 +444,43 @@ const GAMES = {
 };
 
 // Game con của Game Camera — thứ tự = thứ tự thẻ trong menu (public/games/camgames/registry.js).
-const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi'];
+const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'bancung'];
+// Game con có link OBS riêng từ trước khi vào Game Camera (khách cũ dán /overlay/bancung trong scene).
+// Game Camera chỉ bật nó khi streamer CHỌN VÀO và tắt khi chọn sang game khác / tắt Game Camera — không
+// ép tắt lúc khởi động, kẻo khách đang chơi Bắn Cung cập nhật app xong thấy game tự tắt. Thẻ trong Game
+// Camera báo "đang bật ở link riêng" + nút tắt (thanh bên không còn nút nguồn của nó).
+const CAM_STANDALONE_IDS = new Set(['bancung']);
+function camGameInHub(id) {
+    const cam = appConfig.games?.camgames || {};
+    return cam.enabled !== false && cam.active === id;
+}
 // Chỉ game đang chọn được bật; tắt Game Camera là tắt hết. Gọi sau mỗi lần lưu config camgames
-// và lúc khởi động để giữ đúng luật dù config cũ bật cả hai.
-function camGamesApplyActive() {
+// (prevCam = config trước khi lưu) và lúc khởi động để giữ đúng luật dù config cũ bật cả hai.
+function camGamesApplyActive(prevCam) {
     const cam = appConfig.games.camgames = { ...GAMES.camgames.defaultConfig, ...(appConfig.games.camgames || {}) };
     if (!CAM_GAME_IDS.includes(cam.active)) cam.active = CAM_GAME_IDS[0];
     const hubOn = cam.enabled !== false;
     let changed = false;
     for (const id of CAM_GAME_IDS) {
         if (!GAMES[id]) continue;
+        const want = hubOn && id === cam.active;
+        if (CAM_STANDALONE_IDS.has(id)) {
+            const had = !!prevCam && prevCam.enabled !== false && prevCam.active === id;
+            if (!prevCam || had === want) continue;
+        }
         const c = appConfig.games[id] = appConfig.games[id] || { ...GAMES[id].defaultConfig };
-        const was = c.enabled !== false, want = hubOn && id === cam.active;
+        const was = c.enabled !== false;
         if (was === want) continue;
         c.enabled = want; changed = true;
         io.emit('gameConfig', { gameId: id, config: c });
         io.emit(want ? 'gameEnabled' : 'gameDisabled', { gameId: id, ts: Date.now() });
         // Đập Muỗi: phím tắt toàn cục đi theo enabled — tắt game thì gỡ phím, bật lại thì đăng ký lại.
         if (id === 'dapmuoi') { try { global.__dapmuoiApplyHotkeys?.(c); } catch (e) {} }
+        // Bắn Cung: như khi tắt ở thanh bên — đầy máu lại (khỏi "chết treo" lúc bật lại) + phím tắt theo enabled.
+        if (id === 'bancung') {
+            if (!want) { try { banCungReset(); } catch (e) {} }
+            try { global.__bancungApplyHotkeys?.(c); } catch (e) {}
+        }
     }
     return changed;
 }
@@ -1313,7 +1332,8 @@ const touchplayFeed = new ObsCameraFeed({
     overlayMatchers: {
         touchplay: (url) => feedUrlIs(url, 'touchplay', /touchplay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         chemtraicay: (url) => feedUrlIs(url, 'chemtraicay', /\/overlay\/chemtraicay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
-        bancung: (url) => feedUrlIs(url, 'bancung', /\/overlay\/bancung/i),
+        // Bắn Cung chơi riêng có link riêng; đang chọn trong Game Camera thì nằm trong overlay mẹ.
+        bancung: (url) => feedUrlIs(url, 'bancung', /\/overlay\/bancung/i) || (camGameInHub('bancung') && feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)),
         dapmuoi: (url) => feedUrlIs(url, 'dapmuoi', /\/overlay\/dapmuoi/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)
     },
     getOptions: (activeGames = new Set()) => {
@@ -1322,17 +1342,19 @@ const touchplayFeed = new ObsCameraFeed({
         const bc = G.bancung || {}, bcd = bc.display || {};
         const ct = G.chemtraicay || {}, vs = ct.videoSource || {};
         const dm = G.dapmuoi || {};
-        // Nguồn camera riêng của từng game (null = game tắt / không dùng feed này).
+        const cam = G.camgames || {};
+        // Nguồn camera riêng còn lưu của từng game (null = game tắt / không dùng feed này).
+        // Bắn Cung chơi trong Game Camera thì luôn bám người (overlay ?cam=1), không cần ô bodyTrack.
         const per = {
             touchplay: tp.enabled !== false && c.source !== 'webcam' ? (c.obsSource || '') : null,
             chemtraicay: ct.enabled !== false && vs.mode !== 'webcam' ? ((vs.mode === 'obs-scene' ? vs.scene : vs.source) || '') : null,
-            bancung: bc.enabled !== false && bcd.bodyTrack === true ? (bcd.trackSource || '') : null,
+            bancung: bc.enabled !== false && (bcd.bodyTrack === true || camGameInHub('bancung')) ? (bcd.trackSource || '') : null,
             dapmuoi: dm.enabled !== false ? '' : null      // không có nguồn riêng: dùng nguồn chung Game Camera
         };
         const on = Object.keys(per).filter(k => per[k] !== null);
-        // Game Camera đặt nguồn chung → dùng cho game con; không thì game đang có overlay nhận hình trước.
-        const cam = G.camgames || {};
-        let source = cam.enabled !== false && CAM_GAME_IDS.some(id => per[id] !== null) ? (cam.source || '') : '';
+        // Nguồn camera CHUNG của Game Camera (màn Touch & Play / Bắn Cung cũng ghi vào đây) dùng cho mọi
+        // game. Chưa đặt (config cũ) → game đang có overlay nhận hình trước, rồi nguồn riêng từng game.
+        let source = on.length ? (cam.source || '') : '';
         if (!source) for (const id of [...[...activeGames].filter(id => per[id] !== null), ...on]) if (per[id]) { source = per[id]; break; }
         if (!source && on.length) source = c.obsSource || '';   // nguồn Touch & Play từng chọn
         return {
@@ -1775,6 +1797,16 @@ if (appConfig.games.chemtraicay) {
 // Đập Muỗi: chuẩn hoá config cũ (khoá thiếu/rác → mặc định, actions/giftRules đúng dạng).
 if (appConfig.games.dapmuoi) appConfig.games.dapmuoi = DapMuoi.normalizeConfig(appConfig.games.dapmuoi);
 if (camGamesApplyActive()) saveAppConfig();
+// Nguồn camera chung: config cũ chưa đặt ở Game Camera → lấy nguồn mà game camera từng chọn.
+if (!appConfig.games.camgames.source) {
+    const G = appConfig.games, vs = G.chemtraicay?.videoSource || {};
+    const pick = [
+        G.touchplay?.tpCfg?.obsSource,
+        (vs.mode || 'obs-source') === 'obs-source' ? vs.source : '',
+        G.bancung?.display?.bodyTrack === true ? G.bancung.display.trackSource : ''
+    ].find(s => typeof s === 'string' && s.trim());
+    if (pick) { appConfig.games.camgames.source = pick.slice(0, 200); saveAppConfig(); }
+}
 if (appConfig.games.bancung) {
     const def = makeDefaultBanCungConfig();
     appConfig.games.bancung.display = { ...def.display, ...(appConfig.games.bancung.display || {}) };
@@ -4840,7 +4872,11 @@ app.post('/api/games/:id/config', (req, res) => {
         try { trongCayApplyConfigToState(appConfig.games.trongcay); } catch (e) {}
         broadcastTrongCayState({ immediate: true });
     }
-    if (g.id === 'camgames') camGamesApplyActive();
+    if (g.id === 'camgames') {
+        if (typeof appConfig.games.camgames.source !== 'string') appConfig.games.camgames.source = '';
+        appConfig.games.camgames.source = appConfig.games.camgames.source.slice(0, 200);
+        camGamesApplyActive(prevConfig);
+    }
     const newEnabled = appConfig.games[g.id].enabled !== false;
     saveAppConfig();
     io.emit('gameConfig', { gameId: g.id, config: appConfig.games[g.id] });

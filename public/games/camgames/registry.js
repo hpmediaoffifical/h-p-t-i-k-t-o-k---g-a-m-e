@@ -2,6 +2,10 @@
  * Thêm game camera mới: thêm 1 dòng ở đây + id vào CAM_GAME_IDS trong server.js (cùng thứ tự).
  *   overlay: trang overlay của game con — overlay mẹ nạp trong iframe phủ kín, nền trong suốt.
  *   track:   game cần nhận diện gì (chỉ để hiện cho streamer biết).
+ *   note:    dòng nhắc thêm dưới thẻ (tuỳ chọn).
+ *   standalone: game còn link OBS riêng từ trước (khách cũ dán sẵn trong scene). Game Camera chỉ bật/tắt nó
+ *               khi chọn vào / chọn sang game khác (CAM_STANDALONE_IDS trong server.js); đang bật mà không
+ *               được chọn thì thẻ báo "đang bật ở link riêng" kèm nút tắt — thanh bên không còn nút nguồn của nó.
  */
 (function () {
     'use strict';
@@ -23,6 +27,15 @@
             desc: 'Vỗ hai tay đập muỗi bay ngang khắp màn. Quà thả muỗi, bình xịt, vợt điện, mắc màn.',
             track: 'Hai bàn tay · cổ tay',
             overlay: '/overlay/dapmuoi'
+        },
+        {
+            id: 'bancung', name: 'Bắn Cung', icon: '🏹',
+            desc: 'Quà bắn tên vào người thật trên camera: trúng thì người phủ đỏ, hết máu cháy đen rồi tự hồi.',
+            track: 'Cơ thể · hình người',
+            note: 'Vào ⚙ Cài đặt bấm ▶ BẮT ĐẦU thì mới nhận quà.',
+            // cam=1: overlay luôn bám người (không cần bật ô "Bám theo NGƯỜI THẬT").
+            overlay: '/overlay/bancung?cam=1',
+            standalone: true
         }
     ];
 })();

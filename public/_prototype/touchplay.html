@@ -1071,7 +1071,15 @@ async function bootLab() {
       oe.className = 'pill ' + (ov ? (ov.fps >= 10 ? 'ok' : 'warn') : 'warn');
     }
   };
+  // Nguồn camera dùng CHUNG cho mọi game trong 🎥 Game Camera (camgames.source) — đọc/ghi ở đó để
+  // đổi ở màn nào cũng đồng bộ; tpCfg.obsSource chỉ giữ bản sao cho config cũ.
+  let hubWriteAt = 0;     // vừa ghi → đừng đọc đè bằng bản cũ trong lúc POST chưa xong
+  const setHubSource = name => { hubWriteAt = Date.now(); fetch('/api/games/camgames/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: name }) }).catch(() => {}); };
   const loadSources = async () => {
+    try {
+      const hub = await (await fetch('/api/games/camgames/config', { cache: 'no-store' })).json();
+      if (Date.now() - hubWriteAt > 2000 && typeof hub?.source === 'string' && hub.source !== cfg.obsSource) { cfg.obsSource = hub.source; save(); }
+    } catch (_) {}
     try {
       lastSources = await (await fetch('/api/touchplay/obs-sources', { cache: 'no-store' })).json();
       const sel = $('obsSource'), list = lastSources.sources || [];
@@ -1083,11 +1091,11 @@ async function bootLab() {
       sel.innerHTML = '<option value="">— chọn nguồn camera —</option>' + list.map(x =>
         `<option value="${esc(x.name)}"${x.name === cfg.obsSource ? ' selected' : ''}>${x.camera ? '📷 ' : ''}${esc(x.name)}${x.missing ? ' (không thấy trong OBS)' : ''}</option>`).join(''); }
       // Chưa chọn mà OBS chỉ có đúng 1 camera → chọn sẵn cho đỡ một bước.
-      if (!cfg.obsSource) { const cams = list.filter(x => x.camera); if (cams.length === 1) { cfg.obsSource = cams[0].name; sel.value = cfg.obsSource; save(); } }
+      if (!cfg.obsSource) { const cams = list.filter(x => x.camera); if (cams.length === 1) { cfg.obsSource = cams[0].name; sel.value = cfg.obsSource; save(); setHubSource(cfg.obsSource); } }
     } catch (_) { lastSources = null; }
     renderObsState();
   };
-  $('obsSource').onchange = () => { cfg.obsSource = $('obsSource').value; save(); setTimeout(loadSources, 900); };
+  $('obsSource').onchange = () => { cfg.obsSource = $('obsSource').value; save(); setHubSource(cfg.obsSource); setTimeout(loadSources, 900); };
   $('obsRefresh').onclick = loadSources;
   await loadSources();
   setInterval(loadSources, 3000);

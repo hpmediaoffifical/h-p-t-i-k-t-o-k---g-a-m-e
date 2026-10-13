@@ -438,7 +438,7 @@
         'pktiktok', 'vipwelcome', 'trongcay', 'nhatla',
         'level-quest', 'timer', 'liveTranslate', 'camgames', 'giftboard'
     ]);
-    // Game camera (Touch & Play, Chém Trái Cây…) không hiện riêng trong danh sách — vào qua 🎥 Game Camera.
+    // Game camera (Touch & Play, Chém Trái Cây, Đập Muỗi, Bắn Cung) không hiện riêng trong danh sách — vào qua 🎥 Game Camera.
     const CAM_CHILD_GAMES = new Set((window.HpCamGames || []).map(g => g.id));
 
     // Công cụ cắt ngang mọi game (Bảng Quà Tổng) có nút RIÊNG ở đáy sidebar — KHÔNG hiện trong

@@ -1166,6 +1166,8 @@
 
         // Edit mode (panel popout) — drag + wheel zoom + right-click close
         const isEdit = new URLSearchParams(location.search).get('edit') === '1';
+        // Nạp trong 🎥 Game Camera (/overlay/camgames → iframe ?cam=1): luôn bám người thật, khỏi bật ô bodyTrack.
+        const isCamHub = new URLSearchParams(location.search).get('cam') === '1';
         if (isEdit) {
             document.body.classList.add('bc-edit');
             // Right-click anywhere → close window nhanh sau khi sửa xong
@@ -1299,7 +1301,7 @@
         // ===== Bám theo người =====
         function syncBodyTrack() {
             const d = config?.display || {};
-            trackWanted = d.bodyTrack === true && !isEdit;
+            trackWanted = (d.bodyTrack === true || isCamHub) && !isEdit;
             if (bodyTrack) { bodyTrack.maskSmooth = d.maskSmooth !== false; bodyTrack.setEnabled(trackWanted); }
             if (!trackWanted) { restoreLayout(); showTrackWarn(''); }
         }
