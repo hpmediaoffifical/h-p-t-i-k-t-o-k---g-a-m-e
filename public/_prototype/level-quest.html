@@ -1036,7 +1036,6 @@ function applyRemoteCfg(data){
   applyFontSizes();
   updateVisibility();
   render();
-  camBoxDirty = true;   // font/KPI đổi → cỡ gốc cụm đổi → bám đầu đo lại
   // KHÔNG đụng vào timer — timer được điều khiển qua state broadcast (BẮT ĐẦU/DỪNG)
   // không bị reset khi LAB sync font/KPI/màu
 }
@@ -1491,21 +1490,22 @@ function initSocket(){
    ============================================================ */
 const IS_CAM = IS_OVERLAY && new URLSearchParams(location.search).get('cam') === '1';
 const CAM_HOLD_MS = 1500;   // mất người: giữ chỗ cũ chừng này rồi mới về chỗ mặc định
-let camBoxDirty = true;
 async function bootCamFollow(){
   document.body.classList.add('lq-cam');
   const anchorEl = $("lqAnchor"), group = $("questGroup");
   let BF = null, head = null;
   let box = { w: 1, h: 1 }, place = null, lostAt = 0, tracking = false, lastT = performance.now();
-  window.addEventListener('resize', () => { camBoxDirty = true; });
   const opts = () => ({ scale: (cfg.camScale || 55) / 100, gap: Number.isFinite(cfg.camGap) ? cfg.camGap : 20 });
   function frame(now){ requestAnimationFrame(frame); tick(now); }
   function tick(now){
     if (!BF) return;
     const W = innerWidth, H = innerHeight;
-    // offsetWidth/Height = cỡ gốc (không tính transform của wrapper / nhấp nhô).
-    if (camBoxDirty){ camBoxDirty = false; box = { w: group.offsetWidth || 1, h: group.offsetHeight || 1 }; }
-    const a = head ? head.get(now) : null;
+    // Cỡ gốc cụm (offsetWidth/Height không tính transform của wrapper / nhấp nhô) — đo MỖI khung: font Google
+    // tải muộn, đổi cfg, đổi cỡ trang… đều làm cụm đổi cỡ mà không có sự kiện riêng. Cụm nhỏ nên đo rẻ.
+    const bw = group.offsetWidth || 1, bh = group.offsetHeight || 1;
+    if (bw !== box.w || bh !== box.h) box = { w: bw, h: bh };
+    // Toạ độ pose theo cỡ khung lúc tạo HeadAnchor → đổi sang cỡ trang hiện tại (Browser Source đổi cỡ không tải lại).
+    const a = head ? BF.rescaleAnchor(head.get(now), head.W, head.H, W, H) : null;
     let target;
     if (a){ lostAt = 0; tracking = true; target = BF.placeAbove(a, box, W, H, opts()); }
     else {
