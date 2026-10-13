@@ -175,6 +175,15 @@ test('state: stop → action stop với socketId, status idle', () => {
     assert.equal(st.snapshot().status, 'idle');
 });
 
+test('state: fail (server không tìm thấy trình duyệt) → error kèm mã, huỷ timer', () => {
+    const { st, timers } = makeState();
+    st.open({ browser: 'edge' });
+    st.fail('browser_not_found');
+    assert.equal(timers[0].cleared, true);
+    assert.equal(st.snapshot().status, 'error');
+    assert.equal(st.snapshot().error, 'browser_not_found');
+});
+
 test('state: stop khi đang opening huỷ timer', () => {
     const { st, timers } = makeState();
     st.open({ browser: 'edge' });

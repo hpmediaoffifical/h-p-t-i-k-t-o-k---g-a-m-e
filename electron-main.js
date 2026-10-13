@@ -1760,7 +1760,12 @@ function applyDapMuoiHotkeys(cfg) {
 }
 global.__dapmuoiApplyHotkeys = applyDapMuoiHotkeys;
 
-app.on('before-quit', () => { isQuitting = true; try { unregisterBancungHotkeys(); unregisterNhatLaHotkeys(); unregisterDapMuoiHotkeys(); } catch (_) {} });
+app.on('before-quit', () => {
+    isQuitting = true;
+    try { unregisterBancungHotkeys(); unregisterNhatLaHotkeys(); unregisterDapMuoiHotkeys(); } catch (_) {}
+    // Cửa sổ nghe giọng Creator (Edge/Chrome) tự đóng theo app.
+    try { require('./server.js').captionListenerStop(); } catch (_) {}
+});
 app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch (_) {} });
 app.on('window-all-closed', () => {
     // Theo behavior cũ: macOS auto-quit, Windows giữ ở tray.

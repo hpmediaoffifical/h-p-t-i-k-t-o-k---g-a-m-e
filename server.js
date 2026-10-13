@@ -110,6 +110,7 @@ const { LuaSync } = require('./lib/lua-sync');
 const { OBSSettings } = require('./lib/obs-settings');
 
 const PORT = process.env.PORT || 3000;
+const CaptionListener = require('./lib/caption-listener');
 
 // Domain giả trỏ về loopback (127.0.0.1) qua hosts file — cố định "hpaction.obs" cho mọi máy
 // (không suy từ tên máy, để URL giống nhau trên mọi cài đặt HP Action LIVE). Lý do đầy đủ +
@@ -1761,20 +1762,22 @@ const DEFAULT_LIVE_TRANSLATE_CONFIG = {
     glossary: [],
     forbiddenWords: []
 };
+// Phụ đề giọng Creator — nghe bằng trang /listen/caption trong Edge/Chrome (xem lib/caption-listener.js).
 const DEFAULT_CREATOR_CAPTION_CONFIG = {
     enabled: false,
     sourceLang: 'vi-VN',
     targetLang: 'en',
     targetLangs: ['en'],
-    whisperLocalExe: '',
-    whisperLocalModel: '',
+    browser: 'edge',          // edge | chrome — trình duyệt mở cửa sổ nghe
+    style: 'card',            // card (thẻ kính) | subtitle (phụ đề trắng viền đen)
     showOriginal: true,
+    showInterim: true,        // hiện chữ đang nói (chưa dịch) trên OBS
     maxItems: 3,
     holdSeconds: 12,
-    silenceSeconds: 2,
     autoTargetsEnabled: true,
     autoTargetTimeoutSeconds: 60
 };
+const CREATOR_CAPTION_MAX_TARGETS = 5;
 const LIVE_TRANSLATE_LANG_LABELS = {
     auto: 'Tự nhận diện',
     vi: 'Tiếng Việt',
@@ -2159,25 +2162,29 @@ function sanitizeLiveTranslateConfig(input) {
     return cfg;
 }
 
+// Trả object CHỈ gồm các khoá của DEFAULT_CREATOR_CAPTION_CONFIG — khoá cũ trong file config của
+// khách (whisperLocalExe, silenceSeconds…) bị bỏ, không lan ra overlay/popup.
 function sanitizeCreatorCaptionConfig(input) {
-    const cfg = { ...DEFAULT_CREATOR_CAPTION_CONFIG, ...(input || {}) };
-    cfg.enabled = cfg.enabled === true;
-    cfg.sourceLang = String(cfg.sourceLang || DEFAULT_CREATOR_CAPTION_CONFIG.sourceLang).trim().replace(/[^a-zA-Z-]/g, '').slice(0, 12) || DEFAULT_CREATOR_CAPTION_CONFIG.sourceLang;
-    cfg.targetLang = String(cfg.targetLang || DEFAULT_CREATOR_CAPTION_CONFIG.targetLang).trim().toLowerCase().replace(/[^a-z-]/g, '').slice(0, 12) || DEFAULT_CREATOR_CAPTION_CONFIG.targetLang;
+    const src = (input && typeof input === 'object') ? input : {};
+    const d = DEFAULT_CREATOR_CAPTION_CONFIG;
+    const cfg = {};
+    cfg.enabled = src.enabled === true;
+    cfg.sourceLang = String(src.sourceLang || d.sourceLang).trim().replace(/[^a-zA-Z-]/g, '').slice(0, 12) || d.sourceLang;
     const allowed = Object.keys(LIVE_TRANSLATE_LANG_LABELS).filter(x => x !== 'auto');
-    const rawTargets = Array.isArray(cfg.targetLangs) ? cfg.targetLangs : [cfg.targetLang];
-    cfg.targetLangs = rawTargets.map(x => String(x || '').trim().toLowerCase().replace(/[^a-z-]/g, '').slice(0, 12)).filter(x => allowed.includes(x)).slice(0, 8);
-    if (!cfg.targetLangs.length) cfg.targetLangs = [cfg.targetLang || DEFAULT_CREATOR_CAPTION_CONFIG.targetLang];
+    const rawTargets = Array.isArray(src.targetLangs) ? src.targetLangs : [src.targetLang];
+    cfg.targetLangs = [...new Set(rawTargets
+        .map(x => String(x || '').trim().toLowerCase().replace(/[^a-z-]/g, '').slice(0, 12))
+        .filter(x => allowed.includes(x)))].slice(0, CREATOR_CAPTION_MAX_TARGETS);
+    if (!cfg.targetLangs.length) cfg.targetLangs = [d.targetLang];
     cfg.targetLang = cfg.targetLangs[0];
-    cfg.whisperLocalExe = String(cfg.whisperLocalExe || '').trim().slice(0, 500);
-    cfg.whisperLocalModel = String(cfg.whisperLocalModel || '').trim().slice(0, 500);
-    cfg.showOriginal = cfg.showOriginal !== false;
-    cfg.autoTargetsEnabled = cfg.autoTargetsEnabled !== false;
-    cfg.autoTargetTimeoutSeconds = Math.max(5, Math.min(3600, parseInt(cfg.autoTargetTimeoutSeconds, 10) || DEFAULT_CREATOR_CAPTION_CONFIG.autoTargetTimeoutSeconds));
-    cfg.maxItems = Math.max(1, Math.min(6, parseInt(cfg.maxItems, 10) || DEFAULT_CREATOR_CAPTION_CONFIG.maxItems));
-    cfg.holdSeconds = Math.max(3, Math.min(30, parseInt(cfg.holdSeconds, 10) || DEFAULT_CREATOR_CAPTION_CONFIG.holdSeconds));
-    const silence = parseFloat(cfg.silenceSeconds);
-    cfg.silenceSeconds = Math.max(0.5, Math.min(8, Number.isFinite(silence) ? silence : DEFAULT_CREATOR_CAPTION_CONFIG.silenceSeconds));
+    cfg.browser = CaptionListener.normalizeBrowser(src.browser != null ? src.browser : d.browser);
+    cfg.style = src.style === 'subtitle' ? 'subtitle' : 'card';
+    cfg.showOriginal = src.showOriginal !== false;
+    cfg.showInterim = src.showInterim !== false;
+    cfg.maxItems = Math.max(1, Math.min(6, parseInt(src.maxItems, 10) || d.maxItems));
+    cfg.holdSeconds = Math.max(3, Math.min(30, parseInt(src.holdSeconds, 10) || d.holdSeconds));
+    cfg.autoTargetsEnabled = src.autoTargetsEnabled !== false;
+    cfg.autoTargetTimeoutSeconds = Math.max(5, Math.min(3600, parseInt(src.autoTargetTimeoutSeconds, 10) || d.autoTargetTimeoutSeconds));
     return cfg;
 }
 
@@ -2197,115 +2204,6 @@ function normalizeCaptionDedupeText(text) {
         .replace(/[\s\p{P}\p{S}]+/gu, ' ')
         .trim();
 }
-function isLikelyWhisperHallucination(text) {
-    const norm = normalizeCaptionDedupeText(text);
-    if (!norm) return true;
-    const words = norm.split(/\s+/).filter(Boolean);
-    const exact = new Set([
-        'thank you for watching',
-        'thanks for watching',
-        'see you next time',
-        'see you again in the next video',
-        'dont forget to like and subscribe',
-        'do not forget to like and subscribe',
-        'so you dont miss out on interesting videos',
-        'this may be of some help',
-        'where are you from',
-        'what are you from',
-        'skip',
-        'face name',
-        'shall we do something',
-        'de khong bo lo nhung video hap dan',
-        'de khong bo lo nhung video moi nhat',
-        'de khong bo lo nhung video tiep theo',
-        'hay dang ky kenh',
-        'nho dang ky kenh',
-        'cam on cac ban a',
-        'cam on moi nguoi',
-        'cam on cac ban da theo doi',
-        'hen gap lai cac ban trong video tiep theo'
-    ]);
-    if (exact.has(norm)) return true;
-    const suspicious = [
-        'dont miss out on interesting videos',
-        'miss out on interesting videos',
-        'see you again in the next video',
-        'in the next video',
-        'like and subscribe',
-        'thanks for watching',
-        'thank you for watching',
-        'this may be of some help',
-        'where are you from',
-        'so you dont miss out',
-        'shall we do something',
-        'face name',
-        'skip',
-        'de khong bo lo',
-        'nhung video hap dan',
-        'nhung video moi nhat',
-        'nhung video tiep theo',
-        'dang ky kenh',
-        'cam on cac ban a',
-        'cam on moi nguoi',
-        'cam on cac ban da theo doi',
-        'hen gap lai cac ban trong video'
-    ];
-    if (suspicious.some(s => norm.includes(s))) return true;
-    // Very short generic English questions often appear from silence in multilingual models.
-    if (words.length <= 5 && /^(who|what|where|how|why)\b/.test(norm)) return true;
-    return false;
-}
-
-function validateCreatorCaptionAudioMetrics(metrics) {
-    if (!metrics || typeof metrics !== 'object') throw new Error('missing_audio_metrics');
-    const peak = Number(metrics.peak) || 0;
-    const rms = Number(metrics.rms) || 0;
-    const voicedMs = Number(metrics.voicedMs) || 0;
-    const durationMs = Number(metrics.durationMs) || 0;
-    if (durationMs && durationMs < 400) throw new Error('audio_too_short');
-    if (peak < 0.055 || rms < 0.0065 || voicedMs < 260) throw new Error('audio_not_voice_like');
-}
-
-function sourceLangForTranscription(lang) {
-    const short = sourceLangForTranslate(lang);
-    return short === 'auto' ? '' : short;
-}
-
-async function transcribeCreatorCaptionAudio(payload) {
-    const cfg = sanitizeCreatorCaptionConfig(appConfig.creatorCaption);
-    return transcribeCreatorCaptionAudioLocal(payload, cfg);
-}
-
-function runWhisperLocal(exePath, args, timeoutMs = 45000) {
-    return new Promise((resolve, reject) => {
-        const child = spawn(exePath, args, { windowsHide: true });
-        let stdout = '';
-        let stderr = '';
-        const timer = setTimeout(() => {
-            try { child.kill(); } catch (e) {}
-            reject(new Error('whisper_local_timeout'));
-        }, timeoutMs);
-        child.stdout.on('data', d => { stdout += d.toString('utf8'); });
-        child.stderr.on('data', d => { stderr += d.toString('utf8'); });
-        child.on('error', err => { clearTimeout(timer); reject(err); });
-        child.on('close', code => {
-            clearTimeout(timer);
-            if (code !== 0) return reject(new Error((stderr || stdout || `whisper_exit_${code}`).trim()));
-            resolve((stdout || stderr || '').trim());
-        });
-    });
-}
-
-function cleanWhisperOutput(text) {
-    return String(text || '')
-        .split(/\r?\n/)
-        .map(line => line.replace(/^\s*\[[^\]]+\]\s*/g, '').trim())
-        .filter(Boolean)
-        .join(' ')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
-}
-
 function bundledResourcePath(...parts) {
     const roots = [__dirname];
     if (process.resourcesPath && process.resourcesPath !== __dirname) roots.push(process.resourcesPath);
@@ -2316,42 +2214,6 @@ function bundledResourcePath(...parts) {
     return '';
 }
 
-function resolveWhisperLocalExe(cfg) {
-    if (cfg.whisperLocalExe && fs.existsSync(cfg.whisperLocalExe)) return cfg.whisperLocalExe;
-    return bundledResourcePath('tools', 'whisper', 'Release', 'whisper-cli.exe')
-        || bundledResourcePath('tools', 'whisper', 'whisper-cli.exe');
-}
-
-function resolveWhisperLocalModel(cfg) {
-    if (cfg.whisperLocalModel && fs.existsSync(cfg.whisperLocalModel)) return cfg.whisperLocalModel;
-    return bundledResourcePath('tools', 'whisper', 'models', 'ggml-base.bin');
-}
-
-async function transcribeCreatorCaptionAudioLocal(payload, cfg) {
-    validateCreatorCaptionAudioMetrics(payload?.audioMetrics);
-    const whisperExe = resolveWhisperLocalExe(cfg);
-    const whisperModel = resolveWhisperLocalModel(cfg);
-    if (!whisperExe) throw new Error('missing_whisper_local_exe');
-    if (!whisperModel) throw new Error('missing_whisper_local_model');
-    const b64 = String(payload?.audioBase64 || '').replace(/^data:audio\/[^;]+;base64,/, '');
-    if (!b64) throw new Error('missing_audio');
-    const audio = Buffer.from(b64, 'base64');
-    if (!audio.length || audio.length > 12 * 1024 * 1024) throw new Error('invalid_audio_size');
-    const tmpDir = path.join(DATA_DIR, 'tmp');
-    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-    const wavPath = path.join(tmpDir, `creator-caption-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.wav`);
-    fs.writeFileSync(wavPath, audio);
-    try {
-        const lang = sourceLangForTranscription(payload?.sourceLang || cfg.sourceLang) || 'auto';
-        const args = ['-m', whisperModel, '-f', wavPath, '-nt', '-np', '-nf', '-sns', '-nth', '0.75'];
-        if (lang && lang !== 'auto') args.push('-l', lang);
-        const out = await runWhisperLocal(whisperExe, args);
-        return cleanWhisperOutput(out);
-    } finally {
-        try { fs.unlinkSync(wavPath); } catch (e) {}
-    }
-}
-
 function isLiveTranslateExcludedSource(detectedLang, cfg) {
     const excluded = sourceLangForTranslate(cfg.excludedSourceLang);
     if (!excluded || excluded === 'auto') return false;
@@ -2359,27 +2221,19 @@ function isLiveTranslateExcludedSource(detectedLang, cfg) {
 }
 
 async function processCreatorCaptionSpeech(payload) {
+    // Ngôn ngữ đích lấy từ cấu hình (popup đã lưu khi "tự bật theo người xem" đổi); trang nghe chỉ
+    // gửi câu + ngôn ngữ nó đang nghe.
     const cfg = sanitizeCreatorCaptionConfig(appConfig.creatorCaption);
-    if (Array.isArray(payload?.targetLangs) && payload.targetLangs.length) {
-        cfg.targetLangs = sanitizeCreatorCaptionConfig({ ...cfg, targetLangs: payload.targetLangs }).targetLangs;
-        cfg.targetLang = cfg.targetLangs[0];
-    }
     if (payload?.sourceLang) {
         cfg.sourceLang = sanitizeCreatorCaptionConfig({ ...cfg, sourceLang: payload.sourceLang }).sourceLang;
     }
     if (!cfg.enabled) return;
     const originalText = String(payload?.text || '').trim().replace(/\s{2,}/g, ' ').slice(0, 450);
     if (!originalText) return;
-    if (isLikelyWhisperHallucination(originalText)) {
-        io.emit('creatorCaption:debug', { type: 'status', text: 'Bỏ qua câu nghi ảo giác Whisper: ' + originalText, ts: Date.now() });
-        return;
-    }
+    // Chromium có thể phát lại cùng câu final sau khi tự start() lại → bỏ câu trùng trong 30s.
     const norm = normalizeCaptionDedupeText(originalText);
     const now = Date.now();
-    if (norm && norm === lastCreatorCaptionNorm && (now - lastCreatorCaptionAt) < 30000) {
-        io.emit('creatorCaption:debug', { type: 'status', text: 'Bỏ qua phụ đề trùng lặp: ' + originalText, ts: now });
-        return;
-    }
+    if (norm && norm === lastCreatorCaptionNorm && (now - lastCreatorCaptionAt) < 30000) return;
     lastCreatorCaptionNorm = norm;
     lastCreatorCaptionAt = now;
     try {
@@ -2404,6 +2258,7 @@ async function processCreatorCaptionSpeech(payload) {
             sourceLangLabel: first.sourceLangLabel || liveTranslateLangLabel(sourceLangForTranslate(cfg.sourceLang)),
             targetLangLabel: first.targetLangLabel || liveTranslateLangLabel(cfg.targetLang),
             showOriginal: cfg.showOriginal,
+            style: cfg.style,
             maxItems: cfg.maxItems,
             holdSeconds: cfg.holdSeconds,
             createTime: Date.now()
@@ -2419,6 +2274,7 @@ async function processCreatorCaptionSpeech(payload) {
             sourceLangLabel: liveTranslateLangLabel(sourceLangForTranslate(cfg.sourceLang)),
             targetLangLabel: liveTranslateLangLabel(cfg.targetLang),
             showOriginal: cfg.showOriginal,
+            style: cfg.style,
             maxItems: cfg.maxItems,
             holdSeconds: cfg.holdSeconds,
             error: e?.message || 'caption_translate_failed',
@@ -4643,29 +4499,66 @@ app.post('/api/creator-caption/config', (req, res) => {
     res.json({ ok: true, config: appConfig.creatorCaption });
 });
 
-app.post('/api/creator-caption/transcribe', async (req, res) => {
-    try {
-        const text = await transcribeCreatorCaptionAudio(req.body || {});
-        if (text) {
-            io.emit('creatorCaption:debug', { type: 'final', text, ts: Date.now() });
-            await processCreatorCaptionSpeech({
-                text,
-                sourceLang: req.body?.sourceLang,
-                targetLangs: req.body?.targetLangs
-            });
-        }
-        res.json({ ok: true, text });
-    } catch (e) {
-        const error = e?.message || 'transcribe_failed';
-        io.emit('creatorCaption:debug', { type: 'error', text: error, ts: Date.now() });
-        res.status(502).json({ ok: false, error });
-    }
-});
-
 app.post('/api/creator-caption/test', (req, res) => {
     processCreatorCaptionSpeech({ text: req.body?.text || 'Xin chào mọi người, hôm nay chúng ta bắt đầu live.' });
     res.json({ ok: true });
 });
+
+// ===== Cửa sổ nghe giọng Creator (Edge/Chrome --app) =====
+// Electron không nghe được Web Speech API (không có khoá dịch vụ của Google), nên trang
+// /listen/caption chạy trong Edge/Chrome thật với profile riêng của HP (quyền micro xin 1 lần);
+// chữ tạm/câu final về đây qua socket (chỉ socket tin cậy — loopback).
+const captionListener = CaptionListener.createListenerState({
+    onChange: (snap) => io.emit('creatorCaption:listenerState', snap)
+});
+function captionListenerUrl(browser) {
+    return `http://127.0.0.1:${PORT}/listen/caption?browser=${browser}`;
+}
+function captionListenerSpawn(browser) {
+    const found = CaptionListener.resolveBrowserExe(browser, { exists: (p) => { try { return fs.existsSync(p); } catch (e) { return false; } } });
+    if (!found) return null;
+    const profileDir = path.join(DATA_DIR, 'caption-listener', found.browser);
+    try { fs.mkdirSync(profileDir, { recursive: true }); } catch (e) {}
+    const args = CaptionListener.buildLaunchArgs({ url: captionListenerUrl(found.browser), profileDir });
+    const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
+    child.on('error', (e) => console.warn('[creator-caption] mở trình duyệt lỗi:', e.message));
+    child.unref();
+    console.log(`[creator-caption] mở ${found.browser}${found.fallback ? ' (thay cho ' + browser + ')' : ''}: ${found.exe}`);
+    return found;
+}
+// Dừng nghe + bảo trang nghe tự đóng cửa sổ. Gọi cả khi app tắt (electron-main before-quit / SIGINT).
+function captionListenerStop() {
+    const r = captionListener.stop();
+    if (r.socketId && io.sockets.sockets.get(r.socketId)) io.to(r.socketId).emit('creatorCaption:listener:stop');
+    else io.emit('creatorCaption:listener:stop');
+    return captionListener.snapshot();
+}
+app.get('/api/creator-caption/listener/state', (req, res) => res.json(captionListener.snapshot()));
+app.post('/api/creator-caption/listener/open', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    const body = req.body || {};
+    if (body.browser) {
+        appConfig.creatorCaption = sanitizeCreatorCaptionConfig({ ...(appConfig.creatorCaption || {}), browser: body.browser });
+        saveAppConfig();
+        io.emit('creatorCaption:config', appConfig.creatorCaption);
+    }
+    const browser = sanitizeCreatorCaptionConfig(appConfig.creatorCaption).browser;
+    const r = captionListener.open({ browser });
+    if (r.action === 'spawn') {
+        if (!captionListenerSpawn(browser)) {
+            captionListener.fail('browser_not_found');
+            return res.status(404).json({ ok: false, error: 'browser_not_found', state: captionListener.snapshot() });
+        }
+    } else if (r.action === 'start' && r.socketId) {
+        io.to(r.socketId).emit('creatorCaption:listener:start');
+    }
+    res.json({ ok: true, state: captionListener.snapshot() });
+});
+app.post('/api/creator-caption/listener/stop', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    res.json({ ok: true, state: captionListenerStop() });
+});
+app.get('/listen/caption', (req, res) => res.sendFile(path.join(__dirname, 'public', 'listen', 'caption.html')));
 
 app.get('/api/live-translate/tts', async (req, res) => {
     const text = String(req.query.text || '').trim().slice(0, 220);
@@ -10870,6 +10763,7 @@ io.on('connection', (socket) => {
     socket.emit('translate:config', sanitizeLiveTranslateConfig(appConfig.liveTranslate));
     socket.emit('translate:rules', getCommentRulesMeta());
     socket.emit('creatorCaption:config', sanitizeCreatorCaptionConfig(appConfig.creatorCaption));
+    socket.emit('creatorCaption:listenerState', captionListener.snapshot());
     // Quick Launch cần biết Vote Bình Luận đang chạy phiên không — gửi snapshot ngay
     // khi connect (kể cả cửa sổ Khởi động nhanh mở giữa chừng) thay vì chờ broadcast tiếp.
     socket.emit('votecomment:state', voteCommentSnapshot());
@@ -10888,13 +10782,19 @@ io.on('connection', (socket) => {
     if (relayCache.timer.cfg)        socket.emit('timer:cfg',        relayCache.timer.cfg);
     if (relayCache.timer.state)      socket.emit('timer:state',      relayCache.timer.state);
 
+    // Trang nghe (Edge/Chrome) → câu final đi dịch; chữ tạm phát thẳng cho overlay/popup (không dịch);
+    // trạng thái nghe lưu vào máy trạng thái → popup biết cửa sổ đang mở/nghe/lỗi.
     onTrusted('creatorCaption:speech', (payload) => {
         processCreatorCaptionSpeech(payload).catch(e => console.warn('[creator-caption] translate failed:', e.message));
     });
-    onTrusted('creatorCaption:debug', (payload) => {
-        io.emit('creatorCaption:debug', { ...(payload || {}), ts: Date.now() });
+    onTrusted('creatorCaption:partial', (payload) => {
+        if (!sanitizeCreatorCaptionConfig(appConfig.creatorCaption).enabled) return;
+        io.emit('creatorCaption:partial', { text: String(payload?.text || '').slice(0, 300), ts: Date.now() });
     });
-
+    onTrusted('creatorCaption:listener', (payload) => {
+        captionListener.attach(socket.id);
+        captionListener.report(socket.id, payload || {});
+    });
     // Universal overlay reload — panel/app can force ALL OBS browser sources of a game to refresh
     // Use case: user mở game lần đầu → OBS source bị cache → emit để OBS tự reload
     onTrusted('overlay:reload', (data) => { socket.broadcast.emit('overlay:reload', data || {}); });
@@ -11118,6 +11018,7 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         if (nhatLaActiveDragSocketId === socket.id) nhatLaActiveDragSocketId = null;
         if (chemRelay.dropSocket(socket.id)) io.emit('chemtraicay:trackerStatus', { activeId: null });
+        captionListener.detach(socket.id);   // người dùng đóng cửa sổ Edge → popup biết ngay
     });
 
     socket.on('subscribe', (roomName) => {
@@ -11211,5 +11112,13 @@ httpServer.listen(PORT, BIND_HOST, async () => {
     } catch (e) { console.warn('[hpkey] watch init failed:', e && e.message); }
 });
 
-// Export cho electron-main.js gọi httpServer.close() khi quit
-module.exports = { httpServer, app, io };
+// Export cho electron-main.js gọi httpServer.close() khi quit (+ captionListenerStop() để cửa sổ
+// nghe Edge/Chrome tự đóng theo app).
+module.exports = { httpServer, app, io, captionListenerStop };
+if (!process.versions.electron) {
+    // `node server.js` chạy tay: Ctrl+C cũng phải đóng cửa sổ nghe — chờ socket kịp gửi rồi mới thoát.
+    process.on('SIGINT', () => {
+        try { captionListenerStop(); } catch (e) {}
+        setTimeout(() => process.exit(0), 150);
+    });
+}
