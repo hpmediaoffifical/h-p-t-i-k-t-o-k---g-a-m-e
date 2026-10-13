@@ -9372,3 +9372,10 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 
 .dm-zones { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; }
 .dm-zones .dm-zone { margin: 2px 0; }
+
+/* ===== 🎨 Họa Sĩ (panel trong app) — khung .ctc-* + thẻ hành động .dm-* của Đập Muỗi, phần riêng prefix .hoasi-* ===== */
+.hoasi-body { display: flex; flex-direction: column; gap: 10px; padding: 12px; min-height: 0; flex: 1; overflow: auto; }
+.hoasi-view .overlay-bar { flex-wrap: wrap; gap: 6px; }
+.hoasi-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; background: #0f1219; border: 1px solid #232733; }
+.hoasi-quick-label { font-size: 12.5px; color: #8b93a8; margin-right: 4px; }
+.hoasi-view #hoasi-quality { grid-column: 2 / 4; }

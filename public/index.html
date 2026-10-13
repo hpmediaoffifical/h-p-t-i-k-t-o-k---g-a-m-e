@@ -1735,6 +1735,48 @@
                 </div>
             </section>
 
+            <!-- ============ GAME VIEW: Họa Sĩ (ném sơn, lau bằng tay qua camera OBS) ============ -->
+            <section id="view-hoasi" class="view game-view hoasi-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🎨 Họa Sĩ</h2>
+                    </div>
+                    <div class="overlay-bar hoasi-overlay-bar">
+                        <button class="ghost small" onclick="hpOpenGame('camgames')" title="Về menu Game Camera">← Game Camera</button>
+                        <button id="hoasi-btn-clear" class="ghost small" title="Xoá sạch sơn trên màn (không hiệu ứng)">🧹 Xoá sơn</button>
+                        <button id="hoasi-btn-reset" class="danger small" title="Xoá sơn + hàng đợi + mưa sơn + khiên">↺ Đặt lại</button>
+                        <span class="nd-bar-spacer"></span>
+                        <button id="hoasi-btn-copy" class="primary small" title="Copy link overlay Game Camera (dùng chung cho mọi game camera)">📋 Link OBS</button>
+                        <button id="hoasi-btn-preview" class="ghost small" title="Mở overlay ở tab mới, chế độ chuột để thử không cần camera">🖱 Thử bằng chuột</button>
+                        <button id="hoasi-btn-reload" class="ghost small" title="Buộc overlay reload">🔄 Reload</button>
+                        <button id="hoasi-btn-save" class="primary small" title="Lưu tất cả cấu hình ngay">💾 Lưu</button>
+                    </div>
+                </header>
+                <div class="game-body hoasi-body">
+                    <div class="ctc-status" id="hoasi-status"></div>
+                    <div class="hoasi-quick" id="hoasi-quick">
+                        <span class="hoasi-quick-label">Thử nhanh:</span>
+                        <button class="ghost small" data-test="paint">🎨 Ném 5</button>
+                        <button class="ghost small" data-test="storm">🌧 Mưa sơn</button>
+                        <button class="ghost small" data-test="water">💧 Nước</button>
+                        <button class="ghost small" data-test="shield">🛡 Khiên</button>
+                        <button class="ghost small" data-test="wash">🧽 Rửa</button>
+                    </div>
+                    <div class="ctc-tabs">
+                        <button class="ctc-tab active" data-hoasi-tab="wipe"><span class="ctc-tab-icon" style="--icon-bg:#1a2a35;--icon-fg:#25f4ee">🖐</span><span class="ctc-tab-text"><b>Lau sơn</b><em>Tốc độ lau · số ngón · dự phòng</em></span></button>
+                        <button class="ctc-tab" data-hoasi-tab="paint"><span class="ctc-tab-icon" style="--icon-bg:#3a1a2a;--icon-fg:#ff5ca8">🎨</span><span class="ctc-tab-text"><b>Sơn & Phủ kín</b><em>Cỡ · độ đậm · nhắm mặt · khiên</em></span></button>
+                        <button class="ctc-tab" data-hoasi-tab="gifts"><span class="ctc-tab-icon" style="--icon-bg:#2a1a3a;--icon-fg:#b66bff">🎁</span><span class="ctc-tab-text"><b>Quà</b><em>Ra sơn · Hành & cứu · Gửi thử</em></span></button>
+                        <button class="ctc-tab" data-hoasi-tab="display"><span class="ctc-tab-icon" style="--icon-bg:#1f3a1a;--icon-fg:#9bf26b">🖥</span><span class="ctc-tab-text"><b>Hiển thị</b><em>Bảng % / Âm thanh / Nhận diện</em></span></button>
+                    </div>
+                    <div class="ctc-panes">
+                        <div class="ctc-pane active" data-hoasi-pane="wipe" id="hoasi-wipe-pane"></div>
+                        <div class="ctc-pane" data-hoasi-pane="paint" id="hoasi-paint-pane"></div>
+                        <div class="ctc-pane" data-hoasi-pane="gifts" id="hoasi-gifts-pane"></div>
+                        <div class="ctc-pane" data-hoasi-pane="display" id="hoasi-display-pane"></div>
+                    </div>
+                </div>
+            </section>
+
             <!-- ============ GAME VIEW: Trồng Cây ============ -->
             <section id="view-trongcay" class="view game-view trongcay-view">
                 <header class="game-header">
@@ -2744,6 +2786,8 @@
     <script src="/games/chemtraicay/chemtraicay-panel.js"></script>
     <script src="/games/dapmuoi/game.js"></script>
     <script src="/games/dapmuoi/dapmuoi-panel.js"></script>
+    <script src="/games/hoasi/game.js"></script>
+    <script src="/games/hoasi/hoasi-panel.js"></script>
     <script src="/games/camgames/registry.js"></script>
     <script src="/games/camgames/camgames-panel.js"></script>
     <script src="/games/trongcay/game.js"></script>
