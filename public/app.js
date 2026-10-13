@@ -439,6 +439,10 @@
         'level-quest', 'timer', 'liveTranslate', 'chemtraicay'
     ]);
 
+    // Công cụ cắt ngang mọi game (Bảng Quà Tổng) có nút RIÊNG ở đáy sidebar — KHÔNG hiện trong
+    // Thư viện Game lẫn lưới trang chủ, vì hai chỗ đó là danh sách game/tính năng.
+    const LIBRARY_HIDDEN = new Set(['giftboard']);
+
     function renderGameDevelopmentNotice(game) {
         if (STABLE_GAMES.has(game.id)) return '';
         return `<div class="gd game-dev-notice game-dev-${game.id}">${GAME_DEVELOPMENT_NOTICE}</div>`;
@@ -476,10 +480,12 @@
         renderGameList();
         renderHomeGrid();
         renderQuickLaunch();
+        syncGiftboardSideButton();
     }
     function renderGameList() {
         dom.gameList.innerHTML = '';
         for (const g of games) {
+            if (LIBRARY_HIDDEN.has(g.id)) continue;
             const div = document.createElement('div');
             div.className = 'game-item';
             div.dataset.id = g.id;
@@ -555,6 +561,7 @@
     function renderHomeGrid() {
         dom.homeGrid.innerHTML = '';
         for (const g of games) {
+            if (LIBRARY_HIDDEN.has(g.id)) continue;
             const card = document.createElement('div');
             card.className = 'home-card';
             card.innerHTML = `<div class="ico">${g.icon}</div>
@@ -870,10 +877,23 @@
             updateQuickLaunchCardState(g.id);
         }
     }
+    // 📋 Bảng Quà Tổng — nút riêng ở đáy sidebar: mở view + chip BẬT/TẮT theo config server
+    // (đồng bộ qua 'gameConfig', cùng nguồn với công tắc trong view của bảng).
+    function syncGiftboardSideButton() {
+        const chip = document.getElementById('giftboard-side-state');
+        if (!chip) return;
+        const g = games.find(x => x.id === 'giftboard');
+        const on = !!g && (!g.config || g.config.enabled !== false);
+        chip.textContent = on ? 'BẬT' : 'TẮT';
+        chip.classList.toggle('off', !on);
+    }
+    document.getElementById('btn-open-giftboard')?.addEventListener('click', () => openGame('giftboard'));
+
     function highlightActiveGame(gameId) {
         document.querySelectorAll('.game-item').forEach(el => {
             el.classList.toggle('active', el.dataset.id === gameId);
         });
+        document.getElementById('btn-open-giftboard')?.classList.toggle('active', gameId === 'giftboard');
     }
 
     function openGame(gameId) {
@@ -906,6 +926,7 @@
         else if (gameId === 'liveTranslate') openLiveTranslateView();
         else if (gameId === 'level-quest') showView('view-level-quest');
         else if (gameId === 'timer') showView('view-timer');
+        else if (gameId === 'giftboard') showView('view-giftboard');
         else if (gameId === 'touchplay') showView('view-touchplay');
         else if (gameId === 'obs-effects') showView('view-obs-effects');
     }
@@ -3316,6 +3337,7 @@
         if (targetGame) {
             targetGame.config = config;
             updateQuickLaunchCardState(gameId);
+            if (gameId === 'giftboard') syncGiftboardSideButton();
         }
         // gameInstance LUÔN là engine Hũ Thủy Tinh → CHỈ config của Hũ mới được đổ vào engine.
         // Lỗi cũ (≤ v1.9.7): điều kiện là "gameId === game đang mở", nên đứng ở view Vote Bình Luận /

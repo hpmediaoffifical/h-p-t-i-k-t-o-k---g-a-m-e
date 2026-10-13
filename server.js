@@ -382,6 +382,18 @@ const GAMES = {
         overlayPath: '/_prototype/timer.html?mode=overlay',
         defaultConfig: { enabled: true }
     },
+    // BẢNG QUÀ TỔNG (prototype): một overlay gom quà chỉ định + tên hiệu ứng của MỌI game đang
+    // BẬT. Không có logic quà riêng — chỉ ĐỌC appConfig.games qua /api/games ở phía client.
+    // Đăng ký ở đây để hưởng sẵn: toggle ⏻ Thư viện, /api/games/giftboard/config (lưu vị trí/cỡ),
+    // gameConfig broadcast, link chia sẻ /overlay/shared/<token>.
+    'giftboard': {
+        id: 'giftboard',
+        name: 'Bảng Quà Tổng',
+        description: 'Một bảng cho OBS gom toàn bộ quà chỉ định + tên hành động/hiệu ứng của mọi game đang BẬT. Game tắt tự biến mất. Kéo/thu phóng trong app, OBS đổi theo ngay.',
+        icon: '📋',
+        overlayPath: '/_prototype/giftboard.html?mode=overlay',
+        defaultConfig: makeDefaultGiftBoardConfig()
+    },
     // TOUCH & PLAY (prototype): game webcam — overlay nhận hình nguồn camera trong scene OBS
     // (lib/touchplay-obs-feed.js) + MediaPipe (public/lib/mediapipe), chạm bóng / gắp đồ ăn đưa lên
     // miệng / làm theo tư thế. Logic ở client; server cho mượn route chung /config, /cmd, /test-gift.
@@ -708,6 +720,35 @@ function makeDefaultNhatLaConfig() {
         giftRules: [],            // [{ id, giftId, giftName, count }] — quà chỉ định rơi N lá
         coinsPerLeaf: 1,          // quà không có rule: N coin = 1 lá (0 = bỏ qua)
         defaultLeavesPerGift: 0   // legacy fallback, giữ để config cũ không lỗi
+    };
+}
+
+// ====== Bảng Quà Tổng — defaults ======
+// Phải khớp defaultConfig() trong public/_prototype/giftboard.html (client tự chuẩn hoá lại,
+// server chỉ giữ để config lần đầu không rỗng). Toạ độ % trên sân khấu 1080×1920, neo góc trên-trái.
+function makeDefaultGiftBoardConfig() {
+    return {
+        enabled: true,
+        mode: 'perGame',             // perGame = mỗi game 1 khối (mặc định) | single = 1 bảng | split = chia N cột
+        split: { by: 'count', count: 2, rows: 8 },
+        display: {
+            scale: 100,              // cỡ MẶC ĐỊNH cho khối mới — mỗi khối có scale riêng trong panels
+            iconScale: 100, nameScale: 100, gap: 80,
+            layout: 'vertical',      // vertical | horizontal | grid
+            columns: 2,              // chỉ dùng cho grid
+            namePos: 'right',        // right | bottom
+            theme: 'dark',           // dark | glass | neon | light
+            accent: '#ffb054',
+            title: '',               // '' = không hiện tiêu đề
+            showDiamond: true, showGameIcon: true, showCounter: true, showTag: true, pulseOnGift: true, showPanelTitle: true,
+            autoScroll: { enabled: false, visibleCount: 8, direction: 'up', speed: 2 }
+        },
+        // Mỗi khối nhớ vị trí/cỡ/ẩn-hiện RIÊNG: 'main' | 'col1'.. | 'g:<gameId>'. Client tự điền khi khối xuất hiện.
+        panels: {},
+        // Game nào được lên bảng (game TẮT ở Thư viện luôn bị loại bất kể cờ này)
+        sources: { thuytinh: true, caro: true, votecomment: true, nhietdo: true, bancung: true, trongcay: true, nhatla: true, timer: true, obsEffects: true },
+        rules: { mergeSameGift: true, groupByGame: false, sort: 'game', showGeneric: true, onlyRunning: false, hideBirdGifts: true },
+        overrides: {}                // key "<game>|<nguồn>|<giftId>" → { hidden, label } — chỉ tác động lên bảng này
     };
 }
 
@@ -4545,7 +4586,7 @@ app.post('/api/games/:id/config', (req, res) => {
     // Deep-merge display sub-object cho game server-authoritative — phòng case partial POST
     // (panel chỉ gửi subset of display fields). Whoever posts last wins per-field.
     const incoming = req.body || {};
-    if ((g.id === 'nhietdo' || g.id === 'bancung' || g.id === 'trongcay' || g.id === 'nhatla') && incoming.display && prevConfig.display) {
+    if ((g.id === 'nhietdo' || g.id === 'bancung' || g.id === 'trongcay' || g.id === 'nhatla' || g.id === 'giftboard') && incoming.display && prevConfig.display) {
         incoming.display = { ...prevConfig.display, ...incoming.display };
     }
     // Nhặt Lá giữ config từng effect khi UI chỉ cập nhật một thuộc tính (vd. số giây TOM).
@@ -4562,6 +4603,10 @@ app.post('/api/games/:id/config', (req, res) => {
     // Bảng TOP kéo thả trên overlay chỉ POST 2 field toạ độ — đừng nuốt mất phần còn lại.
     if (g.id === 'nhatla' && incoming.topDonors && prevConfig.topDonors) {
         incoming.topDonors = { ...prevConfig.topDonors, ...incoming.topDonors };
+    }
+    // Bảng Quà Tổng: vị trí từng khối POST một phần (kéo 1 khối) không được xoá các khối còn lại.
+    if (g.id === 'giftboard' && incoming.panels && prevConfig.panels) {
+        incoming.panels = { ...prevConfig.panels, ...incoming.panels };
     }
     if (g.id === 'nhatla' && incoming.rescue && prevConfig.rescue) {
         incoming.rescue = { ...prevConfig.rescue, ...incoming.rescue };
@@ -10346,6 +10391,12 @@ app.put('/api/obs-bridge/config', express.json(), (req, res) => {
             .slice(0, 80);
     }
     saveAppConfig();
+    // Bảng Quà Tổng vẽ lại ngay khi mapping/nhóm/master đổi (không gửi password).
+    io.emit('obsBridge:config', {
+        enabled: appConfig.obsBridge.enabled !== false,
+        mapping: Array.isArray(appConfig.obsBridge.mapping) ? appConfig.obsBridge.mapping : [],
+        groupsDisabled: Array.isArray(appConfig.obsBridge.groupsDisabled) ? appConfig.obsBridge.groupsDisabled : []
+    });
     res.json({ ok: true, config: appConfig.obsBridge });
 });
 
@@ -10493,6 +10544,27 @@ io.on('connection', (socket) => {
     onTrusted('timer:cfg',     (data) => { relayCache.timer.cfg   = data; socket.broadcast.emit('timer:cfg',   data); });
     onTrusted('timer:state',   (data) => { relayCache.timer.state = data; socket.broadcast.emit('timer:state', data); });
     onTrusted('timer:trigger', (data) => { socket.broadcast.emit('timer:trigger', data); });
+
+    // BẢNG QUÀ TỔNG — lab/overlay ?edit=1 đang kéo bảng: relay toạ độ/cỡ ở ≤30fps tới mọi view
+    // khác (OBS đổi theo ngay), config thật vẫn đi đường POST /api/games/giftboard/config khi thả tay.
+    onTrusted('giftboard:transient', (data) => {
+        // { panels: { '<id>': { xPercent, yPercent, scale } } } — id là 'main' | 'col1'.. | 'g:<gameId>'
+        const src = data && data.panels;
+        if (!src || typeof src !== 'object' || Array.isArray(src)) return;
+        const limits = { xPercent: [0, 100], yPercent: [0, 100], scale: [30, 300] };
+        const panels = {};
+        for (const [id, p] of Object.entries(src).slice(0, 40)) {
+            if (!/^[\w:-]{1,40}$/.test(id) || !p || typeof p !== 'object') continue;
+            const out = {};
+            for (const [key, [min, max]] of Object.entries(limits)) {
+                const value = Number(p[key]);
+                if (Number.isFinite(value)) out[key] = Math.max(min, Math.min(max, value));
+            }
+            if (Object.keys(out).length) panels[id] = out;
+        }
+        if (!Object.keys(panels).length) return;
+        socket.broadcast.emit('giftboard:transient', { sourceId: socket.id, panels });
+    });
 
     // 🚀 Quick Launch — cửa sổ rời emit lệnh start/stop → server forward tới app chính để
     // chạy logic thật của từng game (openRegistration cho caro, postMessage iframe cho

@@ -70,6 +70,13 @@
             </section>
 
             <section class="side-card side-bottom-card">
+                <!-- 📋 BẢNG QUÀ TỔNG — công cụ cắt ngang mọi game: nút RIÊNG, không nằm trong Thư viện Game
+                     (khu đó là danh sách game/tính năng). Chip BẬT/TẮT do app.js syncGiftboardSideButton() cập nhật. -->
+                <button id="btn-open-giftboard" class="side-giftboard-btn" type="button" title="Bảng Quà Tổng — 1 link OBS gom quà chỉ định + tên hiệu ứng của mọi game đang bật">
+                    <span class="gb-ico">📋</span>
+                    <span class="gb-txt"><b>Bảng Quà Tổng</b></span>
+                    <span class="gb-state" id="giftboard-side-state">BẬT</span>
+                </button>
                 <!-- Hàng 4 nút tròn căn giữa: 💬 Bình luận · 🆕 Quà mới · 🎵 Sound Effects · 🚀 Khởi động nhanh -->
                 <div class="side-fab-row">
                     <button id="comments-fab" class="comments-fab" title="Bình luận LIVE">💬<span class="badge" id="comments-badge" hidden>0</span></button>
@@ -220,6 +227,33 @@
                 </div>
             </section>
 
+            <!-- GAME VIEW: BẢNG QUÀ TỔNG (prototype — lab + overlay trong public/_prototype/giftboard.html) -->
+            <section id="view-giftboard" class="view game-view">
+                <header class="game-header">
+                    <div>
+                        <h2>📋 Bảng Quà Tổng</h2>
+                        <div class="game-sub">Một bảng gom quà chỉ định + tên hiệu ứng của mọi game đang BẬT · 1 link OBS cho tất cả</div>
+                    </div>
+                    <div class="overlay-bar">
+                        <button class="primary small" id="btn-giftboard-copy" onclick="giftboardCopyOverlay(this)" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
+                        <button class="ghost small" onclick="window.open('/_prototype/giftboard.html?mode=overlay&edit=1','_blank','width=540,height=960')" title="Mở overlay cửa sổ riêng — kéo/lăn chuột trực tiếp trên bảng">🪟 Xem overlay</button>
+                        <button class="ghost small" onclick="document.getElementById('giftboard-frame').contentWindow.location.reload()" title="Reload prototype">🔄 Reload</button>
+                    </div>
+                    <script>
+                      // Copy URL overlay — qua buildOverlayURL của app.js để ra link hpaction.obs (TikTok LIVE Studio) + ?res=4k nếu bật.
+                      function giftboardCopyOverlay(btn){
+                        const path = '/_prototype/giftboard.html?mode=overlay';
+                        const url = (typeof window.buildOverlayURL === 'function') ? window.buildOverlayURL(path) : (location.origin + path);
+                        const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(()=>btn.textContent='📋 Link OBS', 1500); };
+                        const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(()=>btn.textContent='📋 Link OBS', 1500); };
+                        const legacy = () => { try { const ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); done(); } catch(e){ fail(); } };
+                        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done).catch(legacy);
+                        else legacy();
+                      }
+                    </script>
+                </header>
+                <div style="padding:0; flex:1; min-height:0;">
+                    <iframe id="giftboard-frame" src="/_prototype/giftboard.html" loading="lazy" style="width:100%; height:calc(100vh - 80px); border:0; display:block; background:#eef2f7;"></iframe>
                 </div>
             </section>
 

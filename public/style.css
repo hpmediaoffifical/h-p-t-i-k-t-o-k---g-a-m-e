@@ -674,6 +674,28 @@ button.mini { padding: 2px 8px; font-size: 11px; }
 }
 .side-soundfx-btn { width: auto; min-width: 44px; padding: 9px 11px; border-radius: 12px; }
 
+/* ===== 📋 Bảng Quà Tổng — nút RIÊNG ở đáy sidebar, ngay trên hàng nút tròn.
+   Không phải game nên không vào .game-list; sidebar thu gọn thì chỉ còn icon. ===== */
+.side-giftboard-btn {
+    display: flex; align-items: center; gap: 9px;
+    width: 100%; padding: 8px 10px; margin: 0;
+    background: linear-gradient(90deg, rgba(255,176,84,0.16), rgba(255,107,61,0.06));
+    border: 1px solid rgba(255,176,84,0.45); border-radius: 10px;
+    color: #e6e8ee; cursor: pointer; text-align: left;
+    transition: border-color .15s ease, background .15s ease, transform .12s ease;
+}
+.side-giftboard-btn:hover { border-color: #ffb054; background: linear-gradient(90deg, rgba(255,176,84,0.26), rgba(255,107,61,0.10)); }
+.side-giftboard-btn:active { transform: scale(0.98); }
+.side-giftboard-btn.active { border-color: #ff6b3d; box-shadow: 0 0 0 2px rgba(255,107,61,0.25); }
+.side-giftboard-btn .gb-ico { font-size: 18px; flex: 0 0 auto; }
+.side-giftboard-btn .gb-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.side-giftboard-btn .gb-txt b { font-size: 12.5px; font-weight: 700; }
+.side-giftboard-btn .gb-state { flex: 0 0 auto; font-size: 9.5px; font-weight: 800; letter-spacing: .4px; padding: 2px 7px; border-radius: 999px; background: rgba(65,214,138,0.18); color: #41d68a; }
+.side-giftboard-btn .gb-state.off { background: rgba(255,77,109,0.16); color: #ff4d6d; }
+.sidebar.collapsed .side-giftboard-btn { justify-content: center; padding: 8px 0; }
+.sidebar.collapsed .side-giftboard-btn .gb-txt,
+.sidebar.collapsed .side-giftboard-btn .gb-state { display: none; }
+
 /* ===== Hàng 5 nút TRÒN căn giữa ở đáy sidebar:
    💬 Bình luận · 🆕 Quà mới · 🎵 Sound Effects · 🚀 Khởi động nhanh · ⚙ Cài đặt
    Cỡ 40px + gap 8px → 5×40 + 4×8 = 232px, vừa khít trong sidebar (rộng ~240px) mà

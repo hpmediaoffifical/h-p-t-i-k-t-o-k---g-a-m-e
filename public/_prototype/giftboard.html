@@ -1,0 +1,1028 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<script src="/lib/overlay-resolution.js"></script>
+<meta charset="utf-8" />
+<title>BẢNG QUÀ TỔNG — Prototype</title>
+<script>
+  // Inline early-detection để body trong suốt NGAY khi parse — tránh flash trắng trong OBS.
+  //   /_prototype/giftboard.html                      → lab (panel cấu hình + ô xem trước)
+  //   /_prototype/giftboard.html?mode=overlay         → OBS Browser Source (chỉ vẽ bảng)
+  //   /_prototype/giftboard.html?mode=overlay&edit=1  → overlay cho phép KÉO/LĂN CHUỘT trực tiếp
+  (function () {
+    const sp = new URLSearchParams(location.search);
+    if (sp.get('mode') === 'overlay') {
+      document.documentElement.setAttribute('data-overlay', '1');
+      if (sp.get('edit') === '1') document.documentElement.setAttribute('data-edit', '1');
+    }
+  })();
+</script>
+<style>
+  /* ============================================================
+     BẢNG QUÀ TỔNG — gom quà chỉ định + tên hiệu ứng của MỌI game đang BẬT vào các KHỐI.
+     - KHÔNG đụng tới bất kỳ game nào trong public/games/ (chỉ ĐỌC config qua /api/games).
+     - Lab:      /_prototype/giftboard.html
+     - OBS link: /_prototype/giftboard.html?mode=overlay
+     - Config lưu server: /api/games/giftboard/config (đăng ký trong GAMES ở server.js)
+     - Kéo/thu phóng realtime: socket 'giftboard:transient' { panels: { id: {x,y,scale} } }
+     - Ba cách bố trí (cfg.mode):
+         single  → 1 khối 'main'
+         split   → chia thành N cột 'col1'..'colN' (theo số cột, hoặc theo số thẻ mỗi cột)
+         perGame → mỗi game 1 khối 'g:<gameId>'
+       Mỗi khối có vị trí / cỡ / ẩn-hiện RIÊNG trong cfg.panels[id], nhớ mãi kể cả khi đổi
+       cách bố trí hay tắt game rồi bật lại.
+     - Overlay CỐ TÌNH nhẹ: không rAF, chỉ render khi config đổi. Cuộn/nháy là CSS animation.
+     ============================================================ */
+  :root { --bg:#eef2f7; --panel:#fff; --line:#e2e7ef; --text:#222; --muted:#6c7689; --accent:#ff6b35; --ok:#41d68a; --bad:#ff4d6d; --info:#4dabff; }
+  html, body { margin:0; padding:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:'Be Vietnam Pro','Segoe UI',system-ui,-apple-system,Tahoma,sans-serif; }
+  *, *::before, *::after { box-sizing:border-box; }
+
+  /* ---------- OVERLAY MODE: trong suốt, chỉ còn sân khấu ---------- */
+  html[data-overlay="1"], html[data-overlay="1"] body { background:transparent !important; overflow:hidden; }
+  html[data-overlay="1"] .topbar, html[data-overlay="1"] .layout-left, html[data-overlay="1"] .stage-tools,
+  html[data-overlay="1"] #gb-safe { display:none !important; }
+  html[data-overlay="1"] .layout { display:block; padding:0; }
+  html[data-overlay="1"] .layout-right { position:static; width:auto; }
+  html[data-overlay="1"] .card { background:transparent; border:0; box-shadow:none; }
+  html[data-overlay="1"] .stage { position:fixed; inset:0; background:transparent !important; border:0; border-radius:0; height:auto !important; }
+  html[data-overlay="1"] #gb-stage { position:fixed; }
+  html[data-edit="1"] .gb-board { cursor:move; outline:3px dashed rgba(255,107,53,.9); outline-offset:6px; }
+  html[data-edit="1"] .gb-board::after { content:'KÉO để dời · LĂN CHUỘT để phóng — lưu tự động'; position:absolute; left:0; top:-34px;
+    font:700 20px/1 'Segoe UI',sans-serif; color:#fff; background:rgba(255,107,53,.92); padding:6px 10px; border-radius:8px; white-space:nowrap; }
+  /* OBS ẩn source (obsSourceVisibleChanged) → dừng animation cho đỡ tốn GPU */
+  html.gb-paused .gb-board * { animation-play-state:paused !important; }
+
+  /* ---------- LAB ---------- */
+  .topbar { position:sticky; top:0; z-index:20; background:#11161e; color:#fff; padding:10px 16px; display:flex; align-items:center; gap:12px; box-shadow:0 2px 12px rgba(0,0,0,.18); flex-wrap:wrap; }
+  .topbar .ttl { font-weight:800; font-size:16px; }
+  .topbar .sub { color:#9aa7bd; font-size:12px; }
+  .topbar .sp { flex:1; }
+  .topbar button { background:#23304a; color:#fff; border:1px solid #34425f; border-radius:7px; padding:7px 11px; font-size:12.5px; cursor:pointer; font-weight:600; }
+  .topbar button:hover { background:#2b3b5e; }
+  .topbar button.danger { background:#5a2430; border-color:#7a2f40; }
+  .topbar .pill { background:#1b2433; color:#9bb1d6; padding:4px 9px; border-radius:999px; font-size:11.5px; border:1px solid #2b3a55; }
+  .topbar .dot { width:7px; height:7px; border-radius:50%; background:#666; display:inline-block; margin-right:5px; }
+  .topbar .dot.on { background:#41d68a; box-shadow:0 0 6px #41d68a; }
+  .switch { display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:700; user-select:none; }
+  .switch input { display:none; }
+  .switch .knob { width:40px; height:22px; border-radius:999px; background:#3a4256; position:relative; transition:background .15s; }
+  .switch .knob::after { content:''; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff; transition:left .15s; }
+  .switch input:checked + .knob { background:#41d68a; }
+  .switch input:checked + .knob::after { left:21px; }
+
+  .layout { display:grid; grid-template-columns:1fr 440px; gap:14px; padding:14px; align-items:flex-start; }
+  .layout-left { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .layout-left > .card.full { grid-column:1 / -1; }
+  .layout-right { position:sticky; top:8px; }
+  @media (max-width:1240px) { .layout { grid-template-columns:1fr; } .layout-right { position:static; } }
+  @media (max-width:760px) { .layout-left { grid-template-columns:1fr; } }
+
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; box-shadow:0 1px 2px rgba(20,30,50,.04); }
+  .card > summary { list-style:none; padding:11px 14px; cursor:pointer; user-select:none; background:linear-gradient(180deg,#fafbfc,#f0f3f8); border-bottom:1px solid var(--line); font-weight:800; font-size:13.5px; display:flex; align-items:center; gap:8px; }
+  .card > summary::-webkit-details-marker { display:none; }
+  .card > summary .cnt { margin-left:auto; font-size:11px; color:var(--muted); font-weight:600; }
+  .card .body { padding:12px 14px; display:grid; gap:10px; }
+  .row { display:grid; grid-template-columns:128px 1fr; align-items:center; gap:10px; font-size:12.5px; }
+  .row label { color:#3b4252; font-weight:600; }
+  .row .val { color:var(--muted); font-size:11.5px; min-width:44px; text-align:right; }
+  .row .rng { display:flex; align-items:center; gap:8px; }
+  .row.dim { opacity:.45; pointer-events:none; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  input[type=text], input[type=number], select { border:1px solid #cfd6e2; border-radius:7px; padding:6px 8px; font-size:12.5px; background:#fff; color:#222; width:100%; }
+  input[type=color] { width:44px; height:28px; border:1px solid #cfd6e2; border-radius:6px; padding:1px; background:#fff; }
+  .chk { display:flex; align-items:center; gap:8px; font-size:12.5px; cursor:pointer; user-select:none; }
+  .chk input { accent-color:var(--accent); width:15px; height:15px; }
+  .chk.dim { opacity:.45; pointer-events:none; }
+  .chks { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; }
+  .seg { display:inline-flex; border:1px solid #cfd6e2; border-radius:8px; overflow:hidden; flex-wrap:wrap; }
+  .seg button { border:0; background:#fff; padding:6px 10px; font-size:12px; cursor:pointer; color:#3b4252; font-weight:600; }
+  .seg button + button { border-left:1px solid #e2e7ef; }
+  .seg button.active { background:var(--accent); color:#fff; }
+  .anchors { display:grid; grid-template-columns:repeat(3,28px); gap:4px; }
+  .anchors button { width:28px; height:22px; border:1px solid #cfd6e2; background:#fff; border-radius:5px; cursor:pointer; font-size:11px; }
+  .anchors button:hover { background:#fff1ea; border-color:var(--accent); }
+  .hint { font-size:11.5px; color:var(--muted); line-height:1.45; }
+  .src-list { display:grid; gap:6px; }
+  .src { display:grid; grid-template-columns:22px 26px 1fr auto auto; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; font-size:12.5px; background:#fafbfc; }
+  .src.off { opacity:.55; }
+  .src .nm { font-weight:700; }
+  .src .chip { font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; background:#e9edf4; color:#4b5468; }
+  .src .chip.on { background:#dff8ea; color:#177a45; }
+  .src .chip.run { background:#ffe9d9; color:#b34a10; }
+  .src .chip.off { background:#f6dfe3; color:#a3233a; }
+  .src .n { font-size:11px; color:var(--muted); min-width:34px; text-align:right; }
+  /* Chip khối: chọn khối để chỉnh, 👁 ẩn/hiện, ↺ về vị trí mặc định */
+  .pchips { display:flex; flex-wrap:wrap; gap:6px; }
+  .pchip { display:inline-flex; align-items:center; gap:4px; border:1px solid #cfd6e2; border-radius:999px; padding:3px 4px 3px 10px; font-size:12px; font-weight:700; background:#fff; cursor:pointer; user-select:none; }
+  .pchip.active { border-color:var(--accent); background:#fff1ea; color:#b34a10; }
+  .pchip.hid { opacity:.5; text-decoration:line-through; }
+  .pchip button { border:0; background:transparent; cursor:pointer; font-size:12px; width:22px; height:20px; border-radius:999px; padding:0; }
+  .pchip button:hover { background:#e9edf4; }
+  table.ent { width:100%; border-collapse:collapse; font-size:12px; }
+  table.ent th { text-align:left; font-size:11px; color:var(--muted); font-weight:700; padding:4px 6px; border-bottom:1px solid var(--line); }
+  table.ent td { padding:4px 6px; border-bottom:1px solid #f0f3f8; vertical-align:middle; }
+  table.ent tr.hid td { opacity:.45; }
+  table.ent img { width:26px; height:26px; object-fit:contain; vertical-align:middle; }
+  table.ent input[type=text] { padding:4px 6px; font-size:12px; }
+  table.ent .eye { border:1px solid #cfd6e2; background:#fff; border-radius:6px; cursor:pointer; width:28px; height:24px; }
+  .log { font:11.5px/1.5 Consolas,monospace; color:#3b4252; background:#f6f8fb; border:1px solid var(--line); border-radius:8px; padding:8px 10px; max-height:150px; overflow:auto; }
+  .log .ok { color:#177a45; } .log .warn { color:#b34a10; } .log .err { color:#a3233a; }
+
+  /* ---------- STAGE (ô xem trước 9:16) ---------- */
+  .stage-tools { display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--line); font-size:12px; flex-wrap:wrap; }
+  .stage-tools select { width:auto; }
+  .stage { position:relative; width:100%; overflow:hidden; background:#1b1f2a; border-radius:0 0 12px 12px; }
+  .stage.bd-checker { background-color:#8e8e8e; background-image:linear-gradient(45deg,#bbb 25%,transparent 25%),linear-gradient(-45deg,#bbb 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#bbb 75%),linear-gradient(-45deg,transparent 75%,#bbb 75%); background-size:20px 20px; background-position:0 0,0 10px,10px -10px,-10px 0; }
+  .stage.bd-live { background:radial-gradient(ellipse at 50% 35%, #6b4b7a 0%, #2b2140 45%, #0f0c18 100%); }
+  #gb-stage { position:absolute; left:0; top:0; width:1080px; height:1920px; transform-origin:top left; overflow:hidden; }
+  #gb-safe { position:absolute; inset:0; pointer-events:none; display:none; }
+  #gb-safe.show { display:block; }
+  #gb-safe .z { position:absolute; border:2px dashed rgba(255,255,255,.55); background:rgba(255,80,80,.16); color:#fff; font:700 26px/1.2 'Segoe UI',sans-serif; padding:10px 14px; text-shadow:0 1px 3px #000; }
+  /* Lab: khối đang chọn có viền để biết thanh trượt đang chỉnh khối nào */
+  html:not([data-overlay]) .gb-board { cursor:move; }
+  html:not([data-overlay]) .gb-board.selected { outline:3px dashed rgba(255,107,53,.85); outline-offset:6px; }
+  html:not([data-overlay]) .gb-board.selected::before { content:attr(data-label); position:absolute; left:0; top:-30px; font:700 18px/1 'Segoe UI',sans-serif;
+    color:#fff; background:rgba(255,107,53,.92); padding:5px 9px; border-radius:7px; white-space:nowrap; }
+
+  /* ============================================================
+     KHỐI (dùng chung lab + OBS) — px thuần trong sân khấu 1080×1920, 4 biến điều khiển cỡ:
+       --s cỡ khối · --is cỡ icon · --ns cỡ chữ · --gp giãn cách
+     ============================================================ */
+  .gb-board { --s:1; --is:1; --ns:1; --gp:.8; --gap-px:calc(18px * var(--gp) * var(--s));
+    --c-bg:rgba(12,14,20,.94); --c-bd:rgba(255,176,84,.95); --c-tx:#fff; --c-sub:#ffd479; --accent:#ffb054; --glow:none;
+    position:absolute; left:2%; top:20%; display:flex; flex-direction:column; align-items:flex-start; gap:calc(10px * var(--s));
+    color:var(--c-tx); font-family:'Segoe UI',Arial,sans-serif; user-select:none; }
+  .gb-board[data-theme="glass"] { --c-bg:rgba(20,24,34,.58); --c-bd:rgba(255,255,255,.42); }
+  .gb-board[data-theme="neon"]  { --c-bg:rgba(8,8,16,.92); --c-bd:var(--accent); --glow:0 0 calc(18px * var(--s)) var(--accent); }
+  .gb-board[data-theme="light"] { --c-bg:rgba(255,255,255,.95); --c-bd:var(--accent); --c-tx:#171a24; --c-sub:#8a5a00; }
+  .gb-board.layout-horizontal { flex-direction:row; align-items:center; }
+
+  .gb-title { flex:0 0 auto; padding:calc(6px * var(--s)) calc(16px * var(--s)); border-radius:calc(999px * var(--s));
+    background:linear-gradient(135deg, var(--accent), #ff3d71); font-size:calc(24px * var(--s) * var(--ns)); font-weight:900; letter-spacing:.3px;
+    color:#fff; text-shadow:0 calc(1px * var(--s)) calc(3px * var(--s)) rgba(0,0,0,.8);
+    box-shadow:0 0 0 calc(1px * var(--s)) rgba(0,0,0,.6), 0 calc(2px * var(--s)) calc(8px * var(--s)) rgba(0,0,0,.5); white-space:nowrap; }
+  .gb-counter { flex:0 0 auto; min-width:calc(38px * var(--s)); padding:calc(4px * var(--s)) calc(12px * var(--s)); border-radius:calc(999px * var(--s));
+    background:linear-gradient(135deg, rgba(255,122,46,.95), rgba(255,61,113,.95)); font-size:calc(22px * var(--s)); font-weight:800; line-height:1.3; text-align:center; color:#fff;
+    text-shadow:0 calc(1px * var(--s)) calc(3px * var(--s)) rgba(0,0,0,.85);
+    box-shadow:0 0 0 calc(1px * var(--s)) rgba(0,0,0,.6), 0 calc(2px * var(--s)) calc(8px * var(--s)) rgba(0,0,0,.55); }
+  .gb-head { display:flex; align-items:center; gap:calc(10px * var(--s)); }
+
+  .gb-list { display:flex; flex-direction:column; gap:var(--gap-px); overflow:hidden; }
+  .gb-board.layout-horizontal .gb-list { flex-direction:row; }
+  .gb-track { position:relative; display:flex; flex-direction:column; gap:var(--gap-px); }
+  .gb-board.layout-horizontal .gb-track { flex-direction:row; }
+  .gb-board.layout-grid .gb-track { display:grid; grid-template-columns:repeat(var(--cols, 2), max-content); }
+
+  .gb-group { display:flex; flex-direction:column; gap:var(--gap-px); }
+  .gb-board.layout-horizontal .gb-group { flex-direction:row; align-items:center; }
+  .gb-board.layout-grid .gb-group { display:contents; }
+  .gb-ghead { align-self:flex-start; padding:calc(3px * var(--s)) calc(12px * var(--s)); border-radius:calc(999px * var(--s)); background:var(--c-bg);
+    border:calc(2px * var(--s)) solid var(--c-bd); font-size:calc(19px * var(--s) * var(--ns)); font-weight:800; white-space:nowrap;
+    box-shadow:0 0 0 calc(1px * var(--s)) rgba(0,0,0,.6); }
+  .gb-board.layout-grid .gb-ghead { grid-column:1 / -1; }
+
+  .gb-card { box-sizing:border-box; flex:0 0 auto; position:relative; display:flex; align-items:center; gap:calc(10px * var(--s));
+    padding:calc(10px * var(--s)); border-radius:calc(16px * var(--s)); border:calc(2px * var(--s)) solid var(--c-bd); background:var(--c-bg);
+    box-shadow:0 0 0 calc(1px * var(--s)) rgba(0,0,0,.65), 0 calc(4px * var(--s)) calc(14px * var(--s)) rgba(0,0,0,.6), var(--glow); overflow:hidden; }
+  .gb-card.name-right  { flex-direction:row; width:max-content; max-width:calc(400px * var(--s)); }
+  .gb-card.name-bottom { flex-direction:column; width:calc(210px * var(--s)); justify-content:center; }
+  .gb-ico-wrap { position:relative; flex:0 0 auto; }
+  .gb-ico { display:block; width:calc(76px * var(--s) * var(--is)); height:calc(76px * var(--s) * var(--is)); object-fit:contain;
+    filter:drop-shadow(0 calc(2px * var(--s)) calc(5px * var(--s)) rgba(0,0,0,.8)); }
+  .gb-ico-emoji { display:grid; place-items:center; width:calc(76px * var(--s) * var(--is)); height:calc(76px * var(--s) * var(--is)); border-radius:50%;
+    background:linear-gradient(135deg, var(--accent), #ff3d71); font-size:calc(42px * var(--s) * var(--is)); }
+  .gb-tag { position:absolute; right:calc(-6px * var(--s)); bottom:calc(-4px * var(--s)); padding:calc(1px * var(--s)) calc(7px * var(--s)); border-radius:calc(999px * var(--s));
+    background:var(--accent); color:#111; font-size:calc(15px * var(--s) * var(--ns)); font-weight:900; line-height:1.4; white-space:nowrap;
+    box-shadow:0 0 0 calc(1px * var(--s)) rgba(0,0,0,.6); }
+  .gb-text { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:calc(2px * var(--s)); }
+  .gb-card.name-bottom .gb-text { flex:0 0 auto; width:100%; align-items:center; text-align:center; }
+  .gb-name { font-size:calc(26px * var(--s) * var(--ns)); font-weight:800; line-height:1.2; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word;
+    text-shadow:0 calc(1px * var(--s)) 0 rgba(0,0,0,.9), 0 calc(-1px * var(--s)) 0 rgba(0,0,0,.9), calc(1px * var(--s)) 0 0 rgba(0,0,0,.9), calc(-1px * var(--s)) 0 0 rgba(0,0,0,.9), 0 calc(3px * var(--s)) calc(6px * var(--s)) rgba(0,0,0,.85); }
+  .gb-board[data-theme="light"] .gb-name, .gb-board[data-theme="light"] .gb-gift { text-shadow:none; }
+  .gb-name .gi { margin-right:calc(5px * var(--s)); }
+  .gb-name .ln + .ln::before { content:' · '; opacity:.7; }
+  .gb-gift { font-size:calc(18px * var(--s) * var(--ns)); font-weight:700; color:var(--c-sub); line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
+    text-shadow:0 calc(1px * var(--s)) 0 rgba(0,0,0,.9), calc(1px * var(--s)) 0 0 rgba(0,0,0,.9), 0 calc(2px * var(--s)) calc(5px * var(--s)) rgba(0,0,0,.85); }
+
+  .gb-card.hit { animation:gb-hit .9s ease; }
+  @keyframes gb-hit { 0% { transform:scale(1); } 25% { transform:scale(1.08); box-shadow:0 0 0 calc(3px * var(--s)) var(--accent), 0 0 calc(30px * var(--s)) var(--accent); } 100% { transform:scale(1); } }
+
+  /* Cuộn tự động — 2 bản danh sách nối nhau, trừ nửa gap để vòng lặp không giật (như bảng Nhặt Lá) */
+  .gb-list.is-scrolling .gb-track { will-change:transform; animation-duration:var(--scroll-duration,20s); animation-timing-function:linear; animation-iteration-count:infinite; }
+  .gb-list.is-scrolling.dir-up .gb-track { animation-name:gb-up; }
+  .gb-list.is-scrolling.dir-down .gb-track { animation-name:gb-down; }
+  .gb-list.is-scrolling.dir-left .gb-track { animation-name:gb-left; }
+  .gb-list.is-scrolling.dir-right .gb-track { animation-name:gb-right; }
+  @keyframes gb-up    { from { transform:translateY(0); } to { transform:translateY(calc(-50% - var(--gap-px) / 2)); } }
+  @keyframes gb-down  { from { transform:translateY(calc(-50% - var(--gap-px) / 2)); } to { transform:translateY(0); } }
+  @keyframes gb-left  { from { transform:translateX(0); } to { transform:translateX(calc(-50% - var(--gap-px) / 2)); } }
+  @keyframes gb-right { from { transform:translateX(calc(-50% - var(--gap-px) / 2)); } to { transform:translateX(0); } }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <div class="ttl">📋 BẢNG QUÀ TỔNG</div>
+      <div class="sub">1 link OBS · gom quà chỉ định + tên hiệu ứng của mọi game đang BẬT</div>
+    </div>
+    <label class="switch" title="Ẩn/hiện bảng trên OBS"><input type="checkbox" id="gb-enabled" checked><span class="knob"></span><span id="gb-enabled-txt">Đang HIỆN trên OBS</span></label>
+    <span class="pill" id="gb-count">0 thẻ</span>
+    <span class="pill"><span class="dot" id="sockDot"></span><span id="sockTxt">Chưa kết nối</span></span>
+    <div class="sp"></div>
+    <button id="btn-refresh" title="Tải lại config các game + danh sách quà">🔄 Tải lại dữ liệu</button>
+    <button id="btn-test" title="Giả lập 1 quà trên bảng để xem hiệu ứng nháy">🎁 Test nháy</button>
+    <button id="btn-reset" class="danger" title="Về cấu hình mặc định (giữ nguyên game)">↺ Mặc định</button>
+  </div>
+
+  <div class="layout">
+    <div class="layout-left">
+      <!-- BỐ TRÍ KHỐI -->
+      <details class="card full" open>
+        <summary>🧩 Bố trí khối <span class="cnt" id="panel-cnt"></span></summary>
+        <div class="body">
+          <div class="row"><label>Cách bố trí</label><div class="seg" data-seg="mode"><button data-v="perGame">🎮 Mỗi game một khối</button><button data-v="single">▣ Một bảng</button><button data-v="split">▥ Chia cột</button></div></div>
+          <div class="row" id="row-splitby"><label>Chia theo</label><div class="seg" data-seg="split.by"><button data-v="count">Số cột cố định</button><button data-v="rows">Số thẻ mỗi cột (tự thêm cột)</button></div></div>
+          <div class="row" id="row-splitcount"><label>Số cột</label><div class="rng"><input type="range" min="1" max="6" step="1" data-cfg="split.count"><span class="val" data-val="split.count"></span></div></div>
+          <div class="row" id="row-splitrows"><label>Thẻ mỗi cột</label><div class="rng"><input type="range" min="2" max="30" step="1" data-cfg="split.rows"><span class="val" data-val="split.rows"></span></div></div>
+          <label class="chk" id="chk-ptitle"><input type="checkbox" data-cfg="display.showPanelTitle"> Tiêu đề khối (tên game khi tách theo game)</label>
+          <div class="pchips" id="pchips"></div>
+          <div class="hint">Mỗi khối có <b>vị trí, cỡ, ẩn/hiện riêng</b> và được nhớ mãi — đổi cách bố trí, tắt game rồi bật lại vẫn nằm đúng chỗ cũ. Bấm chip để chọn khối cần chỉnh (hoặc bấm thẳng khối trong ô xem trước), 👁 ẩn/hiện nhanh, ↺ về vị trí mặc định.</div>
+        </div>
+      </details>
+
+      <!-- NGUỒN QUÀ -->
+      <details class="card full" open>
+        <summary>🎮 Game lên bảng <span class="cnt" id="src-cnt"></span></summary>
+        <div class="body">
+          <div class="src-list" id="src-list"></div>
+          <div class="chks">
+            <label class="chk"><input type="checkbox" data-cfg="rules.mergeSameGift"> Gộp quà trùng (1 quà nhiều game → 1 thẻ)</label>
+            <label class="chk" id="chk-group"><input type="checkbox" data-cfg="rules.groupByGame"> Nhóm theo game trong khối (có tiêu đề nhóm)</label>
+            <label class="chk"><input type="checkbox" data-cfg="rules.showGeneric"> Hiện dòng “Mọi quà …” (chế độ theo xu)</label>
+            <label class="chk"><input type="checkbox" data-cfg="rules.onlyRunning"> Chỉ game đang chạy phiên (Nhiệt / Bắn Cung / Trồng Cây / Vote)</label>
+            <label class="chk"><input type="checkbox" data-cfg="rules.hideBirdGifts"> Ẩn 10 quà “chim bay” mặc định của Trồng Cây</label>
+          </div>
+          <div class="row"><label>Sắp xếp</label>
+            <select data-cfg="rules.sort"><option value="game">Theo game (thứ tự Thư viện)</option><option value="diamondAsc">Giá quà tăng dần 💎</option><option value="diamondDesc">Giá quà giảm dần 💎</option></select>
+          </div>
+          <div class="hint">Game <b>TẮT</b> ở Thư viện (nút ⏻) tự biến mất khỏi bảng — không cần chỉnh gì ở đây. Ô tick chỉ để loại một game ra khỏi bảng dù game vẫn chạy.</div>
+        </div>
+      </details>
+
+      <!-- HIỂN THỊ -->
+      <details class="card" open>
+        <summary>🎨 Kiểu hiển thị</summary>
+        <div class="body">
+          <div class="row"><label>Bố cục thẻ</label><div class="seg" data-seg="display.layout"><button data-v="vertical">↕ Dọc</button><button data-v="horizontal">↔ Ngang</button><button data-v="grid">▦ Lưới</button></div></div>
+          <div class="row" id="row-cols"><label>Số cột (lưới)</label><div class="rng"><input type="range" min="1" max="5" step="1" data-cfg="display.columns"><span class="val" data-val="display.columns"></span></div></div>
+          <div class="row"><label>Vị trí tên</label><div class="seg" data-seg="display.namePos"><button data-v="right">Bên phải icon</button><button data-v="bottom">Dưới icon</button></div></div>
+          <div class="row"><label>Chủ đề</label><div class="seg" data-seg="display.theme"><button data-v="dark">Tối</button><button data-v="glass">Kính</button><button data-v="neon">Neon</button><button data-v="light">Sáng</button></div></div>
+          <div class="row"><label>Màu nhấn</label><div class="rng"><input type="color" data-cfg="display.accent"><span class="hint">viền thẻ, tag, tiêu đề</span></div></div>
+          <div class="row"><label>Tiêu đề bảng</label><input type="text" maxlength="40" placeholder="vd: TẶNG QUÀ ĐỂ CHƠI (để trống = ẩn)" data-cfg="display.title"></div>
+          <div class="chks">
+            <label class="chk"><input type="checkbox" data-cfg="display.showDiamond"> Tên quà + giá 💎</label>
+            <label class="chk"><input type="checkbox" data-cfg="display.showGameIcon"> Icon game trước tên hiệu ứng</label>
+            <label class="chk"><input type="checkbox" data-cfg="display.showCounter"> Viên đếm số thẻ</label>
+            <label class="chk"><input type="checkbox" data-cfg="display.showTag"> Tag số (+5°, ×3, 30s…)</label>
+            <label class="chk"><input type="checkbox" data-cfg="display.pulseOnGift"> Nháy thẻ khi quà đó được tặng</label>
+          </div>
+        </div>
+      </details>
+
+      <!-- KÍCH THƯỚC & VỊ TRÍ -->
+      <details class="card" open>
+        <summary>📐 Kích thước &amp; vị trí <span class="cnt" id="psel-name"></span></summary>
+        <div class="body">
+          <div class="row"><label>Cỡ khối đang chọn</label><div class="rng"><input type="range" min="30" max="300" step="1" data-pcfg="scale"><span class="val" data-pval="scale">%</span></div></div>
+          <div class="row"><label>Ngang (X)</label><div class="rng"><input type="range" min="0" max="100" step="0.1" data-pcfg="xPercent"><span class="val" data-pval="xPercent">%</span></div></div>
+          <div class="row"><label>Dọc (Y)</label><div class="rng"><input type="range" min="0" max="100" step="0.1" data-pcfg="yPercent"><span class="val" data-pval="yPercent">%</span></div></div>
+          <div class="row"><label>Neo nhanh</label><div class="anchors" id="anchors">
+            <button data-a="tl" title="Trên trái">↖</button><button data-a="tc" title="Trên giữa">↑</button><button data-a="tr" title="Trên phải">↗</button>
+            <button data-a="ml" title="Giữa trái">←</button><button data-a="mc" title="Chính giữa">•</button><button data-a="mr" title="Giữa phải">→</button>
+            <button data-a="bl" title="Dưới trái">↙</button><button data-a="bc" title="Dưới giữa">↓</button><button data-a="br" title="Dưới phải">↘</button>
+          </div></div>
+          <div class="row"><label>Cỡ icon quà</label><div class="rng"><input type="range" min="40" max="250" step="1" data-cfg="display.iconScale"><span class="val" data-val="display.iconScale">%</span></div></div>
+          <div class="row"><label>Cỡ chữ</label><div class="rng"><input type="range" min="40" max="250" step="1" data-cfg="display.nameScale"><span class="val" data-val="display.nameScale">%</span></div></div>
+          <div class="row"><label>Giãn cách thẻ</label><div class="rng"><input type="range" min="0" max="400" step="5" data-cfg="display.gap"><span class="val" data-val="display.gap">%</span></div></div>
+          <div class="hint">Ba thanh đầu chỉnh <b>khối đang chọn</b>. Kéo thẳng khối trong ô xem trước, lăn chuột lên khối để phóng to/nhỏ. OBS đổi theo <b>ngay lúc kéo</b>, lưu khi thả tay. Cỡ icon / chữ / giãn cách áp dụng cho mọi khối.</div>
+        </div>
+      </details>
+
+      <!-- CUỘN -->
+      <details class="card" open>
+        <summary>🔁 Cuộn tự động khi nhiều quà</summary>
+        <div class="body">
+          <label class="chk"><input type="checkbox" data-cfg="display.autoScroll.enabled"> Bật cuộn (chỉ bố cục Dọc / Ngang; mỗi khối tự cuộn nếu nhiều hơn số thẻ nhìn thấy)</label>
+          <div class="row"><label>Thẻ nhìn thấy</label><div class="rng"><input type="range" min="2" max="30" step="1" data-cfg="display.autoScroll.visibleCount"><span class="val" data-val="display.autoScroll.visibleCount"></span></div></div>
+          <div class="row"><label>Hướng</label><div class="seg" data-seg="display.autoScroll.direction"><button data-v="up">↑</button><button data-v="down">↓</button><button data-v="left">←</button><button data-v="right">→</button></div></div>
+          <div class="row"><label>Giây / thẻ</label><div class="rng"><input type="range" min="0.5" max="20" step="0.5" data-cfg="display.autoScroll.speed"><span class="val" data-val="display.autoScroll.speed">s</span></div></div>
+          <div class="hint">Ít thẻ hơn số “nhìn thấy” thì khối đứng yên. Cuộn là CSS animation → OBS gần như không tốn CPU.</div>
+        </div>
+      </details>
+
+      <!-- DANH SÁCH THẺ -->
+      <details class="card full" open>
+        <summary>📝 Thẻ đang lên bảng <span class="cnt" id="ent-cnt"></span></summary>
+        <div class="body">
+          <div class="hint">Ẩn từng thẻ hoặc đặt lại tên hiệu ứng <b>chỉ trên bảng này</b> — không đụng config game gốc. Để trống ô tên = dùng tên tự động.</div>
+          <div style="overflow:auto; max-height:360px;"><table class="ent"><thead><tr><th></th><th>Quà</th><th>Game</th><th>Tên hiệu ứng trên bảng</th><th>Tag</th><th>💎</th></tr></thead><tbody id="ent-body"></tbody></table></div>
+          <div><button id="btn-clear-overrides" class="seg" style="padding:6px 10px; cursor:pointer; background:#fff;">Bỏ mọi ẩn / đổi tên</button></div>
+        </div>
+      </details>
+
+      <details class="card full">
+        <summary>📡 Nhật ký</summary>
+        <div class="body"><div class="log" id="log"></div></div>
+      </details>
+    </div>
+
+    <div class="layout-right">
+      <div class="card">
+        <div class="stage-tools">
+          <b>Xem trước 1080×1920</b>
+          <select id="bd-select" title="Nền giả lập phía sau bảng"><option value="dark">Nền tối</option><option value="live">Nền LIVE giả</option><option value="checker">Ô caro</option></select>
+          <label class="chk"><input type="checkbox" id="safe-chk"> Vùng TikTok che</label>
+          <span class="sp" style="flex:1"></span>
+          <button id="btn-popout" class="seg" style="padding:5px 9px; cursor:pointer; background:#fff;" title="Mở overlay cửa sổ riêng, kéo trực tiếp trên đó">🪟 Overlay kéo trực tiếp</button>
+        </div>
+        <div class="stage" id="stage">
+          <div id="gb-stage">
+            <div id="gb-safe">
+              <div class="z" style="left:0; top:0; width:100%; height:8%;">Tên host · người xem (ước lượng)</div>
+              <div class="z" style="left:0; top:62%; width:70%; height:30%;">Khung bình luận khán giả (ước lượng)</div>
+              <div class="z" style="left:72%; top:80%; width:28%; height:12%;">Nút quà / chia sẻ</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- Nhặt Lá: dùng ĐÚNG giftBoardEntries() của game (một nguồn sự thật) thay vì chép lại luật. -->
+  <script src="/games/nhatla/game.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const qs = new URLSearchParams(location.search);
+    const IS_OVERLAY = qs.get('mode') === 'overlay';
+    const IS_EDIT = qs.get('edit') === '1';
+    const CAN_EDIT = !IS_OVERLAY || IS_EDIT;
+    const GAME_ID = 'giftboard';
+    const STAGE = { w: 1080, h: 1920 };
+    const FALLBACK_ICON = '/hp-logo.png';
+    const MAX_CARDS = 200;
+    const MAX_PANELS = 40;
+    const $ = id => document.getElementById(id);
+    const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, Number(v) || 0));
+    const obj = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+    const PANEL_ID_RE = /^[\w:-]{1,40}$/;
+
+    // Thứ tự nguồn = thứ tự Thư viện Game. obsEffects là tool ảo (Hiệu ứng OBS) không nằm trong /api/games.
+    const SOURCE_ORDER = ['thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung', 'trongcay', 'nhatla', 'timer', 'obsEffects'];
+    const VIRTUAL_META = { obsEffects: { icon: '🎬', name: 'Hiệu ứng OBS' } };
+    const HAS_SESSION = new Set(['nhietdo', 'bancung', 'trongcay', 'votecomment']);
+
+    // ===== CONFIG =====
+    function defaultConfig() {
+      return {
+        enabled: true,
+        mode: 'perGame',                                  // perGame (mặc định) | single | split
+        split: { by: 'count', count: 2, rows: 8 },        // by: 'count' → N cột cố định | 'rows' → mỗi cột tối đa R thẻ, tự thêm cột
+        display: {
+          scale: 100,                                     // cỡ MẶC ĐỊNH cho khối mới (mỗi khối có scale riêng trong panels)
+          iconScale: 100, nameScale: 100, gap: 80,
+          layout: 'vertical', columns: 2, namePos: 'right', theme: 'dark', accent: '#ffb054', title: '',
+          showDiamond: true, showGameIcon: true, showCounter: true, showTag: true, pulseOnGift: true, showPanelTitle: true,
+          autoScroll: { enabled: false, visibleCount: 8, direction: 'up', speed: 2 }
+        },
+        panels: {},                                       // id → { xPercent, yPercent, scale, hidden } — nhớ riêng từng khối
+        sources: Object.fromEntries(SOURCE_ORDER.map(k => [k, true])),
+        rules: { mergeSameGift: true, groupByGame: false, sort: 'game', showGeneric: true, onlyRunning: false, hideBirdGifts: true },
+        overrides: {}
+      };
+    }
+    // Vị trí mặc định theo id khối: cột chia hai bên màn hình (trái/phải/giữa), mỗi game một hàng so le.
+    function defaultPanelPos(id) {
+      if (id === 'main') return { x: 2, y: 20 };
+      const col = /^col(\d+)$/.exec(id);
+      if (col) { const i = Math.max(1, parseInt(col[1], 10)) - 1; const xs = [2, 72, 37]; return { x: xs[i % 3], y: 16 + Math.floor(i / 3) * 42 }; }
+      if (id.startsWith('g:')) { const i = Math.max(0, SOURCE_ORDER.indexOf(id.slice(2))); return { x: i % 2 ? 62 : 2, y: 8 + Math.floor(i / 2) * 18 }; }
+      return { x: 2, y: 20 };
+    }
+    function normPanel(p, id, defScale) {
+      p = obj(p); const d = defaultPanelPos(id);
+      return {
+        xPercent: clamp(p.xPercent != null ? p.xPercent : d.x, 0, 100),
+        yPercent: clamp(p.yPercent != null ? p.yPercent : d.y, 0, 100),
+        scale: clamp(p.scale != null ? p.scale : defScale, 30, 300),
+        hidden: p.hidden === true
+      };
+    }
+    function normalize(raw) {
+      const d = defaultConfig(); const c = obj(raw); const disp = obj(c.display);
+      const out = {
+        enabled: c.enabled !== false,
+        mode: ['single', 'split', 'perGame'].includes(c.mode) ? c.mode : 'perGame',
+        split: { ...d.split, ...obj(c.split) },
+        display: { ...d.display, ...disp, autoScroll: { ...d.display.autoScroll, ...obj(disp.autoScroll) } },
+        panels: {},
+        sources: { ...d.sources, ...obj(c.sources) },
+        rules: { ...d.rules, ...obj(c.rules) },
+        overrides: obj(c.overrides)
+      };
+      const o = out.display;
+      o.scale = clamp(o.scale, 30, 300); o.iconScale = clamp(o.iconScale, 40, 250); o.nameScale = clamp(o.nameScale, 40, 250); o.gap = clamp(o.gap, 0, 400);
+      o.columns = clamp(o.columns, 1, 5);
+      if (!['vertical', 'horizontal', 'grid'].includes(o.layout)) o.layout = 'vertical';
+      if (!['right', 'bottom'].includes(o.namePos)) o.namePos = 'right';
+      if (!['dark', 'glass', 'neon', 'light'].includes(o.theme)) o.theme = 'dark';
+      if (!/^#[0-9a-f]{6}$/i.test(String(o.accent))) o.accent = d.display.accent;
+      o.title = String(o.title || '').slice(0, 40);
+      o.showPanelTitle = o.showPanelTitle !== false;
+      o.autoScroll.visibleCount = clamp(o.autoScroll.visibleCount, 2, 30);
+      o.autoScroll.speed = clamp(o.autoScroll.speed, 0.5, 20);
+      if (!['up', 'down', 'left', 'right'].includes(o.autoScroll.direction)) o.autoScroll.direction = 'up';
+      out.split.by = out.split.by === 'rows' ? 'rows' : 'count';
+      out.split.count = clamp(out.split.count, 1, 6); out.split.rows = clamp(out.split.rows, 2, 30);
+      if (!['game', 'diamondAsc', 'diamondDesc'].includes(out.rules.sort)) out.rules.sort = 'game';
+      for (const [id, p] of Object.entries(obj(c.panels))) {
+        if (!PANEL_ID_RE.test(id) || Object.keys(out.panels).length >= MAX_PANELS) continue;
+        out.panels[id] = normPanel(p, id, o.scale);
+      }
+      // Config v1 (một bảng, toạ độ nằm trong display) → chuyển sang khối 'main'
+      if (!out.panels.main && (disp.xPercent != null || disp.yPercent != null)) out.panels.main = normPanel({ xPercent: disp.xPercent, yPercent: disp.yPercent, scale: disp.scale }, 'main', o.scale);
+      delete o.xPercent; delete o.yPercent;
+      return out;
+    }
+
+    let cfg = defaultConfig();
+    let games = {};          // id → { id, name, icon, config }
+    let catalog = {};        // giftId → { id, name, image, diamond }
+    let timerCfg = null;     // relay 'timer:cfg' (RAM server)
+    let obsCfg = null;       // /api/obs-bridge/config
+    const running = {};      // gameId → phiên đang chạy?
+    let rawEntries = [];     // trước khi gộp (bảng danh sách trong lab)
+    let lastPanels = [];     // kết quả buildPanels() gần nhất (cả khối ẩn)
+    let selectedPanel = null;
+    let lastSavedJson = '';
+    let dragging = false;
+    let socket = null;
+
+    // ===== LOG =====
+    function log(msg, cls) {
+      const el = $('log'); if (!el) return;
+      const d = document.createElement('div'); d.className = cls || ''; d.textContent = new Date().toLocaleTimeString('vi-VN') + '  ' + msg;
+      el.prepend(d); while (el.children.length > 80) el.lastChild.remove();
+    }
+
+    // ===== GOM QUÀ TỪ TỪNG GAME =====
+    const THUYTINH_LABELS = {
+      thief: 'Trộm', joinPolice: 'Gia nhập CS', osin: 'Osin nhặt quà', ufo: 'UFO hút quà', shape: 'Tạo hình', megaboom: 'Megaboom',
+      pourOut: 'Dốc ngược hũ', gravflip: 'Đảo trọng lực', shake: 'Rung hũ', rain: 'Mưa quà', magnet: 'Nam châm', crackJar: 'Nứt hũ',
+      stealJar: 'Trộm cả hũ', combo: 'Combo', clear: 'Xoá hết hũ', kickJar: 'OSIN đá hũ', throwJar: 'OSIN ném hũ', spinJar: 'OSIN xoay hũ',
+      osinKickOut: 'OSIN đá tung quà', zigzagLuck: 'Zikzak may mắn', wind: 'Thả diều Avatar Gió', dragonFire: 'Rồng phun lửa'
+    };
+    const THUYTINH_SKIP = new Set(['tilt', 'fireworks', 'tornado', 'geyser', 'slow']);
+    const TRONGCAY_LISTS = [
+      { key: 'activateGifts', label: 'Chọn cây của mình', tag: () => '🌳' },
+      { key: 'specificGifts', label: 'Cây cao lên', tag: g => '+' + (g.growth ?? 8) + '%' },
+      { key: 'waterGifts', label: 'Tưới nước', tag: g => '💧' + (g.water ?? 8) },
+      { key: 'sunGifts', label: 'Nắng', tag: g => '☀️' + (g.sun ?? 20) },
+      { key: 'cutGifts', label: 'Cắt cây', tag: g => '✂️' + (g.cut ?? 12) + '%' },
+      { key: 'butterflyGifts', label: 'Thả bướm', tag: () => '🦋' },
+      { key: 'beeGifts', label: 'Ong hái trái', tag: g => '🐝' + (g.bees ?? 1) },
+      { key: 'caterpillarGifts', label: 'Thả sâu phá cây', tag: g => '🐛' + (g.count ?? 1) },
+      { key: 'sprayGifts', label: 'Phun thuốc sâu', tag: g => (g.protectSeconds ?? 30) + 's' },
+      { key: 'dragonGifts', label: 'Rồng lửa thiêu vườn', tag: () => '🐉' },
+      { key: 'deactivateGifts', label: 'Khoá cây', tag: () => '🔒' },
+      { key: 'birdGifts', label: 'Chim bay khi cây cao', tag: () => '🦅' }
+    ];
+    const fmtSec = s => { s = Math.round(Number(s) || 0); if (s < 60) return s + 's'; const m = Math.floor(s / 60), r = s % 60; return r ? `${m}p${r}s` : `${m}p`; };
+    const prettyHotkey = h => String(h || '').replace(/^effect_/, '').replace(/_trigger$/, '').replace(/_/g, ' ');
+
+    function collectRaw() {
+      const out = [];
+      const push = (gameId, source, giftId, item, label, tag) => {
+        giftId = String(giftId || '').trim();
+        if (!giftId || !label) return;
+        const c = catalog[giftId] || {};
+        out.push({
+          key: `${gameId}|${source}|${giftId}`, gameId, source, giftId, generic: false,
+          giftName: String(item?.giftName || item?.name || c.name || ('#' + giftId)),
+          image: String(item?.giftImage || item?.image || c.image || ''),
+          diamond: Number(item?.diamond) || Number(c.diamond) || 0,
+          label: String(label).trim(), tag: String(tag || '').trim()
+        });
+      };
+      const generic = (gameId, label) => out.push({ key: `${gameId}|generic|*`, gameId, source: 'generic', giftId: '', generic: true, giftName: 'Mọi quà', image: '', diamond: 0, label, tag: '' });
+      const gc = id => games[id]?.config || {};
+
+      { const c = gc('thuytinh'); const items = c.badges?.items || {};
+        for (const [gid, action] of Object.entries(c.triggers || {})) {
+          if (THUYTINH_SKIP.has(action)) continue;
+          const it = items[gid] || {}; if (it.enabled === false) continue;
+          push('thuytinh', 'trigger', gid, {}, it.customLabel || THUYTINH_LABELS[action] || action, '');
+        } }
+      { const c = gc('caro');
+        if (c.registration?.giftId) push('caro', 'reg', c.registration.giftId, {}, 'Đăng ký đấu Caro', c.registration.minCount > 1 ? '×' + c.registration.minCount : '');
+        const m = c.undo?.mode || 'idol';
+        if (c.undo?.giftId && (m === 'gift' || m === 'both')) push('caro', 'undo', c.undo.giftId, {}, 'Hoàn nước Caro', ''); }
+      { const c = gc('votecomment');
+        if (c.countingMode !== 'comments') for (const r of c.rows || []) if (r?.giftId) push('votecomment', 'row:' + r.id, r.giftId, r, 'Vote: ' + (r.label || r.keyword || ''), r.keyword ? '“' + r.keyword + '”' : ''); }
+      { const c = gc('nhietdo');
+        for (const g of c.specificGifts || []) push('nhietdo', 'heat', g.giftId, g, g.customLabel || 'Tăng nhiệt', '+' + (g.degrees ?? 0) + '°');
+        for (const g of c.coolingGifts || []) push('nhietdo', 'cool', g.giftId, g, g.customLabel || 'Hạ nhiệt', '−' + (g.degrees ?? 0) + '°');
+        if (c.heatMode === 'perCoin') generic('nhietdo', `Mọi quà: +${c.perCoinDegrees ?? 0.1}° mỗi xu`);
+        else if (c.heatMode === 'perGift') generic('nhietdo', `Mọi quà: +${c.perGiftDegrees ?? 5}°`); }
+      { const c = gc('bancung');
+        for (const g of c.shotGifts || []) push('bancung', 'shot', g.giftId, g, g.customLabel || 'Bắn cung', g.shots > 1 ? '×' + g.shots : '🏹');
+        for (const g of c.healGifts || []) push('bancung', 'heal', g.giftId, g, g.customLabel || 'Hồi máu', '+' + (g.healHearts ?? 1) + '♥');
+        for (const g of c.reviveGifts || []) push('bancung', 'revive', g.giftId, g, g.customLabel || 'Hồi sinh', '✨');
+        for (const g of c.shieldGifts || []) push('bancung', 'shield', g.giftId, g, g.customLabel || 'Giáp chắn', (g.durationSec ?? 5) + 's');
+        if (c.freeFireEnabled) generic('bancung', `Mọi quà: bắn cung (${c.freeFireKcPerHeart ?? 100} xu = 1♥)`); }
+      { const c = gc('trongcay');
+        for (const L of TRONGCAY_LISTS) {
+          if (L.key === 'birdGifts' && cfg.rules.hideBirdGifts) continue;
+          if (L.key === 'specificGifts' && c.growthMode && c.growthMode !== 'specificGifts') continue;
+          for (const g of c[L.key] || []) push('trongcay', L.key, g.giftId, g, g.customLabel || L.label, L.tag(g || {}));
+        }
+        if (c.growthMode === 'perCoin') generic('trongcay', `Mọi quà: cây cao +${c.perCoinGrowth ?? 2}% mỗi xu`);
+        else if (c.growthMode === 'perGift') generic('trongcay', `Mọi quà: cây cao +${c.perGiftGrowth ?? 5}%`); }
+      { const nl = window.HpGame && window.HpGame.nhatla; const c = gc('nhatla');
+        if (nl && Object.keys(c).length) {
+          let norm = null;
+          try { norm = nl.normalizeConfig(JSON.parse(JSON.stringify(c))); } catch (e) { norm = null; }
+          if (norm) {
+            for (const e of nl.giftBoardEntries(norm)) push('nhatla', e.key, e.giftId, { giftName: e.giftName, giftImage: e.image, diamond: e.diamond }, e.label, '');
+            const cpl = Number(norm.coinsPerLeaf) || 0;
+            if (cpl > 0) generic('nhatla', cpl === 1 ? 'Mọi quà: 1 xu = 1 lá' : `Mọi quà: ${cpl} xu = 1 lá`);
+          }
+        } }
+      { const t = timerCfg;
+        if (t) {
+          if (t.mode === 'fixed') for (const f of t.fixed || []) push('timer', 'fixed', f.giftId, f, (f.action === 'sub' ? 'Trừ' : 'Cộng') + ' thời gian', (f.action === 'sub' ? '−' : '+') + fmtSec(f.seconds));
+          else if (t.mode === 'ratio') {
+            const r = t.ratio || {}; const tg = `${r.coins ?? 1} xu = ${fmtSec(r.secs ?? 1)}`;
+            for (const g of r.addList || []) push('timer', 'ratioAdd', g.giftId, g, 'Cộng thời gian', '+' + tg);
+            for (const g of r.subList || []) push('timer', 'ratioSub', g.giftId, g, 'Trừ thời gian', '−' + tg);
+          } else if (t.mode === 'side') {
+            if (t.side?.addGift?.giftId) push('timer', 'sideAdd', t.side.addGift.giftId, t.side.addGift, 'Chọn phe CỘNG giờ', '');
+            if (t.side?.subGift?.giftId) push('timer', 'sideSub', t.side.subGift.giftId, t.side.subGift, 'Chọn phe TRỪ giờ', '');
+          }
+          if (t.triggers?.enabled !== false) for (const tr of t.triggers?.list || []) if (tr?.enabled !== false && tr.gift?.giftId) push('timer', 'trg:' + tr.id, tr.gift.giftId, tr.gift, tr.name || 'Kích hoạt đếm ngược', fmtSec(tr.durationSec));
+        } }
+      { if (obsCfg && obsCfg.enabled !== false) {
+          const dis = new Set(obsCfg.groupsDisabled || []);
+          for (const m of obsCfg.mapping || []) {
+            if (!m?.giftId || !(m.scene || m.hotkey) || m.enabled === false || dis.has(String(m.group || ''))) continue;
+            push('obsEffects', 'map:' + m.id, m.giftId, m, m.actionName || m.scene || prettyHotkey(m.hotkey), '');
+          } } }
+      return out;
+    }
+
+    function gameEnabled(id) {
+      if (id === 'obsEffects') return !!obsCfg && obsCfg.enabled !== false;
+      return !!games[id] && games[id].config?.enabled !== false;
+    }
+    function gameMeta(id) { return games[id] ? { icon: games[id].icon, name: games[id].name } : (VIRTUAL_META[id] || { icon: '🎁', name: id }); }
+    const gIdx = id => { const i = SOURCE_ORDER.indexOf(id); return i < 0 ? 99 : i; };
+    // Tách theo game hoặc nhóm theo game → chỉ gộp quà trùng TRONG một game.
+    const mergePerGame = () => cfg.mode === 'perGame' || cfg.rules.groupByGame;
+
+    // Lọc → gộp → sắp xếp. Trả về danh sách thẻ phẳng.
+    function buildCards() {
+      rawEntries = collectRaw();
+      const visible = rawEntries.filter(e => {
+        if (!cfg.sources[e.gameId]) return false;
+        if (!gameEnabled(e.gameId)) return false;
+        if (cfg.rules.onlyRunning && HAS_SESSION.has(e.gameId) && !running[e.gameId]) return false;
+        if (e.generic && !cfg.rules.showGeneric) return false;
+        const ov = cfg.overrides[e.key];
+        if (ov?.hidden) return false;
+        return true;
+      }).map(e => { const ov = cfg.overrides[e.key]; return ov?.label ? { ...e, label: String(ov.label).slice(0, 60) } : e; });
+
+      const cards = []; const byGift = new Map();
+      for (const e of visible) {
+        const meta = gameMeta(e.gameId);
+        const line = { gameId: e.gameId, icon: meta.icon, label: e.label, tag: e.tag };
+        const mergeKey = mergePerGame() ? e.gameId + '|' + e.giftId : e.giftId;
+        if (cfg.rules.mergeSameGift && !e.generic && byGift.has(mergeKey)) {
+          const c = byGift.get(mergeKey); c.lines.push(line);
+          if (!c.image && e.image) c.image = e.image; if (!c.diamond && e.diamond) c.diamond = e.diamond;
+          continue;
+        }
+        const card = { key: e.key, gameId: e.gameId, giftId: e.giftId, giftName: e.giftName, image: e.image, diamond: e.diamond, generic: e.generic, lines: [line], order: cards.length };
+        cards.push(card); if (!e.generic) byGift.set(mergeKey, card);
+      }
+      cards.sort((a, b) => {
+        if (cfg.rules.sort === 'diamondAsc' || cfg.rules.sort === 'diamondDesc') {
+          if (a.generic !== b.generic) return a.generic ? 1 : -1;
+          const d = a.diamond - b.diamond; if (d) return cfg.rules.sort === 'diamondAsc' ? d : -d;
+        }
+        const g = gIdx(a.gameId) - gIdx(b.gameId); if (g) return g;
+        if (a.generic !== b.generic) return a.generic ? 1 : -1;
+        return a.order - b.order;
+      });
+      return cards.slice(0, MAX_CARDS);
+    }
+
+    // Chia thẻ thành KHỐI theo cfg.mode. Trả về [{ id, title, icon, cards }] — kể cả khối ẩn (để lab liệt kê).
+    function buildPanels() {
+      const cards = buildCards();
+      if (cfg.mode === 'perGame') {
+        const map = new Map();
+        for (const c of cards) { if (!map.has(c.gameId)) map.set(c.gameId, []); map.get(c.gameId).push(c); }
+        return [...map.entries()].sort((a, b) => gIdx(a[0]) - gIdx(b[0]))
+          .map(([gid, list]) => { const m = gameMeta(gid); return { id: 'g:' + gid, title: m.name, icon: m.icon, cards: list }; });
+      }
+      if (cfg.mode === 'split' && cards.length) {
+        const n = cfg.split.by === 'rows' ? Math.max(1, Math.ceil(cards.length / cfg.split.rows)) : cfg.split.count;
+        const per = Math.max(1, Math.ceil(cards.length / n));
+        const out = [];
+        for (let i = 0; i < n && i * per < cards.length; i++) out.push({ id: 'col' + (i + 1), title: 'Cột ' + (i + 1), icon: '', cards: cards.slice(i * per, (i + 1) * per) });
+        return out;
+      }
+      return cards.length ? [{ id: 'main', title: '', icon: '', cards }] : [];
+    }
+    const panelCfg = id => cfg.panels[id] || (cfg.panels[id] = normPanel({}, id, cfg.display.scale));
+    const panelLabel = p => p.title ? `${p.icon ? p.icon + ' ' : ''}${p.title}` : 'Bảng';
+
+    // ===== VẼ KHỐI =====
+    const stage = $('gb-stage');
+    const boards = new Map();    // id → element
+    function cardHtml(c) {
+      const d = cfg.display;
+      // Icon game trước mỗi dòng. Đã tách/nhóm theo game thì tiêu đề nói rồi — chỉ giữ cho thẻ gộp nhiều dòng.
+      const showIcon = d.showGameIcon && !(mergePerGame() && c.lines.length === 1);
+      const lines = c.lines.map(l => `<span class="ln">${showIcon ? `<span class="gi">${esc(l.icon)}</span>` : ''}${esc(l.label)}</span>`).join('');
+      const tag = d.showTag ? (c.lines.find(l => l.tag)?.tag || '') : '';
+      const ico = c.generic
+        ? `<div class="gb-ico-emoji">${esc(gameMeta(c.gameId).icon)}</div>`
+        : `<img class="gb-ico" src="${esc(c.image || FALLBACK_ICON)}" alt="" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_ICON}'">`;
+      const sub = d.showDiamond && !c.generic ? `<div class="gb-gift">${esc(c.giftName)}${c.diamond > 0 ? ` · 💎 ${Math.round(c.diamond)}` : ''}</div>` : '';
+      return `<div class="gb-card name-${d.namePos}" data-gift="${esc(c.giftId)}" title="${esc(c.giftName)}">
+        <div class="gb-ico-wrap">${ico}${tag ? `<span class="gb-tag">${esc(tag)}</span>` : ''}</div>
+        <div class="gb-text"><div class="gb-name">${lines}</div>${sub}</div>
+      </div>`;
+    }
+    function applyPanelPos(id) {
+      const el = boards.get(id); if (!el) return;
+      const pc = panelCfg(id);
+      el.style.left = pc.xPercent + '%'; el.style.top = pc.yPercent + '%'; el.style.setProperty('--s', pc.scale / 100);
+    }
+    function renderPanel(el, p, index) {
+      const d = cfg.display; const pc = panelCfg(p.id);
+      el.className = 'gb-board layout-' + d.layout + (!IS_OVERLAY && selectedPanel === p.id ? ' selected' : '');
+      el.dataset.theme = d.theme; el.dataset.label = panelLabel(p);
+      el.style.setProperty('--is', d.iconScale / 100); el.style.setProperty('--ns', d.nameScale / 100);
+      el.style.setProperty('--gp', d.gap / 100); el.style.setProperty('--cols', d.columns); el.style.setProperty('--accent', d.accent);
+      applyPanelPos(p.id);
+
+      // Nội dung: nhóm theo game (chỉ khi không tách theo game) hoặc phẳng
+      let inner;
+      if (cfg.rules.groupByGame && cfg.mode !== 'perGame') {
+        const groups = []; const gmap = new Map();
+        for (const c of p.cards) { let g = gmap.get(c.gameId); if (!g) { const m = gameMeta(c.gameId); g = { icon: m.icon, name: m.name, cards: [] }; gmap.set(c.gameId, g); groups.push(g); } g.cards.push(c); }
+        inner = groups.map(g => `<div class="gb-group"><div class="gb-ghead">${esc(g.icon)} ${esc(g.name)}</div>${g.cards.map(cardHtml).join('')}</div>`).join('');
+      } else inner = p.cards.map(cardHtml).join('');
+
+      const total = p.cards.length; const scroll = d.autoScroll;
+      const scrolling = scroll.enabled && d.layout !== 'grid' && total > scroll.visibleCount;
+      const titleText = (index === 0 && d.title) ? d.title : (d.showPanelTitle && cfg.mode === 'perGame' ? panelLabel(p) : '');
+      const head = (titleText ? `<div class="gb-title">${esc(titleText)}</div>` : '') + (d.showCounter && total >= 2 ? `<div class="gb-counter">${total}</div>` : '');
+      let html = head ? `<div class="gb-head">${head}</div>` : '';
+      if (scrolling) html += `<div class="gb-list is-scrolling dir-${scroll.direction}" style="--scroll-duration:${total * scroll.speed}s"><div class="gb-track">${inner}${inner}</div></div>`;
+      else html += `<div class="gb-list"><div class="gb-track">${inner}</div></div>`;
+      el.innerHTML = html;
+      if (scrolling) { measureScroll(el); const t = el.querySelector('.gb-track'); if (t && scrollRO) scrollRO.observe(t); }
+    }
+    // Chặn vùng nhìn thấy = đúng visibleCount thẻ. Đo thẻ thật; nếu khối chưa được vẽ (view đang ẩn,
+    // ảnh/chữ chưa xong) thì số đo = 0 → KHÔNG ghi, ResizeObserver gọi lại khi track có kích thước.
+    function measureScroll(el) {
+      const list = el.querySelector('.gb-list.is-scrolling'); if (!list) return;
+      const cards = el.querySelectorAll('.gb-card'); const n = Math.min(cfg.display.autoScroll.visibleCount, cards.length);
+      const last = cards[n - 1]; if (!last) return;
+      const horizontal = cfg.display.layout === 'horizontal';
+      const size = horizontal ? last.offsetLeft + last.offsetWidth : last.offsetTop + last.offsetHeight;
+      if (size <= 0) { scheduleMeasureRetry(); return; }
+      list.style.maxWidth = horizontal ? size + 'px' : ''; list.style.maxHeight = horizontal ? '' : size + 'px';
+    }
+    const scrollRO = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(entries => { for (const en of entries) { const el = en.target.closest('.gb-board'); if (el) measureScroll(el); } })
+      : null;
+    function remeasureAll() { boards.forEach(el => measureScroll(el)); }
+    // Khối chưa có kích thước (view của app đang ẩn, ảnh/chữ chưa xong) → đo lại mỗi 800ms cho tới khi
+    // đo được. Dùng timer chứ không rAF/ResizeObserver đơn thuần, vì iframe ẩn hay tab nền không chạy
+    // bước vẽ nhưng offsetTop vẫn ép layout được ngay khi phần tử hiện trở lại. Chỉ chạy khi còn khối chưa đo.
+    let measureRetryT = null;
+    function scheduleMeasureRetry() {
+      if (measureRetryT) return;
+      measureRetryT = setTimeout(() => { measureRetryT = null; remeasureAll(); }, 800);
+    }
+
+    function paint() {
+      const panels = buildPanels(); lastPanels = panels;
+      const visiblePanels = cfg.enabled ? panels.filter(p => !panelCfg(p.id).hidden) : [];
+      if (!selectedPanel || !panels.some(p => p.id === selectedPanel)) selectedPanel = panels[0]?.id || null;
+      const seen = new Set();
+      visiblePanels.forEach((p, i) => {
+        let el = boards.get(p.id);
+        if (!el) { el = document.createElement('div'); el.dataset.panel = p.id; stage.appendChild(el); boards.set(p.id, el); }
+        seen.add(p.id); renderPanel(el, p, i);
+      });
+      for (const [id, el] of [...boards]) if (!seen.has(id)) { el.remove(); boards.delete(id); }
+      updateLabInfo(panels, visiblePanels);
+    }
+    let paintT = null;
+    const schedulePaint = () => { clearTimeout(paintT); paintT = setTimeout(paint, 60); };
+
+    function pulse(giftId) {
+      if (!cfg.display.pulseOnGift || !giftId) return;
+      stage.querySelectorAll(`.gb-card[data-gift="${CSS.escape(String(giftId))}"]`).forEach(el => {
+        el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
+        setTimeout(() => el.classList.remove('hit'), 1000);
+      });
+    }
+
+    // ===== SÂN KHẤU =====
+    const stageBox = $('stage');
+    let stageScale = 1;
+    function fitStage() {
+      if (IS_OVERLAY) {
+        stageScale = Math.min(innerWidth / STAGE.w, innerHeight / STAGE.h);
+        stage.style.transform = `scale(${stageScale})`;
+        stage.style.left = Math.max(0, (innerWidth - STAGE.w * stageScale) / 2) + 'px';
+        stage.style.top = Math.max(0, (innerHeight - STAGE.h * stageScale) / 2) + 'px';
+      } else {
+        const w = stageBox.clientWidth || 420; stageScale = w / STAGE.w;
+        stage.style.transform = `scale(${stageScale})`; stageBox.style.height = Math.round(STAGE.h * stageScale) + 'px';
+      }
+      remeasureAll();
+    }
+
+    // ===== KÉO / LĂN CHUỘT từng khối (lab + overlay ?edit=1) =====
+    let lastTransientAt = 0, transientT = null;
+    function emitTransient(id) {
+      if (!socket || !socket.connected || !id) return;
+      const send = () => { lastTransientAt = Date.now(); const pc = panelCfg(id); socket.emit('giftboard:transient', { panels: { [id]: { xPercent: pc.xPercent, yPercent: pc.yPercent, scale: pc.scale } } }); };
+      const wait = 33 - (Date.now() - lastTransientAt);
+      clearTimeout(transientT);
+      if (wait <= 0) send(); else transientT = setTimeout(send, wait);
+    }
+    function selectPanel(id) {
+      if (IS_OVERLAY) return;
+      selectedPanel = id;
+      boards.forEach((el, pid) => el.classList.toggle('selected', pid === id));
+      renderPanelChips(); syncPanelInputs();
+    }
+    if (CAN_EDIT) {
+      let drag = null;
+      stage.addEventListener('pointerdown', e => {
+        const el = e.target.closest('.gb-board'); if (!el || e.button !== 0) return;
+        const id = el.dataset.panel; selectPanel(id); const pc = panelCfg(id);
+        drag = { id, el, pid: e.pointerId, sx: e.clientX, sy: e.clientY, ox: pc.xPercent, oy: pc.yPercent };
+        dragging = true; try { el.setPointerCapture(e.pointerId); } catch (_) {}
+        e.preventDefault();
+      });
+      stage.addEventListener('pointermove', e => {
+        if (!drag || e.pointerId !== drag.pid) return;
+        const pc = panelCfg(drag.id);
+        pc.xPercent = Math.round(clamp(drag.ox + (e.clientX - drag.sx) / stageScale / STAGE.w * 100, 0, 100) * 10) / 10;
+        pc.yPercent = Math.round(clamp(drag.oy + (e.clientY - drag.sy) / stageScale / STAGE.h * 100, 0, 100) * 10) / 10;
+        applyPanelPos(drag.id); syncPanelInputs(); emitTransient(drag.id);
+      });
+      const endDrag = e => { if (!drag || (e && e.pointerId !== drag.pid)) return; const id = drag.id; drag = null; dragging = false; emitTransient(id); scheduleSave(0); };
+      stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
+      stage.addEventListener('wheel', e => {
+        const el = e.target.closest('.gb-board'); if (!el) return;
+        e.preventDefault();
+        const id = el.dataset.panel; selectPanel(id); const pc = panelCfg(id);
+        pc.scale = clamp(pc.scale + (e.deltaY < 0 ? 5 : -5), 30, 300); cfg.display.scale = pc.scale;
+        applyPanelPos(id); syncPanelInputs(); emitTransient(id); scheduleSave(350);
+      }, { passive: false });
+    }
+
+    // ===== LƯU / ĐỒNG BỘ =====
+    let saveT = null;
+    function scheduleSave(ms) {
+      if (!CAN_EDIT) return;
+      clearTimeout(saveT);
+      saveT = setTimeout(async () => {
+        const body = JSON.stringify(cfg); lastSavedJson = body;
+        try {
+          const r = await fetch(`/api/games/${GAME_ID}/config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          log('💾 Đã lưu cấu hình', 'ok');
+        } catch (e) { log('Lưu thất bại: ' + e.message, 'err'); }
+      }, ms == null ? 300 : ms);
+    }
+    function applyRemoteCfg(raw) {
+      const json = JSON.stringify(normalize(raw));
+      if (json === lastSavedJson || dragging) return;   // echo của chính mình / đang kéo
+      cfg = normalize(raw); lastSavedJson = json;
+      fillInputs(); paint();
+    }
+
+    // ===== LAB: BIND INPUT ↔ CFG =====
+    const getPath = p => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), cfg);
+    const setPath = (p, v) => { const ks = p.split('.'); let o = cfg; for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = v; };
+    const unitOf = p => p.endsWith('speed') ? 's' : (p.includes('Count') || p.endsWith('columns') || p.startsWith('split.') ? '' : '%');
+    function syncInputs(paths) {
+      document.querySelectorAll('[data-cfg]').forEach(el => {
+        const p = el.dataset.cfg; if (paths && !paths.includes(p)) return;
+        const v = getPath(p);
+        if (el.type === 'checkbox') el.checked = !!v; else el.value = v == null ? '' : v;
+      });
+      document.querySelectorAll('[data-val]').forEach(el => { const p = el.dataset.val; if (paths && !paths.includes(p)) return; el.textContent = getPath(p) + unitOf(p); });
+      document.querySelectorAll('[data-seg]').forEach(seg => { const v = getPath(seg.dataset.seg); seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.v === String(v))); });
+    }
+    function syncPanelInputs() {
+      if (IS_OVERLAY) return;
+      const pc = selectedPanel ? panelCfg(selectedPanel) : null;
+      document.querySelectorAll('[data-pcfg]').forEach(el => { el.disabled = !pc; if (pc) el.value = pc[el.dataset.pcfg]; });
+      document.querySelectorAll('[data-pval]').forEach(el => { el.textContent = pc ? pc[el.dataset.pval] + '%' : '—'; });
+      const p = lastPanels.find(x => x.id === selectedPanel);
+      $('psel-name').textContent = p ? 'đang chỉnh: ' + panelLabel(p) : 'chưa có khối';
+    }
+    function fillInputs() {
+      if (IS_OVERLAY) return;
+      syncInputs();
+      const en = $('gb-enabled'); en.checked = cfg.enabled; $('gb-enabled-txt').textContent = cfg.enabled ? 'Đang HIỆN trên OBS' : 'Đang ẨN trên OBS';
+      $('row-cols').style.display = cfg.display.layout === 'grid' ? '' : 'none';
+      const split = cfg.mode === 'split';
+      $('row-splitby').style.display = split ? '' : 'none';
+      $('row-splitcount').style.display = split && cfg.split.by === 'count' ? '' : 'none';
+      $('row-splitrows').style.display = split && cfg.split.by === 'rows' ? '' : 'none';
+      $('chk-ptitle').style.display = cfg.mode === 'perGame' ? '' : 'none';
+      $('chk-group').classList.toggle('dim', cfg.mode === 'perGame');
+      syncPanelInputs();
+    }
+    function renderPanelChips() {
+      if (IS_OVERLAY) return;
+      $('panel-cnt').textContent = lastPanels.length + ' khối';
+      $('pchips').innerHTML = lastPanels.map(p => {
+        const pc = panelCfg(p.id);
+        return `<span class="pchip ${p.id === selectedPanel ? 'active' : ''} ${pc.hidden ? 'hid' : ''}" data-pid="${esc(p.id)}" title="${p.cards.length} thẻ · X ${pc.xPercent}% Y ${pc.yPercent}% · cỡ ${pc.scale}%">${esc(panelLabel(p))} <small>(${p.cards.length})</small>
+          <button data-act="eye" title="${pc.hidden ? 'Đang ẩn — bấm để hiện' : 'Đang hiện — bấm để ẩn'}">${pc.hidden ? '🙈' : '👁'}</button><button data-act="reset" title="Về vị trí & cỡ mặc định">↺</button></span>`;
+      }).join('') || '<span class="hint">Chưa có khối nào — bật game có quà chỉ định là khối tự xuất hiện.</span>';
+    }
+    function wireLab() {
+      if (IS_OVERLAY) return;
+      document.querySelectorAll('[data-cfg]').forEach(el => {
+        const p = el.dataset.cfg;
+        const h = () => {
+          let v; if (el.type === 'checkbox') v = el.checked; else if (el.type === 'range' || el.type === 'number') v = Number(el.value); else v = el.value;
+          setPath(p, v); cfg = normalize(cfg); syncInputs([p]); fillInputs(); paint(); scheduleSave();
+        };
+        el.addEventListener('input', h); el.addEventListener('change', h);
+      });
+      document.querySelectorAll('[data-seg]').forEach(seg => seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+        setPath(seg.dataset.seg, b.dataset.v); cfg = normalize(cfg); fillInputs(); paint(); scheduleSave();
+      })));
+      // Thanh trượt của KHỐI đang chọn
+      document.querySelectorAll('[data-pcfg]').forEach(el => el.addEventListener('input', () => {
+        if (!selectedPanel) return; const pc = panelCfg(selectedPanel); const k = el.dataset.pcfg;
+        pc[k] = clamp(el.value, k === 'scale' ? 30 : 0, k === 'scale' ? 300 : 100); if (k === 'scale') cfg.display.scale = pc.scale;
+        applyPanelPos(selectedPanel); syncPanelInputs(); emitTransient(selectedPanel); scheduleSave();
+      }));
+      $('pchips').addEventListener('click', e => {
+        const chip = e.target.closest('.pchip'); if (!chip) return; const id = chip.dataset.pid; const act = e.target.closest('button')?.dataset.act;
+        if (act === 'eye') { const pc = panelCfg(id); pc.hidden = !pc.hidden; paint(); scheduleSave(); log(pc.hidden ? '🙈 Ẩn khối ' + id : '👁 Hiện khối ' + id); return; }
+        if (act === 'reset') { const d = defaultPanelPos(id); Object.assign(panelCfg(id), { xPercent: d.x, yPercent: d.y, scale: 100 }); paint(); selectPanel(id); emitTransient(id); scheduleSave(); return; }
+        selectPanel(id);
+      });
+      $('gb-enabled').addEventListener('change', e => { cfg.enabled = e.target.checked; fillInputs(); paint(); scheduleSave(0); log(cfg.enabled ? '⏻ Bảng HIỆN trên OBS' : '⏻ Bảng ẨN trên OBS', cfg.enabled ? 'ok' : 'warn'); });
+      $('btn-reset').addEventListener('click', () => { const en = cfg.enabled; cfg = defaultConfig(); cfg.enabled = en; fillInputs(); paint(); scheduleSave(0); log('↺ Về mặc định', 'warn'); });
+      $('btn-refresh').addEventListener('click', () => loadAll());
+      $('btn-test').addEventListener('click', () => { const c = stage.querySelector('.gb-card[data-gift]:not([data-gift=""])'); if (c) { pulse(c.dataset.gift); log('🎁 Nháy thử thẻ ' + c.title); } else log('Chưa có thẻ nào trên bảng để nháy', 'warn'); });
+      $('btn-clear-overrides').addEventListener('click', () => { cfg.overrides = {}; paint(); scheduleSave(); });
+      $('btn-popout').addEventListener('click', () => window.open('/_prototype/giftboard.html?mode=overlay&edit=1', '_blank', 'width=540,height=960'));
+      // Neo nhanh: tính theo cỡ thật của khối đang chọn
+      $('anchors').addEventListener('click', e => {
+        const a = e.target.closest('button')?.dataset.a; if (!a || !selectedPanel) return;
+        const el = boards.get(selectedPanel); if (!el) return; const pc = panelCfg(selectedPanel);
+        const bw = el.offsetWidth / STAGE.w * 100, bh = el.offsetHeight / STAGE.h * 100, m = 2;
+        const xs = { l: m, c: 50 - bw / 2, r: 100 - m - bw }, ys = { t: m, m: 50 - bh / 2, b: 100 - m - bh };
+        pc.xPercent = Math.round(clamp(xs[a[1]], 0, 100) * 10) / 10; pc.yPercent = Math.round(clamp(ys[a[0]], 0, 100) * 10) / 10;
+        applyPanelPos(selectedPanel); syncPanelInputs(); emitTransient(selectedPanel); scheduleSave();
+      });
+      const bd = $('bd-select'); bd.value = localStorage.getItem('gb.backdrop') || 'dark';
+      const applyBd = () => { stageBox.className = 'stage bd-' + bd.value; localStorage.setItem('gb.backdrop', bd.value); }; bd.addEventListener('change', applyBd); applyBd();
+      const sc = $('safe-chk'); sc.checked = localStorage.getItem('gb.safe') === '1';
+      const applySafe = () => { $('gb-safe').classList.toggle('show', sc.checked); localStorage.setItem('gb.safe', sc.checked ? '1' : '0'); }; sc.addEventListener('change', applySafe); applySafe();
+      $('ent-body').addEventListener('click', e => {
+        const b = e.target.closest('.eye'); if (!b) return;
+        const k = b.dataset.key; const ov = cfg.overrides[k] || {}; ov.hidden = !ov.hidden; cfg.overrides[k] = ov; paint(); scheduleSave();
+      });
+      $('ent-body').addEventListener('input', e => {
+        const inp = e.target.closest('input[data-key]'); if (!inp) return;
+        const k = inp.dataset.key; const ov = cfg.overrides[k] || {}; ov.label = inp.value.trim().slice(0, 60); if (!ov.label) delete ov.label; cfg.overrides[k] = ov;
+        if (!ov.label && !ov.hidden) delete cfg.overrides[k];
+        clearTimeout(inp._t); inp._t = setTimeout(() => { paint(); scheduleSave(); }, 250);
+      });
+    }
+    function updateLabInfo(panels, visiblePanels) {
+      if (IS_OVERLAY) return;
+      const total = visiblePanels.reduce((n, p) => n + p.cards.length, 0);
+      $('gb-count').textContent = `${total} thẻ · ${visiblePanels.length} khối · ${new Set(rawEntries.filter(e => cfg.sources[e.gameId] && gameEnabled(e.gameId)).map(e => e.gameId)).size} game`;
+      renderPanelChips(); syncPanelInputs();
+      const counts = {}; for (const e of rawEntries) counts[e.gameId] = (counts[e.gameId] || 0) + 1;
+      const known = SOURCE_ORDER.filter(id => games[id] || id === 'obsEffects');
+      $('src-cnt').textContent = known.length + ' nguồn';
+      $('src-list').innerHTML = known.map(id => {
+        const m = gameMeta(id); const en = gameEnabled(id); const run = HAS_SESSION.has(id) ? running[id] : null;
+        const chip = !en ? '<span class="chip off">TẮT ở Thư viện</span>' : run === true ? '<span class="chip run">đang chạy phiên</span>' : run === false ? '<span class="chip">chưa chạy phiên</span>' : '<span class="chip on">BẬT</span>';
+        return `<label class="src ${cfg.sources[id] && en ? '' : 'off'}"><input type="checkbox" data-src="${id}" ${cfg.sources[id] ? 'checked' : ''}><span>${esc(m.icon)}</span><span class="nm">${esc(m.name)}</span>${chip}<span class="n">${counts[id] || 0} quà</span></label>`;
+      }).join('');
+      $('src-list').querySelectorAll('input[data-src]').forEach(inp => inp.addEventListener('change', () => { cfg.sources[inp.dataset.src] = inp.checked; paint(); scheduleSave(); }));
+      $('ent-cnt').textContent = rawEntries.length + ' dòng';
+      $('ent-body').innerHTML = rawEntries.filter(e => cfg.sources[e.gameId] && gameEnabled(e.gameId)).map(e => {
+        const ov = cfg.overrides[e.key] || {}; const m = gameMeta(e.gameId);
+        return `<tr class="${ov.hidden ? 'hid' : ''}"><td><button class="eye" data-key="${esc(e.key)}" title="${ov.hidden ? 'Đang ẩn — bấm để hiện' : 'Đang hiện — bấm để ẩn'}">${ov.hidden ? '🙈' : '👁'}</button></td>
+          <td>${e.generic ? '🎁' : `<img src="${esc(e.image || FALLBACK_ICON)}" onerror="this.src='${FALLBACK_ICON}'">`} ${esc(e.giftName)}</td>
+          <td>${esc(m.icon)} ${esc(m.name)}</td>
+          <td><input type="text" maxlength="60" data-key="${esc(e.key)}" placeholder="${esc(e.label)}" value="${esc(ov.label || '')}"></td>
+          <td>${esc(e.tag)}</td><td>${e.diamond ? Math.round(e.diamond) : ''}</td></tr>`;
+      }).join('') || '<tr><td colspan="6" class="hint">Chưa có quà chỉ định nào ở các game đang BẬT. Vào từng game gán quà, bảng tự cập nhật.</td></tr>';
+    }
+
+    // ===== TẢI DỮ LIỆU =====
+    async function loadAll() {
+      try {
+        const [gl, gifts, ob, own] = await Promise.all([
+          fetch('/api/games').then(r => r.json()),
+          fetch('/api/gifts').then(r => r.json()).catch(() => []),
+          fetch('/api/obs-bridge/config').then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch(`/api/games/${GAME_ID}/config`).then(r => r.ok ? r.json() : null).catch(() => null)
+        ]);
+        games = {}; for (const g of Array.isArray(gl) ? gl : []) games[g.id] = g;
+        for (const g of Array.isArray(gifts) ? gifts : []) if (g?.id) catalog[String(g.id)] = g;
+        if (ob) obsCfg = { enabled: ob.enabled !== false, mapping: ob.mapping || [], groupsDisabled: ob.groupsDisabled || [] };
+        for (const id of HAS_SESSION) if (games[id]?.config && typeof games[id].config.sessionActive === 'boolean') running[id] = games[id].config.sessionActive;
+        if (own && typeof own === 'object' && !own.error) { cfg = normalize(own.config || own); lastSavedJson = JSON.stringify(cfg); }
+        fillInputs(); fitStage(); paint();
+        log(`Đã tải ${Object.keys(games).length} game · ${Object.keys(catalog).length} quà TikTok`, 'ok');
+      } catch (e) { log('Tải dữ liệu lỗi: ' + e.message, 'err'); }
+    }
+
+    // ===== SOCKET =====
+    if (typeof io !== 'undefined') {
+      socket = io({ transports: ['websocket', 'polling'] });
+      socket.on('connect', () => {
+        $('sockDot')?.classList.add('on'); $('sockTxt') && ($('sockTxt').textContent = 'Đã kết nối server');
+        if (IS_OVERLAY) socket.emit('subscribe', 'overlay');
+        loadAll();
+      });
+      socket.on('disconnect', () => { $('sockDot')?.classList.remove('on'); $('sockTxt') && ($('sockTxt').textContent = 'Mất kết nối — đang thử lại…'); });
+      socket.on('gameConfig', ({ gameId, config }) => {
+        if (!gameId) return;
+        if (gameId === GAME_ID) { applyRemoteCfg(config); return; }
+        if (!games[gameId]) games[gameId] = { id: gameId, name: gameId, icon: '🎮', config };
+        else games[gameId].config = config;
+        if (HAS_SESSION.has(gameId) && typeof config?.sessionActive === 'boolean') running[gameId] = config.sessionActive;
+        schedulePaint();
+      });
+      socket.on('gameDisabled', ({ gameId }) => { if (games[gameId]) { games[gameId].config = { ...(games[gameId].config || {}), enabled: false }; schedulePaint(); } if (gameId === GAME_ID) { cfg.enabled = false; fillInputs(); paint(); } });
+      socket.on('gameEnabled', ({ gameId }) => { if (games[gameId]) { games[gameId].config = { ...(games[gameId].config || {}), enabled: true }; schedulePaint(); } if (gameId === GAME_ID) { cfg.enabled = true; fillInputs(); paint(); } });
+      socket.on('giftSheet', list => { if (!Array.isArray(list)) return; for (const g of list) if (g?.id) catalog[String(g.id)] = g; schedulePaint(); });
+      socket.on('timer:cfg', data => { timerCfg = data && data.cfg ? data.cfg : data; schedulePaint(); });
+      socket.on('obsBridge:config', data => { if (data) { obsCfg = { enabled: data.enabled !== false, mapping: data.mapping || [], groupsDisabled: data.groupsDisabled || [] }; schedulePaint(); } });
+      socket.on('giftboard:transient', data => {
+        if (!data?.panels || dragging) return;
+        for (const [id, p] of Object.entries(obj(data.panels))) {
+          if (!PANEL_ID_RE.test(id) || !p) continue;
+          const pc = panelCfg(id);
+          if (Number.isFinite(Number(p.xPercent))) pc.xPercent = clamp(p.xPercent, 0, 100);
+          if (Number.isFinite(Number(p.yPercent))) pc.yPercent = clamp(p.yPercent, 0, 100);
+          if (Number.isFinite(Number(p.scale))) pc.scale = clamp(p.scale, 30, 300);
+          applyPanelPos(id);
+        }
+        syncPanelInputs();
+      });
+      const setRun = (id, on) => { if (running[id] !== on) { running[id] = on; if (cfg.rules.onlyRunning || !IS_OVERLAY) schedulePaint(); } };
+      socket.on('votecomment:state', s => setRun('votecomment', !!s?.active));
+      socket.on('nhietdo:state', s => { if (s && typeof s.sessionActive === 'boolean') setRun('nhietdo', s.sessionActive); });
+      socket.on('bancung:state', s => { if (s && typeof s.sessionActive === 'boolean') setRun('bancung', s.sessionActive); });
+      socket.on('trongcay:state', s => { if (s && typeof s.sessionActive === 'boolean') setRun('trongcay', s.sessionActive); });
+      socket.on('gift', g => pulse(g?.giftId));
+      socket.on('overlay:reload', data => { if (IS_OVERLAY && (!data?.gameId || data.gameId === GAME_ID)) location.reload(); });
+    } else {
+      loadAll();
+    }
+    // OBS ẩn source → dừng animation (obs-browser JS API, chỉ có khi chạy trong OBS)
+    addEventListener('obsSourceVisibleChanged', e => { document.documentElement.classList.toggle('gb-paused', e?.detail?.visible === false); });
+    // View trong app bị ẩn rồi hiện lại → đo lại vùng cuộn (số đo lúc ẩn là 0)
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) remeasureAll(); });
+
+    wireLab();
+    fillInputs();
+    fitStage();
+    addEventListener('resize', fitStage);
+  })();
+  </script>
+</body>
+</html>
