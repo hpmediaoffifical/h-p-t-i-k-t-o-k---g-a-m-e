@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <script src="/lib/overlay-resolution.js"></script>
+<meta charset="utf-8" />
+<title>HP Họa Sĩ — Overlay</title>
+<style>
+    /* OBS browser source 1080×1920 trong suốt. Lớp sơn 540×960 (nửa độ phân giải, CSS phóng lên) + lớp hiệu ứng 1080×1920. */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; color: #fff; user-select: none;
+        font-family: 'Segoe UI', Arial, sans-serif; }
+    #hoasi-stage { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: 0 0; }
+    #hoasi-paint, #hoasi-fx { position: absolute; inset: 0; width: 1080px; height: 1920px; display: block; }
+    .hoasi-hud { position: absolute; transform: translate(-50%, -50%); text-align: center; pointer-events: none; white-space: nowrap;
+        text-shadow: 0 2px 6px rgba(0,0,0,.8), 0 0 18px rgba(0,0,0,.6); }
+    .hoasi-hud .main { font-size: 50px; font-weight: 800; }
+    .hoasi-hud .main b { color: #7ee03a; }
+    .hoasi-hud.mid .main b { color: #ffd21f; }
+    .hoasi-hud.high .main b { color: #ff3b5c; }
+    .hoasi-hud .bar { width: 420px; height: 16px; margin: 8px auto 0; border-radius: 999px; background: rgba(0,0,0,.55);
+        border: 2px solid rgba(255,255,255,.3); overflow: hidden; }
+    .hoasi-hud .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #7ee03a, #ffd21f 60%, #ff3b5c);
+        transition: width .25s; }
+    .hoasi-hud .last { margin-top: 8px; font-size: 30px; font-weight: 700; color: #e9ecf5; min-height: 1em; }
+    .hoasi-hud .chips { margin-top: 6px; font-size: 32px; font-weight: 700; display: flex; gap: 14px; justify-content: center; }
+    .hoasi-hud .chips span { padding: 4px 16px; border-radius: 999px; background: rgba(0,0,0,.55); border: 2px solid #8fe3ff; color: #8fe3ff; }
+    .hoasi-banner { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) scale(.6); opacity: 0; text-align: center;
+        pointer-events: none; transition: opacity .25s, transform .25s; white-space: nowrap; padding: 26px 48px 30px; border-radius: 36px;
+        background: rgba(12,10,24,.78); border: 4px solid rgba(255,255,255,.85); box-shadow: 0 0 0 8px rgba(255,59,92,.55), 0 20px 60px rgba(0,0,0,.6); }
+    .hoasi-banner.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    .hoasi-banner .t { font-size: 112px; font-weight: 900; letter-spacing: 2px; color: #fff;
+        text-shadow: 0 0 18px #ff3b5c, 0 0 40px #e04bff, 0 6px 0 rgba(0,0,0,.6); }
+    .hoasi-banner .s { margin-top: 6px; font-size: 46px; font-weight: 800; color: #ffd21f; }
+    .hoasi-banner .s:empty { display: none; }
+    .hoasi-notices { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 10px; align-items: center; pointer-events: none; }
+    .hoasi-notice { display: flex; align-items: center; gap: 12px; padding: 10px 22px; border-radius: 999px; background: rgba(8,12,20,.85);
+        border: 2px solid rgba(255,255,255,.25); font-size: 34px; font-weight: 700; animation: hoasiIn .25s ease-out; }
+    .hoasi-notice img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+    .hoasi-notice.out { opacity: 0; transition: opacity .4s; }
+    @keyframes hoasiIn { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .hoasi-alert { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; max-width: 86%; padding: 18px 26px;
+        border-radius: 16px; background: rgba(120,20,20,.9); border: 2px solid #ff8a80; font-size: 30px; text-align: center; }
+    .hoasi-alert small { display: block; margin-top: 8px; font-size: 22px; opacity: .85; }
+    .hoasi-alert.on { display: block; }
+    .hoasi-hint { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); padding: 10px 18px; border-radius: 12px; display: none;
+        background: rgba(8,12,20,.85); border: 1px solid rgba(255,255,255,.2); font-size: 22px; color: #c9d1e3; white-space: nowrap; }
+    body.hoasi-mouse .hoasi-hint { display: block; }
+</style>
+</head>
+<body>
+<div id="hoasi-stage">
+    <canvas id="hoasi-paint" width="540" height="960"></canvas>
+    <canvas id="hoasi-fx" width="1080" height="1920"></canvas>
+    <div class="hoasi-hud" id="hoasi-hud">
+        <div class="main">🎨 Sơn phủ <b id="hoasi-pct">0%</b></div>
+        <div class="bar"><i id="hoasi-bar"></i></div>
+        <div class="last" id="hoasi-last"></div>
+        <div class="chips" id="hoasi-chips"></div>
+    </div>
+    <div class="hoasi-banner" id="hoasi-banner"><div class="t">🎨 PHỦ KÍN!</div><div class="s" id="hoasi-banner-by"></div></div>
+    <div class="hoasi-notices" id="hoasi-notices"></div>
+    <div class="hoasi-alert" id="hoasi-alert"></div>
+    <div class="hoasi-hint">Chuột: bấm = ném 1 cục · giữ kéo = lau · C xoá · S mưa · W nước · H khiên · F người giả</div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/games/hoasi/game.js"></script>
+<script src="/games/hoasi/wipe-shapes.js"></script>
+<script>
+(function () {
+    'use strict';
+    const W = 1080, H = 1920, PW = 540, PH = 960, K = PW / W;
+    const Game = window.HpGame.hoasi, Wipe = window.HpGame.hoasiWipe;
+    const qs = new URLSearchParams(location.search);
+    const isReview = qs.get('review') === '1';
+    const mouseMode = isReview || qs.get('mouse') === '1';
+    const token = qs.get('token') || '';
+    const $ = (id) => document.getElementById(id);
+    if (mouseMode) document.body.classList.add('hoasi-mouse');
+
+    const paintCv = $('hoasi-paint'), pctx = paintCv.getContext('2d');
+    const fxCv = $('hoasi-fx'), fctx = fxCv.getContext('2d');
+    const mask = Object.assign(document.createElement('canvas'), { width: PW, height: PH }), mctx = mask.getContext('2d');
+    const meas = Object.assign(document.createElement('canvas'), { width: 120, height: 216 });
+    const measCtx = meas.getContext('2d', { willReadFrequently: true });
+
+    let cfg = Game.normalizeConfig(null);
+    const engine = Game.createEngine(cfg, { width: W, height: H });
+    let BF = null, bodyF = null;
+    import('/lib/body-frames.mjs').then(m => { BF = m; }).catch(() => {});
+    let disabled = false;
+    let animNow = 0;               // đồng hồ hoạt ảnh — tiến bằng dt cả ở rAF lẫn __hs.step (trang ẩn)
+    let lastSnap = null, lastMeasureAt = -1e9, frames = 0, fps = 0, fpsAt = 0;
+
+    // ---------- bố cục 9:16 ----------
+    let stageScale = 1, stageX = 0, stageY = 0;
+    function fitStage() {
+        const vw = innerWidth, vh = innerHeight;
+        stageScale = Math.min(vw / W, vh / H);
+        stageX = (vw - W * stageScale) / 2; stageY = (vh - H * stageScale) / 2;
+        $('hoasi-stage').style.transform = `translate(${stageX}px, ${stageY}px) scale(${stageScale})`;
+    }
+    fitStage(); window.addEventListener('resize', fitStage);
+    const toStage = (cx, cy) => ({ x: (cx - stageX) / stageScale, y: (cy - stageY) / stageScale });
+
+    // ---------- vẽ sơn ----------
+    function prng(seed) { let t = seed >>> 0; return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ t >>> 15, 1 | t); r ^= r + Math.imul(r ^ r >>> 7, 61 | r); return ((r ^ r >>> 14) >>> 0) / 4294967296; }; }
+    function rgba(hex, a) { const n = parseInt(String(hex).slice(1), 16) || 0; return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${Math.max(0, Math.min(1, a)).toFixed(3)})`; }
+    // Thân đặc, chỉ mềm ở 30% ngoài cùng: viền (1 − d²/r²)^1.6 của Studio phủ cả đốm trông như đèn phát sáng
+    // chứ không như sơn (thử trong preview 13/10) — giữ độ mềm đó cho phần mép.
+    const FALLOFF = [[0, 1], [0.7, 1], [0.8, 0.8], [0.9, 0.42], [1, 0]];
+    function softDisc(ctx, x, y, r, color, alpha) {
+        if (!(r > 0.5)) return;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        for (const [k, f] of FALLOFF) g.addColorStop(k, rgba(color, alpha * f));
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    function drawSplat(e) {
+        const rnd = prng(e.seed), a = cfg.paintOpacity / 100, x = e.x * K, y = e.y * K, r = e.r * K;
+        pctx.save(); pctx.globalCompositeOperation = 'source-over';
+        for (let i = 0; i < 6; i++) softDisc(pctx, x + (rnd() - 0.5) * r, y + (rnd() - 0.5) * r, r * (0.28 + rnd() * 0.38), e.color, a);
+        pctx.fillStyle = rgba(e.color, a);
+        const drops = 5 + Math.floor(rnd() * 5);
+        for (let i = 0; i < drops; i++) {
+            const ang = rnd() * Math.PI * 2, dist = r * (0.8 + rnd() * 0.8), rr = r * (0.05 + rnd() * 0.07);
+            pctx.beginPath(); pctx.arc(x + Math.cos(ang) * dist, y + Math.sin(ang) * dist, rr, 0, Math.PI * 2); pctx.fill();
+        }
+        // Vệt chảy: bắt đầu trong thân (dưới tâm), thòng xuống quá mép dưới, đầu giọt tròn.
+        const drips = Math.floor(rnd() * 3);
+        for (let i = 0; i < drips; i++) {
+            const dx = (rnd() - 0.5) * r * 0.7, y0 = y + r * 0.2, len = r * (0.5 + rnd() * 0.6), w = r * (0.09 + rnd() * 0.07);
+            pctx.fillRect(x + dx - w / 2, y0, w, len);
+            pctx.beginPath(); pctx.arc(x + dx, y0 + len, w * 0.75, 0, Math.PI * 2); pctx.fill();
+        }
+        pctx.restore();
+    }
+    function washPaint(e) {
+        const x = e.x * K, y = e.y * K, r = e.r * K;
+        pctx.save(); pctx.globalCompositeOperation = 'destination-out';
+        const g = pctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, `rgba(0,0,0,${e.strength})`); g.addColorStop(0.7, `rgba(0,0,0,${e.strength})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+        pctx.fillStyle = g; pctx.beginPath(); pctx.arc(x, y, r, 0, Math.PI * 2); pctx.fill();
+        pctx.restore();
+    }
+    function clearPaint() { pctx.clearRect(0, 0, PW, PH); }
+
+    // ---------- lau ----------
+    let wipeShapes = [];           // hình xoá của khung AI gần nhất (toạ độ sân khấu)
+    let mouseWipe = null;          // { x, y } con trỏ đang giữ (chế độ chuột)
+    function applyWipe(shapes, dt) {
+        if (!shapes.length || dt <= 0) return;
+        mctx.clearRect(0, 0, PW, PH);
+        mctx.fillStyle = '#000'; mctx.strokeStyle = '#000'; mctx.lineCap = 'round';
+        mctx.beginPath();
+        for (const s of shapes) if (s.t === 'circle') { mctx.moveTo(s.x * K + s.r * K, s.y * K); mctx.arc(s.x * K, s.y * K, s.r * K, 0, Math.PI * 2); }
+        mctx.fill();
+        for (const s of shapes) {
+            if (s.t === 'capsule') { mctx.lineWidth = 2 * s.r * K; mctx.beginPath(); mctx.moveTo(s.x0 * K, s.y0 * K); mctx.lineTo(s.x1 * K, s.y1 * K); mctx.stroke(); }
+            else if (s.t === 'poly' && s.pts.length > 2) { mctx.beginPath(); s.pts.forEach((p, i) => i ? mctx.lineTo(p.x * K, p.y * K) : mctx.moveTo(p.x * K, p.y * K)); mctx.closePath(); mctx.fill(); }
+        }
+        // Bớt theo thời gian dưới tay: τ = 0.05 s ở tốc độ 100% → quẹt một lượt (~2 khung) bớt ~75–90%, còn vệt mờ lau lại.
+        const tau = 0.05 * 100 / cfg.wipeSpeed;
+        pctx.save(); pctx.globalCompositeOperation = 'destination-out';
+        pctx.globalAlpha = 1 - Math.exp(-Math.min(100, dt) / 1000 / tau);
+        pctx.drawImage(mask, 0, 0); pctx.restore();
+    }
+
+    // ---------- đo phủ ----------
+    function measure() {
+        measCtx.clearRect(0, 0, 120, 216);
+        measCtx.drawImage(paintCv, 0, 0, 120, 216);
+        const d = measCtx.getImageData(0, 0, 120, 216).data;
+        const cells = new Float32Array(216); let tot = 0;
+        for (let y = 0; y < 216; y++) {
+            const row = Math.floor(y / 12) * 12;
+            for (let x = 0; x < 120; x++) if (d[(y * 120 + x) * 4 + 3] >= 26) { cells[row + Math.floor(x / 10)]++; tot++; }
+        }
+        for (let i = 0; i < 216; i++) cells[i] /= 120;
+        const total = tot / (120 * 216);
+        engine.setCoverage(cells, total);
+        return total;
+    }
+
+    // ---------- hiệu ứng ----------
+    const bubbles = [], blocks = [], fxDrips = [];
+    let washAnim = null;            // { t0, ms, y } màn nước quét xuống
+    let bannerOn = false;
+    function startDrips() {
+        fxDrips.length = 0;
+        for (let i = 0; i < 26; i++) fxDrips.push({ x: (i + 0.2 + Math.random() * 0.6) / 26 * W, y0: Math.random() * H * 0.6, w: 18 + Math.random() * 22,
+            v: 90 + Math.random() * 150, max: H * (0.15 + Math.random() * 0.25), color: Game.PALETTE[i % Game.PALETTE.length], t0: animNow + Math.random() * 900 });
+    }
+    function showBanner(on, by) {
+        bannerOn = on;
+        $('hoasi-banner-by').textContent = by ? 'Cú cuối: ' + by : '';
+        $('hoasi-banner').classList.toggle('on', on);
+    }
+
+    function drawFx(s) {
+        fctx.clearRect(0, 0, W, H);
+        // vệt sơn chảy khi PHỦ KÍN
+        for (const d of fxDrips) {
+            const t = (animNow - d.t0) / 1000; if (t <= 0) continue;
+            const len = Math.min(d.max, d.v * t);
+            fctx.fillStyle = rgba(d.color, 0.8);
+            fctx.fillRect(d.x - d.w / 2, d.y0, d.w, len);
+            fctx.beginPath(); fctx.arc(d.x, d.y0 + len, d.w * 0.7, 0, Math.PI * 2); fctx.fill();
+        }
+        // vòm khiên
+        if (s.dome) {
+            const d = s.dome, sh = 0.5 + 0.5 * Math.sin(animNow / 260);
+            fctx.save();
+            const g = fctx.createRadialGradient(d.cx, d.cy - d.ry * 0.3, d.rx * 0.2, d.cx, d.cy, d.rx * 1.1);
+            g.addColorStop(0, 'rgba(180,235,255,0.04)'); g.addColorStop(0.8, 'rgba(150,220,255,0.10)'); g.addColorStop(1, 'rgba(150,220,255,0.22)');
+            fctx.fillStyle = g; fctx.beginPath(); fctx.ellipse(d.cx, d.cy, d.rx, d.ry, 0, 0, Math.PI * 2); fctx.fill();
+            fctx.lineWidth = 6; fctx.strokeStyle = `rgba(160,230,255,${0.6 + 0.3 * sh})`; fctx.stroke();
+            fctx.lineWidth = 10; fctx.strokeStyle = 'rgba(255,255,255,0.35)'; fctx.lineCap = 'round';
+            fctx.beginPath(); fctx.ellipse(d.cx, d.cy, d.rx * 0.82, d.ry * 0.82, 0, Math.PI * 1.12, Math.PI * 1.42); fctx.stroke();
+            fctx.restore();
+        }
+        // cục bay
+        for (const f of s.flights) {
+            const rr = f.r * (0.25 + 0.15 * f.t);
+            if (f.kind === 'water') {
+                fctx.fillStyle = 'rgba(143,227,255,0.85)';
+                fctx.beginPath(); fctx.arc(f.x, f.y, rr, 0, Math.PI * 2); fctx.fill();
+                fctx.fillStyle = 'rgba(255,255,255,0.8)'; fctx.beginPath(); fctx.arc(f.x - rr * 0.35, f.y - rr * 0.35, rr * 0.25, 0, Math.PI * 2); fctx.fill();
+                continue;
+            }
+            fctx.fillStyle = f.color;
+            for (let k = 3; k >= 1; k--) { fctx.globalAlpha = 0.25 * (4 - k); fctx.beginPath(); fctx.arc(f.x, f.y + rr * 0.9 * k, rr * (0.55 - k * 0.1), 0, Math.PI * 2); fctx.fill(); }
+            fctx.globalAlpha = 1; fctx.beginPath(); fctx.arc(f.x, f.y, rr, 0, Math.PI * 2); fctx.fill();
+            fctx.fillStyle = 'rgba(255,255,255,0.55)'; fctx.beginPath(); fctx.arc(f.x - rr * 0.35, f.y - rr * 0.35, rr * 0.22, 0, Math.PI * 2); fctx.fill();
+        }
+        // bọt nước, giọt sơn bị khiên chặn
+        for (let i = bubbles.length - 1; i >= 0; i--) {
+            const b = bubbles[i], k = (animNow - b.t0) / 600; if (k >= 1) { bubbles.splice(i, 1); continue; }
+            fctx.strokeStyle = `rgba(200,240,255,${0.8 * (1 - k)})`; fctx.lineWidth = 4;
+            fctx.beginPath(); fctx.arc(b.x, b.y, b.r * (0.4 + 0.6 * k), 0, Math.PI * 2); fctx.stroke();
+            fctx.fillStyle = `rgba(200,240,255,${0.5 * (1 - k)})`;
+            for (let j = 0; j < 8; j++) { const a = j / 8 * Math.PI * 2; fctx.beginPath(); fctx.arc(b.x + Math.cos(a) * b.r * (0.5 + k), b.y + Math.sin(a) * b.r * (0.5 + k) + 120 * k * k, 7, 0, Math.PI * 2); fctx.fill(); }
+        }
+        for (let i = blocks.length - 1; i >= 0; i--) {
+            const b = blocks[i], k = (animNow - b.t0) / 700; if (k >= 1) { blocks.splice(i, 1); continue; }
+            fctx.strokeStyle = `rgba(255,255,255,${0.9 * (1 - k)})`; fctx.lineWidth = 5;
+            fctx.beginPath(); fctx.arc(b.x, b.y, 20 + 90 * k, 0, Math.PI * 2); fctx.stroke();
+            fctx.fillStyle = rgba(b.color, 0.9 * (1 - k));
+            for (let j = 0; j < 6; j++) { const dx = (j - 2.5) * 22; fctx.beginPath(); fctx.arc(b.x + dx * (1 + k), b.y + 420 * k * k + Math.abs(dx) * k, 9 - j % 3, 0, Math.PI * 2); fctx.fill(); }
+        }
+        // mép màn nước rửa
+        if (washAnim) {
+            const y = washAnim.y / K;
+            const g = fctx.createLinearGradient(0, y - 160, 0, y + 30);
+            g.addColorStop(0, 'rgba(143,227,255,0)'); g.addColorStop(0.75, 'rgba(143,227,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0.9)');
+            fctx.fillStyle = g; fctx.fillRect(0, y - 160, W, 190);
+        }
+        // viền vùng lau
+        if (cfg.display.showWipe) {
+            fctx.strokeStyle = 'rgba(255,255,255,0.35)'; fctx.lineWidth = 2;
+            for (const sh of wipeShapes) if (sh.t === 'circle') { fctx.beginPath(); fctx.arc(sh.x, sh.y, sh.r, 0, Math.PI * 2); fctx.stroke(); }
+        }
+    }
+
+    function tickWash(dt) {
+        if (!washAnim) return;
+        const k = Math.min(1, (animNow - washAnim.t0) / washAnim.ms), ny = k * (PH + 40);
+        pctx.save(); pctx.globalCompositeOperation = 'destination-out'; pctx.fillStyle = '#000';
+        pctx.fillRect(0, 0, PW, Math.min(PH, ny)); pctx.restore();
+        washAnim.y = ny;
+        if (k >= 1) { washAnim = null; clearPaint(); engine.washDone(); }
+    }
+
+    // ---------- HUD ----------
+    function applyHud(s) {
+        const d = cfg.display, hud = $('hoasi-hud');
+        hud.style.display = d.showHud && !disabled ? '' : 'none';
+        hud.style.left = d.hudXPercent + '%'; hud.style.top = d.hudYPercent + '%';
+        hud.style.transform = `translate(-50%, -50%) scale(${d.hudScale / 100})`;
+        const pct = Math.round(s.coverage * 100);
+        $('hoasi-pct').textContent = pct + '%';
+        $('hoasi-bar').style.width = pct + '%';
+        hud.classList.toggle('mid', pct >= 50 && pct < 80); hud.classList.toggle('high', pct >= 80);
+        $('hoasi-last').textContent = d.showLastThrower && s.lastBy ? 'Vừa ném: ' + s.lastBy : '';
+        const chips = s.shieldMs > 0 ? `<span>🛡 Khiên ${Math.ceil(s.shieldMs / 1000)}s</span>` : '';
+        const el = $('hoasi-chips'); if (el.innerHTML !== chips) el.innerHTML = chips;
+    }
+    function notice(icon, text, image) {
+        const box = $('hoasi-notices');
+        const el = document.createElement('div'); el.className = 'hoasi-notice';
+        el.innerHTML = `${image ? `<img src="${String(image).replace(/"/g, '&quot;')}" alt="">` : ''}<span>${icon} ${String(text).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</span>`;
+        box.appendChild(el);
+        while (box.children.length > 4) box.removeChild(box.firstChild);
+        setTimeout(() => el.classList.add('out'), 2600); setTimeout(() => el.remove(), 3100);
+    }
+
+    // ---------- âm thanh (WebAudio, không file) ----------
+    const audio = { ctx: null, last: {} };
+    function audioInit() {
+        if (audio.ctx || !cfg.sound.enabled) return;
+        try { audio.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* không có audio */ }
+    }
+    function audioResume() { if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume().catch(() => {}); }
+    function gap(kind) { const t = performance.now(); if (t - (audio.last[kind] || 0) < 75) return false; audio.last[kind] = t; return true; }
+    function noise(ms, vol, type, f0, f1) {
+        const ac = audio.ctx; if (!ac || !cfg.sound.enabled) return;
+        const len = Math.max(1, Math.floor(ac.sampleRate * ms / 1000)), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+        const src = ac.createBufferSource(); src.buffer = buf;
+        const f = ac.createBiquadFilter(); f.type = type; f.frequency.setValueAtTime(f0, ac.currentTime);
+        if (f1) f.frequency.exponentialRampToValueAtTime(f1, ac.currentTime + ms / 1000);
+        const g = ac.createGain(); g.gain.value = vol * cfg.sound.volume;
+        src.connect(f); f.connect(g); g.connect(ac.destination); src.start();
+    }
+    function tone(freq, ms, type, vol, delay) {
+        const ac = audio.ctx; if (!ac || !cfg.sound.enabled) return;
+        const t = ac.currentTime + (delay || 0) / 1000, o = ac.createOscillator(), g = ac.createGain();
+        o.type = type; o.frequency.value = freq; g.gain.setValueAtTime(vol * cfg.sound.volume, t);
+        g.gain.setTargetAtTime(0, t + ms / 1000 * 0.6, ms / 1000 * 0.2);
+        o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + ms / 1000);
+    }
+    const sfx = {
+        whoosh: () => gap('whoosh') && noise(300, 0.35, 'bandpass', 400, 2400),
+        splat: () => { if (gap('splat')) { noise(90, 0.8, 'lowpass', 900); tone(120, 120, 'sine', 0.5); } },
+        water: () => gap('water') && noise(400, 0.4, 'bandpass', 2500),
+        block: () => gap('block') && tone(880, 150, 'sine', 0.35),
+        full: () => { tone(523, 160, 'triangle', 0.4, 0); tone(659, 160, 'triangle', 0.4, 120); tone(784, 260, 'triangle', 0.45, 240); },
+        wash: () => noise(1200, 0.45, 'lowpass', 400, 3000)
+    };
+
+    // ---------- sự kiện engine ----------
+    function handleEvents(ev) {
+        for (const e of ev) {
+            if (e.type === 'launch') { if (e.kind === 'paint') sfx.whoosh(); }
+            else if (e.type === 'splat') { drawSplat(e); sfx.splat(); }
+            else if (e.type === 'wash') { washPaint(e); bubbles.push({ x: e.x, y: e.y, r: e.r, t0: animNow }); if (bubbles.length > 30) bubbles.shift(); sfx.water(); }
+            else if (e.type === 'block') { blocks.push({ x: e.x, y: e.y, color: e.color, t0: animNow }); if (blocks.length > 30) blocks.shift(); sfx.block(); }
+            else if (e.type === 'full') { showBanner(true, e.by); startDrips(); sfx.full(); }
+            else if (e.type === 'washStart') { washAnim = { t0: animNow, ms: e.ms, y: 0 }; sfx.wash(); }
+            else if (e.type === 'washDone' || e.type === 'clear') { washAnim = null; clearPaint(); fxDrips.length = 0; showBanner(false); lastMeasureAt = -1e9; }
+        }
+    }
+
+    // ---------- feed camera OBS + nhận diện (không chạy trong khung xem trước của app) ----------
+    const feed = { on: false, tracker: null, layout: null, busy: false, lastAt: 0, status: null, toStage: null, seenHands: 0, seenPose: 0 };
+    const prevHands = new Map();    // id tay → { pts, at } khung AI trước (vệt quét)
+    function wantFeed() { return !isReview && !disabled; }
+    async function syncFeed() {
+        const want = wantFeed();
+        if (want === feed.on) return;
+        feed.on = want;
+        if (!want) { socket.emit('touchplay:feed', false); if (feed.tracker) feed.tracker.stop(); return; }
+        try {
+            if (!feed.tracker) {
+                const [trk, map] = await Promise.all([import('/lib/hp-tracking.mjs'), import('/lib/obs-scene-map.mjs')]);
+                feed.toStage = map.cameraToStage;
+                feed.tracker = new trk.HpTracker({ width: W, height: H, quality: cfg.quality });
+                feed.tracker.want({ hands: true, pose: true, face: false });
+                window.__hs.tracker = feed.tracker;
+            }
+            if (!feed.on) return;
+            feed.tracker.quality = cfg.quality;
+            await feed.tracker.startExternal();
+            // want() trước startExternal chỉ ghi nhớ — model body chỉ nạp khi tracker đang chạy.
+            feed.tracker.want({ hands: true, pose: true, face: false });
+            feed.lastAt = performance.now();
+            if (feed.on) socket.emit('touchplay:feed', 'hoasi');
+        } catch (e) { console.warn('[hoasi] không bật được nhận diện:', (e && e.message) || e); }
+    }
+    async function onFrame(f) {
+        if (!feed.on || feed.busy || !f || !f.img || !feed.tracker || !feed.toStage) return;
+        feed.busy = true;
+        try {
+            const bmp = await createImageBitmap(new Blob([f.img], { type: 'image/jpeg' }));
+            feed.tracker.pushFrame(bmp, feed.toStage(feed.layout, bmp.width, bmp.height, W, H, 'hoasi'));
+            feed.lastAt = performance.now();
+        } catch (_) {} finally { feed.busy = false; }
+    }
+    function feedProblem() {
+        const st = feed.status || {};
+        if (st.obsConnected === false) return ['App chưa kết nối OBS WebSocket.', 'OBS: Công cụ → Cài đặt WebSocket Server → bật; rồi kết nối ở mục Hiệu ứng OBS trong app.'];
+        if (!st.source) return ['Chưa chọn nguồn camera cho Game Camera.', 'Mở 🎥 Game Camera trong app → chọn Nguồn camera trong OBS.'];
+        const src = String(st.source).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+        if (st.error === 'source-missing') return [`Không tìm thấy nguồn "${src}" trong OBS.`, ''];
+        return [`Chưa nhận được hình từ nguồn "${src}".`, 'Kiểm tra camera trong scene OBS đang phát.'];
+    }
+    function showAlert(pair) {
+        const el = $('hoasi-alert');
+        if (!pair) { el.classList.remove('on'); return; }
+        el.innerHTML = `⚠ ${pair[0]}${pair[1] ? `<small>${pair[1]}</small>` : ''}`; el.classList.add('on');
+    }
+    // Pose → khung đầu → engine nhắm mặt / đặt khiên. Mất đầu thì KHÔNG gọi setFace: engine tự bỏ mặt sau 1 s.
+    function pushFace(pose) {
+        if (!BF) return;
+        bodyF = BF.bodyFrames(pose, bodyF);
+        const h = bodyF.head;
+        if (h) engine.setFace({ x: h.O.x, y: h.O.y, width: h.width });
+    }
+    // Kết quả AI MỚI → hình xoá cho các khung vẽ tới khi có kết quả kế.
+    function pumpTracking(nowPerf) {
+        const t = feed.tracker; if (!feed.on || !t) return;
+        if (nowPerf - t.handsAt > 400 && nowPerf - t.poseAt > 400) { wipeShapes = []; return; }
+        if (t.handsAt === feed.seenHands && t.poseAt === feed.seenPose) return;
+        feed.seenHands = t.handsAt; feed.seenPose = t.poseAt;
+        const hands = nowPerf - t.handsAt < 400 ? t.hands : [];
+        const pose = nowPerf - t.poseAt < 400 ? t.pose : null;
+        if (pose) pushFace(pose);
+        const out = [], seen = new Set();
+        for (const h of hands) {
+            seen.add(h.id);
+            if (Wipe.canWipe(h, cfg.minFingers)) out.push(...Wipe.handShapes(h, prevHands.get(h.id), t.handsAt));
+            prevHands.set(h.id, { pts: h.pts.map(p => ({ x: p.x, y: p.y })), at: t.handsAt });
+        }
+        for (const id of [...prevHands.keys()]) if (!seen.has(id)) prevHands.delete(id);
+        // Dự phòng cổ tay: chỉ bên KHÔNG có bàn tay nào ở gần cổ tay đó (nắm tay vẫn là "có tay" → không lau).
+        if (cfg.wristFallback && pose) {
+            for (const [side, wi] of [['L', 15], ['R', 16]]) {
+                const w = pose[wi]; if (!w || !(w.v >= 0.5)) continue;
+                if (hands.some(h => Math.hypot(h.pts[0].x - w.x, h.pts[0].y - w.y) < 1.5 * (h.size || 100))) continue;
+                out.push(...Wipe.wristShapes(pose, side));
+            }
+        }
+        wipeShapes = out;
+    }
+    // Người giả (phím F, chế độ chuột): đầu giữa sân lắc nhẹ để thử nhắm mặt + khiên không cần camera.
+    let fakePose = false;
+    function pumpFakePose() {
+        if (!fakePose || !BF) return;
+        const sx = Math.sin(animNow / 1250) * 60;
+        const p = Array.from({ length: 33 }, () => ({ x: 0, y: 0, v: 0 }));
+        const set = (i, x, y) => { p[i] = { x: x + sx, y, v: 1 }; };
+        set(0, 540, 700); set(2, 500, 670); set(5, 580, 670); set(7, 440, 690); set(8, 640, 690);
+        set(11, 340, 900); set(12, 740, 900); set(23, 380, 1500); set(24, 700, 1500);
+        pushFace(p);
+    }
+
+    // ---------- chuột (test) ----------
+    if (mouseMode) {
+        let downAt = null;
+        window.addEventListener('pointerdown', (e) => { audioInit(); audioResume(); downAt = toStage(e.clientX, e.clientY); mouseWipe = { ...downAt, moved: false }; });
+        window.addEventListener('pointermove', (e) => {
+            if (!mouseWipe) return;
+            const p = toStage(e.clientX, e.clientY);
+            if (Math.hypot(p.x - downAt.x, p.y - downAt.y) > 12) mouseWipe.moved = true;
+            mouseWipe.prev = { x: mouseWipe.x, y: mouseWipe.y }; mouseWipe.x = p.x; mouseWipe.y = p.y;
+        });
+        window.addEventListener('pointerup', () => { if (mouseWipe && !mouseWipe.moved) engine.enqueuePaint(1, 'Chuột'); mouseWipe = null; });
+        window.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 'c') engine.clear();
+            else if (k === 's') engine.storm(5, 100, 'Chuột');
+            else if (k === 'w') engine.water(3, 'Chuột');
+            else if (k === 'h') engine.shield(10);
+            else if (k === 'f') fakePose = !fakePose;
+        });
+    }
+    function mouseShapes() {
+        if (!mouseWipe || !mouseWipe.moved) return [];
+        const p = mouseWipe.prev || mouseWipe, r = 105;    // "bàn tay" span 140 px
+        mouseWipe.prev = { x: mouseWipe.x, y: mouseWipe.y };
+        return [{ t: 'capsule', x0: p.x, y0: p.y, x1: mouseWipe.x, y1: mouseWipe.y, r }];
+    }
+
+    // ---------- một khung ----------
+    function frame(dt) {
+        animNow += dt;
+        if (disabled) return;
+        pumpTracking(performance.now());
+        pumpFakePose();
+        const shapes = wipeShapes.concat(mouseShapes());
+        if (lastSnap && lastSnap.phase !== 'washing') applyWipe(shapes, dt);
+        handleEvents(engine.step(dt));
+        tickWash(dt);
+        if (animNow - lastMeasureAt >= 250) { lastMeasureAt = animNow; measure(); }
+        const s = engine.snapshot(); lastSnap = s;
+        if (s.phase === 'play' && (bannerOn || fxDrips.length) && !washAnim) { showBanner(false); fxDrips.length = 0; }
+        drawFx(s);
+        applyHud(s);
+    }
+    let lastT = performance.now();
+    function loop() {
+        requestAnimationFrame(loop);
+        const now = performance.now(), dt = Math.min(100, now - lastT); lastT = now;
+        frames++; if (now - fpsAt >= 1000) { fps = frames; frames = 0; fpsAt = now; }
+        frame(dt);
+    }
+    // Pane/trang ẩn thì rAF đứng — bước tay bằng __hs.step(ms) (khung 16 ms).
+    window.__hs = {
+        engine, tracker: null, paint: paintCv,
+        step(ms) { for (let t = 0; t < ms; t += 16) frame(Math.min(16, ms - t)); return engine.snapshot(); },
+        measure, get cfg() { return cfg; }, get shapes() { return wipeShapes; }
+    };
+    requestAnimationFrame(loop);
+
+    // ---------- cấu hình ----------
+    function applyConfig(c) {
+        cfg = Game.normalizeConfig(c);
+        engine.setConfig(cfg);
+        setDisabled(cfg.enabled === false);
+        if (feed.tracker) feed.tracker.quality = cfg.quality;
+    }
+    function setDisabled(off) {
+        if (off === disabled) return;
+        disabled = off;
+        paintCv.style.display = fxCv.style.display = off ? 'none' : '';
+        if (off) { engine.reset(); clearPaint(); fctx.clearRect(0, 0, W, H); washAnim = null; fxDrips.length = 0; showBanner(false); showAlert(null); $('hoasi-hud').style.display = 'none'; }
+        syncFeed();
+    }
+
+    // ---------- socket ----------
+    const socket = io({ transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+    window.__hs.socket = socket;
+    socket.on('connect', () => {
+        socket.emit('subscribe', isReview ? 'preview' : 'overlay');
+        if (feed.on) socket.emit('touchplay:feed', 'hoasi');
+    });
+    socket.on('hoasi:gift', (d) => {
+        if (disabled || !d || !Game.ACTION_TYPES.includes(d.action)) return;   // game tắt (hub chọn game khác) → bỏ, không dồn
+        audioInit(); audioResume();
+        const who = d.nickname || '';
+        engine.applyAction({ type: d.action, params: d.params || {} }, who);
+        const p = d.params || {};
+        const extra = (d.action === 'paint' || d.action === 'water') ? ` ×${Math.floor(Number(p.count) || 1)}`
+            : (d.action === 'storm' || d.action === 'shield') ? ` ${Math.round(Number(p.seconds) || 0)}s` : '';
+        notice(d.icon || Game.ACTION_PRESET[d.action].icon, `${who ? who + ' · ' : ''}${d.name || Game.ACTION_PRESET[d.action].name}${extra}`, d.profilePicture);
+    });
+    socket.on('gameCmd', (d) => {
+        if (!d || d.gameId !== 'hoasi') return;
+        if (d.cmd === 'clear' || d.cmd === 'stop') engine.clear();
+        else if (d.cmd === 'reset') engine.reset();
+    });
+    socket.on('gameConfig', (d) => { if (d && d.gameId === 'hoasi') applyConfig(d.config); });
+    socket.on('gameDisabled', (d) => { if (d && d.gameId === 'hoasi') setDisabled(true); });
+    socket.on('gameEnabled', (d) => { if (d && d.gameId === 'hoasi') setDisabled(false); });
+    socket.on('touchplay:frame', onFrame);
+    socket.on('touchplay:layout', (l) => { feed.layout = l; });
+    socket.on('touchplay:feedStatus', (st) => { feed.status = st; });
+    socket.on('overlay:reload', (d) => { if (!isReview && (!d || !d.gameId || d.gameId === 'hoasi')) location.reload(); });
+
+    if (!isReview) {
+        setInterval(() => {
+            if (!socket.connected || !lastSnap || disabled) return;
+            socket.emit('hoasi:state', { coverage: lastSnap.coverage, queue: lastSnap.queue, phase: lastSnap.phase, shieldMs: lastSnap.shieldMs, lastBy: lastSnap.lastBy });
+        }, 1000);
+        setInterval(() => {
+            if (!feed.on || !socket.connected || !feed.tracker) return;
+            const t = feed.tracker, now = performance.now();
+            socket.emit('touchplay:overlayStat', { fps: t.fps, aiMs: t.aiMs, hands: now - t.handsAt < 500 ? t.hands.length : 0, pose: now - t.poseAt < 500 ? 1 : 0, delegate: t.delegate, phase: lastSnap ? lastSnap.phase : 'play' });
+        }, 2000);
+        setInterval(() => {
+            if (!feed.on || disabled) return showAlert(null);
+            showAlert(performance.now() - feed.lastAt > 4000 ? feedProblem() : null);
+        }, 1000);
+    }
+
+    (async () => {
+        try {
+            const r = await fetch('/api/games/hoasi/config', { cache: 'no-store' });
+            if (r.ok) applyConfig(await r.json()); else applyConfig(null);
+        } catch (e) { applyConfig(null); }
+        syncFeed();
+    })();
+})();
+</script>
+</body>
+</html>
