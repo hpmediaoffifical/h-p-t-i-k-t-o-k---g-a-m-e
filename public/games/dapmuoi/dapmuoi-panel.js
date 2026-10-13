@@ -55,7 +55,7 @@
         release: 'Thả thêm muỗi ngay (nhóm "hành").',
         spray: 'Đám mây xịt lan ra giữa đàn, giết dần — kể cả muỗi thông minh (nhóm "cứu").',
         racket: 'Tay streamer thành vợt điện: lướt qua muỗi là chết, không cần vỗ (nhóm "cứu").',
-        net: 'Mắc màn: ngừng sinh muỗi mới, muỗi đang bay vẫn bay (nhóm "cứu").',
+        net: 'Mắc màn: người ở trong màn — muỗi không vào chích được (con đang đậu bị đẩy ra), bò chậm bên ngoài màn, không sinh muỗi mới (nhóm "cứu").',
         cream: 'Kem chống muỗi: muỗi không dám đậu, con đang đậu bị đẩy văng, và cứ 0,5 giây xoa mất một nốt muỗi cắn (nhóm "cứu").'
     };
 

@@ -309,6 +309,7 @@
             else if (e.type === 'bite') { sfx.bite(); bumps.add({ frame: e.frame, a: e.a, b: e.b, zone: e.zone }, clockNow); addLabel(e.x, e.y - 70, 'Ái!', '#ff5a6e', 46); }
             else if (e.type === 'cream') { creamFlashAt = performance.now(); sfx.cream(); }
             else if (e.type === 'repel') addLabel(W / 2, H * 0.3, 'Muỗi dạt ra!', '#5fe0c4', 40);
+            else if (e.type === 'net') addLabel(W / 2, H * 0.22, 'Trong màn an toàn!', '#7fd7ff', 40);
         }
     }
 
@@ -529,14 +530,14 @@
         handleEvents(s.events);
         tickBumps(s);
         ctx.clearRect(0, 0, W, H);
-        // vẽ: chết ở dưới cùng, rồi bay (thứ tự theo y cho có chiều sâu nhẹ)
+        // Thứ tự lớp: nốt cắn nằm trên da (TRONG màn) → màn → muỗi bò BÊN NGOÀI màn → hiệu ứng → vợt.
+        drawBumps(s, now);
+        drawNet(s, dt);
         const list = s.mosquitoes;
         for (const m of list) if (m.state === 'dead') drawMosquito(m, now, s.clock);
         for (const m of list) if (m.state !== 'dead') drawMosquito(m, now, s.clock);
         drawEffects(now, s);
-        drawBumps(s, now);
         drawRackets(s, now);
-        drawNet(s, dt);
         drawSkeleton();
         applyHud(s);
         audioBuzz(s.flying);

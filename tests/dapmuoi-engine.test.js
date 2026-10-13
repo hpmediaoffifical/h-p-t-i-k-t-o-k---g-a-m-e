@@ -380,3 +380,19 @@ test('sweepSegment: vợt quẹt nhanh — muỗi nằm trên đường đi gi�
     assert.equal(e.snapshot().mosquitoes.find(o => o.id === a.id).state, 'dead');
     assert.equal(e.sweepSegment(0, 1900, 1080, 1900, 10), 0, 'đoạn xa không giết');
 });
+
+test('mắc màn: muỗi không thể vào chích — không seek khi màn, con đang đậu/đang tới bị đẩy ra, bay chậm trên màn', () => {
+    const e = biter(); untilLanded(e);
+    e.net(10);
+    let s = e.snapshot();
+    assert.equal(s.mosquitoes[0].state, 'dodge'); assert.ok(s.events.some(x => x.type === 'repel' && x.n === 1));
+    run(e, 9000); s = e.snapshot();
+    assert.equal(s.bites, 0); assert.equal(s.mosquitoes[0].state, 'fly'); assert.equal(s.landed, 0);
+    // hết màn → lại chích được
+    run(e, 15000); assert.ok(e.snapshot().bites >= 1 || e.snapshot().mosquitoes[0].state !== 'fly');
+    // bay chậm khi có màn
+    const a = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, gentlePercent: 0, smartPercent: 0 }, { random: () => 0.5 });
+    a.enqueue(1); a.step(16); a.step(16); const v1 = Math.hypot(a.snapshot().mosquitoes[0].vx, a.snapshot().mosquitoes[0].vy);
+    a.net(10); a.step(16); const v2 = Math.hypot(a.snapshot().mosquitoes[0].vx, a.snapshot().mosquitoes[0].vy);
+    assert.ok(v2 < v1 * 0.7, `v1=${v1.toFixed(0)} v2=${v2.toFixed(0)}`);
+});
