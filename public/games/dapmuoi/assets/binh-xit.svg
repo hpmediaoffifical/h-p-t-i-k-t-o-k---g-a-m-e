@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 320" width="200" height="320">
+  <!-- Bình xịt muỗi: nhìn nghiêng, vòi xịt hướng sang PHẢI (overlay lật gương nếu cần). Tỉ lệ 200×320. -->
+  <defs>
+    <linearGradient id="can" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2fa84f"/><stop offset=".45" stop-color="#6fe08a"/><stop offset="1" stop-color="#1f7a38"/>
+    </linearGradient>
+    <linearGradient id="cap" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d9d9d9"/><stop offset=".5" stop-color="#ffffff"/><stop offset="1" stop-color="#9a9a9a"/>
+    </linearGradient>
+  </defs>
+  <!-- thân bình -->
+  <rect x="44" y="96" width="112" height="196" rx="18" fill="url(#can)"/>
+  <rect x="44" y="276" width="112" height="22" rx="10" fill="#1a5f2c"/>
+  <rect x="44" y="96" width="112" height="22" rx="10" fill="#8ff5a8" opacity=".7"/>
+  <!-- nhãn -->
+  <rect x="58" y="150" width="84" height="92" rx="10" fill="#f6fff8" stroke="#1a5f2c" stroke-width="3"/>
+  <g transform="translate(100 196)">
+    <!-- con muỗi gạch chéo -->
+    <ellipse cx="0" cy="0" rx="22" ry="9" fill="#2a1c14"/>
+    <circle cx="-24" cy="-2" r="6" fill="#2a1c14"/>
+    <path d="M-10 -8 L 10 -22 M-4 -8 L 14 -16 M6 -6 L 22 -18" stroke="#2a1c14" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="34" fill="none" stroke="#d81e1e" stroke-width="6"/>
+    <path d="M-24 -24 L 24 24" stroke="#d81e1e" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <text x="100" y="262" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#1a5f2c">XỊT MUỖI</text>
+  <!-- cổ + nắp bấm -->
+  <rect x="78" y="70" width="44" height="30" rx="8" fill="url(#cap)"/>
+  <rect x="70" y="36" width="60" height="40" rx="10" fill="#e8402f"/>
+  <rect x="70" y="36" width="60" height="12" rx="6" fill="#ff8a7a" opacity=".8"/>
+  <!-- vòi hướng phải -->
+  <rect x="124" y="50" width="34" height="14" rx="6" fill="#b8302a"/>
+  <!-- tia xịt -->
+  <g stroke="#9ee8ff" stroke-width="5" stroke-linecap="round" opacity=".9">
+    <path d="M164 57 L 192 57"/><path d="M164 50 L 190 40"/><path d="M164 64 L 190 74"/>
+  </g>
+  <g fill="#c9f3ff" opacity=".8"><circle cx="186" cy="30" r="4"/><circle cx="196" cy="48" r="3"/><circle cx="196" cy="66" r="3"/><circle cx="186" cy="84" r="4"/></g>
+</svg>

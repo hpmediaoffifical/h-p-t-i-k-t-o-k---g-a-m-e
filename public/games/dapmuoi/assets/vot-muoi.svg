@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 520" width="260" height="520">
+  <!-- Vợt muỗi điện: mặt vợt phía TRÊN, cán phía DƯỚI, dựng thẳng. Overlay đặt điểm cầm (130,470) vào lòng bàn tay. Tỉ lệ 260×520. -->
+  <defs>
+    <pattern id="mesh" width="14" height="14" patternUnits="userSpaceOnUse">
+      <path d="M0 7 H14 M7 0 V14" stroke="#9fb7c9" stroke-width="1.2" opacity=".9"/>
+    </pattern>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe066"/><stop offset="1" stop-color="#e0a800"/>
+    </linearGradient>
+    <linearGradient id="handle" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffd23f"/><stop offset=".5" stop-color="#fff2a8"/><stop offset="1" stop-color="#d49a00"/>
+    </linearGradient>
+  </defs>
+  <!-- mặt vợt -->
+  <ellipse cx="130" cy="150" rx="112" ry="140" fill="#dfe9f1"/>
+  <ellipse cx="130" cy="150" rx="104" ry="132" fill="url(#mesh)"/>
+  <ellipse cx="130" cy="150" rx="112" ry="140" fill="none" stroke="url(#frame)" stroke-width="16"/>
+  <ellipse cx="130" cy="150" rx="104" ry="132" fill="none" stroke="#b07d00" stroke-width="2"/>
+  <!-- thanh chữ thập gia cố -->
+  <path d="M130 18 V282 M26 150 H234" stroke="#c9d6e0" stroke-width="3" opacity=".8"/>
+  <!-- tia điện lúc bật (overlay có thể ẩn/hiện nhóm #zap) -->
+  <g id="zap" stroke="#5fe0ff" stroke-width="4" stroke-linecap="round" fill="none" opacity=".95">
+    <path d="M70 90 l14 -10 -6 18 16 -8 -8 20"/><path d="M180 200 l-12 12 18 -4 -14 16 20 -6"/><path d="M110 230 l10 -14 4 14 12 -12"/>
+  </g>
+  <!-- cổ vợt -->
+  <path d="M100 284 L160 284 L150 322 L110 322 Z" fill="#e0a800"/>
+  <!-- cán -->
+  <rect x="98" y="318" width="64" height="186" rx="18" fill="url(#handle)"/>
+  <rect x="98" y="318" width="64" height="186" rx="18" fill="none" stroke="#b07d00" stroke-width="3"/>
+  <!-- nút bấm + đèn -->
+  <rect x="116" y="346" width="28" height="44" rx="8" fill="#e8402f"/>
+  <rect x="120" y="350" width="20" height="14" rx="4" fill="#ff8a7a" opacity=".8"/>
+  <circle cx="130" cy="412" r="7" fill="#5fe0ff"/>
+  <!-- rãnh cầm -->
+  <g stroke="#b07d00" stroke-width="3" opacity=".6"><path d="M108 440 H152"/><path d="M108 456 H152"/><path d="M108 472 H152"/></g>
+  <!-- điểm cầm tham chiếu (không vẽ): (130,470) -->
+</svg>

@@ -74,7 +74,7 @@
     const NUM_LIMITS = {
         clapDistance: [0.6, 3], clapSpeed: [200, 3000], slapSpeed: [300, 4000], clapCooldownMs: [100, 1000], hitRadius: [4, 40],
         speed: [40, 600], mosquitoScale: [40, 250], faceRadius: [100, 600], gentlePercent: [0, 100], crowdFrom: [20, 300],
-        smartPercent: [0, 100], smartLives: [2, 6], spawnPerSecond: [1, 30], maxOnScreen: [20, 600], idleSpawnSeconds: [0, 60],
+        smartPercent: [0, 100], smartLives: [2, 6], sidePercent: [0, 100], spawnPerSecond: [1, 30], maxOnScreen: [20, 600], idleSpawnSeconds: [0, 60],
         maxPerGift: [1, 1000], coinsPerMosquito: [0, 5000]
     };
 
@@ -84,6 +84,7 @@
         const cfg = { ...def, ...raw };
         cfg.enabled = raw.enabled !== false;
         cfg.hitMode = ['clap', 'slap', 'both'].includes(raw.hitMode) ? raw.hitMode : 'clap';
+        cfg.killMode = raw.killMode === 'all' ? 'all' : 'one';
         for (const [k, [min, max]] of Object.entries(NUM_LIMITS)) {
             const v = raw[k];
             cfg[k] = (v !== '' && v !== null && Number.isFinite(Number(v))) ? clamp(v, min, max) : def[k];
@@ -152,6 +153,8 @@
             enabled: true,
             hitMode: 'clap', clapDistance: 1.2, clapSpeed: 900, slapSpeed: 1200, clapCooldownMs: 250,
             hitRadius: 14,                 // % bề rộng sân khấu
+            killMode: 'one',               // 'one' = mỗi cú vỗ chết 1 con gần nhất | 'all' = chết cả bầy trong vòng
+            sidePercent: 60,               // % đích bay nằm ở 2 mép khi còn ít muỗi (đỡ dồn giữa mặt)
             speed: 180, mosquitoScale: 100, faceAttract: true, faceRadius: 260,
             gentlePercent: 35, crowdFrom: 120, smartPercent: 10, smartLives: 3,
             spawnPerSecond: 6, maxOnScreen: 300, idleSpawnSeconds: 8, maxPerGift: 100,
@@ -264,9 +267,12 @@
         function hit(x, y, r) {
             const px = num(x, 0), py = num(y, 0), pr = Math.max(0, num(r, 0));
             let n = 0, dodged = 0;
-            for (const m of mosquitoes) {
-                if (m.state !== 'fly') continue;
-                if (Math.hypot(m.x - px, m.y - py) > pr + halfSize(m)) continue;
+            let targets = mosquitoes.filter(m => m.state === 'fly' && Math.hypot(m.x - px, m.y - py) <= pr + halfSize(m));
+            if (cfg.killMode !== 'all' && targets.length > 1) {
+                // Đập từng con: chỉ con gần điểm vỗ nhất.
+                targets = [targets.reduce((a, b) => Math.hypot(a.x - px, a.y - py) <= Math.hypot(b.x - px, b.y - py) ? a : b)];
+            }
+            for (const m of targets) {
                 if (m.smart && m.livesLeft > 1) { dodge(m, px, py); dodged++; }
                 else { kill(m); n++; }
             }
@@ -277,14 +283,35 @@
 
         function flyingCount() { let n = 0; for (const m of mosquitoes) if (m.state !== 'dead') n++; return n; }
 
+        // Đích bay: còn ít muỗi thì ưu tiên 2 mép (đổi bên so với vị trí hiện tại → bay qua lại ngang mặt),
+        // đông lên mới lấp dần vào giữa; thỉnh thoảng ghé quanh mặt (15%) chứ không bu kín mặt.
         function pickTarget(m) {
-            if (cfg.faceAttract !== false && clock - face.at <= 500 && rng() < 0.4) {
+            const flying = flyingCount();
+            const sparse = flying < Math.max(1, num(cfg.crowdFrom, 120)) / 2;
+            const sideP = num(cfg.sidePercent, 60) / 100 * (sparse ? 1 : 0.5);
+            if (rng() < sideP) {
+                const band = 0.28 * width;
+                // Đang ở giữa → bay ra mép gần; đã ở mép → nửa lượn cùng mép, nửa bay sang mép kia (qua lại ngang mặt).
+                const atLeft = m.x < band, atRight = m.x > width - band;
+                const goRight = atLeft ? rng() < 0.5 : atRight ? rng() >= 0.5 : m.x >= width / 2;
+                // keep: giữ đích tới khi tới nơi (không rẽ giữa chừng) — nếu không muỗi quay đầu ở giữa mặt mãi
+                return { x: goRight ? width - rng() * band : rng() * band, y: rng() * height, keep: true };
+            }
+            if (cfg.faceAttract !== false && clock - face.at <= 500 && rng() < 0.15) {
                 const r = num(cfg.faceRadius, 260) * Math.sqrt(rng()), a = rng() * Math.PI * 2;
                 return { x: face.x + Math.cos(a) * r, y: face.y + Math.sin(a) * r };
             }
             return { x: rng() * width, y: rng() * height };
         }
         function turnDelay(m) { return m.gentle ? 2000 + rng() * 3000 : 600 + rng() * 1200; }
+        // Đích ở mép (keep) giữ đủ thời gian bay tới + 0.5 s; đích thường đổi theo turnDelay.
+        function retarget(m) {
+            m.target = pickTarget(m);
+            if (m.target.keep) {
+                const d = Math.hypot(m.target.x - m.x, m.target.y - m.y), sp = Math.max(20, num(cfg.speed, 180) * m.speedMul * 0.4);
+                m.turnAt = clock + Math.min(12000, d / sp * 1000 + 500);
+            } else m.turnAt = clock + turnDelay(m);
+        }
 
         function spawn() {
             const left = rng() < 0.5;
@@ -311,9 +338,7 @@
 
         function fly(m, dt, crowd) {
             if (!m.target || clock >= m.turnAt || Math.hypot(m.target.x - m.x, m.target.y - m.y) < 40
-                || m.x < -EDGE || m.x > width + EDGE || m.y < -EDGE || m.y > height + EDGE) {
-                m.target = pickTarget(m); m.turnAt = clock + turnDelay(m);
-            }
+                || m.x < -EDGE || m.x > width + EDGE || m.y < -EDGE || m.y > height + EDGE) retarget(m);
             const sp = num(cfg.speed, 180) * m.speedMul * crowd;
             const dx = m.target.x - m.x, dy = m.target.y - m.y, d = Math.hypot(dx, dy) || 1;
             m.vx = dx / d * sp; m.vy = dy / d * sp;

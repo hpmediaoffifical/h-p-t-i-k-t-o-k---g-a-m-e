@@ -18,7 +18,7 @@
             { key: 'clapSpeed', label: 'Tốc độ khép tối thiểu', min: 200, max: 3000, step: 50, unit: 'px/s' },
             { key: 'slapSpeed', label: 'Tốc độ tát 1 tay tối thiểu', min: 300, max: 4000, step: 50, unit: 'px/s' },
             { key: 'clapCooldownMs', label: 'Nghỉ giữa 2 cú', min: 100, max: 1000, step: 10, unit: 'ms' },
-            { key: 'hitRadius', label: 'Bán kính đập', min: 4, max: 40, step: 1, unit: '% màn', hint: 'Muỗi trong vòng này quanh điểm vỗ sẽ chết (cộng thêm cỡ bàn tay).' }
+            { key: 'hitRadius', label: 'Bán kính đập', min: 4, max: 40, step: 1, unit: '% màn', hint: 'Muỗi trong vòng này quanh điểm vỗ mới tính là trúng (cộng thêm cỡ bàn tay).' }
         ] }
     ];
     const MOSQ_SETTINGS = [
@@ -27,7 +27,8 @@
             { key: 'mosquitoScale', label: 'Cỡ muỗi', min: 40, max: 250, step: 5, unit: '%' },
             { key: 'gentlePercent', label: 'Tỉ lệ con bay nhẹ (lững lờ)', min: 0, max: 100, step: 5, unit: '%' },
             { key: 'crowdFrom', label: 'Đông từ ngần này con thì cả đàn chậm lại', min: 20, max: 300, step: 10, unit: 'con' },
-            { key: 'faceRadius', label: 'Bán kính bám quanh mặt', min: 100, max: 600, step: 10, unit: 'px' }
+            { key: 'faceRadius', label: 'Bán kính ghé quanh mặt', min: 100, max: 600, step: 10, unit: 'px' },
+            { key: 'sidePercent', label: 'Còn ít muỗi: tỉ lệ bay ở hai mép', min: 0, max: 100, step: 5, unit: '%', hint: 'Cao = muỗi dạt hai bên, chỉ bay ngang qua mặt; đông lên mới lấp vào giữa.' }
         ] },
         { group: 'MUỖI THÔNG MINH', items: [
             { key: 'smartPercent', label: 'Tỉ lệ con thông minh', min: 0, max: 100, step: 5, unit: '%', hint: 'Con thông minh to hơn, mắt vàng, bị đập thì né vụt đi.' },
@@ -189,6 +190,12 @@
                     <label class="dm-mode ${cfg.hitMode === v ? 'on' : ''}"><input type="radio" name="dm-hitmode" value="${v}" ${cfg.hitMode === v ? 'checked' : ''}><b>${t}</b><small>${h}</small></label>`).join('')}
                 </div>
             </div>
+            <div class="ctc-card">
+                <h3>MỖI CÚ VỖ</h3>
+                <div class="dm-modes">${[['one', '🦟 Chết 1 con', 'Chỉ con gần điểm vỗ nhất chết — đập từng con, kéo dài cuộc chơi.'], ['all', '🦟🦟 Chết cả bầy', 'Mọi con trong bán kính đập đều chết.']].map(([v, t, h]) => `
+                    <label class="dm-mode ${cfg.killMode === v ? 'on' : ''}"><input type="radio" name="dm-killmode" value="${v}" ${cfg.killMode === v ? 'checked' : ''}><b>${t}</b><small>${h}</small></label>`).join('')}
+                </div>
+            </div>
             ${sliderGroups(HIT_SETTINGS)}
             <div class="ctc-card">
                 <h3>GỠ LỖI</h3>
@@ -197,13 +204,14 @@
                 <div class="ctc-actions" style="margin-top:8px"><button class="danger small" id="dm-btn-hit-defaults">↺ Mặc định độ nhạy</button></div>
             </div>`;
         host.querySelectorAll('input[name=dm-hitmode]').forEach(r => r.addEventListener('change', () => { cfg.hitMode = r.value; renderHit(); schedulePersist(); }));
+        host.querySelectorAll('input[name=dm-killmode]').forEach(r => r.addEventListener('change', () => { cfg.killMode = r.value; renderHit(); schedulePersist(); }));
         bindSliders(host);
         $('#dm-showring').addEventListener('change', (e) => { cfg.display.showHitRing = e.target.checked; schedulePersist(); });
         $('#dm-showskel').addEventListener('change', (e) => { cfg.display.showSkeleton = e.target.checked; schedulePersist(); });
         $('#dm-btn-hit-defaults').addEventListener('click', () => {
             const d = Game().defaultConfig();
             for (const g of HIT_SETTINGS) for (const it of g.items) cfg[it.key] = d[it.key];
-            cfg.hitMode = d.hitMode; renderHit(); schedulePersist();
+            cfg.hitMode = d.hitMode; cfg.killMode = d.killMode; renderHit(); schedulePersist();
         });
     }
 

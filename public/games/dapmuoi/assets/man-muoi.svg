@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 700" width="1080" height="700">
+  <!-- Màn (mùng) chống muỗi: treo từ MÉP TRÊN màn hình, rộng đúng 1080 sân khấu, rủ xuống ~700px rồi hở phía dưới.
+       Lưới trong suốt (thấy người bên dưới), đỉnh có vòng treo. Overlay vẽ đè lên trên mọi thứ khi "Mắc màn" đang bật. -->
+  <defs>
+    <pattern id="net" width="16" height="16" patternUnits="userSpaceOnUse">
+      <path d="M0 8 H16 M8 0 V16" stroke="#ffffff" stroke-width="1" opacity=".55"/>
+    </pattern>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dff3ff" stop-opacity=".45"/><stop offset=".75" stop-color="#dff3ff" stop-opacity=".25"/><stop offset="1" stop-color="#dff3ff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- thân màn rủ xuống, viền dưới lượn sóng -->
+  <path id="body" d="M0 0 H1080 V560 C 1000 640, 920 620, 840 660 C 760 700, 700 620, 620 660 C 540 700, 480 620, 400 660 C 320 700, 260 620, 180 660 C 100 700, 60 640, 0 580 Z" fill="url(#fade)"/>
+  <path d="M0 0 H1080 V560 C 1000 640, 920 620, 840 660 C 760 700, 700 620, 620 660 C 540 700, 480 620, 400 660 C 320 700, 260 620, 180 660 C 100 700, 60 640, 0 580 Z" fill="url(#net)"/>
+  <!-- nếp gấp dọc -->
+  <g stroke="#ffffff" stroke-width="2" opacity=".35" fill="none">
+    <path d="M140 0 C 150 200, 120 420, 150 650"/><path d="M400 0 C 410 220, 380 430, 410 660"/><path d="M700 0 C 690 220, 720 430, 690 660"/><path d="M950 0 C 940 200, 970 420, 940 650"/>
+  </g>
+  <!-- viền trên + vòng treo -->
+  <rect x="0" y="0" width="1080" height="26" fill="#ffffff" opacity=".55"/>
+  <g fill="none" stroke="#ffffff" stroke-width="6" opacity=".8">
+    <circle cx="90" cy="14" r="12"/><circle cx="315" cy="14" r="12"/><circle cx="540" cy="14" r="12"/><circle cx="765" cy="14" r="12"/><circle cx="990" cy="14" r="12"/>
+  </g>
+  <!-- viền dưới lượn -->
+  <path d="M0 580 C 60 640, 100 700, 180 660 C 260 620, 320 700, 400 660 C 480 620, 540 700, 620 660 C 700 620, 760 700, 840 660 C 920 620, 1000 640, 1080 560" fill="none" stroke="#ffffff" stroke-width="5" opacity=".7"/>
+</svg>

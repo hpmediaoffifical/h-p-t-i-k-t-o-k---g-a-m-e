@@ -2,6 +2,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createEngine, defaultConfig, normalizeConfig, normalizeAction, actionForGift, mosquitoesForGift } = require('../public/games/dapmuoi/game.js');
+// rng tất định (mulberry32) cho các test thống kê — số đo với seed 7 ghi trong từng test.
+const seeded = (seed) => { let t = seed; return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ t >>> 15, 1 | t); r ^= r + Math.imul(r ^ r >>> 7, 61 | r); return ((r ^ r >>> 14) >>> 0) / 4294967296; }; };
 
 // ---------- Task 1: config, sinh, bay ----------
 
@@ -68,11 +70,14 @@ test('hệ số đàn: flying > crowdFrom thì tốc độ trung bình giảm, s
     assert.ok(mk(240) < mk(60) * 0.7); assert.ok(mk(2000) > mk(60) * 0.3);
 });
 
-test('setFace: faceAttract bật → trong 20s có ≥30% muỗi trong faceRadius quanh mặt', () => {
-    const eng = createEngine({ ...defaultConfig(), spawnPerSecond: 1000, idleSpawnSeconds: 0, faceRadius: 260 });
-    eng.enqueue(100); for (let i = 0; i < 1200; i++) { eng.setFace(540, 500); eng.step(16); }
-    const near = eng.snapshot().mosquitoes.filter(o => Math.hypot(o.x - 540, o.y - 500) <= 260).length;
-    assert.ok(near >= 30, `near=${near}`);
+test('setFace: faceAttract bật → có muỗi ghé mặt (≥15/100 sau 20s) và nhiều hơn khi tắt', () => {
+    const near = (faceAttract) => {
+        const eng = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, faceRadius: 260, faceAttract }, { random: seeded(7) });   // seed 7: on 22, off 12
+        eng.enqueue(100); for (let i = 0; i < 1200; i++) { eng.setFace(540, 500); eng.step(16); }
+        return eng.snapshot().mosquitoes.filter(o => Math.hypot(o.x - 540, o.y - 500) <= 260).length;
+    };
+    const on = near(true), off = near(false);
+    assert.ok(on >= 15, `on=${on}`); assert.ok(on > off, `on=${on} off=${off}`);
 });
 
 // ---------- Task 2: đập, chết, combo, muỗi thông minh ----------
@@ -99,8 +104,8 @@ test('muỗi chết rơi với g=1600, xoá khi y > H+100 hoặc sau 2.5s', () =
     assert.equal(e.snapshot().mosquitoes.length, 0);
 });
 
-test('combo đếm theo CÚ đập: 1 cú giết 2 con vẫn là combo 1', () => {
-    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 0 });
+test('combo đếm theo CÚ đập: 1 cú giết 2 con (killMode all) vẫn là combo 1', () => {
+    const e = createEngine({ ...defaultConfig(), killMode: 'all', spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 0 });
     e.enqueue(2); e.step(16);
     const [a, b] = e.snapshot().mosquitoes;
     assert.equal(e.hit((a.x + b.x) / 2, (a.y + b.y) / 2, 3000), 2);
@@ -226,4 +231,31 @@ test('muỗi thông minh vùng trúng to hơn 15% như hình vẽ', () => {
     const n = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 0 });
     n.enqueue(1); n.step(16); const k = n.snapshot().mosquitoes[0];
     assert.equal(n.hit(k.x + 80, k.y, 0), 0); assert.equal(n.snapshot().events[0].type, 'miss');   // con thường cùng khoảng cách: hụt
+});
+
+// ---------- Phản hồi sau khi chơi thật 13/10 ----------
+
+test('killMode one (mặc định): 1 cú vỗ chỉ giết 1 con gần điểm đập nhất; all: giết hết trong vòng', () => {
+    const mk = (killMode) => { const e = createEngine({ ...defaultConfig(), killMode, spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 0 }); e.enqueue(12); e.step(16); return e; };
+    assert.equal(defaultConfig().killMode, 'one');
+    const one = mk('one');
+    const m = one.snapshot().mosquitoes;
+    const target = m.reduce((a, b) => Math.hypot(a.x - 540, a.y - 960) < Math.hypot(b.x - 540, b.y - 960) ? a : b);
+    assert.equal(one.hit(540, 960, 5000), 1);
+    assert.equal(one.snapshot().mosquitoes.find(o => o.state === 'dead').id, target.id);
+    assert.equal(mk('all').hit(540, 960, 5000), 12);
+});
+
+test('ít muỗi: phần lớn ở hai bên mép, không dồn giữa mặt; vẫn có con bay sang bên kia', () => {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0 }, { random: seeded(7) });   // seed 7: mép 12/20, qua lại 16
+    e.enqueue(20);
+    const crossed = new Set(), side = new Map();
+    for (let i = 0; i < 2500; i++) {
+        e.setFace(540, 700); e.step(16);
+        if (i % 25 === 0) for (const o of e.snapshot().mosquitoes) { const s = o.x < 540 ? 'L' : 'R'; if (side.has(o.id) && side.get(o.id) !== s) crossed.add(o.id); side.set(o.id, s); }
+    }
+    const m = e.snapshot().mosquitoes;
+    const onSides = m.filter(o => Math.abs(o.x - 540) > 0.22 * 1080).length;
+    assert.ok(onSides >= m.length * 0.5, `ở hai bên ${onSides}/${m.length}`);
+    assert.ok(crossed.size >= 5, `qua lại ${crossed.size}`);
 });

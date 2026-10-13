@@ -89,6 +89,12 @@
     const BODY_W = Game.BASE_SIZE, BODY_H = Game.BASE_SIZE * 200 / 320;
     const imgBody = new Image(), imgDead = new Image();
     imgBody.src = '/games/dapmuoi/assets/muoi-than.svg'; imgDead.src = '/games/dapmuoi/assets/muoi-lat-ngua.svg';
+    // Dụng cụ: bình xịt (200×320, vòi hướng phải), vợt điện (260×520, điểm cầm 130,470), màn (1080×700 treo mép trên)
+    const imgSpray = new Image(), imgRacket = new Image(), imgNet = new Image();
+    imgSpray.src = '/games/dapmuoi/assets/binh-xit.svg'; imgRacket.src = '/games/dapmuoi/assets/vot-muoi.svg'; imgNet.src = '/games/dapmuoi/assets/man-muoi.svg';
+    let lastHands = [];            // lòng bàn tay (sân khấu) khung AI gần nhất — để vẽ vợt theo tay
+    let mousePos = null;           // chế độ chuột: vợt theo con trỏ
+    let netSlide = 0;              // 0 = cuộn lên, 1 = rủ hết (trượt 0.5 s)
     const PIVOT = { x: (112 - 160) / 320, y: (72 - 100) / 200 };     // gốc cánh so với tâm ảnh (tỉ lệ)
     const EYE = { x: (64 - 160) / 320, y: (96 - 100) / 200, r: 8.5 / 320 };
 
@@ -160,17 +166,24 @@
     const rings = [];      // { x, y, r, t0, hit }
     const labels = [];     // { x, y, text, color, t0, size }
     const zaps = [];       // { x, y, t0 }
-    function addRing(x, y, r, hit) { rings.push({ x, y, r, t0: performance.now(), hit }); if (rings.length > 20) rings.shift(); }
+    // Vòng sóng chỉ là dấu "đã vỗ ở đây": nhỏ (≤ 90 px), KHÔNG vẽ theo bán kính đập — user thấy vòng to che mặt.
+    function addRing(x, y, r, hit) { rings.push({ x, y, r: Math.min(90, r * 0.35), t0: performance.now(), hit }); if (rings.length > 20) rings.shift(); }
     function addLabel(x, y, text, color, size) { labels.push({ x, y, text, color, t0: performance.now(), size: size || 40 }); if (labels.length > 30) labels.shift(); }
 
     function drawEffects(now, s) {
         if (cfg.display.showHitRing) for (const r of rings) {
             const k = (now - r.t0) / 300; if (k > 1) continue;
-            ctx.save(); ctx.globalAlpha = 1 - k; ctx.lineWidth = 6; ctx.strokeStyle = r.hit ? '#ffd54a' : 'rgba(255,255,255,.8)';
-            ctx.beginPath(); ctx.arc(r.x, r.y, r.r * (0.5 + 0.5 * k), 0, Math.PI * 2); ctx.stroke();
-            ctx.beginPath(); ctx.arc(r.x, r.y, r.r * 0.3 * (1 + k), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+            ctx.save(); ctx.globalAlpha = 0.9 * (1 - k); ctx.lineWidth = 4; ctx.strokeStyle = r.hit ? '#ffd54a' : 'rgba(255,255,255,.75)';
+            ctx.beginPath(); ctx.arc(r.x, r.y, r.r * (0.4 + 0.6 * k), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
         }
         if (s.spray) {
+            // bình xịt đứng cạnh mây, vòi hướng vào tâm mây; sát mép trái thì sang phải và lật gương
+            const cw = 120, ch = 192, left = s.spray.x > 260;
+            const cx = left ? s.spray.x - Math.min(s.spray.r, 300) - 80 : s.spray.x + Math.min(s.spray.r, 300) + 80;
+            ctx.save(); ctx.translate(cx, s.spray.y); ctx.scale(left ? 1 : -1, 1);
+            ctx.rotate(Math.sin(now / 90) * 0.04);
+            if (imgSpray.complete && imgSpray.naturalWidth) ctx.drawImage(imgSpray, -cw / 2, -ch * 0.5, cw, ch);
+            ctx.restore();
             const g = ctx.createRadialGradient(s.spray.x, s.spray.y, 0, s.spray.x, s.spray.y, s.spray.r);
             g.addColorStop(0, 'rgba(120,230,120,.38)'); g.addColorStop(0.7, 'rgba(120,230,120,.18)'); g.addColorStop(1, 'rgba(120,230,120,0)');
             ctx.fillStyle = g; ctx.beginPath(); ctx.arc(s.spray.x, s.spray.y, s.spray.r, 0, Math.PI * 2); ctx.fill();
@@ -330,11 +343,34 @@
         feed.seenHands = t.handsAt; feed.seenPose = t.poseAt;
         const hands = now - t.handsAt < 400 ? t.hands : [];
         const pose = now - t.poseAt < 400 ? t.pose : null;
+        lastHands = hands;
         // Tốc độ khép tính theo thời điểm AI ra kết quả (handsAt), không theo nhịp rAF — lệch 16ms trên chu kỳ ~40ms làm sai ±30%.
         for (const e of clap.update({ hands, pose, now: Math.max(t.handsAt, t.poseAt) || now })) hitAt(e.x, e.y, e.r, e.mode);
         if (lastSnap && lastSnap.racketMs > 0) for (const h of hands) engine.sweep(h.palm.x, h.palm.y, h.size);
         if (pose && pose[0] && (pose[0].v == null || pose[0].v >= 0.35)) engine.setFace(pose[0].x, pose[0].y);
         if (cfg.display.showSkeleton) skeleton = { hands, pose };
+    }
+    // Vợt điện bám tay: điểm cầm (130,470 trên ảnh 260×520) đặt vào lòng bàn tay, nghiêng ra ngoài 12°, rung nhẹ.
+    function drawRackets(s, now) {
+        if (s.racketMs <= 0 || !imgRacket.complete || !imgRacket.naturalWidth) return;
+        const pts = lastHands.length ? lastHands.map(h => ({ x: h.palm.x, y: h.palm.y })) : (mousePos ? [mousePos] : []);
+        const sc = 0.75, w = 260 * sc, h = 520 * sc, gx = 130 * sc, gy = 470 * sc;
+        for (const p of pts) {
+            ctx.save(); ctx.translate(p.x, p.y);
+            ctx.rotate((p.x < W / 2 ? -12 : 12) * Math.PI / 180 + Math.sin(now / 60) * 0.03);
+            ctx.drawImage(imgRacket, -gx, -gy, w, h);
+            ctx.restore();
+        }
+    }
+    // Màn chống muỗi rủ từ mép trên khi Mắc màn bật (trượt xuống/lên 0.5 s).
+    function drawNet(s, dtMs) {
+        const want = s.netMs > 0 ? 1 : 0;
+        netSlide += (want - netSlide) * Math.min(1, dtMs / 500) * 2;
+        if (netSlide < 0.01) { netSlide = 0; return; }
+        if (!imgNet.complete || !imgNet.naturalWidth) return;
+        ctx.save(); ctx.globalAlpha = Math.min(1, netSlide * 1.2);
+        ctx.drawImage(imgNet, 0, -700 * (1 - netSlide), 1080, 700);
+        ctx.restore();
     }
     let skeleton = null;
     function drawSkeleton() {
@@ -352,7 +388,7 @@
             mouseDown = true; const p = toStage(e.clientX, e.clientY);
             hitAt(p.x, p.y, cfg.hitRadius / 100 * W, 'mouse');
         });
-        window.addEventListener('pointermove', (e) => { if (!mouseDown || !lastSnap || lastSnap.racketMs <= 0) return; const p = toStage(e.clientX, e.clientY); engine.sweep(p.x, p.y, 60); });
+        window.addEventListener('pointermove', (e) => { const p = toStage(e.clientX, e.clientY); mousePos = p; if (!mouseDown || !lastSnap || lastSnap.racketMs <= 0) return; engine.sweep(p.x, p.y, 60); });
         window.addEventListener('pointerup', () => { mouseDown = false; });
         window.addEventListener('keydown', (e) => { if (e.key === 'c' || e.key === 'C') engine.clear(); });
     }
@@ -362,7 +398,7 @@
     function loop() {
         requestAnimationFrame(loop);
         const now = performance.now();
-        const dt = Math.min(50, now - lastT); lastT = now;
+        const dt = Math.min(50, now - lastT); lastT = now;   // dt cũng dùng cho hoạt ảnh màn (drawNet)
         frames++; if (now - fpsAt >= 1000) { fps = frames; frames = 0; fpsAt = now; }
         if (disabled) return;
         pumpTracking(now);
@@ -375,6 +411,8 @@
         for (const m of list) if (m.state === 'dead') drawMosquito(m, now, s.clock);
         for (const m of list) if (m.state !== 'dead') drawMosquito(m, now, s.clock);
         drawEffects(now, s);
+        drawRackets(s, now);
+        drawNet(s, dt);
         drawSkeleton();
         applyHud(s);
         audioBuzz(s.flying);

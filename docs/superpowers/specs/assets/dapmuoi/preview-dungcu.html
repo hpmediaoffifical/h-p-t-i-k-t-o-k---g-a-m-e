@@ -1,0 +1,104 @@
+<!doctype html><html lang="vi"><meta charset="utf-8"><title>Dụng cụ</title><style>body{margin:0;background:#1b2a38;color:#fff;font:14px system-ui;padding:16px}.row{display:flex;gap:28px;align-items:flex-end}figure{margin:0;text-align:center}svg{background:rgba(255,255,255,.06);border-radius:12px}</style><div class="row"><figure>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 320" width="200" height="320">
+  <!-- Bình xịt muỗi: nhìn nghiêng, vòi xịt hướng sang PHẢI (overlay lật gương nếu cần). Tỉ lệ 200×320. -->
+  <defs>
+    <linearGradient id="can" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2fa84f"/><stop offset=".45" stop-color="#6fe08a"/><stop offset="1" stop-color="#1f7a38"/>
+    </linearGradient>
+    <linearGradient id="cap" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d9d9d9"/><stop offset=".5" stop-color="#ffffff"/><stop offset="1" stop-color="#9a9a9a"/>
+    </linearGradient>
+  </defs>
+  <!-- thân bình -->
+  <rect x="44" y="96" width="112" height="196" rx="18" fill="url(#can)"/>
+  <rect x="44" y="276" width="112" height="22" rx="10" fill="#1a5f2c"/>
+  <rect x="44" y="96" width="112" height="22" rx="10" fill="#8ff5a8" opacity=".7"/>
+  <!-- nhãn -->
+  <rect x="58" y="150" width="84" height="92" rx="10" fill="#f6fff8" stroke="#1a5f2c" stroke-width="3"/>
+  <g transform="translate(100 196)">
+    <!-- con muỗi gạch chéo -->
+    <ellipse cx="0" cy="0" rx="22" ry="9" fill="#2a1c14"/>
+    <circle cx="-24" cy="-2" r="6" fill="#2a1c14"/>
+    <path d="M-10 -8 L 10 -22 M-4 -8 L 14 -16 M6 -6 L 22 -18" stroke="#2a1c14" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="34" fill="none" stroke="#d81e1e" stroke-width="6"/>
+    <path d="M-24 -24 L 24 24" stroke="#d81e1e" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <text x="100" y="262" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#1a5f2c">XỊT MUỖI</text>
+  <!-- cổ + nắp bấm -->
+  <rect x="78" y="70" width="44" height="30" rx="8" fill="url(#cap)"/>
+  <rect x="70" y="36" width="60" height="40" rx="10" fill="#e8402f"/>
+  <rect x="70" y="36" width="60" height="12" rx="6" fill="#ff8a7a" opacity=".8"/>
+  <!-- vòi hướng phải -->
+  <rect x="124" y="50" width="34" height="14" rx="6" fill="#b8302a"/>
+  <!-- tia xịt -->
+  <g stroke="#9ee8ff" stroke-width="5" stroke-linecap="round" opacity=".9">
+    <path d="M164 57 L 192 57"/><path d="M164 50 L 190 40"/><path d="M164 64 L 190 74"/>
+  </g>
+  <g fill="#c9f3ff" opacity=".8"><circle cx="186" cy="30" r="4"/><circle cx="196" cy="48" r="3"/><circle cx="196" cy="66" r="3"/><circle cx="186" cy="84" r="4"/></g>
+</svg>
+<figcaption>Bình xịt 200×320</figcaption></figure><figure>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 520" width="260" height="520">
+  <!-- Vợt muỗi điện: mặt vợt phía TRÊN, cán phía DƯỚI, dựng thẳng. Overlay đặt điểm cầm (130,470) vào lòng bàn tay. Tỉ lệ 260×520. -->
+  <defs>
+    <pattern id="mesh" width="14" height="14" patternUnits="userSpaceOnUse">
+      <path d="M0 7 H14 M7 0 V14" stroke="#9fb7c9" stroke-width="1.2" opacity=".9"/>
+    </pattern>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe066"/><stop offset="1" stop-color="#e0a800"/>
+    </linearGradient>
+    <linearGradient id="handle" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffd23f"/><stop offset=".5" stop-color="#fff2a8"/><stop offset="1" stop-color="#d49a00"/>
+    </linearGradient>
+  </defs>
+  <!-- mặt vợt -->
+  <ellipse cx="130" cy="150" rx="112" ry="140" fill="#dfe9f1"/>
+  <ellipse cx="130" cy="150" rx="104" ry="132" fill="url(#mesh)"/>
+  <ellipse cx="130" cy="150" rx="112" ry="140" fill="none" stroke="url(#frame)" stroke-width="16"/>
+  <ellipse cx="130" cy="150" rx="104" ry="132" fill="none" stroke="#b07d00" stroke-width="2"/>
+  <!-- thanh chữ thập gia cố -->
+  <path d="M130 18 V282 M26 150 H234" stroke="#c9d6e0" stroke-width="3" opacity=".8"/>
+  <!-- tia điện lúc bật (overlay có thể ẩn/hiện nhóm #zap) -->
+  <g id="zap" stroke="#5fe0ff" stroke-width="4" stroke-linecap="round" fill="none" opacity=".95">
+    <path d="M70 90 l14 -10 -6 18 16 -8 -8 20"/><path d="M180 200 l-12 12 18 -4 -14 16 20 -6"/><path d="M110 230 l10 -14 4 14 12 -12"/>
+  </g>
+  <!-- cổ vợt -->
+  <path d="M100 284 L160 284 L150 322 L110 322 Z" fill="#e0a800"/>
+  <!-- cán -->
+  <rect x="98" y="318" width="64" height="186" rx="18" fill="url(#handle)"/>
+  <rect x="98" y="318" width="64" height="186" rx="18" fill="none" stroke="#b07d00" stroke-width="3"/>
+  <!-- nút bấm + đèn -->
+  <rect x="116" y="346" width="28" height="44" rx="8" fill="#e8402f"/>
+  <rect x="120" y="350" width="20" height="14" rx="4" fill="#ff8a7a" opacity=".8"/>
+  <circle cx="130" cy="412" r="7" fill="#5fe0ff"/>
+  <!-- rãnh cầm -->
+  <g stroke="#b07d00" stroke-width="3" opacity=".6"><path d="M108 440 H152"/><path d="M108 456 H152"/><path d="M108 472 H152"/></g>
+  <!-- điểm cầm tham chiếu (không vẽ): (130,470) -->
+</svg>
+<figcaption>Vợt điện 260×520</figcaption></figure></div><figure style="margin-top:16px">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 700" width="540" height="350">
+  <!-- Màn (mùng) chống muỗi: treo từ MÉP TRÊN màn hình, rộng đúng 1080 sân khấu, rủ xuống ~700px rồi hở phía dưới.
+       Lưới trong suốt (thấy người bên dưới), đỉnh có vòng treo. Overlay vẽ đè lên trên mọi thứ khi "Mắc màn" đang bật. -->
+  <defs>
+    <pattern id="net" width="16" height="16" patternUnits="userSpaceOnUse">
+      <path d="M0 8 H16 M8 0 V16" stroke="#ffffff" stroke-width="1" opacity=".55"/>
+    </pattern>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dff3ff" stop-opacity=".45"/><stop offset=".75" stop-color="#dff3ff" stop-opacity=".25"/><stop offset="1" stop-color="#dff3ff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- thân màn rủ xuống, viền dưới lượn sóng -->
+  <path id="body" d="M0 0 H1080 V560 C 1000 640, 920 620, 840 660 C 760 700, 700 620, 620 660 C 540 700, 480 620, 400 660 C 320 700, 260 620, 180 660 C 100 700, 60 640, 0 580 Z" fill="url(#fade)"/>
+  <path d="M0 0 H1080 V560 C 1000 640, 920 620, 840 660 C 760 700, 700 620, 620 660 C 540 700, 480 620, 400 660 C 320 700, 260 620, 180 660 C 100 700, 60 640, 0 580 Z" fill="url(#net)"/>
+  <!-- nếp gấp dọc -->
+  <g stroke="#ffffff" stroke-width="2" opacity=".35" fill="none">
+    <path d="M140 0 C 150 200, 120 420, 150 650"/><path d="M400 0 C 410 220, 380 430, 410 660"/><path d="M700 0 C 690 220, 720 430, 690 660"/><path d="M950 0 C 940 200, 970 420, 940 650"/>
+  </g>
+  <!-- viền trên + vòng treo -->
+  <rect x="0" y="0" width="1080" height="26" fill="#ffffff" opacity=".55"/>
+  <g fill="none" stroke="#ffffff" stroke-width="6" opacity=".8">
+    <circle cx="90" cy="14" r="12"/><circle cx="315" cy="14" r="12"/><circle cx="540" cy="14" r="12"/><circle cx="765" cy="14" r="12"/><circle cx="990" cy="14" r="12"/>
+  </g>
+  <!-- viền dưới lượn -->
+  <path d="M0 580 C 60 640, 100 700, 180 660 C 260 620, 320 700, 400 660 C 480 620, 540 700, 620 660 C 700 620, 760 700, 840 660 C 920 620, 1000 640, 1080 560" fill="none" stroke="#ffffff" stroke-width="5" opacity=".7"/>
+</svg>
+<figcaption>Màn 1080×700 (hiện 50%)</figcaption></figure></html>
