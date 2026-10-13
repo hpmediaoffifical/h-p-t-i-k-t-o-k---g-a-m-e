@@ -366,3 +366,17 @@ test('bite.gapSec: sau một cú chích, không con nào bắt đầu tìm ngư�
     assert.ok(firstBiteAt > 0 && secondBiteAt > 0, `bite lần 1 ${firstBiteAt} lần 2 ${secondBiteAt}`);
     assert.ok(secondBiteAt - firstBiteAt >= 5000, `cách nhau ${secondBiteAt - firstBiteAt}ms`);
 });
+
+test('sweepSegment: vợt quẹt nhanh — muỗi nằm trên đường đi giữa 2 khung vẫn chết; chỉ khi vợt bật', () => {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 0 }, { random: () => 0.5 });
+    e.enqueue(3); e.step(16);
+    const m = e.snapshot().mosquitoes;
+    // đoạn thẳng đi qua đúng con thứ nhất, cách xa 2 con còn lại
+    const a = m[0];
+    assert.equal(e.sweepSegment(a.x - 600, a.y, a.x + 600, a.y, 40), 0, 'vợt chưa bật');
+    e.racket(10);
+    const n = e.sweepSegment(a.x - 600, a.y, a.x + 600, a.y, 40);
+    assert.ok(n >= 1, `giết ${n}`);
+    assert.equal(e.snapshot().mosquitoes.find(o => o.id === a.id).state, 'dead');
+    assert.equal(e.sweepSegment(0, 1900, 1080, 1900, 10), 0, 'đoạn xa không giết');
+});

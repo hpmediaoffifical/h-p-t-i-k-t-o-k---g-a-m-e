@@ -254,6 +254,23 @@
             return n;
         }
 
+        // Vợt quẹt nhanh: giết mọi con nằm trong bán kính r quanh ĐOẠN đường mặt vợt đi qua giữa hai khung
+        // (một điểm mỗi khung AI ~15 lần/giây thì vung nhanh là bỏ sót muỗi ở giữa).
+        function sweepSegment(ax, ay, bx, by, r) {
+            if (racketMs <= 0) return 0;
+            const x1 = num(ax, 0), y1 = num(ay, 0), x2 = num(bx, x1), y2 = num(by, y1), pr = Math.max(0, num(r, 0));
+            const dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy;
+            let n = 0;
+            for (const m of mosquitoes) {
+                if (m.state === 'dead') continue;
+                let t = l2 > 0 ? ((m.x - x1) * dx + (m.y - y1) * dy) / l2 : 0;
+                t = Math.max(0, Math.min(1, t));
+                if (Math.hypot(m.x - (x1 + t * dx), m.y - (y1 + t * dy)) > pr + halfSize(m)) continue;
+                kill(m); n++;
+            }
+            if (n) events.push({ type: 'zap', n, x: x2, y: y2 });
+            return n;
+        }
         function release(n) { return enqueue(n); }
         function racket(seconds) { racketMs = Math.min(RACKET_MAX_MS, racketMs + Math.max(0, num(seconds, 0)) * 1000); events.push({ type: 'racket', ms: racketMs }); }
         function net(seconds) { netMs = Math.min(NET_MAX_MS, netMs + Math.max(0, num(seconds, 0)) * 1000); events.push({ type: 'net', ms: netMs }); }
@@ -495,7 +512,7 @@
             };
         }
 
-        return { enqueue, step, hit, sweep, release, spray: sprayStart, racket, net, cream, applyAction, setFace, setPersonSeen, setBiteSpots, setConfig, clear, reset, snapshot };
+        return { enqueue, step, hit, sweep, sweepSegment, release, spray: sprayStart, racket, net, cream, applyAction, setFace, setPersonSeen, setBiteSpots, setConfig, clear, reset, snapshot };
     }
 
     return { ACTION_TYPES, ACTION_PRESET, ACTION_LIMITS, ACTION_ICONS, BITE_LIMITS, BITE_ZONE_KEYS, defaultConfig, normalizeConfig, normalizeAction,

@@ -99,16 +99,16 @@
     // ---------- ảnh muỗi (SVG 320×200) ----------
     const BODY_W = Game.BASE_SIZE, BODY_H = Game.BASE_SIZE * 200 / 320;
     const imgBody = new Image(), imgDead = new Image();
-    imgBody.src = '/games/dapmuoi/assets/muoi-than.svg'; imgDead.src = '/games/dapmuoi/assets/muoi-lat-ngua.svg';
+    imgBody.src = '/games/dapmuoi/assets/muoi-than-3d.png'; imgDead.src = '/games/dapmuoi/assets/muoi-lat-ngua-3d.png';
     // Dụng cụ: bình xịt (200×320, vòi hướng phải), vợt điện (260×520, điểm cầm 130,470), màn (1080×700 treo mép trên)
     const imgSpray = new Image(), imgRacket = new Image(), imgNet = new Image(), imgCream = new Image(), imgBump = new Image();
-    imgSpray.src = '/games/dapmuoi/assets/binh-xit.svg'; imgRacket.src = '/games/dapmuoi/assets/vot-muoi.svg'; imgNet.src = '/games/dapmuoi/assets/man-muoi.svg';
-    imgCream.src = '/games/dapmuoi/assets/kem-chong-muoi.svg'; imgBump.src = '/games/dapmuoi/assets/not-muoi-can.svg';
+    imgSpray.src = '/games/dapmuoi/assets/binh-xit-3d.png'; imgRacket.src = '/games/dapmuoi/assets/vot-muoi-3d.png'; imgNet.src = '/games/dapmuoi/assets/man-muoi.svg';
+    imgCream.src = '/games/dapmuoi/assets/kem-chong-muoi-3d.png'; imgBump.src = '/games/dapmuoi/assets/not-muoi-can.svg';
     let lastHands = [];            // lòng bàn tay (sân khấu) khung AI gần nhất — để vẽ vợt theo tay
     let mousePos = null;           // chế độ chuột: vợt theo con trỏ
     let netSlide = 0;              // 0 = cuộn lên, 1 = rủ hết (trượt 0.5 s)
-    const PIVOT = { x: (112 - 160) / 320, y: (72 - 100) / 200 };     // gốc cánh so với tâm ảnh (tỉ lệ)
-    const EYE = { x: (64 - 160) / 320, y: (96 - 100) / 200, r: 8.5 / 320 };
+    const PIVOT = { x: (137 - 160) / 320, y: (76 - 100) / 200 };     // gốc cánh của sprite 3D
+    const EYE = { x: (108 - 160) / 320, y: (88 - 100) / 200, r: 12 / 320 };
 
     function drawWing(w, h, angle, alpha) {
         ctx.save();
@@ -117,8 +117,8 @@
         ctx.globalAlpha *= alpha;
         ctx.beginPath();
         ctx.ellipse(w * 0.24, 0, w * 0.25, h * 0.13, 0, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(205,232,255,.5)'; ctx.fill();
-        ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(185,220,255,.85)'; ctx.stroke();
+        ctx.fillStyle = 'rgba(105,224,255,.62)'; ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(225,250,255,.95)'; ctx.stroke();
         ctx.restore();
     }
 
@@ -168,11 +168,12 @@
             // đang chích: cánh xếp, cả con phồng dần theo thời gian đậu
             const k = Math.min(1, m.landedMs / (cfg.bite.landSec * 1000));
             ctx.scale(1 + 0.12 * k, 1 + 0.18 * k);
-            drawWing(w, h, 8 * Math.PI / 180, 0.6); drawWing(w, h, 14 * Math.PI / 180, 0.45);
+            drawWing(w, h, 8 * Math.PI / 180, 0.58);
+            drawWing(w, h, 14 * Math.PI / 180, 0.42);
         } else {
             const flap = Math.sin(m.phase);
-            drawWing(w, h, (-10 + flap * 22) * Math.PI / 180, 0.9);
-            drawWing(w, h, (4 - flap * 22) * Math.PI / 180, 0.7);
+            drawWing(w, h, (-18 + flap * 32) * Math.PI / 180, 0.95);
+            drawWing(w, h, (10 - flap * 28) * Math.PI / 180, 0.72);
         }
         if (body) ctx.drawImage(body, -w / 2, -h / 2);
         if (landed || m.state === 'seek') {
@@ -376,20 +377,51 @@
         lastHands = hands;
         // Tốc độ khép tính theo thời điểm AI ra kết quả (handsAt), không theo nhịp rAF — lệch 16ms trên chu kỳ ~40ms làm sai ±30%.
         for (const e of clap.update({ hands, pose, now: Math.max(t.handsAt, t.poseAt) || now })) hitAt(e.x, e.y, e.r, e.mode);
-        if (lastSnap && lastSnap.racketMs > 0) for (const h of hands) engine.sweep(h.palm.x, h.palm.y, h.size);
         if (pose && pose[0] && (pose[0].v == null || pose[0].v >= 0.35)) engine.setFace(pose[0].x, pose[0].y);
         pushFrames(pose);
         if (cfg.display.showSkeleton) skeleton = { hands, pose };
     }
-    // Vợt điện bám tay: điểm cầm (130,470 trên ảnh 260×520) đặt vào lòng bàn tay, nghiêng ra ngoài 12°, rung nhẹ.
+    // Vợt điện: điểm cầm (130,470 trên ảnh 260×520) đặt vào lòng bàn tay; mất bàn tay thì lấy CỔ TAY từ model body
+    // (trục vợt theo cẳng tay khuỷu→cổ tay); chế độ chuột thì theo con trỏ. Trả về [{key, x, y, angle}].
+    const RK = { sc: 0.75, w: 260 * 0.75, h: 520 * 0.75, gx: 130 * 0.75, gy: 470 * 0.75, headUp: (470 - 150) * 0.75, headR: 110 * 0.75 };
+    function racketPoses(now) {
+        const out = [];
+        const wobble = Math.sin(now / 60) * 0.03;
+        if (lastHands.length) {
+            for (const h of lastHands) out.push({ key: 'h' + (h.id || out.length), x: h.palm.x, y: h.palm.y, angle: (h.palm.x < W / 2 ? -12 : 12) * Math.PI / 180 + wobble });
+        } else if (bodyF && bodyF.seen && bodyF.pts) {
+            const P = bodyF.pts;
+            for (const [wi, ei, key] of [[15, 13, 'wL'], [16, 14, 'wR']]) {
+                const w = P[wi], e = P[ei];
+                if (!w || w.v < 0.5) continue;
+                // trục vợt = hướng khuỷu→cổ tay kéo dài (mặt vợt vượt khỏi cổ tay); thiếu khuỷu thì dựng thẳng
+                let angle = (w.x < W / 2 ? -12 : 12) * Math.PI / 180;
+                if (e && e.v >= 0.5) { const dx = w.x - e.x, dy = w.y - e.y; if (Math.hypot(dx, dy) > 20) angle = Math.atan2(dy, dx) + Math.PI / 2; }
+                out.push({ key, x: w.x, y: w.y, angle: angle + wobble });
+            }
+        } else if (mousePos) out.push({ key: 'm', x: mousePos.x, y: mousePos.y, angle: -8 * Math.PI / 180 + wobble });
+        return out;
+    }
+    function racketHead(p) { return { x: p.x + Math.sin(p.angle) * RK.headUp, y: p.y - Math.cos(p.angle) * RK.headUp }; }
+    // Mỗi khung VẼ: mặt vợt đi từ vị trí khung trước tới khung này → quét cả đoạn (quẹt nhanh không sót).
+    const racketPrev = new Map();
+    function sweepRackets(s, now) {
+        if (s.racketMs <= 0) { racketPrev.clear(); return; }
+        const seen = new Set();
+        for (const p of racketPoses(now)) {
+            const hd = racketHead(p); seen.add(p.key);
+            const prev = racketPrev.get(p.key);
+            if (prev && now - prev.t < 400) engine.sweepSegment(prev.x, prev.y, hd.x, hd.y, RK.headR);
+            else engine.sweep(hd.x, hd.y, RK.headR);
+            racketPrev.set(p.key, { x: hd.x, y: hd.y, t: now });
+        }
+        for (const k of [...racketPrev.keys()]) if (!seen.has(k)) racketPrev.delete(k);
+    }
     function drawRackets(s, now) {
         if (s.racketMs <= 0 || !imgRacket.complete || !imgRacket.naturalWidth) return;
-        const pts = lastHands.length ? lastHands.map(h => ({ x: h.palm.x, y: h.palm.y })) : (mousePos ? [mousePos] : []);
-        const sc = 0.75, w = 260 * sc, h = 520 * sc, gx = 130 * sc, gy = 470 * sc;
-        for (const p of pts) {
-            ctx.save(); ctx.translate(p.x, p.y);
-            ctx.rotate((p.x < W / 2 ? -12 : 12) * Math.PI / 180 + Math.sin(now / 60) * 0.03);
-            ctx.drawImage(imgRacket, -gx, -gy, w, h);
+        for (const p of racketPoses(now)) {
+            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+            ctx.drawImage(imgRacket, -RK.gx, -RK.gy, RK.w, RK.h);
             ctx.restore();
         }
     }
@@ -437,8 +469,10 @@
         netSlide += (want - netSlide) * Math.min(1, dtMs / 500) * 2;
         if (netSlide < 0.01) { netSlide = 0; return; }
         if (!imgNet.complete || !imgNet.naturalWidth) return;
+        // Màn trải xuống tới ~90% chiều cao: phóng ĐỀU theo chiều cao (lưới không méo), căn giữa ngang, thừa hai mép thì cắt.
+        const nh = H * 0.9, nw = nh * imgNet.naturalWidth / imgNet.naturalHeight;
         ctx.save(); ctx.globalAlpha = Math.min(1, netSlide * 1.2);
-        ctx.drawImage(imgNet, 0, -700 * (1 - netSlide), 1080, 700);
+        ctx.drawImage(imgNet, (W - nw) / 2, -nh * (1 - netSlide), nw, nh);
         ctx.restore();
     }
     // Pose → khung đầu/thân → điểm muỗi đậu cho engine. pose null (mất người) → seen=false, engine dừng chích.
@@ -474,7 +508,7 @@
             mouseDown = true; const p = toStage(e.clientX, e.clientY);
             hitAt(p.x, p.y, cfg.hitRadius / 100 * W, 'mouse');
         });
-        window.addEventListener('pointermove', (e) => { const p = toStage(e.clientX, e.clientY); mousePos = p; if (!mouseDown || !lastSnap || lastSnap.racketMs <= 0) return; engine.sweep(p.x, p.y, 60); });
+        window.addEventListener('pointermove', (e) => { mousePos = toStage(e.clientX, e.clientY); });   // vợt theo con trỏ, quét ở sweepRackets
         window.addEventListener('pointerup', () => { mouseDown = false; });
         window.addEventListener('keydown', (e) => { if (e.key === 'c' || e.key === 'C') engine.clear(); if (e.key === 'p' || e.key === 'P') { fakePose = !fakePose; if (!fakePose) pushFrames(null); } });
     }
@@ -489,6 +523,7 @@
         if (disabled) return;
         pumpTracking(now);
         pumpFakePose();
+        if (lastSnap) sweepRackets(lastSnap, now);
         engine.step(dt);
         const s = engine.snapshot(); lastSnap = s; clockNow = s.clock;
         handleEvents(s.events);
