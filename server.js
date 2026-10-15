@@ -106,6 +106,7 @@ loadTikTokConnector().catch((e) => console.error('[tiktok] KHÔNG nạp được
 const { OBSBridge } = require('./lib/obs-bridge');
 const { ObsCameraFeed } = require('./lib/touchplay-obs-feed');
 const CamRules = require('./lib/camgames');
+const MusicGifts = require('./lib/music-gifts');
 const { LuaSync } = require('./lib/lua-sync');
 const { OBSSettings } = require('./lib/obs-settings');
 
@@ -2553,9 +2554,10 @@ function processLiveTranslateChat(chat) {
 }
 
 // ====== Gift list loader (via license-server proxy) ======
-let giftMap = {};
-let giftList = [];
-let giftSheetLoadedAt = 0;   // thời điểm nạp danh sách quà gần nhất (hiện ở ⚙ Cài đặt)
+// giftList luôn kèm quà ảo 🎵 Ca khúc (MusicGifts.MUSIC_GIFT_ID) — mọi bài Ca khúc gom về 1 id để gán cấu hình 1 lần.
+let giftList = MusicGifts.withMusicGiftItem([]);
+let giftMap = { [MusicGifts.MUSIC_GIFT_ID]: giftList[0] };
+let giftSheetLoadedAt = 0;  // thời điểm nạp danh sách quà gần nhất (hiện ở ⚙ Cài đặt)
 
 // ====== Gift list disk cache ======
 // Vì sao: trên 1 số PC, cả license-server (hp-license.nguyenvu.dev) lẫn fallback
@@ -2579,7 +2581,9 @@ function loadGiftCacheFromDisk() {
 }
 function saveGiftCacheToDisk(list) {
     try {
-        if (!Array.isArray(list) || list.length === 0) return;
+        if (!Array.isArray(list)) return;
+        list = list.filter(g => !(g && g.virtual));   // quà ảo (🎵 Ca khúc) tự thêm lúc nạp, không lưu vào cache
+        if (list.length === 0) return;
         fs.writeFileSync(GIFT_CACHE_FILE, JSON.stringify(list), 'utf8');
     } catch (e) {
         console.warn('[gift-sheet] Cache lưu fail:', e.message);
@@ -2592,7 +2596,7 @@ function saveGiftCacheToDisk(list) {
 (function eagerLoadGiftCache() {
     const cached = loadGiftCacheFromDisk();
     if (cached.length > 0) {
-        giftList = cached.slice().sort((a, b) => (a.diamond || 0) - (b.diamond || 0));
+        giftList = MusicGifts.withMusicGiftItem(cached.slice().sort((a, b) => (a.diamond || 0) - (b.diamond || 0)));
         for (const g of giftList) {
             if (g && g.id) giftMap[String(g.id)] = g;
         }
@@ -2720,7 +2724,8 @@ async function loadGiftSheet() {
     }
     // Sort theo Kim Cương ASC (thấp → cao). Áp dụng cho cả nguồn license-server
     // lẫn fallback Google Sheet trực tiếp.
-    giftList = listFromServer.slice().sort((a, b) => (a.diamond || 0) - (b.diamond || 0));
+    const sheetList = listFromServer.slice().sort((a, b) => (a.diamond || 0) - (b.diamond || 0));
+    giftList = MusicGifts.withMusicGiftItem(sheetList);
     giftSheetLoadedAt = Date.now();
     giftMap = {};
     for (const g of giftList) {
@@ -2728,11 +2733,11 @@ async function loadGiftSheet() {
     }
     // Ghi cache đĩa MỖI lần load thành công — máy chỉ cần online 1 lần là gift
     // sheet persist mãi mãi cho các lần khởi động sau (kể cả offline).
-    // Chỉ ghi khi data tốt (đủ icon) để không phá cache tốt bằng data rác.
-    if (giftList.length > 0 && imgCount(giftList) >= giftList.length * 0.5) {
-        saveGiftCacheToDisk(giftList);
+    // Chỉ ghi khi data tốt (đủ icon) để không phá cache tốt bằng data rác. Cache chỉ chứa quà của sheet (không quà ảo).
+    if (sheetList.length > 0 && imgCount(sheetList) >= sheetList.length * 0.5) {
+        saveGiftCacheToDisk(sheetList);
     } else {
-        console.warn(`[gift-sheet] Bỏ qua ghi cache: data thiếu icon (${imgCount(giftList)}/${giftList.length}) — giữ cache cũ.`);
+        console.warn(`[gift-sheet] Bỏ qua ghi cache: data thiếu icon (${imgCount(sheetList)}/${sheetList.length}) — giữ cache cũ.`);
     }
     console.log(`[gift-sheet] Đã tải ${giftList.length} quà (sort theo Kim Cương ASC).`);
     io.emit('giftSheet', giftList);
@@ -2751,6 +2756,22 @@ function makeTestGiftPayload(body = {}) {
     const requestedId = String(body.giftId || '').trim();
     const sheetItem = requestedId ? giftMap[requestedId] : pickRandomGiftSheetItem();
     const giftId = String(requestedId || sheetItem?.id || ('test-gift-' + Math.max(1, Math.ceil(Math.random() * 5))));
+    // 🎵 Thả thử quà Ca khúc → bốc 1 bài ngẫu nhiên trong danh mục để đĩa rơi đúng ảnh/màu từng bài như LIVE thật.
+    if (giftId === MusicGifts.MUSIC_GIFT_ID) {
+        const ids = Object.keys(musicGiftCatalog);
+        let s = null;
+        for (let i = 0; i < 8 && ids.length && !s; i++) {   // bốc ngẫu nhiên, không duyệt cả ~20.000 bài
+            const id = ids[Math.floor(Math.random() * ids.length)];
+            const song = musicGiftCatalog[id];
+            if (song && song.image) s = { id, ...song, label: MusicGifts.songLabel(song) };
+        }
+        if (s) {
+            return {
+                giftId, giftName: s.label, giftImage: s.image, coinValue: Number(s.price) || 199,
+                extra: { musicGift: true, songGiftId: s.id, song: { id: s.id, song: s.song || '', artist: s.artist || '', lyrics: s.lyrics || '', mood: s.mood || 0 } }
+            };
+        }
+    }
     return {
         giftId,
         giftName: sheetItem?.name || body.giftName || ('Quà Test ' + String(giftId).replace('test-gift-', '#')),
@@ -3000,9 +3021,18 @@ function attachConnectionEvents(conn, lib) {
         const tkUser = extractTikTokUser(data);
         rememberUserMapping(tkUser.userId, tkUser.uniqueId);
         vipHandleActivity(data?.user);
-        const giftId = getTikTokGiftId(data);
+        const realGiftId = getTikTokGiftId(data);
         const diamondRaw = data?.gift?.diamondCount ?? data?.giftDetails?.diamondCount ?? data?.gift?.diamond_count ?? data?.extendedGiftInfo?.diamond_count;
-        emitGift({
+        const rawGiftName = data?.gift?.name || data?.giftDetails?.giftName || data?.giftName;
+        const rawGiftPicture = pickAvatarUrl(data?.gift?.image) || pickAvatarUrl(data?.giftDetails?.giftImage) || data?.giftDetails?.giftImage?.giftPictureUrl || pickAvatarUrl(data?.extendedGiftInfo?.image) || '';
+        // 🎵 Quà Ca khúc: mỗi bài 1 id riêng → gom về quà ảo 'music' (trừ khi bài đó đã có trong bảng quà).
+        const isMusic = MusicGifts.isMusicGiftEvent(data) || MusicGifts.isMusicImageUrl(rawGiftPicture);
+        const musicInfo = isMusic ? MusicGifts.musicInfoFromEvent(data) : null;
+        if (isMusic) {
+            rememberMusicSong(realGiftId, { lyrics: rawGiftName || '', image: rawGiftPicture, price: Number(diamondRaw) || 0, ...(musicInfo || {}) });
+            console.log(`[music-gift] id=${realGiftId} "${rawGiftName || ''}" musicInfo=${musicInfo ? JSON.stringify(musicInfo) : 'không có'}`);
+        }
+        const giftPayload = MusicGifts.aliasMusicGift({
             tkUser,
             uniqueId: tkUser.uniqueId,
             nickname: tkUser.nickname,
@@ -3010,13 +3040,15 @@ function attachConnectionEvents(conn, lib) {
             level: tkUser.level,
             verified: tkUser.verified,
             profilePicture: tkUser.profilePicture,
-            giftId,
-            giftName: data?.gift?.name || data?.giftDetails?.giftName || data?.giftName,
-            giftPicture: pickAvatarUrl(data?.gift?.image) || pickAvatarUrl(data?.giftDetails?.giftImage) || data?.giftDetails?.giftImage?.giftPictureUrl || pickAvatarUrl(data?.extendedGiftInfo?.image) || '',
+            giftId: realGiftId,
+            giftName: rawGiftName,
+            giftPicture: rawGiftPicture,
             diamondCount: (diamondRaw == null || diamondRaw === '') ? undefined : Number(diamondRaw),
             repeatCount: normalizeGiftRepeatCount(data),
             source: 'tiktok'
-        });
+        }, { isMusic, hasSheetItem: !!giftMap[String(realGiftId)], catalog: musicGiftCatalog, info: musicInfo });
+        const giftId = giftPayload.giftId;
+        emitGift(giftPayload);
 
         // ===== OBS Bridge — enqueue effect cho mỗi gift trong combo =====
         // Tặng 1x → enqueue 1; tặng 5x → enqueue 5; ... drain tuần tự theo cooldownMs.
@@ -3590,6 +3622,46 @@ function saveUnknownGifts() {
     } catch (e) { /* non-fatal */ }
 }
 loadUnknownGifts();
+
+// ===== 🎵 Danh mục bài Ca khúc — chỉ để hiện tên bài thật (TikTok gửi tên quà = 16 ký tự đầu câu hát) =====
+// Nguồn: seed đóng gói (lib/music-gifts-seed.json) + data/music-gifts.json (học khi có người tặng / nhập file
+// TikTok gift/music/list). Quà Ca khúc KHÔNG vào danh sách quà lạ — đã gom về quà ảo MusicGifts.MUSIC_GIFT_ID.
+const MUSIC_GIFTS_FILE = path.join(DATA_DIR, 'music-gifts.json');
+let musicGiftsLearned = {};
+try {
+    if (fs.existsSync(MUSIC_GIFTS_FILE)) musicGiftsLearned = JSON.parse(fs.readFileSync(MUSIC_GIFTS_FILE, 'utf8')) || {};
+} catch (e) { musicGiftsLearned = {}; }
+let musicGiftsSeed = {};
+try { musicGiftsSeed = MusicGifts.expandSeed(require('./lib/music-gifts-seed.json')); } catch (e) { musicGiftsSeed = {}; }
+let musicGiftCatalog = MusicGifts.mergeCatalog(musicGiftsSeed, musicGiftsLearned);
+let _musicSaveTimer = null;
+function rememberMusicSong(id, fields) {
+    const changedLearned = MusicGifts.learnSong(musicGiftsLearned, id, fields);
+    MusicGifts.learnSong(musicGiftCatalog, id, fields);
+    if (!changedLearned) return;
+    clearTimeout(_musicSaveTimer);
+    _musicSaveTimer = setTimeout(() => {
+        try {
+            if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+            fs.writeFileSync(MUSIC_GIFTS_FILE, JSON.stringify(musicGiftsLearned, null, 1));
+        } catch (e) { console.warn('[music-gift] lưu danh mục fail:', e.message); }
+    }, 1500);
+}
+// Bản cũ đã ghi quà Ca khúc vào danh sách quà lạ → chuyển sang danh mục bài, bỏ khỏi quà lạ.
+(function migrateUnknownMusicGifts() {
+    let moved = 0;
+    for (const [id, e] of Object.entries(unknownGifts)) {
+        if (!e || !MusicGifts.isMusicImageUrl(e.image)) continue;
+        rememberMusicSong(id, { lyrics: e.name || '', image: e.image, price: Number(e.diamond) || 0 });
+        delete unknownGifts[id];
+        moved++;
+    }
+    if (moved) { saveUnknownGifts(); console.log(`[music-gift] chuyển ${moved} quà Ca khúc từ danh sách quà lạ sang danh mục bài`); }
+})();
+function musicGiftSongList() {
+    return Object.entries(musicGiftCatalog).map(([id, s]) => ({ id, ...s, label: MusicGifts.songLabel(s) }));
+}
+
 // Debounce ghi đĩa — gift events có thể đến dồn dập, không cần flush mỗi event
 let _unknownSaveTimer = null;
 function scheduleSaveUnknown() {
@@ -3951,7 +4023,11 @@ function nhatLaResetDonors() {
 
 function emitGift(g) {
     rememberLiveTranslateUser(liveTranslateRecentGifts, g);
-    const sheetItem = giftMap[String(g.giftId)] || null;
+    let sheetItem = giftMap[String(g.giftId)] || null;
+    // 🎵 Quà Ca khúc gom về quà ảo: giữ ẢNH ĐĨA + tên bài riêng (client ưu tiên sheetItem.image) — mỗi bài 1 màu đĩa.
+    if (sheetItem && sheetItem.virtual && g.musicGift && g.giftPicture) {
+        sheetItem = { ...sheetItem, image: g.giftPicture, name: g.giftName || sheetItem.name };
+    }
     // Quà unknown → ghi vào danh sách phát hiện được
     if (!sheetItem) recordUnknownGift(g);
     const enriched = {
@@ -4404,6 +4480,29 @@ async function connectToUser(username, opts = {}) {
 
 // ====== Routes ======
 app.get('/api/gifts', (req, res) => res.json(giftList));
+
+// 🎵 Danh mục bài Ca khúc (tên bài thật, ca sĩ, ảnh đĩa). Nhập thêm bằng file JSON tải từ TikTok
+// (webcast.tiktok.com/webcast/gift/music/list/ … khi đã đăng nhập) hoặc file gom nhiều trang.
+app.get('/api/music-gifts', (req, res) => {
+    res.json({ ok: true, giftId: MusicGifts.MUSIC_GIFT_ID, songs: musicGiftSongList() });
+});
+app.post('/api/music-gifts/import', express.text({ type: 'text/plain', limit: '20mb' }), (req, res) => {
+    let body = req.body;
+    if (typeof body === 'string') {   // gửi dạng text/plain (vd. từ trang TikTok, không qua preflight CORS)
+        try { body = JSON.parse(body.replace(/^﻿/, '')); } catch (e) { return res.status(400).json({ ok: false, error: 'File không phải JSON' }); }
+    }
+    const found = MusicGifts.catalogFromTikTokJson(body);
+    const ids = Object.keys(found);
+    if (!ids.length) return res.status(400).json({ ok: false, error: 'Không thấy bài nào trong file — cần JSON TikTok trả từ gift/music/list' });
+    let added = 0;
+    for (const id of ids) {
+        const isNew = !musicGiftCatalog[id];
+        rememberMusicSong(id, found[id]);
+        if (isNew) added++;
+    }
+    console.log(`[music-gift] nhập ${ids.length} bài (${added} bài mới)`);
+    res.json({ ok: true, imported: ids.length, added, total: Object.keys(musicGiftCatalog).length });
+});
 
 app.get('/api/live-translate/config', (req, res) => {
     appConfig.liveTranslate = sanitizeLiveTranslateConfig(appConfig.liveTranslate);
@@ -5766,7 +5865,8 @@ app.post('/api/games/:id/test-gift', (req, res) => {
         giftPicture: testGift.giftImage,
         diamondCount: testGift.coinValue,
         repeatCount,
-        source: 'test'
+        source: 'test',
+        ...(testGift.extra || {})
     });
     res.json({ ok: true, gift: testGift });
 });

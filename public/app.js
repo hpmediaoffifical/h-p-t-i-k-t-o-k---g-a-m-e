@@ -2261,9 +2261,11 @@
             if (currentGame?.id === 'thuytinh') notifyThuyDisabled();   // thả tay từ danh sách quà khi game tắt
             return;
         }
-        const sheet = giftMap[String(g.giftId)];
+        // sheetItem từ server thắng giftMap: quà 🎵 Ca khúc mang ảnh đĩa + tên bài riêng trong sheetItem.
+        const sheet = g.sheetItem || giftMap[String(g.giftId)];
         gameInstance.drop({
             giftId: String(g.giftId),
+            songGiftId: g.songGiftId || '',
             giftName: sheet?.name || g.giftName,
             image: sheet?.image || g.image || g.giftPicture,
             coinValue: g.coinValue || sheet?.diamond || 1,
@@ -2908,6 +2910,30 @@
     // trên cùng (persist bounds + pin); trình duyệt → tab mới.
     document.getElementById('btn-popout-giftlist')?.addEventListener('click', () => {
         window.open('/gift-list', '_blank');
+    });
+
+    // 🎵 Nhập danh mục bài Ca khúc (file JSON tải từ TikTok gift/music/list khi đã đăng nhập, hoặc file gom
+    // nhiều trang). Chỉ để hiện tên bài thật — đĩa nhạc vẫn rơi được dù chưa nhập (quà ảo "music").
+    const $musicFile = document.getElementById('music-import-file');
+    document.getElementById('btn-import-music')?.addEventListener('click', () => $musicFile?.click());
+    $musicFile?.addEventListener('change', async () => {
+        const files = [...($musicFile.files || [])];
+        $musicFile.value = '';
+        if (!files.length) return;
+        let imported = 0, added = 0, total = 0;
+        const errors = [];
+        for (const f of files) {
+            try {
+                // G\u1EEDi nguy\u00EAn v\u0103n d\u1EA1ng text/plain \u2014 file \u0111\u1EA7y \u0111\u1EE7 (~20.000 b\u00E0i) v\u01B0\u1EE3t gi\u1EDBi h\u1EA1n 5 MB c\u1EE7a express.json.
+                const r = await fetch('/api/music-gifts/import', {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain; charset=utf-8' }, body: await f.text()
+                }).then(res => res.json());
+                if (!r.ok) throw new Error(r.error || 'lỗi');
+                imported += r.imported; added += r.added; total = r.total;
+            } catch (e) { errors.push(`${f.name}: ${e.message}`); }
+        }
+        alert(`🎵 Nhập Ca khúc: ${imported} bài (${added} bài mới) — danh mục có ${total} bài.`
+            + (errors.length ? `\n\nKhông đọc được:\n${errors.join('\n')}` : ''));
     });
 
     // ⚙ Cài đặt: handler đã có ở dưới (line ~4160) — openSettingsPopup() mở #settings-popup

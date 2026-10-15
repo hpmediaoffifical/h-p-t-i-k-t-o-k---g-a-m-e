@@ -255,6 +255,7 @@
             ensureGame();
             game.drop({
                 giftId: String(g.giftId || ''),
+                songGiftId: g.songGiftId || '',
                 giftName: g.sheetItem?.name || g.giftName,
                 image: g.sheetItem?.image || g.image || g.giftPicture,
                 coinValue: g.coinValue || g.sheetItem?.diamond || 1,

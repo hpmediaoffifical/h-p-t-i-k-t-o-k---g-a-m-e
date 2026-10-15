@@ -868,7 +868,8 @@
         function isJarFull() { return config.maxCapacity > 0 && bodies.length >= config.maxCapacity; }
 
         function loadImage(g) {
-            const key = g.giftId || g.image || Math.random().toString(36);
+            // 🎵 Mọi bài Ca khúc chung giftId 'music' nhưng mỗi bài 1 ảnh đĩa → khoá theo bài, không theo giftId.
+            const key = (g.songGiftId ? 'song:' + g.songGiftId : g.giftId) || g.image || Math.random().toString(36);
             if (imgCache.has(key)) return imgCache.get(key);
             // Fallback chain cho quà chưa cập nhật icon: ảnh thật từ TikTok/Sheet →
             // logo HP remote (centralized, đổi được không cần rebuild app) → logo HP local
