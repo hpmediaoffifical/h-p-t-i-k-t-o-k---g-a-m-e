@@ -139,7 +139,7 @@
             const len = Math.hypot(nx, ny) || 1; nx /= len; ny /= len;
             for (const sgn of [1, -1]) {
                 objects.push({ id: nextId++, kind: o.kind, x: o.x + nx * sgn * o.r * 0.3, y: o.y + ny * sgn * o.r * 0.3,
-                    r: o.r * 0.7, vx: o.vx + nx * sgn * 180, vy: o.vy - 150, rot: o.rot, spin: o.spin + sgn * 2,
+                    r: o.r * 0.7, vx: o.vx + nx * sgn * 180, vy: o.vy - 150, rot: o.rot, rot0: o.rot, spin: o.spin + sgn * 2,
                     depth: o.depth + 1, golden: o.golden, cutAngle: Math.atan2(by - ay, bx - ax), half: sgn });
             }
         }

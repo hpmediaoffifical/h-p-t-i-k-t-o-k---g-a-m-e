@@ -287,7 +287,7 @@ const GAMES = {
         defaultConfig: {
             enabled: true,
             jar: { xPercent: 50, yPercent: 56, height: 1200 },
-            gift: { minSize: 40, maxSize: 220, showName: false, showCount: true },
+            gift: { minSize: 24, maxSize: 120, showName: false, showCount: true },
             physics: { gravity: 1.4, bounce: 0.42, friction: 0.05 },
             jarVisible: true,
             maxCapacity: 0,

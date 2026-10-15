@@ -24,7 +24,7 @@
         return {
             // Vị trí hũ — góc dưới-phải, đã tinh chỉnh để cân streamer + chat layout TikTok
             jar: { xPercent: 64.57, yPercent: 76.38, height: 400 },
-            gift: { minSize: 40, maxSize: 220, dropHeight: 220, showName: false, showCount: true },
+            gift: { minSize: 24, maxSize: 120, dropHeight: 220, showName: false, showCount: true },
             // Physics: gravity vừa phải, friction thấp → quà rơi mượt, không cứng
             physics: { gravity: 1.4, bounce: 0.4, friction: 0.05 },
             jarVisible: true,
@@ -274,7 +274,7 @@
         </svg>`,
         'star-gold': `<svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
             <defs><linearGradient id="sgG"><stop offset="0" stop-color="#fde047"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
-            <path d="M100 10 L114 50 L156 50 L122 75 L135 115 L100 90 L65 115 L78 75 L44 50 L86 50 Z" fill="url(#sgG)" stroke="#78350f" stroke-width="2"/>
+            <path transform="translate(100,50) scale(0.85) translate(-100,-62.5)" d="M100 10 L114 50 L156 50 L122 75 L135 115 L100 90 L65 115 L78 75 L44 50 L86 50 Z" fill="url(#sgG)" stroke="#78350f" stroke-width="2"/>
             <circle cx="35" cy="30" r="4" fill="#fff" opacity="0.9"/>
             <circle cx="170" cy="35" r="3" fill="#fff" opacity="0.9"/>
             <circle cx="160" cy="75" r="3" fill="#fff" opacity="0.9"/>
@@ -602,18 +602,25 @@
             // Chống tunneling khi body rơi nhanh trong OBS (30fps → dt cao → di chuyển nhiều/tick).
             const FLOOR_T = 80;
             jarWalls.push(makeWall(lx + (rx - lx) / 2, by + FLOOR_T / 2, rx - lx + T, FLOOR_T));
+            // Thành hũ dày WALL_T nhưng MẶT TRONG giữ đúng chỗ cũ (tâm + T/2) — phần dày thêm
+            // nằm phía ngoài kính. Thành 14px cũ để quà nhỏ bị đống quà nặng ép xuyên qua
+            // (mô phỏng art-requests/thuytinh/_tools/sim_jars.js: 14px lọt, 40px không lọt).
+            const WALL_T = 40, out = (WALL_T - T) / 2;
             const bh = by - sy;
-            jarWalls.push(makeWall(lx, sy + bh / 2, T, bh));
-            jarWalls.push(makeWall(rx, sy + bh / 2, T, bh));
+            jarWalls.push(makeWall(lx - out, sy + bh / 2, WALL_T, bh));
+            jarWalls.push(makeWall(rx + out, sy + bh / 2, WALL_T, bh));
             let dx = nlx - lx, dy = sy - nty;
             let len = Math.hypot(dx, dy); let ang = Math.atan2(dy, -dx);
-            jarWalls.push(makeWall((lx + nlx) / 2, (sy + nty) / 2, len, T, -ang));
+            // pháp tuyến hướng ra ngoài của vai trái/phải (vuông góc đoạn vai, chếch lên trên)
+            let nx = -dy / len, ny = -dx / len;
+            jarWalls.push(makeWall((lx + nlx) / 2 + nx * out, (sy + nty) / 2 + ny * out, len, WALL_T, -ang));
             dx = rx - nrx;
             len = Math.hypot(dx, dy); ang = Math.atan2(dy, dx);
-            jarWalls.push(makeWall((rx + nrx) / 2, (sy + nty) / 2, len, T, ang));
+            nx = dy / len; ny = -dx / len;
+            jarWalls.push(makeWall((rx + nrx) / 2 + nx * out, (sy + nty) / 2 + ny * out, len, WALL_T, ang));
             const nh = sy - nty;
-            jarWalls.push(makeWall(nlx, nty + nh / 2, T, nh + 8));
-            jarWalls.push(makeWall(nrx, nty + nh / 2, T, nh + 8));
+            jarWalls.push(makeWall(nlx - out, nty + nh / 2, WALL_T, nh + 8));
+            jarWalls.push(makeWall(nrx + out, nty + nh / 2, WALL_T, nh + 8));
             Composite.add(engine.world, jarWalls);
         }
         function removeJarWalls() {
@@ -645,10 +652,17 @@
             walls = jarWalls.concat(worldWalls);
         }
 
+        // Cỡ quà theo xu: đường cong mũ 1.6 → quà ít xu bé hẳn (1 xu = min, 100 xu ≈ 27%, 1000 xu ≈ 51%).
+        // Chặn theo lòng cổ hũ: to nhất 50%, bé nhất 20% — quà to cỡ cổ hũ thì vài quà đã đầy tràn
+        // (thử thật: hũ 400px, quà 150px → 13/18 quà nằm ngoài).
         function giftSize(coins) {
             const t = Math.log(Math.max(coins || 1, 1)) / Math.log(35000);
-            const k = Math.min(1, Math.max(0, t));
-            return Math.round(config.gift.minSize + (config.gift.maxSize - config.gift.minSize) * k);
+            const k = Math.pow(Math.min(1, Math.max(0, t)), 1.6);
+            const r = jarRect();
+            const neck = r.w * (SHAPE.neckRightX - SHAPE.neckLeftX) - 16;
+            const maxS = Math.max(16, Math.min(config.gift.maxSize, neck * 0.5));
+            const minS = Math.max(12, Math.min(config.gift.minSize, neck * 0.2, maxS));
+            return Math.round(minS + (maxS - minS) * k);
         }
 
         function tierOf(coins) {
@@ -929,10 +943,10 @@
                 dropOneZigzag(g);
                 return;
             }
-            const sz = giftSize(g.coinValue);
             const r = jarRect();
             const nl = r.x + r.w * SHAPE.neckLeftX + 8;
             const nr = r.x + r.w * SHAPE.neckRightX - 8;
+            const sz = giftSize(g.coinValue);   // đã chặn ≤ 50% lòng cổ hũ
             // ===== Spawn vị trí — TẬP TRUNG GIỮA =====
             // Vấn đề cũ: Math.random() đều khắp [nl, nr] → quà rơi sát mép cổ hũ → đập viền,
             // dội ra ngoài, gây cảm giác "trượt mép" liên tục.
@@ -940,7 +954,8 @@
             // → Đỉnh phân phối ở center, giảm tuyến tính về 2 mép → ít quà rơi sát mép hơn nhiều.
             // Thêm margin 12% mỗi bên để chừa thêm khoảng an toàn.
             // Tham khảo: Irwin-Hall distribution, common technique in physics simulation spawns.
-            const margin = (nr - nl) * 0.12;
+            // + giữ cả mép quà trong lòng cổ hũ (quà to mà tâm sát mép thì vẫn đập vành).
+            const margin = Math.min((nr - nl) / 2, Math.max((nr - nl) * 0.12, sz / 2 + 4));
             const innerL = nl + margin;
             const innerR = nr - margin;
             const t = (Math.random() + Math.random()) / 2;   // triangular peak = 0.5
@@ -1395,11 +1410,11 @@
             const pivot = { x: r.cx, y: r.cy };
 
             // Lưu CSS transform gốc để khôi phục cuối effect
-            const visualEls = [jarBottomEl, jarGlassEl].filter(Boolean);
+            const visualEls = [jarBottomEl, jarGlassEl, _accessoryEl].filter(Boolean);
             const origTr = visualEls.map(el => el.style.transform || '');
             visualEls.forEach((el) => {
                 el.style.transition = 'none';
-                el.style.transformOrigin = '50% 50%';
+                el.style.transformOrigin = el === _accessoryEl ? accessoryPivotOrigin(r) : '50% 50%';
             });
 
             // Helper: đặt góc tilt tuyệt đối (tính delta so với currentTiltAngle)
@@ -1494,7 +1509,7 @@
                 if (jarBottomEl) { jarBottomEl.style.left = (nx / CANVAS_W * 100) + '%'; jarBottomEl.style.top = (ny / CANVAS_H * 100) + '%'; }
                 if (jarGlassEl) { jarGlassEl.style.left = (nx / CANVAS_W * 100) + '%'; jarGlassEl.style.top = (ny / CANVAS_H * 100) + '%'; }
                 if (countDisplay) { countDisplay.style.left = ((baseRect.cx + jarOffsetX) / CANVAS_W * 100) + '%'; countDisplay.style.top = ((baseRect.y + baseRect.h * 0.88 + jarOffsetY) / CANVAS_H * 100) + '%'; }
-                if (_accessoryEl) positionAccessory();
+                if (_accessoryEl) positionAccessory({ ...baseRect, x: nx, y: ny, cx: baseRect.cx + jarOffsetX, cy: baseRect.cy + jarOffsetY });
                 moveTopHangersWithJar(nx, ny, 0, baseRect);
             };
             const applyTilt = (theta) => {
@@ -1506,6 +1521,10 @@
                 currentTiltAngle = theta;
                 const deg = (theta * 180 / Math.PI).toFixed(2);
                 visualEls.forEach(el => { el.style.transform = `rotate(${deg}deg)`; });
+                if (_accessoryEl) {
+                    _accessoryEl.style.transformOrigin = accessoryPivotOrigin(baseRect);
+                    _accessoryEl.style.transform = `rotate(${deg}deg)`;
+                }
                 if (topHangersEl) topHangersEl.style.transform = `translate(${jarOffsetX}px, ${jarOffsetY}px) rotate(${deg}deg)`;
             };
 
@@ -1573,6 +1592,7 @@
                     countDisplay.style.transformOrigin = '50% 50%';
                 }
                 currentTiltAngle = 0;
+                if (_accessoryEl) { _accessoryEl.style.transform = ''; _accessoryEl.style.transformOrigin = ''; }
                 if (topHangersEl) { topHangersEl.style.transform = ''; updateTopHangers(); }
                 clearJarLandingZone(baseRect);
                 buildJarWalls();
@@ -2764,9 +2784,15 @@
             el.innerHTML = svg;
             positionAccessory();
         }
-        function positionAccessory() {
+        // transform-origin (%) của phụ kiện sao cho xoay quanh TÂM HŨ — dùng khi nghiêng/dốc hũ.
+        function accessoryPivotOrigin(r) {
+            const accW = r.w * 0.8, accH = accW * 0.5;
+            const accX = r.cx - accW / 2, accY = r.y + r.h * SHAPE.neckTopY - accH * 0.8;
+            return `${((r.cx - accX) / accW * 100).toFixed(2)}% ${((r.cy - accY) / accH * 100).toFixed(2)}%`;
+        }
+        function positionAccessory(rect) {
             if (!_accessoryEl) return;
-            const r = jarRect();
+            const r = rect || jarRect();
             // Vị trí: căn giữa X theo jar, Y nằm ngay trên cổ hũ (nắp)
             // Width = 80% jar width (TĂNG từ 50%), aspect 2:1 do SVG viewBox 200x100
             const accW = r.w * 0.8;
@@ -3367,13 +3393,13 @@
                 const overTargetY = mouthY;
                 await tween(t => {
                     const x = lerp(dropX, targetX, t);
-                    positionThief(wrap, rope, x, ropeStartY, overTargetY - ropeStartY);
+                    positionThief(wrap, rope, x, ropeStartY, overTargetY);
                 }, 700);
 
                 // Phase 3: thả xuống bám vào icon
                 await tween(t => {
                     const y = lerp(overTargetY, targetY, t);
-                    positionThief(wrap, rope, targetX, ropeStartY, y - ropeStartY);
+                    positionThief(wrap, rope, targetX, ropeStartY, y);
                 }, 500);
 
                 // Phase 4: ăn cắp — chỉ ăn nếu body vẫn còn (chưa ai khác lấy)
@@ -3405,7 +3431,7 @@
                     const midY = lerp(targetY, ropeStartY + 30, 0.35);
                     await tween(t => {
                         const y = lerp(targetY, midY, t);
-                        positionThief(wrap, rope, targetX, ropeStartY, y - ropeStartY);
+                        positionThief(wrap, rope, targetX, ropeStartY, y);
                     }, 500);
 
                     // Cảnh sát hiện từ rìa đối diện
@@ -3446,7 +3472,7 @@
                     await tween(t => {
                         const x = lerp(targetX, exitX, t);
                         positionEl(cop.wrap, x, policeY);
-                        positionThief(wrap, rope, x, ropeStartY, policeY - ropeStartY);
+                        positionThief(wrap, rope, x, ropeStartY, policeY);
                     }, 800);
                     // Thu rope
                     await tween(t => {
@@ -3485,7 +3511,7 @@
                     const halfwayY = (targetY + ropeStartY + 30) / 2;
                     await tween(t => {
                         const y = lerp(targetY, halfwayY, t);
-                        positionThief(wrap, rope, targetX, ropeStartY, y - ropeStartY);
+                        positionThief(wrap, rope, targetX, ropeStartY, y);
                     }, 450);
                     // Tuột loot: gỡ khỏi DOM tên trộm
                     const lootImg = loot.querySelector('img');
@@ -3497,12 +3523,12 @@
                     // Tên trộm tiếp tục bỏ chạy
                     await tween(t => {
                         const y = lerp(halfwayY, ropeStartY + 30, t);
-                        positionThief(wrap, rope, targetX, ropeStartY, y - ropeStartY);
+                        positionThief(wrap, rope, targetX, ropeStartY, y);
                     }, 600);
                 } else {
                     await tween(t => {
                         const y = lerp(targetY, ropeStartY + 30, t);
-                        positionThief(wrap, rope, targetX, ropeStartY, y - ropeStartY);
+                        positionThief(wrap, rope, targetX, ropeStartY, y);
                     }, 900);
                 }
 
@@ -3527,11 +3553,13 @@
             wrap.style.position = 'absolute';
             wrap.style.left = xPct + '%';
             wrap.style.top = thiefYPct + '%';
-            const ropeLenPct = thiefYPct - ropeTopPct;
+            // Độ dài dây tính theo cqw (bề rộng sân khấu): % của rope tính theo chiều cao WRAP
+            // (~56px) nên dây cũ chỉ dài vài px, phần còn lại là ::before 600px cố định.
+            const ropeLenCqw = Math.max(0, thiefYCanvas - ropeTopYCanvas) / CANVAS_W * 100;
             rope.style.position = 'absolute';
             rope.style.left = '50%';
-            rope.style.top = (-ropeLenPct) + '%';
-            rope.style.height = ropeLenPct + '%';
+            rope.style.top = (-ropeLenCqw) + 'cqw';
+            rope.style.height = ropeLenCqw + 'cqw';
         }
         function tween(fn, ms) {
             return new Promise(res => {

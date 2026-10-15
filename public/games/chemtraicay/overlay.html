@@ -354,8 +354,8 @@
         if (o.kind === 'bomb') { drawBomb(o); ctx.restore(); return; }
         const pal = PALETTE[o.kind] || PALETTE.apple;
         if (o.depth > 0) {
-            // mảnh: cắt nửa theo cutAngle (trong hệ toạ độ địa phương bỏ qua rot để đơn giản)
-            ctx.rotate(-o.rot + (o.cutAngle || 0));
+            // mảnh: đường cắt theo cutAngle lúc chém, rồi quay theo phần xoay thêm từ lúc chém (rot - rot0)
+            ctx.rotate(-(o.rot0 ?? o.rot) + (o.cutAngle || 0));
             ctx.beginPath(); ctx.rect(-o.r * 2, o.half > 0 ? 0 : -o.r * 2, o.r * 4, o.r * 2); ctx.clip();
         }
         if (quality() > 0) { ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 6; }

@@ -2741,7 +2741,7 @@ body.game-thuytinh .comments-fab.unknown-fab { bottom: 18px; }
     height: calc(5.9cqw * var(--tt-police-scale, 1));
     display: flex; align-items: center; justify-content: center;
     font-size: calc(4.8cqw * var(--tt-police-scale, 1));
-    transform: translate(-50%, -50%);
+    /* wrap .tt-police đã translate(-50%,-50%) — không dịch tâm lần 2 */
     filter: drop-shadow(0 0 1.1cqw rgba(37,99,235,0.5));
     transition: transform .15s ease, width .15s ease, height .15s ease;
 }
@@ -2751,18 +2751,18 @@ body.game-thuytinh .comments-fab.unknown-fab { bottom: 18px; }
     width: 100%; height: 100%; object-fit: contain;
     display: block;
 }
-.tt-police.flip .cop-body { transform: translate(-50%, -50%) scaleX(-1); }
+.tt-police.flip .cop-body { transform: scaleX(-1); }
 .tt-police.grab .cop-body {
     animation: cop-shake 0.2s ease-in-out 3;
 }
 @keyframes cop-shake {
-    0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(0); }
-    50%      { transform: translate(-50%, -50%) scale(1.1) rotate(-8deg); }
+    0%, 100% { transform: scale(1) rotate(0); }
+    50%      { transform: scale(1.1) rotate(-8deg); }
 }
 .tt-police.flip.grab .cop-body { animation-name: cop-shake-flip; }
 @keyframes cop-shake-flip {
-    0%, 100% { transform: translate(-50%, -50%) scaleX(-1) scale(1) rotate(0); }
-    50%      { transform: translate(-50%, -50%) scaleX(-1) scale(1.1) rotate(-8deg); }
+    0%, 100% { transform: scaleX(-1) scale(1) rotate(0); }
+    50%      { transform: scaleX(-1) scale(1.1) rotate(-8deg); }
 }
 .tt-police .cop-name {
     position: absolute;

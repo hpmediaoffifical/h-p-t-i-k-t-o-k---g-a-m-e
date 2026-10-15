@@ -982,15 +982,27 @@
             ctx.restore();
         }
 
+        const WIN_LINE_MS = 600;
+        let winLineSeen = { key: '', t: 0 };
+        function winLineAnimating() {
+            return !!(state.round?.winLine?.length >= 2) && (winLineSeen.key === '' || performance.now() - winLineSeen.t < WIN_LINE_MS + 50);
+        }
         function drawWinLine() {
-            if (!state.round.winLine || state.round.winLine.length < 2) return;
+            if (!state.round.winLine || state.round.winLine.length < 2) { winLineSeen = { key: '', t: 0 }; return; }
             const lay = boardLayout();
             const first = state.round.winLine[0];
             const last = state.round.winLine[state.round.winLine.length - 1];
             const winner = state.round.winner;
             const color = winner === 'idol' ? cfg.colors.idol : cfg.colors.user;
             const p1 = { x: lay.ox + first.c * lay.cellSize + lay.cellSize/2, y: lay.oy + first.r * lay.cellSize + lay.cellSize/2 };
-            const p2 = { x: lay.ox + last.c * lay.cellSize + lay.cellSize/2, y: lay.oy + last.r * lay.cellSize + lay.cellSize/2 };
+            const p2full = { x: lay.ox + last.c * lay.cellSize + lay.cellSize/2, y: lay.oy + last.r * lay.cellSize + lay.cellSize/2 };
+            // Vẽ dần đường thắng trong WIN_LINE_MS (ease-out). Mốc thời gian lấy lúc renderer THẤY
+            // đường thắng lần đầu → đúng cả ở app lẫn OBS (state đồng bộ không mang timestamp).
+            const key = first.r + ',' + first.c + '>' + last.r + ',' + last.c;
+            if (winLineSeen.key !== key) winLineSeen = { key, t: performance.now() };
+            const k = Math.min(1, (performance.now() - winLineSeen.t) / WIN_LINE_MS);
+            const e = 1 - Math.pow(1 - k, 3);
+            const p2 = { x: p1.x + (p2full.x - p1.x) * e, y: p1.y + (p2full.y - p1.y) * e };
 
             ctx.save();
             ctx.strokeStyle = color;
@@ -1925,6 +1937,7 @@
         let rafId = null;
         function needsAnimation() {
             if (state.phase === 'matchEnd') return true;                  // win-line animation
+            if (state.phase === 'roundEnd' && winLineAnimating()) return true;   // vẽ dần đường thắng
             if (state.hint?.active && Date.now() < (state.hint.expireAt || 0)) return true;
             if (state.userUndo?.active && Date.now() < (state.userUndo.expireAt || 0)) return true;
             // Pulse vòng quanh nước cuối — chỉ trong vòng undo window

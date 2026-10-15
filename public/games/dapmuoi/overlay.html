@@ -107,6 +107,7 @@
     let lastHands = [];            // lòng bàn tay (sân khấu) khung AI gần nhất — để vẽ vợt theo tay
     let mousePos = null;           // chế độ chuột: vợt theo con trỏ
     let netSlide = 0;              // 0 = cuộn lên, 1 = rủ hết (trượt 0.5 s)
+    // Sprite 3D vẽ đầu quay TRÁI → lật theo -m.dir (dir = 1 khi bay sang phải).
     const PIVOT = { x: (137 - 160) / 320, y: (76 - 100) / 200 };     // gốc cánh của sprite 3D
     const EYE = { x: (108 - 160) / 320, y: (88 - 100) / 200, r: 12 / 320 };
 
@@ -148,7 +149,7 @@
             ctx.globalAlpha = alpha;
             ctx.translate(m.x, m.y);
             ctx.rotate(Math.sin(age / 1000 * Math.PI * 2 * 6) * 12 * Math.PI / 180);
-            ctx.scale(m.dir, 1);
+            ctx.scale(-m.dir, 1);
             if (dead) ctx.drawImage(dead, -w / 2, -h / 2);
             ctx.restore();
             return;
@@ -157,13 +158,13 @@
             // vệt mờ phía sau theo hướng ngược vận tốc
             const vl = Math.hypot(m.vx, m.vy) || 1;
             for (let k = 1; k <= 3; k++) {
-                ctx.save(); ctx.globalAlpha = 0.15; ctx.translate(m.x - m.vx / vl * 22 * k, m.y - m.vy / vl * 22 * k); ctx.scale(m.dir, 1);
+                ctx.save(); ctx.globalAlpha = 0.15; ctx.translate(m.x - m.vx / vl * 22 * k, m.y - m.vy / vl * 22 * k); ctx.scale(-m.dir, 1);
                 if (body) ctx.drawImage(body, -w / 2, -h / 2); ctx.restore();
             }
         }
         const landed = m.state === 'landed';
         ctx.translate(m.x + (landed ? 0 : jx), m.y + (landed ? 0 : jy));
-        ctx.scale(m.dir, 1);
+        ctx.scale(-m.dir, 1);
         if (landed) {
             // đang chích: cánh xếp, cả con phồng dần theo thời gian đậu
             const k = Math.min(1, m.landedMs / (cfg.bite.landSec * 1000));
