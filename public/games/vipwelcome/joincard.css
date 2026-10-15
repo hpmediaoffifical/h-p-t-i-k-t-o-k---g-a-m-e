@@ -45,99 +45,187 @@
     width: 142px; height: 142px; transform: translateY(-50%);
     z-index: 3;
 }
-.jc-ava-wrap::before {   /* sao gai sau avatar */
-    content: ''; position: absolute; inset: -14px;
-    background: conic-gradient(from 0deg, var(--jc-edge), var(--jc-b), var(--jc-edge), var(--jc-a), var(--jc-edge), var(--jc-b), var(--jc-edge), var(--jc-a), var(--jc-edge));
-    clip-path: polygon(50% 0%, 58% 18%, 78% 8%, 76% 28%, 96% 26%, 84% 42%, 100% 50%, 84% 58%, 96% 74%, 76% 72%, 78% 92%, 58% 82%, 50% 100%, 42% 82%, 22% 92%, 24% 72%, 4% 74%, 16% 58%, 0% 50%, 16% 42%, 4% 26%, 24% 28%, 22% 8%, 42% 18%);
-    animation: jcSpin 9s linear infinite;
-    opacity: .95;
-}
+/* Khung avatar nhiều lớp (thay sao gai cũ):
+   .jc-halo  hào quang thở + 2 hạt sáng bay quanh (bậc 3+)
+   ::before  vòng vạch mảnh quay ngược, chậm
+   .jc-orbit luồng sáng "sao chổi" chạy quanh viền + đầu sáng
+   .jc-ring  viền kim loại tĩnh (avatar nằm trên) */
 @keyframes jcSpin { to { transform: rotate(360deg); } }
-.jc-ring {
+@keyframes jcSpinBack { to { transform: rotate(-360deg); } }
+@keyframes jcBreath {
+    0%, 100% { opacity: .45; transform: scale(.94); }
+    50%      { opacity: .9;  transform: scale(1.04); }
+}
+.jc-halo {
+    position: absolute; inset: -20px; border-radius: 50%;
+    background: radial-gradient(circle, var(--jc-glow) 0 38%, transparent 70%);
+    animation: jcBreath 2.8s ease-in-out infinite;
+    z-index: -1;
+}
+.jc-halo::after {   /* 2 hạt sáng bay quanh — chỉ bật từ bậc Đại gia */
+    content: ''; position: absolute; inset: 6px; border-radius: 50%; display: none;
+    background:
+        radial-gradient(circle at 50% 4px, #fff 0 2.5px, transparent 4px),
+        radial-gradient(circle at 50% calc(100% - 4px), var(--jc-edge) 0 2px, transparent 3.5px);
+    filter: drop-shadow(0 0 4px var(--jc-edge));
+    animation: jcSpin 5.5s linear infinite;
+}
+.jc-ava-wrap::before {   /* vòng vạch mảnh quay ngược */
+    content: ''; position: absolute; inset: -13px; border-radius: 50%;
+    background: repeating-conic-gradient(var(--jc-edge) 0 1.6deg, transparent 1.6deg 7.5deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+    opacity: .5;
+    animation: jcSpinBack 22s linear infinite;
+}
+.jc-orbit {
+    position: absolute; inset: -2px; border-radius: 50%;
+    animation: jcSpin 3.2s linear infinite;
+    z-index: 1;
+}
+.jc-orbit::before {   /* đuôi sao chổi: mờ dần → sáng ở đầu (đỉnh vòng) */
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0deg 150deg, var(--jc-b) 260deg, var(--jc-edge) 340deg, #fff 359deg, transparent 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+    filter: drop-shadow(0 0 5px var(--jc-glow));
+}
+.jc-orbit::after {    /* đầu sao chổi */
+    content: ''; position: absolute; left: 50%; top: -1.5px;
+    width: 8px; height: 8px; margin-left: -4px; border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 6px 2px #fff, 0 0 14px 4px var(--jc-glow);
+}
+.jc-ring {   /* viền kim loại: vân sáng-tối quanh vòng + gờ trong/ngoài */
     position: absolute; inset: 4px; border-radius: 50%;
-    background: radial-gradient(circle at 50% 30%, var(--jc-edge), var(--jc-a) 70%);
-    box-shadow: 0 0 22px var(--jc-glow), inset 0 0 10px rgba(0,0,0,.5);
+    background: conic-gradient(from 210deg, var(--jc-edge), var(--jc-a) 18%, var(--jc-b) 35%, var(--jc-edge) 50%, var(--jc-a) 68%, var(--jc-b) 85%, var(--jc-edge));
+    box-shadow:
+        0 0 0 1.5px rgba(255,255,255,.55),
+        0 0 16px var(--jc-glow),
+        inset 0 0 0 1.5px rgba(0,0,0,.35),
+        inset 0 3px 6px rgba(255,255,255,.35),
+        inset 0 -4px 8px rgba(0,0,0,.45);
+    z-index: 2;
+}
+.jc-ring::after {   /* bóng kính phía trên viền */
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    background: linear-gradient(160deg, rgba(255,255,255,.5) 0%, transparent 38%);
+    pointer-events: none;
 }
 .jc-ava {
     position: absolute; inset: 14px; width: calc(100% - 28px); height: calc(100% - 28px);
+    box-sizing: border-box;   /* viền 3px nằm TRONG 114px — không thì ảnh to 120px, lệch xuống-phải 3px so với vòng */
     border-radius: 50%; object-fit: cover; background: #1b1235;
     border: 3px solid rgba(255,255,255,.85);
+    z-index: 3;
 }
 .jc-frame {   /* khung PNG người dùng tải lên — đè lên khung mặc định */
     position: absolute; inset: -22px; width: calc(100% + 44px); height: calc(100% + 44px);
     object-fit: contain; z-index: 4;
 }
-.jc-card.has-frame .jc-ava-wrap::before, .jc-card.has-frame .jc-ring { display: none; }
+.jc-card.has-frame .jc-ava-wrap::before, .jc-card.has-frame .jc-ring,
+.jc-card.has-frame .jc-orbit, .jc-card.has-frame .jc-halo { display: none; }
 
-/* --- Thân thẻ --- */
+/* --- Thân thẻ ---
+   Lớp: nền màu bậc (background, skin đè được) → ::before bóng kính + 2 chỉ kim loại trên/dưới
+   → ::after vân kẻ mảnh mờ dần về phía phải → chữ (z 1). Đuôi vát nhọn theo px để mọi bậc cùng góc. */
 .jc-body {
     position: absolute; left: 92px; right: 0; top: 50%;
     height: 78px; transform: translateY(-28%);
-    padding: 0 26px 0 72px;
+    padding: 0 40px 0 72px;
     display: flex; align-items: center; gap: 14px;
-    background: linear-gradient(100deg, var(--jc-a) 0%, var(--jc-b) 70%, var(--jc-a) 100%);
-    clip-path: polygon(0 0, 97% 0, 100% 50%, 97% 100%, 0 100%);
-    border-top: 2px solid var(--jc-edge);
-    box-shadow: inset 0 0 0 2px rgba(255,255,255,.18);
+    background: linear-gradient(100deg, var(--jc-a) 0%, var(--jc-b) 58%, var(--jc-a) 100%);
+    clip-path: polygon(0 0, calc(100% - 28px) 0, 100% 50%, calc(100% - 28px) 100%, 0 100%);
     overflow: hidden;
 }
-.jc-body::after {   /* vân sóng mờ */
-    content: ''; position: absolute; inset: 0;
-    background: repeating-linear-gradient(115deg, rgba(255,255,255,.07) 0 10px, transparent 10px 26px);
-    pointer-events: none;
+.jc-body::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background:
+        linear-gradient(90deg, transparent 4%, var(--jc-edge) 22%, #fff 50%, var(--jc-edge) 78%, transparent 99%) top / 100% 2px no-repeat,
+        linear-gradient(90deg, transparent 4%, var(--jc-edge) 30%, var(--jc-edge) 70%, transparent 99%) bottom / 100% 1.5px no-repeat,
+        linear-gradient(180deg, rgba(255,255,255,.26) 0%, rgba(255,255,255,.07) 46%, rgba(0,0,0,0) 52%, rgba(0,0,0,.22) 100%),
+        radial-gradient(120% 140% at 0% 50%, rgba(0,0,0,.35), transparent 45%);
+}
+.jc-body::after {   /* vân kẻ mảnh, chỉ rõ ở nửa phải (không chạy dưới tên) */
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(115deg, rgba(255,255,255,.10) 0 1.5px, transparent 1.5px 9px);
+    -webkit-mask: linear-gradient(90deg, transparent 35%, #000 75%, #000 92%, transparent);
+            mask: linear-gradient(90deg, transparent 35%, #000 75%, #000 92%, transparent);
 }
 .jc-name {
+    position: relative; z-index: 1;
     flex: 1; min-width: 0;
-    font-size: 40px; font-weight: 900; font-style: italic; letter-spacing: .5px;
+    font-size: 40px; font-weight: 900; font-style: italic; letter-spacing: .4px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    text-shadow: 0 2px 0 rgba(0,0,0,.35), 0 0 14px var(--jc-glow);
+    padding-right: 4px;   /* chữ nghiêng không bị cụt nét cuối */
+    text-shadow: 0 2px 0 rgba(0,0,0,.45), 0 0 12px var(--jc-glow), 0 0 2px rgba(0,0,0,.6);
 }
-.jc-xu {
+.jc-xu {   /* viên nhộng kính */
+    position: relative; z-index: 1;
     flex-shrink: 0;
-    display: flex; align-items: center; gap: 6px;
-    padding: 4px 14px; border-radius: 999px;
-    background: rgba(0,0,0,.32); border: 1.5px solid var(--jc-edge);
-    font-size: 24px; font-weight: 800;
+    display: flex; align-items: center; gap: 7px;
+    padding: 5px 16px 5px 11px; border-radius: 999px;
+    background: linear-gradient(180deg, rgba(255,255,255,.20), rgba(0,0,0,.38) 55%, rgba(0,0,0,.48));
+    border: 1.5px solid rgba(255,255,255,.38);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 0 14px var(--jc-glow);
+    font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 2px rgba(0,0,0,.6);
 }
 .jc-xu.hidden { display: none; }
-.jc-xu .gem { font-size: 22px; filter: drop-shadow(0 0 6px #7fe3ff); }
+.jc-xu .gem { font-size: 21px; filter: drop-shadow(0 0 6px #7fe3ff); }
 
-/* --- Hàng chip trên --- */
+/* --- Dải chip trên: tab kính tối, vạch màu bậc ở mép trái, chỉ sáng ở đáy --- */
 .jc-top {
     position: absolute; left: 150px; top: 6px;
-    display: flex; align-items: center; gap: 8px;
-    padding: 5px 16px 5px 14px;
-    background: linear-gradient(90deg, var(--jc-a), var(--jc-b));
-    clip-path: polygon(3% 0, 100% 0, 97% 100%, 0 100%);
-    border-bottom: 2px solid var(--jc-edge);
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 20px 5px 16px;
+    background:
+        linear-gradient(90deg, var(--jc-edge), var(--jc-b)) left / 5px 100% no-repeat,
+        linear-gradient(90deg, transparent, var(--jc-edge) 20%, var(--jc-edge) 80%, transparent) bottom / 100% 2px no-repeat,
+        linear-gradient(180deg, rgba(14,16,30,.92), rgba(14,16,30,.74));
+    clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
     z-index: 2;
-    max-width: 480px;
+    max-width: 490px; box-sizing: border-box;   /* 150 + 490 = mép phải thẻ 640 */
     white-space: nowrap;
 }
+.jc-top.tight { gap: 4px; }
+.jc-top.tight .jc-chip { font-size: 14px; padding: 0 6px; }
+.jc-top.tight .jc-enter { font-size: 13px; letter-spacing: .6px; }
 .jc-chip {
     display: inline-flex; align-items: center; gap: 4px;
-    padding: 2px 10px; border-radius: 6px;
-    font-size: 17px; font-weight: 900; letter-spacing: .6px; line-height: 1.25;
+    height: 24px; padding: 0 8px; border-radius: 6px;
+    font-size: 16px; font-weight: 900; letter-spacing: .6px; line-height: 1;
     white-space: nowrap;
 }
-.jc-title { background: var(--jc-chip); color: var(--jc-chip-ink); text-transform: uppercase; box-shadow: 0 0 0 1.5px rgba(0,0,0,.25) inset; }
-.jc-lv { background: var(--jc-lv); border: 1.5px solid var(--jc-edge); }
-.jc-fan { background: linear-gradient(180deg, #ff9a3c, #e2531c); color: #fff; }
-.jc-fan::before { content: '♥'; font-size: 15px; }
-.jc-enter { font-size: 16px; font-weight: 800; letter-spacing: 1.2px; opacity: .95; white-space: nowrap; }
-.jc-late .jc-enter { font-style: italic; opacity: .8; }
+.jc-title {
+    background: var(--jc-chip); color: var(--jc-chip-ink); text-transform: uppercase;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.75), inset 0 -2px 0 rgba(0,0,0,.18), 0 0 10px var(--jc-glow);
+}
+.jc-lv { background: rgba(255,255,255,.10); border: 1.5px solid var(--jc-edge); color: #fff; }
+.jc-fan { background: linear-gradient(180deg, #ffa24a, #e2531c); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.45); }
+.jc-fan::before { content: '♥'; font-size: 14px; }
+.jc-enter {
+    font-size: 15px; font-weight: 900; letter-spacing: 1.1px; white-space: nowrap;
+    color: var(--jc-edge); text-shadow: 0 0 8px var(--jc-glow);
+}
+.jc-late .jc-enter { font-style: italic; opacity: .85; }
 
-/* --- Dòng phụ dưới --- */
+/* --- Dòng phụ dưới: dải tối mờ dần để chữ nhỏ đọc rõ trên mọi nền --- */
 .jc-sub {
-    position: absolute; left: 168px; bottom: 2px;
+    position: absolute; left: 160px; bottom: 0;
     display: flex; align-items: center; gap: 6px;
+    padding: 2px 26px 2px 10px;
+    background: linear-gradient(90deg, rgba(8,10,20,.72) 70%, rgba(8,10,20,0));
+    border-radius: 0 0 0 8px;
     font-size: 15px; font-weight: 700;
     z-index: 2;
+    white-space: nowrap;
 }
-.jc-uid { opacity: .9; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+.jc-uid { opacity: .92; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
 .jc-role {
-    padding: 1px 8px; border-radius: 5px; font-size: 13px; font-weight: 900; letter-spacing: .5px;
+    padding: 1px 8px; border-radius: 5px; font-size: 13px; font-weight: 900; letter-spacing: .5px; line-height: 1.3;
     background: rgba(0,0,0,.45); border: 1px solid var(--jc-edge);
+    white-space: nowrap;
 }
 .jc-role.mod { background: #1f7a3a; }
 .jc-role.sub { background: #7a1f6d; }
@@ -145,8 +233,9 @@
 .jc-role.friend { background: #1f4f7a; }
 
 /* --- Ánh quét + lấp lánh --- */
-.jc-shine {
-    position: absolute; left: 92px; right: 0; top: 0; bottom: 0;
+.jc-shine {   /* chỉ quét trong thanh tên — phủ cả thẻ thì blend overlay in thành ô sẫm sau avatar */
+    position: absolute; left: 92px; right: 0; top: 53px; height: 78px;
+    clip-path: polygon(0 0, 97% 0, 100% 50%, 97% 100%, 0 100%);
     background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.55) 45%, transparent 60%);
     background-size: 250% 100%;
     mix-blend-mode: overlay;
@@ -189,6 +278,12 @@
     animation: jcPrism 4s linear infinite;
 }
 @keyframes jcPrism { from { background-position: 0 0; } to { background-position: 200% 0; } }
+/* Đế vương (cấp 50) — đen huyền + vàng ròng */
+.jc-card.skin-imperial {
+    --jc-a: #120c02; --jc-b: #b8860b; --jc-edge: #ffe7a3; --jc-glow: rgba(255, 200, 80, .95);
+    --jc-chip: linear-gradient(180deg, #fffbe6, #ffd76a); --jc-chip-ink: #3b2600;
+}
+.jc-card.skin-imperial .jc-body { background: linear-gradient(100deg, #120c02 0%, #4a3206 35%, #b8860b 70%, #ffd76a 92%, #120c02 100%); }
 
 /* ===== Giai đoạn 3 ===== */
 /* Chip khách quen ở dòng dưới */
@@ -214,3 +309,43 @@
     margin-left: -34px; position: relative;
 }
 .jc-group-ava:first-child { margin-left: 0; }
+
+/* ===== Khung avatar theo bậc — càng cao càng rực ===== */
+/* Tân binh: chậm, nhẹ, không vòng vạch */
+.jc-card.skin-ice .jc-orbit { animation-duration: 4.2s; }
+.jc-card.skin-ice .jc-ava-wrap::before { opacity: 0; }
+/* Hào kiệt: mặc định */
+/* Đại gia: vạch vàng rõ + 2 hạt sáng */
+.jc-card.skin-amber .jc-ava-wrap::before { opacity: .8; }
+.jc-card.skin-amber .jc-halo::after,
+.jc-card.skin-flame .jc-halo::after,
+.jc-card.skin-diamond .jc-halo::after { display: block; }
+/* Huyền thoại: 2 sao chổi lửa đối xứng, nhanh hơn */
+.jc-card.skin-flame .jc-orbit { animation-duration: 2.4s; }
+.jc-card.skin-flame .jc-orbit::before {
+    background: conic-gradient(from 0deg,
+        transparent 0deg 70deg, #ff3b1f 140deg, #ffb800 175deg, #fff 179deg, transparent 180deg 250deg,
+        #ff3b1f 320deg, #ffb800 355deg, #fff 359deg, transparent 360deg);
+}
+.jc-card.skin-flame .jc-orbit::after { box-shadow: 0 0 6px 2px #fff, 0 0 14px 5px rgba(255,120,30,.95), 0 141px 0 0 #fff, 0 141px 14px 5px rgba(255,120,30,.95); }  /* đầu thứ 2 ở đáy vòng (vòng Ø146 − chấm 8 + lề) */
+.jc-card.skin-flame .jc-ava-wrap::before { opacity: .7; animation-duration: 14s; }
+/* Chí tôn: sao chổi cầu vồng + viền đổi sắc lăn tăn */
+@keyframes jcHue { to { filter: hue-rotate(360deg); } }
+.jc-card.skin-diamond .jc-orbit { animation-duration: 2.6s; }
+.jc-card.skin-diamond .jc-orbit::before {
+    background: conic-gradient(from 0deg, transparent 0deg 120deg, #3fa9ff 200deg, #8f5cff 260deg, #ff7ad9 310deg, #fff6a8 345deg, #fff 359deg, transparent 360deg);
+    filter: drop-shadow(0 0 6px rgba(200,160,255,.95));
+}
+.jc-card.skin-diamond .jc-ring { animation: jcHue 6s linear infinite; }
+.jc-card.skin-diamond .jc-ava-wrap::before { opacity: .85; }
+/* Đế vương: 2 sao chổi vàng–trắng đối xứng, vạch vàng rõ, hạt sáng bay quanh */
+.jc-card.skin-imperial .jc-halo::after { display: block; }
+.jc-card.skin-imperial .jc-ava-wrap::before { opacity: .9; }
+.jc-card.skin-imperial .jc-orbit { animation-duration: 2.2s; }
+.jc-card.skin-imperial .jc-orbit::before {
+    background: conic-gradient(from 0deg,
+        transparent 0deg 70deg, #b8860b 140deg, #ffd76a 172deg, #fff 179deg, transparent 180deg 250deg,
+        #b8860b 320deg, #ffd76a 352deg, #fff 359deg, transparent 360deg);
+    filter: drop-shadow(0 0 6px rgba(255,200,80,.95));
+}
+.jc-card.skin-imperial .jc-orbit::after { box-shadow: 0 0 6px 2px #fff, 0 0 14px 5px rgba(255,200,80,.95), 0 141px 0 0 #fff, 0 141px 14px 5px rgba(255,200,80,.95); }

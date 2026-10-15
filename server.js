@@ -9300,7 +9300,8 @@ function vipBuildCard(user, key, match, { late = false } = {}) {
         visit: jc.showVisits === false ? null : peek,
         late,
         enterText: jc.enterText || 'VÀO PHÒNG',
-        ruleLabel: match.label || ''
+        ruleLabel: match.label || '',
+        priority: match.priority || 0   // thanh chào gọn: đủ tầng thì bỏ thanh ưu tiên thấp nhất trước
     };
 }
 function vipSendCard(card) {
@@ -9358,7 +9359,8 @@ function vipFlushBatch() {
             id, kind: 'group', key: 'group:' + id, keys: g.keys, total: g.total,
             members: g.members.map(m => ({ nickname: m.nickname, avatar: m.avatar })),
             metas: g.items.map(m => ({ key: m.key, uniqueId: m.uniqueId, nickname: m.nickname, avatar: m.avatar, host: m.host, room: m.room, noVisit: m.noVisit })),
-            skin: top.skin || 'violet', enterText: vipJoinCfg().enterText || 'VÀO PHÒNG', ruleLabel: `Gộp ${g.total} người`
+            skin: top.skin || 'violet', enterText: vipJoinCfg().enterText || 'VÀO PHÒNG', ruleLabel: `Gộp ${g.total} người`,
+            priority: 0   // thẻ gộp luôn nhường thanh người cụ thể
         });
     }
     vipScheduleBatchFlush();

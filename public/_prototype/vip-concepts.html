@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>Mẫu thẻ chào vào phòng — so sánh 3 kiểu</title>
+<link rel="stylesheet" href="/games/vipwelcome/joincard.css" />
+<style>
+/* ================= Trang ================= */
+:root { --bg: #15171e; --ink: #ecedf2; }
+body { margin: 0; padding: 24px 28px 60px; background: var(--bg); color: var(--ink); font-family: 'Segoe UI', Arial, sans-serif; }
+body.bg-photo { background: linear-gradient(160deg, #6b7a8f 0%, #c9b8a6 35%, #f1e3d3 55%, #8a6f5a 100%); }
+body.bg-light { background: #f2f2f5; --ink: #1d1f27; }
+h1 { margin: 0 0 4px; font-size: 22px; }
+.note { margin: 0 0 14px; opacity: .75; font-size: 14px; max-width: 1100px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; align-items: center; }
+.bar button { padding: 7px 13px; border-radius: 9px; border: 1px solid rgba(128,128,128,.5); background: rgba(40,44,56,.85); color: #fff; cursor: pointer; font-weight: 600; }
+.bar button.on { background: #ff4f8b; border-color: #ff4f8b; }
+.bar .sep { width: 1px; height: 26px; background: rgba(128,128,128,.4); margin: 0 6px; }
+.lane { position: relative; height: 230px; margin-bottom: 18px; border-radius: 14px; background: rgba(255,255,255,.035); overflow: hidden; }
+.lane .tag { position: absolute; right: 14px; top: 10px; font-size: 13px; font-weight: 800; letter-spacing: 1px; opacity: .6; }
+.lane .slot { position: absolute; left: 34px; top: 30px; }
+
+/* ================= Nhịp chuyển động chung =================
+   0      ms  vòng avatar LĂN từ trái vào (xoay theo quãng đường, nảy nhẹ khi dừng)
+   300    ms  thân thẻ trượt từ PHẢI vào, ghép vào avatar
+   750+   ms  thông tin hiện so le (mờ → rõ, nhích lên)
+   1150   ms  điểm nhấn (con dấu / ánh foil)
+   4600   ms  CẢ THẺ mờ dần + nhoè nhẹ (600 ms)                                          */
+@keyframes vcRoll {
+    0%   { transform: translateX(-460px) rotate(-400deg); opacity: 0; }
+    12%  { opacity: 1; }
+    82%  { transform: translateX(10px) rotate(6deg); }
+    100% { transform: translateX(0) rotate(0); opacity: 1; }
+}
+@keyframes vcFromRight {
+    0%   { transform: translateX(340px); opacity: 0; clip-path: inset(0 0 0 100%); }
+    35%  { opacity: 1; }
+    100% { transform: translateX(0); opacity: 1; clip-path: inset(0 0 0 0); }
+}
+@keyframes vcRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes vcFadeAll { to { opacity: 0; filter: blur(4px); transform: translateY(-8px); } }
+.vc-run { animation: vcFadeAll 600ms ease-in 4600ms forwards; }
+.vc-roll { animation: vcRoll 680ms cubic-bezier(.22,.8,.3,1) both; }
+.vc-in-right { animation: vcFromRight 560ms cubic-bezier(.2,.9,.25,1.04) 300ms both; }
+.vc-rise { animation: vcRise 360ms ease-out both; }
+
+/* Avatar dùng chung vòng viền mới (joincard.css) — bỏ khung cố định của .jc-card */
+.vc-avahost.jc-card { position: absolute; width: 142px; height: 142px; animation: none; filter: none; }
+.vc-avahost .jc-ava-wrap { top: 0; transform: none; }
+
+/* ================= Kiểu 0: Cổ điển mới (thẻ hiện tại + nhịp mới) ================= */
+.k0 .jc-card.vc-card { animation: none; }
+.k0 .jc-card.vc-card .jc-ava-wrap { animation: vcRoll 680ms cubic-bezier(.22,.8,.3,1) both; top: 4px; transform: none; }
+.k0 .jc-card.vc-card .jc-body { animation: vcFromRight 560ms cubic-bezier(.2,.9,.25,1.04) 300ms both; top: 53px; transform: none; }
+.k0 .jc-card.vc-card .jc-top { animation: vcFromRight 520ms cubic-bezier(.2,.9,.25,1.04) 420ms both; }
+.k0 .jc-card.vc-card .jc-sub { animation: vcRise 360ms ease-out 900ms both; }
+.k0 .jc-card.vc-card .jc-xu { animation: vcRise 360ms ease-out 800ms both; }
+
+/* ================= Kiểu A: VÉ VÀO PHÒNG ================= */
+.vt { position: relative; width: 680px; height: 176px; }
+.vt .vc-avahost { left: 0; top: 17px; z-index: 3; }
+.vt-ticket {
+    --perf: 470px;            /* đường xé giữa thân vé và cuống vé */
+    position: absolute; left: 70px; top: 13px; width: 600px; height: 150px;
+    border-radius: 14px;
+    color: var(--t-ink);
+    background: var(--t-bg);
+    box-shadow: 0 14px 26px rgba(0,0,0,.45);
+    /* khoét bán nguyệt 2 đầu đường xé */
+    -webkit-mask: radial-gradient(circle 15px at var(--perf) 0, #0000 97%, #000 100%), radial-gradient(circle 15px at var(--perf) 100%, #0000 97%, #000 100%);
+    -webkit-mask-composite: source-in;
+            mask: radial-gradient(circle 15px at var(--perf) 0, #0000 97%, #000 100%), radial-gradient(circle 15px at var(--perf) 100%, #0000 97%, #000 100%);
+            mask-composite: intersect;
+    overflow: hidden;
+}
+.vt-ticket::before {   /* viền chỉ trong + đường răng cưa */
+    content: ''; position: absolute; inset: 7px; border-radius: 9px;
+    border: 1.5px solid var(--t-line);
+    background: repeating-linear-gradient(180deg, var(--t-line) 0 7px, transparent 7px 13px) calc(var(--perf) - 8px) 0 / 2px 100% no-repeat;
+    pointer-events: none;
+}
+.vt-ticket::after {   /* ánh foil quét qua (sau khi đóng dấu, lặp mỗi 3s) */
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(100deg, transparent 35%, rgba(255,255,255,.55) 48%, transparent 60%);
+    background-size: 260% 100%; background-position: 130% 0;
+    mix-blend-mode: soft-light;
+    animation: vtFoil 3s ease-in-out 1300ms infinite;
+}
+@keyframes vtFoil { 0% { background-position: 130% 0; } 45%, 100% { background-position: -130% 0; } }
+.vt-main { position: absolute; left: 92px; top: 0; width: 360px; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.vt-cap { font-size: 18px; font-weight: 900; letter-spacing: 2.6px; text-transform: uppercase; color: var(--t-acc); }
+.vt-name { font-size: 44px; font-weight: 900; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -.3px; }
+.vt-fields { display: flex; gap: 18px; margin-top: 2px; }
+.vt-f b { display: block; font-size: 24px; font-weight: 900; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.vt-f span { display: block; font-size: 13px; font-weight: 800; letter-spacing: 1.6px; opacity: .7; }
+.vt-hl { align-self: center; padding: 5px 11px; border-radius: 8px; font-size: 18px; font-weight: 900; background: var(--t-acc); color: var(--t-hl-ink); white-space: nowrap; box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
+.vt-stub { position: absolute; left: calc(var(--perf) + 8px); right: 0; top: 0; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.vt-stub span { font-size: 15px; font-weight: 900; letter-spacing: 2.4px; opacity: .75; }
+.vt-stub b { font-size: 58px; font-weight: 900; line-height: .95; font-variant-numeric: tabular-nums; }
+.vt-bar { margin-top: 6px; width: 86px; height: 16px; background: repeating-linear-gradient(90deg, var(--t-ink) 0 2px, transparent 2px 4px, var(--t-ink) 4px 5px, transparent 5px 8px, var(--t-ink) 8px 11px, transparent 11px 12px); opacity: .75; }
+/* con dấu CHÀO MỪNG */
+.vt-stamp {   /* đóng chéo góc cuống vé, lòi ra ngoài mép như vé thật */
+    position: absolute; left: 604px; top: 112px; width: 92px; height: 92px; border-radius: 50%;
+    border: 4px double var(--t-stamp); color: var(--t-stamp);
+    display: flex; align-items: center; justify-content: center; flex-direction: column;
+    font-weight: 900; text-align: center; line-height: 1;
+    transform: rotate(-14deg);
+    mix-blend-mode: multiply;
+    animation: vtStamp 420ms cubic-bezier(.3,1.6,.5,1) 1150ms both;
+    z-index: 4; pointer-events: none;
+}
+.vt-stamp i { font-style: normal; font-size: 12px; letter-spacing: 2px; }
+.vt-stamp b { font-size: 18px; letter-spacing: 1px; margin: 2px 0; }
+@keyframes vtStamp {
+    0%   { opacity: 0; transform: rotate(-14deg) scale(2.4); }
+    60%  { opacity: 1; transform: rotate(-14deg) scale(.92); }
+    100% { opacity: .92; transform: rotate(-14deg) scale(1); }
+}
+/* 5 hạng vé — khác nhau ở CHẤT LIỆU */
+.vt.t1 { --t-bg: linear-gradient(180deg, #fbf3df, #efe2c2); --t-bg-solid: #fbf3df; --t-ink: #3a2c16; --t-line: rgba(90,70,40,.35); --t-acc: #1d8fb8; --t-stamp: #1d8fb8; --t-hl-ink: #fff; }
+.vt.t2 { --t-bg: linear-gradient(125deg, #f4f6fa 0%, #c3cad6 30%, #f7f9fc 52%, #a9b3c4 78%, #e7ebf2 100%); --t-bg-solid: #eef1f6; --t-ink: #1f2636; --t-line: rgba(40,50,80,.35); --t-acc: #6b3fd0; --t-stamp: #6b3fd0; --t-hl-ink: #fff; }
+.vt.t3 { --t-bg: linear-gradient(125deg, #fff3c2 0%, #e9bd4f 28%, #fff6d2 50%, #c99227 76%, #f6dc8c 100%); --t-bg-solid: #fff3c2; --t-ink: #4a2c00; --t-line: rgba(110,70,0,.45); --t-acc: #b3261e; --t-stamp: #b3261e; --t-hl-ink: #fff; }
+.vt.t4 { --t-bg: radial-gradient(120% 160% at 30% 20%, #8e1220 0%, #4d0710 55%, #240207 100%); --t-bg-solid: #ffd27a; --t-ink: #fff3dc; --t-line: rgba(255,210,122,.55); --t-acc: #ffd27a; --t-stamp: #ffd27a; --t-hl-ink: #4d0710; }
+.vt.t4 .vt-stamp, .vt.t5 .vt-stamp { mix-blend-mode: normal; text-shadow: 0 0 8px rgba(0,0,0,.4); }
+.vt.t5 { --t-bg: linear-gradient(135deg, #0d0e16, #1b1c2b 50%, #0a0a12); --t-bg-solid: #fff; --t-ink: #ffffff; --t-line: rgba(255,255,255,.35); --t-acc: #c9a7ff; --t-stamp: #fff; --t-hl-ink: #1b1030; }
+.vt.t5 .vt-ticket { box-shadow: 0 14px 26px rgba(0,0,0,.45), 0 0 26px rgba(170,120,255,.45); }
+.vt.t5 .vt-ticket::after {   /* hologram cầu vồng chạy liên tục */
+    background: linear-gradient(110deg, transparent 20%, rgba(255,90,200,.35) 32%, rgba(90,200,255,.35) 44%, rgba(255,240,120,.35) 56%, transparent 70%);
+    background-size: 260% 100%; mix-blend-mode: screen; animation: vtFoil 3.2s linear 1300ms infinite;
+}
+.vt.t5 .vt-name { background: linear-gradient(90deg, #fff, #e9d8ff 40%, #bfe9ff 70%, #fff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ================= Kiểu B: THẺ THÀNH VIÊN ================= */
+.vm { position: relative; width: 560px; height: 200px; perspective: 900px; }
+.vm .vc-avahost { left: 0; top: 29px; z-index: 3; }
+.vm-card {
+    position: absolute; left: 96px; top: 0; width: 450px; height: 200px; border-radius: 16px;
+    color: var(--m-ink); background: var(--m-bg);
+    box-shadow: 0 16px 30px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.5);
+    transform-origin: right center;
+    animation: vmFlip 640ms cubic-bezier(.2,.9,.25,1.04) 300ms both;
+    overflow: hidden; padding: 16px 20px 16px 62px; box-sizing: border-box;
+}
+@keyframes vmFlip {
+    0%   { transform: translateX(300px) rotateY(-80deg); opacity: 0; }
+    40%  { opacity: 1; }
+    100% { transform: none; opacity: 1; }
+}
+.vm-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.5) 46%, transparent 58%); background-size: 260% 100%; background-position: 130% 0; mix-blend-mode: soft-light; animation: vtFoil 3s ease-in-out 1100ms infinite; }
+.vm-head { display: flex; justify-content: space-between; padding-right: 140px; font-weight: 900; letter-spacing: 2px; font-size: 14px; }
+.vm-head b { font-size: 16px; letter-spacing: 2.5px; color: var(--m-acc); }
+.vm-chip { width: 44px; height: 33px; margin-top: 12px; border-radius: 7px; background: linear-gradient(135deg, #f7e08c, #c79a2c 50%, #f3d77a); box-shadow: inset 0 0 0 1px rgba(80,50,0,.4); position: relative; }
+.vm-chip::before { content: ''; position: absolute; inset: 6px 8px; border: 1px solid rgba(80,50,0,.45); border-radius: 3px; }
+.vm-name { margin-top: 10px; font-size: 30px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 0 rgba(255,255,255,.35), 0 -1px 0 rgba(0,0,0,.35); letter-spacing: .5px; }
+.vm-row { display: flex; gap: 18px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.vm-row span { font-size: 12px; font-weight: 800; letter-spacing: 1.4px; opacity: .7; display: block; }
+.vm-row b { font-size: 20px; font-weight: 900; }
+.vm-side { position: absolute; right: 18px; top: 46px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; text-align: right; }
+.vm-card .vm-name, .vm-card .vm-row { max-width: 250px; }
+.vm-side .vt-hl { align-self: flex-start; }
+.vm-side .lv { font-size: 46px; font-weight: 900; line-height: 1; }
+.vm-side .lv small { display: block; font-size: 14px; letter-spacing: 2px; opacity: .75; }
+.vm.t1 { --m-bg: linear-gradient(135deg, #dfe9f3, #9fb4c9 50%, #eef4fa); --m-ink: #12324d; --m-acc: #1d8fb8; }
+.vm.t2 { --m-bg: linear-gradient(135deg, #e9e4ff, #9d8bd9 45%, #f1edff 60%, #7b67c8); --m-ink: #23154f; --m-acc: #4b23b8; }
+.vm.t3 { --m-bg: linear-gradient(135deg, #fff1b8, #dcaa36 45%, #fff3c9 60%, #b8831c); --m-ink: #3d2400; --m-acc: #8a1b12; }
+.vm.t4 { --m-bg: linear-gradient(135deg, #2b2b30, #0f0f12 50%, #34343c); --m-ink: #f3e6c4; --m-acc: #ffcf6e; }
+.vm.t5 { --m-bg: linear-gradient(135deg, #b9f3ff, #d9b8ff 30%, #ffc7ef 55%, #fff6b8 75%, #b9f3ff); --m-ink: #1a1440; --m-acc: #6a1fd0; }
+.vm .vt-hl { background: var(--m-acc); color: #fff; }
+
+/* Lưới vùng an toàn TikTok (tỉ lệ khung điện thoại) — bật/tắt */
+.safe { position: fixed; right: 24px; bottom: 24px; width: 216px; height: 384px; border: 2px solid rgba(255,255,255,.6); border-radius: 18px; background: rgba(0,0,0,.25); display: none; }
+.safe.on { display: block; }
+.safe::before { content: 'BÌNH LUẬN TikTok che'; position: absolute; left: 0; right: 0; bottom: 0; height: 35%; background: rgba(255,60,60,.35); color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; border-radius: 0 0 16px 16px; }
+.safe::after { content: ''; position: absolute; right: 0; top: 35%; width: 16%; height: 45%; background: rgba(255,60,60,.35); }
+.safe i { position: absolute; left: 3%; top: 28%; width: 60%; height: 22%; border: 2px dashed #7CFF9A; border-radius: 8px; }
+.safe span { position: absolute; left: 3%; top: 51%; font-size: 10px; color: #7CFF9A; font-weight: 800; }
+</style>
+</head>
+<body>
+<h1>Thẻ chào vào phòng — so sánh 3 kiểu</h1>
+<p class="note">Nhịp chuyển động: <b>vòng avatar lăn từ trái vào</b> → <b>thân thẻ trượt từ phải ghép vào</b> → thông tin hiện lần lượt → điểm nhấn → <b>cả thẻ mờ dần</b>. Tự lặp lại mỗi 6 giây. Chữ nhỏ nhất ≥ 13 px (bản cũ 13–15 px cho 8 chip) — mỗi thẻ chỉ còn 1 điểm nhấn.</p>
+<div class="bar" id="bar"></div>
+<div class="lane k0"><div class="tag">CỔ ĐIỂN MỚI (thanh ngang hiện tại + nhịp mới)</div><div class="slot" id="s0"></div></div>
+<div class="lane" style="height:250px"><div class="tag">A — VÉ VÀO PHÒNG 🎫 (đề xuất)</div><div class="slot" id="s1"></div></div>
+<div class="lane" style="height:250px"><div class="tag">B — THẺ THÀNH VIÊN 💳</div><div class="slot" id="s2"></div></div>
+<div class="safe" id="safe"><i></i><span>vùng nên đặt thẻ</span></div>
+<script>
+const TIERS = [
+    { k: 't1', skin: 'ice',     title: 'Tân binh',    ticket: 'Vé thường',  card: 'SILVER',   lv: 8,  fan: 2,  xu: 0,       name: 'Khách VIP 8',          hl: '🎉 Lần đầu ghé' },
+    { k: 't2', skin: 'violet',  title: 'Hào kiệt',    ticket: 'Vé bạc',     card: 'GOLD',     lv: 18, fan: 6,  xu: 1200,    name: 'Minh Tuấn',            hl: 'Ghé lần 5' },
+    { k: 't3', skin: 'amber',   title: 'Đại gia',     ticket: 'Vé vàng',    card: 'PLATINUM', lv: 28, fan: 12, xu: 25000,   name: 'Hoàng Long',           hl: 'MOD' },
+    { k: 't4', skin: 'flame',   title: 'Huyền thoại', ticket: 'Hạng nhất',  card: 'BLACK',    lv: 38, fan: 16, xu: 180000,  name: 'Thanh Hằng',           hl: '🔥 5 buổi liền' },
+    { k: 't5', skin: 'diamond', title: 'Chí tôn',     ticket: 'Vé Chí tôn', card: 'DIAMOND',  lv: 48, fan: 22, xu: 2500000, name: 'Nguyễn Thị Phương Anh', hl: '👑 TOP 1' }
+];
+const AVA = '/hp-logo.png';
+let cur = 3;
+const el = (t, c, txt) => { const e = document.createElement(t); if (c) e.className = c; if (txt != null) e.textContent = txt; return e; };
+const fmtXu = v => v >= 1e6 ? (Math.floor(v / 1e5) / 10).toLocaleString('vi-VN') + 'Tr' : v >= 1e5 ? Math.floor(v / 1e3) + 'K' : v.toLocaleString('vi-VN');
+function avatar(skin, cls) {
+    const host = el('div', 'jc-card skin-' + skin + ' vc-avahost ' + (cls || ''));
+    const w = el('div', 'jc-ava-wrap');
+    w.append(el('div', 'jc-halo'), el('div', 'jc-orbit'), el('div', 'jc-ring'));
+    const a = el('img', 'jc-ava'); a.src = AVA; w.appendChild(a);
+    host.appendChild(w); return host;
+}
+function fit(node, max, min) { for (let fs = max; fs > min && node.scrollWidth > node.clientWidth + 1; ) { fs -= 2; node.style.fontSize = fs + 'px'; } }
+
+function classic(t) {
+    const c = el('div', 'jc-card vc-card vc-run skin-' + t.skin);
+    const w = el('div', 'jc-ava-wrap'); w.append(el('div', 'jc-halo'), el('div', 'jc-orbit'), el('div', 'jc-ring'));
+    const a = el('img', 'jc-ava'); a.src = AVA; w.appendChild(a); c.appendChild(w);
+    const top = el('div', 'jc-top');
+    top.append(el('span', 'jc-chip jc-title', t.title), el('span', 'jc-chip jc-lv', 'LV ' + t.lv), el('span', 'jc-chip jc-fan', 'FAN LV.' + t.fan), el('span', 'jc-enter', 'VÀO PHÒNG'));
+    c.appendChild(top);
+    const body = el('div', 'jc-body'); body.appendChild(el('span', 'jc-name', t.name));
+    if (t.xu) { const x = el('span', 'jc-xu'); x.append(el('span', 'gem', '💎'), el('b', '', fmtXu(t.xu))); body.appendChild(x); }
+    c.appendChild(body);
+    const sub = el('div', 'jc-sub'); sub.append(el('span', 'jc-uid', '@' + t.name.toLowerCase().replace(/\s+/g, '_').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')), el('span', 'jc-visit streak', t.hl));
+    c.appendChild(sub);
+    return c;
+}
+function ticket(t) {
+    const r = el('div', 'vt vc-run ' + t.k);
+    r.appendChild(avatar(t.skin, 'vc-roll'));
+    const tk = el('div', 'vt-ticket vc-in-right');
+    const m = el('div', 'vt-main');
+    const cap = el('div', 'vt-cap vc-rise', 'Vé vào phòng · ' + t.ticket); cap.style.animationDelay = '760ms';
+    const nm = el('div', 'vt-name vc-rise', t.name); nm.style.animationDelay = '820ms';
+    const f = el('div', 'vt-fields vc-rise'); f.style.animationDelay = '900ms';
+    const fld = (lab, val) => { const d = el('div', 'vt-f'); d.append(el('span', '', lab), el('b', '', val)); return d; };
+    f.append(fld('FAN', 'LV.' + t.fan));
+    if (t.xu) f.append(fld('ĐÃ TẶNG', '💎 ' + fmtXu(t.xu)));
+    f.append(el('div', 'vt-hl', t.hl));
+    m.append(cap, nm, f);
+    const stub = el('div', 'vt-stub vc-rise'); stub.style.animationDelay = '980ms';
+    stub.append(el('span', '', 'CẤP'), el('b', '', t.lv), el('div', 'vt-bar'));
+    tk.append(m, stub);
+    r.appendChild(tk);
+    const st = el('div', 'vt-stamp'); st.append(el('i', '', '★ HP ★'), el('b', '', 'CHÀO'), el('b', '', 'MỪNG'));
+    st.querySelectorAll('b')[1].style.margin = '0 0 3px';
+    r.appendChild(st);
+    requestAnimationFrame(() => fit(nm, 44, 28));
+    return r;
+}
+function member(t) {
+    const r = el('div', 'vm vc-run ' + t.k);
+    r.appendChild(avatar(t.skin, 'vc-roll'));
+    const c = el('div', 'vm-card');
+    const head = el('div', 'vm-head vc-rise'); head.style.animationDelay = '760ms';
+    head.append(el('span', '', 'HP MEMBER'), el('b', '', t.card));
+    const chip = el('div', 'vm-chip vc-rise'); chip.style.animationDelay = '820ms';
+    const nm = el('div', 'vm-name vc-rise', t.name.toUpperCase()); nm.style.animationDelay = '880ms';
+    const row = el('div', 'vm-row vc-rise'); row.style.animationDelay = '960ms';
+    const col = (lab, val) => { const d = el('div'); d.append(el('span', '', lab), el('b', '', val)); return d; };
+    row.append(col('FAN', 'LV.' + t.fan), col('ĐÃ TẶNG', t.xu ? fmtXu(t.xu) : '—'));
+    const side = el('div', 'vm-side vc-rise'); side.style.animationDelay = '1100ms';
+    const lv = el('div', 'lv'); lv.append(el('small', '', 'CẤP'), document.createTextNode(t.lv));
+    side.append(lv, el('div', 'vt-hl', t.hl));
+    c.append(head, chip, nm, row, side);
+    r.appendChild(c);
+    requestAnimationFrame(() => fit(nm, 30, 20));
+    return r;
+}
+function play() {
+    const t = TIERS[cur];
+    for (const [id, fn] of [['s0', classic], ['s1', ticket], ['s2', member]]) {
+        const s = document.getElementById(id); s.innerHTML = ''; s.appendChild(fn(t));
+    }
+    // ?t=1.2 → dừng ở giây 1.2 (chụp kiểm tra)
+    const T = parseFloat(new URLSearchParams(location.search).get('t'));
+    if (!Number.isNaN(T)) requestAnimationFrame(() => document.getAnimations().forEach(a => { a.pause(); a.currentTime = T * 1000; }));
+}
+const bar = document.getElementById('bar');
+TIERS.forEach((t, i) => { const b = el('button', i === cur ? 'on' : '', t.title); b.onclick = () => { cur = i; [...bar.querySelectorAll('.tier')].forEach((x, j) => x.classList.toggle('on', j === i)); play(); }; b.classList.add('tier'); bar.appendChild(b); });
+bar.appendChild(el('div', 'sep'));
+const btn = (txt, fn) => { const b = el('button', '', txt); b.onclick = fn; bar.appendChild(b); };
+btn('▶ Chạy lại', play);
+btn('Nền tối / ảnh / sáng', () => { const c = document.body.classList; if (c.contains('bg-photo')) { c.remove('bg-photo'); c.add('bg-light'); } else if (c.contains('bg-light')) c.remove('bg-light'); else c.add('bg-photo'); });
+btn('Lưới vùng an toàn TikTok', () => document.getElementById('safe').classList.toggle('on'));
+const q = new URLSearchParams(location.search);
+if (q.get('tier')) cur = Math.max(0, Math.min(4, +q.get('tier') - 1));
+[...bar.querySelectorAll('.tier')].forEach((x, j) => x.classList.toggle('on', j === cur));
+play();
+if (Number.isNaN(parseFloat(q.get('t')))) setInterval(play, 6000);
+</script>
+</body>
+</html>

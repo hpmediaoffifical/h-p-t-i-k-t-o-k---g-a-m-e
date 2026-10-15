@@ -8,13 +8,14 @@ function cfgWith(profileOver) {
 }
 const user = (over) => ({ userId: '1', uniqueId: 'abc', level: 0, fansLevel: 0, ...over });
 
-test('bậc mặc định: 5 bậc, Tân binh tắt, skin hợp lệ', () => {
+test('bậc mặc định: 6 bậc (20–24 / 25–35 / 36–40 / 41–49 / 50), Tân binh tắt, skin hợp lệ', () => {
     const t = makeDefaultTiers();
-    assert.equal(t.length, 5);
-    assert.deepEqual(t.map(x => x.name), ['Tân binh', 'Hào kiệt', 'Đại gia', 'Huyền thoại', 'Chí tôn']);
+    assert.equal(t.length, 6);
+    assert.deepEqual(t.map(x => x.name), ['Tân binh', 'Hào kiệt', 'Đại gia', 'Huyền thoại', 'Chí tôn', 'Đế vương']);
     assert.equal(t[0].enabled, false);
     assert.ok(t.every(x => SKINS.includes(x.skin)));
-    assert.deepEqual(t.map(x => [x.minLevel, x.minFans]), [[1, 1], [15, 5], [25, 10], [35, 15], [45, 20]]);
+    assert.deepEqual(t.map(x => [x.minLevel, x.minFans]), [[1, 1], [20, 5], [25, 10], [36, 15], [41, 20], [50, 0]]);
+    assert.equal(t[5].skin, 'imperial');
     const jc = makeDefaultJoinCard();
     assert.equal(jc.antiDupSec, 10);
     assert.equal(jc.card.maxStack, 3);
@@ -30,7 +31,10 @@ test('chọn bậc theo LV hoặc FAN, bậc cao nhất thắng', () => {
     const m = matchJoin(cfg, user({ level: 36 }));
     assert.equal(m.kind, 'tier');
     assert.equal(m.skin, 'flame');
-    assert.equal(m.priority, 135);
+    assert.equal(m.priority, 136);
+    assert.equal(matchJoin(cfg, user({ level: 50 })).title, 'Đế vương');
+    assert.equal(matchJoin(cfg, user({ level: 49 })).title, 'Chí tôn');
+    assert.equal(matchJoin(cfg, user({ level: 35 })).title, 'Đại gia');
     assert.equal(m.media, null);
 });
 
@@ -99,7 +103,7 @@ test('migrate globalJoin: bật + có media → thành bậc, tắt globalJoin, 
 
 test('Giai đoạn 3: TTS mặc định bật từ Đại gia, matchJoin trả tts; joinCard có batch/tts/hotkeys/board', () => {
     const t = makeDefaultTiers();
-    assert.deepEqual(t.map(x => x.tts.enabled), [false, false, true, true, true]);
+    assert.deepEqual(t.map(x => x.tts.enabled), [false, false, true, true, true, true]);
     assert.equal(t[2].tts.template, '{bậc} {tên} đã tới phòng!');
     const jc = makeDefaultJoinCard();
     assert.deepEqual(jc.batch, { enabled: true, belowTierLevel: 25 });
@@ -137,4 +141,54 @@ test('migrate: joinCard thiếu field được bù, skin lạ về violet', () =
     assert.equal(t.minFans, 0);
     assert.equal(t.enabled, true);
     assert.equal(t.rejoinCooldownSec, 0);
+});
+
+test('thanh chào gọn: mặc định style=bar + bar{}; cấu hình cũ được bù, giữ "card" nếu đã chọn', () => {
+    const jc = makeDefaultJoinCard();
+    assert.equal(jc.style, 'bar');
+    assert.deepEqual(jc.bar, { xPercent: 2, yPercent: 68, scale: 100, slots: 3, wow: true });
+    const old = migrateJoinConfig({ profiles: [], joinCard: { enabled: true, card: { maxStack: 4 } } });
+    assert.equal(old.joinCard.style, 'bar');
+    assert.equal(old.joinCard.bar.yPercent, 68);
+    const keep = migrateJoinConfig({ profiles: [], joinCard: { style: 'card', bar: { yPercent: 70 } } });
+    assert.equal(keep.joinCard.style, 'card');
+    assert.equal(keep.joinCard.bar.yPercent, 70);
+    assert.equal(keep.joinCard.bar.slots, 3);
+    const bad = migrateJoinConfig({ profiles: [], joinCard: { style: 'xyz' } });
+    assert.equal(bad.joinCard.style, 'bar');
+});
+
+test('bộ lọc "từ cấp X trở lên": chặn dưới mức, fan club vượt qua, người chỉ định theo ID luôn được chào', () => {
+    const { gatePasses } = require('../lib/vipwelcome/tier-match.js');
+    const cfg = migrateJoinConfig({ profiles: [{ id: 'p', enabled: true, userRules: [{ id: 'r', trigger: 'join', uniqueId: 'vip_me', enabled: true }] }] });
+    cfg.profiles[0].joinTiers.forEach(t => { t.enabled = true; });   // bật cả Tân binh (LV ≥ 1)
+    assert.equal(cfg.joinCard.gate.enabled, false);
+    assert.equal(cfg.joinCard.gate.minLevel, 20);
+    assert.ok(matchJoin(cfg, { uniqueId: 'a', level: 3 }), 'tắt lọc: LV3 vẫn khớp Tân binh');
+    cfg.joinCard.gate = { enabled: true, minLevel: 20, minFans: 0 };
+    assert.equal(matchJoin(cfg, { uniqueId: 'a', level: 3 }), null, 'LV3 < 20 bị chặn');
+    assert.equal(matchJoin(cfg, { uniqueId: 'a', level: 19, fansLevel: 12 }), null, 'FAN của bậc không vượt lọc khi chưa bật fan club');
+    assert.equal(matchJoin(cfg, { uniqueId: 'a', level: 50 }).title, 'Đế vương');
+    assert.equal(matchJoin(cfg, { uniqueId: 'vip_me', level: 1 }).kind, 'user', 'ID chỉ định luôn qua');
+    cfg.joinCard.gate.minFans = 10;
+    assert.ok(matchJoin(cfg, { uniqueId: 'a', level: 3, fansLevel: 12 }), 'fan club ≥ 10 vượt lọc');
+    assert.equal(gatePasses({ enabled: false, minLevel: 40 }, { level: 1 }), true);
+    const m = migrateJoinConfig({ profiles: [], joinCard: { gate: { enabled: 1, minLevel: 99, maxLevel: 40 } } });
+    assert.equal(m.joinCard.gate.minLevel, 50, 'kẹp ≤ 50 (cấp TikTok tối đa)');
+    assert.equal('maxLevel' in m.joinCard.gate, false, '"đến cấp" đã bỏ');
+});
+
+test('nâng thang bậc cũ (15/25/35/45) → 20/25/36/41 + thêm Đế vương 50, chỉ 1 lần, giữ mốc đã sửa tay', () => {
+    const { upgradeTierLadder, normalizeTier } = require('../lib/vipwelcome/tier-match.js');
+    const old = [['Tân binh', 1], ['Hào kiệt', 15], ['Đại gia', 25], ['Huyền thoại', 35], ['Chí tôn', 45]]
+        .map(([name, minLevel]) => normalizeTier({ name, minLevel }));
+    const cfg = migrateJoinConfig({ profiles: [{ id: 'p', joinTiers: old }] });
+    const t = cfg.profiles[0].joinTiers;
+    assert.deepEqual(t.map(x => [x.name, x.minLevel]), [['Tân binh', 1], ['Hào kiệt', 20], ['Đại gia', 25], ['Huyền thoại', 36], ['Chí tôn', 41], ['Đế vương', 50]]);
+    assert.equal(t[5].skin, 'imperial');
+    t.pop(); migrateJoinConfig(cfg);
+    assert.equal(cfg.profiles[0].joinTiers.length, 5, 'đã xoá Đế vương thì không thêm lại');
+    const custom = { joinTiers: [normalizeTier({ name: 'Hào kiệt', minLevel: 18 }), normalizeTier({ name: 'Chí tôn', minLevel: 44 })] };
+    upgradeTierLadder(custom);
+    assert.deepEqual(custom.joinTiers.map(x => x.minLevel), [18, 44, 50], 'mốc sửa tay giữ nguyên');
 });

@@ -34,7 +34,8 @@
         { id: 'ice',     label: 'Xanh băng', emoji: '🧊' },
         { id: 'amber',   label: 'Vàng cam',  emoji: '🧡' },
         { id: 'flame',   label: 'Đỏ lửa',    emoji: '🔥' },
-        { id: 'diamond', label: 'Kim cương', emoji: '💎' }
+        { id: 'diamond', label: 'Kim cương', emoji: '💎' },
+        { id: 'imperial', label: 'Hoàng kim (Đế vương)', emoji: '👑' }
     ];
 
     function newTierId() {
@@ -58,10 +59,11 @@
     function defaultTiers() {
         return [
             newTier({ name: 'Tân binh', minLevel: 1, minFans: 1, skin: 'ice', enabled: false }),
-            newTier({ name: 'Hào kiệt', minLevel: 15, minFans: 5, skin: 'violet' }),
-            newTier({ name: 'Đại gia', minLevel: 25, minFans: 10, skin: 'amber' }),
-            newTier({ name: 'Huyền thoại', minLevel: 35, minFans: 15, skin: 'flame' }),
-            newTier({ name: 'Chí tôn', minLevel: 45, minFans: 20, skin: 'diamond' })
+            newTier({ name: 'Hào kiệt', minLevel: 20, minFans: 5, skin: 'violet' }),       // 20–24
+            newTier({ name: 'Đại gia', minLevel: 25, minFans: 10, skin: 'amber' }),        // 25–35 (TikTok có hiệu ứng vào phòng từ 25)
+            newTier({ name: 'Huyền thoại', minLevel: 36, minFans: 15, skin: 'flame' }),    // 36–40
+            newTier({ name: 'Chí tôn', minLevel: 41, minFans: 20, skin: 'diamond' }),      // 41–49
+            newTier({ name: 'Đế vương', minLevel: 50, minFans: 0, skin: 'imperial' })     // 50 = cấp cao nhất TikTok
         ];
     }
 
@@ -70,6 +72,9 @@
             enabled: true, antiDupSec: 10, lateWelcome: true, mediaMaxWaitSec: 30, hideZeroXu: true,
             enterText: 'VÀO PHÒNG', diagnostics: false,
             card: { xPercent: 3, yPercent: 60, scale: 100, maxStack: 3, direction: 'up', durationMs: 5000 },
+            style: 'bar',   // 'bar' = thanh chào gọn sát bình luận, 'card' = thẻ to cũ — khớp tier-match.js
+            bar: { xPercent: 2, yPercent: 68, scale: 100, slots: 3, wow: true },
+            gate: { enabled: false, minLevel: 20, minFans: 0 },   // bộ lọc cấp chống spam (từ cấp X trở lên) — khớp tier-match.js
             batch: { enabled: true, belowTierLevel: 25 },
             showVisits: true,
             tts: { enabled: true, volume: 90 },

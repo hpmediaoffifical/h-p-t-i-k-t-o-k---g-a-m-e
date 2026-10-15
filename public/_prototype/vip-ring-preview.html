@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>Xem thử khung avatar — Chào vào phòng</title>
+<link rel="stylesheet" href="/games/vipwelcome/joincard.css" />
+<style>
+    body { margin: 0; padding: 28px; background: #1d1f27; color: #e8e8ee; font-family: 'Segoe UI', Arial, sans-serif; }
+    body.light { background: #e9eaee; color: #222; }
+    h1 { font-size: 22px; margin: 0 0 6px; }
+    p.note { margin: 0 0 18px; opacity: .75; font-size: 14px; }
+    .bar { margin-bottom: 18px; display: flex; gap: 10px; }
+    .bar button { padding: 6px 12px; border-radius: 8px; border: 1px solid #555; background: #2b2e39; color: inherit; cursor: pointer; }
+    .row { display: flex; align-items: center; gap: 40px; margin-bottom: 30px; }
+    .big { width: 190px; height: 190px; zoom: 1.9; position: relative; flex-shrink: 0; }
+    .big .jc-card { position: absolute; left: 24px; top: 24px; width: 142px; height: 142px; animation: none; filter: none; }
+    .big .jc-ava-wrap { top: 0; transform: none; }
+    .tier { width: 110px; font-weight: 800; flex-shrink: 0; }
+    .card-holder { width: 660px; height: 170px; flex-shrink: 0; padding-top: 10px; }
+    .card-holder .jc-card { animation: none; }
+</style>
+</head>
+<body>
+<h1>Khung avatar mới — 5 bậc</h1>
+<p class="note">Trái: khung phóng to ×1.9. Phải: thẻ thật (640×150). Hiệu ứng đang chạy thật (sao chổi quanh viền, vòng vạch quay ngược, hào quang thở).</p>
+<div class="bar"><button onclick="document.body.classList.toggle('light')">Đổi nền sáng / tối</button></div>
+<div id="rows"></div>
+<script>
+    const TIERS = [
+        ['ice', 'Tân binh', 8, 2, 0],
+        ['violet', 'Hào kiệt', 18, 6, 1200],
+        ['amber', 'Đại gia', 28, 12, 25000],
+        ['flame', 'Huyền thoại', 38, 16, 180000],
+        ['diamond', 'Chí tôn', 48, 22, 2500000, 'Nguyễn Thị Phương Anh 💕']
+    ];
+    // Giống overlay.html: xu gọn + co tên dài
+    function fmtXu(v) {
+        if (v >= 1e6) return (Math.floor(v / 1e5) / 10).toLocaleString('vi-VN') + 'Tr';
+        if (v >= 1e5) return Math.floor(v / 1e3).toLocaleString('vi-VN') + 'K';
+        return v.toLocaleString('vi-VN');
+    }
+    function fitName(card) {   // bản sao fitCard() trong overlay.html
+        const W = 632;
+        const top = card.querySelector('.jc-top');
+        if (top && top.offsetLeft + top.scrollWidth > W) top.classList.add('tight');
+        const sub = card.querySelector('.jc-sub');
+        for (const sel of ['.jc-visit:not(.streak):not(.first)', '.jc-uid', '.jc-visit.streak', '.jc-visit.first']) {
+            if (!sub || sub.offsetLeft + sub.scrollWidth <= W) break;
+            const x = sub.querySelector(sel); if (x) x.remove();
+        }
+        const n = card.querySelector('.jc-name');
+        for (let fs = 40; fs > 26 && n.scrollWidth > n.clientWidth + 1; ) { fs -= 2; n.style.fontSize = fs + 'px'; }
+    }
+    const AVA = new URLSearchParams(location.search).get('ava') || '/hp-logo.png';
+    const el = (t, c, txt) => { const e = document.createElement(t); if (c) e.className = c; if (txt != null) e.textContent = txt; return e; };
+    function avaWrap() {
+        const w = el('div', 'jc-ava-wrap');
+        w.appendChild(el('div', 'jc-halo'));
+        w.appendChild(el('div', 'jc-orbit'));
+        w.appendChild(el('div', 'jc-ring'));
+        const a = el('img', 'jc-ava'); a.src = AVA; w.appendChild(a);
+        return w;
+    }
+    function card(t) {
+        const c = el('div', 'jc-card skin-' + t[0]);
+        c.appendChild(avaWrap());
+        const top = el('div', 'jc-top');
+        top.appendChild(el('span', 'jc-chip jc-title', t[1]));
+        top.appendChild(el('span', 'jc-chip jc-lv', 'LV ' + t[2]));
+        top.appendChild(el('span', 'jc-chip jc-fan', 'FAN LV.' + t[3]));
+        top.appendChild(el('span', 'jc-enter', 'VÀO PHÒNG'));
+        c.appendChild(top);
+        const body = el('div', 'jc-body');
+        body.appendChild(el('span', 'jc-name', t[5] || 'Khách VIP ' + t[2]));
+        if (t[4] > 0) { const xu = el('span', 'jc-xu'); xu.appendChild(el('span', 'gem', '💎')); xu.appendChild(el('b', '', fmtXu(t[4]))); body.appendChild(xu); }
+        c.appendChild(body);
+        const sub = el('div', 'jc-sub'); sub.appendChild(el('span', 'jc-uid', '@khach_vip_' + t[2]));
+        if (t[2] >= 35) sub.appendChild(el('span', 'jc-role top', 'TOP 1'));
+        if (t[2] >= 45) sub.appendChild(el('span', 'jc-role friend', 'BẠN BÈ'));
+        if (t[2] === 28) sub.appendChild(el('span', 'jc-role mod', 'MOD'));
+        sub.appendChild(el('span', 'jc-visit' + (t[2] < 10 ? ' first' : ''), t[2] < 10 ? '🎉 Lần đầu ghé phòng' : 'Ghé lần thứ ' + Math.round(t[2] / 4)));
+        if (t[2] >= 35) sub.appendChild(el('span', 'jc-visit streak', '🔥 5 buổi liền'));
+        c.appendChild(sub);
+        c.appendChild(el('div', 'jc-shine'));
+        return c;
+    }
+    const rows = document.getElementById('rows');
+    for (const t of TIERS) {
+        const r = el('div', 'row');
+        r.appendChild(el('div', 'tier', t[1]));
+        const big = el('div', 'big');
+        const bc = el('div', 'jc-card skin-' + t[0]); bc.appendChild(avaWrap()); big.appendChild(bc);
+        r.appendChild(big);
+        const h = el('div', 'card-holder'); const cd = card(t); h.appendChild(cd); r.appendChild(h);
+        rows.appendChild(r);
+        fitName(cd);
+    }
+    // ?t=1.2 → dừng mọi hiệu ứng ở giây 1.2 (chụp ảnh từng thời điểm để kiểm tra chuyển động)
+    const T = parseFloat(new URLSearchParams(location.search).get('t'));
+    if (!Number.isNaN(T)) requestAnimationFrame(() => document.getAnimations().forEach(a => { a.pause(); a.currentTime = T * 1000; }));
+</script>
+</body>
+</html>

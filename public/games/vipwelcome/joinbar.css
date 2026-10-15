@@ -1,0 +1,201 @@
+/* ============================================================
+   HP VIP Welcome — THANH CHÀO GỌN (joinCard.style = 'bar')
+   Thanh cao 46 px trên khung 1080 (thẻ cũ 150 px), đặt SÁT MÉP TRÊN khu bình luận TikTok.
+   Mẫu thiết kế + nghiên cứu: /_prototype/vip-compact.html, art-requests/vipwelcome/NGHIEN-CUU-UI-UX.md.
+
+   Nhịp (bậc có sao băng — từ Hào kiệt):
+     0      avatar LĂN từ trái vào (WOW) | cả viên nhộng trôi từ phải (không WOW)
+     120    thanh tên trượt từ PHẢI vào, vượt 6px rồi về
+     560+   tên hiện TỪNG CHỮ
+     1000   sao băng lượn sóng tới đỉnh avatar → ôm vòng → tan vào viền (1500ms)
+     2250   quầng sáng + 2 gợn tròn + avatar nhún
+     2350   thanh GIÃN: danh hiệu ✦ tên · VÀO PHÒNG ◆ ; chỉ kim loại chạy ra
+     2700   viền chạy + bụi sao (WOW)
+     --out  mờ dần (theo bậc, JS đặt)
+   .vb.early (Tân binh, thẻ gộp, OBS thiếu offset-path): không sao băng, giãn ở 750ms.
+
+   3 TẦNG CỐ ĐỊNH (logic ở bar-slots.js): tầng 0 đóng đinh ở toạ độ --jb-y, người mới luôn vào tầng 0,
+   thanh cũ được đẩy mượt lên; thanh hết giờ biến mất thì các thanh khác ĐỨNG YÊN.
+   .vb-slot lo vị trí tầng (transform), .vb bên trong lo hiệu ứng — tách để 2 transform không đè nhau.
+   ============================================================ */
+#jb-stack {
+    position: fixed; left: var(--jb-x, 2%); top: var(--jb-y, 68%);
+    width: 1px; height: 0;
+    transform: scale(var(--jb-scale, 1)); transform-origin: left top;
+    pointer-events: none; z-index: 50;
+    font-family: 'Segoe UI', 'Roboto', 'Inter', Arial, sans-serif;
+}
+body.offline #jb-stack { display: none; }
+#jb-stack .vb-slot { position: absolute; left: 0; bottom: 0; transform: translateY(calc(var(--slot, 0) * -72px));
+    transition: transform 480ms cubic-bezier(.2,.8,.3,1), opacity 480ms ease; }
+#jb-stack .vb-slot.gone { opacity: 0; transform: translateY(calc(var(--slot, 0) * -72px - 30px)); }
+
+#jb-stack .vb { --c1: #c3a2ff; --bg: linear-gradient(90deg, rgba(76,40,170,.94), rgba(120,80,230,.78) 62%, rgba(120,80,230,0));
+    --path: path('M 820 -170 C 700 -40, 620 -240, 480 -120 S 260 20, 160 -30 S 110 -10, 30 -10 A 40 40 0 0 0 -10 30 A 40 40 0 0 0 30 70 A 40 40 0 0 0 70 30 A 37 37 0 0 0 30 -5');
+    --rip: 2.4; --out: 6000ms;
+    position: relative; height: 60px; display: flex; align-items: center;
+    animation: vbIn 720ms cubic-bezier(.2,.9,.25,1) both, vbOut 650ms ease-in var(--out) forwards; }
+/* bóng mềm dưới cả viên nhộng → không chìm trên nền video sáng; mọi keyframe đụng filter phải giữ drop-shadow này ở đầu danh sách */
+#jb-stack .vb { filter: drop-shadow(0 3px 6px rgba(0,0,0,.42)); }
+@keyframes vbIn { 0% { transform: translateX(640px); opacity: 0; filter: drop-shadow(0 3px 6px rgba(0,0,0,.42)) blur(3px); }
+    30% { opacity: 1; } 45% { filter: drop-shadow(0 3px 6px rgba(0,0,0,.42)) blur(0); } 100% { transform: none; opacity: 1; filter: drop-shadow(0 3px 6px rgba(0,0,0,.42)) blur(0); } }
+@keyframes vbOut { to { opacity: 0; transform: translateX(-40px); filter: drop-shadow(0 3px 6px rgba(0,0,0,0)) blur(3px); } }
+
+/* --- Avatar: vòng viền mới của joincard.css thu 142 → 60px --- */
+#jb-stack .vb-ava { position: absolute; left: 0; top: 0; width: 60px; height: 60px; z-index: 3;
+    animation: vbSpin 720ms cubic-bezier(.2,.9,.25,1) both, vbPop 620ms ease-out 2320ms forwards; }
+@keyframes vbSpin { from { transform: rotate(320deg); } to { transform: none; } }
+@keyframes vbPop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+#jb-stack .vb-ava .jc-card { position: absolute; left: 0; top: 0; width: 142px; height: 142px; transform: scale(.4225); transform-origin: 0 0; animation: none; filter: none; }
+#jb-stack .vb-ava .jc-ava-wrap { top: 0; transform: none; }
+/* thẻ gộp: 3 avatar nhỏ chồng nhau thay 1 avatar */
+#jb-stack .vb-avas { position: absolute; left: 0; top: 4px; display: flex; z-index: 3; animation: vbSpin 720ms cubic-bezier(.2,.9,.25,1) both; }
+#jb-stack .vb-avas img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: #1b1235; box-sizing: border-box;
+    border: 2.5px solid var(--c1); box-shadow: 0 0 10px var(--c1); margin-left: -22px; }
+#jb-stack .vb-avas img:first-child { margin-left: 0; }
+
+/* --- Thanh --- */
+#jb-stack .vb-bar { position: relative; margin-left: 30px; height: 46px; padding: 0 22px 0 40px; display: flex; align-items: center; white-space: nowrap;
+    background: var(--bg); border-radius: 0 23px 23px 0; overflow: hidden;
+    /* mép trái mờ rồi đậm dần — lúc thanh bay vào trước avatar không lộ cạnh vuông; khi đứng yên phần mờ nằm dưới avatar */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, rgba(0,0,0,.35) 14px, #000 52px);
+            mask-image: linear-gradient(90deg, transparent 0, rgba(0,0,0,.35) 14px, #000 52px); }
+#jb-stack .vb.group .vb-bar { margin-left: 60px; padding-left: 46px; }
+#jb-stack .vb-bar::before {   /* 2 chỉ kim loại trên/dưới — chạy từ avatar ra khi giãn */
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background:
+        linear-gradient(90deg, var(--c1), #fff 25%, var(--c1) 55%, transparent) top / 100% 2px no-repeat,
+        linear-gradient(90deg, var(--c1), rgba(255,255,255,.7) 30%, transparent 75%) bottom / 100% 1.5px no-repeat;
+    transform-origin: left; animation: vbLine 600ms cubic-bezier(.2,.8,.3,1) 2350ms both; }
+@keyframes vbLine { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+#jb-stack .vb-bar::after {   /* ánh quét sau khi giãn */
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.45) 45%, transparent 58%); background-size: 260% 100%;
+    background-position: 130% 0; mix-blend-mode: overlay;
+    animation: vbSweepIn 900ms ease-out 200ms both, vbShine 2.4s ease-in-out 2750ms infinite; }
+/* vệt sáng quét NGAY lúc thanh bay vào — thanh chưa có chữ không còn là mảng màu trơn */
+@keyframes vbSweepIn { 0% { background-position: 130% 0; opacity: 0; } 25% { opacity: 1; } 100% { background-position: -130% 0; opacity: 1; } }
+@keyframes vbShine { 0% { background-position: 130% 0; } 50%, 100% { background-position: -130% 0; } }
+#jb-stack .vb-name { font-size: 26px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.55); max-width: 320px; overflow: hidden; }
+#jb-stack .vb.group .vb-name { font-size: 23px; max-width: 380px; }
+/* phần chỉ hiện khi GIÃN */
+#jb-stack .vb-x { display: inline-block; max-width: 0; opacity: 0; overflow: hidden; vertical-align: middle;
+    animation: vbReveal 620ms cubic-bezier(.2,.8,.3,1) 2350ms both; }
+@keyframes vbReveal { from { max-width: 0; opacity: 0; } to { max-width: 300px; opacity: 1; } }
+#jb-stack .vb-title { display: inline-block; font-size: 22px; font-weight: 900; font-style: italic; letter-spacing: 1px; padding-right: 12px;
+    background: linear-gradient(180deg, #fff, var(--c1)); -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+#jb-stack .vb-sep { color: var(--c1); font-size: 16px; padding-right: 12px; }
+#jb-stack .vb-enter { display: inline-block; font-size: 21px; font-weight: 900; letter-spacing: 1.5px; color: #fff; padding-left: 14px;
+    text-shadow: 0 0 10px var(--c1), 0 1px 2px rgba(0,0,0,.5); }
+#jb-stack .vb-enter.accent { color: #fff6c8; }
+#jb-stack .vb-cap { width: 12px; height: 12px; margin-left: 12px; flex-shrink: 0; transform: rotate(45deg); background: #fff; box-shadow: 0 0 10px 3px var(--c1);
+    animation: vbReveal 520ms ease 2550ms both, vbTwinkle 1.4s ease-in-out 3050ms infinite; }
+@keyframes vbTwinkle { 50% { box-shadow: 0 0 16px 6px var(--c1); transform: rotate(45deg) scale(1.25); } }
+
+/* --- Sao băng: lượn sóng → ôm vòng quanh avatar → tan vào viền (offset-path) --- */
+#jb-stack .vb-meteor, #jb-stack .vb-trail { position: absolute; left: 0; top: 0; z-index: 4; pointer-events: none;
+    offset-path: var(--path); offset-rotate: auto; offset-distance: 0%; opacity: 0; }
+#jb-stack .vb-meteor { width: 34px; height: 6px; border-radius: 3px; offset-anchor: 100% 50%;
+    background: linear-gradient(90deg, transparent, var(--c1) 60%, #fff); filter: drop-shadow(0 0 6px var(--c1));
+    animation: vbFly 1500ms linear 1000ms both; }
+#jb-stack .vb-meteor::after { content: ''; position: absolute; right: -6px; top: 50%; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%;
+    background: radial-gradient(circle, #fff 0 35%, var(--c1) 62%, transparent 74%); }
+#jb-stack .vb-trail { width: 7px; height: 7px; border-radius: 50%; offset-anchor: 50% 50%;
+    background: radial-gradient(circle, #fff 0 25%, var(--c1) 60%, transparent 76%);
+    animation: vbFly 1500ms linear both; }
+@keyframes vbFly {
+    0%   { offset-distance: 0%;   opacity: 0;  transform: scale(.6); animation-timing-function: cubic-bezier(.45,0,.35,1); }
+    8%   { opacity: 1; }
+    50%  { offset-distance: 75%;  opacity: 1;  transform: scale(1);  animation-timing-function: cubic-bezier(.2,.55,.3,1); }
+    80%  { opacity: .9; }
+    100% { offset-distance: 100%; opacity: 0;  transform: scale(.45); }
+}
+#jb-stack .vb-glow { position: absolute; left: -30px; top: -30px; width: 120px; height: 120px; border-radius: 50%; z-index: 2; pointer-events: none;
+    background: radial-gradient(circle, var(--c1) 0, transparent 68%); opacity: 0;
+    animation: vbGlow 1100ms ease-out 2250ms both; }
+@keyframes vbGlow { 0% { opacity: 0; transform: scale(.6); } 35% { opacity: .85; transform: scale(1); } 100% { opacity: 0; transform: scale(1.35); } }
+#jb-stack .vb-ripple { position: absolute; left: 0; top: 0; width: 60px; height: 60px; border-radius: 50%; z-index: 4; pointer-events: none; box-sizing: border-box;
+    border: 2px solid var(--c1); box-shadow: 0 0 10px var(--c1), inset 0 0 6px var(--c1); opacity: 0;
+    animation: vbRipple 950ms cubic-bezier(.2,.7,.3,1) 2300ms both; }
+#jb-stack .vb-ripple + .vb-ripple { animation-delay: 2460ms; }
+@keyframes vbRipple { 0% { opacity: 0; transform: scale(1); } 15% { opacity: .95; } 100% { opacity: 0; transform: scale(var(--rip)); } }
+
+/* ===================== WOW (#jb-stack.wow) ===================== */
+@property --vbA { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+#jb-stack.wow .vb { animation: vbOut 650ms ease-in var(--out) forwards; }
+#jb-stack.wow .vb-ava { animation: vbRollL 780ms cubic-bezier(.25,.8,.3,1) both, vbSquash 420ms ease-out 720ms, vbPop 620ms ease-out 2320ms forwards; }
+@keyframes vbRollL {
+    0%   { transform: translateX(-520px) rotate(-560deg); opacity: 0; }
+    20%  { opacity: 1; }
+    85%  { transform: translateX(8px) rotate(12deg); }
+    100% { transform: none; opacity: 1; }
+}
+@keyframes vbSquash { 0% { transform: scale(1.2, .82); } 45% { transform: scale(.93, 1.07); } 100% { transform: scale(1); } }
+#jb-stack.wow .vb-avas { animation: vbRollL 780ms cubic-bezier(.25,.8,.3,1) both; }
+#jb-stack.wow .vb-bar { animation: vbBarIn 700ms cubic-bezier(.2,.9,.25,1) 120ms both; }
+@keyframes vbBarIn {
+    0%   { transform: translateX(560px); opacity: 0; filter: blur(3px); }
+    35%  { opacity: 1; }
+    45%  { filter: blur(0); }
+    75%  { transform: translateX(-6px); }
+    100% { transform: none; opacity: 1; }
+}
+#jb-stack.wow .vb-name { -webkit-text-stroke: .6px rgba(0,0,0,.35); paint-order: stroke fill;
+    text-shadow: 0 0 10px var(--c1), 0 2px 2px rgba(0,0,0,.55); }
+#jb-stack.wow .vb-name .ch { display: inline-block; opacity: 0; animation: vbChar 440ms cubic-bezier(.2,.8,.3,1) both;
+    animation-delay: calc(560ms + var(--i) * 34ms); }
+@keyframes vbChar {
+    0%   { opacity: 0; transform: translateY(12px) scale(.8); filter: blur(4px); }
+    60%  { opacity: 1; transform: translateY(-2px) scale(1.05); filter: blur(0); }
+    100% { opacity: 1; transform: none; filter: none; }
+}
+#jb-stack.wow .vb .vb-title { background: linear-gradient(100deg, var(--c1) 0%, #fff 18%, var(--c1) 36%, #fff6c8 55%, var(--c1) 75%, #fff 90%, var(--c1) 100%);
+    background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; animation: vbSheen 2.4s linear infinite; }
+#jb-stack.wow .vb.t5 .vb-title { background-image: linear-gradient(100deg, #bfe8ff 0%, #fff 18%, #ffd0f2 36%, #fff6b0 55%, #bfe8ff 75%, #fff 90%, #ffd0f2 100%); }
+@keyframes vbSheen { from { background-position: 0 0; } to { background-position: -220% 0; } }
+#jb-stack.wow .vb-enter { animation: vbPopIn 580ms cubic-bezier(.3,1.6,.5,1) 2480ms both, vbBeat 1.6s ease-in-out 3100ms infinite; }
+@keyframes vbPopIn { 0% { opacity: 0; transform: scale(.4); letter-spacing: 9px; } 100% { opacity: 1; transform: none; letter-spacing: 1.5px; } }
+@keyframes vbBeat { 50% { text-shadow: 0 0 18px var(--c1), 0 0 4px #fff, 0 1px 2px rgba(0,0,0,.5); } }
+#jb-stack .vb-edge { display: none; }
+#jb-stack.wow .vb-edge { display: block; position: absolute; inset: 0; border-radius: inherit; padding: 2px; pointer-events: none; z-index: 2;
+    background: conic-gradient(from var(--vbA), transparent 0deg 312deg, var(--c1) 340deg, #fff 356deg, transparent 360deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+    opacity: 0; animation: vbEdgeIn 500ms ease 2700ms forwards, vbEdge 2.8s linear 2700ms infinite; }
+#jb-stack.no-prop .vb-edge { display: none !important; }   /* OBS cũ không có @property → vệt sáng đứng yên, tắt luôn */
+@keyframes vbEdgeIn { to { opacity: 1; } }
+@keyframes vbEdge { to { --vbA: 360deg; } }
+#jb-stack .vb-spk { display: none; }
+#jb-stack.wow .vb.t3 .vb-spk, #jb-stack.wow .vb.t4 .vb-spk, #jb-stack.wow .vb.t5 .vb-spk, #jb-stack.wow .vb.t6 .vb-spk {
+    display: block; position: absolute; z-index: 3; pointer-events: none;
+    color: #fff; font-size: 14px; text-shadow: 0 0 6px var(--c1), 0 0 2px #fff; opacity: 0;
+    animation: vbSpk 1.9s ease-in-out infinite; }
+@keyframes vbSpk { 0%, 100% { opacity: 0; transform: scale(.3) rotate(0); } 45% { opacity: 1; transform: scale(1) rotate(90deg); } }
+
+/* ===================== .early: không sao băng (Tân binh, thẻ gộp, OBS thiếu offset-path) ===================== */
+#jb-stack .vb.early .vb-meteor, #jb-stack .vb.early .vb-trail, #jb-stack .vb.early .vb-glow, #jb-stack .vb.early .vb-ripple { display: none; }
+#jb-stack .vb.early .vb-x, #jb-stack .vb.early .vb-bar::before { animation-delay: 750ms; }
+#jb-stack .vb.early .vb-cap { animation-delay: 950ms, 1450ms; }
+#jb-stack .vb.early .vb-ava { animation: vbSpin 720ms cubic-bezier(.2,.9,.25,1) both; }
+#jb-stack.wow .vb.early .vb-ava { animation: vbRollL 780ms cubic-bezier(.25,.8,.3,1) both, vbSquash 420ms ease-out 720ms; }
+#jb-stack.wow .vb.early .vb-enter { animation-delay: 900ms, 1500ms; }
+#jb-stack.wow .vb.early .vb-edge { animation-delay: 1200ms, 1200ms; }
+#jb-stack .vb.early .vb-bar::after { animation-delay: 200ms, 1200ms; }
+
+/* ===================== Bậc (theo skin) ===================== */
+#jb-stack .vb.t1 { --c1: #6fd9ff; --bg: linear-gradient(90deg, rgba(20,110,180,.9), rgba(50,170,230,.7) 62%, rgba(50,170,230,0)); }
+#jb-stack .vb.t2 { --c1: #c3a2ff; --bg: linear-gradient(90deg, rgba(76,40,170,.94), rgba(120,80,230,.78) 62%, rgba(120,80,230,0)); }
+#jb-stack .vb.t3 { --c1: #ffd36b; --bg: linear-gradient(90deg, rgba(150,88,8,.94), rgba(214,150,40,.8) 62%, rgba(214,150,40,0)); }
+#jb-stack .vb.t4 { --c1: #ff9a5c; --bg: linear-gradient(90deg, rgba(150,14,10,.95), rgba(225,70,30,.82) 62%, rgba(225,70,30,0)); }
+#jb-stack .vb.t5 { --c1: #e2b8ff; --bg: linear-gradient(90deg, rgba(40,60,160,.95), rgba(140,90,240,.85) 45%, rgba(240,110,200,.75) 75%, rgba(240,110,200,0)); }
+#jb-stack .vb.t4, #jb-stack .vb.t5 { --rip: 3.1; }
+/* Đế vương (cấp 50): nền đen ánh vàng ròng, chữ vàng, gợn lan rộng nhất, giữ lâu nhất */
+#jb-stack .vb.t6 { --c1: #ffd76a; --rip: 3.6;
+    --bg: linear-gradient(90deg, rgba(18,12,2,.97), rgba(70,46,6,.95) 30%, rgba(168,116,18,.9) 62%, rgba(255,204,90,.75) 85%, rgba(255,204,90,0)); }
+#jb-stack .vb.t6 .vb-bar { box-shadow: inset 0 0 0 1px rgba(255,215,106,.35); }
+#jb-stack .vb.t6 .vb-name { color: #fff3c4; }
+#jb-stack .vb.t6 .vb-title { background-image: linear-gradient(180deg, #fffbe6, #ffd76a 55%, #b8860b); }
+#jb-stack.wow .vb.t6 .vb-title { background-image: linear-gradient(100deg, #b8860b 0%, #fff6c8 18%, #ffd76a 36%, #ffffff 55%, #ffd76a 75%, #fff6c8 90%, #b8860b 100%); }
+#jb-stack .vb.t5 .vb-title { background-image: linear-gradient(90deg, #fff, #bfe8ff, #ffd0f2, #fff6b0); }
+#jb-stack .vb.group { --c1: #b9a6ff; --bg: linear-gradient(90deg, rgba(60,50,120,.9), rgba(100,90,190,.72) 62%, rgba(100,90,190,0)); }

@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>Thanh chào gọn — xem trên khung điện thoại</title>
+<link rel="stylesheet" href="/games/vipwelcome/joincard.css" />
+<style>
+body { margin: 0; padding: 20px 24px; background: #101218; color: #e9eaf0; font-family: 'Segoe UI', Arial, sans-serif; display: flex; gap: 28px; align-items: flex-start; }
+.side { max-width: 380px; font-size: 14px; line-height: 1.55; }
+.side h1 { font-size: 21px; margin: 0 0 8px; }
+.side button { margin: 4px 4px 0 0; padding: 7px 12px; border-radius: 9px; border: 1px solid #555; background: #262a36; color: #fff; cursor: pointer; font-weight: 600; }
+.side button.on { background: #ff4f8b; border-color: #ff4f8b; }
+.phone { width: 540px; height: 960px; border-radius: 30px; overflow: hidden; box-shadow: 0 0 0 8px #2a2d38, 0 20px 50px rgba(0,0,0,.6); flex-shrink: 0; }
+/* Sân khấu đúng hệ toạ độ overlay OBS 1080×1920, thu ×0.5 để vừa màn */
+.stage { position: relative; width: 1080px; height: 1920px; transform: scale(.5); transform-origin: 0 0; overflow: hidden;
+    background:
+        radial-gradient(40% 30% at 55% 38%, rgba(255,170,200,.55), transparent 70%),
+        radial-gradient(35% 45% at 30% 70%, rgba(120,90,200,.55), transparent 70%),
+        linear-gradient(170deg, #3b2f4f 0%, #8a5d7d 40%, #d7a7b6 62%, #4a3a5e 100%); }
+.stage.bright { background: linear-gradient(170deg, #f5e9ef 0%, #e8d3dd 50%, #f9f1f4 100%); }
+/* Giả lập giao diện TikTok: khu bình luận + cột nút phải */
+/* Đo từ ảnh chụp TikTok LIVE thật: khu bình luận bắt đầu ở ~69% chiều cao (y≈1325/1920), 4 dòng, rộng ~62% */
+.ui-cmt { position: absolute; left: 22px; top: 1325px; width: 650px; display: flex; flex-direction: column; gap: 10px; }
+.ui-cmt div { display: flex; align-items: center; gap: 12px; padding: 10px 18px 10px 10px; border-radius: 26px; background: rgba(0,0,0,.30); color: #fff; font-size: 27px; line-height: 1.25; }
+.ui-cmt div::before { content: ''; width: 58px; height: 58px; flex-shrink: 0; border-radius: 50%; background: rgba(255,255,255,.35); }
+.ui-cmt b { color: #fff; opacity: .75; margin-right: 6px; font-weight: 700; }
+.ui-cmt em { font-style: normal; font-size: 21px; font-weight: 800; color: #fff; background: #6c7cff; border-radius: 9px; padding: 1px 8px; margin-right: 6px; }
+.ui-right { position: absolute; left: 700px; top: 1330px; display: flex; flex-direction: column; gap: 22px; }
+.ui-right i { width: 72px; height: 72px; border-radius: 16px; background: rgba(0,0,0,.30); display: block; }
+.ui-top { position: absolute; left: 22px; right: 22px; top: 60px; height: 96px; border-radius: 48px; background: rgba(0,0,0,.18); }
+.ui-bottom { position: absolute; left: 22px; right: 22px; bottom: 50px; height: 84px; border-radius: 42px; background: rgba(0,0,0,.3); color: rgba(255,255,255,.7); font-size: 30px; display: flex; align-items: center; padding-left: 36px; }
+.guide { position: absolute; left: 0; right: 0; top: 1325px; border-top: 3px dashed rgba(255,80,80,.9); display: none; }
+.guide::after { content: 'mép trên khu bình luận TikTok (~69%)'; position: absolute; right: 30px; top: -40px; color: #ff6b6b; font-size: 24px; font-weight: 800; }
+.stage.show-guide .guide { display: block; }
+
+/* ================= THANH CHÀO GỌN =================
+   Pha 1 (0–700ms)   : viên nhộng [avatar + tên] trôi từ PHẢI sang, avatar lăn 1 vòng
+   Pha 2 (1000ms)    : sao băng LƯỢN SÓNG tới đỉnh avatar rồi ÔM VÒNG quanh avatar, xoáy nhỏ dần, nhập vào viền (1500ms)
+                       → quầng sáng mềm + 2 gợn vòng tròn + avatar nhún nhẹ (2250–3250ms)
+   Pha 3 (2350ms)    : viên nhộng GIÃN ra: danh hiệu bậc · tên · "VÀO PHÒNG" · điểm cuối; chỉ kim loại chạy từ avatar ra
+   Giữ ~3.5 s → mờ dần + trôi nhẹ sang trái (5600ms)                                                 */
+/* 3 TẦNG CỐ ĐỊNH. Tầng 0 (dưới cùng) đóng đinh sát mép trên bình luận (đáy cách 12px: 1920 − 1325 + 12).
+   Người mới LUÔN vào tầng 0; thanh đang ở tầng 0 được đẩy mượt lên tầng 1, 1 → 2, quá tầng 2 thì mờ dần bay lên.
+   Thanh hết giờ biến mất thì các thanh khác ĐỨNG YÊN (không rơi xuống) → không bao giờ nhảy / lấn xuống bình luận.
+   .vb-slot lo vị trí tầng (transform), .vb bên trong lo hiệu ứng riêng — tách ra để 2 transform không đè nhau. */
+.vb-stack { position: absolute; left: 22px; bottom: 607px; width: 1px; height: 0; }
+.vb-slot { position: absolute; left: 0; bottom: 0; transform: translateY(calc(var(--slot, 0) * -72px));
+    transition: transform 480ms cubic-bezier(.2,.8,.3,1), opacity 480ms ease; }
+.vb-slot.gone { opacity: 0; transform: translateY(calc(var(--slot, 0) * -72px - 30px)); }
+.vb { --c1: #b28cff; --c2: #5b2fc9; --bg: linear-gradient(90deg, rgba(76,40,170,.94), rgba(120,80,230,.78) 62%, rgba(120,80,230,0));
+    position: relative; height: 60px; display: flex; align-items: center;
+    animation: vbIn 720ms cubic-bezier(.2,.9,.25,1) both, vbOut 650ms ease-in 6000ms forwards; }
+@keyframes vbIn { 0% { transform: translateX(640px); opacity: 0; } 30% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes vbOut { to { opacity: 0; transform: translateX(-40px); filter: blur(3px); } }
+/* avatar: dùng lại vòng viền mới, thu 142 → 60px */
+.vb-ava { position: absolute; left: 0; top: 0; width: 60px; height: 60px; z-index: 3; animation: vbSpin 720ms cubic-bezier(.2,.9,.25,1) both, vbPop 620ms ease-out 2320ms forwards; }
+@keyframes vbSpin { from { transform: rotate(320deg); } to { transform: none; } }
+.vb-ava .jc-card { position: absolute; left: 0; top: 0; width: 142px; height: 142px; transform: scale(.4225); transform-origin: 0 0; animation: none; filter: none; }
+.vb-ava .jc-ava-wrap { top: 0; transform: none; }
+.vb-bar { position: relative; margin-left: 30px; height: 46px; padding: 0 22px 0 40px; display: flex; align-items: center; white-space: nowrap;
+    background: var(--bg); border-radius: 0 23px 23px 0; overflow: hidden; }
+.vb-bar::before {   /* 2 chỉ kim loại trên/dưới — chạy từ avatar ra khi giãn */
+    content: ''; position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none;
+    background:
+        linear-gradient(90deg, var(--c1), #fff 25%, var(--c1) 55%, transparent) top / 100% 2px no-repeat,
+        linear-gradient(90deg, var(--c1), rgba(255,255,255,.7) 30%, transparent 75%) bottom / 100% 1.5px no-repeat;
+    transform-origin: left; animation: vbLine 600ms cubic-bezier(.2,.8,.3,1) 2350ms both; }
+@keyframes vbLine { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.vb-bar::after {   /* ánh quét sau khi giãn */
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.45) 45%, transparent 58%); background-size: 260% 100%;
+    animation: vbShine 2.4s ease-in-out 2750ms infinite; background-position: 130% 0; mix-blend-mode: overlay; }
+@keyframes vbShine { 0% { background-position: 130% 0; } 50%, 100% { background-position: -130% 0; } }
+.vb-name { font-size: 26px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.55); max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+/* phần chỉ hiện khi GIÃN */
+.vb-x { display: inline-block; max-width: 0; opacity: 0; overflow: hidden; vertical-align: middle; animation: vbReveal 620ms cubic-bezier(.2,.8,.3,1) 2350ms both; }
+@keyframes vbReveal { from { max-width: 0; opacity: 0; } to { max-width: 260px; opacity: 1; } }
+.vb-title { font-size: 22px; font-weight: 900; font-style: italic; letter-spacing: 1px; padding-right: 12px;
+    background: linear-gradient(180deg, #fff, var(--c1)); -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+.vb-sep { color: var(--c1); font-size: 16px; padding-right: 12px; }
+.vb-enter { font-size: 21px; font-weight: 900; letter-spacing: 1.5px; color: #fff; text-shadow: 0 0 10px var(--c1), 0 1px 2px rgba(0,0,0,.5); padding-left: 14px; }
+.vb-cap { width: 12px; height: 12px; margin-left: 12px; transform: rotate(45deg); background: #fff; box-shadow: 0 0 10px 3px var(--c1); animation: vbReveal 520ms ease 2550ms both, vbTwinkle 1.4s ease-in-out 3050ms infinite; }
+@keyframes vbTwinkle { 50% { box-shadow: 0 0 16px 6px var(--c1); transform: rotate(45deg) scale(1.25); } }
+/* ===== Sao băng: lượn sóng tới đỉnh avatar → ÔM VÒNG quanh avatar ~1 vòng, xoáy nhỏ dần → nhập vào viền =====
+   offset-path: đoạn tới (lượn 2 nhịp, tới đỉnh avatar với hướng bay sang TRÁI) + 4 cung ngược chiều kim đồng hồ quanh tâm (30,30).
+   Tốc độ chia 2 đoạn: tới = nhanh dần-chậm dần, quấn = chậm dần đều (êm, không khựng). Đầu nhỏ lại + mờ dần ở 20% cuối.
+   Đuôi = 10 hạt chạy cùng đường, trễ dần → vệt uốn theo đường tròn (không còn que thẳng chĩa ra). */
+.vb { --path: path('M 820 -170 C 700 -40, 620 -240, 480 -120 S 260 20, 160 -30 S 110 -10, 30 -10 A 40 40 0 0 0 -10 30 A 40 40 0 0 0 30 70 A 40 40 0 0 0 70 30 A 37 37 0 0 0 30 -5'); --rip: 2.4; }
+.vb-meteor, .vb-trail { position: absolute; left: 0; top: 0; z-index: 4; pointer-events: none;
+    offset-path: var(--path); offset-rotate: auto; offset-distance: 0%; opacity: 0; }
+.vb-meteor { width: 34px; height: 6px; border-radius: 3px; offset-anchor: 100% 50%;
+    background: linear-gradient(90deg, transparent, var(--c1) 60%, #fff);
+    filter: drop-shadow(0 0 6px var(--c1));
+    animation: vbFly 1500ms linear 1000ms both; }
+.vb-meteor::after { content: ''; position: absolute; right: -6px; top: 50%; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%;
+    background: radial-gradient(circle, #fff 0 35%, var(--c1) 62%, transparent 74%); }
+.vb-trail { width: 7px; height: 7px; border-radius: 50%; offset-anchor: 50% 50%;
+    background: radial-gradient(circle, #fff 0 25%, var(--c1) 60%, transparent 76%);
+    animation: vbFly 1500ms linear both; }
+@keyframes vbFly {
+    0%   { offset-distance: 0%;   opacity: 0;  transform: scale(.6); animation-timing-function: cubic-bezier(.45,0,.35,1); }
+    8%   { opacity: 1; }
+    50%  { offset-distance: 75%;  opacity: 1;  transform: scale(1);  animation-timing-function: cubic-bezier(.2,.55,.3,1); }
+    80%  { opacity: .9; }
+    100% { offset-distance: 100%; opacity: 0;  transform: scale(.45); }
+}
+/* Nhập vào: quầng sáng mềm sau avatar + 2 gợn vòng tròn mảnh lan ra + avatar nhún nhẹ (không còn tia loé đặc) */
+.vb-glow { position: absolute; left: -30px; top: -30px; width: 120px; height: 120px; border-radius: 50%; z-index: 2; pointer-events: none;
+    background: radial-gradient(circle, var(--c1) 0, transparent 68%); opacity: 0;
+    animation: vbGlow 1100ms ease-out 2250ms both; }
+@keyframes vbGlow { 0% { opacity: 0; transform: scale(.6); } 35% { opacity: .85; transform: scale(1); } 100% { opacity: 0; transform: scale(1.35); } }
+.vb-ripple { position: absolute; left: 0; top: 0; width: 60px; height: 60px; border-radius: 50%; z-index: 4; pointer-events: none; box-sizing: border-box;
+    border: 2px solid var(--c1); box-shadow: 0 0 10px var(--c1), inset 0 0 6px var(--c1); opacity: 0;
+    animation: vbRipple 950ms cubic-bezier(.2,.7,.3,1) 2300ms both; }
+.vb-ripple + .vb-ripple { animation-delay: 2460ms; }
+@keyframes vbRipple { 0% { opacity: 0; transform: scale(1); } 15% { opacity: .95; } 100% { opacity: 0; transform: scale(var(--rip)); } }
+@keyframes vbPop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+/* ===================== LỚP "WOW" (bật bằng .wow trên sân khấu) =====================
+   Áp nguyên lý chuyển động (Disney → UI): dàn so le, lấy đà, vượt đích rồi về, nén-giãn khi chạm.
+   1) Avatar LĂN từ TRÁI vào (xoay theo quãng đường), chạm đích NÉN DẸT rồi bật lại.
+   2) Thanh tên TRƯỢT từ PHẢI vào, vượt đích 6px rồi về → gặp avatar ở giữa.
+   3) Tên HIỆN TỪNG CHỮ (mờ + nhoè + nhích lên → rõ), viền chữ mảnh + quầng màu bậc.
+   4) Danh hiệu chữ ÁNH KIM có ánh sáng chạy liên tục.
+   5) "VÀO PHÒNG" BẬT RA (phóng vượt cỡ, khoảng chữ co lại), sau đó nhịp sáng.
+   6) VIỀN CHẠY: vệt sáng chạy vòng quanh mép thanh (conic-gradient + @property).
+   7) Bụi sao lấp lánh trên thanh (Đại gia trở lên). */
+@property --vbA { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.wow .vb { animation: vbOut 650ms ease-in 6000ms forwards; }
+.wow .vb-ava { animation: vbRollL 780ms cubic-bezier(.25,.8,.3,1) both, vbSquash 420ms ease-out 720ms, vbPop 620ms ease-out 2320ms forwards; }
+@keyframes vbRollL {
+    0%   { transform: translateX(-520px) rotate(-560deg); opacity: 0; }
+    20%  { opacity: 1; }
+    85%  { transform: translateX(8px) rotate(12deg); }
+    100% { transform: none; opacity: 1; }
+}
+@keyframes vbSquash { 0% { transform: scale(1.2, .82); } 45% { transform: scale(.93, 1.07); } 100% { transform: scale(1); } }
+.wow .vb-bar { animation: vbBarIn 700ms cubic-bezier(.2,.9,.25,1) 120ms both; }
+@keyframes vbBarIn {
+    0%   { transform: translateX(560px); opacity: 0; }
+    35%  { opacity: 1; }
+    75%  { transform: translateX(-6px); }
+    100% { transform: none; opacity: 1; }
+}
+.wow .vb-name { -webkit-text-stroke: .6px rgba(0,0,0,.35); paint-order: stroke fill;
+    text-shadow: 0 0 10px var(--c1), 0 2px 2px rgba(0,0,0,.55); }
+.wow .vb-name .ch { display: inline-block; opacity: 0; animation: vbChar 440ms cubic-bezier(.2,.8,.3,1) both; animation-delay: calc(560ms + var(--i) * 34ms); }
+@keyframes vbChar {
+    0%   { opacity: 0; transform: translateY(12px) scale(.8); filter: blur(4px); }
+    60%  { opacity: 1; transform: translateY(-2px) scale(1.05); filter: blur(0); }
+    100% { opacity: 1; transform: none; filter: none; }
+}
+.wow .vb-title { background: linear-gradient(100deg, var(--c1) 0%, #fff 18%, var(--c1) 36%, #fff6c8 55%, var(--c1) 75%, #fff 90%, var(--c1) 100%);
+    background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; animation: vbSheen 2.4s linear infinite; }
+@keyframes vbSheen { from { background-position: 0 0; } to { background-position: -220% 0; } }
+.wow .vb-enter { display: inline-block; animation: vbPopIn 580ms cubic-bezier(.3,1.6,.5,1) 2480ms both, vbBeat 1.6s ease-in-out 3100ms infinite; }
+@keyframes vbPopIn { 0% { opacity: 0; transform: scale(.4); letter-spacing: 9px; } 100% { opacity: 1; transform: none; letter-spacing: 1.5px; } }
+@keyframes vbBeat { 50% { text-shadow: 0 0 18px var(--c1), 0 0 4px #fff, 0 1px 2px rgba(0,0,0,.5); } }
+.vb-edge { display: none; }
+.wow .vb-edge { display: block; position: absolute; inset: 0; border-radius: inherit; padding: 2px; pointer-events: none; z-index: 2;
+    background: conic-gradient(from var(--vbA), transparent 0deg 312deg, var(--c1) 340deg, #fff 356deg, transparent 360deg);   /* vệt hẹp ~45° */
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+    opacity: 0; animation: vbEdgeIn 500ms ease 2700ms forwards, vbEdge 2.8s linear 2700ms infinite; }
+@keyframes vbEdgeIn { to { opacity: 1; } }
+@keyframes vbEdge { to { --vbA: 360deg; } }
+.vb-spk { display: none; }
+.wow .vb.t3 .vb-spk, .wow .vb.t4 .vb-spk, .wow .vb.t5 .vb-spk { display: block; position: absolute; z-index: 3; pointer-events: none;
+    color: #fff; font-size: 14px; text-shadow: 0 0 6px var(--c1), 0 0 2px #fff; opacity: 0;
+    animation: vbSpk 1.9s ease-in-out infinite; }
+@keyframes vbSpk { 0%, 100% { opacity: 0; transform: scale(.3) rotate(0); } 45% { opacity: 1; transform: scale(1) rotate(90deg); } }
+/* Tân binh: không sao băng → mọi thứ diễn sớm */
+.wow .vb.t1 .vb-enter { animation-delay: 900ms, 1500ms; }
+.wow .vb.t1 .vb-edge { animation-delay: 1200ms, 1200ms; }
+/* Bậc */
+.vb.t1 { --c1: #6fd9ff; --bg: linear-gradient(90deg, rgba(20,110,180,.9), rgba(50,170,230,.7) 62%, rgba(50,170,230,0)); }
+.vb.t1 .vb-meteor, .vb.t1 .vb-trail, .vb.t1 .vb-glow, .vb.t1 .vb-ripple { display: none; }               /* Tân binh: chỉ trượt vào, giãn sớm, không sao băng */
+.vb.t1 .vb-x, .vb.t1 .vb-bar::before, .vb.t1 .vb-cap { animation-delay: 750ms; }
+.vb.t1 .vb-ava { animation: vbSpin 720ms cubic-bezier(.2,.9,.25,1) both; }
+.vb.t2 { --c1: #c3a2ff; --bg: linear-gradient(90deg, rgba(76,40,170,.94), rgba(120,80,230,.78) 62%, rgba(120,80,230,0)); }
+.vb.t3 { --c1: #ffd36b; --bg: linear-gradient(90deg, rgba(150,88,8,.94), rgba(214,150,40,.8) 62%, rgba(214,150,40,0)); }
+.vb.t4 { --c1: #ff9a5c; --bg: linear-gradient(90deg, rgba(150,14,10,.95), rgba(225,70,30,.82) 62%, rgba(225,70,30,0)); }
+.vb.t5 { --c1: #e2b8ff; --bg: linear-gradient(90deg, rgba(40,60,160,.95), rgba(140,90,240,.85) 45%, rgba(240,110,200,.75) 75%, rgba(240,110,200,0)); }
+.vb.t4, .vb.t5 { --rip: 3.1; }
+.vb.t5 .vb-title { background: linear-gradient(90deg, #fff, #bfe8ff, #ffd0f2, #fff6b0); -webkit-background-clip: text; background-clip: text; }
+</style>
+</head>
+<body>
+<div class="phone"><div class="stage wow" id="stage">
+    <div class="vb-stack" id="stack"></div>
+    <div class="ui-top"></div>
+    <div class="guide"></div>
+    <div class="ui-cmt">
+        <div><span><em>28</em><b>Bùm Bùm</b><br>@Tối nay về ăn cơm ngon r :))</span></div>
+        <div><span><em>25</em><b>Jokèr K</b><br>A đi ngủ đc chưa</span></div>
+        <div><span><em>17</em><b>Sờ áng</b><br>@ rước lần 3 nè</span></div>
+        <div><span><em>18</em><b>Sờ án</b> đã gửi Chú mèo</span></div>
+    </div>
+    <div class="ui-right"><i></i><i></i><i></i><i></i></div>
+    <div class="ui-bottom">Thêm bình luận…</div>
+</div></div>
+<div class="side">
+    <h1>Thanh chào gọn (theo video mẫu)</h1>
+    <p>Khung bên trái là <b>màn hình điện thoại thật</b> (overlay 1080×1920 thu ×0.5) có giả lập bình luận + nút TikTok, để thấy thanh chào chiếm bao nhiêu chỗ.</p>
+    <p>Thanh cao <b>46 px</b> (thẻ cũ 150 px). Đáy cụm thanh nằm <b>sát mép trên khu bình luận</b> (cách 12 px, ~68% chiều cao — đo từ ảnh LIVE thật). Có <b>3 tầng cố định</b>: người mới luôn vào <b>tầng dưới cùng</b> (đóng đinh sát bình luận), thanh cũ được đẩy mượt lên trên; thanh hết giờ biến mất thì các thanh khác <b>đứng yên</b> — không nhảy lên xuống, không lấn bình luận.</p>
+    <p><b>Nhịp:</b> viên nhộng avatar + tên trôi từ phải sang (avatar lăn) → sao băng màu bậc lao vào avatar, loé sáng → thanh <b>giãn ra</b>: danh hiệu · tên · VÀO PHÒNG · điểm sáng cuối → giữ ~3.5 s → mờ dần.</p>
+    <p>Tân binh: không sao băng, giãn sớm. Bậc càng cao loé càng to.</p>
+    <div id="btns"></div>
+    <p style="opacity:.7;margin-top:14px">Sau này ChatGPT có thể vẽ <b>linh vật bay vào</b> cho từng bậc (như hoa hồng / thiên thần / rồng trong video) để thay sao băng.</p>
+</div>
+<script>
+const TIERS = [
+    { k: 't1', skin: 'ice', title: 'Tân binh', name: 'Khách VIP 8' },
+    { k: 't2', skin: 'violet', title: 'Hào kiệt', name: 'Minh Tuấn' },
+    { k: 't3', skin: 'amber', title: 'Đại gia', name: 'Hoàng Long' },
+    { k: 't4', skin: 'flame', title: 'Huyền thoại', name: 'Thanh Hằng' },
+    { k: 't5', skin: 'diamond', title: 'Chí tôn', name: 'Nguyễn Thị Phương Anh' }
+];
+const el = (t, c, txt) => { const e = document.createElement(t); if (c) e.className = c; if (txt != null) e.textContent = txt; return e; };
+function banner(t) {
+    const b = el('div', 'vb ' + t.k);
+    const ava = el('div', 'vb-ava');
+    const host = el('div', 'jc-card skin-' + t.skin);
+    const w = el('div', 'jc-ava-wrap'); w.append(el('div', 'jc-halo'), el('div', 'jc-orbit'), el('div', 'jc-ring'));
+    const img = el('img', 'jc-ava'); img.src = '/hp-logo.png'; w.appendChild(img); host.appendChild(w); ava.appendChild(host);
+    const bar = el('div', 'vb-bar');
+    const xt = el('span', 'vb-x'); xt.append(el('span', 'vb-title', t.title), el('span', 'vb-sep', '✦'));
+    const xe = el('span', 'vb-x'); xe.appendChild(el('span', 'vb-enter', 'VÀO PHÒNG'));
+    // Tên tách TỪNG CHỮ (để hiện so le). Tên quá dài cắt trước (chữ inline-block không tự hiện "…").
+    const nm = el('span', 'vb-name');
+    const full = t.name.normalize('NFC'), shown = Array.from(full).length > 20 ? Array.from(full).slice(0, 19).join('') + '…' : full;
+    Array.from(shown).forEach((c, i) => { const ch = el('span', 'ch', c === ' ' ? '\u00a0' : c); ch.style.setProperty('--i', i); nm.appendChild(ch); });
+    bar.append(el('span', 'vb-edge'), xt, nm, xe, el('span', 'vb-cap'));
+    [[22, 8], [48, 70], [63, 18], [80, 64], [92, 26]].forEach(([x, y], i) => {   // bụi sao (CSS chỉ bật từ Đại gia)
+        const sp = el('span', 'vb-spk', '✦'); sp.style.left = x + '%'; sp.style.top = (y - 20) + '%';
+        sp.style.animationDelay = (2700 + i * 330) + 'ms'; bar.appendChild(sp);
+    });
+    b.append(ava, bar, el('div', 'vb-meteor'));
+    for (let i = 1; i <= 10; i++) {   // hạt đuôi: trễ dần, nhỏ dần → vệt uốn theo đường tròn
+        const d = el('div', 'vb-trail');
+        d.style.animationDelay = (1000 + i * 26) + 'ms';
+        d.style.width = d.style.height = Math.max(2.5, 8 - i * 0.55) + 'px';
+        b.appendChild(d);
+    }
+    b.append(el('div', 'vb-glow'), el('div', 'vb-ripple'), el('div', 'vb-ripple'));
+    return b;
+}
+const stack = document.getElementById('stack');
+// slots[k] = thanh đang ở tầng k (0 = dưới cùng, cố định). Mới vào → tầng 0, đẩy dãy LIỀN KỀ phía trên lên 1 tầng
+// cho tới ô trống đầu tiên; thanh bị đẩy quá tầng 2 thì mờ dần bỏ đi. Thanh hết giờ: chỉ trống ô của nó, không ai dịch.
+const SLOTS = 3, slots = new Array(SLOTS).fill(null);
+function setSlot(node, k) { node.style.setProperty('--slot', k); node._slot = k; }
+function retire(node) { if (!node || node._gone) return; node._gone = true; node.classList.add('gone'); setTimeout(() => node.remove(), 500); }
+function place(b) {
+    const node = el('div', 'vb-slot'); node.appendChild(b);
+    let k = 0; while (k < SLOTS && slots[k]) k++;            // ô trống đầu tiên tính từ dưới lên
+    if (k === SLOTS) { retire(slots[SLOTS - 1]); k = SLOTS - 1; }
+    for (let j = k; j > 0; j--) { slots[j] = slots[j - 1]; setSlot(slots[j], j); }
+    slots[0] = node; setSlot(node, 0); stack.appendChild(node);
+    return node;
+}
+function show(i) {
+    const node = place(banner(TIERS[i]));
+    setTimeout(() => { const k = slots.indexOf(node); if (k >= 0) slots[k] = null; node.remove(); }, 6700);
+}
+let seq = 0, timer = null;
+function auto() { clearInterval(timer); show(seq++ % 5); timer = setInterval(() => show(seq++ % 5), 2600); }
+const btns = document.getElementById('btns');
+TIERS.forEach((t, i) => { const x = el('button', '', t.title); x.onclick = () => { clearInterval(timer); show(i); }; btns.appendChild(x); });
+const a = el('button', 'on', '▶ Tự chạy 5 bậc'); a.onclick = auto; btns.appendChild(a);
+const wowB = el('button', 'on', '✨ WOW: BẬT'); wowB.onclick = () => { const on = document.getElementById('stage').classList.toggle('wow'); wowB.textContent = on ? '✨ WOW: BẬT' : 'WOW: TẮT (bản trước)'; wowB.classList.toggle('on', on); }; btns.appendChild(wowB);
+const gd = el('button', '', 'Hiện vạch mép bình luận'); gd.onclick = () => document.getElementById('stage').classList.toggle('show-guide'); btns.appendChild(gd);
+const bg = el('button', '', 'Nền sáng / tối'); bg.onclick = () => document.getElementById('stage').classList.toggle('bright'); btns.appendChild(bg);
+// ?t=2.4&tier=4 → dừng ở giây t (chụp kiểm tra)
+const q = new URLSearchParams(location.search), T = parseFloat(q.get('t'));
+if (!Number.isNaN(T)) {
+    const list = (q.get('tiers') || q.get('tier') || '4').split(',').map(n => +n - 1);
+    list.forEach(i => place(banner(TIERS[i])));
+    requestAnimationFrame(() => document.getAnimations().forEach(x => { x.pause(); x.currentTime = T * 1000; }));
+} else auto();
+</script>
+</body>
+</html>

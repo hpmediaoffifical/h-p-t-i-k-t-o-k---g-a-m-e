@@ -6,6 +6,7 @@
 <title>HP VIP Welcome — OBS Overlay</title>
 <link rel="icon" href="/favicon.ico" type="image/x-icon" />
 <link rel="stylesheet" href="/games/vipwelcome/joincard.css" />
+<link rel="stylesheet" href="/games/vipwelcome/joinbar.css" />
 <style>
     html, body { margin: 0; padding: 0; height: 100%; width: 100%; background: transparent; overflow: hidden; font-family: Inter, "Segoe UI", Arial, sans-serif; }
     #stage { position: fixed; inset: 0; background: transparent; overflow: hidden; pointer-events: none; }
@@ -177,9 +178,11 @@
     </div>
     <!-- Thẻ vào phòng: xếp chồng song song, tách khỏi khu media -->
     <div id="jc-stack" class="dir-up"></div>
+    <div id="jb-stack"></div>
     <div class="debug-pill" id="debug">connecting…</div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/games/vipwelcome/bar-slots.js"></script>
     <script>
     (function () {
         const debugEl = document.getElementById('debug');
@@ -382,19 +385,42 @@
             if (text != null) e.textContent = text;
             return e;
         }
+        // Xu gọn cho vừa ô: 180.000 → 180K, 2.500.000 → 2,5Tr (số nhỏ giữ đủ chữ số)
+        function fmtXu(v) {
+            if (v >= 1e6) return (Math.floor(v / 1e5) / 10).toLocaleString('vi-VN') + 'Tr';
+            if (v >= 1e5) return Math.floor(v / 1e3).toLocaleString('vi-VN') + 'K';
+            return v.toLocaleString('vi-VN');
+        }
         function countUp(node, target) {
             const t0 = performance.now(), dur = 1200;
             const step = (t) => {
                 const k = Math.min(1, (t - t0) / dur);
-                node.textContent = Math.round(target * (1 - Math.pow(1 - k, 3))).toLocaleString('vi-VN');
+                node.textContent = fmtXu(Math.round(target * (1 - Math.pow(1 - k, 3))));
                 if (k < 1) requestAnimationFrame(step);
             };
             requestAnimationFrame(step);
-            setTimeout(() => { node.textContent = target.toLocaleString('vi-VN'); }, dur + 100);   // rAF có thể bị dừng khi trang ẩn
+            setTimeout(() => { node.textContent = fmtXu(target); }, dur + 100);   // rAF có thể bị dừng khi trang ẩn
+        }
+        // Cho thẻ vừa khung 640px (cần thẻ đã gắn vào DOM để đo):
+        //  - tên dài: thu cỡ chữ 40 → 26px trước khi phải cắt "…"
+        //  - dải chip trên tràn: chuyển cỡ gọn (.tight)
+        //  - dòng phụ tràn: bớt chip ít quan trọng trước (lần ghé → @id → chuỗi buổi); TOP/MOD/BẠN BÈ giữ lại
+        function fitCard(card) {
+            const W = 632;   // chừa mũi vát bên phải
+            const top = card.querySelector('.jc-top');
+            if (top && top.offsetLeft + top.scrollWidth > W) top.classList.add('tight');
+            const sub = card.querySelector('.jc-sub');
+            for (const sel of ['.jc-visit:not(.streak):not(.first)', '.jc-uid', '.jc-visit.streak', '.jc-visit.first']) {
+                if (!sub || sub.offsetLeft + sub.scrollWidth <= W) break;
+                const x = sub.querySelector(sel); if (x) x.remove();
+            }
+            const n = card.querySelector('.jc-name');
+            if (!n || card.classList.contains('jc-group')) return;
+            for (let fs = 40; fs > 26 && n.scrollWidth > n.clientWidth + 1; ) { fs -= 2; n.style.fontSize = fs + 'px'; }
         }
         // Thẻ gộp khi phòng đông: chồng ≤3 avatar + "A, B và N người khác"
         function buildGroupCard(c) {
-            const skins = ['violet', 'ice', 'amber', 'flame', 'diamond'];
+            const skins = ['violet', 'ice', 'amber', 'flame', 'diamond', 'imperial'];
             const card = el('div', 'jc-card jc-group skin-' + (skins.includes(c.skin) ? c.skin : 'violet'));
             const avs = el('div', 'jc-group-avas');
             (c.members || []).slice(0, 3).forEach((m, i) => {
@@ -420,11 +446,13 @@
         }
         function buildCard(c) {
             if (c.kind === 'group') return buildGroupCard(c);
-            const skins = ['violet', 'ice', 'amber', 'flame', 'diamond'];
+            const skins = ['violet', 'ice', 'amber', 'flame', 'diamond', 'imperial'];
             const card = el('div', 'jc-card skin-' + (skins.includes(c.skin) ? c.skin : 'violet') + (c.late ? ' jc-late' : '') + (c.frameUrl ? ' has-frame' : ''));
             const u = c.user || {};
             // Avatar + khung
             const wrap = el('div', 'jc-ava-wrap');
+            wrap.appendChild(el('div', 'jc-halo'));    // hào quang thở + hạt sáng bay quanh
+            wrap.appendChild(el('div', 'jc-orbit'));   // luồng sáng sao chổi chạy quanh viền
             wrap.appendChild(el('div', 'jc-ring'));
             const ava = el('img', 'jc-ava');
             ava.alt = '';
@@ -482,10 +510,209 @@
             if (fast) card.classList.add('fast');
             setTimeout(() => card.remove(), fast ? 280 : 440);
         }
+
+        // ===== Thanh chào gọn (joinCard.style = 'bar') — 3 tầng cố định sát mép trên bình luận =====
+        // Xếp tầng / ưu tiên / hàng chờ / thời gian giữ / điểm nhấn: bar-slots.js (có test). CSS: joinbar.css.
+        const barStackEl = document.getElementById('jb-stack');
+        const BAR_TIER = { ice: 't1', violet: 't2', amber: 't3', flame: 't4', diamond: 't5', imperial: 't6' };
+        const BAR_RANK = { ice: 0, violet: 1, amber: 2, flame: 3, diamond: 4, imperial: 5 };
+        // OBS (CEF) cũ thiếu tính năng → tự lùi: không offset-path = bỏ sao băng (giãn sớm), không @property = tắt viền chạy
+        const SUPPORT_PATH = !!(window.CSS && CSS.supports && CSS.supports('offset-path', "path('M 0 0')"));
+        const SUPPORT_PROP = !!(window.CSS && CSS.registerProperty);
+        const DEFAULT_AVA = '/api/games/vipwelcome/avatar';
+        let barSlots = null, barSlotsN = 0;
+        const barTimers = new Set();
+        function isBarStyle() { return (currentCfg?.joinCard?.style || 'bar') !== 'card'; }
+        function barCfg() {
+            return Object.assign({ xPercent: 2, yPercent: 68, scale: 100, slots: 3, wow: true }, currentCfg?.joinCard?.bar || {});
+        }
+        function ensureBarSlots() {
+            const n = Math.max(1, Math.min(3, Number(barCfg().slots) || 3));
+            if (!barSlots || barSlotsN !== n) {
+                clearBars();
+                barSlots = HpBarSlots.createBarSlots({ slots: n, maxWaitMs: 8000, maxQueue: 6 });
+                barSlotsN = n;
+            }
+            return barSlots;
+        }
+        function applyBarLayout() {
+            const b = barCfg();
+            const base = Math.min(window.innerWidth / 1080, window.innerHeight / 1920);
+            barStackEl.style.setProperty('--jb-x', b.xPercent + '%');
+            barStackEl.style.setProperty('--jb-y', b.yPercent + '%');
+            barStackEl.style.setProperty('--jb-scale', String(base * (b.scale || 100) / 100));
+            barStackEl.classList.toggle('wow', b.wow !== false);
+            barStackEl.classList.toggle('no-prop', !SUPPORT_PROP);
+            // đổi kiểu thẻ → dọn kiểu còn lại
+            if (isBarStyle()) stackEl.innerHTML = ''; else clearBars();
+        }
+        // Nạp sẵn ảnh (tối đa ms) để avatar không lăn vào là vòng rỗng; lỗi → avatar mặc định
+        function preloadImg(url, ms) {
+            return new Promise(res => {
+                if (!url) return res(DEFAULT_AVA);
+                const im = new Image();
+                let done = false;
+                const fin = (v) => { if (!done) { done = true; res(v); } };
+                im.onload = () => fin(url);
+                im.onerror = () => fin(DEFAULT_AVA);
+                setTimeout(() => fin(url), ms);   // quá giờ: vẫn dùng url, ảnh tự hiện khi tải xong
+                im.src = url;
+            });
+        }
+        function barAvatar(skin, src, frameUrl) {
+            const host = el('div', 'jc-card skin-' + skin + (frameUrl ? ' has-frame' : ''));
+            const w = el('div', 'jc-ava-wrap');
+            w.append(el('div', 'jc-halo'), el('div', 'jc-orbit'), el('div', 'jc-ring'));
+            const a = el('img', 'jc-ava');
+            a.alt = '';
+            a.onerror = () => { a.onerror = null; a.src = DEFAULT_AVA; };
+            a.src = src || DEFAULT_AVA;
+            w.appendChild(a);
+            if (frameUrl) {
+                const fr = el('img', 'jc-frame');
+                fr.alt = ''; fr.src = frameUrl;
+                fr.onerror = () => { host.classList.remove('has-frame'); fr.remove(); };
+                w.appendChild(fr);
+            }
+            host.appendChild(w);
+            const box = el('div', 'vb-ava');
+            box.appendChild(host);
+            return box;
+        }
+        // Tên tách TỪNG CHỮ để hiện so le. Quá 20 ký tự thì cắt trước (chữ inline-block không tự hiện "…").
+        function barName(text) {
+            const arr = Array.from(String(text || 'Người xem').normalize('NFC'));
+            const shown = arr.length > 20 ? arr.slice(0, 19).concat('…') : arr;
+            const nm = el('span', 'vb-name');
+            shown.forEach((ch, i) => {
+                const sp = el('span', 'ch', ch === ' ' ? '\u00a0' : ch);
+                sp.style.setProperty('--i', i);
+                nm.appendChild(sp);
+            });
+            return nm;
+        }
+        function buildBar(item) {
+            const c = item.card;
+            const group = c.kind === 'group';
+            const skin = BAR_TIER[c.skin] ? c.skin : 'violet';
+            const early = group || skin === 'ice' || !SUPPORT_PATH;
+            const b = el('div', 'vb ' + (group ? 'group' : BAR_TIER[skin]) + (early ? ' early' : ''));
+            if (group) {
+                const avs = el('div', 'vb-avas');
+                item.memberSrcs.forEach(src => {
+                    const a = el('img');
+                    a.alt = '';
+                    a.onerror = () => { a.onerror = null; a.src = DEFAULT_AVA; };
+                    a.src = src || DEFAULT_AVA;
+                    avs.appendChild(a);
+                });
+                b.appendChild(avs);
+            } else {
+                b.appendChild(barAvatar(skin, item.avaSrc, c.frameUrl));
+            }
+            const bar = el('div', 'vb-bar');
+            bar.appendChild(el('span', 'vb-edge'));
+            if (!group && c.title) {
+                const xt = el('span', 'vb-x');
+                xt.append(el('span', 'vb-title', c.title), el('span', 'vb-sep', '✦'));
+                bar.appendChild(xt);
+            }
+            if (group) {
+                const names = (c.members || []).slice(0, 2).map(m => m.nickname || 'Người xem');
+                const rest = Math.max(0, (c.total || 0) - names.length);
+                bar.appendChild(el('span', 'vb-name', names.join(', ') + (rest > 0 ? ' và ' + rest + ' người khác' : '')));
+            } else {
+                bar.appendChild(barName(c.user?.nickname || c.user?.uniqueId));
+            }
+            const accent = group ? '' : HpBarSlots.accentOf(c);
+            const xe = el('span', 'vb-x');
+            xe.appendChild(el('span', 'vb-enter' + (accent ? ' accent' : ''), c.late ? 'ĐANG Ở TRONG PHÒNG' : (accent || c.enterText || 'VÀO PHÒNG')));
+            bar.append(xe, el('span', 'vb-cap'));
+            [[22, 8], [48, 70], [63, 18], [80, 64], [92, 26]].forEach(([x, y], i) => {   // bụi sao (CSS chỉ bật từ Đại gia + WOW)
+                const sp = el('span', 'vb-spk', '✦');
+                sp.style.left = x + '%'; sp.style.top = (y - 20) + '%';
+                sp.style.animationDelay = ((early ? 1200 : 2700) + i * 330) + 'ms';
+                bar.appendChild(sp);
+            });
+            b.appendChild(bar);
+            if (!early) {
+                b.appendChild(el('div', 'vb-meteor'));
+                for (let i = 1; i <= 10; i++) {   // hạt đuôi trễ dần, nhỏ dần → vệt uốn theo đường tròn
+                    const d = el('div', 'vb-trail');
+                    d.style.animationDelay = (1000 + i * 26) + 'ms';
+                    d.style.width = d.style.height = Math.max(2.5, 8 - i * 0.55) + 'px';
+                    b.appendChild(d);
+                }
+                b.append(el('div', 'vb-glow'), el('div', 'vb-ripple'), el('div', 'vb-ripple'));
+            }
+            const hold = HpBarSlots.holdMs(group ? 0 : BAR_RANK[skin], cardCfg().durationMs, early);
+            b.style.setProperty('--out', hold + 'ms');
+            return { node: b, hold };
+        }
+        function setBarSlot(item, k) { if (item && item.node) item.node.style.setProperty('--slot', k); }
+        function retireBar(item) {
+            if (!item || !item.node || item.node._gone) return;
+            item.node._gone = true;
+            clearTimeout(item.timer); barTimers.delete(item.timer);
+            item.node.classList.add('gone');
+            setTimeout(() => item.node.remove(), 520);
+        }
+        function mountBar(item, r) {
+            if (r.retired) retireBar(r.retired);
+            for (const m of r.moves) setBarSlot(m.item, m.slot);
+            const { node: bar, hold } = buildBar(item);
+            item.node = el('div', 'vb-slot');
+            item.node.appendChild(bar);
+            setBarSlot(item, 0);
+            barStackEl.appendChild(item.node);
+            item.timer = setTimeout(() => {
+                barTimers.delete(item.timer);
+                if (item.node._gone) return;
+                item.node.remove();
+                const next = barSlots && barSlots.remove(item, Date.now());
+                if (next) showWaitingBar(next);
+            }, hold + 700);
+            barTimers.add(item.timer);
+        }
+        function showWaitingBar(item) {
+            const r = barSlots.place(item, Date.now());
+            if (r.shown) mountBar(item, r);
+        }
+        // Ảnh tải SONG SONG nhưng thanh hiện đúng THỨ TỰ vào phòng (chuỗi barChain) — người tải ảnh chậm không bị người sau chen trước.
+        let barChain = Promise.resolve();
+        function showBar(c) {
+            const slots = ensureBarSlots();
+            const group = c.kind === 'group';
+            const item = {
+                id: c.id, card: c,
+                // server gửi priority (bậc = 100 + minLevel, người chỉ định = 1000, gộp = 0); thiếu thì suy theo skin
+                priority: Number.isFinite(Number(c.priority)) && c.priority != null ? Number(c.priority) : (group ? 0 : 100 + (BAR_RANK[c.skin] || 0) * 10)
+            };
+            const ready = group
+                ? Promise.all((c.members || []).slice(0, 3).map(m => preloadImg(m.avatar, 500))).then(v => { item.memberSrcs = v; })
+                : preloadImg(c.user?.avatar, 600).then(v => { item.avaSrc = v; });
+            barChain = barChain.then(() => ready).then(() => {
+                if (barSlots !== slots) return;   // cấu hình đổi trong lúc chờ ảnh
+                const r = slots.place(item, Date.now());
+                if (r.shown) mountBar(item, r);
+            }).catch(() => {});
+        }
+        function clearBars() {
+            barChain = Promise.resolve();
+            for (const t of barTimers) clearTimeout(t);
+            barTimers.clear();
+            barStackEl.innerHTML = '';
+            if (barSlots) barSlots.clear();
+        }
         function showCard(c) {
             if (!c || !c.id || seenCards.has(c.id)) return;
             seenCards.add(c.id);
             if (seenCards.size > SEEN_MAX) seenCards.delete(seenCards.values().next().value);
+            if (isBarStyle()) {
+                showBar(c);
+                try { socket.emit('vipwelcome:cardShown', { id: c.id }); } catch (e) {}
+                return;
+            }
             const cc = cardCfg();
             const live = [...stackEl.querySelectorAll('.jc-card:not(.out)')];
             // Đầy → thẻ cũ nhất rút ngắn, ra nhanh
@@ -494,15 +721,20 @@
             for (let i = 0; i <= oldestFirst.length - max; i++) removeCard(oldestFirst[i], true);
             const { card, xuNum, xu } = buildCard(c);
             if (cc.direction === 'down') stackEl.prepend(card); else stackEl.appendChild(card);
+            if (xu > 0) xuNum.textContent = fmtXu(xu);   // đo tên với độ rộng ô xu cuối cùng
+            fitCard(card);
             if (xu > 0) countUp(xuNum, xu);
             card._jcTimer = setTimeout(() => removeCard(card, false), Math.max(1500, Number(cc.durationMs) || 5000));
             try { socket.emit('vipwelcome:cardShown', { id: c.id }); } catch (e) {}
         }
         function clearCards() {
             stackEl.innerHTML = '';
+            clearBars();
         }
         window.addEventListener('resize', applyCardLayout);
+        window.addEventListener('resize', applyBarLayout);
         applyCardLayout();
+        applyBarLayout();
 
         let offlineTimer = null;
         const OFFLINE_GRACE_MS = 3000;
@@ -529,6 +761,7 @@
                 currentCfg = await r.json();
                 applyDisplay();
                 applyCardLayout();
+                applyBarLayout();
             } catch (e) {}
             socket.emit('subscribe', 'overlay');
             socket.emit('subscribe', 'overlay:vipwelcome');   // room riêng → server đếm đúng overlay VIP đang mở
@@ -552,6 +785,7 @@
             currentCfg = config;
             applyDisplay();
             applyCardLayout();
+            applyBarLayout();
         });
 
         socket.on('vipwelcome:play', (payload) => { fire(payload); });

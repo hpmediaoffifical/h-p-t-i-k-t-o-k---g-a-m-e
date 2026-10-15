@@ -5555,12 +5555,66 @@ body.game-caro #caught-popup {
 .skin-amber   { --vw-skin: linear-gradient(135deg, #6e2600, #e98a12); }
 .skin-flame   { --vw-skin: linear-gradient(135deg, #5c0707, #ff3b1f); }
 .skin-diamond { --vw-skin: linear-gradient(135deg, #2c6fd6, #8f5cff, #ff7ad9); }
+.skin-imperial { --vw-skin: linear-gradient(135deg, #120c02, #b8860b 55%, #ffd76a); }
 .vw-tier-card.skin-violet  { border-left-color: #7b3fe4; }
 .vw-tier-card.skin-ice     { border-left-color: #1fb3e6; }
 .vw-tier-card.skin-amber   { border-left-color: #e98a12; }
 .vw-tier-card.skin-flame   { border-left-color: #ff3b1f; }
 .vw-tier-card.skin-diamond { border-left-color: #8f5cff; }
+.vw-tier-card.skin-imperial { border-left-color: #ffd76a; }
 .vw-join-row { flex-wrap: wrap; gap: 10px; }
+/* ===== VIP Welcome — tab 🏠 Tổng quan (lọc cấp, thang bậc, ID, link OBS) ===== */
+.vw-tab-badge { display: inline-block; min-width: 18px; padding: 0 6px; margin-left: 4px; border-radius: 9px; background: rgba(255,255,255,.12); font-size: 11px; line-height: 18px; text-align: center; }
+.vw-note-fold > summary { cursor: pointer; list-style: none; }
+.vw-note-fold > summary::-webkit-details-marker { display: none; }
+.vw-note-fold:not([open]) { padding-top: 8px; padding-bottom: 8px; }
+.vw-ov { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 14px; }   /* tối đa 2 cột: thang bậc cần chỗ */
+.vw-ov-head > button { white-space: nowrap; flex-shrink: 0; }
+.vw-ov-card { background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.vw-ov-gate.on { border-color: rgba(80,220,140,.45); box-shadow: inset 0 0 0 1px rgba(80,220,140,.12); }
+.vw-ov-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.vw-ov-title { font-size: 15px; font-weight: 800; }
+.vw-ov-sub { font-size: 12px; color: #a3abbd; margin-top: 3px; line-height: 1.45; }
+.vw-ov-muted { font-size: 12px; color: #8b93a8; font-weight: 500; }
+.vw-ov-range { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.vw-ov-range input[type="number"] { width: 64px; font-size: 15px; font-weight: 800; text-align: center; }
+.vw-ov-range input:disabled, .vw-ov-presets button:disabled { opacity: .45; }
+.vw-ov-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.vw-ov-ruler { position: relative; height: 30px; margin: 4px 6px 10px; border-radius: 6px; background: rgba(255,255,255,.06); }
+.vw-ov-win { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: linear-gradient(90deg, rgba(80,220,140,.35), rgba(80,220,140,.18)); box-shadow: inset 0 0 0 1px rgba(80,220,140,.6); }
+.vw-ov-gate:not(.on) .vw-ov-win { background: rgba(255,184,0,.15); box-shadow: inset 0 0 0 1px rgba(255,184,0,.45); }
+.vw-ov-tick { position: absolute; top: 5px; width: 4px; height: 20px; margin-left: -2px; border-radius: 2px; background: var(--vw-skin); box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+.vw-ov-ruler b { position: absolute; top: 32px; transform: translateX(-50%); font-size: 10px; font-weight: 600; color: #8b93a8; }
+.vw-ov-verdict { font-size: 12.5px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.05); line-height: 1.45; }
+.vw-ov-ladder { display: flex; flex-direction: column; gap: 6px; }
+.vw-ov-row { display: grid; grid-template-columns: 22px minmax(90px, 1fr) auto auto 16px auto; align-items: center; gap: 10px;
+    padding: 7px 10px; border-radius: 10px; background: rgba(255,255,255,.04); border-left: 4px solid transparent; font-size: 13px; }
+.vw-ov-row.skin-violet  { border-left-color: #7b3fe4; }
+.vw-ov-row.skin-ice     { border-left-color: #1fb3e6; }
+.vw-ov-row.skin-amber   { border-left-color: #e98a12; }
+.vw-ov-row.skin-flame   { border-left-color: #ff3b1f; }
+.vw-ov-row.skin-diamond { border-left-color: #8f5cff; }
+.vw-ov-row.skin-imperial { border-left-color: #ffd76a; background: linear-gradient(90deg, rgba(255,215,106,.10), rgba(255,255,255,.04)); }
+.vw-ov-row.blocked { opacity: .45; }
+.vw-ov-name { font-weight: 800; text-transform: uppercase; letter-spacing: .4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vw-ov-lv { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vw-ov-lv i { font-style: normal; font-weight: 500; color: #8b93a8; font-size: 11.5px; }
+.vw-ov-media { font-size: 12px; color: #8b93a8; white-space: nowrap; }
+.vw-ov-media.has { color: #7fe3a8; font-weight: 700; }
+.vw-ov-ids { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.vw-ov-id { padding: 3px 10px; border-radius: 999px; background: rgba(255,184,0,.12); border: 1px solid rgba(255,184,0,.35); font-size: 12.5px; font-weight: 700; }
+.vw-ov-id.off { opacity: .45; }
+.vw-ov-id i { font-style: normal; }
+.vw-ov-url { display: flex; gap: 8px; }
+.vw-ov-url input { flex: 1; min-width: 0; font-family: Consolas, monospace; font-size: 12.5px; }
+.vw-ov-steps { margin: 0; padding-left: 20px; font-size: 12.5px; color: #c4cad8; line-height: 1.7; }
+/* công tắc gạt */
+.vw-switch { position: relative; flex-shrink: 0; width: 46px; height: 26px; cursor: pointer; }
+.vw-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.vw-switch span { position: absolute; inset: 0; border-radius: 13px; background: rgba(255,255,255,.18); transition: background .2s; }
+.vw-switch span::after { content: ''; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.vw-switch input:checked + span { background: #2fbf71; }
+.vw-switch input:checked + span::after { transform: translateX(20px); }
 .vw-sim { margin-top: 6px; }
 .vw-ledger-list { display: flex; flex-direction: column; gap: 4px; }
 .vw-ledger-row {

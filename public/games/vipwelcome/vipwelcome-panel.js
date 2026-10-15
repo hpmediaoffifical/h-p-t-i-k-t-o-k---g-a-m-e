@@ -16,7 +16,7 @@
     let cfg = null;
     let initialized = false;
     let pendingSave = null;
-    let currentTab = 'users';
+    let currentTab = 'overview';
 
     // Các loại trigger TikTok event mà user-rule có thể chọn
     const TRIGGER_DEFS = [
@@ -481,9 +481,8 @@
                 document.querySelectorAll('#view-vipwelcome .vw-pane').forEach(p => {
                     p.classList.toggle('active', p.dataset.vwPane === currentTab);
                 });
-                if (currentTab === 'queue') fetchQueueSnapshot();
-                if (currentTab === 'ledger') fetchLedger();
-                if (currentTab === 'visits') fetchVisits();
+                if (currentTab === 'stats') { fetchQueueSnapshot(); fetchLedger(); fetchVisits(); }
+                if (currentTab === 'overview') renderOverviewTab();
             });
         });
     }
@@ -578,6 +577,7 @@
         if (!cfg) return;
         syncPowerBtn();
         renderProfileChips();
+        renderOverviewTab();
         renderUserRulesTab();
         renderTiersTab();
         renderGlobalTab();
@@ -973,6 +973,157 @@
         </div>`;
     }
 
+    // ============================================================
+    // TAB 0: TỔNG QUAN — ai được chào (lọc cấp), thang bậc, người chỉ định, link OBS
+    // ============================================================
+    // Khoảng cấp thực tế của từng bậc ĐANG BẬT (bậc i: từ minLevel_i tới minLevel_(i+1) − 1, bậc cuối tới cấp 50 —
+    // cấp cao nhất TikTok), cắt theo bộ lọc "từ cấp X trở lên".
+    const TIKTOK_MAX_LV = 50;
+    function tierLadder(profile, gate) {
+        const tiers = (profile?.joinTiers || []).filter(t => t.enabled !== false).slice().sort((a, b) => (a.minLevel || 0) - (b.minLevel || 0));
+        const gOn = !!gate?.enabled, gMin = gOn ? (gate.minLevel || 0) : 0;
+        return tiers.map((t, i) => {
+            const from0 = t.minLevel || 0;
+            const nxt = tiers.slice(i + 1).find(x => (x.minLevel || 0) > from0);
+            const to = nxt ? nxt.minLevel - 1 : Math.max(from0, TIKTOK_MAX_LV);
+            const from = Math.max(from0, gMin);
+            const blocked = to < from;
+            // FAN của bậc chỉ còn tác dụng khi qua được bộ lọc: lọc tắt → theo bậc; lọc bật → cần cả "Fan club từ cấp"
+            const tf = t.minFans || 0;
+            const fans = !tf ? 0 : (!gOn ? tf : (gate.minFans ? Math.max(tf, gate.minFans) : 0));
+            return { t, from, to, blocked, fans };
+        });
+    }
+    function rangeText(from, to) { return from >= to ? `LV ${from}` : `LV ${from} – ${to}`; }
+
+    function renderOverviewTab() {
+        const host = $('#vw-overview-pane');
+        if (!host || !cfg) return;
+        cfg.joinCard = cfg.joinCard || window.HpGame.vipwelcome.defaultJoinCard();
+        const jc = cfg.joinCard;
+        const g = jc.gate = Object.assign({ enabled: false, minLevel: 20, minFans: 0 }, jc.gate || {});
+        delete g.maxLevel;
+        const profile = activeProfile();
+        const ladder = tierLadder(profile, g);
+        const rules = (profile?.userRules || []).filter(r => (r.trigger || 'join') === 'join');
+        const url = $('#vipwelcome-overlay-url')?.value || (location.origin + '/overlay/vipwelcome');
+        const lowest = ladder.find(x => !x.blocked);
+        const SCALE = TIKTOK_MAX_LV;   // thước 0–50
+        const pct = (lv) => Math.max(0, Math.min(100, lv / SCALE * 100));
+        const winFrom = g.enabled ? g.minLevel : (lowest ? lowest.from : 0);
+        const winTo = SCALE;
+        host.innerHTML = `
+        <div class="vw-ov">
+            <section class="vw-ov-card vw-ov-gate${g.enabled ? ' on' : ''}">
+                <div class="vw-ov-head">
+                    <div>
+                        <div class="vw-ov-title">🛡 Ai được chào?</div>
+                        <div class="vw-ov-sub">Lọc theo <b>cấp TikTok</b> để phòng đông không bị spam thẻ chào. Người <b>chỉ định theo ID</b> luôn được chào.</div>
+                    </div>
+                    <label class="vw-switch" title="Bật / tắt lọc cấp"><input type="checkbox" id="vw-gate-on" ${g.enabled ? 'checked' : ''} /><span></span></label>
+                </div>
+                <div class="vw-ov-range">
+                    <span>Chào người xem từ cấp</span>
+                    <input type="number" min="0" max="50" id="vw-gate-min" value="${g.minLevel}" ${g.enabled ? '' : 'disabled'} />
+                    <span>trở lên</span>
+                    <span class="vw-ov-muted">(cấp TikTok 1–50 · từ cấp 25 TikTok tự có hiệu ứng vào phòng)</span>
+                </div>
+                <div class="vw-ov-presets">
+                    <span class="vw-ov-muted">Nhanh:</span>
+                    ${[10, 15, 20, 25, 30].map(n => `<button class="ghost mini" data-gate-preset="${n}" ${g.enabled ? '' : 'disabled'}>Từ LV ${n}</button>`).join('')}
+                </div>
+                <div class="vw-ov-range">
+                    <span>Fan club từ cấp</span>
+                    <input type="number" min="0" max="99" id="vw-gate-fans" value="${g.minFans || 0}" ${g.enabled ? '' : 'disabled'} />
+                    <span class="vw-ov-muted">cũng được chào dù cấp thấp (0 = không xét)</span>
+                </div>
+                <div class="vw-ov-ruler" title="Vùng sáng = cấp được chào">
+                    <div class="vw-ov-win" style="left:${pct(winFrom)}%;right:${100 - pct(winTo)}%"></div>
+                    ${ladder.map(x => `<i class="vw-ov-tick skin-${escapeHtml(x.t.skin)}" style="left:${pct(x.t.minLevel || 0)}%" title="${escapeHtml(x.t.name)} — LV ${x.t.minLevel || 0}"></i>`).join('')}
+                    ${[0, 10, 20, 25, 30, 40, 50].map(n => `<b style="left:${pct(n)}%">${n}</b>`).join('')}
+                </div>
+                <div class="vw-ov-verdict">${g.enabled
+                    ? `✅ Đang chào <b>LV ${g.minLevel} trở lên</b>${g.minFans ? ` hoặc <b>FAN ≥ ${g.minFans}</b>` : ''} · người dưới LV ${g.minLevel} sẽ không hiện thẻ`
+                    : `⚠ Đang <b>tắt lọc</b> — chào mọi người khớp bậc đang bật${lowest ? ` (thấp nhất <b>LV ${lowest.from}</b>)` : ''}. Phòng đông nên bật lọc.`}</div>
+            </section>
+
+            <section class="vw-ov-card">
+                <div class="vw-ov-head">
+                    <div>
+                        <div class="vw-ov-title">🏅 Theo cấp độ <span class="vw-ov-muted">· nhóm "${escapeHtml(profile?.name || '')}"</span></div>
+                        <div class="vw-ov-sub">Mỗi bậc một màu thẻ + <b>video webm</b> riêng (tuỳ chọn). Người xem nhận bậc cao nhất họ đạt.</div>
+                    </div>
+                    <button class="ghost small" data-goto="tiers">✏ Sửa bậc</button>
+                </div>
+                <div class="vw-ov-ladder">
+                    ${ladder.length ? ladder.slice().reverse().map(x => `
+                    <div class="vw-ov-row skin-${escapeHtml(x.t.skin)}${x.blocked ? ' blocked' : ''}">
+                        <span class="vw-tier-swatch skin-${escapeHtml(x.t.skin)}"></span>
+                        <span class="vw-ov-name">${escapeHtml(x.t.name)}</span>
+                        <span class="vw-ov-lv">${x.blocked ? (x.fans ? `<i>chỉ FAN ≥ ${x.fans}</i>` : 'bị lọc') : rangeText(x.from, x.to) + (x.fans ? ` <i>hoặc FAN ≥ ${x.fans}</i>` : '')}</span>
+                        <span class="vw-ov-media ${x.t.mediaUrl ? 'has' : ''}">${x.t.mediaUrl ? (x.t.mediaType === 'video' ? '🎞 Video' : '🔊 Âm thanh') : '— chỉ thẻ'}</span>
+                        <span class="vw-ov-tts" title="Đọc tên">${x.t.tts?.enabled ? '🗣' : ''}</span>
+                        <button class="ghost mini" data-ov-try="${x.t.id}" ${x.blocked ? 'disabled' : ''} title="Giả lập 1 người bậc này vào phòng (xem trên link OBS)">▶ Thử</button>
+                    </div>`).join('') : '<div class="vw-empty">Chưa bật bậc nào — sang tab 🏅 Theo cấp độ để bật.</div>'}
+                </div>
+            </section>
+
+            <section class="vw-ov-card">
+                <div class="vw-ov-head">
+                    <div>
+                        <div class="vw-ov-title">👤 Theo ID TikTok <span class="vw-ov-muted">· ${rules.length} người</span></div>
+                        <div class="vw-ov-sub">Chào riêng người bạn chọn: danh hiệu, màu thẻ, <b>video webm</b> riêng. Không bị lọc cấp.</div>
+                    </div>
+                    <button class="primary small" data-goto="users" data-add-user>➕ Thêm ID</button>
+                </div>
+                <div class="vw-ov-ids">${rules.length ? rules.slice(0, 18).map(r => `<span class="vw-ov-id${r.enabled === false ? ' off' : ''}">@${escapeHtml(r.uniqueId || '?')}${r.mediaUrl ? ' <i>🎞</i>' : ''}</span>`).join('') + (rules.length > 18 ? `<span class="vw-ov-muted">+${rules.length - 18}</span>` : '')
+                    : '<span class="vw-ov-muted">Chưa có ai — thêm ID TikTok của khách quen, mod, người tặng nhiều…</span>'}</div>
+            </section>
+
+            <section class="vw-ov-card vw-ov-obs">
+                <div class="vw-ov-title">📺 Link OBS <span class="vw-ov-muted">· 1 link cho tất cả: thanh chào + video webm + lời chúc</span></div>
+                <div class="vw-ov-url">
+                    <input type="text" readonly value="${escapeHtml(url)}" />
+                    <button class="primary small" data-ov-copy>📋 Copy</button>
+                    <button class="ghost small" data-ov-open>↗ Mở xem</button>
+                </div>
+                <ol class="vw-ov-steps">
+                    <li>OBS → <b>+ Nguồn → Browser</b> → dán link, kích thước <b>1080 × 1920</b>.</li>
+                    <li>Bật nút <b>ĐANG CHẠY</b> ở góc trên rồi bấm <b>▶ Thử</b> một bậc để xem.</li>
+                    <li>Thanh chào nằm sát mép trên khu bình luận — chỉnh ở tab <b>🎨 Hiển thị &amp; cài đặt</b>.</li>
+                </ol>
+            </section>
+        </div>`;
+
+        const setGate = (fn) => { fn(cfg.joinCard.gate); schedulePersist(); };
+        const lv = (v) => Math.max(0, Math.min(99, parseInt(v, 10) || 0));
+        $('#vw-gate-on')?.addEventListener('change', (e) => { setGate(gg => { gg.enabled = !!e.target.checked; }); renderOverviewTab(); });
+        $('#vw-gate-min')?.addEventListener('change', (e) => { setGate(gg => { gg.minLevel = Math.min(TIKTOK_MAX_LV, lv(e.target.value)); }); renderOverviewTab(); });
+        $('#vw-gate-fans')?.addEventListener('change', (e) => { setGate(gg => { gg.minFans = lv(e.target.value); }); renderOverviewTab(); });
+        host.querySelectorAll('[data-gate-preset]').forEach(b => b.addEventListener('click', () => {
+            setGate(gg => { gg.minLevel = +b.dataset.gatePreset; });
+            renderOverviewTab();
+        }));
+        host.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => {
+            document.querySelector(`#view-vipwelcome .vw-tab[data-vw-tab="${b.dataset.goto}"]`)?.click();
+            if (b.hasAttribute('data-add-user')) $('#vw-btn-add-user-rule')?.click();
+        }));
+        host.querySelectorAll('[data-ov-try]').forEach(b => b.addEventListener('click', async () => {
+            const x = ladder.find(y => y.t.id === b.dataset.ovTry);
+            if (!x) return;
+            if (cfg.enabled === false) flashWarn('Game đang TẮT — bật nút ĐANG CHẠY ở góc trên để thẻ hiện trên OBS');
+            await persistConfig().catch(() => {});
+            simulateJoin({ mode: 'one', level: x.from, fansLevel: 0, nickname: 'Thử ' + x.t.name, source: 'member' });
+        }));
+        host.querySelector('[data-ov-copy]')?.addEventListener('click', async () => {
+            const ok = window.hpCopyText ? await window.hpCopyText(url) : false;
+            if (ok) flashOk('✓ Đã copy link OBS'); else flashWarn('Copy thất bại — link: ' + url);
+        });
+        host.querySelector('[data-ov-open]')?.addEventListener('click', () => {
+            window.open(url, 'hp-vw-preview', 'width=420,height=760,resizable=yes');   // khung dọc như màn điện thoại
+        });
+    }
+
     function renderTiersTab() {
         const host = $('#vw-tiers-pane');
         if (!host) return;
@@ -983,7 +1134,8 @@
         host._sim = sim;
         host.innerHTML = `
             <div class="vw-pane-head">
-                <div class="vw-pane-hint">Mỗi bậc khớp khi <b>LV ≥ x HOẶC FAN LV ≥ y</b> (0 = không xét; cả hai 0 = mọi người). Người xem nhận bậc cao nhất họ đạt; người chỉ định (tab 👤) luôn được ưu tiên. Nhóm <b>"${escapeHtml(profile.name || '')}"</b>.</div>
+                <div class="vw-pane-hint">Mỗi bậc khớp khi <b>LV ≥ x HOẶC FAN LV ≥ y</b> (0 = không xét; cả hai 0 = mọi người). Người xem nhận bậc cao nhất họ đạt; người chỉ định (tab 👤) luôn được ưu tiên. Nhóm <b>"${escapeHtml(profile.name || '')}"</b>.
+                    ${cfg.joinCard?.gate?.enabled ? `<br>🛡 Đang <b>lọc cấp</b>: chỉ chào <b>LV ${cfg.joinCard.gate.minLevel || 0} trở lên</b>${cfg.joinCard.gate.minFans ? ` hoặc FAN ≥ ${cfg.joinCard.gate.minFans}` : ''} — đổi ở tab 🏠 Tổng quan.` : ''}</div>
                 <button id="vw-btn-add-tier" class="primary small">➕ Thêm bậc</button>
             </div>
             <div class="vw-tier-list">${tiers.map(renderTierCard).join('') || '<div class="vw-empty">Chưa có bậc nào.</div>'}</div>
@@ -1425,6 +1577,7 @@
         const q = cfg.queue || {};
         const jc = cfg.joinCard || window.HpGame.vipwelcome.defaultJoinCard();
         const c = jc.card || {};
+        const jb = jc.bar || {};   // thanh chào gọn
         const currentStyle = d.labelStyle || 'goldpink';
         const styleSwatches = LABEL_STYLE_DEFS.map(s => `
             <div class="vw-style-swatch${currentStyle === s.id ? ' active' : ''}" data-vw-style="${s.id}" title="${escapeHtml(s.label)}">
@@ -1469,6 +1622,21 @@
             <div class="vw-setting-block">
                 <div class="vw-setting-title">🪪 Thẻ vào phòng</div>
                 <label class="vw-inline"><input type="checkbox" id="vw-jc-enabled" ${jc.enabled !== false ? 'checked' : ''} /> Bật thẻ vào phòng</label>
+                <label class="vw-inline">Kiểu thẻ
+                    <select id="vw-jc-style">
+                        <option value="bar" ${jc.style !== 'card' ? 'selected' : ''}>✨ Thanh chào gọn — sát khu bình luận (khuyên dùng)</option>
+                        <option value="card" ${jc.style === 'card' ? 'selected' : ''}>🪪 Thẻ to (kiểu cũ)</option>
+                    </select>
+                </label>
+                <div id="vw-jc-bar-opts" ${jc.style === 'card' ? 'hidden' : ''}>
+                    <label class="vw-inline">X% <input type="range" min="0" max="60" step="1" id="vw-jb-x" value="${jb.xPercent ?? 2}" /> <span id="vw-jb-x-v">${jb.xPercent ?? 2}</span></label>
+                    <label class="vw-inline" title="Mép DƯỚI của tầng thấp nhất — đặt ngay trên khu bình luận TikTok (thường 66–70%)">Y% (mép dưới, sát bình luận) <input type="range" min="30" max="95" step="0.5" id="vw-jb-y" value="${jb.yPercent ?? 68}" /> <span id="vw-jb-y-v">${jb.yPercent ?? 68}</span></label>
+                    <label class="vw-inline">Cỡ <input type="range" min="60" max="160" step="5" id="vw-jb-scale" value="${jb.scale || 100}" /> <span id="vw-jb-scale-v">${jb.scale || 100}%</span></label>
+                    <label class="vw-inline">Số tầng <select id="vw-jb-slots">${[1, 2, 3].map(n => `<option value="${n}" ${(jb.slots || 3) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+                    <label class="vw-inline"><input type="checkbox" id="vw-jb-wow" ${jb.wow !== false ? 'checked' : ''} /> ✨ Hiệu ứng WOW (avatar lăn, chữ hiện từng chữ, viền chạy, bụi sao)</label>
+                    <div class="vw-hint">💡 Người mới luôn vào <b>tầng dưới cùng</b> (đóng đinh sát bình luận), thanh cũ được đẩy lên; đầy tầng thì bỏ người <b>bậc thấp nhất</b> trước, Chí tôn ở lâu hơn Tân binh. Xem mẫu: <code>/_prototype/vip-compact.html</code></div>
+                </div>
+                <div id="vw-jc-card-opts" ${jc.style === 'card' ? '' : 'hidden'}>
                 <label class="vw-inline">X% <input type="range" min="0" max="80" step="1" id="vw-jc-x" value="${c.xPercent ?? 3}" /> <span id="vw-jc-x-v">${c.xPercent ?? 3}</span></label>
                 <label class="vw-inline">Y% <input type="range" min="5" max="100" step="1" id="vw-jc-y" value="${c.yPercent ?? 60}" /> <span id="vw-jc-y-v">${c.yPercent ?? 60}</span></label>
                 <label class="vw-inline">Cỡ <input type="range" min="50" max="160" step="5" id="vw-jc-scale" value="${c.scale || 100}" /> <span id="vw-jc-scale-v">${c.scale || 100}%</span></label>
@@ -1479,6 +1647,7 @@
                         <option value="down" ${c.direction === 'down' ? 'selected' : ''}>ở trên, đẩy thẻ cũ xuống</option>
                     </select>
                 </label>
+                </div>
                 <label class="vw-inline">Hiện mỗi thẻ (giây) <input type="number" min="2" max="20" step="0.5" id="vw-jc-dur" value="${(c.durationMs || 5000) / 1000}" /></label>
                 <label class="vw-inline">Chữ "vào phòng" <input type="text" maxlength="20" id="vw-jc-text" value="${escapeHtml(jc.enterText || 'VÀO PHÒNG')}" /></label>
                 <label class="vw-inline"><input type="checkbox" id="vw-jc-hidezero" ${jc.hideZeroXu !== false ? 'checked' : ''} /> Ẩn 💎 khi chưa tặng xu nào</label>
@@ -1508,6 +1677,22 @@
             </div>
         `;
         const setJc = (fn) => { cfg.joinCard = cfg.joinCard || window.HpGame.vipwelcome.defaultJoinCard(); cfg.joinCard.card = cfg.joinCard.card || {}; fn(cfg.joinCard, cfg.joinCard.card); schedulePersist(); };
+        const setJb = (fn) => setJc(j => { j.bar = j.bar && typeof j.bar === 'object' ? j.bar : { xPercent: 2, yPercent: 68, scale: 100, slots: 3, wow: true }; fn(j.bar); });
+        $('#vw-jc-style')?.addEventListener('change', (e) => {
+            const card = e.target.value === 'card';
+            setJc(j => { j.style = card ? 'card' : 'bar'; });
+            $('#vw-jc-bar-opts').hidden = card;
+            $('#vw-jc-card-opts').hidden = !card;
+        });
+        for (const [id, key, suffix] of [['vw-jb-x', 'xPercent', ''], ['vw-jb-y', 'yPercent', ''], ['vw-jb-scale', 'scale', '%']]) {
+            $('#' + id)?.addEventListener('input', (e) => {
+                const v = parseFloat(e.target.value);
+                $('#' + id + '-v').textContent = v + suffix;
+                setJb(b => { b[key] = v; });
+            });
+        }
+        $('#vw-jb-slots')?.addEventListener('change', (e) => setJb(b => { b.slots = Math.max(1, Math.min(3, parseInt(e.target.value, 10) || 3)); }));
+        $('#vw-jb-wow')?.addEventListener('change', (e) => setJb(b => { b.wow = !!e.target.checked; }));
         const clampInt = (v, lo, hi, d) => { const n = parseInt(v, 10); return Math.max(lo, Math.min(hi, Number.isFinite(n) ? n : d)); };   // 0 là số hợp lệ
         $('#vw-jc-enabled')?.addEventListener('change', (e) => setJc(j => { j.enabled = !!e.target.checked; }));
         for (const [id, key, suffix] of [['vw-jc-x', 'xPercent', ''], ['vw-jc-y', 'yPercent', ''], ['vw-jc-scale', 'scale', '%']]) {
