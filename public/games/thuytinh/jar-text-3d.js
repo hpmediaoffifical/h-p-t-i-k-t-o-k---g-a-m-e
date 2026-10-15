@@ -267,6 +267,50 @@
             + eyes(60, 76, 1, '#3e2640') + blush(60, 86, 1) + smile(60, 85, 1, '#3e2640')
             + blob(k, 'ellipse', 'cx="36" cy="114" rx="13" ry="9"', '#f4ecf6', '#fff') + blob(k, 'ellipse', 'cx="84" cy="114" rx="13" ry="9"', '#f4ecf6', '#fff') + spec(42, 58, 12, 6, -25, .8))
     };
+    // ===== sticker theo mùa (bộ chữ mẫu PRESETS trong jar-text.js) =====
+    const petals = (k, n, R, r, light, mid, dark) => Array.from({ length: n }, (_, i) => { const a = (i * 360 / n - 90) * Math.PI / 180;
+        return `<circle cx="${(50 + R * Math.cos(a)).toFixed(1)}" cy="${(50 + R * Math.sin(a)).toFixed(1)}" r="${r}" fill="${k.rad([[0, light], [.5, mid], [1, dark]], '40%', '35%', '70%')}" stroke="#fff" stroke-width="2.5"/>`; }).join('');
+    const SNOW = Array.from({ length: 6 }, (_, i) => `<g transform="rotate(${i * 60} 50 50)"><path d="M50 50V10M50 22L41 13M50 22L59 13M50 34L43 27M50 34L57 27" fill="none" stroke-linecap="round"/></g>`).join('');
+    Object.assign(PIECES, {
+        mai: () => mkSvg('0 0 100 100', k => petals(k, 5, 23, 19, '#fff6c2', '#ffd21f', '#f0a000')
+            + `<circle cx="50" cy="50" r="12" fill="${k.rad([[0, '#ffb066'], [.6, '#ff7a1a'], [1, '#c94f00']])}" stroke="#fff" stroke-width="2"/>`
+            + [0, 60, 120, 180, 240, 300].map(a => `<circle cx="${(50 + 7 * Math.cos(a * Math.PI / 180)).toFixed(1)}" cy="${(50 + 7 * Math.sin(a * Math.PI / 180)).toFixed(1)}" r="2" fill="#7a2a00"/>`).join('') + spec(40, 22, 7, 3, -20, .7)),
+        lixi: () => mkSvg('0 0 100 100', k => `<rect x="22" y="10" width="56" height="80" rx="9" fill="${k.lin([[0, '#ff5a4f'], [.55, '#e3201b'], [1, '#a50e0e']], 0, 0, 1, 1)}" stroke="#fff" stroke-width="4"/>`
+            + `<path d="M22 32Q50 52 78 32V19Q78 10 69 10H31Q22 10 22 19Z" fill="${k.lin([[0, '#ff7a6e'], [1, '#c81812']])}" stroke="#ffd34d" stroke-width="2.5"/>`
+            + `<circle cx="50" cy="44" r="11" fill="${k.rad([[0, '#fff3a6'], [.55, '#ffc61a'], [1, '#c98a00']])}" stroke="#fff" stroke-width="2"/><path d="M45 44h10M50 39v10" stroke="#b5161a" stroke-width="3" stroke-linecap="round"/>`
+            + `<path d="M32 70h36M32 77h24" stroke="#ffd34d" stroke-width="3" stroke-linecap="round" opacity=".85"/>${spec(34, 22, 8, 3.5, -20, .55)}`),
+        lantern: () => mkSvg('0 0 100 120', k => `<path d="M50 4V14" stroke="#c98a00" stroke-width="3"/><rect x="36" y="12" width="28" height="9" rx="3" fill="${k.lin([[0, '#ffe27a'], [1, '#b97800']])}" stroke="#fff" stroke-width="2"/>`
+            + `<ellipse cx="50" cy="55" rx="38" ry="35" fill="${k.rad([[0, '#ffb08a'], [.45, '#f2342a'], [1, '#8f0b0b']], '38%', '35%', '75%')}" stroke="#fff" stroke-width="3.5"/>`
+            + [-22, -8, 8, 22].map(d => `<path d="M${50 + d} 22Q${50 + d * 1.7} 55 ${50 + d} 88" fill="none" stroke="#a80f10" stroke-width="2" opacity=".55"/>`).join('')
+            + `<ellipse cx="50" cy="55" rx="18" ry="22" fill="#ffe08a" opacity=".45" filter="url(#gl)"/><rect x="36" y="88" width="28" height="9" rx="3" fill="${k.lin([[0, '#ffe27a'], [1, '#b97800']])}" stroke="#fff" stroke-width="2"/>`
+            + [-8, 0, 8].map(d => `<path d="M${50 + d} 97V116" stroke="#ff3b30" stroke-width="3" stroke-linecap="round"/>`).join('') + spec(32, 38, 9, 5, -30, .7)),
+        moon: () => mkSvg('0 0 100 100', k => `<circle cx="50" cy="50" r="40" fill="#ffe9a6" opacity=".7" filter="url(#gl)"/><circle cx="50" cy="50" r="38" fill="${k.rad([[0, '#fffbe3'], [.55, '#ffe07a'], [1, '#f0b400']], '38%', '32%', '75%')}" stroke="#fff" stroke-width="3"/>`
+            + `<circle cx="66" cy="34" r="6" fill="#f2c040" opacity=".55"/><circle cx="72" cy="58" r="4" fill="#f2c040" opacity=".5"/><circle cx="32" cy="70" r="5" fill="#f2c040" opacity=".45"/>`
+            + eyes(50, 50, .85, '#6b4400') + blush(50, 58, .85) + smile(50, 58, .85, '#6b4400') + spec(34, 30, 9, 5, -30, .75)),
+        snowflake: () => mkSvg('0 0 100 100', k => `<g stroke="#9fd8ff" stroke-width="11" opacity=".9">${SNOW}</g><g stroke="#ffffff" stroke-width="6">${SNOW}</g><circle cx="50" cy="50" r="7" fill="${k.rad([[0, '#ffffff'], [1, '#bfe6ff']])}" stroke="#fff" stroke-width="2"/>`),
+        santaHat: () => mkSvg('0 0 120 100', k => `<path d="M18 74C26 36 54 12 84 14C100 15 108 30 104 46C98 36 88 32 80 40C72 50 76 66 74 74Z" fill="${k.lin([[0, '#ff6157'], [.5, '#e11d26'], [1, '#93070d']], 0, 0, 1, 1)}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>`
+            + `<rect x="10" y="68" width="74" height="20" rx="10" fill="${k.rad([[0, '#ffffff'], [.7, '#f1f1f6'], [1, '#c9cad6']])}" stroke="#fff" stroke-width="2"/><circle cx="104" cy="50" r="12" fill="${k.rad([[0, '#ffffff'], [.7, '#f1f1f6'], [1, '#c3c4d2']])}" stroke="#fff" stroke-width="2"/>` + spec(46, 34, 10, 4, -35, .55)),
+        tree: () => mkSvg('0 0 100 120', k => { const g = k.lin([[0, '#7be28a'], [.5, '#1fa64a'], [1, '#0b6a2c']], 0, 0, 1, 1);
+            return `<rect x="43" y="98" width="14" height="16" rx="3" fill="#8a5a2b" stroke="#fff" stroke-width="2"/>`
+                + [[56, 94, 42], [36, 72, 36], [16, 50, 30]].map(([y, bw, h]) => `<path d="M50 ${y}Q${50 + bw * .18} ${y + h * .5} ${50 + bw / 2} ${y + h}Q50 ${y + h + 6} ${50 - bw / 2} ${y + h}Q${50 - bw * .18} ${y + h * .5} 50 ${y}Z" fill="${g}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>`).join('')
+                + [[36, 92, '#ff3b4f'], [62, 86, '#ffd23f'], [44, 66, '#3fb6ff'], [58, 62, '#ff3b4f'], [50, 44, '#ffd23f']].map(([bx, by, bc]) => `<circle cx="${bx}" cy="${by}" r="4.5" fill="${k.rad([[0, L(bc, .6)], [.6, bc], [1, D(bc, .35)]])}"/>`).join('')
+                + `<path d="${starPath(50, 16, 12, 5.5)}" fill="${k.rad([[0, '#fff3a6'], [.6, '#ffcc29'], [1, '#e08a00']])}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>`; }),
+        pumpkin: () => mkSvg('0 0 120 100', k => `<path d="M60 22Q62 8 72 6" stroke="#4d7c0f" stroke-width="6" fill="none" stroke-linecap="round"/>`
+            + `<ellipse cx="60" cy="60" rx="58" ry="38" fill="#fff"/>`
+            + [[30, 28], [90, 28], [45, 34], [75, 34], [60, 38]].map(([x, rx]) => `<ellipse cx="${x}" cy="60" rx="${rx}" ry="35" fill="${k.rad([[0, '#ffc07a'], [.5, '#ff8a1f'], [1, '#c24d00']], '38%', '32%', '78%')}" stroke="#d9650a" stroke-width="1.6"/>`).join('')
+            + `<path d="M40 52L50 44L54 56ZM80 52L70 44L66 56Z" fill="#5a2000"/><path d="M42 70Q60 84 78 70L72 74L66 70L60 76L54 70L48 74Z" fill="#5a2000"/>` + spec(42, 38, 9, 4, -30, .6)),
+        bat: () => mkSvg('0 0 120 80', k => `<path d="M60 30C48 14 30 10 6 22C16 26 18 34 14 42C24 38 32 42 34 50C40 42 50 42 60 52C70 42 80 42 86 50C88 42 96 38 106 42C102 34 104 26 114 22C90 10 72 14 60 30Z" fill="${k.lin([[0, '#8a5cd6'], [1, '#3b1f6e']])}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>`
+            + `<circle cx="60" cy="38" r="15" fill="${k.rad([[0, '#a77ff0'], [.6, '#6a3fc0'], [1, '#3b1f6e']])}" stroke="#fff" stroke-width="2.5"/><path d="M48 28L50 16L56 26M72 28L70 16L64 26" fill="#6a3fc0" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>`
+            + eyes(60, 38, .55, '#fff') + blush(60, 44, .6)),
+        ghost: () => mkSvg('0 0 100 110', k => `<path d="M16 96V46C16 22 32 8 50 8C68 8 84 22 84 46V96L74 88L64 98L55 88L45 98L36 88L26 98Z" fill="${k.rad([[0, '#ffffff'], [.7, '#f1eefa'], [1, '#c8c0e0']], '40%', '30%', '80%')}" stroke="#d9d2f0" stroke-width="3" stroke-linejoin="round"/>`
+            + eyes(50, 46, 1, '#3a2f5a') + blush(50, 56, 1) + `<ellipse cx="50" cy="60" rx="5" ry="4" fill="#3a2f5a"/>` + spec(34, 26, 9, 5, -30, .8)),
+        sun: () => mkSvg('0 0 100 100', k => Array.from({ length: 12 }, (_, i) => `<path d="M50 2L56 18H44Z" fill="${k.lin([[0, '#ffe066'], [1, '#ff9f1a']])}" transform="rotate(${i * 30} 50 50)"/>`).join('')
+            + `<circle cx="50" cy="50" r="28" fill="${k.rad([[0, '#fff6b0'], [.55, '#ffcf26'], [1, '#f08c00']])}" stroke="#fff" stroke-width="3"/>` + eyes(50, 48, .75, '#6b3a00') + blush(50, 56, .75) + smile(50, 56, .75, '#6b3a00') + spec(40, 34, 7, 4, -30, .7)),
+        watermelon: () => mkSvg('0 0 100 80', k => `<path d="M6 16A44 44 0 0 0 94 16Z" fill="${k.lin([[0, '#7be28a'], [1, '#1d8f3e']])}" stroke="#fff" stroke-width="3"/><path d="M13 16A37 37 0 0 0 87 16Z" fill="#f4ffe9"/><path d="M17 16A33 33 0 0 0 83 16Z" fill="${k.rad([[0, '#ff9aa6'], [.6, '#ff3b55'], [1, '#d81c3a']], '50%', '10%', '90%')}"/>`
+            + [[34, 26], [50, 34], [66, 26], [42, 40], [58, 40]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="2.4" ry="3.6" fill="#3a1010"/>`).join('') + spec(30, 20, 8, 2.5, 10, .55)),
+        flagVN: () => mkSvg('0 0 120 90', k => `<path d="M8 6V86" stroke="#c9a46a" stroke-width="5" stroke-linecap="round"/><path d="M10 10Q40 2 64 12T114 12V62Q90 52 64 62T10 62Z" fill="${k.lin([[0, '#ff4a3d'], [.5, '#da251d'], [1, '#a5100c']], 0, 0, 1, 1)}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>`
+            + `<path d="${starPath(62, 37, 16, 6.5)}" fill="${k.rad([[0, '#fff6a6'], [.6, '#ffde00'], [1, '#e0a800']])}" stroke="#ffef80" stroke-width="1"/>` + spec(36, 16, 10, 3, -10, .4))
+    });
     const cache = {};
     function sticker(name) {
         if (!PIECES[name]) return '';

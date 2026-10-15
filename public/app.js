@@ -2730,7 +2730,7 @@
                     <button type="button" class="ghost small" data-jt-nudge="0,-1" title="Lên">▲</button>
                     <button type="button" class="ghost small" data-jt-nudge="0,1" title="Xuống">▼</button>
                     <button type="button" class="ghost small" data-jt-nudge="1,0" title="Sang phải">▶</button>
-                    <button type="button" class="ghost small" data-jt-place="50,-3" title="Đặt vắt ngang miệng hũ">⤒ Miệng</button>
+                    <button type="button" class="ghost small" data-jt-place="50,16" title="Đặt vắt ngang miệng hũ">⤒ Miệng</button>
                     <button type="button" class="ghost small" data-jt-place="50,48" title="Giữa thân hũ">⊙ Giữa</button>
                     <button type="button" class="ghost small" data-jt-place="50,82" title="Gần đáy hũ">⤓ Đáy</button>
                     <button type="button" class="ghost small${it.flip ? ' on' : ''}" data-jt-flip title="Đảo sticker trái ↔ phải">⇄</button>
@@ -2738,6 +2738,12 @@
                 </div>
             </div>`;
         }).join('') || '<div class="jt-empty">Chưa có chữ nào — bấm ➕ Thêm chữ.</div>';
+        const pre = document.getElementById('jt-presets');
+        if (pre && !pre.childElementCount) {
+            const hot = new Set(JT.presetsFor(new Date()));
+            const list = [...JT.PRESETS].sort((a, b) => hot.has(b.id) - hot.has(a.id));
+            pre.innerHTML = '<span>🎁 Bộ chữ mẫu:</span>' + list.map(p => `<button type="button" class="ghost small${hot.has(p.id) ? ' hot' : ''}" data-jt-preset="${p.id}" title="${hot.has(p.id) ? 'Đúng dịp hôm nay — ' : ''}Bấm để dùng bộ này (thay chữ hiện tại)">${hot.has(p.id) ? '⭐ ' : ''}${p.label}</button>`).join('');
+        }
         const vars = document.getElementById('jt-vars');
         if (vars && !vars.childElementCount) vars.innerHTML = '<span>Chèn chữ tự điền:</span>' + JT.VARS.map(v => `<button type="button" class="ghost small" data-jt-var="${v.k}" title="${v.label}">${v.k}</button>`).join('');
         const addBtn = document.getElementById('jt-add');
@@ -2790,6 +2796,18 @@
             jtSelected = id;
             gameInstance?.selectJarText?.(id);
             host.querySelectorAll('.jt-item').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
+        });
+        // 🎁 Bộ chữ mẫu theo mùa: thay toàn bộ chữ hiện tại (hỏi trước nếu đang có chữ)
+        document.getElementById('jt-presets')?.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-jt-preset]'); if (!b) return;
+            const JT = window.HpJarText;
+            const p = JT.PRESETS.find(x => x.id === b.dataset.jtPreset); if (!p) return;
+            if (currentJarTexts.length && !confirm(`Thay ${currentJarTexts.length} chữ đang có bằng bộ mẫu "${p.label}"?`)) return;
+            currentJarTexts = JT.presetItems(p.id);
+            jtSelected = currentJarTexts[0]?.id || '';
+            renderJarTextPanel();
+            pushConfigUpdate();
+            if (jtSelected) gameInstance?.selectJarText?.(jtSelected);
         });
         // Chèn biến tự điền vào ô chữ đang chọn
         document.getElementById('jt-vars')?.addEventListener('click', (e) => {

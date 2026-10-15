@@ -50,6 +50,20 @@ thanks</textarea>
         });
     }
     t.addEventListener('input', draw); a.addEventListener('change', draw); draw();
+    // ?presets=1 → bày 14 bộ chữ mẫu theo mùa (⭐ = đúng dịp hôm nay)
+    if (new URLSearchParams(location.search).get('presets')) {
+        const hot = new Set(JT.presetsFor(new Date()));
+        document.querySelector('h1').textContent = '🎁 ' + JT.PRESETS.length + ' bộ chữ mẫu theo mùa';
+        document.querySelector('.bar').style.display = 'none';
+        g.innerHTML = '';
+        JT.PRESETS.forEach(p => {
+            const card = document.createElement('div'); card.className = 'card';
+            card.innerHTML = `<div class="jar"><div class="tt-jar-texts"></div></div><div class="name">${hot.has(p.id) ? '⭐ ' : ''}${p.label}</div>`;
+            const layer = card.querySelector('.tt-jar-texts');
+            JT.presetItems(p.id).forEach(it => { const el = document.createElement('div'); layer.appendChild(el); JT.paint(el, JT.normalizeItem({ ...it, text: JT.fillVars(it.text, { top: [{ name: 'Khánh Vy', xu: 4277 }], tong: 32000, qua: 120, muctieu: 50000 }) })); });
+            g.appendChild(card);
+        });
+    }
 </script>
 </body>
 </html>

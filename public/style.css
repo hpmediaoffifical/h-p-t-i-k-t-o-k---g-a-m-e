@@ -9399,3 +9399,7 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .jt-vars { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 2px 0 8px; font-size: 12px; }
 .jt-vars > span { opacity: .7; margin-right: 2px; }
 .jt-vars .ghost.small { padding: 2px 6px; font-family: Consolas, monospace; font-size: 11px; }
+.jt-presets { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0 0 8px; font-size: 12px; }
+.jt-presets > span { opacity: .75; margin-right: 2px; font-weight: 600; }
+.jt-presets .ghost.small { padding: 3px 8px; font-size: 12px; }
+.jt-presets .ghost.small.hot { border-color: #ffcf3d; color: #ffdf73; box-shadow: 0 0 0 1px rgba(255,207,61,.25); }

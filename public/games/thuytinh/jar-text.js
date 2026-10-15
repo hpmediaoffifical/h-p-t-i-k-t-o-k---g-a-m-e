@@ -73,6 +73,30 @@
         { id: 'flowers', label: '🌸 Hoa xuân', items: [
             P('flower', 'left:-.5em;top:-.4em', .62, 'sway'), P('flower', 'right:-.45em;bottom:-.35em', .55, 'sway'), P('flower', 'right:28%;top:-.42em', .34, 'tw'),
             P('sparkle', 'right:-.38em;top:-.25em', .3, 'tw'), P('sparkle', 'left:-.3em;bottom:-.2em', .26, 'tw') ] },
+        { id: 'tet',     label: '🧧 Tết (mai + lì xì)', scale: 1.45, items: [
+            P('mai', 'left:-.55em;top:-.45em', .7, 'sway'), P('lixi', 'right:-.5em;top:-.55em', .62, 'sway'), P('mai', 'right:-.35em;bottom:-.3em', .42, 'tw'),
+            P('sparkle', 'left:34%;top:-.5em', .3, 'tw'), P('sparkle', 'left:-.35em;bottom:-.15em', .28, 'tw') ] },
+        { id: 'valentine', label: '💘 Valentine (tim)', scale: 1.45, items: [
+            P('heart', 'right:-.5em;top:-.5em', .66, 'sway'), P('heart', 'left:-.45em;top:-.3em', .42, 'tw'), P('heart', 'right:22%;bottom:-.42em', .32, 'tw'),
+            P('bow', 'left:-.55em;bottom:-.3em', .5, 'sway'), P('sparkle', 'left:38%;top:-.5em', .28, 'tw') ] },
+        { id: 'women',   label: '🌷 8/3 · 20/10 (hoa + nơ)', scale: 1.45, items: [
+            P('flower', 'left:-.55em;top:-.45em', .66, 'sway'), P('bow', 'right:-.5em;top:-.5em', .6, 'sway'), P('flower', 'right:-.4em;bottom:-.35em', .48, 'sway'),
+            P('heart', 'left:-.3em;bottom:-.3em', .32, 'tw'), P('sparkle', 'left:40%;top:-.5em', .28, 'tw') ] },
+        { id: 'summer',  label: '🏖 Hè (mặt trời + dưa hấu)', scale: 1.45, items: [
+            P('sun', 'right:-.55em;top:-.65em', .78, 'bob'), P('watermelon', 'left:-.55em;bottom:-.4em', .62, 'sway'), P('sparkleBlue', 'left:-.35em;top:-.3em', .32, 'tw'),
+            P('sparkle', 'right:24%;bottom:-.42em', .28, 'tw') ] },
+        { id: 'trungthu', label: '🏮 Trung Thu (đèn lồng + trăng)', scale: 1.45, items: [
+            P('lantern', 'left:-.5em;top:-.75em', .62, 'sway'), P('moon', 'right:-.55em;top:-.6em', .72, 'bob'), P('bunny', 'right:-.4em;bottom:-.55em', .55, 'bob'),
+            P('sparkle', 'left:36%;top:-.5em', .28, 'tw'), P('sparkle', 'left:-.35em;bottom:-.2em', .26, 'tw') ] },
+        { id: 'halloween', label: '🎃 Halloween (bí ngô + dơi + ma)', scale: 1.45, items: [
+            P('pumpkin', 'left:-.6em;bottom:-.45em', .72, 'bob'), P('bat', 'right:-.55em;top:-.55em', .72, 'sway'), P('ghost', 'left:-.45em;top:-.6em', .5, 'bob'),
+            P('sparkle', 'right:20%;bottom:-.42em', .26, 'tw') ] },
+        { id: 'noel',    label: '🎄 Noel (mũ + thông + tuyết)', scale: 1.45, items: [
+            P('santaHat', 'left:-.38em;top:-.62em', .7, 'sway'), P('tree', 'right:-.55em;bottom:-.3em', .62, 'bob'), P('snowflake', 'right:-.3em;top:-.45em', .4, 'tw'),
+            P('snowflake', 'left:-.35em;bottom:-.25em', .3, 'tw'), P('snowflake', 'left:46%;top:-.48em', .24, 'tw') ] },
+        { id: 'quockhanh', label: '🇻🇳 Quốc khánh (cờ + sao)', scale: 1.45, items: [
+            P('flagVN', 'left:-.65em;top:-.6em', .78, 'sway'), P('starFace', 'right:-.5em;top:-.45em', .58, 'bob'), P('sparkle', 'right:-.35em;bottom:-.2em', .3, 'tw'),
+            P('sparkle', 'left:40%;top:-.5em', .28, 'tw') ] },
         { id: 'royal',   label: '👑 Vương miện', items: [
             P('crown', 'left:2%;top:-.66em', .74, 'sway'), P('sparkle', 'left:-.4em;top:10%', .34, 'tw'), P('sparkle', 'right:-.4em;top:-.3em', .38, 'tw'),
             P('sparkle', 'right:20%;bottom:-.4em', .28, 'tw'), P('starFace', 'right:-.5em;bottom:-.35em', .5, 'bob') ] }
@@ -123,6 +147,61 @@
         };
         return text.replace(/\{[a-z0-9]+\}/gi, (m) => (m.toLowerCase() in map ? map[m.toLowerCase()] : m)).slice(0, MAX_LEN + 20);
     }
+    // ===== 🎁 Bộ chữ mẫu theo mùa — bấm 1 lần là có chữ + kiểu + màu + sticker + vị trí =====
+    // when(d): true nếu ngày d nằm trong dịp. Tết / Trung Thu theo âm lịch (bảng ngày dương 2026–2030).
+    const TET = { 2026: '02-17', 2027: '02-06', 2028: '01-26', 2029: '02-13', 2030: '02-03' };
+    const TRUNG_THU = { 2026: '09-25', 2027: '09-15', 2028: '10-03', 2029: '09-22', 2030: '09-12' };
+    const md = (d) => (d.getMonth() + 1) * 100 + d.getDate();               // 15/10 → 1015
+    const within = (d, from, to) => { const v = md(d); return from <= to ? v >= from && v <= to : v >= from || v <= to; };
+    const nearLunar = (d, table, before, after) => [d.getFullYear() - 1, d.getFullYear(), d.getFullYear() + 1].some(y => {
+        if (!table[y]) return false;
+        const t = new Date(`${y}-${table[y]}T00:00:00`), diff = (d - t) / 864e5;
+        return diff >= -before && diff <= after;
+    });
+    const T = (text, style, deco, extra) => ({ text, style, deco, anim: 'float', x: 50, y: 46, size: 13, rot: -4, ...extra });
+    const PRESETS = [
+        { id: 'tet', label: '🧧 Tết Nguyên Đán', when: d => nearLunar(d, TET, 14, 10), items: [
+            T('Chúc Mừng\nNăm Mới', 'puffy', 'tet', { color: '#ff3b3b', color2: '#ffc21a' }),
+            T('An Khang Thịnh Vượng', 'gold', 'none', { y: 78, size: 7, rot: 0, anim: 'shine' }) ] },
+        { id: 'valentine', label: '💘 Valentine', when: d => within(d, 207, 215), items: [
+            T('Happy\nValentine', 'puffy', 'valentine', { color: '#ff4f8b', color2: '#ff9ec4', anim: 'pulse' }) ] },
+        { id: 'women83', label: '🌷 Quốc tế Phụ nữ 8/3', when: d => within(d, 301, 309), items: [
+            T('Mừng ngày Phụ Nữ\n8 · 3', 'plaque', 'women', { color: '#ff7eb6', size: 8.5 }) ] },
+        { id: 'women2010', label: '🌷 Phụ nữ Việt Nam 20/10', when: d => within(d, 1013, 1021), items: [
+            T('Mừng ngày Phụ Nữ\n20 · 10', 'plaque', 'women', { color: '#ff6fa8', size: 8.5 }) ] },
+        { id: 'xuan', label: '🌸 Mùa xuân', when: d => within(d, 201, 430), items: [
+            T('Hello\nSpring', 'puffy', 'flowers', { color: '#ff8fc0', color2: '#7fcf6e' }) ] },
+        { id: 'he', label: '🏖 Mùa hè', when: d => within(d, 501, 831), items: [
+            T('Summer\nVibes', 'puffy', 'summer', { color: '#ffa526', color2: '#2fbfff' }) ] },
+        { id: 'quockhanh', label: '🇻🇳 Quốc khánh 2/9', when: d => within(d, 828, 903), items: [
+            T('Mừng\nQuốc Khánh', 'puffy', 'quockhanh', { color: '#e8202a', color2: '#ffcd00' }),
+            T('2 · 9', 'gold', 'none', { y: 77, size: 9, rot: 0, anim: 'shine' }) ] },
+        { id: 'trungthu', label: '🏮 Trung Thu', when: d => nearLunar(d, TRUNG_THU, 12, 3), items: [
+            T('Trung Thu\nVui Vẻ', 'puffy', 'trungthu', { color: '#ffb31a', color2: '#ff5a3c' }) ] },
+        { id: 'halloween', label: '🎃 Halloween', when: d => within(d, 1020, 1101), items: [
+            T('Happy\nHalloween', 'puffy', 'halloween', { color: '#ff8a1f', color2: '#9b5cff', anim: 'wiggle' }) ] },
+        { id: 'noel', label: '🎄 Giáng sinh', when: d => within(d, 1201, 1226), items: [
+            T('Merry\nChristmas', 'puffy', 'noel', { color: '#e8323c', color2: '#27a85a' }) ] },
+        { id: 'top', label: '👑 Vinh danh TOP 1 (tự đổi)', items: [
+            T('{top1}\nTOP 1 · {top1xu} xu', 'plaque', 'royal', { color: '#f5a300', size: 10, y: 16, rot: 0, anim: 'none' }) ] },
+        { id: 'goal', label: '🎯 Mục tiêu (tự đổi)', items: [
+            T('Mục tiêu {phantram}', 'sticker', 'sparkle', { color: '#2fb4ff', y: 80, size: 8, rot: 0 }) ] },
+        { id: 'thanks', label: '💗 Cảm ơn cả nhà', items: [
+            T('Cảm ơn\ncả nhà', 'puffy', 'bunny', { color: '#ff8fc0', color2: '#74c4ff' }) ] },
+        { id: 'brand', label: '✨ HP Media', items: [
+            T('HP Media', 'puffy', 'duck', { color: '#ff8fc0', y: 16, rot: -3 }) ] }
+    ];
+    // Danh sách id bộ mẫu ĐÚNG DỊP hôm nay (dịp lễ đứng trước mùa).
+    function presetsFor(date) {
+        const d = date instanceof Date ? date : new Date();
+        return PRESETS.filter(p => p.when && p.when(d)).map(p => p.id);
+    }
+    // Tạo danh sách chữ từ 1 bộ mẫu (id mới, đã chuẩn hoá).
+    function presetItems(id) {
+        const p = PRESETS.find(x => x.id === id);
+        const t = Date.now().toString(36);
+        return p ? p.items.map((it, i) => normalizeItem({ ...it, id: 'jt' + t + i })) : [];
+    }
     function newItem(n) {
         return normalizeItem({ id: 'jt' + Date.now().toString(36), text: 'HP Media', style: 'puffy', anim: 'float', deco: 'sparkle', x: 50, y: 55 + (n || 0) * 8 % 30, size: 12 });
     }
@@ -156,8 +235,10 @@
         (deco && R3 ? deco.items : []).forEach((d, i) => {
             const s = document.createElement('img');
             s.className = `tt-jt-d${d.back ? ' back' : ''}${d.anim ? ' ' + d.anim : ''}`;
-            const pos = it.flip ? d.pos.replace(/\b(left|right):/g, (m, k) => (k === 'left' ? 'right:' : 'left:')) : d.pos;
-            s.style.cssText = `${pos};width:${d.w}em;animation-delay:${(-i * 0.37).toFixed(2)}s`;
+            const k = deco.scale || 1;   // bộ theo mùa phóng to cả cỡ lẫn khoảng cách (em) để cân với chữ
+            let pos = k === 1 ? d.pos : d.pos.replace(/-?\d*\.?\d+em/g, v => (parseFloat(v) * k).toFixed(3) + 'em');
+            if (it.flip) pos = pos.replace(/\b(left|right):/g, (m, q) => (q === 'left' ? 'right:' : 'left:'));
+            s.style.cssText = `${pos};width:${(d.w * k).toFixed(3)}em;animation-delay:${(-i * 0.37).toFixed(2)}s`;
             s.alt = '';
             s.draggable = false;
             s.src = R3.sticker(d.piece);
@@ -201,5 +282,5 @@
         });
     }
 
-    return { STYLES, ANIMS, DECOS, VARS, DEFAULT_COLOR, DEFAULT_COLOR2, MAX_ITEMS, MAX_LEN, POS_MIN, POS_MAX, normalizeItem, normalizeList, newItem, fillVars, paint };
+    return { PRESETS, presetsFor, presetItems, STYLES, ANIMS, DECOS, VARS, DEFAULT_COLOR, DEFAULT_COLOR2, MAX_ITEMS, MAX_LEN, POS_MIN, POS_MAX, normalizeItem, normalizeList, newItem, fillVars, paint };
 });

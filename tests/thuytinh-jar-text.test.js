@@ -47,3 +47,23 @@ test('newItem: tên mẫu HP Media; flip là boolean', () => {
     assert.equal(JT.normalizeItem({ flip: 1 }).flip, true);
     assert.equal(JT.normalizeItem({}).flip, false);
 });
+
+test('presetsFor: gợi ý đúng dịp (Tết/Trung Thu theo âm lịch)', () => {
+    const at = (s) => JT.presetsFor(new Date(s + 'T12:00:00'));
+    assert.deepEqual(at('2026-10-15'), ['women2010']);
+    assert.ok(at('2027-02-03').includes('tet'));          // Tết 2027 = 06/02
+    assert.ok(at('2026-09-20').includes('trungthu'));     // Trung Thu 2026 = 25/09
+    assert.ok(at('2026-12-24').includes('noel'));
+    assert.ok(at('2026-10-25').includes('halloween'));
+    assert.deepEqual(at('2026-11-15'), []);
+});
+
+test('presetItems: mọi bộ mẫu ra chữ hợp lệ, sticker có thật, id không trùng', () => {
+    for (const p of JT.PRESETS) {
+        const items = JT.presetItems(p.id);
+        assert.ok(items.length > 0, p.id);
+        for (const it of items) assert.ok(JT.DECOS.some(d => d.id === it.deco), p.id + ' deco ' + it.deco);
+        assert.equal(new Set(items.map(i => i.id)).size, items.length);
+    }
+    assert.deepEqual(JT.presetItems('khong-co'), []);
+});
