@@ -318,6 +318,7 @@
         cfgScaleUfo: $('#cfg-scale-ufo'),
         cfgScaleUfoV: $('#cfg-scale-ufo-v'),
         cfgJarAccessory: $('#cfg-jar-accessory'),
+        cfgJarSkin: $('#cfg-jar-skin'),
         cfgJarTheme: $('#cfg-jar-theme'),
         cfgBadgesEnabled: $('#cfg-badges-enabled'),
         cfgBadgesLayout: $('#cfg-badges-layout'),
@@ -1369,6 +1370,9 @@
         if (dom.cfgScaleUfoV) dom.cfgScaleUfoV.textContent = sUf;
         if (dom.cfgJarAccessory) dom.cfgJarAccessory.value = cfg.jarAccessory || 'none';
         if (dom.cfgJarTheme) dom.cfgJarTheme.value = cfg.jarTheme || 'default';
+        fillJarSkinSelect();
+        if (dom.cfgJarSkin) dom.cfgJarSkin.value = window.HpJarSkins?.byId[cfg.jarSkin] ? cfg.jarSkin : '';
+        if (dom.cfgJarTheme) dom.cfgJarTheme.disabled = !!(dom.cfgJarSkin && dom.cfgJarSkin.value);
         currentJarTexts = window.HpJarText ? window.HpJarText.normalizeList(cfg.jarTexts) : [];
         renderJarTextPanel();
         const bdg = cfg.badges || {};
@@ -1503,6 +1507,7 @@
             },
             jarAccessory: dom.cfgJarAccessory?.value || 'none',
             jarTheme: dom.cfgJarTheme?.value || 'default',
+            jarSkin: dom.cfgJarSkin?.value || '',
             jarTexts: JSON.parse(JSON.stringify(currentJarTexts || [])),
             badges: {
                 enabled: !!dom.cfgBadgesEnabled?.checked,
@@ -2687,6 +2692,20 @@
     dom.cfgJarVisible?.addEventListener('change', pushConfigUpdate);
     dom.cfgJarLocked?.addEventListener('change', pushConfigUpdate);
     dom.cfgJarAccessory?.addEventListener('change', pushConfigUpdate);
+    // 🫙 Kiểu hũ (jar-skins.js): nhóm Thường / Theo mùa; chọn kiểu riêng thì khoá "Theme hũ" (chỉ cho hũ mặc định)
+    function fillJarSkinSelect() {
+        const sel = dom.cfgJarSkin;
+        if (!sel || sel.options.length) return;
+        const S = window.HpJarSkins?.SKINS || [];
+        const opt = (s) => `<option value="${s.id}">${String(s.no).padStart(2, '0')}. ${s.name}</option>`;
+        sel.innerHTML = '<option value="">Hũ mặc định</option>'
+            + `<optgroup label="Kiểu thường (${S.filter(s => !s.season).length})">${S.filter(s => !s.season).map(opt).join('')}</optgroup>`
+            + `<optgroup label="Theo mùa / dịp lễ (${S.filter(s => s.season).length})">${S.filter(s => s.season).map(opt).join('')}</optgroup>`;
+    }
+    dom.cfgJarSkin?.addEventListener('change', () => {
+        if (dom.cfgJarTheme) dom.cfgJarTheme.disabled = !!dom.cfgJarSkin.value;
+        pushConfigUpdate();
+    });
 
     // ===== ✍️ Chữ trang trí hũ — danh sách chỉnh trong panel, kéo đặt chỗ trên khung xem trước =====
     function renderJarTextPanel() {

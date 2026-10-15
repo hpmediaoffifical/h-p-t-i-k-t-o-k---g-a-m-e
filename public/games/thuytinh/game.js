@@ -15,6 +15,8 @@
         neckTopY: 0.195, shoulderY: 0.235
     };
     const JAR_ASPECT = 1024 / 1536;
+    // Kiểu hũ (skin, jar-skins.js): đổi SHAPE theo hũ đang chọn — giữ bản gốc để quay về hũ mặc định.
+    const DEFAULT_SHAPE = { ...SHAPE };
 
     function defaultConfig() {
         // ⭐ DEFAULTS = setup vận hành CHỈN CHU của HP Media (v1.0.50+) — áp dụng cho install MỚI.
@@ -159,6 +161,7 @@
             // 🎨 Theme màu hũ — đổi ảnh jar-glass theo PNG khác màu (bên-ngoai folder)
             // Các option: default | blue | cam | green | pink | tim | yellow
             jarTheme: 'default',
+            jarSkin: '',       // '' = hũ mặc định; id trong jar-skins.js = kiểu hũ 2 lớp (đổi cả va chạm)
             jarTexts: [],      // ✍️ chữ trang trí hũ — xem jar-text.js
             // 🏷 Badge hiệu ứng quà — bật + auto-scroll mặc định cho install mới
             badges: {
@@ -591,6 +594,8 @@
             // applyTilt sau đó sẽ tự tính delta đúng từ 0.
             currentTiltAngle = 0;
             const r = jarRect();
+            const skin = currentJarSkin();
+            if (skin) { buildSkinWalls(skin, r); Composite.add(engine.world, jarWalls); return; }
             const T = 14;
             const lx = r.x + r.w * SHAPE.bodyLeftX;
             const rx = r.x + r.w * SHAPE.bodyRightX;
@@ -623,6 +628,45 @@
             jarWalls.push(makeWall(nlx - out, nty + nh / 2, WALL_T, nh + 8));
             jarWalls.push(makeWall(nrx + out, nty + nh / 2, WALL_T, nh + 8));
             Composite.add(engine.world, jarWalls);
+        }
+        // Tường theo THÀNH TRONG của kiểu hũ: mỗi đoạn polyline = 1 thanh dày nằm hẳn phía NGOÀI nét kính
+        // (mặt trong trùng nét vẽ). Dày 60px / đáy 80px — mô phỏng sim_jars.js: 46 kiểu, 0 quà xuyên thành.
+        function buildSkinWalls(skin, r) {
+            const T = 60, FLOOR_T = 80;
+            const P = (p) => ({ x: r.x + r.w * p[0], y: r.y + r.h * p[1] });
+            const right = skin.innerRight.map(P);
+            const left = skin.innerRight.map(p => P([2 * skin.cx - p[0], p[1]]));
+            for (const [side, sgn] of [[right, 1], [left, -1]]) {
+                for (let i = 0; i < side.length - 1; i++) {
+                    const a = side[i], b = side[i + 1];
+                    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+                    if (len < 0.5) continue;
+                    const nx = dy / len * sgn, ny = -dx / len * sgn;     // pháp tuyến hướng ra ngoài
+                    const th = ny > 0.7 ? FLOOR_T : T;
+                    jarWalls.push(makeWall((a.x + b.x) / 2 + nx * th / 2, (a.y + b.y) / 2 + ny * th / 2, len + T, th, Math.atan2(dy, dx)));
+                }
+            }
+        }
+        function currentJarSkin() {
+            const id = config.jarSkin;
+            return id && window.HpJarSkins ? window.HpJarSkins.byId[id] || null : null;
+        }
+        // Đổi kiểu hũ: SHAPE (mốc cổ/thân/đáy) + 2 lớp ảnh. Gọi TRƯỚC positionJar() để tường dựng theo hình mới.
+        let _defaultBottomSrc = null, _skinApplied;
+        function applyJarSkin() {
+            const skin = currentJarSkin();
+            const key = skin ? skin.id : '';
+            if (_defaultBottomSrc === null && jarBottomEl) _defaultBottomSrc = jarBottomEl.getAttribute('src') || '/assets/thuytinh/jar-bottom.png';
+            Object.assign(SHAPE, DEFAULT_SHAPE, skin ? skin.shape : null);
+            if (key === _skinApplied) return;
+            _skinApplied = key;
+            if (skin) {
+                if (jarBottomEl) jarBottomEl.src = skin.back;
+                if (jarGlassEl) jarGlassEl.src = skin.front;
+            } else {
+                if (jarBottomEl && _defaultBottomSrc) jarBottomEl.src = _defaultBottomSrc;
+                if (jarGlassEl) jarGlassEl.src = JAR_THEME_PATHS[config.jarTheme] || JAR_THEME_PATHS.default;
+            }
         }
         function removeJarWalls() {
             if (jarWalls.length) Composite.remove(engine.world, jarWalls);
@@ -2753,7 +2797,7 @@
         }
         // Đổi PNG hũ ngoài theo theme — chỉ thay src của jarGlassEl
         function applyJarTheme() {
-            if (!jarGlassEl) return;
+            if (!jarGlassEl || currentJarSkin()) return;   // kiểu hũ riêng có ảnh của nó
             const theme = config.jarTheme || 'default';
             const newSrc = JAR_THEME_PATHS[theme] || JAR_THEME_PATHS.default;
             // Compare relative path (img.src returns absolute URL)
@@ -5599,6 +5643,7 @@
             } else {
                 audio.resume();
             }
+            applyJarSkin();
             positionJar();
             // Cập nhật TẤT CẢ panel để pick up vị trí + scale mới từ config
             updateGoalBar(); updateLeaderboard(); updateSessionTotals(); updateCrown(); updateTopHangers();
@@ -5730,6 +5775,7 @@
 
         // Init
         ensureOverlayDom();
+        applyJarSkin();
         positionJar();
         updateGoalBar(); updateSessionTotals(); updateLeaderboard(); updateCrown();
         applyActorScales();
