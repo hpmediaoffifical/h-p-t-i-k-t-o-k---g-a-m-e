@@ -1,5 +1,7 @@
 // ✍️ Chữ trang trí Hũ Thủy Tinh — dùng chung cho overlay (game.js) và panel (app.js).
 // Mỗi chữ: { id, text, style, anim, deco, flip, x, y, size, rot, color?, color2? }
+//   show  = 'always' | 'goal' (chỉ hiện lúc ăn mừng đạt mục tiêu) | 'gift' (hiện vài giây khi có quà ≥ minXu);
+//   pop   = nảy lên khi có quà ≥ minXu.
 //   flip  = đảo sticker trái ↔ phải.  text có thể chứa BIẾN tự điền: {top1} {top2} {top3} {top1xu} {tong} {qua} {muctieu} {phantram}.
 //   x, y  = TÂM chữ, % khung ảnh hũ (−50…150: được kéo ra ngoài hũ, vd vắt ngang miệng hũ)
 //           → chữ đi theo hũ khi hũ lắc/nghiêng/bị trộm.
@@ -105,6 +107,13 @@
     const STYLE_IDS = new Set(STYLES.map(s => s.id));
     const ANIM_IDS = new Set(ANIMS.map(a => a.id));
     const DECO_IDS = new Set(DECOS.map(d => d.id));
+    // Khi nào chữ hiện (engine Hũ bật/tắt theo quà & mục tiêu; trong app vẫn thấy mờ để chỉnh)
+    const SHOWS = [
+        { id: 'always', label: 'Luôn hiện' },
+        { id: 'goal',   label: '🎯 Khi đạt mục tiêu' },
+        { id: 'gift',   label: '🎁 Khi có quà lớn' }
+    ];
+    const SHOW_IDS = new Set(SHOWS.map(x => x.id));
     const clamp = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
     const hex = (v) => /^#[0-9a-f]{6}$/i.test(v || '') ? v.toLowerCase() : '';
 
@@ -117,6 +126,9 @@
             anim: ANIM_IDS.has(it.anim) ? it.anim : 'none',
             deco: DECO_IDS.has(it.deco) ? it.deco : 'none',
             flip: !!it.flip,
+            show: SHOW_IDS.has(it.show) ? it.show : 'always',
+            pop: !!it.pop,
+            minXu: Math.round(clamp(it.minXu, 1, 100000, 100)),
             x: clamp(it.x, POS_MIN, POS_MAX, 50),
             y: clamp(it.y, POS_MIN, POS_MAX, 60),
             size: clamp(it.size, 4, 30, 12),
@@ -132,7 +144,8 @@
     const VARS = [
         { k: '{top1}', label: 'Tên TOP 1' }, { k: '{top2}', label: 'Tên TOP 2' }, { k: '{top3}', label: 'Tên TOP 3' },
         { k: '{top1xu}', label: 'Xu của TOP 1' }, { k: '{tong}', label: 'Tổng xu' }, { k: '{qua}', label: 'Số quà' },
-        { k: '{muctieu}', label: 'Mục tiêu' }, { k: '{phantram}', label: '% mục tiêu' }
+        { k: '{muctieu}', label: 'Mục tiêu' }, { k: '{phantram}', label: '% mục tiêu' },
+        { k: '{nguoitang}', label: 'Người vừa tặng quà' }
     ];
     const fmtNum = (n) => { n = Math.round(Number(n) || 0); return n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace('.', ',') + 'Tr' : n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1).replace('.', ',') + 'K' : n.toLocaleString('vi-VN'); };
     const shortName = (s) => { s = String(s || '').trim(); return s.length > 14 ? s.slice(0, 13) + '…' : s; };
@@ -143,7 +156,8 @@
         const pct = d.muctieu ? Math.min(999, Math.floor((d.tong || 0) / d.muctieu * 100)) : 0;
         const map = {
             '{top1}': shortName(top[0]?.name) || '???', '{top2}': shortName(top[1]?.name) || '???', '{top3}': shortName(top[2]?.name) || '???',
-            '{top1xu}': fmtNum(top[0]?.xu), '{tong}': fmtNum(d.tong), '{qua}': fmtNum(d.qua), '{muctieu}': fmtNum(d.muctieu), '{phantram}': pct + '%'
+            '{top1xu}': fmtNum(top[0]?.xu), '{tong}': fmtNum(d.tong), '{qua}': fmtNum(d.qua), '{muctieu}': fmtNum(d.muctieu), '{phantram}': pct + '%',
+            '{nguoitang}': shortName(d.nguoitang) || 'bạn'
         };
         return text.replace(/\{[a-z0-9]+\}/gi, (m) => (m.toLowerCase() in map ? map[m.toLowerCase()] : m)).slice(0, MAX_LEN + 20);
     }
@@ -186,6 +200,10 @@
             T('{top1}\nTOP 1 · {top1xu} xu', 'plaque', 'royal', { color: '#f5a300', size: 10, y: 16, rot: 0, anim: 'none' }) ] },
         { id: 'goal', label: '🎯 Mục tiêu (tự đổi)', items: [
             T('Mục tiêu {phantram}', 'sticker', 'sparkle', { color: '#2fb4ff', y: 80, size: 8, rot: 0 }) ] },
+        { id: 'biggift', label: '🎉 Cảm ơn quà lớn (hiện khi có quà)', items: [
+            T('Cảm ơn\n{nguoitang}', 'puffy', 'sparkle', { color: '#ff8fc0', color2: '#ffc21a', show: 'gift', pop: true, minXu: 99, anim: 'bounce' }) ] },
+        { id: 'finish', label: '🏁 Về đích (hiện khi đạt mục tiêu)', items: [
+            T('VỀ ĐÍCH!\n{tong} xu', 'gold', 'royal', { show: 'goal', pop: true, size: 12, rot: -3, anim: 'pulse' }) ] },
         { id: 'thanks', label: '💗 Cảm ơn cả nhà', items: [
             T('Cảm ơn\ncả nhà', 'puffy', 'bunny', { color: '#ff8fc0', color2: '#74c4ff' }) ] },
         { id: 'brand', label: '✨ HP Media', items: [
@@ -210,7 +228,9 @@
     // Cấu trúc: .tt-jt (vị trí + xoay) > .tt-jt-box (hiệu ứng động + nền nhãn + sticker .tt-jt-d)
     //           > .tt-jt-in (mỗi dòng; ::before = viền/khối 3D) > span (màu tô).
     function paint(el, it) {
-        el.className = `tt-jt tt-jt-${it.style}` + (it.anim !== 'none' ? ` tt-jt-a-${it.anim}` : '');
+        // giữ class TRẠNG THÁI do engine/app gắn (ẩn chờ quà, đang chọn, đang nảy, đang kéo) — vẽ lại khi font nạp xong không được xoá
+        const state = ['tt-jt-off', 'tt-jt-sel', 'tt-jt-pop', 'tt-jt-drag'].filter(c => el.classList && el.classList.contains(c));
+        el.className = `tt-jt tt-jt-${it.style}` + (it.anim !== 'none' ? ` tt-jt-a-${it.anim}` : '') + (state.length ? ' ' + state.join(' ') : '');
         el.dataset.id = it.id;
         el.style.left = it.x + '%';
         el.style.top = it.y + '%';
@@ -282,5 +302,5 @@
         });
     }
 
-    return { PRESETS, presetsFor, presetItems, STYLES, ANIMS, DECOS, VARS, DEFAULT_COLOR, DEFAULT_COLOR2, MAX_ITEMS, MAX_LEN, POS_MIN, POS_MAX, normalizeItem, normalizeList, newItem, fillVars, paint };
+    return { SHOWS, PRESETS, presetsFor, presetItems, STYLES, ANIMS, DECOS, VARS, DEFAULT_COLOR, DEFAULT_COLOR2, MAX_ITEMS, MAX_LEN, POS_MIN, POS_MAX, normalizeItem, normalizeList, newItem, fillVars, paint };
 });

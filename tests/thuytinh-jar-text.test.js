@@ -67,3 +67,14 @@ test('presetItems: mọi bộ mẫu ra chữ hợp lệ, sticker có thật, id 
     }
     assert.deepEqual(JT.presetItems('khong-co'), []);
 });
+
+test('show/pop/minXu: chuẩn hoá + biến {nguoitang}', () => {
+    const it = JT.normalizeItem({ show: 'gift', pop: 1, minXu: 0 });
+    assert.deepEqual([it.show, it.pop, it.minXu], ['gift', true, 1]);
+    assert.equal(JT.normalizeItem({ show: 'xx' }).show, 'always');
+    assert.equal(JT.normalizeItem({}).minXu, 100);
+    assert.equal(JT.fillVars('Cảm ơn {nguoitang}', { nguoitang: 'Hoài An' }), 'Cảm ơn Hoài An');
+    assert.equal(JT.fillVars('{nguoitang}', {}), 'bạn');
+    assert.equal(JT.presetItems('biggift')[0].show, 'gift');
+    assert.equal(JT.presetItems('finish')[0].show, 'goal');
+});

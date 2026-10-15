@@ -2721,6 +2721,11 @@
                     <label>Cỡ <input type="range" class="jt-size" min="4" max="30" step="0.5" value="${it.size}" /></label>
                     <label>Xoay <input type="range" class="jt-rot" min="-45" max="45" step="1" value="${it.rot}" /></label>
                 </div>
+                <div class="jt-row jt-react">
+                    <select class="cfg-select jt-show" title="Khi nào chữ hiện">${JT.SHOWS.map(x => `<option value="${x.id}" ${x.id === it.show ? 'selected' : ''}>${x.label}</option>`).join('')}</select>
+                    <label title="Nảy lên mỗi khi có quà từ mức xu này"><input type="checkbox" class="jt-pop" ${it.pop ? 'checked' : ''}/> Nảy</label>
+                    <label title="Quà từ bao nhiêu xu thì tính là quà lớn">≥ <input type="number" class="jt-minxu" min="1" max="100000" value="${it.minXu}" ${it.show === 'gift' || it.pop ? '' : 'disabled'}/> xu</label>
+                </div>
                 <div class="jt-row jt-sliders">
                     <label>Ngang <input type="range" class="jt-x" min="${JT.POS_MIN}" max="${JT.POS_MAX}" step="0.5" value="${it.x}" /></label>
                     <label>Dọc <input type="range" class="jt-y" min="${JT.POS_MIN}" max="${JT.POS_MAX}" step="0.5" value="${it.y}" /></label>
@@ -2772,12 +2777,15 @@
             else if (e.target.matches('.jt-y')) jtUpdate(id, { y: +e.target.value });
             else if (e.target.matches('.jt-color')) jtUpdate(id, { color: e.target.value });
             else if (e.target.matches('.jt-color2')) jtUpdate(id, { color2: e.target.value });
+            else if (e.target.matches('.jt-minxu')) jtUpdate(id, { minXu: +e.target.value });
         });
         host.addEventListener('change', (e) => {
             const id = idOf(e.target); if (!id) return;
             if (e.target.matches('.jt-style')) jtUpdate(id, { style: e.target.value, color: '' }, true);
             else if (e.target.matches('.jt-anim')) jtUpdate(id, { anim: e.target.value });
             else if (e.target.matches('.jt-deco')) jtUpdate(id, { deco: e.target.value });
+            else if (e.target.matches('.jt-show')) jtUpdate(id, { show: e.target.value }, true);
+            else if (e.target.matches('.jt-pop')) jtUpdate(id, { pop: e.target.checked }, true);
         });
         host.addEventListener('click', (e) => {
             const id = idOf(e.target); if (!id) return;

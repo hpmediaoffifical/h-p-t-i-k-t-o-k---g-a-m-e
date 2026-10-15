@@ -677,6 +677,7 @@
         function drop(g, count) {
             if (!isEnabled()) return;
             const n = Math.max(1, parseInt(count || g.repeatCount || 1, 10));
+            jarTextGift(g, n);
             let triggerAction = config.triggers && config.triggers[String(g.giftId)];
             if (DISABLED_TRIGGER_ACTIONS.has(triggerAction)) triggerAction = null;
             if (triggerAction) {
@@ -1173,6 +1174,7 @@
             if (!config.features.goalBar || stats.goalReached) return updateGoalBar();
             if (config.goal.target > 0 && stats.totalDiamonds >= config.goal.target) {
                 stats.goalReached = true;
+                jarTextGoal();
                 // 🎯 Goal celebration — confetti 5s + fanfare + animated toast
                 fxGoalCelebration();
                 showWelcome({ giftId: 'goal', giftName: `🎯 Đạt mục tiêu ${config.goal.target}⭐`, image: '' });
@@ -2853,13 +2855,59 @@
                 el.classList.toggle('tt-jt-sel', !mirrorMode && it.id === _jarTextSel);
             });
             old.forEach(el => el.remove());
+            refreshJarTextVis();
         }
         // Số liệu cho biến tự điền {top1} {tong}… (đọc từ stats của Hũ)
         function jarTextVars() {
             return {
                 top: topTippers(3).map(t => ({ name: t.nickname || t.uniqueId || '', xu: t.diamonds })),
-                tong: stats.totalDiamonds, qua: stats.totalGifts, muctieu: config.goal?.target || 0
+                tong: stats.totalDiamonds, qua: stats.totalGifts, muctieu: config.goal?.target || 0,
+                nguoitang: _jtLastGifter
             };
+        }
+        // ===== Chữ phản ứng theo LIVE: hiện khi đạt mục tiêu / có quà lớn, nảy khi có quà lớn =====
+        const _jtShowUntil = new Map();      // id → thời điểm hết hiện (show: 'gift')
+        let _jtGoalUntil = 0, _jtLastGifter = '';
+        function jarTextVisible(it, now) {
+            if (it.show === 'goal') return now < _jtGoalUntil;
+            if (it.show === 'gift') return now < (_jtShowUntil.get(it.id) || 0);
+            return true;
+        }
+        function refreshJarTextVis() {
+            if (!_jarTextsEl) return;
+            const now = Date.now();
+            const map = new Map(jarTextList().map(it => [it.id, it]));
+            _jarTextsEl.querySelectorAll('.tt-jt').forEach(el => {
+                const it = map.get(el.dataset.id);
+                el.classList.toggle('tt-jt-off', !!it && !jarTextVisible(it, now));
+            });
+        }
+        function popJarText(id) {
+            const el = _jarTextsEl?.querySelector(`.tt-jt[data-id="${id}"]`);
+            if (!el) return;
+            el.classList.remove('tt-jt-pop'); void el.offsetWidth; el.classList.add('tt-jt-pop');
+        }
+        function jarTextGift(g, n) {
+            if (!config.jarTexts?.length) return;
+            const xu = (Number(g.coinValue ?? g.diamondCount) || 0) * (n || 1);
+            _jtLastGifter = g.nickname || g.uniqueId || _jtLastGifter;
+            applyJarTexts();                                   // {nguoitang} {tong}… đổi theo quà
+            const now = Date.now();
+            let shown = false;
+            jarTextList().forEach(it => {
+                if (xu < it.minXu) return;
+                if (it.show === 'gift') { _jtShowUntil.set(it.id, now + 6000); shown = true; }
+                if (it.pop) popJarText(it.id);
+            });
+            if (shown) { refreshJarTextVis(); setTimeout(refreshJarTextVis, 6100); }
+        }
+        function jarTextGoal() {
+            if (!config.jarTexts?.length) return;
+            _jtGoalUntil = Date.now() + 8000;
+            applyJarTexts();
+            refreshJarTextVis();
+            setTimeout(refreshJarTextVis, 8100);
+            jarTextList().forEach(it => { if (it.show === 'goal' || it.pop) popJarText(it.id); });
         }
         function emitJarTexts(list) {
             config.jarTexts = list;
