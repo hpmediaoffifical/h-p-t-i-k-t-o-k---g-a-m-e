@@ -2826,6 +2826,7 @@
             _jarTextsEl.className = 'tt-jar-texts';
             jarGlassEl.after(_jarTextsEl);
             try { new MutationObserver(syncJarTextsBox).observe(jarGlassEl, { attributes: true, attributeFilter: ['style'] }); } catch (e) {}
+            window.addEventListener('hp-jt-assets', () => applyJarTexts(true));   // có sticker PNG 3D → vẽ lại
             syncJarTextsBox();
             if (!mirrorMode) wireJarTextDrag(_jarTextsEl);
             return _jarTextsEl;

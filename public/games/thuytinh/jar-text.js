@@ -224,7 +224,7 @@
         const raw = text.split('\n');
         const canvasStyle = typeof self !== 'undefined' && self.HpJarText3D && self.HpJarText3D.CANVAS_STYLES.has(it.style);
         const lines = st.sub ? (raw.length > 1 ? [raw[0], raw.slice(1).join(' ')] : raw) : (st.lines || canvasStyle) ? raw : [text];
-        const key = [it.style, it.deco, it.flip, it.anim === 'shine', it.color, it.color2, lines.join('\u0001')].join('|');
+        const key = [typeof self !== 'undefined' && self.HpJarText3D ? self.HpJarText3D.assetVer : 0, it.style, it.deco, it.flip, it.anim === 'shine', it.color, it.color2, lines.join('\u0001')].join('|');
         let box = el.firstElementChild;
         if (!box || box.className !== 'tt-jt-box') { el.textContent = ''; box = document.createElement('div'); box.className = 'tt-jt-box'; el.appendChild(box); }
         if (box.dataset.k === key) return;

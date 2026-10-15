@@ -205,9 +205,30 @@
         const lin = (stops, x1 = 0, y1 = 0, x2 = 0, y2 = 1) => { const id = 'g' + (n++); defs.push(`<linearGradient id="${id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">${stops.map(([o, c, a]) => `<stop offset="${o}" stop-color="${c}"${a != null ? ` stop-opacity="${a}"` : ''}/>`).join('')}</linearGradient>`); return `url(#${id})`; };
         defs.push('<filter id="bl" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.6"/></filter>');
         defs.push('<filter id="gl" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>');
-        defs.push('<filter id="sd" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2.5" stdDeviation="2" flood-color="#3a1030" flood-opacity=".35"/></filter>');
+        const [vx, vy, vw, vh] = vb.split(/\s+/).map(Number);
+        const u = Math.max(vw, vh) / 100;                       // 1 đơn vị ~ 1% cạnh lớn của sticker
+        // "Khối 3D": ánh sáng điểm trên-trái chiếu lên bề mặt phồng (mờ alpha → bản đồ độ cao) → gờ sáng + mặt tối.
+        defs.push(`<filter id="emb" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">`
+            + `<feGaussianBlur in="SourceAlpha" stdDeviation="${4.5 * u}" result="h"/>`
+            + `<feSpecularLighting in="h" surfaceScale="${6 * u}" specularConstant="1" specularExponent="26" lighting-color="#ffffff" result="sp"><fePointLight x="${vx + vw * .2}" y="${vy - vh * .35}" z="${vw * 1.1}"/></feSpecularLighting>`
+            + `<feComposite in="sp" in2="SourceAlpha" operator="in" result="sp2"/>`
+            + `<feDiffuseLighting in="h" surfaceScale="${6 * u}" diffuseConstant="1" lighting-color="#ffffff" result="df"><feDistantLight azimuth="235" elevation="52"/></feDiffuseLighting>`
+            + `<feComposite in="df" in2="SourceAlpha" operator="in" result="df2"/>`
+            + `<feBlend in="SourceGraphic" in2="df2" mode="multiply" result="lit"/>`
+            + `<feComposite in="lit" in2="SourceGraphic" operator="arithmetic" k1="0" k2=".28" k3=".8" k4="0" result="mixd"/>`
+            + `<feComposite in="sp2" in2="mixd" operator="arithmetic" k1="0" k2=".75" k3="1" k4="0"/></filter>`);
+        // "Sticker cắt bế": viền trắng dày + mặt cạnh có bề dày (lệch xuống) + bóng đổ mềm.
+        defs.push(`<filter id="cut" x="-25%" y="-25%" width="150%" height="150%">`
+            + `<feMorphology in="SourceAlpha" operator="dilate" radius="${3.6 * u}" result="d"/>`
+            + `<feOffset in="d" dy="${2.6 * u}" result="dd"/>`
+            + `<feGaussianBlur in="dd" stdDeviation="${2.6 * u}" result="b"/><feOffset in="b" dy="${2.2 * u}" result="bo"/>`
+            + `<feFlood flood-color="#2a0f2a" flood-opacity=".38"/><feComposite in2="bo" operator="in" result="shadow"/>`
+            + `<feFlood flood-color="#cdc3dc"/><feComposite in2="dd" operator="in" result="side"/>`
+            + `<feFlood flood-color="#ffffff"/><feComposite in2="d" operator="in" result="top"/>`
+            + `<feMerge><feMergeNode in="shadow"/><feMergeNode in="side"/><feMergeNode in="top"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`);
         const body = build({ rad, lin });
-        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}"><defs>${defs.join('')}</defs><g filter="url(#sd)">${body}</g></svg>`;
+        const pad = 9 * u;                                       // chừa chỗ cho viền + bóng (không bị cắt ở mép ảnh)
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vx - pad} ${vy - pad} ${vw + pad * 2} ${vh + pad * 2}"><defs>${defs.join('')}</defs><g filter="url(#cut)"><g filter="url(#emb)">${body}</g></g></svg>`;
     }
     const spec = (cx, cy, rx, ry, rot, a = .9) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="#fff" opacity="${a}" filter="url(#bl)" transform="rotate(${rot} ${cx} ${cy})"/>`;
     const dot = (cx, cy, r) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#fff"/>`;
@@ -312,11 +333,25 @@
             + `<path d="${starPath(62, 37, 16, 6.5)}" fill="${k.rad([[0, '#fff6a6'], [.6, '#ffde00'], [1, '#e0a800']])}" stroke="#ffef80" stroke-width="1"/>` + spec(36, 16, 10, 3, -10, .4))
     });
     const cache = {};
+    // Ảnh PNG 3D vẽ tay (ChatGPT, art-requests/thuytinh/BRIEF-STICKER-3D.md) đặt ở /assets/thuytinh/jar-text/<tên>.png
+    // và khai báo trong manifest.json → dùng PNG thay bản vẽ code. Chưa có thì dùng SVG như cũ.
+    const PNG_DIR = '/assets/thuytinh/jar-text/';
+    let png = new Set(), assetVer = 0;
+    if (typeof fetch === 'function' && typeof location !== 'undefined' && /^https?:/.test(location.protocol)) {
+        fetch(PNG_DIR + 'manifest.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).then(m => {
+            const list = (m && Array.isArray(m.stickers)) ? m.stickers.filter(n => PIECES[n]) : [];
+            if (!list.length) return;
+            png = new Set(list); assetVer++;
+            root.HpJarText3D.assetVer = assetVer;
+            try { root.dispatchEvent(new Event('hp-jt-assets')); } catch (e) {}
+        }).catch(() => {});
+    }
     function sticker(name) {
         if (!PIECES[name]) return '';
+        if (png.has(name)) return PNG_DIR + name + '.png';
         return cache[name] || (cache[name] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(PIECES[name]()));
     }
 
     const CANVAS_STYLES = new Set(['puffy', 'plaque', 'candy', 'bubble', 'gold', 'sticker', 'retro', 'ice', 'rainbow']);
-    root.HpJarText3D = { F, FONT, render, sticker, CANVAS_STYLES, mix };
+    root.HpJarText3D = { F, FONT, render, sticker, CANVAS_STYLES, mix, assetVer: 0, PIECE_NAMES: Object.keys(PIECES) };
 })(typeof self !== 'undefined' ? self : this);
