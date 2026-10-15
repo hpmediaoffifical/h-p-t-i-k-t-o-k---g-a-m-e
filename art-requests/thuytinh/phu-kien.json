@@ -1,0 +1,595 @@
+{
+ "meta": {
+  "canvas": [
+   1536,
+   1024
+  ],
+  "mouth": {
+   "left": 448,
+   "right": 1088,
+   "y": 384
+  },
+  "body": {
+   "left": 368,
+   "right": 1168,
+   "top": 180,
+   "bottom": 900
+  },
+  "anchors": {
+   "co": {
+    "neo": "mouth",
+    "diem": [
+     768,
+     384
+    ]
+   },
+   "vanh": {
+    "neo": "mouth",
+    "diem": [
+     768,
+     384
+    ]
+   },
+   "ngoi": {
+    "neo": "mouth",
+    "diem": [
+     1088,
+     384
+    ]
+   },
+   "treo": {
+    "neo": "mouth",
+    "diem": [
+     768,
+     384
+    ]
+   },
+   "than": {
+    "neo": "body",
+    "diem": [
+     768,
+     540
+    ]
+   }
+  },
+  "note": "scale = (mép ngoài miệng hũ thật) / 640 với neo mouth; = bề ngang thân thật / 800 với neo body"
+ },
+ "items": [
+  {
+   "code": "B01",
+   "id": "bow-pink",
+   "name": "Nơ lụa hồng",
+   "kind": "co",
+   "layers": "T",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B01_bow-pink_truoc.png"
+   ]
+  },
+  {
+   "code": "B02",
+   "id": "bow-blue",
+   "name": "Nơ lụa xanh",
+   "kind": "co",
+   "layers": "T",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B02_bow-blue_truoc.png"
+   ]
+  },
+  {
+   "code": "B03",
+   "id": "bow-white",
+   "name": "Nơ trắng viền bạc",
+   "kind": "co",
+   "layers": "T",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B03_bow-white_truoc.png"
+   ]
+  },
+  {
+   "code": "B04",
+   "id": "bow-black",
+   "name": "Nơ nhung đen",
+   "kind": "co",
+   "layers": "T",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B04_bow-black_truoc.png"
+   ]
+  },
+  {
+   "code": "B10",
+   "id": "bow-tartan",
+   "name": "Nơ caro đỏ",
+   "kind": "co",
+   "layers": "T",
+   "frames": 1,
+   "season": "noel",
+   "files": [
+    "B10_bow-tartan_truoc.png"
+   ]
+  },
+  {
+   "code": "B11",
+   "id": "bow-pastel",
+   "name": "Nơ cầu vồng pastel",
+   "kind": "co",
+   "layers": "T",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B11_bow-pastel_truoc.png"
+   ]
+  },
+  {
+   "code": "B06",
+   "id": "flower-cherry",
+   "name": "Vòng hoa anh đào",
+   "kind": "co",
+   "layers": "TS",
+   "frames": 1,
+   "season": "xuan",
+   "files": [
+    "B06_flower-cherry_truoc.png",
+    "B06_flower-cherry_sau.png"
+   ]
+  },
+  {
+   "code": "B07",
+   "id": "star-gold",
+   "name": "Chuỗi sao vàng",
+   "kind": "co",
+   "layers": "TS",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B07_star-gold_truoc.png",
+    "B07_star-gold_sau.png"
+   ]
+  },
+  {
+   "code": "B09",
+   "id": "gem-diamond",
+   "name": "Dây chuyền kim cương",
+   "kind": "co",
+   "layers": "TS",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B09_gem-diamond_truoc.png",
+    "B09_gem-diamond_sau.png"
+   ]
+  },
+  {
+   "code": "B14",
+   "id": "pearl",
+   "name": "Chuỗi ngọc trai",
+   "kind": "co",
+   "layers": "TS",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B14_pearl_truoc.png",
+    "B14_pearl_sau.png"
+   ]
+  },
+  {
+   "code": "B15",
+   "id": "fairy-lights",
+   "name": "Dây đèn LED",
+   "kind": "co",
+   "layers": "TS",
+   "frames": 2,
+   "season": "noel",
+   "files": [
+    "B15_fairy-lights_truoc_1.png",
+    "B15_fairy-lights_truoc_2.png",
+    "B15_fairy-lights_sau_1.png",
+    "B15_fairy-lights_sau_2.png"
+   ]
+  },
+  {
+   "code": "B16",
+   "id": "bunting",
+   "name": "Dây cờ sinh nhật",
+   "kind": "co",
+   "layers": "TS",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B16_bunting_truoc.png",
+    "B16_bunting_sau.png"
+   ]
+  },
+  {
+   "code": "B17",
+   "id": "lei-hawaii",
+   "name": "Vòng hoa Hawaii",
+   "kind": "co",
+   "layers": "TS",
+   "frames": 1,
+   "season": "he",
+   "files": [
+    "B17_lei-hawaii_truoc.png",
+    "B17_lei-hawaii_sau.png"
+   ]
+  },
+  {
+   "code": "B12",
+   "id": "scarf-knit",
+   "name": "Khăn len mùa đông",
+   "kind": "co",
+   "layers": "TS",
+   "frames": 1,
+   "season": "dong",
+   "files": [
+    "B12_scarf-knit_truoc.png",
+    "B12_scarf-knit_sau.png"
+   ]
+  },
+  {
+   "code": "B05",
+   "id": "crown",
+   "name": "Vương miện vàng",
+   "kind": "vanh",
+   "layers": "TS",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B05_crown_truoc.png",
+    "B05_crown_sau.png"
+   ]
+  },
+  {
+   "code": "B18",
+   "id": "tiara",
+   "name": "Tiara bạc pha lê",
+   "kind": "vanh",
+   "layers": "TS",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B18_tiara_truoc.png",
+    "B18_tiara_sau.png"
+   ]
+  },
+  {
+   "code": "B19",
+   "id": "flower-crown",
+   "name": "Vòng hoa đội đầu",
+   "kind": "vanh",
+   "layers": "TS",
+   "frames": 1,
+   "season": "xuan",
+   "files": [
+    "B19_flower-crown_truoc.png",
+    "B19_flower-crown_sau.png"
+   ]
+  },
+  {
+   "code": "B20",
+   "id": "cat-ears",
+   "name": "Tai mèo",
+   "kind": "vanh",
+   "layers": "TS",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B20_cat-ears_truoc.png",
+    "B20_cat-ears_sau.png"
+   ]
+  },
+  {
+   "code": "B21",
+   "id": "bunny-ears",
+   "name": "Tai thỏ",
+   "kind": "vanh",
+   "layers": "TS",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B21_bunny-ears_truoc.png",
+    "B21_bunny-ears_sau.png"
+   ]
+  },
+  {
+   "code": "B22",
+   "id": "reindeer",
+   "name": "Sừng tuần lộc",
+   "kind": "vanh",
+   "layers": "TS",
+   "frames": 1,
+   "season": "noel",
+   "files": [
+    "B22_reindeer_truoc.png",
+    "B22_reindeer_sau.png"
+   ]
+  },
+  {
+   "code": "B08",
+   "id": "leaves-christmas",
+   "name": "Vòng lá Noel",
+   "kind": "vanh",
+   "layers": "TS",
+   "frames": 1,
+   "season": "noel",
+   "files": [
+    "B08_leaves-christmas_truoc.png",
+    "B08_leaves-christmas_sau.png"
+   ]
+  },
+  {
+   "code": "B23",
+   "id": "laurel",
+   "name": "Vòng nguyệt quế vàng",
+   "kind": "vanh",
+   "layers": "TS",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B23_laurel_truoc.png",
+    "B23_laurel_sau.png"
+   ]
+  },
+  {
+   "code": "B24",
+   "id": "devil-horns",
+   "name": "Sừng quỷ Halloween",
+   "kind": "vanh",
+   "layers": "TS",
+   "frames": 1,
+   "season": "halloween",
+   "files": [
+    "B24_devil-horns_truoc.png",
+    "B24_devil-horns_sau.png"
+   ]
+  },
+  {
+   "code": "B25",
+   "id": "pet-cat",
+   "name": "Mèo con vắt vai",
+   "kind": "ngoi",
+   "layers": "T",
+   "frames": 3,
+   "season": "",
+   "files": [
+    "B25_pet-cat_truoc_1.png",
+    "B25_pet-cat_truoc_2.png",
+    "B25_pet-cat_truoc_3.png"
+   ]
+  },
+  {
+   "code": "B26",
+   "id": "pet-bear",
+   "name": "Gấu bông",
+   "kind": "ngoi",
+   "layers": "T",
+   "frames": 3,
+   "season": "",
+   "files": [
+    "B26_pet-bear_truoc_1.png",
+    "B26_pet-bear_truoc_2.png",
+    "B26_pet-bear_truoc_3.png"
+   ]
+  },
+  {
+   "code": "B27",
+   "id": "pet-penguin",
+   "name": "Chim cánh cụt",
+   "kind": "ngoi",
+   "layers": "T",
+   "frames": 3,
+   "season": "dong",
+   "files": [
+    "B27_pet-penguin_truoc_1.png",
+    "B27_pet-penguin_truoc_2.png",
+    "B27_pet-penguin_truoc_3.png"
+   ]
+  },
+  {
+   "code": "B28",
+   "id": "pet-bunny",
+   "name": "Thỏ trắng",
+   "kind": "ngoi",
+   "layers": "T",
+   "frames": 3,
+   "season": "trung-thu",
+   "files": [
+    "B28_pet-bunny_truoc_1.png",
+    "B28_pet-bunny_truoc_2.png",
+    "B28_pet-bunny_truoc_3.png"
+   ]
+  },
+  {
+   "code": "B29",
+   "id": "pet-shiba",
+   "name": "Cún Shiba",
+   "kind": "ngoi",
+   "layers": "T",
+   "frames": 3,
+   "season": "",
+   "files": [
+    "B29_pet-shiba_truoc_1.png",
+    "B29_pet-shiba_truoc_2.png",
+    "B29_pet-shiba_truoc_3.png"
+   ]
+  },
+  {
+   "code": "B30",
+   "id": "pet-duck",
+   "name": "Vịt vàng",
+   "kind": "ngoi",
+   "layers": "T",
+   "frames": 3,
+   "season": "he",
+   "files": [
+    "B30_pet-duck_truoc_1.png",
+    "B30_pet-duck_truoc_2.png",
+    "B30_pet-duck_truoc_3.png"
+   ]
+  },
+  {
+   "code": "B31",
+   "id": "pet-pig",
+   "name": "Heo con Tết",
+   "kind": "ngoi",
+   "layers": "T",
+   "frames": 3,
+   "season": "tet",
+   "files": [
+    "B31_pet-pig_truoc_1.png",
+    "B31_pet-pig_truoc_2.png",
+    "B31_pet-pig_truoc_3.png"
+   ]
+  },
+  {
+   "code": "B32",
+   "id": "pet-snowman",
+   "name": "Người tuyết mini",
+   "kind": "ngoi",
+   "layers": "T",
+   "frames": 1,
+   "season": "noel",
+   "files": [
+    "B32_pet-snowman_truoc.png"
+   ]
+  },
+  {
+   "code": "B33",
+   "id": "hang-lantern",
+   "name": "Đèn lồng Trung Thu",
+   "kind": "treo",
+   "layers": "T",
+   "frames": 2,
+   "season": "trung-thu",
+   "files": [
+    "B33_hang-lantern_truoc_1.png",
+    "B33_hang-lantern_truoc_2.png"
+   ]
+  },
+  {
+   "code": "B34",
+   "id": "hang-lixi",
+   "name": "Bao lì xì",
+   "kind": "treo",
+   "layers": "T",
+   "frames": 1,
+   "season": "tet",
+   "files": [
+    "B34_hang-lixi_truoc.png"
+   ]
+  },
+  {
+   "code": "B35",
+   "id": "hang-medal",
+   "name": "Huy chương TOP",
+   "kind": "treo",
+   "layers": "T",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B35_hang-medal_truoc.png"
+   ]
+  },
+  {
+   "code": "B36",
+   "id": "hang-bells",
+   "name": "Chuông Noel",
+   "kind": "treo",
+   "layers": "T",
+   "frames": 1,
+   "season": "noel",
+   "files": [
+    "B36_hang-bells_truoc.png"
+   ]
+  },
+  {
+   "code": "B37",
+   "id": "hang-hearts",
+   "name": "Dây trái tim",
+   "kind": "treo",
+   "layers": "T",
+   "frames": 1,
+   "season": "valentine",
+   "files": [
+    "B37_hang-hearts_truoc.png"
+   ]
+  },
+  {
+   "code": "B38",
+   "id": "hang-pumpkin",
+   "name": "Bí ngô mini",
+   "kind": "treo",
+   "layers": "T",
+   "frames": 2,
+   "season": "halloween",
+   "files": [
+    "B38_hang-pumpkin_truoc_1.png",
+    "B38_hang-pumpkin_truoc_2.png"
+   ]
+  },
+  {
+   "code": "B39",
+   "id": "wings-angel",
+   "name": "Cánh thiên thần",
+   "kind": "than",
+   "layers": "S",
+   "frames": 4,
+   "season": "",
+   "files": [
+    "B39_wings-angel_sau_1.png",
+    "B39_wings-angel_sau_2.png",
+    "B39_wings-angel_sau_3.png",
+    "B39_wings-angel_sau_4.png"
+   ]
+  },
+  {
+   "code": "B40",
+   "id": "wings-devil",
+   "name": "Cánh ác quỷ",
+   "kind": "than",
+   "layers": "S",
+   "frames": 4,
+   "season": "halloween",
+   "files": [
+    "B40_wings-devil_sau_1.png",
+    "B40_wings-devil_sau_2.png",
+    "B40_wings-devil_sau_3.png",
+    "B40_wings-devil_sau_4.png"
+   ]
+  },
+  {
+   "code": "B41",
+   "id": "wings-butterfly",
+   "name": "Cánh bướm",
+   "kind": "than",
+   "layers": "S",
+   "frames": 4,
+   "season": "xuan",
+   "files": [
+    "B41_wings-butterfly_sau_1.png",
+    "B41_wings-butterfly_sau_2.png",
+    "B41_wings-butterfly_sau_3.png",
+    "B41_wings-butterfly_sau_4.png"
+   ]
+  },
+  {
+   "code": "B42",
+   "id": "halo",
+   "name": "Hào quang",
+   "kind": "than",
+   "layers": "S",
+   "frames": 1,
+   "season": "",
+   "files": [
+    "B42_halo_sau.png"
+   ]
+  }
+ ]
+}
