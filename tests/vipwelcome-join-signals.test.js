@@ -7,7 +7,7 @@ const HOST = '7000000000000000001';
 const ctx = { hostUserId: HOST };
 const baseUser = (over) => ({
     id: '6800000000000000077', displayId: 'davina', nickname: 'Davina',
-    avatarThumb: { url: ['https://p16-sign-sg.tiktokcdn.com/a.webp', 'https://p77.tiktokcdn.com/a.webp'] },
+    avatarThumb: { urlList: ['https://p16-sign-sg.tiktokcdn.com/a.webp', 'https://p77.tiktokcdn.com/a.webp'] },
     ...over
 });
 
@@ -85,7 +85,7 @@ test('readUser: vai trò MOD / bạn bè / TOP / sub / verified', () => {
     const u = readUser(baseUser({
         userAttr: { isAdmin: true },
         followInfo: { followStatus: '2' },
-        subscribeInfo: { isSubscribe: true },
+        subscribeInfo: { isSubscribedToAnchor: true },
         verified: true
     }), ctx, { topUserNo: 2 });
     assert.equal(u.isModerator, true);
@@ -94,9 +94,25 @@ test('readUser: vai trò MOD / bạn bè / TOP / sub / verified', () => {
     assert.equal(u.isSubscriber, true);
     assert.equal(u.topUserNo, 2);
     assert.equal(u.verified, true);
-    const m = fromMember({ action: 1, isSetToAdmin: true, topUserNo: 1, user: baseUser() }, ctx);
-    assert.equal(m.user.isModerator, true);
+    const m = fromMember({ action: 1, topUserNo: 1, user: baseUser() }, ctx);
+    assert.equal(m.user.isModerator, false);
     assert.equal(m.user.topUserNo, 1);
+});
+
+test('readUser: sub/fan club của KÊNH RIÊNG người xem không tính là của chủ phòng', () => {
+    const u = readUser(baseUser({
+        subscribeInfo: { isSubscribe: true, subscriberCount: 900 },
+        isSubscribe: true,
+        fansClubInfo: { fansLevel: 9, fansClubName: 'CLB riêng', fansCount: 1200 }
+    }), ctx);
+    assert.equal(u.isSubscriber, false);
+    assert.equal(u.fansLevel, 0);
+    assert.equal(u.fansClubName, '');
+});
+
+test('fromMember: thông báo đặt quản trị viên (operator / isSetToAdmin) không phải vào phòng', () => {
+    assert.equal(fromMember({ action: 1, isSetToAdmin: true, user: baseUser() }, ctx), null);
+    assert.equal(fromMember({ action: 1, operator: { id: '999' }, user: baseUser() }, ctx), null);
 });
 
 test('readUser: dạng cũ 2.1.0 (uniqueId/userId/profilePicture/userHonor)', () => {

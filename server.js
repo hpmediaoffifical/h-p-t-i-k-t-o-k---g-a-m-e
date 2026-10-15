@@ -2826,7 +2826,8 @@ function normalizeTikTokUser(u, data) {
         uniqueId: u.uniqueId || u.displayId || u.display_id || data?.uniqueId || '',
         userId: tiktokIdToString(u.userId) || tiktokIdToString(u.idStr) || tiktokIdToString(u.id_str) || tiktokIdToString(u.id) || tiktokIdToString(data?.userId),
         nickname: u.nickname || u.nickName || '',
-        level: Number(u.userHonor?.level ?? u.payGrade?.level ?? u.pay_grade?.level) || 0,
+        // Cấp người xem: badge USER_GRADE (sceneType 8) + payGrade/userHonor — cùng bộ đọc với Chào Mừng VIP.
+        level: vwSignals.readUser(u, vipSignalCtx()).level || Number(u.pay_grade?.level) || 0,
         profilePicture: pickAvatarUrl(u.profilePicture || u.profilePictureUrl || u.avatarThumb || u.avatar_thumb || u.avatarMedium || u.avatarLarge),
         verified: !!u.verified
     };
@@ -2839,14 +2840,17 @@ function extractTikTokUser(data) {
     const base = normalizeTikTokUser(u, data);
     const followStatus = Number(u.followInfo?.followStatus ?? u.followStatus ?? 0) || 0;
     const topUserNo = Number(data?.topUserNo) || 0;
+    // Fan club / đăng ký / MOD: đọc qua join-signals (badge + fansClub.data kiểm đúng chủ phòng) — fansClubInfo,
+    // subscribeInfo.isSubscribe, isSetToAdmin có thể nói về KÊNH RIÊNG của người xem hoặc là thông báo đặt MOD.
+    const sig = vwSignals.readUser(u, vipSignalCtx());
     return {
         ...base,
         isTopUser: !!data?.isTopUser || (topUserNo > 0 && topUserNo <= 3),   // WebcastMemberMessage.isTopUser/topUserNo
         topUserNo,
-        fansLevel: Number(u.fansClubInfo?.fansLevel ?? u.fansClub?.data?.level ?? 0) || 0,
-        fansClubName: u.fansClubInfo?.fansClubName || u.fansClub?.data?.clubName || '',
-        isSubscriber: !!(u.subscribeInfo?.isSubscribe || u.isSubscribe || u.subscribeInfo?.isSubscribedToAnchor),
-        isModerator: !!(u.userAttr?.isAdmin || u.userAttr?.isSuperAdmin || data?.isSetToAdmin),
+        fansLevel: sig.fansLevel,
+        fansClubName: sig.fansClubName,
+        isSubscriber: sig.isSubscriber,
+        isModerator: sig.isModerator,
         isFollowing: followStatus === 1 || followStatus === 2,
         followStatus
     };
@@ -3071,7 +3075,7 @@ function attachConnectionEvents(conn, lib) {
         rememberLiveTranslateUser(liveTranslateRecentMembers, { userId, uniqueId });
         const tkUser = extractTikTokUser(data);
         const joinSig = vwSignals.fromMember(data, vipSignalCtx());
-        broadcast('member', { uniqueId, nickname, level: joinSig?.user.level || level, verified, action: Number(action) || 0, topUserNo: tkUser.topUserNo, fansLevel: joinSig?.user.fansLevel || tkUser.fansLevel, isSubscriber: tkUser.isSubscriber });
+        broadcast('member', { uniqueId, nickname, level: joinSig?.user.level || level, verified, action: Number(action) || 0, topUserNo: tkUser.topUserNo, fansLevel: joinSig ? joinSig.user.fansLevel : tkUser.fansLevel, isSubscriber: tkUser.isSubscriber });
         // Verbose log — dump tất cả field hữu ích để user thấy TikTok gửi gì
         console.log(`[vipwelcome] MEMBER event raw: uniqueId="${uniqueId || ''}" userId="${userId || ''}" nickname="${nickname || ''}" level=${joinSig?.user.level ?? level} fans=${joinSig?.user.fansLevel ?? 0} verified=${verified} action=${action} desc="${actionDesc}"`);
         vipDiagLog('member', data);

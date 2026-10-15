@@ -9373,3 +9373,9 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 
 .dm-zones { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; }
 .dm-zones .dm-zone { margin: 2px 0; }
+
+/* Tab 🎨 Giao diện: khối nâng cao + phong cách chữ gập lại cho gọn */
+.vw-adv-fold { margin-top: 10px; border: 1px dashed var(--border, #d6dbe4); border-radius: 10px; padding: 8px 12px; }
+.vw-adv-fold > summary { cursor: pointer; font-weight: 600; opacity: .85; }
+.vw-adv-fold[open] > summary { margin-bottom: 8px; }
+.vw-sub-fold { margin-top: 8px; }

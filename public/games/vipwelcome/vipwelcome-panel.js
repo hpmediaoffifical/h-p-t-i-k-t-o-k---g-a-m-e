@@ -59,7 +59,7 @@
     // Các rule "Tất cả user" của 1 profile: key trong profile, host card trong index.html,
     // ruleType gửi lên /trigger, nhãn hiển thị. Thêm rule global mới = thêm 1 dòng ở đây
     // (+ default trong game.js newProfile + <div id=host> trong index.html).
-    // (Vào phòng cho mọi người đã chuyển sang tab "Bậc vào phòng" — profile.joinTiers.)
+    // (Vào phòng cho mọi người nằm ở tab "🏅 Theo cấp độ" — profile.joinTiers.)
     const GLOBAL_KINDS = {
         gift:     { key: 'globalGift',      host: '#vw-global-gift-card',      ruleType: 'globalGift',      emoji: '🚀', title: 'Lên cấp',            testLabel: 'Tất cả lên cấp',      ph: 'VD: Chúc mừng {nickname} lên cấp {level}!' },
         subscribe: { key: 'globalSubscribe', host: '#vw-global-subscribe-card', ruleType: 'globalSubscribe', emoji: '⭐', title: 'Đăng ký kênh (Sub)', testLabel: 'Tất cả đăng ký kênh', ph: 'VD: Cảm ơn {nickname} đã đăng ký kênh! {sub}' }
@@ -1090,7 +1090,7 @@
                 <ol class="vw-ov-steps">
                     <li>OBS → <b>+ Nguồn → Browser</b> → dán link, kích thước <b>1080 × 1920</b>.</li>
                     <li>Bật nút <b>ĐANG CHẠY</b> ở góc trên rồi bấm <b>▶ Thử</b> một bậc để xem.</li>
-                    <li>Thanh chào nằm sát mép trên khu bình luận — chỉnh ở tab <b>🎨 Hiển thị &amp; cài đặt</b>.</li>
+                    <li>Thanh chào nằm sát mép trên khu bình luận — chỉnh ở tab <b>🎨 Giao diện</b>.</li>
                 </ol>
             </section>
         </div>`;
@@ -1473,7 +1473,7 @@
                     </label>
                 </div>
                 <div class="vw-rule-row">
-                    <label class="vw-inline" title="Phong cách lời chúc riêng cho rule này (mặc định theo tab Cài đặt)">🎨 Phong cách
+                    <label class="vw-inline" title="Phong cách lời chúc riêng cho rule này (mặc định theo tab 🎨 Giao diện)">🎨 Phong cách
                         <select id="vw-${kind}-style">${styleOptions}</select>
                     </label>
                 </div>
@@ -1587,40 +1587,7 @@
         `).join('');
         host.innerHTML = `
             <div class="vw-setting-block">
-                <div class="vw-setting-title">🎬 Khu video (và lời chúc của trigger khác)</div>
-                <label class="vw-inline">Scale <input type="range" min="50" max="150" step="5" id="vw-set-scale" value="${d.scale || 100}" />
-                    <span id="vw-set-scale-v">${d.scale || 100}%</span>
-                </label>
-                <label class="vw-inline">X% <input type="range" min="0" max="100" step="1" id="vw-set-x" value="${d.xPercent ?? 50}" />
-                    <span id="vw-set-x-v">${d.xPercent ?? 50}</span>
-                </label>
-                <label class="vw-inline">Y% <input type="range" min="0" max="100" step="1" id="vw-set-y" value="${d.yPercent ?? 50}" />
-                    <span id="vw-set-y-v">${d.yPercent ?? 50}</span>
-                </label>
-                <label class="vw-inline"><input type="checkbox" id="vw-set-showtext" ${d.showText !== false ? 'checked' : ''} /> Hiện lời chúc trên overlay</label>
-                <label class="vw-inline"><input type="checkbox" id="vw-set-showavatar" ${d.showAvatar !== false ? 'checked' : ''} /> 👤 Hiện avatar user (tròn, cạnh lời chúc)</label>
-                <label class="vw-inline">Vị trí text
-                    <select id="vw-set-textpos">
-                        <option value="top" ${d.textPosition === 'top' ? 'selected' : ''}>Trên</option>
-                        <option value="middle" ${d.textPosition === 'middle' ? 'selected' : ''}>Giữa</option>
-                        <option value="bottom" ${d.textPosition !== 'top' && d.textPosition !== 'middle' ? 'selected' : ''}>Dưới</option>
-                    </select>
-                </label>
-            </div>
-            <div class="vw-setting-block">
-                <div class="vw-setting-title">🎨 Phong cách lời chúc</div>
-                <div class="vw-hint" style="margin-bottom:8px">Chọn 1 trong 12 phong cách — áp dụng cho overlay OBS. Bấm vào ô để chọn.</div>
-                <div class="vw-style-grid" id="vw-style-grid">${styleSwatches}</div>
-            </div>
-            <div class="vw-setting-block">
-                <div class="vw-setting-title">⏱️ Hàng đợi &amp; chống spam</div>
-                <label class="vw-inline">Tối đa item chờ <input type="number" min="1" max="500" step="1" id="vw-set-qmax" value="${q.maxLen || 50}" /></label>
-                <label class="vw-inline">Cooldown / user (giây) — chỉ áp dụng cho Lên cấp <input type="number" min="0" step="5" id="vw-set-cooldown" value="${q.perUserCooldownSec || 60}" /></label>
-                <label class="vw-inline">Khoảng cách giữa 2 lượt (ms) <input type="number" min="0" step="50" id="vw-set-gap" value="${q.perItemMinMs ?? 200}" /></label>
-                <div class="vw-hint">💡 Video/âm thanh phát <b>nối tiếp</b>: lượt trước XONG mới tới lượt sau, ưu tiên người chỉ định → bậc cao. <b>Tối đa item chờ</b> = đông quá thì bỏ mục ưu tiên thấp nhất. <b>Khoảng cách giữa 2 lượt</b> = nghỉ giữa 2 clip.</div>
-            </div>
-            <div class="vw-setting-block">
-                <div class="vw-setting-title">🪪 Thẻ vào phòng</div>
+                <div class="vw-setting-title">🪪 Thẻ chào vào phòng</div>
                 <label class="vw-inline"><input type="checkbox" id="vw-jc-enabled" ${jc.enabled !== false ? 'checked' : ''} /> Bật thẻ vào phòng</label>
                 <label class="vw-inline">Kiểu thẻ
                     <select id="vw-jc-style">
@@ -1634,7 +1601,7 @@
                     <label class="vw-inline">Cỡ <input type="range" min="60" max="160" step="5" id="vw-jb-scale" value="${jb.scale || 100}" /> <span id="vw-jb-scale-v">${jb.scale || 100}%</span></label>
                     <label class="vw-inline">Số tầng <select id="vw-jb-slots">${[1, 2, 3].map(n => `<option value="${n}" ${(jb.slots || 3) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
                     <label class="vw-inline"><input type="checkbox" id="vw-jb-wow" ${jb.wow !== false ? 'checked' : ''} /> ✨ Hiệu ứng WOW (avatar lăn, chữ hiện từng chữ, viền chạy, bụi sao)</label>
-                    <div class="vw-hint">💡 Người mới luôn vào <b>tầng dưới cùng</b> (đóng đinh sát bình luận), thanh cũ được đẩy lên; đầy tầng thì bỏ người <b>bậc thấp nhất</b> trước, Chí tôn ở lâu hơn Tân binh. Xem mẫu: <code>/_prototype/vip-compact.html</code></div>
+                    <div class="vw-hint">💡 Người mới luôn vào <b>tầng dưới cùng</b> (đóng đinh sát bình luận), thanh cũ được đẩy lên; đầy tầng thì bỏ người <b>bậc thấp nhất</b> trước, Chí tôn ở lâu hơn Tân binh.</div>
                 </div>
                 <div id="vw-jc-card-opts" ${jc.style === 'card' ? '' : 'hidden'}>
                 <label class="vw-inline">X% <input type="range" min="0" max="80" step="1" id="vw-jc-x" value="${c.xPercent ?? 3}" /> <span id="vw-jc-x-v">${c.xPercent ?? 3}</span></label>
@@ -1653,28 +1620,64 @@
                 <label class="vw-inline"><input type="checkbox" id="vw-jc-hidezero" ${jc.hideZeroXu !== false ? 'checked' : ''} /> Ẩn 💎 khi chưa tặng xu nào</label>
             </div>
             <div class="vw-setting-block">
-                <div class="vw-setting-title">🔁 Vào phòng / vào lại</div>
-                <label class="vw-inline" title="TikTok có thể gửi 2 thông báo cho cùng 1 lần vào (member + banner) — gộp trong khoảng này">Gộp tín hiệu trùng trong (giây) <input type="number" min="3" max="60" id="vw-jc-antidup" value="${jc.antiDupSec || 10}" /></label>
-                <label class="vw-inline"><input type="checkbox" id="vw-jc-late" ${jc.lateWelcome !== false ? 'checked' : ''} /> Chào muộn người TikTok không báo vào phòng (khi họ chat / thả tim / tặng quà lần đầu)</label>
-                <label class="vw-inline">Bỏ video/âm thanh nếu chờ quá (giây) <input type="number" min="5" max="300" id="vw-jc-maxwait" value="${jc.mediaMaxWaitSec || 30}" /></label>
-                <label class="vw-inline" title="Ghi dữ liệu thô TikTok gửi khi có người vào phòng vào data/logs/vipwelcome-raw.jsonl — bật khi cần gửi cho HP Media kiểm tra"><input type="checkbox" id="vw-jc-diag" ${jc.diagnostics ? 'checked' : ''} /> 🩺 Chẩn đoán: ghi dữ liệu vào phòng (logs/vipwelcome-raw.jsonl)</label>
-                <div class="vw-hint">💡 Mỗi lần TikTok báo vào phòng là chào lại — kể cả ra vào liên tục. Muốn giãn cho từng người/bậc thì đặt "Cooldown vào lại" ở tab 👤 hoặc 🏅.</div>
-            </div>
-            <div class="vw-setting-block">
                 <div class="vw-setting-title">👥 Phòng đông · khách quen · giọng đọc</div>
                 <label class="vw-inline" title="Khi đang đủ số thẻ trên màn hình mà người mới vẫn vào dồn dập, gom người bậc thấp vào 1 thẻ 'A, B và N người khác'"><input type="checkbox" id="vw-jc-batch" ${jc.batch?.enabled !== false ? 'checked' : ''} /> Gộp thẻ khi phòng đông</label>
-                <label class="vw-inline">chỉ gộp người dưới LV <input type="number" min="0" max="99" id="vw-jc-batch-lv" value="${jc.batch?.belowTierLevel ?? 25}" /></label>
+                <label class="vw-inline">chỉ gộp người dưới LV <input type="number" min="0" max="50" id="vw-jc-batch-lv" value="${jc.batch?.belowTierLevel ?? 25}" /></label>
                 <label class="vw-inline"><input type="checkbox" id="vw-jc-visits" ${jc.showVisits !== false ? 'checked' : ''} /> Hiện "Lần đầu ghé / Ghé lần thứ N / 🔥 buổi liền" trên thẻ</label>
                 <label class="vw-inline"><input type="checkbox" id="vw-jc-tts" ${jc.tts?.enabled !== false ? 'checked' : ''} /> 🗣 Bật giọng đọc tên (từng bậc / người bật riêng)</label>
                 <label class="vw-inline">Âm lượng giọng đọc <input type="range" min="0" max="100" step="5" id="vw-jc-tts-vol" value="${jc.tts?.volume ?? 90}" /> <span id="vw-jc-tts-vol-v">${jc.tts?.volume ?? 90}%</span></label>
             </div>
             <div class="vw-setting-block">
-                <div class="vw-setting-title">⌨ Phím tắt (dùng được cả khi đang ở OBS / TikTok Studio)</div>
-                <label class="vw-inline"><input type="checkbox" id="vw-jc-hk" ${jc.hotkeys?.enabled ? 'checked' : ''} /> Bật phím tắt</label>
-                <label class="vw-inline">Bỏ qua mục đang phát: Ctrl+Shift+ <input type="text" maxlength="3" id="vw-jc-hk-skip" value="${escapeHtml(jc.hotkeys?.skip || 'S')}" style="width:48px" /></label>
-                <label class="vw-inline">Xoá hết thẻ + hàng chờ: Ctrl+Shift+ <input type="text" maxlength="3" id="vw-jc-hk-clear" value="${escapeHtml(jc.hotkeys?.clear || 'C')}" style="width:48px" /></label>
-                <div class="vw-hint">1 chữ cái, số hoặc F1–F12. Nếu phím đã bị phần mềm khác giữ thì phím đó không hoạt động — đổi phím khác.</div>
+                <div class="vw-setting-title">🎬 Video &amp; lời chúc (trigger theo ID / sự kiện khác)</div>
+                <label class="vw-inline">Scale <input type="range" min="50" max="150" step="5" id="vw-set-scale" value="${d.scale || 100}" />
+                    <span id="vw-set-scale-v">${d.scale || 100}%</span>
+                </label>
+                <label class="vw-inline">X% <input type="range" min="0" max="100" step="1" id="vw-set-x" value="${d.xPercent ?? 50}" />
+                    <span id="vw-set-x-v">${d.xPercent ?? 50}</span>
+                </label>
+                <label class="vw-inline">Y% <input type="range" min="0" max="100" step="1" id="vw-set-y" value="${d.yPercent ?? 50}" />
+                    <span id="vw-set-y-v">${d.yPercent ?? 50}</span>
+                </label>
+                <label class="vw-inline"><input type="checkbox" id="vw-set-showtext" ${d.showText !== false ? 'checked' : ''} /> Hiện lời chúc trên overlay</label>
+                <label class="vw-inline"><input type="checkbox" id="vw-set-showavatar" ${d.showAvatar !== false ? 'checked' : ''} /> 👤 Hiện avatar user (tròn, cạnh lời chúc)</label>
+                <label class="vw-inline">Vị trí text
+                    <select id="vw-set-textpos">
+                        <option value="top" ${d.textPosition === 'top' ? 'selected' : ''}>Trên</option>
+                        <option value="middle" ${d.textPosition === 'middle' ? 'selected' : ''}>Giữa</option>
+                        <option value="bottom" ${d.textPosition !== 'top' && d.textPosition !== 'middle' ? 'selected' : ''}>Dưới</option>
+                    </select>
+                </label>
+                <details class="vw-note-fold vw-sub-fold">
+                    <summary>🎨 Phong cách chữ lời chúc (bấm để chọn)</summary>
+                <div class="vw-hint" style="margin-bottom:8px">Áp dụng cho lời chúc đi kèm video trên overlay OBS.</div>
+                <div class="vw-style-grid" id="vw-style-grid">${styleSwatches}</div>
+                </details>
             </div>
+            <details class="vw-adv-fold">
+                <summary>⚙ Nâng cao — vào lại phòng, hàng đợi video, phím tắt, chẩn đoán</summary>
+                <div class="vw-setting-block">
+                    <div class="vw-setting-title">🔁 Vào phòng / vào lại</div>
+                    <label class="vw-inline" title="TikTok có thể gửi 2 thông báo cho cùng 1 lần vào (member + banner) — gộp trong khoảng này">Gộp tín hiệu trùng trong (giây) <input type="number" min="3" max="60" id="vw-jc-antidup" value="${jc.antiDupSec || 10}" /></label>
+                    <label class="vw-inline"><input type="checkbox" id="vw-jc-late" ${jc.lateWelcome !== false ? 'checked' : ''} /> Chào muộn người TikTok không báo vào phòng (khi họ chat / thả tim / tặng quà lần đầu)</label>
+                    <label class="vw-inline">Bỏ video/âm thanh nếu chờ quá (giây) <input type="number" min="5" max="300" id="vw-jc-maxwait" value="${jc.mediaMaxWaitSec || 30}" /></label>
+                    <label class="vw-inline" title="Ghi dữ liệu thô TikTok gửi khi có người vào phòng vào data/logs/vipwelcome-raw.jsonl — bật khi cần gửi cho HP Media kiểm tra"><input type="checkbox" id="vw-jc-diag" ${jc.diagnostics ? 'checked' : ''} /> 🩺 Chẩn đoán: ghi dữ liệu vào phòng (logs/vipwelcome-raw.jsonl)</label>
+                    <div class="vw-hint">💡 Mỗi lần TikTok báo vào phòng là chào lại — kể cả ra vào liên tục. Muốn giãn cho từng người/bậc thì đặt "Cooldown vào lại" ở tab 👤 hoặc 🏅.</div>
+                </div>
+                <div class="vw-setting-block">
+                    <div class="vw-setting-title">⏱️ Hàng đợi &amp; chống spam</div>
+                    <label class="vw-inline">Tối đa item chờ <input type="number" min="1" max="500" step="1" id="vw-set-qmax" value="${q.maxLen || 50}" /></label>
+                    <label class="vw-inline">Cooldown / user (giây) — chỉ áp dụng cho Lên cấp <input type="number" min="0" step="5" id="vw-set-cooldown" value="${q.perUserCooldownSec || 60}" /></label>
+                    <label class="vw-inline">Khoảng cách giữa 2 lượt (ms) <input type="number" min="0" step="50" id="vw-set-gap" value="${q.perItemMinMs ?? 200}" /></label>
+                    <div class="vw-hint">💡 Video/âm thanh phát <b>nối tiếp</b>: lượt trước XONG mới tới lượt sau, ưu tiên người chỉ định → bậc cao. <b>Tối đa item chờ</b> = đông quá thì bỏ mục ưu tiên thấp nhất. <b>Khoảng cách giữa 2 lượt</b> = nghỉ giữa 2 clip.</div>
+                </div>
+                <div class="vw-setting-block">
+                    <div class="vw-setting-title">⌨ Phím tắt (dùng được cả khi đang ở OBS / TikTok Studio)</div>
+                    <label class="vw-inline"><input type="checkbox" id="vw-jc-hk" ${jc.hotkeys?.enabled ? 'checked' : ''} /> Bật phím tắt</label>
+                    <label class="vw-inline">Bỏ qua mục đang phát: Ctrl+Shift+ <input type="text" maxlength="3" id="vw-jc-hk-skip" value="${escapeHtml(jc.hotkeys?.skip || 'S')}" style="width:48px" /></label>
+                    <label class="vw-inline">Xoá hết thẻ + hàng chờ: Ctrl+Shift+ <input type="text" maxlength="3" id="vw-jc-hk-clear" value="${escapeHtml(jc.hotkeys?.clear || 'C')}" style="width:48px" /></label>
+                    <div class="vw-hint">1 chữ cái, số hoặc F1–F12. Nếu phím đã bị phần mềm khác giữ thì phím đó không hoạt động — đổi phím khác.</div>
+                </div>
+            </details>
         `;
         const setJc = (fn) => { cfg.joinCard = cfg.joinCard || window.HpGame.vipwelcome.defaultJoinCard(); cfg.joinCard.card = cfg.joinCard.card || {}; fn(cfg.joinCard, cfg.joinCard.card); schedulePersist(); };
         const setJb = (fn) => setJc(j => { j.bar = j.bar && typeof j.bar === 'object' ? j.bar : { xPercent: 2, yPercent: 68, scale: 100, slots: 3, wow: true }; fn(j.bar); });

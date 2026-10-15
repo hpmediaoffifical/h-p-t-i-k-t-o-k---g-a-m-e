@@ -1311,7 +1311,7 @@
                 <header class="game-header">
                     <div>
                         <h2 id="vipwelcome-title">🎊 Chào Mừng VIP</h2>
-                        <div class="game-sub">Chào người xem vào phòng LIVE bằng thanh chào + video webm — theo cấp độ (lọc từ cấp … đến cấp …) hoặc theo ID TikTok.</div>
+                        <div class="game-sub">Chào người xem vào phòng LIVE bằng thanh chào + video webm — theo cấp TikTok (từ cấp X trở lên) hoặc theo ID TikTok.</div>
                     </div>
                     <div class="overlay-bar">
                         <input id="vipwelcome-overlay-url" type="text" readonly hidden />
@@ -1345,7 +1345,7 @@
                                 <button class="tab vw-tab" data-vw-tab="tiers">🏅 Theo cấp độ</button>
                                 <button class="tab vw-tab" data-vw-tab="users">👤 Theo ID TikTok</button>
                                 <button class="tab vw-tab" data-vw-tab="global">🎉 Sự kiện khác</button>
-                                <button class="tab vw-tab" data-vw-tab="settings">🎨 Hiển thị &amp; cài đặt</button>
+                                <button class="tab vw-tab" data-vw-tab="settings">🎨 Giao diện</button>
                                 <button class="tab vw-tab" data-vw-tab="stats">📊 Thống kê <span class="vw-tab-badge" id="vipwelcome-queue-size">0</span></button>
                             </div>
 
@@ -1365,7 +1365,7 @@
                                 <details class="vw-note vw-note-fold">
                                     <summary><b>📡 Cách app nhận biết người vào phòng</b> (bấm để xem)</summary>
                                     <br>① <b>Thông báo vào phòng của TikTok</b> — sự kiện "member" + banner vào phòng (người cấp cao / fan club TikTok gửi qua banner, app nghe cả hai).
-                                    <br>② <b>Chào muộn</b> — ai TikTok không báo vào phòng thì lần đầu họ chat / thả tim / tặng quà sẽ hiện thẻ "đang ở trong phòng" (tắt được trong Cài đặt).
+                                    <br>② <b>Chào muộn</b> — ai TikTok không báo vào phòng thì lần đầu họ chat / thả tim / tặng quà sẽ hiện thẻ "đang ở trong phòng" (tắt được ở tab 🎨 Giao diện → Nâng cao).
                                     <br><b>🔁 Vào lại phòng:</b> MỖI LẦN TikTok báo vào phòng là chào lại — kể cả ra rồi vào lại ngay. Chỉ gộp tín hiệu trùng trong vài giây; muốn giãn thì đặt "Cooldown vào lại" cho từng người / từng bậc.
                                     <br><b>Trigger "Vào phòng"</b> hiện thẻ thông tin (avatar, LV, FAN LV, 💎) + phát video/âm thanh nếu có; chọn skin + danh hiệu riêng cho người đó.
                                 </details>
@@ -1374,13 +1374,12 @@
 
                             <!-- TAB: Tất cả user -->
                             <div class="tab-pane vw-pane" data-vw-pane="global">
-                                <div class="vw-pane-hint">Sự kiện <b>khác vào phòng</b> cho mọi người xem: <b>lên cấp</b>, <b>đăng ký kênh</b>. Đặt Min Level đủ cao để tránh spam. Các điều kiện TOP / Fan club / Sub / Follow lọc theo dữ liệu TikTok gửi kèm từng sự kiện — chỉ tick khi thật sự cần, tick nhiều rule sẽ ít phát hơn.</div>
-                                <div class="vw-note">🚪 <b>Vào phòng</b> cho mọi người đã chuyển sang tab <b>🏅 Bậc vào phòng</b> (thẻ thông tin theo LV / FAN LV). Cài đặt "Vào phòng" cũ đã tự chuyển thành bậc <b>"Tất cả user (cũ)"</b>.</div>
+                                <div class="vw-pane-hint">Sự kiện <b>khác vào phòng</b> cho mọi người xem (vào phòng: tab 🏅 Theo cấp độ): <b>lên cấp</b>, <b>đăng ký kênh</b>. Đặt Min Level đủ cao để tránh spam. Các điều kiện TOP / Fan club / Sub / Follow lọc theo dữ liệu TikTok gửi kèm từng sự kiện — chỉ tick khi thật sự cần, tick nhiều rule sẽ ít phát hơn.</div>
                                 <div id="vw-global-gift-card"></div>
                                 <div id="vw-global-subscribe-card"></div>
                             </div>
 
-                            <!-- TAB: Bậc vào phòng (thẻ thông tin) -->
+                            <!-- TAB: Theo cấp độ (thẻ thông tin) -->
                             <div class="tab-pane vw-pane" data-vw-pane="tiers">
                                 <div id="vw-tiers-pane"></div>
                             </div>
