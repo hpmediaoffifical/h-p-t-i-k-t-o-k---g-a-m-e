@@ -343,6 +343,8 @@
     };
     let currentTriggers = {};  // giftId → action
     let currentBadgeItems = {};   // giftId → { customLabel, namePos, enabled }
+    let currentJarTexts = [];     // ✍️ chữ trang trí hũ (jar-text.js)
+    let jtSelected = '';
     // Track thứ tự gán mới nhất (giftId) — dùng để sort catalog: quà mới gán lên đầu.
     // Tồn tại trong phiên app, không persist. Mở app lại thì dùng thứ tự key trong triggers.
     let recentAssignments = [];   // giftIds, mới nhất ở đầu
@@ -1113,6 +1115,13 @@
                     if (!currentGame || !uid) return;
                     sendCmd('bail', { uid: String(uid) });
                 },
+                // ✍️ Kéo / lăn chuột trên chữ trang trí ở khung xem trước → lưu + đồng bộ OBS
+                onJarTextsChanged: (list, sel) => {
+                    currentJarTexts = list;
+                    if (sel !== undefined) jtSelected = sel;
+                    renderJarTextPanel();
+                    pushConfigUpdate();
+                },
                 onPanelMoved: (panelKey, pos) => {
                     if (!currentGame) return;
                     const cfg = gameInstance.getConfig();
@@ -1360,6 +1369,8 @@
         if (dom.cfgScaleUfoV) dom.cfgScaleUfoV.textContent = sUf;
         if (dom.cfgJarAccessory) dom.cfgJarAccessory.value = cfg.jarAccessory || 'none';
         if (dom.cfgJarTheme) dom.cfgJarTheme.value = cfg.jarTheme || 'default';
+        currentJarTexts = window.HpJarText ? window.HpJarText.normalizeList(cfg.jarTexts) : [];
+        renderJarTextPanel();
         const bdg = cfg.badges || {};
         if (dom.cfgBadgesEnabled) dom.cfgBadgesEnabled.checked = !!bdg.enabled;
         if (dom.cfgBadgesLocked)  dom.cfgBadgesLocked.checked  = !!bdg.locked;
@@ -1492,6 +1503,7 @@
             },
             jarAccessory: dom.cfgJarAccessory?.value || 'none',
             jarTheme: dom.cfgJarTheme?.value || 'default',
+            jarTexts: JSON.parse(JSON.stringify(currentJarTexts || [])),
             badges: {
                 enabled: !!dom.cfgBadgesEnabled?.checked,
                 locked: !!dom.cfgBadgesLocked?.checked,
@@ -2675,6 +2687,144 @@
     dom.cfgJarVisible?.addEventListener('change', pushConfigUpdate);
     dom.cfgJarLocked?.addEventListener('change', pushConfigUpdate);
     dom.cfgJarAccessory?.addEventListener('change', pushConfigUpdate);
+
+    // ===== ✍️ Chữ trang trí hũ — danh sách chỉnh trong panel, kéo đặt chỗ trên khung xem trước =====
+    function renderJarTextPanel() {
+        const host = document.getElementById('jt-list');
+        const JT = window.HpJarText;
+        if (!host || !JT) return;
+        // Đang gõ trong 1 ô của danh sách → không vẽ lại (mất con trỏ); chỉ cập nhật ô đang chọn.
+        if (host.contains(document.activeElement) && document.activeElement.matches('textarea')) {
+            host.querySelectorAll('.jt-item').forEach(el => el.classList.toggle('sel', el.dataset.id === jtSelected));
+            return;
+        }
+        const esc = (v) => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        host.innerHTML = currentJarTexts.map(it => {
+            const st = JT.STYLES.find(x => x.id === it.style) || JT.STYLES[0];
+            const color = it.color || JT.DEFAULT_COLOR[it.style] || '#ffffff';
+            return `
+            <div class="jt-item${it.id === jtSelected ? ' sel' : ''}" data-id="${esc(it.id)}">
+                <div class="jt-row">
+                    <textarea class="jt-text" rows="1" maxlength="${JT.MAX_LEN}" placeholder="Gõ chữ… (Enter = xuống dòng)">${esc(it.text)}</textarea>
+                    <button type="button" class="ghost small jt-del" title="Xoá chữ này">🗑</button>
+                </div>
+                <div class="jt-row">
+                    <select class="cfg-select jt-style" title="Kiểu chữ">${JT.STYLES.map(x => `<option value="${x.id}" ${x.id === it.style ? 'selected' : ''}>${x.label}</option>`).join('')}</select>
+                    <input type="color" class="jt-color" value="${color}" title="Màu chủ đạo (dòng 1)" ${st.hue ? '' : 'disabled'} />
+                    ${st.lines ? `<input type="color" class="jt-color2" value="${it.color2 || JT.DEFAULT_COLOR2}" title="Màu dòng 2 (mỗi dòng xen kẽ 2 màu)" />` : ''}
+                </div>
+                <div class="jt-row">
+                    <select class="cfg-select jt-deco" title="Sticker trang trí quanh chữ">${JT.DECOS.map(x => `<option value="${x.id}" ${x.id === it.deco ? 'selected' : ''}>${x.label}</option>`).join('')}</select>
+                    <select class="cfg-select jt-anim" title="Hiệu ứng động">${JT.ANIMS.map(x => `<option value="${x.id}" ${x.id === it.anim ? 'selected' : ''}>${x.label}</option>`).join('')}</select>
+                </div>
+                <div class="jt-row jt-sliders">
+                    <label>Cỡ <input type="range" class="jt-size" min="4" max="30" step="0.5" value="${it.size}" /></label>
+                    <label>Xoay <input type="range" class="jt-rot" min="-45" max="45" step="1" value="${it.rot}" /></label>
+                </div>
+                <div class="jt-row jt-sliders">
+                    <label>Ngang <input type="range" class="jt-x" min="${JT.POS_MIN}" max="${JT.POS_MAX}" step="0.5" value="${it.x}" /></label>
+                    <label>Dọc <input type="range" class="jt-y" min="${JT.POS_MIN}" max="${JT.POS_MAX}" step="0.5" value="${it.y}" /></label>
+                </div>
+                <div class="jt-row jt-pos">
+                    <button type="button" class="ghost small" data-jt-nudge="-1,0" title="Sang trái">◀</button>
+                    <button type="button" class="ghost small" data-jt-nudge="0,-1" title="Lên">▲</button>
+                    <button type="button" class="ghost small" data-jt-nudge="0,1" title="Xuống">▼</button>
+                    <button type="button" class="ghost small" data-jt-nudge="1,0" title="Sang phải">▶</button>
+                    <button type="button" class="ghost small" data-jt-place="50,-3" title="Đặt vắt ngang miệng hũ">⤒ Miệng</button>
+                    <button type="button" class="ghost small" data-jt-place="50,48" title="Giữa thân hũ">⊙ Giữa</button>
+                    <button type="button" class="ghost small" data-jt-place="50,82" title="Gần đáy hũ">⤓ Đáy</button>
+                    <button type="button" class="ghost small${it.flip ? ' on' : ''}" data-jt-flip title="Đảo sticker trái ↔ phải">⇄</button>
+                    <button type="button" class="ghost small" data-jt-reset title="Thẳng lại (xoay 0°)">⟲ 0°</button>
+                </div>
+            </div>`;
+        }).join('') || '<div class="jt-empty">Chưa có chữ nào — bấm ➕ Thêm chữ.</div>';
+        const vars = document.getElementById('jt-vars');
+        if (vars && !vars.childElementCount) vars.innerHTML = '<span>Chèn chữ tự điền:</span>' + JT.VARS.map(v => `<button type="button" class="ghost small" data-jt-var="${v.k}" title="${v.label}">${v.k}</button>`).join('');
+        const addBtn = document.getElementById('jt-add');
+        if (addBtn) addBtn.disabled = currentJarTexts.length >= JT.MAX_ITEMS;
+    }
+    function jtUpdate(id, patch, rerender) {
+        const it = currentJarTexts.find(x => x.id === id);
+        if (!it) return;
+        Object.assign(it, patch);
+        currentJarTexts = window.HpJarText.normalizeList(currentJarTexts);
+        jtSelected = id;
+        gameInstance?.selectJarText?.(id);
+        if (rerender) renderJarTextPanel();
+        pushConfigUpdate();
+    }
+    (function wireJarTextPanel() {
+        const host = document.getElementById('jt-list');
+        if (!host) return;
+        const idOf = (el) => el.closest('.jt-item')?.dataset.id;
+        host.addEventListener('input', (e) => {
+            const id = idOf(e.target); if (!id) return;
+            if (e.target.matches('.jt-text')) jtUpdate(id, { text: e.target.value });
+            else if (e.target.matches('.jt-size')) jtUpdate(id, { size: +e.target.value });
+            else if (e.target.matches('.jt-rot')) jtUpdate(id, { rot: +e.target.value });
+            else if (e.target.matches('.jt-x')) jtUpdate(id, { x: +e.target.value });
+            else if (e.target.matches('.jt-y')) jtUpdate(id, { y: +e.target.value });
+            else if (e.target.matches('.jt-color')) jtUpdate(id, { color: e.target.value });
+            else if (e.target.matches('.jt-color2')) jtUpdate(id, { color2: e.target.value });
+        });
+        host.addEventListener('change', (e) => {
+            const id = idOf(e.target); if (!id) return;
+            if (e.target.matches('.jt-style')) jtUpdate(id, { style: e.target.value, color: '' }, true);
+            else if (e.target.matches('.jt-anim')) jtUpdate(id, { anim: e.target.value });
+            else if (e.target.matches('.jt-deco')) jtUpdate(id, { deco: e.target.value });
+        });
+        host.addEventListener('click', (e) => {
+            const id = idOf(e.target); if (!id) return;
+            if (e.target.closest('.jt-del')) {
+                currentJarTexts = currentJarTexts.filter(x => x.id !== id);
+                renderJarTextPanel();
+                pushConfigUpdate();
+                return;
+            }
+            const it = currentJarTexts.find(x => x.id === id);
+            const nudge = e.target.closest('[data-jt-nudge]'), place = e.target.closest('[data-jt-place]');
+            if (it && nudge) { const [dx, dy] = nudge.dataset.jtNudge.split(',').map(Number); jtUpdate(id, { x: it.x + dx, y: it.y + dy }, true); return; }
+            if (it && place) { const [px, py] = place.dataset.jtPlace.split(',').map(Number); jtUpdate(id, { x: px, y: py }, true); return; }
+            if (it && e.target.closest('[data-jt-flip]')) { jtUpdate(id, { flip: !it.flip }, true); return; }
+            if (it && e.target.closest('[data-jt-reset]')) { jtUpdate(id, { rot: 0 }, true); return; }
+            jtSelected = id;
+            gameInstance?.selectJarText?.(id);
+            host.querySelectorAll('.jt-item').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
+        });
+        // Chèn biến tự điền vào ô chữ đang chọn
+        document.getElementById('jt-vars')?.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-jt-var]'); if (!b) return;
+            const id = jtSelected || currentJarTexts[0]?.id; if (!id) return;
+            const ta = document.querySelector(`#jt-list .jt-item[data-id="${id}"] .jt-text`);
+            const it = currentJarTexts.find(x => x.id === id); if (!it) return;
+            const pos = ta && document.activeElement === ta ? ta.selectionStart : it.text.length;
+            jtUpdate(id, { text: it.text.slice(0, pos) + b.dataset.jtVar + it.text.slice(pos) }, true);
+        });
+        // Phím mũi tên nhích chữ đang chọn (Shift = 5 bước) khi không gõ trong ô nhập
+        document.addEventListener('keydown', (e) => {
+            if (!jtSelected || !document.getElementById('view-thuytinh')?.classList.contains('active')) return;
+            if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+            const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+            const it = currentJarTexts.find(x => x.id === jtSelected);
+            if (!d || !it) return;
+            e.preventDefault();
+            const k = e.shiftKey ? 5 : 1;
+            jtUpdate(it.id, { x: it.x + d[0] * k, y: it.y + d[1] * k });
+            const row = host.querySelector(`.jt-item[data-id="${it.id}"]`);
+            if (row) { row.querySelector('.jt-x').value = it.x; row.querySelector('.jt-y').value = it.y; }
+        });
+        document.getElementById('jt-add')?.addEventListener('click', () => {
+            const JT = window.HpJarText;
+            if (!JT || currentJarTexts.length >= JT.MAX_ITEMS) return;
+            const it = JT.newItem(currentJarTexts.length);
+            currentJarTexts.push(it);
+            jtSelected = it.id;
+            renderJarTextPanel();
+            pushConfigUpdate();
+            gameInstance?.selectJarText?.(it.id);
+            document.querySelector(`#jt-list .jt-item[data-id="${it.id}"] .jt-text`)?.select();
+        });
+    })();
     dom.cfgJarTheme?.addEventListener('change', pushConfigUpdate);
     dom.cfgBadgesEnabled?.addEventListener('change', pushConfigUpdate);
     dom.cfgBadgesLocked?.addEventListener('change', pushConfigUpdate);

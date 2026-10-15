@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>Kiểu chữ trang trí hũ</title>
+<link rel="stylesheet" href="/games/thuytinh/jar-text.css" />
+<style>
+    body { margin: 0; background: #14161c; color: #e8ecf3; font: 14px/1.4 'Segoe UI', sans-serif; padding: 20px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p { margin: 0 0 16px; opacity: .7; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    .card { background: #1d2029; border-radius: 14px; padding: 10px; text-align: center; }
+    .jar { position: relative; width: 100%; aspect-ratio: 1024 / 1536; background: url(/assets/thuytinh/ben-ngoai/jar-glass.png) center / contain no-repeat, radial-gradient(circle at 50% 70%, #2b3242, #1d2029 70%); }
+    .jar .tt-jar-texts { inset: 0; }
+    .name { margin-top: 6px; font-weight: 600; }
+    .bar { margin-bottom: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .bar textarea { padding: 6px 10px; border-radius: 8px; border: 1px solid #39405a; background: #0f1117; color: #fff; font-size: 14px; }
+    .bar select { padding: 6px; border-radius: 8px; background: #0f1117; color: #fff; border: 1px solid #39405a; }
+</style>
+</head>
+<body>
+<h1>✍️ 14 kiểu chữ trang trí Hũ Thủy Tinh</h1>
+<p>Bản xem thử — trong app: panel Hũ → Cài đặt → "✍️ Chữ trang trí hũ", rồi kéo chữ trên hũ ở khung xem trước.</p>
+<div class="bar">
+    <textarea id="t" rows="2" maxlength="40">Min Min
+thanks</textarea>
+    <select id="a"></select>
+    <select id="d"></select>
+</div>
+<div class="grid" id="g"></div>
+<script src="/games/thuytinh/jar-text-3d.js"></script>
+<script src="/games/thuytinh/jar-text.js"></script>
+<script>
+    const JT = window.HpJarText, g = document.getElementById('g'), t = document.getElementById('t'), a = document.getElementById('a');
+    a.innerHTML = JT.ANIMS.map(x => `<option value="${x.id}">${x.label}</option>`).join('');
+    a.value = new URLSearchParams(location.search).get('anim') || 'float';
+    const d = document.getElementById('d');
+    d.innerHTML = JT.DECOS.map(x => `<option value="${x.id}">${x.label}</option>`).join('');
+    d.value = new URLSearchParams(location.search).get('deco') || 'none';
+    d.addEventListener('change', () => draw());
+    function draw() {
+        g.innerHTML = '';
+        JT.STYLES.forEach(s => {
+            const card = document.createElement('div'); card.className = 'card';
+            card.innerHTML = `<div class="jar"><div class="tt-jar-texts"></div></div><div class="name">${s.label}</div>`;
+            const layer = card.querySelector('.tt-jar-texts');
+            const el = document.createElement('div'); layer.appendChild(el);
+            JT.paint(el, JT.normalizeItem({ id: s.id, text: t.value, style: s.id, anim: a.value, deco: d.value, x: 50, y: 55, size: 14, rot: -6 }));
+            g.appendChild(card);
+        });
+    }
+    t.addEventListener('input', draw); a.addEventListener('change', draw); draw();
+</script>
+</body>
+</html>

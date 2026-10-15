@@ -9379,3 +9379,23 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .vw-adv-fold > summary { cursor: pointer; font-weight: 600; opacity: .85; }
 .vw-adv-fold[open] > summary { margin-bottom: 8px; }
 .vw-sub-fold { margin-top: 8px; }
+
+/* ✍️ Chữ trang trí hũ — danh sách trong panel Hũ Thủy Tinh */
+.jt-hint { font-size: 12px; opacity: .75; line-height: 1.45; margin: 2px 0 8px; }
+.jt-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.jt-item { border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+.jt-item.sel { border-color: #ffcf3d; box-shadow: 0 0 0 1px rgba(255,207,61,.35); }
+.jt-row { display: flex; gap: 6px; align-items: center; }
+.jt-row .cfg-select { flex: 1; min-width: 0; }
+.jt-text { flex: 1; min-width: 0; resize: vertical; font: 600 14px/1.3 inherit; padding: 6px 8px; border-radius: 8px; background: rgba(0,0,0,.25); color: inherit; border: 1px solid rgba(255,255,255,.12); }
+.jt-color { width: 34px; height: 30px; padding: 0; border: 0; background: none; cursor: pointer; }
+.jt-color:disabled { opacity: .25; cursor: not-allowed; }
+.jt-sliders label { flex: 1; display: flex; align-items: center; gap: 6px; font-size: 12px; opacity: .85; }
+.jt-sliders input[type=range] { flex: 1; min-width: 0; }
+.jt-empty { font-size: 12px; opacity: .6; padding: 6px 2px; }
+.jt-pos { flex-wrap: wrap; gap: 4px; }
+.jt-pos .ghost.small { padding: 3px 7px; min-width: 0; }
+.jt-pos .ghost.small.on { border-color: #ffcf3d; color: #ffcf3d; }
+.jt-vars { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 2px 0 8px; font-size: 12px; }
+.jt-vars > span { opacity: .7; margin-right: 2px; }
+.jt-vars .ghost.small { padding: 2px 6px; font-family: Consolas, monospace; font-size: 11px; }

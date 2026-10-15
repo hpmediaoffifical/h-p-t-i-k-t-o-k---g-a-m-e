@@ -1815,7 +1815,7 @@ const THUYTINH_CONFIG_KEYS = new Set([
     'enabled', 'jar', 'gift', 'physics', 'jarVisible', 'jarLocked', 'maxCapacity', 'history', 'features',
     'goal', 'goalBarGap', 'autoShakeAt', 'randomEventEverySec', 'thiefEverySec', 'thiefMissRate',
     'policeCatchRate', 'policeBanSec', 'policeName', 'triggers', 'effects', 'panelPositions', 'panelScales',
-    'actorScales', 'jarAccessory', 'jarTheme', 'badges', 'topHangers', 'webmFxVolume'
+    'actorScales', 'jarAccessory', 'jarTheme', 'jarTexts', 'badges', 'topHangers', 'webmFxVolume'
 ]);
 function cleanThuyTinhConfig(cfg) {
     if (!cfg || typeof cfg !== 'object') return [];

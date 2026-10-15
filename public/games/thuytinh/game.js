@@ -159,6 +159,7 @@
             // 🎨 Theme màu hũ — đổi ảnh jar-glass theo PNG khác màu (bên-ngoai folder)
             // Các option: default | blue | cam | green | pink | tim | yellow
             jarTheme: 'default',
+            jarTexts: [],      // ✍️ chữ trang trí hũ — xem jar-text.js
             // 🏷 Badge hiệu ứng quà — bật + auto-scroll mặc định cho install mới
             badges: {
                 enabled: true,
@@ -2668,6 +2669,7 @@
             return Array.from(stats.tippers.values()).sort((a, b) => b.diamonds - a.diamonds).slice(0, n);
         }
         function updateLeaderboard() {
+            if (config.jarTexts?.length) applyJarTexts();   // chữ trang trí có biến {top1}/{tong}… → cập nhật theo quà
             if (!config.features.leaderboard || !lbEl) return;
             const top = topTippers(5);
             lbEl.innerHTML = `<div class="tt-lb-title">TOP TẶNG</div>` + top.map((t, i) => `
@@ -2804,6 +2806,116 @@
             _accessoryEl.style.top  = (accY / CANVAS_H * 100) + '%';
             _accessoryEl.style.width  = (accW / CANVAS_W * 100) + '%';
             _accessoryEl.style.height = (accH / CANVAS_H * 100) + '%';
+        }
+
+        // ===== ✍️ Chữ trang trí hũ (jar-text.js + jar-text.css) =====
+        // Lớp chữ TRÙNG KHÍT ảnh hũ ngoài: soi style của jarGlassEl (vị trí, cỡ, xoay, mờ) bằng MutationObserver
+        // → mọi hiệu ứng lắc / nghiêng / đổ / trộm hũ đều kéo chữ theo mà không phải sửa từng chỗ.
+        // App (mirrorMode=false): kéo chữ để dời, lăn chuột = cỡ, Shift+lăn = xoay → opts.onJarTextsChanged lưu config.
+        let _jarTextsEl = null, _jarTextsKey = '', _jarTextSel = '';
+        const JT_MIRROR = ['left', 'top', 'width', 'height', 'transform', 'transformOrigin', 'opacity', 'visibility', 'transition'];
+        function syncJarTextsBox() {
+            if (!_jarTextsEl || !jarGlassEl) return;
+            const src = jarGlassEl.style, dst = _jarTextsEl.style;
+            for (const k of JT_MIRROR) if (dst[k] !== src[k]) dst[k] = src[k];
+        }
+        function ensureJarTextsEl() {
+            if (_jarTextsEl) return _jarTextsEl;
+            if (!jarGlassEl?.parentElement) return null;
+            _jarTextsEl = document.createElement('div');
+            _jarTextsEl.className = 'tt-jar-texts';
+            jarGlassEl.after(_jarTextsEl);
+            try { new MutationObserver(syncJarTextsBox).observe(jarGlassEl, { attributes: true, attributeFilter: ['style'] }); } catch (e) {}
+            syncJarTextsBox();
+            if (!mirrorMode) wireJarTextDrag(_jarTextsEl);
+            return _jarTextsEl;
+        }
+        function jarTextList() {
+            const JT = window.HpJarText;
+            return JT ? JT.normalizeList(config.jarTexts) : [];
+        }
+        function applyJarTexts(force) {
+            const JT = window.HpJarText;
+            const host = ensureJarTextsEl();
+            if (!JT || !host) return;
+            const vars = jarTextVars();
+            const list = jarTextList().map(it => ({ ...it, text: JT.fillVars(it.text, vars) }));
+            const key = JSON.stringify(list);
+            if (!force && key === _jarTextsKey) return;
+            _jarTextsKey = key;
+            host.classList.toggle('tt-jt-edit', !mirrorMode);
+            const old = new Map([...host.children].map(el => [el.dataset.id, el]));
+            list.forEach(it => {
+                let el = old.get(it.id);
+                if (el) old.delete(it.id); else { el = document.createElement('div'); host.appendChild(el); }
+                JT.paint(el, it);
+                el.classList.toggle('tt-jt-sel', !mirrorMode && it.id === _jarTextSel);
+            });
+            old.forEach(el => el.remove());
+        }
+        // Số liệu cho biến tự điền {top1} {tong}… (đọc từ stats của Hũ)
+        function jarTextVars() {
+            return {
+                top: topTippers(3).map(t => ({ name: t.nickname || t.uniqueId || '', xu: t.diamonds })),
+                tong: stats.totalDiamonds, qua: stats.totalGifts, muctieu: config.goal?.target || 0
+            };
+        }
+        function emitJarTexts(list) {
+            config.jarTexts = list;
+            applyJarTexts();
+            if (typeof opts.onJarTextsChanged === 'function') opts.onJarTextsChanged(list, _jarTextSel);
+        }
+        function selectJarText(id) {
+            _jarTextSel = id || '';
+            _jarTextsEl?.querySelectorAll('.tt-jt').forEach(el => el.classList.toggle('tt-jt-sel', el.dataset.id === _jarTextSel));
+        }
+        function wireJarTextDrag(host) {
+            let drag = null;
+            host.addEventListener('pointerdown', (ev) => {
+                const el = ev.target.closest('.tt-jt');
+                if (!el || ev.button !== 0) return;
+                const r = host.getBoundingClientRect();
+                const list = jarTextList();
+                const it = list.find(x => x.id === el.dataset.id);
+                if (!it || !r.width) return;
+                selectJarText(it.id);
+                drag = { el, list, it, r, dx: it.x - (ev.clientX - r.left) / r.width * 100, dy: it.y - (ev.clientY - r.top) / r.height * 100 };
+                el.classList.add('tt-jt-drag');
+                try { el.setPointerCapture(ev.pointerId); } catch (e) {}
+                ev.preventDefault(); ev.stopPropagation();
+                if (typeof opts.onJarTextsChanged === 'function') opts.onJarTextsChanged(list, _jarTextSel);
+            });
+            host.addEventListener('pointermove', (ev) => {
+                if (!drag) return;
+                const { r, it, el } = drag;
+                it.x = Math.round(Math.max(window.HpJarText.POS_MIN, Math.min(window.HpJarText.POS_MAX, (ev.clientX - r.left) / r.width * 100 + drag.dx)) * 10) / 10;
+                it.y = Math.round(Math.max(window.HpJarText.POS_MIN, Math.min(window.HpJarText.POS_MAX, (ev.clientY - r.top) / r.height * 100 + drag.dy)) * 10) / 10;
+                el.style.left = it.x + '%';
+                el.style.top = it.y + '%';
+            });
+            const end = () => {
+                if (!drag) return;
+                drag.el.classList.remove('tt-jt-drag');
+                const list = drag.list;
+                drag = null;
+                emitJarTexts(list);
+            };
+            host.addEventListener('pointerup', end);
+            host.addEventListener('pointercancel', end);
+            host.addEventListener('wheel', (ev) => {
+                const el = ev.target.closest('.tt-jt');
+                if (!el) return;
+                ev.preventDefault();
+                const list = jarTextList();
+                const it = list.find(x => x.id === el.dataset.id);
+                if (!it) return;
+                selectJarText(it.id);
+                const dir = ev.deltaY < 0 ? 1 : -1;
+                if (ev.shiftKey) it.rot = Math.max(-45, Math.min(45, it.rot + dir * 2));
+                else it.size = Math.max(4, Math.min(30, Math.round((it.size + dir * 0.5) * 10) / 10));
+                window.HpJarText.paint(el, { ...it, text: window.HpJarText.fillVars(it.text, jarTextVars()) });
+                emitJarTexts(list);
+            }, { passive: false });
         }
 
         // ===== 🏷 Badge hiệu ứng quà — render danh sách quà đã gán effect lên overlay =====
@@ -5445,6 +5557,7 @@
             applyActorScales();
             applyJarTheme();
             applyJarAccessory();
+            applyJarTexts();
             renderBadges();
             if (isEnabled() && config.features.randomEvents) startRandomEvents(); else stopRandomEvents();
             if (isEnabled() && config.features.thiefAuto) startThiefAuto(); else stopThiefAuto();
@@ -5572,6 +5685,7 @@
         updateGoalBar(); updateSessionTotals(); updateLeaderboard(); updateCrown();
         applyActorScales();
         applyJarAccessory();
+        applyJarTexts();
         if (isEnabled() && config.features.randomEvents) startRandomEvents();
         if (isEnabled() && config.features.thiefAuto) startThiefAuto();
         // Runner FIXED delta — Matter.js default isFixed:false sẽ adapt dt theo real time.
@@ -5666,6 +5780,7 @@
             getPoliceForce: () => Array.from(policeForce.values()),
             // Trả về snapshot danh sách trộm bị tóm (cho Bị Tóm popup ngoài app)
             getCaughtList: () => JSON.parse(JSON.stringify(stats.caughtList)),
+            selectJarText,
             getCount: () => bodies.length,
             engine, CANVAS_W, CANVAS_H
         };
