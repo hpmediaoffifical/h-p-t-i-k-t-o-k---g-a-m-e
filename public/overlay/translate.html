@@ -103,7 +103,8 @@
     (function () {
         const wrap = document.getElementById('wrap');
         const socket = io({ reconnection: true, reconnectionDelay: 600, reconnectionDelayMax: 5000 });
-        let config = { enabled: true, ttsEnabled: true, ttsVoice: 'auto', ttsPreset: 'auto', ttsReadMode: 'nameAndComment', ttsVolume: 85, ttsRate: 1, readUsername: true, maxItems: 8, sourceLang: 'auto', targetLang: 'vi', ttsSource: 'browser' };
+        let config = { enabled: true, ttsEnabled: true, ttsVoice: 'auto', ttsPreset: 'auto', ttsReadMode: 'nameAndComment', ttsVolume: 45, ttsVolumeVersion: 2, ttsRate: 1, readUsername: true, maxItems: 8, sourceLang: 'auto', targetLang: 'vi', ttsSource: 'browser', ttsPlayLocation: 'pc', stripNumbersForTTS: true };
+        let remoteAudioContext = null;
         let voices = [];
         // ★ Chỉ overlay "speaker" (do server bầu) mới phát TTS — chống 2 tiếng đè nhau khi
         //   cùng 1 link đặt ở nhiều Scene OBS. Mặc định true để 1 overlay đơn lẻ vẫn đọc
@@ -121,6 +122,20 @@
         const MAX_PENDING = 5;
         const pendingQueue = [];
         let speaking = false;
+
+        function stopSpeechPlayback() {
+            pendingQueue.length = 0;
+            try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (_) {}
+            try { if (currentRemoteAudio) { currentRemoteAudio.pause(); currentRemoteAudio.src = ''; currentRemoteAudio = null; } } catch (_) {}
+        }
+
+        function stripNumbersForSpeech(text) {
+            return String(text || '')
+                .replace(/[\p{N}]+(?:[.,:/-][\p{N}]+)*/gu, ' ')
+                .replace(/\s{2,}/g, ' ')
+                .replace(/\s+([.,!?;:])/g, '$1')
+                .trim();
+        }
 
         function loadVoices() {
             if (!('speechSynthesis' in window)) return;
@@ -213,14 +228,19 @@
 
         function enqueueSpeak(text, item) {
             if (!isSpeaker) return; // overlay không phải speaker → chỉ hiện chữ, không đọc
+            // Chế độ đọc ở PC (cửa sổ app tự đọc ra loa máy) → overlay chỉ hiện chữ lên stream,
+            // tránh đọc đè 2 nơi cùng lúc.
+            if ((item?.ttsPlayLocation || config.ttsPlayLocation || 'pc') === 'pc') return;
             const ttsOn = item?.ttsEnabled == null ? config.ttsEnabled : item.ttsEnabled;
             if (!ttsOn || item?.canSpeak === false) return;
             const mode = item?.ttsReadMode || config.ttsReadMode || (config.readUsername ? 'nameAndComment' : 'commentOnly');
-            const commentText = String(text || '').trim();
+            const commentText = String(item?.speechText || text || '').trim();
             const userName = cleanSpokenName(item?.nickname || item?.uniqueId || '');
             let value = commentText;
             if (mode === 'nameOnly') value = userName;
             else if (mode === 'nameAndComment' && userName) value = `${userName}. ${commentText}`;
+            const stripNumbers = item?.stripNumbersForTTS == null ? config.stripNumbersForTTS !== false : item.stripNumbersForTTS !== false;
+            if (stripNumbers) value = stripNumbersForSpeech(value);
             if (!value) return;
             pendingQueue.push({ value, item });
             while (pendingQueue.length > MAX_PENDING) pendingQueue.shift();
@@ -244,7 +264,10 @@
 
         function speakOne(value, item) {
             return new Promise(resolve => {
-                const volume = Math.max(0, Math.min(1, (parseInt(item?.ttsVolume == null ? config.ttsVolume : item.ttsVolume, 10) || 85) / 100));
+                // Thang 0–200: 50 = mức to nhất cũ; >50 khuếch đại qua Web Audio (nhánh remote).
+                const volumePercent = Math.max(0, Math.min(200, parseInt(item?.ttsVolume == null ? config.ttsVolume : item.ttsVolume, 10) || 45));
+                const volume = Math.min(1, volumePercent / 50);
+                const boost = Math.max(1, volumePercent / 50);
                 const rate = Math.max(0.5, Math.min(2, parseFloat(item?.ttsRate || config.ttsRate || 1) || 1));
                 const speechLang = presetLang(item);
                 // ★ TTS source — user chọn 1 trong 2 để tránh phát 2 tiếng đè nhau
@@ -256,7 +279,8 @@
 
                 // ===== Path 1: BROWSER TTS (mặc định) =====
                 // Chỉ dùng trình duyệt khi máy THỰC SỰ có giọng cho ngôn ngữ đó.
-                if (source === 'browser' && 'speechSynthesis' in window && hasLocalVoice(speechLang)) {
+                // SpeechSynthesis tối đa volume 1 → cần khuếch đại (>50%) thì đi nhánh Google remote.
+                if (source === 'browser' && boost <= 1 && 'speechSynthesis' in window && hasLocalVoice(speechLang)) {
                     speakWithBrowser(value, volume, rate, item, speechLang, done);
                     return;
                 }
@@ -274,13 +298,27 @@
                 audio.volume = volume;
                 audio.playbackRate = rate;
                 currentRemoteAudio = audio;
+                let remoteSource = null;
+                let remoteGain = null;
+                // HTMLAudioElement bị khóa ở volume 1. Web Audio mới khuếch đại thật sự khi > 50%.
+                if (boost > 1) {
+                    try {
+                        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                        remoteAudioContext = remoteAudioContext || new AudioContextClass();
+                        remoteSource = remoteAudioContext.createMediaElementSource(audio);
+                        remoteGain = remoteAudioContext.createGain();
+                        remoteGain.gain.value = boost;
+                        remoteSource.connect(remoteGain).connect(remoteAudioContext.destination);
+                        remoteAudioContext.resume().catch(() => {});
+                    } catch (_) { audio.volume = 1; }
+                }
                 // stopAndDone: DỪNG clip hiện tại rồi mới resolve. Bắt buộc phải pause() —
                 // nếu chỉ done() mà không pause, watchdog bắn sớm sẽ để clip cũ đọc tiếp
                 // trong khi câu kế đã phát → 2 tiếng đè nhau (đây là lỗi cũ với câu dài).
                 let watchdog = setTimeout(stopAndDone, 20000); // fallback khi metadata không load
                 function stopAndDone() {
                     clearTimeout(watchdog);
-                    try { audio.pause(); audio.src = ''; } catch (_) {}
+                    try { remoteSource && remoteSource.disconnect(); remoteGain && remoteGain.disconnect(); audio.pause(); audio.src = ''; } catch (_) {}
                     if (currentRemoteAudio === audio) currentRemoteAudio = null;
                     done();
                 }
@@ -379,18 +417,19 @@
             }, 16000);
         }
 
-        socket.on('connect', () => socket.emit('subscribe', 'translateOverlay'));
+        // Link có ?speaker=1 được server ưu tiên làm nguồn đọc (khi chọn "Overlay OBS đọc" mà có nhiều Browser Source).
+        const preferredSpeaker = new URLSearchParams(window.location.search).get('speaker') === '1';
+        socket.on('connect', () => socket.emit('subscribe', { room: 'translateOverlay', speaker: preferredSpeaker }));
         // Server bầu speaker duy nhất: chỉ overlay được chọn mới đọc TTS. Khi bị hạ xuống
         // non-speaker mà đang đọc dở → dừng ngay + xả hàng đợi để tắt tiếng dứt điểm.
         socket.on('translate:role', r => {
             isSpeaker = !!(r && r.isSpeaker);
-            if (!isSpeaker) {
-                pendingQueue.length = 0;
-                try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (_) {}
-                try { if (currentRemoteAudio) { currentRemoteAudio.pause(); currentRemoteAudio.src = ''; currentRemoteAudio = null; } } catch (_) {}
-            }
+            if (!isSpeaker) stopSpeechPlayback();
         });
-        socket.on('translate:config', cfg => { config = { ...config, ...(cfg || {}) }; });
+        socket.on('translate:config', cfg => {
+            config = { ...config, ...(cfg || {}) };
+            if (config.ttsPlayLocation === 'pc') stopSpeechPlayback(); // vừa chuyển sang app đọc → overlay nín ngay
+        });
         socket.on('translate:comment', addComment);
         socket.on('translate:testSpeak', item => enqueueSpeak(item?.translatedText || 'HP Media xin chào, đây là giọng đọc thử bằng tiếng Việt.', item || {}));
     })();

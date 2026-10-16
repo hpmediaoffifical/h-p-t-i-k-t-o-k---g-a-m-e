@@ -1749,15 +1749,21 @@ const DEFAULT_LIVE_TRANSLATE_CONFIG = {
     ttsCooldownSeconds: 4,
     ttsPriority: 'all',
     ttsPreset: 'auto',
-    ttsVolume: 85,
+    ttsVolume: 45,          // thang 0–200 (ttsVolumeVersion 2): 50 = mức to cũ, 100 = khuếch đại x2
+    ttsVolumeVersion: 2,
     ttsRate: 1,
     // 'browser' = đọc bằng SpeechSynthesis của trình duyệt (mặc định, giọng đẹp)
     // 'remote'  = đọc bằng Google translate_tts (single voice, fallback)
     // → Chỉ chọn 1 trong 2 để tránh phát 2 tiếng đè nhau khi network race
     ttsSource: 'browser',
+    // Đọc ở đâu: 'pc' = cửa sổ app đọc thẳng ra loa máy (khỏi cần overlay OBS), 'obs' = overlay Dịch OBS đọc.
+    ttsPlayLocation: 'pc',
     aiFilterEnabled: true,
+    blockSpecialChars: false,   // chặn bình luận có ký hiệu lạ / mở đầu bằng ký tự đặc biệt / spam ký hiệu
     ignoreIcons: true,
     cleanUnreadable: true,
+    skipNumberOnlyComments: true, // bỏ bình luận chỉ toàn số ("1", "666", "2 2 2")
+    stripNumbersForTTS: true,     // không đọc chữ số trong TTS
     readUsername: true,
     maxItems: 8,
     glossary: [],
@@ -1920,12 +1926,23 @@ if (appConfig.games.trongcay) {
 for (const gId of ['nhietdo', 'bancung', 'trongcay']) {
     if (appConfig.games[gId]) appConfig.games[gId].sessionActive = false;
 }
-appConfig.liveTranslate = {
-    ...DEFAULT_LIVE_TRANSLATE_CONFIG,
-    ...(appConfig.liveTranslate || {}),
-    glossary: Array.isArray(appConfig.liveTranslate?.glossary) ? appConfig.liveTranslate.glossary : [],
-    forbiddenWords: Array.isArray(appConfig.liveTranslate?.forbiddenWords) ? appConfig.liveTranslate.forbiddenWords : []
-};
+// Thang âm lượng TTS mới (theo HP NPC LIVE): 0–200, 50 = mức to nhất cũ, >50 khuếch đại qua WebAudio.
+// Config/backup cũ (thang 0–100, chưa có ttsVolumeVersion) → chia đôi để giữ nguyên độ to khách đã chọn.
+function migrateLiveTranslateVolume(raw) {
+    const src = (raw && typeof raw === 'object') ? raw : {};
+    if (Number(src.ttsVolumeVersion) >= 2) return src;
+    const oldVolume = Number(src.ttsVolume);
+    return { ...src, ttsVolume: Number.isFinite(oldVolume) ? Math.round(oldVolume / 2) : DEFAULT_LIVE_TRANSLATE_CONFIG.ttsVolume, ttsVolumeVersion: 2 };
+}
+appConfig.liveTranslate = (() => {
+    const raw = migrateLiveTranslateVolume(appConfig.liveTranslate);
+    return {
+        ...DEFAULT_LIVE_TRANSLATE_CONFIG,
+        ...raw,
+        glossary: Array.isArray(raw.glossary) ? raw.glossary : [],
+        forbiddenWords: Array.isArray(raw.forbiddenWords) ? raw.forbiddenWords : []
+    };
+})();
 if (appConfig.liveTranslate.manualStartVersion !== 1) {
     appConfig.liveTranslate.enabled = false;
     appConfig.liveTranslate.manualStartVersion = 1;
@@ -2027,6 +2044,8 @@ const liveTranslateStats = {
     skippedEmpty: 0,
     skippedBlocked: 0,
     skippedToxic: 0,
+    skippedSpecialChar: 0,
+    skippedNumberSpam: 0,
     skippedExcludedLanguage: 0,
     emitted: 0,
     translateErrors: 0,
@@ -2144,6 +2163,10 @@ function sanitizeLiveTranslateConfig(input) {
     cfg.ignoreIcons = cfg.ignoreIcons !== false;
     cfg.cleanUnreadable = cfg.cleanUnreadable !== false;
     cfg.aiFilterEnabled = cfg.aiFilterEnabled !== false;
+    cfg.blockSpecialChars = cfg.blockSpecialChars === true;
+    cfg.skipNumberOnlyComments = cfg.skipNumberOnlyComments !== false;
+    cfg.stripNumbersForTTS = cfg.stripNumbersForTTS !== false;
+    cfg.ttsPlayLocation = ['obs', 'pc'].includes(cfg.ttsPlayLocation) ? cfg.ttsPlayLocation : DEFAULT_LIVE_TRANSLATE_CONFIG.ttsPlayLocation;
     cfg.readUsername = cfg.readUsername !== false;
     cfg.sourceLang = String(cfg.sourceLang || 'auto').trim().toLowerCase().replace(/[^a-z-]/g, '').slice(0, 12) || 'auto';
     cfg.excludedSourceLang = String(cfg.excludedSourceLang || '').trim().toLowerCase().replace(/[^a-z-]/g, '').slice(0, 12);
@@ -2158,7 +2181,8 @@ function sanitizeLiveTranslateConfig(input) {
     const cooldown = parseInt(cfg.ttsCooldownSeconds, 10);
     cfg.ttsCooldownSeconds = Math.max(0, Math.min(60, Number.isFinite(cooldown) ? cooldown : DEFAULT_LIVE_TRANSLATE_CONFIG.ttsCooldownSeconds));
     const volume = parseInt(cfg.ttsVolume, 10);
-    cfg.ttsVolume = Math.max(0, Math.min(100, Number.isFinite(volume) ? volume : DEFAULT_LIVE_TRANSLATE_CONFIG.ttsVolume));
+    cfg.ttsVolume = Math.max(0, Math.min(200, Number.isFinite(volume) ? volume : DEFAULT_LIVE_TRANSLATE_CONFIG.ttsVolume));
+    cfg.ttsVolumeVersion = 2; // mọi giá trị đi qua đây đã ở thang mới — đừng để lượt boot sau chia đôi lần nữa
     const rate = parseFloat(cfg.ttsRate);
     cfg.ttsRate = Math.max(0.5, Math.min(2, Number.isFinite(rate) ? rate : DEFAULT_LIVE_TRANSLATE_CONFIG.ttsRate));
     cfg.maxItems = Math.max(3, Math.min(20, parseInt(cfg.maxItems, 10) || DEFAULT_LIVE_TRANSLATE_CONFIG.maxItems));
@@ -2260,7 +2284,13 @@ async function processCreatorCaptionSpeech(payload) {
             if (targetLang === srcShort) {
                 return { targetLang, targetLangLabel: liveTranslateLangLabel(targetLang), translatedText: originalText, sourceLang: srcShort, sourceLangLabel: liveTranslateLangLabel(srcShort) };
             }
-            const result = await translateTextToTarget(originalText, srcShort, targetLang);
+            // Bộ tự dịch NÉM LỖI khi cả 3 bậc hỏng → chỉ ngôn ngữ đó hiện nguyên văn, các ngôn ngữ khác vẫn có bản dịch.
+            let result;
+            try { result = await translateTextToTarget(originalText, srcShort, targetLang); }
+            catch (e) {
+                console.warn('[creator-caption] dịch', targetLang, 'lỗi:', e?.message || e);
+                return { targetLang, targetLangLabel: liveTranslateLangLabel(targetLang), translatedText: originalText, sourceLang: srcShort, sourceLangLabel: liveTranslateLangLabel(srcShort), error: e?.message || 'translate_failed' };
+            }
             return {
                 targetLang,
                 targetLangLabel: liveTranslateLangLabel(targetLang),
@@ -2323,6 +2353,41 @@ function stripLiveTranslateIcons(text) {
     return String(text || '')
         .replace(/[\p{Extended_Pictographic}\p{Emoji_Presentation}\uFE0F\u200D]/gu, ' ')
         .replace(/\s{2,}/g, ' ')
+        .trim();
+}
+
+// Bình luận chỉ toàn số (sau khi bỏ icon + dấu/ký hiệu): "1", "666", "2 2 2", "10/10" → spam, không dịch/đọc.
+function isLiveTranslateNumberOnlyComment(text) {
+    const compact = stripLiveTranslateIcons(text).replace(/[\s.,:;!?"'`~+\-*/\\_|()[\]{}<>=%$€£¥₫#@&]+/gu, '');
+    return !!compact && /^[\p{N}]+$/u.test(compact);
+}
+
+// Dấu câu / ký hiệu ASCII thông dụng — không tính là "lạ", nhưng vẫn tính khi xét
+// bắt đầu bằng ký tự đặc biệt hoặc quá nhiều ký tự đặc biệt trong một dòng.
+// Kèm dấu câu Trung/Nhật/Hàn + toàn khổ (、。！？「」…): thiếu chúng thì MỌI câu tiếng Nhật/Trung có dấu phẩy bị chặn oan.
+const LIVE_TRANSLATE_COMMON_SPECIALS = new Set([...'.,!?;:\'"()[]{}<>-–—_/\\|@#$%^&*+=~`…', ...'、。，．！？：；「」『』（）【】〈〉《》〔〕～・ー'].map(String));
+// Chặn bình luận có ký tự đặc biệt. Sau khi bỏ emoji, coi là ký tự đặc biệt nếu:
+//  1) còn ký hiệu lạ ngoài dấu câu thông dụng (★ ♥ ⚡ box-drawing, chữ trang trí…);
+//  2) dòng BẮT ĐẦU bằng ký tự đặc biệt (dấu/ký hiệu đứng đầu như ? . ; @ # [ ( …);
+//  3) QUÁ NHIỀU ký tự đặc biệt trong một dòng (spam kiểu "# $ % ^ & * ( ) _ +").
+function liveTranslateHasSpecialChars(text) {
+    const s = stripLiveTranslateIcons(text).trim();
+    if (!s) return false;
+    const specials = s.match(/[^\p{L}\p{M}\p{N}\s]/gu) || [];
+    if (!specials.length) return false;
+    if (specials.some(ch => !LIVE_TRANSLATE_COMMON_SPECIALS.has(ch))) return true;
+    if (/[^\p{L}\p{M}\p{N}\s]/u.test(s[0]) && !'「『（【〈《〔'.includes(s[0])) return true; // ngoặc mở Nhật/Trung mở câu là bình thường
+    const wordChars = (s.match(/[\p{L}\p{N}]/gu) || []).length;
+    if (specials.length >= 4 && specials.length >= wordChars) return true;
+    return false;
+}
+
+// Câu đưa cho TTS khi bật "Không đọc số": bỏ cụm số (kể cả 1.000 / 10:30 / 2/3) để giọng đọc khỏi đọc dãy số dài.
+function stripLiveTranslateNumbersForSpeech(text) {
+    return String(text || '')
+        .replace(/[\p{N}]+(?:[.,:/-][\p{N}]+)*/gu, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\s+([.,!?;:])/g, '$1')
         .trim();
 }
 
@@ -2404,31 +2469,101 @@ function shouldSpeakLiveTranslate(chat, cfg) {
     return true;
 }
 
+// ===== Bộ tự dịch (port từ HP NPC LIVE) — 3 bậc dự phòng, có hạn giờ, không tin câu báo lỗi =====
+const TRANSLATION_FETCH_TIMEOUT_MS = 8000;
+async function fetchTranslate(url, options = {}) {
+    // Các endpoint dịch công cộng đôi lúc treo theo DNS/mạng của riêng một máy. Không để
+    // một bình luận giữ promise vô hạn rồi làm người dùng tưởng tính năng dịch đã chết.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TRANSLATION_FETCH_TIMEOUT_MS);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
+// MyMemory trả HTTP 200 kèm câu BÁO LỖI TIẾNG ANH ngay trong `translatedText` (không phải mã lỗi HTTP).
+// Nếu tin, app đem nguyên câu "'AUTO' IS AN INVALID SOURCE LANGUAGE. EXAMPLE: LANGPAIR=EN|IT…" lên
+// overlay và ĐỌC TO bằng TTS. Coi mọi chuỗi khớp các mẫu này là DỊCH HỎNG, không phải bản dịch.
+const TRANSLATE_ERROR_TEXT_PATTERNS = [
+    /IS AN INVALID (?:SOURCE|TARGET) LANGUAGE/i,
+    /MYMEMORY WARNING/i,
+    /QUERY LENGTH LIMIT/i,
+    /PLEASE (?:LOGIN|CONTACT|SIGN)/i,
+    /^\s*NO CONTENT\s*$/i
+];
+function isBadTranslationText(text) {
+    const s = String(text || '').trim();
+    if (!s) return true;
+    return TRANSLATE_ERROR_TEXT_PATTERNS.some(re => re.test(s));
+}
+// Bậc 1 — clients5/dict-chrome-ex: PHÁT HIỆN ngôn ngữ + dịch trong CÙNG một lượt gọi, và hiện là
+// endpoint còn trả lời ổn nhất (bậc gtx bên dưới bị Google chặn 429 trên nhiều máy).
+// Dạng trả về: [["<bản dịch>","<mã ngôn ngữ>"]]; câu dài có thể tách thành [[["a","b"],"<mã>"]].
+async function translateViaGoogleDict(text, sl, tl) {
+    const url = 'https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=' + encodeURIComponent(sl)
+        + '&tl=' + encodeURIComponent(tl) + '&q=' + encodeURIComponent(text);
+    const res = await fetchTranslate(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!res.ok) throw new Error(`google_dict_http_${res.status}`);
+    const body = await res.json();
+    const first = Array.isArray(body) ? body[0] : body;
+    const raw = Array.isArray(first) ? first[0] : first;
+    return {
+        translated: Array.isArray(raw) ? raw.join('') : String(raw || ''),
+        detected: Array.isArray(first) ? String(first[1] || '') : ''
+    };
+}
+// Bậc 2 — endpoint gtx cũ. Giữ lại vì 429 tuỳ theo IP/máy: nơi nào còn gọi được thì vẫn dùng.
+async function translateViaGoogleGtx(text, sl, tl) {
+    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=' + encodeURIComponent(sl)
+        + '&tl=' + encodeURIComponent(tl) + '&q=' + encodeURIComponent(text);
+    const res = await fetchTranslate(url, { headers: { 'User-Agent': 'HP-Action-LIVE/translate' } });
+    if (!res.ok) throw new Error(`google_http_${res.status}`);
+    const body = await res.json();
+    return {
+        translated: Array.isArray(body?.[0]) ? body[0].map(part => part?.[0] || '').join('') : '',
+        detected: body?.[2] ? String(body[2]) : ''
+    };
+}
+// Bậc 3 — MyMemory. CHỈ gọi khi đã biết ngôn ngữ nguồn THẬT: nó không hiểu 'auto'.
+async function translateViaMyMemory(text, sl, tl) {
+    if (!sl || sl === 'auto') throw new Error('mymemory_needs_source_lang');
+    const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text)
+        + '&langpair=' + encodeURIComponent(sl) + '|' + encodeURIComponent(tl);
+    const res = await fetchTranslate(url, { headers: { 'User-Agent': 'HP-Action-LIVE/translate' } });
+    if (!res.ok) throw new Error(`translate_http_${res.status}`);
+    const body = await res.json();
+    if (Number(body?.responseStatus) !== 200) throw new Error(`mymemory_status_${body?.responseStatus || 'unknown'}`);
+    const translated = String(body?.responseData?.translatedText || '').trim();
+    if (isBadTranslationText(translated)) throw new Error('mymemory_error_text');
+    return { translated, detected: sl };
+}
+// PHÁT HIỆN ngôn ngữ → dịch sang ngôn ngữ đích. Không dịch được thì NÉM LỖI (không trả bừa
+// chuỗi lạ), để phía gọi hiện nguyên văn bình luận gốc thay vì một câu tiếng Anh vô nghĩa.
 async function translateTextToTarget(text, sourceLang, targetLang) {
     const cleanText = String(text || '').trim().slice(0, 450);
+    const target = sourceLangForTranslate(targetLang) === 'auto' ? 'vi' : sourceLangForTranslate(targetLang);
     if (!cleanText) return { translatedText: '', detectedLang: sourceLang || 'auto' };
-    const sl = sourceLang && sourceLang !== 'auto' ? sourceLang : 'auto';
-    const cacheKey = `${sl}:${targetLang}:${cleanText}`;
+    const sl = sourceLang && sourceLang !== 'auto' ? sourceLangForTranslate(sourceLang) : 'auto';
+    const cacheKey = `${sl}:${target}:${cleanText}`;
     if (translationCache.has(cacheKey)) return translationCache.get(cacheKey);
     let translated = '';
     let detectedLang = sl;
-    try {
-        const googleUrl = 'https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl='
-            + encodeURIComponent(sl) + '&tl=' + encodeURIComponent(targetLang) + '&q=' + encodeURIComponent(cleanText);
-        const res = await fetch(googleUrl, { timeout: 10000, headers: { 'User-Agent': 'HP-Action-LIVE/translate-mvp' } });
-        if (!res.ok) throw new Error(`google_http_${res.status}`);
-        const body = await res.json();
-        translated = Array.isArray(body?.[0]) ? body[0].map(part => part?.[0] || '').join('') : '';
-        if (body?.[2]) detectedLang = String(body[2]).toLowerCase();
-    } catch (e) {
-        const fallbackUrl = 'https://api.mymemory.translated.net/get?q='
-            + encodeURIComponent(cleanText) + '&langpair=' + encodeURIComponent(sl) + '|' + encodeURIComponent(targetLang);
-        const res = await fetch(fallbackUrl, { timeout: 10000, headers: { 'User-Agent': 'HP-Action-LIVE/translate-mvp' } });
-        if (!res.ok) throw new Error(`translate_http_${res.status}`);
-        const body = await res.json();
-        translated = String(body?.responseData?.translatedText || '').trim();
+    let lastError = null;
+    for (const attempt of [translateViaGoogleDict, translateViaGoogleGtx]) {
+        try {
+            const out = await attempt(cleanText, sl, target);
+            if (out.detected) detectedLang = sourceLangForTranslate(out.detected);
+            if (!isBadTranslationText(out.translated)) { translated = out.translated.trim(); break; }
+        } catch (err) { lastError = err; }
     }
-    const result = { translatedText: String(translated || cleanText).trim() || cleanText, detectedLang };
+    if (!translated) {
+        // Tới đây mới có thể biết ngôn ngữ nguồn (nếu bậc trên kịp phát hiện trước khi hỏng).
+        try { translated = (await translateViaMyMemory(cleanText, detectedLang, target)).translated; }
+        catch (err) { lastError = err; }
+    }
+    if (!translated) throw lastError || new Error('translate_unavailable');
+    const result = { translatedText: translated, detectedLang: detectedLang || 'auto' };
     translationCache.set(cacheKey, result);
     if (translationCache.size > TRANSLATION_CACHE_LIMIT) {
         const firstKey = translationCache.keys().next().value;
@@ -2460,11 +2595,21 @@ function processLiveTranslateChat(chat) {
         liveTranslateStats.lastBlockedWord = blockedWord;
         return;
     }
+    if (cfg.blockSpecialChars && liveTranslateHasSpecialChars(chat.comment)) {
+        liveTranslateStats.skippedSpecialChar += 1;
+        liveTranslateStats.lastSkipReason = 'special_char_comment';
+        return;
+    }
     let textOnlyComment = cfg.ignoreIcons ? stripLiveTranslateIcons(chat.comment) : String(chat.comment || '').trim();
     if (cfg.cleanUnreadable) textOnlyComment = cleanLiveTranslateUnreadableText(textOnlyComment);
     if (!textOnlyComment) {
         liveTranslateStats.skippedEmpty += 1;
         liveTranslateStats.lastSkipReason = 'empty_after_clean';
+        return;
+    }
+    if (cfg.skipNumberOnlyComments && isLiveTranslateNumberOnlyComment(textOnlyComment)) {
+        liveTranslateStats.skippedNumberSpam += 1;
+        liveTranslateStats.lastSkipReason = 'number_only_comment';
         return;
     }
     const normalizedComment = applyLiveTranslateGlossary(textOnlyComment, [...(commentSheetRules.glossary || []), ...(cfg.glossary || [])]);
@@ -2510,10 +2655,15 @@ function processLiveTranslateChat(chat) {
                 ttsVolume: cfg.ttsVolume,
                 ttsRate: cfg.ttsRate,
                 ttsSource: cfg.ttsSource,
+                ttsPlayLocation: cfg.ttsPlayLocation,
+                stripNumbersForTTS: cfg.stripNumbersForTTS,
+                maxItems: cfg.maxItems,
                 toxic: !!toxicReason,
                 canSpeak: !toxicReason && shouldSpeakLiveTranslate(chat, cfg),
                 createTime: chat.createTime || Date.now()
             };
+            // Câu sẽ ĐỌC (bộ đọc ở PC lẫn overlay dùng chung): bỏ số nếu bật "Không đọc số".
+            item.speechText = cfg.stripNumbersForTTS ? stripLiveTranslateNumbersForSpeech(item.translatedText || normalizedComment) : (item.translatedText || normalizedComment);
             io.emit('translate:comment', item);
             setLiveDashboardTranslatedComment(item);
         })
@@ -2543,11 +2693,16 @@ function processLiveTranslateChat(chat) {
                 ttsVolume: cfg.ttsVolume,
                 ttsRate: cfg.ttsRate,
                 ttsSource: cfg.ttsSource,
+                ttsPlayLocation: cfg.ttsPlayLocation,
+                stripNumbersForTTS: cfg.stripNumbersForTTS,
+                maxItems: cfg.maxItems,
                 toxic: !!toxicReason,
                 canSpeak: !toxicReason && shouldSpeakLiveTranslate(chat, cfg),
                 error: err?.message || 'translate_failed',
                 createTime: chat.createTime || Date.now()
             };
+            // Câu sẽ ĐỌC (bộ đọc ở PC lẫn overlay dùng chung): bỏ số nếu bật "Không đọc số".
+            item.speechText = cfg.stripNumbersForTTS ? stripLiveTranslateNumbersForSpeech(item.translatedText || normalizedComment) : (item.translatedText || normalizedComment);
             io.emit('translate:comment', item);
             setLiveDashboardTranslatedComment(item);
         });
@@ -4552,6 +4707,12 @@ app.post('/api/live-translate/test-tts', (req, res) => {
         ttsReadMode: cfg.ttsReadMode,
         ttsPreset: cfg.ttsPreset,
         ttsRate: cfg.ttsRate,
+        ttsVolume: cfg.ttsVolume,
+        ttsVoice: cfg.ttsVoice,
+        ttsSource: cfg.ttsSource,
+        ttsPlayLocation: cfg.ttsPlayLocation,
+        ttsEnabled: true,
+        speechText: text,
         canSpeak: true,
         createTime: Date.now()
     });
@@ -4576,6 +4737,7 @@ app.get('/api/live-translate/debug', (req, res) => {
         username: currentUsername,
         roomId: currentRoomId,
         config: sanitizeLiveTranslateConfig(appConfig.liveTranslate),
+        overlayCount: io.sockets.adapter.rooms.get('translateOverlay')?.size || 0,
         stats: liveTranslateStats,
         rules: getCommentRulesMeta()
     });
@@ -4604,7 +4766,7 @@ app.post('/api/backup/import', (req, res) => {
         if (!appConfig.games[gId]) appConfig.games[gId] = { ...GAMES[gId].defaultConfig };
     }
     if (appConfig.games.vipwelcome) appConfig.games.vipwelcome = migrateVipWelcomeConfig(appConfig.games.vipwelcome);
-    appConfig.liveTranslate = sanitizeLiveTranslateConfig(incoming.liveTranslate || appConfig.liveTranslate || {});
+    appConfig.liveTranslate = sanitizeLiveTranslateConfig(incoming.liveTranslate ? migrateLiveTranslateVolume(incoming.liveTranslate) : (appConfig.liveTranslate || {}));
     appConfig.creatorCaption = sanitizeCreatorCaptionConfig(incoming.creatorCaption || appConfig.creatorCaption || {});
     if (incoming.license && typeof incoming.license === 'object') appConfig.license = { ...(appConfig.license || {}), ...incoming.license };
     saveAppConfig();
@@ -10948,7 +11110,9 @@ const relayCache = {
 function assignTranslateSpeaker() {
     const room = io.sockets.adapter.rooms.get('translateOverlay');
     const ids = room ? Array.from(room) : [];
-    const speakerId = ids[0] || null; // Set giữ thứ tự chèn → phần tử đầu = cũ nhất
+    // Link có ?speaker=1 thắng trước (người dùng chọn đúng nguồn phát tiếng); không có thì lấy overlay cũ nhất.
+    const preferred = ids.filter(id => io.sockets.sockets.get(id)?.data?.translateSpeakerPreferred === true);
+    const speakerId = preferred[0] || ids[0] || null; // Set giữ thứ tự chèn → phần tử đầu = cũ nhất
     for (const id of ids) {
         io.to(id).emit('translate:role', { isSpeaker: id === speakerId });
     }
@@ -11243,11 +11407,18 @@ io.on('connection', (socket) => {
         captionMinimizedSockets.delete(socket.id);
     });
 
-    socket.on('subscribe', (roomName) => {
+    socket.on('subscribe', (subscription) => {
+        // Overlay Dịch gửi { room, speaker } (link có ?speaker=1 = nguồn được ưu tiên đọc); còn lại gửi chuỗi.
+        const roomName = (subscription && typeof subscription === 'object') ? subscription.room : subscription;
         if (typeof roomName === 'string' && roomName.length < 32) {
             socket.join(roomName);
             // Dịch Thuật LIVE: mỗi lần có overlay mới vào/ra → bầu lại speaker duy nhất
-            if (roomName === 'translateOverlay') assignTranslateSpeaker();
+            if (roomName === 'translateOverlay') {
+                socket.data.translateSpeakerPreferred = typeof subscription === 'object' && subscription?.speaker === true;
+                // Gửi config ngay để overlay biết "Đọc TTS ở" PC hay OBS trước câu đầu tiên.
+                socket.emit('translate:config', sanitizeLiveTranslateConfig(appConfig.liveTranslate));
+                assignTranslateSpeaker();
+            }
             // Overlay Chào Mừng VIP vừa mở/nối lại → gửi thẻ vào phòng còn chờ + chạy tiếp hàng media.
             if (roomName === 'overlay:vipwelcome') vipFlushPendingTo(socket);
             if (roomName === 'overlay:vipwelcome-board') socket.emit('vipwelcome:board', vipBoardPayload());

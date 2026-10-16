@@ -2290,9 +2290,19 @@
             <details class="translate-collapse translate-group">
                 <summary>Bật / lọc / đọc LIVE</summary>
                 <label class="translate-check"><input type="checkbox" id="lt-enabled" checked /> Bật dịch bình luận</label>
-                <label class="translate-check"><input type="checkbox" id="lt-tts" checked /> Đọc thành tiếng trên overlay</label>
+                <label class="translate-check"><input type="checkbox" id="lt-tts" checked /> Đọc thành tiếng bình luận</label>
+                <div class="translate-row" title="Loa máy tính: cửa sổ app này đọc thẳng ra loa, khỏi cần thêm link vào OBS. Overlay OBS: Browser Source &quot;Dịch OBS&quot; đọc (như cũ). Chỉ một nơi đọc nên không bị đọc đè 2 tiếng.">
+                    <label>Đọc TTS ở</label>
+                    <select id="lt-play-location">
+                        <option value="pc">💻 Loa máy tính (app đọc)</option>
+                        <option value="obs">🎬 Overlay OBS đọc</option>
+                    </select>
+                </div>
                 <label class="translate-check"><input type="checkbox" id="lt-ignore-icons" checked /> Bỏ qua icon/emoji, chỉ dịch chữ</label>
                 <label class="translate-check"><input type="checkbox" id="lt-clean-unreadable" checked /> Bỏ phần trong [] và ký tự đặc biệt khó đọc</label>
+                <label class="translate-check" title="Bình luận có ký hiệu lạ (★ ♥ ⚡ chữ trang trí), mở đầu bằng ký tự đặc biệt, hoặc toàn ký hiệu spam → không dịch, không đọc."><input type="checkbox" id="lt-block-special" /> Chặn bình luận có ký tự đặc biệt</label>
+                <label class="translate-check"><input type="checkbox" id="lt-skip-number-only" checked /> Bỏ bình luận chỉ toàn số (1, 666, 2 2 2…)</label>
+                <label class="translate-check"><input type="checkbox" id="lt-strip-numbers-tts" checked /> Không đọc số trong TTS</label>
                 <label class="translate-check"><input type="checkbox" id="lt-ai-filter" checked /> AI lọc bình luận độc hại trước khi đọc LIVE</label>
             </details>
             <details class="translate-collapse translate-group">
@@ -2348,7 +2358,7 @@
                 <div class="translate-row"><label>Chế độ đọc</label><select id="lt-read-mode"><option value="nameAndComment">Tên + bình luận</option><option value="commentOnly">Chỉ bình luận</option><option value="nameOnly">Chỉ tên</option></select></div>
                 <div class="translate-row"><label>Ưu tiên đọc</label><select id="lt-priority"><option value="all">Tất cả bình luận</option><option value="gifters">Chỉ user vừa tặng quà</option><option value="members">Chỉ user vừa vào LIVE</option><option value="giftersOrMembers">Tặng quà hoặc vừa vào LIVE</option></select></div>
                 <div class="translate-row"><label>Chống spam</label><select id="lt-cooldown"><option value="0">Không giới hạn</option><option value="3">3 giây/user</option><option value="4">4 giây/user</option><option value="5">5 giây/user</option><option value="8">8 giây/user</option><option value="10">10 giây/user</option></select></div>
-                <div class="translate-row"><label>Âm lượng</label><input type="range" id="lt-volume" min="0" max="100" step="5" /><span class="translate-val" id="lt-volume-v">85%</span></div>
+                <div class="translate-row" title="50% = mức to nhất trước đây. Trên 50% là khuếch đại thêm (tối đa x4)."><label>Âm lượng</label><input type="range" id="lt-volume" min="0" max="200" step="5" /><span class="translate-val" id="lt-volume-v">45%</span></div>
                 <div class="translate-row"><label>Tốc độ đọc</label><input type="range" id="lt-rate" min="0.5" max="2" step="0.1" value="1" /><span class="translate-val" id="lt-rate-v">1.0x</span></div>
                 <button id="btn-translate-test-voice" class="ghost block">Test giọng tiếng Việt</button>
             </details>

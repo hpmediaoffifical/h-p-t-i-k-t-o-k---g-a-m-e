@@ -3659,6 +3659,10 @@
     const ltIgnoreIcons = document.getElementById('lt-ignore-icons');
     const ltCleanUnreadable = document.getElementById('lt-clean-unreadable');
     const ltAiFilter = document.getElementById('lt-ai-filter');
+    const ltPlayLocation = document.getElementById('lt-play-location');
+    const ltBlockSpecial = document.getElementById('lt-block-special');
+    const ltSkipNumberOnly = document.getElementById('lt-skip-number-only');
+    const ltStripNumbersTts = document.getElementById('lt-strip-numbers-tts');
     const ltSource = document.getElementById('lt-source');
     const ltExcludedSource = document.getElementById('lt-excluded-source');
     const ltTarget = document.getElementById('lt-target');
@@ -3782,6 +3786,11 @@
         if (ltIgnoreIcons) ltIgnoreIcons.checked = liveTranslateConfig.ignoreIcons !== false;
         if (ltCleanUnreadable) ltCleanUnreadable.checked = liveTranslateConfig.cleanUnreadable !== false;
         if (ltAiFilter) ltAiFilter.checked = liveTranslateConfig.aiFilterEnabled !== false;
+        if (ltPlayLocation) ltPlayLocation.value = liveTranslateConfig.ttsPlayLocation === 'obs' ? 'obs' : 'pc';
+        if (ltBlockSpecial) ltBlockSpecial.checked = liveTranslateConfig.blockSpecialChars === true;
+        if (ltSkipNumberOnly) ltSkipNumberOnly.checked = liveTranslateConfig.skipNumberOnlyComments !== false;
+        if (ltStripNumbersTts) ltStripNumbersTts.checked = liveTranslateConfig.stripNumbersForTTS !== false;
+        if (liveTranslateConfig.ttsPlayLocation === 'obs') ltPcTtsStop();   // chuyển sang OBS đọc → app nín ngay
         if (ltSource) ltSource.value = liveTranslateConfig.sourceLang || 'auto';
         if (ltExcludedSource) ltExcludedSource.value = liveTranslateConfig.excludedSourceLang || '';
         if (ltTarget) ltTarget.value = liveTranslateConfig.targetLang || 'vi';
@@ -3791,7 +3800,7 @@
         if (ltReadMode) ltReadMode.value = liveTranslateConfig.ttsReadMode || (liveTranslateConfig.readUsername === false ? 'commentOnly' : 'nameAndComment');
         if (ltPriority) ltPriority.value = liveTranslateConfig.ttsPriority || 'all';
         if (ltCooldown) ltCooldown.value = String(liveTranslateConfig.ttsCooldownSeconds == null ? 4 : liveTranslateConfig.ttsCooldownSeconds);
-        const vol = liveTranslateConfig.ttsVolume == null ? 85 : liveTranslateConfig.ttsVolume;
+        const vol = liveTranslateConfig.ttsVolume == null ? 45 : liveTranslateConfig.ttsVolume;
         if (ltVolume) ltVolume.value = String(vol);
         if (ltVolumeV) ltVolumeV.textContent = vol + '%';
         const rate = liveTranslateConfig.ttsRate == null ? 1 : Number(liveTranslateConfig.ttsRate);
@@ -3827,6 +3836,10 @@
             ignoreIcons: ltIgnoreIcons ? !!ltIgnoreIcons.checked : true,
             cleanUnreadable: ltCleanUnreadable ? !!ltCleanUnreadable.checked : true,
             aiFilterEnabled: ltAiFilter ? !!ltAiFilter.checked : true,
+            ttsPlayLocation: ltPlayLocation?.value === 'obs' ? 'obs' : 'pc',
+            blockSpecialChars: ltBlockSpecial ? !!ltBlockSpecial.checked : false,
+            skipNumberOnlyComments: ltSkipNumberOnly ? !!ltSkipNumberOnly.checked : true,
+            stripNumbersForTTS: ltStripNumbersTts ? !!ltStripNumbersTts.checked : true,
             readUsername: (ltReadMode?.value || 'nameAndComment') === 'nameAndComment',
             sourceLang: ltSource?.value || 'auto',
             excludedSourceLang: ltExcludedSource?.value || '',
@@ -3837,7 +3850,8 @@
             ttsReadMode: ltReadMode?.value || 'nameAndComment',
             ttsPriority: ltPriority?.value || 'all',
             ttsCooldownSeconds: parseInt(ltCooldown?.value || '4', 10) || 0,
-            ttsVolume: Number.isFinite(parseInt(ltVolume?.value || '', 10)) ? parseInt(ltVolume.value, 10) : 85,
+            ttsVolume: Number.isFinite(parseInt(ltVolume?.value || '', 10)) ? parseInt(ltVolume.value, 10) : 45,
+            ttsVolumeVersion: 2,
             ttsRate: Number.isFinite(parseFloat(ltRate?.value || '')) ? parseFloat(ltRate.value) : 1,
             glossary: (ltGlossary?.value || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean),
             forbiddenWords: (ltForbidden?.value || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean)
@@ -3944,8 +3958,154 @@
             const res = await fetch('/api/live-translate/test-tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'HP Media xin chào, đây là giọng đọc thử bằng tiếng Việt.' }) });
             const json = await res.json();
             if (!res.ok || !json.ok) throw new Error(json.error || 'test_failed');
-            setTranslateStatus('Đã phát test giọng trên overlay', 'ok');
+            setTranslateStatus(liveTranslateConfig?.ttsPlayLocation === 'obs' ? 'Đã phát test giọng trên overlay OBS' : 'Đang đọc test giọng ở loa máy tính', 'ok');
         } catch (e) { setTranslateStatus('Test giọng lỗi: ' + e.message, 'err'); }
+    }
+
+    // ===== 🔊 Bộ đọc TTS ở LOA MÁY TÍNH (port từ HP NPC LIVE LiveTranslateTtsPlayer) =====
+    // "Đọc TTS ở" = PC (mặc định): cửa sổ app tự đọc bình luận đã dịch ra loa, khỏi cần thêm link
+    // Dịch OBS. Overlay OBS khi đó chỉ hiện chữ (translate.html tự nín). Chỉ cửa sổ Electron đọc —
+    // mở dashboard bằng trình duyệt thường thì không đọc, kẻo 2 nơi đọc đè nhau.
+    const LT_PC_TTS_ENABLED = /Electron/i.test(navigator.userAgent || '');
+    const LT_PC_LANG_MAP = { vi: 'vi-VN', en: 'en-US', th: 'th-TH', id: 'id-ID', ja: 'ja-JP', ko: 'ko-KR', zh: 'zh-CN', fr: 'fr-FR', de: 'de-DE', es: 'es-ES' };
+    const LT_PC_FEMALE_HINTS = /female|woman|girl|zira|hazel|susan|heera|samantha|victoria|mai|linh|hoai|hanh|google uk english female/i;
+    const LT_PC_MALE_HINTS = /male|man|boy|david|mark|george|daniel|james|nam|minh|an|google uk english male/i;
+    let ltPcQueue = [];
+    let ltPcSpeaking = false;
+    let ltPcCurrentAudio = null;
+    let ltPcAudioContext = null;
+    let ltPcRandomGenderNext = Math.random() < 0.5 ? 'male' : 'female';
+    function ltPcSpeechLang(lang) { return LT_PC_LANG_MAP[lang] || lang || 'vi-VN'; }
+    function ltPcVoices() { try { return ('speechSynthesis' in window) ? (window.speechSynthesis.getVoices() || []) : []; } catch (_) { return []; } }
+    function ltPcWaitVoices() {
+        if (!('speechSynthesis' in window) || ltPcVoices().length) return Promise.resolve();
+        return new Promise(resolve => {
+            let elapsed = 0;
+            const tick = setInterval(() => { elapsed += 150; if (ltPcVoices().length || elapsed >= 1500) { clearInterval(tick); resolve(); } }, 150);
+        });
+    }
+    function ltPcHasLocalVoice(lang) {
+        const short = ltPcSpeechLang(lang).toLowerCase().slice(0, 2);
+        return ltPcVoices().some(v => String(v.lang || '').toLowerCase().startsWith(short));
+    }
+    function ltPcPickVoice(lang, gender) {
+        const short = ltPcSpeechLang(lang).toLowerCase().slice(0, 2);
+        const pool = ltPcVoices().filter(v => String(v.lang || '').toLowerCase().startsWith(short));
+        if (!pool.length) return null;
+        if (gender === 'random') return pool[Math.floor(Math.random() * pool.length)] || null;
+        if (gender === 'randomGender') {
+            const next = ltPcRandomGenderNext;
+            ltPcRandomGenderNext = next === 'male' ? 'female' : 'male';
+            return ltPcPickVoice(lang, next) || pool[Math.floor(Math.random() * pool.length)] || null;
+        }
+        const females = pool.filter(v => LT_PC_FEMALE_HINTS.test(v.name));
+        const males = pool.filter(v => LT_PC_MALE_HINTS.test(v.name));
+        if (gender === 'female') return females[0] || pool[0] || null;
+        if (gender === 'male') return males[0] || pool.find(v => !LT_PC_FEMALE_HINTS.test(v.name)) || pool[0] || null;
+        const m = String(gender || '').match(/^variant(\d)$/);
+        if (m) {
+            const rest = pool.filter(v => !females.includes(v) && !males.includes(v));
+            const ordered = [...females, ...males, ...rest];
+            return ordered[(parseInt(m[1], 10) - 1) % ordered.length] || null;
+        }
+        return pool.find(v => v.default) || pool[0] || null;
+    }
+    function ltPcCleanName(name) {
+        return String(name || '').replace(/^[^\p{L}\p{N}]+/u, '').replace(/[^\p{L}\p{N}\s._-]+/gu, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 40);
+    }
+    function ltPcStripNumbers(text) {
+        return String(text || '').replace(/[\p{N}]+(?:[.,:/-][\p{N}]+)*/gu, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([.,!?;:])/g, '$1').trim();
+    }
+    function ltPcTtsStop() {
+        ltPcQueue = [];
+        try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (_) {}
+        try { if (ltPcCurrentAudio) { ltPcCurrentAudio.pause(); ltPcCurrentAudio.src = ''; ltPcCurrentAudio = null; } } catch (_) {}
+    }
+    function ltPcTtsHandle(item) {
+        if (!LT_PC_TTS_ENABLED || !item) return;
+        const cfg = liveTranslateConfig || {};
+        if ((item.ttsPlayLocation || cfg.ttsPlayLocation || 'pc') !== 'pc') return;
+        const ttsOn = item.ttsEnabled == null ? cfg.ttsEnabled !== false : item.ttsEnabled;
+        if (!ttsOn || item.canSpeak === false) return;
+        const mode = item.ttsReadMode || cfg.ttsReadMode || 'nameAndComment';
+        const commentText = String(item.speechText || item.translatedText || item.normalizedText || item.originalText || '').trim();
+        const userName = ltPcCleanName(item.nickname || item.uniqueId || '');
+        let value = commentText;
+        if (mode === 'nameOnly') value = userName;
+        else if (mode === 'nameAndComment' && userName) value = `${userName}. ${commentText}`;
+        const stripNumbers = item.stripNumbersForTTS == null ? cfg.stripNumbersForTTS !== false : item.stripNumbersForTTS !== false;
+        if (stripNumbers) value = ltPcStripNumbers(value);
+        if (!value) return;
+        ltPcQueue.push({ value, item, cfg });
+        while (ltPcQueue.length > 5) ltPcQueue.shift(); // flood bình luận: bỏ câu cũ, chỉ đọc gần nhất
+        ltPcPump();
+    }
+    async function ltPcPump() {
+        if (ltPcSpeaking) return;
+        ltPcSpeaking = true;
+        try {
+            await ltPcWaitVoices();
+            while (ltPcQueue.length) { const next = ltPcQueue.shift(); try { await ltPcSpeakOne(next.value, next.item, next.cfg); } catch (_) {} }
+        } finally { ltPcSpeaking = false; }
+    }
+    // volumePercent 50 = mức to nhất cũ, 100 = khuếch đại x2 (khớp thang của overlay/translate.html).
+    function ltPcSpeakOne(value, item, cfg) {
+        return new Promise(resolve => {
+            const volumePercent = Math.max(0, Math.min(200, parseInt(item.ttsVolume == null ? cfg.ttsVolume : item.ttsVolume, 10) || 45));
+            const boost = Math.max(1, volumePercent / 50);
+            const rate = Math.max(0.5, Math.min(2, parseFloat(item.ttsRate || cfg.ttsRate || 1) || 1));
+            const preset = item.ttsPreset || cfg.ttsPreset || 'auto';
+            const speechLang = ['vi', 'en', 'zh', 'ko', 'ja'].includes(preset) ? preset : (item.targetLang || cfg.targetLang || 'vi');
+            const source = item.ttsSource || cfg.ttsSource || 'browser';
+            let finished = false;
+            const done = () => { if (finished) return; finished = true; resolve(); };
+            if (source === 'browser' && boost <= 1 && 'speechSynthesis' in window && ltPcHasLocalVoice(speechLang)) {
+                try { window.speechSynthesis.cancel(); } catch (_) {}
+                const utter = new SpeechSynthesisUtterance(value.slice(0, 220));
+                utter.lang = ltPcSpeechLang(speechLang);
+                const voice = ltPcPickVoice(speechLang, item.ttsVoice || cfg.ttsVoice || 'auto');
+                if (voice) utter.voice = voice;
+                utter.rate = rate;
+                utter.pitch = 1;
+                utter.volume = Math.min(1, volumePercent / 50);
+                utter.onend = done; utter.onerror = done;
+                // Web Speech thỉnh thoảng nuốt onend → hạn chót theo độ dài câu (đã chia tốc độ).
+                setTimeout(done, Math.max(6000, (value.length * 140) / (utter.rate || 1)));
+                window.speechSynthesis.speak(utter);
+                return;
+            }
+            // Google TTS qua server (dùng khi chọn Google, máy thiếu giọng, hoặc cần khuếch đại >50%).
+            const audio = new Audio('/api/live-translate/tts?lang=' + encodeURIComponent(speechLang || 'vi') + '&text=' + encodeURIComponent(value.slice(0, 220)));
+            audio.playbackRate = rate;
+            audio.volume = Math.min(1, volumePercent / 50);
+            ltPcCurrentAudio = audio;
+            let gainSource = null;
+            let gainNode = null;
+            if (boost > 1) {
+                try {
+                    const Ctx = window.AudioContext || window.webkitAudioContext;
+                    ltPcAudioContext = ltPcAudioContext || new Ctx();
+                    gainSource = ltPcAudioContext.createMediaElementSource(audio);
+                    gainNode = ltPcAudioContext.createGain();
+                    gainNode.gain.value = boost;
+                    gainSource.connect(gainNode).connect(ltPcAudioContext.destination);
+                    ltPcAudioContext.resume().catch(() => {});
+                } catch (_) { audio.volume = 1; }
+            }
+            let watchdog = setTimeout(stopAndDone, 20000);
+            function stopAndDone() {
+                clearTimeout(watchdog);
+                try { gainSource && gainSource.disconnect(); gainNode && gainNode.disconnect(); audio.pause(); audio.src = ''; } catch (_) {}
+                if (ltPcCurrentAudio === audio) ltPcCurrentAudio = null;
+                done();
+            }
+            audio.addEventListener('loadedmetadata', () => {
+                if (isFinite(audio.duration) && audio.duration > 0) { clearTimeout(watchdog); watchdog = setTimeout(stopAndDone, (audio.duration / (rate || 1)) * 1000 + 1500); }
+            }, { once: true });
+            audio.addEventListener('ended', stopAndDone, { once: true });
+            audio.addEventListener('error', stopAndDone, { once: true });
+            audio.play().catch(stopAndDone);
+        });
     }
 
     function applyCreatorCaptionConfig(cfg) {
@@ -4277,7 +4437,13 @@
     });
     socket.on('translate:config', applyLiveTranslateConfig);
     socket.on('translate:rules', updateTranslateSheetStatus);
-    socket.on('translate:comment', (item) => { if (!isTranslatePopupOpen()) setTranslateUnread(unreadTranslations + 1); handleCreatorCaptionAutoTarget(item); });
+    socket.on('translate:comment', (item) => { if (!isTranslatePopupOpen()) setTranslateUnread(unreadTranslations + 1); handleCreatorCaptionAutoTarget(item); ltPcTtsHandle(item); });
+    socket.on('translate:testSpeak', (item) => ltPcTtsHandle(item));
+    socket.on('translate:config', (cfg) => {
+        if (!cfg) return;
+        liveTranslateConfig = { ...(liveTranslateConfig || {}), ...cfg };
+        if (cfg.ttsPlayLocation === 'obs') ltPcTtsStop();
+    });
     socket.on('creatorCaption:config', applyCreatorCaptionConfig);
     socket.on('creatorCaption:listenerState', renderCaptionListenerState);
     // Ô "Test nhận giọng": chữ đang nói (chưa dịch) rồi câu đã dịch — cùng dữ liệu overlay nhận.
