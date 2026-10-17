@@ -5761,6 +5761,7 @@ app.get('/api/license/status', async (req, res) => {
                 key: result.key,
                 role: result.role || 'ADMIN',
                 allowedIds: result.allowedIds || [],
+                features: result.features === undefined ? null : result.features,   // null = toàn bộ tính năng (HP KEY ft)
                 vip: result.vip,
                 expiry: result.expiry,
                 note: result.note,
@@ -5772,6 +5773,7 @@ app.get('/api/license/status', async (req, res) => {
                 key: result.key,
                 role: result.role || 'ADMIN',
                 allowedIds: result.allowedIds || [],
+                features: appConfig.license.features,
                 vip: result.vip,
                 expiry: result.expiry,
                 note: result.note,
@@ -5789,6 +5791,7 @@ app.get('/api/license/status', async (req, res) => {
                     key: stored.key,
                     role: stored.role || 'ADMIN',
                     allowedIds: stored.allowedIds || [],
+                    features: stored.features === undefined ? null : stored.features,
                     vip: stored.vip || 'Thường',
                     expiry: stored.expiry || '',
                     offline: true,
@@ -5818,6 +5821,7 @@ app.post('/api/license/activate', async (req, res) => {
         key: result.key,
         role: result.role || 'ADMIN',          // ADMIN | CREATOR | VIP
         allowedIds: result.allowedIds || [],
+        features: result.features === undefined ? null : result.features,   // null = toàn bộ tính năng (HP KEY ft)
         vip: result.vip,
         expiry: result.expiry,
         note: result.note,
@@ -11481,7 +11485,9 @@ httpServer.listen(PORT, BIND_HOST, async () => {
     await refreshCommentRulesSheet();
     setInterval(refreshCommentRulesSheet, COMMENT_RULES_REFRESH_MS).unref?.();
 
-    // HP KEY - check key real-time: cấm key trên admin -> đóng app trong <= RECHECK_SECONDS
+    // HP KEY - check key real-time: cấm key trên admin -> đóng app trong <= RECHECK_SECONDS.
+    // SDK v2: watcher qua guard — lỗi mơ hồ (mất mạng, server 5xx/HTML) chỉ cảnh báo; mã cứng lặp 3 lần mới thu hồi.
+    try { console.log('[hpkey] sdk', require('./hpkey/version')); } catch (_) {}
     try {
         require('./hpkey/validate').startWatch({
             getKey: () => (appConfig.license && appConfig.license.key) || '',

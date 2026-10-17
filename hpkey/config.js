@@ -31,4 +31,7 @@ module.exports = {
   HEARTBEAT_HOURS: 24,
   // Chu ky check key real-time (giay). Cam key tren admin -> user bi dong app trong <= so nay.
   RECHECK_SECONDS: 60,
+  // SDK v2: app da co nguoi dung voi hwid.js cu (UUID|CPU|BaseBoard|MAC|hostname) -> GIU 'legacy'.
+  // Doi sang 'stable' = doi HWID cua MOI may khach (key 1 may bi "dat gioi han so may").
+  HWID_ALGO: 'legacy',
 };

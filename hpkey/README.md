@@ -6,14 +6,25 @@ endpoint cũ vẫn được giữ cho gift-sheet + auto-update).
 
 ## Cấu trúc
 
+Từ 10/2026 dùng **SDK client v2** (lõi chung mọi app HP Media, nguồn ở repo HP KEY `client/hpkey/`).
+File lõi **không sửa trong app** — sửa ở repo HP KEY rồi chạy `tools/sync-client.ps1 -Adapter action-live`.
+
 ```
 hpkey/
-├── config.js          — Cấu hình endpoint, HMAC secret loader, recheck interval
-├── validate.js        — Hàm validateLicenseKey() — interface chính server.js gọi
-├── hwid.js            — Sinh device fingerprint (HWID) cho binding 1 key ↔ N máy
-├── public-key.js      — Public key RSA (PEM base64) để verify chữ ký token server
-└── secret.local.js    — ⚠ HMAC_SECRET — GITIGNORED, KHÔNG push lên repo
+├── config.js          — ← app sửa: endpoint, PRODUCT=tiktok-game, HMAC loader, RECHECK_SECONDS, HWID_ALGO='legacy'
+├── secret.local.js    — ← app sửa: ⚠ HMAC_SECRET — GITIGNORED, KHÔNG push lên repo
+├── public-key.js      — ← app sửa: public key RSA (PEM base64) để verify chữ ký token server
+├── validate.js        — adapter: validateLicenseKey() / verifyKey() / startWatch() / getHWID() — interface server.js gọi
+├── version.js         — số phiên bản SDK (server.js ghi "[hpkey] sdk x.y.z" ra log)
+├── hwid.js            — HWID thuật toán 'legacy' (y hệt bản cũ), ĐÓNG BĂNG sau lần tính đầu
+├── store.js           — lưu key + HWID + token (AES theo HWID) ở %ProgramData% / %AppData%\HP Media\tiktok-game + registry HKCU
+├── core.js            — ký HMAC, gọi API, verify token RSA, bảng mã lỗi tiếng Việt, license.features
+├── guard.js           — watcher: lỗi mơ hồ (mất mạng, server 5xx/HTML) chỉ cảnh báo; mã cứng lặp 3 lần mới thu hồi
+└── index.js           — API chung của SDK (adapter gọi vào)
 ```
+
+Khác bản cũ: mở app có token hợp lệ thì gọi `verify` thay vì `activate`; server lỗi tạm mà token còn hạn
+offline thì vẫn cho chạy; `license.features` (null = toàn bộ tính năng) được lưu vào `appConfig.license.features`.
 
 ## ⚠ Vấn đề `secret.local.js` mất trong git worktree
 
@@ -24,7 +35,7 @@ hpkey/
 git worktree mới tạo (`git worktree add` hoặc Claude Code sandbox) sẽ **không có file này**.
 
 **Triệu chứng:** Chạy `node server.js` từ worktree, nhập key bản quyền → app báo
-`"Hệ thống bản quyền chưa cấu hình — liên hệ HP Media"` (thông điệp từ `hpkey/validate.js:122`
+`"App chưa cấu hình HP KEY (thiếu HMAC secret / public key)"` (mã `not_configured` trong `hpkey/core.js`,
 khi `cfg.HMAC_SECRET` rỗng hoặc bắt đầu bằng `DAN_`).
 
 **Cách fix:** Copy file từ project gốc vào worktree đang chạy:

@@ -1,213 +1,79 @@
 'use strict';
 /**
- * HP KEY - Adapter cho HP Action LIVE (TikTok Game).
+ * HP KEY adapter cho HP Action LIVE (product tiktok-game). Được sync-client copy thành
+ * <app>/hpkey/validate.js — GIỮ NGUYÊN interface server.js đang gọi:
+ *   validateLicenseKey(rawKey) → { ok, key, role, allowedIds, features, vip, expiry, expiryISO, status, note }
+ *   verifyKey(rawKey)          → { ok, payload, license } | { ok:false, error, _offline }
+ *   startWatch(opts)           → hàm stop() (có thêm .state)
+ *   getHWID()
  *
- * Thay th? license-server cu (Cloudflare Worker doc Google Sheet) b?ng HP KEY
- * tren hosting hpvn.media. Gi? NGUYEN interface validateLicenseKey() => server.js
- * va toan b? gate / role CREATOR khong c?n s?a gi them.
- *
- * Khac bi?t b?o m?t so v?i ban cu:
- *   - Request ky HMAC (ch?ng gi? client / s?a body)
- *   - Response la TOKEN ky RSA-SHA256, app verify b?ng public-key.js nhung s?n
- *     => server gi? / s?a file hosts tr? "ok" cung VO D?NG.
+ * Khác bản cũ:
+ *   - Có token hợp lệ cho đúng key này → gọi `verify` thay vì `activate` mỗi lần mở app.
+ *   - Server lỗi mơ hồ (502/HTML/rỗng) mà token cục bộ còn hạn → vẫn ok (kèm _stale:true),
+ *     không bắt người dùng nhập lại key; chỉ lỗi CỨNG mới báo thất bại.
+ *   - Watcher đi qua guard (3 lần cứng liên tiếp mới thu hồi), lưu token mới mỗi lần ok.
  */
-const https = require('https');
-const { URL } = require('url');
-const os = require('os');
-const crypto = require('crypto');
+const path = require('path');
+// Trong repo HP KEY file nằm ở adapters/, trong app nằm cạnh lõi → nạp lõi tương đối.
+const L = (m) => require(path.join(__dirname, path.basename(__dirname) === 'adapters' ? '..' : '.', m + path.extname(__filename)));
+const core = L('core');
+const guard = L('guard');
+const index = L('index');
+const { getHWID } = L('hwid');
 
-const cfg = require('./config');
-const PUBLIC_KEY_B64 = require('./public-key');
-const { getHWID } = require('./hwid');
-
-const b64urlToBuf = (s) =>
-  Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
-
-/* Canonical JSON kh?p PHP json_encode(UNESCAPED_UNICODE|UNESCAPED_SLASHES) */
-function canonical(body) {
-  const o = {};
-  Object.keys(body).filter((k) => k !== 'sig').sort().forEach((k) => { o[k] = body[k]; });
-  return JSON.stringify(o);
-}
-function signBody(body) {
-  return crypto.createHmac('sha256', cfg.HMAC_SECRET).update(canonical(body)).digest('hex');
-}
-
-function apiCall(action, extra) {
-  const body = Object.assign(
-    { action, p: cfg.PRODUCT, ts: Math.floor(Date.now() / 1000) },
-    extra || {}
-  );
-  body.sig = signBody(body);
-  const data = JSON.stringify(body);
-  const u = new URL(cfg.API_URL);
-
-  return new Promise((resolve) => {
-    const req = https.request(
-      {
-        hostname: u.hostname,
-        port: u.port || 443,
-        path: u.pathname + u.search,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
-        timeout: 12000,
-      },
-      (res) => {
-        let raw = '';
-        res.on('data', (c) => (raw += c));
-        res.on('end', () => {
-          // 5xx / Cloudflare challenge / HTML lỗi = server đang trục trặc, KHÔNG phải phán quyết về key
-          // → coi như mất mạng (net:false). Trước đây rơi vào 'revoked' và app tự tắt giữa LIVE.
-          if (res.statusCode >= 500 || res.statusCode === 429) return resolve({ net: false, status: res.statusCode });
-          try {
-            const body = JSON.parse(raw);
-            if (!body || typeof body !== 'object') return resolve({ net: false, status: res.statusCode });
-            resolve({ net: true, body });
-          } catch (_) { resolve({ net: false, status: res.statusCode, badBody: true }); }
-        });
-      }
-    );
-    req.on('error', () => resolve({ net: false }));
-    req.on('timeout', () => { req.destroy(); resolve({ net: false }); });
-    req.write(data);
-    req.end();
-  });
-}
-
-function rsaPubKey() {
-  // PUBLIC_KEY_B64 = base64(PEM) do install/setup.php in ra
-  return Buffer.from(PUBLIC_KEY_B64, 'base64').toString('utf8');
-}
-
-function verifyToken(token, hwid) {
-  if (!token || token.indexOf('.') < 0) return null;
-  const [msg, sig] = token.split('.');
-  let okSig;
-  try {
-    okSig = crypto.verify('sha256', Buffer.from(msg), rsaPubKey(), b64urlToBuf(sig));
-  } catch (_) { return null; }
-  if (!okSig) return null;
-  let p;
-  try { p = JSON.parse(b64urlToBuf(msg).toString('utf8')); } catch (_) { return null; }
-  if (p.v !== 1 || p.p !== cfg.PRODUCT || p.h !== hwid) return null;
-  const now = Math.floor(Date.now() / 1000);
-  return { payload: p, expired: p.exp !== 0 && now > p.exp };
-}
-
-function fmtDmy(unix) {
-  if (!unix) return '';
-  const d = new Date(unix * 1000);
-  const p = (n) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
-}
-
-const ERR = {
-  invalid_key: 'Key không tồn tại trong hệ thống',
-  key_blocked: 'Key đã bị khoá — liên hệ HP Media',
-  key_expired: 'Key đã hết hạn',
-  expired: 'Key đã hết hạn',
-  device_limit_reached: 'Key đã đạt giới hạn số máy — liên hệ HP Media để thêm/đổi máy',
-  device_revoked: 'Thiết bị này đã bị thu hồi quyền — liên hệ HP Media',
-  bad_signature: 'Cấu hình bản quyền sai (HMAC secret) — liên hệ HP Media',
-  unknown_product: 'Sản phẩm chưa được cấu hình trên hệ thống bản quyền',
-  request_expired: 'Đồng hồ máy sai lệch — chỉnh lại giờ hệ thống rồi thử lại',
-  server_not_configured: 'Hệ thống bản quyền chưa cấu hình — liên hệ HP Media',
-};
-
-/**
- * Gi? nguyen ch? ky ham cu trong server.js.
- * Tr? v?: {ok:true, key, role, vip, expiry, expiryISO, status, note}
- *      ho?c {ok:false, error, _offline?}
- */
-async function validateLicenseKey(rawKey) {
-  const key = String(rawKey || '').trim();
-  if (!key) return { ok: false, error: 'Vui lòng nhập key bản quyền' };
-
-  if (!cfg.HMAC_SECRET || cfg.HMAC_SECRET.indexOf('DAN_') === 0
-      || PUBLIC_KEY_B64.indexOf('DAN_') === 0) {
-    return { ok: false, error: 'Hệ thống bản quyền chưa cấu hình — liên hệ HP Media' };
-  }
-
-  const hwid = getHWID();
-  const r = await apiCall('activate', { key, hwid, device: os.hostname() });
-
-  if (!r.net) {
-    return { ok: false, error: 'Không kết nối được hệ thống bản quyền — kiểm tra mạng và thử lại', _offline: true };
-  }
-  if (!r.body || r.body.ok !== true || !r.body.token) {
-    const code = r.body && r.body.error;
-    return { ok: false, error: ERR[code] || ('Key không hợp lệ' + (code ? ` (${code})` : '')) };
-  }
-
-  const v = verifyToken(r.body.token, hwid);
-  if (!v) return { ok: false, error: 'Phản hồi kích hoạt không hợp lệ (sai chữ ký) — liên hệ HP Media' };
-  if (v.expired) return { ok: false, error: 'Key đã hết hạn' };
-
-  const p = v.payload;
-  return {
+function okShape(lic, extra) {
+  return Object.assign({
     ok: true,
-    key: p.k,                         // CREATOR: chính là TikTok ID
-    role: p.r || 'ADMIN',             // ADMIN | CREATOR | VIP
-    allowedIds: Array.isArray(p.ids) ? p.ids : [],  // VIP: chỉ kết nối các ID này (rỗng = không giới hạn)
-    vip: p.r || '',
-    expiry: fmtDmy(p.exp),            // '' n?u vinh vi?n
-    expiryISO: p.exp ? new Date(p.exp * 1000).toISOString() : null,
+    key: lic.key,                          // CREATOR: chính là TikTok ID
+    role: lic.role || 'ADMIN',             // ADMIN | CREATOR | VIP
+    allowedIds: lic.allowedIds || [],      // VIP: chỉ kết nối các ID này (rỗng = không giới hạn)
+    features: lic.features === undefined ? null : lic.features, // null = toàn bộ tính năng
+    vip: lic.role || '',
+    expiry: index.fmtDmy(lic.expiresAt),   // '' nếu vĩnh viễn
+    expiryISO: lic.expiresAt ? new Date(lic.expiresAt * 1000).toISOString() : null,
     status: 'Đang sử dụng',
     note: '',
-  };
+  }, extra || {});
+}
+function failShape(r) {
+  const kind = guard.classify(r).kind;
+  // server.js chỉ hiểu _offline (ân hạn 24 h khi đã từng kích hoạt), không hiểu _soft. validate.js cũ
+  // coi 5xx/429/body không JSON là mất mạng → giữ đúng ngữ nghĩa: mọi lỗi MỀM đều là _offline.
+  const soft = kind === 'soft';
+  return { ok: false, error: core.errVi(r.error), _code: r.error, _offline: !!r._offline || soft, _soft: soft };
 }
 
-/** Check 1 lan (action 'verify', cung dong vai tro heartbeat). */
-async function verifyKey(rawKey) {
-  const key = String(rawKey || '').trim();
-  if (!key) return { ok: false, error: 'empty_key' };
-  if (!cfg.HMAC_SECRET || PUBLIC_KEY_B64.indexOf('DAN_') === 0) {
-    return { ok: false, error: 'not_configured' };
-  }
+async function validateLicenseKey(rawKey) {
+  const key = core.normalizeKey(rawKey);
+  if (!key) return failShape({ ok: false, error: 'empty_key' });
   const hwid = getHWID();
-  const r = await apiCall('verify', { key, hwid, device: os.hostname() });
-  if (!r.net) return { ok: false, error: 'no_network', _offline: true };
-  if (!r.body || r.body.ok !== true || !r.body.token) {
-    return { ok: false, error: (r.body && r.body.error) || 'revoked' };
+  const local = index.getStatus();
+  const haveLocal = local.licensed && local.key === key;
+
+  const r = haveLocal ? await core.verifyKey(key) : await core.activate(key);
+  if (r.ok) { index._persist(hwid, r); return okShape(r.license); }
+
+  // Lỗi mơ hồ nhưng token cục bộ còn hạn chạy offline → cho chạy, đánh dấu stale.
+  if (haveLocal && local.offlineOk && guard.classify(r).kind === 'soft') {
+    return okShape(local, { _stale: true, _code: r.error });
   }
-  const v = verifyToken(r.body.token, hwid);
-  if (!v) return { ok: false, error: 'bad_token' };
-  if (v.expired) return { ok: false, error: 'key_expired' };
-  return { ok: true, payload: v.payload };
+  return failShape(r);
 }
 
-/**
- * Watcher real-time: moi RECHECK_SECONDS goi server verify.
- * Server tu choi ro rang -> onRevoked(reason). Mat mang -> bo qua (con han offline).
- * Tra ve ham stop().
- */
+/** Check 1 lần (action 'verify'). Shape cũ: { ok, payload } */
+async function verifyKey(rawKey) {
+  const r = await core.verifyKey(rawKey);
+  if (r.ok) index._persist(getHWID(), r);
+  return r;
+}
+
+/** Watcher qua guard. Trả về hàm stop() để tương thích chữ ký cũ; stop.state = trạng thái. */
 function startWatch(opts) {
-  const getKey = opts.getKey;
-  const onRevoked = opts.onRevoked;
-  const sec = Math.max(15, Number(opts.intervalSec || cfg.RECHECK_SECONDS || 60));
-  let busy = false;
-  let softFails = 0;
-  // Phán quyết RÕ RÀNG từ server → thu hồi ngay. Lỗi mơ hồ (body thiếu token, ts lệch...) phải lặp
-  // 3 lần liên tiếp (~3 phút) mới thu hồi — tránh 1 nhịp lỗi lẻ giết app giữa LIVE.
-  const HARD = new Set(['key_expired', 'revoked', 'device_revoked', 'device_limit_reached', 'key_not_found', 'invalid_key', 'key_disabled']);
-  const timer = setInterval(async () => {
-    if (busy) return;
-    busy = true;
-    try {
-      const key = (typeof getKey === 'function' ? getKey() : getKey) || '';
-      if (!key) return;
-      const r = await verifyKey(key);
-      if (r.ok || r._offline) { softFails = 0; return; }
-      const err = r.error || 'revoked';
-      if (HARD.has(err)) { onRevoked(err); return; }
-      softFails++;
-      if (softFails >= 3) { onRevoked(err); return; }
-      try { console.warn('[hpkey] verify lỗi tạm (' + err + ') lần ' + softFails + '/3 — chưa thu hồi'); } catch (_) {}
-    } catch (_) { /* khong lam vo app */ }
-    finally { busy = false; }
-  }, sec * 1000);
-  if (timer.unref) timer.unref();
-  return function stop() { clearInterval(timer); };
+  const w = index.startWatch(opts || {});
+  const stop = function stop() { w.stop(); };
+  stop.state = w.state;
+  stop.stop = stop;
+  return stop;
 }
 
 module.exports = { validateLicenseKey, verifyKey, startWatch, getHWID };
