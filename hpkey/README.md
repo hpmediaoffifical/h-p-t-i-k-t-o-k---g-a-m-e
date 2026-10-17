@@ -26,6 +26,43 @@ hpkey/
 Khác bản cũ: mở app có token hợp lệ thì gọi `verify` thay vì `activate`; server lỗi tạm mà token còn hạn
 offline thì vẫn cho chạy; `license.features` (null = toàn bộ tính năng) được lưu vào `appConfig.license.features`.
 
+## Tính năng theo KEY (khoá/mở từng game)
+
+Admin chọn tính năng cho từng key ở trang quản trị HP KEY; server ký danh sách vào token (trường `ft`).
+Danh mục + hàm thuần ở `lib/license-features.js` (test: `tests/license-features.test.js`), áp vào app ở
+`server.js` (`applyLicenseLocks()`), giao diện ở `public/app.js`, `public/quick-launch.html`, bảng Game Camera.
+
+- Key "Tất cả" (mọi key cũ, token không có `ft`) → mở hết như trước.
+- Khoá được: 8 game + 5 game camera + Dịch Thuật LIVE + Hiệu ứng OBS. Luôn mở: Bảng Quà Tổng, THỜI GIAN.
+  Khung Game Camera mở khi key có ít nhất 1 game camera.
+- Bị khoá: game tắt (KHÔNG xoá dữ liệu — vườn Trồng Cây còn nguyên), không bật lại được qua API / ⏻ / Khởi động
+  nhanh, bị bỏ khỏi lựa chọn Game Camera, overlay OBS hiện 🔒 thay cho game; Thư viện Game hiện mờ + 🔒.
+- Mở khoá: bật lại đúng những gì đã tắt vì key (ghi nhớ ở `appConfig.licenseLocks`); mục người dùng tự tắt thì để nguyên.
+- Admin đổi tính năng → app áp trong ≤ 60 giây (watcher) mà không cần mở lại.
+
+**Danh mục dán vào HP KEY › Cài đặt › Game › `tiktok-game` › Tính năng** (id phải trùng từng ký tự):
+
+```
+thuytinh|Hũ Thủy Tinh
+caro|Caro Đối Đầu
+pktiktok|Hiệu ứng PK
+vipwelcome|Chào Mừng VIP
+votecomment|Vote Bình Luận
+nhietdo|Biểu Cảm Nhiệt
+trongcay|Trồng Cây
+nhatla|Nhặt Lá
+touchplay|Touch & Play (Game Camera)
+chemtraicay|Chém Trái Cây (Game Camera)
+dapmuoi|Đập Muỗi (Game Camera)
+bancung|Bắn Cung (Game Camera)
+level-quest|Level Quest (Game Camera)
+liveTranslate|Dịch Thuật LIVE
+obs-effects|Hiệu ứng OBS
+```
+
+Thêm game mới vào danh mục bán: thêm vào `CATALOG` trong `lib/license-features.js` (+ test), rồi thêm đúng dòng
+`id|Tên` ở trang quản trị. Game chưa có trong `CATALOG` luôn mở cho mọi key.
+
 ## ⚠ Vấn đề `secret.local.js` mất trong git worktree
 
 **Đây là pitfall thường gặp khi dùng Claude Code hoặc bất kỳ git worktree nào.**

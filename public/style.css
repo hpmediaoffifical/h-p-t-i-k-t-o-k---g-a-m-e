@@ -661,6 +661,11 @@ button.mini { padding: 2px 8px; font-size: 11px; }
 .game-item .gn { font-size: 12px; font-weight: 600; color: #e6e8ee; }
 .game-item .gd { font-size: 10px; color: #8b93a8; }
 .game-dev-notice { margin-top: 3px; }
+/* 🔒 Tính năng theo KEY: mục KEY chưa mở — mờ đi, bấm vào hiện thông báo (app.js showLicenseLocked) */
+.game-item.locked { opacity: .55; }
+.game-item.locked:hover { opacity: .8; border-color: #8b93a8; }
+.game-item .lock-badge { font-size: 11px; margin-left: 2px; }
+.game-lock-notice { margin-top: 3px; color: #f0b429 !important; }
 /* Game toggle button — same eject icon style as connect */
 .game-toggle {
     flex-shrink: 0;

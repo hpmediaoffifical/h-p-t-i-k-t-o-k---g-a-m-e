@@ -15,6 +15,7 @@
     let feed = null;          // kết quả /api/touchplay/obs-sources
     let overlaps = [];        // quà gán đích danh ở ≥2 game đang chơi (/api/camgames/overlap)
     const soloOn = {};        // game `standalone` (Bắn Cung) đang bật ở link OBS riêng: { id: true }
+    let locked = new Set();   // 🔒 tính năng theo KEY: game con KEY chưa mở (/api/license/features) — server cũng lọc khi lưu
     const POSE_GAMES = new Set(['bancung', 'level-quest']);   // overlay báo phase = id game; các game này đếm người, không đếm tay
     let socket = null, pollTimer = 0, built = false;
 
@@ -75,6 +76,14 @@
         const now = playing(), cur = actives(), keyOwner = hotkeyOwner();
         grid.innerHTML = games().map(g => {
             const on = now.includes(g.id);
+            if (locked.has(g.id)) {
+                return `<div class="cg-game" data-id="${esc(g.id)}" style="opacity:.55">
+                <div class="cg-game-head"><span class="cg-ico">${g.icon}</span><b>${esc(g.name)}</b>
+                    <span class="cg-badge" title="Liên hệ HP Media để mở thêm tính năng này cho KEY">🔒 KEY CHƯA MỞ</span></div>
+                <div class="cg-desc">${esc(g.desc)}</div>
+                <div class="cg-actions"><button class="ghost small" data-settings="${esc(g.id)}">⚙ Cài đặt</button></div>
+            </div>`;
+            }
             const solo = !on && g.standalone && soloOn[g.id];
             // Chơi kèm: danh sách mới có >1 game thì mới khác "chơi riêng"; nói rõ ghép với ai, thay ai.
             const withList = on ? null : norm([...cur, g.id]);
@@ -180,6 +189,7 @@
 
     async function loadConfig() {
         try { const j = await (await fetch('/api/games/camgames/config', { cache: 'no-store' })).json(); if (j) cfg = { ...cfg, ...j }; } catch (_) {}
+        try { const lf = await (await fetch('/api/license/features', { cache: 'no-store' })).json(); locked = new Set(Array.isArray(lf.locked) ? lf.locked : []); } catch (_) {}
         await Promise.all((window.HpCamGames || []).filter(g => g.standalone).map(async g => {
             try { const c = await (await fetch('/api/games/' + encodeURIComponent(g.id) + '/config', { cache: 'no-store' })).json(); soloOn[g.id] = !!c && c.enabled !== false; } catch (_) {}
         }));
@@ -219,6 +229,7 @@
                     if (d.gameId === 'camgames') { cfg = { ...cfg, ...d.config }; renderGrid(); renderSources(); renderStatus(); loadOverlap(); }
                     else if ((window.HpCamGames || []).some(g => g.standalone && g.id === d.gameId)) { soloOn[d.gameId] = d.config.enabled !== false; renderGrid(); }
                 });
+                socket.on('license:features', d => { locked = new Set(d && Array.isArray(d.locked) ? d.locked : []); renderGrid(); });
             }
             build();
             loadConfig();

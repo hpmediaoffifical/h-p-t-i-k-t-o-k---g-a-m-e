@@ -122,6 +122,8 @@
     let giftMap = {};
     let games = [];
     let currentGame = null;
+    // Tính năng theo KEY (HP KEY): id đang bị khoá — server trả ở /api/license/features, đổi thì phát 'license:features'.
+    let licenseLocked = new Set();
     let gameInstance = null;
     const placeholderImg = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="%231f2533"/><text x="32" y="38" text-anchor="middle" fill="%23ff6b3d" font-size="14" font-family="Arial">QUÀ</text></svg>';
 
@@ -405,6 +407,7 @@
             const cancelBtn = overlay.querySelector('#hp-confirm-cancel');
             okBtn.textContent = okLabel || 'OK';
             cancelBtn.textContent = cancelLabel || 'Huỷ';
+            cancelBtn.hidden = cancelLabel === false;   // hộp thông báo 1 nút (vd. 🔒 tính năng theo KEY)
             overlay.classList.add('show');
             setTimeout(() => cancelBtn.focus(), 30);
             function cleanup(val) {
@@ -481,8 +484,21 @@
                 body: JSON.stringify({ enabled: obsOn })
             }).catch(() => {});
         } catch (e) {}
+        try {
+            const lf = await (await fetch('/api/license/features')).json();
+            licenseLocked = new Set(Array.isArray(lf.locked) ? lf.locked : []);
+        } catch (e) { licenseLocked = new Set(); }
+        for (const g of games) g.locked = licenseLocked.has(g.id);
         renderGameList();
         syncGiftboardSideButton();
+    }
+    // 🔒 Tính năng theo KEY: thông báo khi bấm vào mục KEY chưa mở (mở game / bật ⏻).
+    function showLicenseLocked(g) {
+        hpConfirm({
+            icon: '🔒', title: 'Chưa mở tính năng',
+            body: `KEY của bạn chưa có <b>${String(g.name || g.id).replace(/[<>&"]/g, '')}</b>.<br><span style="color:#8b93a8">Liên hệ HP Media để mở thêm tính năng này cho KEY.</span>`,
+            okLabel: 'Đã hiểu', cancelLabel: false
+        });
     }
     const SIDE_OFF_CONFIRM = {
         trongcay: {
@@ -496,18 +512,18 @@
         for (const g of games) {
             if (LIBRARY_HIDDEN.has(g.id) || CAM_CHILD_GAMES.has(g.id)) continue;
             const div = document.createElement('div');
-            div.className = 'game-item';
+            div.className = 'game-item' + (g.locked ? ' locked' : '');
             div.dataset.id = g.id;
             // Determine if game has 'enabled' field in its config (pktiktok + vipwelcome)
             const cfg = g.config || {};
             const hasEnabledField = ('enabled' in cfg);
-            const isEnabled = !hasEnabledField || cfg.enabled !== false;
+            const isEnabled = !g.locked && (!hasEnabledField || cfg.enabled !== false);
             div.innerHTML = `<span class="ico">${g.icon}</span>
                 <div class="meta">
-                    <div class="gn">${g.name}</div>
-                    ${renderGameDevelopmentNotice(g)}
+                    <div class="gn">${g.name}${g.locked ? ' <span class="lock-badge" title="KEY chưa mở tính năng này">🔒</span>' : ''}</div>
+                    ${g.locked ? '<div class="gd game-lock-notice">KEY chưa mở — liên hệ HP Media</div>' : renderGameDevelopmentNotice(g)}
                 </div>
-                <button class="game-toggle ${isEnabled ? 'on' : 'off'}" data-game-toggle="${g.id}" title="${isEnabled ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT'} ${g.virtual ? 'tool' : 'game'} chạy ngầm"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="3" x2="12" y2="12.5"/><path d="M7.1 6.7a7.3 7.3 0 1 0 9.8 0"/></svg></button>`;
+                <button class="game-toggle ${isEnabled ? 'on' : 'off'}" data-game-toggle="${g.id}" title="${g.locked ? 'KEY chưa mở tính năng này' : (isEnabled ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT') + ' ' + (g.virtual ? 'tool' : 'game') + ' chạy ngầm'}"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="3" x2="12" y2="12.5"/><path d="M7.1 6.7a7.3 7.3 0 1 0 9.8 0"/></svg></button>`;
             // Click toàn thân (trừ toggle) → mở game
             div.addEventListener('click', (e) => {
                 if (e.target.closest('[data-game-toggle]')) return;
@@ -516,6 +532,7 @@
             // Click toggle → bật/tắt game
             div.querySelector('[data-game-toggle]')?.addEventListener('click', async (e) => {
                 e.stopPropagation();
+                if (g.locked) { showLicenseLocked(g); return; }   // 🔒 tính năng theo KEY
                 const btn = e.currentTarget;
                 const cur = !btn.classList.contains('off');   // currently on?
                 const next = !cur;
@@ -867,6 +884,7 @@
     function openGame(gameId) {
         const game = games.find(g => g.id === gameId);
         if (!game) return;
+        if (game.locked) { showLicenseLocked(game); return; }   // 🔒 tính năng theo KEY (cả khi mở từ Khởi động nhanh)
         currentGame = game;
         highlightActiveGame(gameId);
         // Body class: dùng để CSS ẩn/hiện FAB/popup theo game
@@ -3534,6 +3552,12 @@
         }
     });
 
+    // 🔒 Tính năng theo KEY: admin đổi tính năng của key (watcher ≤ 60 s / xác thực lại) → vẽ lại danh sách;
+    // đang mở đúng game vừa bị khoá thì về Trang chủ.
+    socket.on('license:features', async () => {
+        try { await loadGames(); } catch (e) { return; }
+        if (currentGame && licenseLocked.has(currentGame.id)) goHome();
+    });
     socket.on('gameConfig', ({ gameId, config }) => {
         // Sync config trong games[] để quick-launch + sidebar phản ánh đúng state
         const targetGame = games.find(x => x.id === gameId);

@@ -106,6 +106,7 @@ loadTikTokConnector().catch((e) => console.error('[tiktok] KHÔNG nạp được
 const { OBSBridge } = require('./lib/obs-bridge');
 const { ObsCameraFeed } = require('./lib/touchplay-obs-feed');
 const CamRules = require('./lib/camgames');
+const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
 const MusicGifts = require('./lib/music-gifts');
 const { LuaSync } = require('./lib/lua-sync');
 const { OBSSettings } = require('./lib/obs-settings');
@@ -245,6 +246,25 @@ app.use((req, res, next) => {
         res.setHeader('Expires', '0');
     }
     next();
+});
+// Tính năng theo KEY: overlay OBS / trang game của mục bị khoá hiện 🔒 thay cho game (xem applyLicenseLocks).
+// Đặt TRƯỚC express.static vì trang game cũng tới thẳng được qua /games/<id>/*.html.
+const LICENSE_PAGE_ALIAS = {
+    'vipwelcome-board': 'vipwelcome', 'nhatla-gifts': 'nhatla',
+    translate: 'liveTranslate', 'creator-caption': 'liveTranslate'
+};
+app.use((req, res, next) => {
+    // Lệnh điều khiển game (bắt đầu/dừng phiên, lệnh tay, quà thử) của mục bị khoá → từ chối.
+    const ctl = req.method === 'POST' && req.path.match(/^\/api\/games\/([A-Za-z-]+)\/(control|cmd|test-gift)$/);
+    if (ctl) return featureOn(ctl[1]) ? next() : res.status(403).json({ ok: false, error: 'feature_locked', message: 'KEY chưa mở tính năng này' });
+    if (req.method !== 'GET') return next();
+    const m = req.path.match(/^\/overlay\/([A-Za-z-]+)\/?$/)
+        || req.path.match(/^\/games\/([A-Za-z-]+)\/[^/]+\.html$/i)
+        || req.path.match(/^\/_prototype\/(touchplay|level-quest)\.html$/i);
+    if (!m) return next();
+    const id = LICENSE_PAGE_ALIAS[m[1]] || m[1];
+    if (featureOn(id)) return next();
+    res.type('html').send(licenseLockedHtml(id));
 });
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json({ limit: '5mb' }));
@@ -2944,6 +2964,156 @@ function makeTestGiftPayload(body = {}) {
 // (gift-sheet & auto-update vẫn dùng LICENSE_WORKER_URL cũ — không đổi)
 const { validateLicenseKey } = require('./hpkey/validate');
 
+// ============================================================
+// TÍNH NĂNG THEO KEY — HP KEY trường ft (license.features); danh mục ở lib/license-features.js
+// ============================================================
+// appConfig.license.features: null/thiếu = mở hết (mọi key cũ); mảng id = chỉ mở các mục đó.
+// KHOÁ = tắt mục đó (enabled=false, hoặc bỏ khỏi lựa chọn Game Camera) và GHI NHỚ vào appConfig.licenseLocks
+// (để riêng vì các hàm chuẩn hoá cấu hình có thể lọc khoá lạ). KHÔNG chạy bước xoá dữ liệu — vườn Trồng Cây
+// còn nguyên. MỞ KHOÁ = bật lại đúng những gì đã tắt vì key (mục người dùng tự tắt thì để nguyên).
+// Kèm theo: API không cho bật mục bị khoá, /api/games đánh dấu locked, overlay OBS của mục bị khoá hiện 🔒.
+function licenseFeatures() {
+    const f = appConfig.license && appConfig.license.features;
+    return Array.isArray(f) ? f : null;
+}
+function featureOn(id) { return LicFeat.can(licenseFeatures(), id); }
+function licenseLocks() {
+    const l = appConfig.licenseLocks = (appConfig.licenseLocks && typeof appConfig.licenseLocks === 'object') ? appConfig.licenseLocks : {};
+    if (!l.games || typeof l.games !== 'object') l.games = {};
+    if (!Array.isArray(l.camActives)) l.camActives = [];
+    return l;
+}
+// Game con Game Camera (trừ Bắn Cung có link riêng) bật/tắt theo lựa chọn của khung → khoá qua lựa chọn.
+function lockViaCamSelection(id) { return CAM_GAME_IDS.includes(id) && !CAM_STANDALONE_IDS.has(id); }
+function licenseLockedHtml(id) {
+    const c = LicFeat.CATALOG.find(x => x.id === id);
+    const name = String(id === 'camgames' ? 'Game Camera' : (c ? c.name : id)).replace(/[<>&"]/g, '');
+    return '<!doctype html><html><head><meta charset="utf-8"><title>🔒 ' + name + '</title><style>'
+        + 'html,body{margin:0;background:transparent;font-family:system-ui,Segoe UI,sans-serif}'
+        + 'div{position:fixed;left:12px;top:12px;padding:8px 12px;border-radius:8px;background:rgba(0,0,0,.62);color:#fff;font-size:14px}'
+        + '</style></head><body><div>🔒 ' + name + ': KEY chưa mở tính năng này — liên hệ HP Media</div></body></html>';
+}
+// Áp lại phần chạy của game sau khi đổi enabled (như nhánh lưu cấu hình POST /api/games/:id/config).
+function applyGameRuntime(id) {
+    const c = appConfig.games[id];
+    if (!c) return;
+    try {
+        if (id === 'vipwelcome') global.__vipwelcomeApplyHotkeys?.(c);
+        else if (id === 'votecomment') { voteCommentApplyConfigToState(c); broadcastVoteCommentState({ immediate: true }); }
+        else if (id === 'nhietdo') { nhietDoApplyConfigToState(c); broadcastNhietDoState({ immediate: true }); }
+        else if (id === 'bancung') { banCungApplyConfigToState(c); camApplyHotkeys('bancung'); broadcastBanCungState({ immediate: true }); }
+        else if (id === 'dapmuoi') camApplyHotkeys('dapmuoi');
+        else if (id === 'nhatla') global.__nhatlaApplyHotkeys?.(c);
+        else if (id === 'trongcay') { trongCayApplyConfigToState(c); broadcastTrongCayState({ immediate: true }); }
+    } catch (e) { console.warn('[license] áp lại game ' + id + ' lỗi:', e && e.message); }
+}
+// Bật/tắt một công cụ (Hiệu ứng OBS, Dịch Thuật LIVE…) theo khoá, nhớ vào licenseLocks[name]. Trả true nếu đổi.
+function licenseToolLock(name, obj, lock) {
+    const L = licenseLocks();
+    if (!obj) return false;
+    if (lock) {
+        if (obj.enabled === false) return false;
+        obj.enabled = false; L[name] = true;
+        return true;
+    }
+    if (!L[name]) return false;
+    delete L[name];
+    if (obj.enabled !== false) return false;
+    obj.enabled = true;
+    return true;
+}
+// Lưu cấu hình công cụ từ giao diện: bị khoá thì giữ tắt (nhớ ý muốn bật); tự tắt tay → bỏ nhớ.
+function licenseCoerceTool(name, obj, featureId) {
+    if (!obj) return;
+    const L = licenseLocks();
+    if (obj.enabled === false) { delete L[name]; return; }
+    if (!featureOn(featureId)) { obj.enabled = false; L[name] = true; }
+}
+// Áp khoá/mở khoá theo appConfig.license.features. Gọi lúc khởi động, sau mỗi lần xác thực key và khi watcher
+// nhận token có danh sách tính năng khác. Idempotent: gọi lại không đổi gì.
+function applyLicenseLocks(reason) {
+    const features = licenseFeatures();
+    const locked = new Set(LicFeat.lockedIds(features));
+    const L = licenseLocks();
+    const camBefore = appConfig.games.camgames ? { ...appConfig.games.camgames } : null;
+    let changed = false;
+    let camChanged = false;
+    // 1) Game Camera: bỏ game con bị khoá khỏi lựa chọn; mở khoá thì trả lại đúng game đã bỏ ra.
+    const cam = appConfig.games.camgames;
+    if (cam) {
+        const sel = CamRules.activesOf(cam, CAM_GAME_IDS);
+        const hidden = L.camActives.filter(id => CAM_GAME_IDS.includes(id));
+        const back = hidden.filter(id => !locked.has(id) && !sel.includes(id));
+        const nowLocked = sel.filter(id => locked.has(id));
+        if (nowLocked.length || back.length) {
+            let keep = [...sel.filter(id => !locked.has(id)), ...back];
+            // Danh sách rỗng thì lib/camgames tự chọn game con đầu tiên (Touch & Play) — có thể đang bị khoá →
+            // chọn game con đầu tiên ĐƯỢC MỞ. Không còn game con nào mở → khung camgames bị khoá ở bước 2.
+            if (!keep.length) keep = CAM_GAME_IDS.filter(id => !locked.has(id)).slice(0, 1);
+            const norm = CamRules.applyPatch(cam, { actives: keep }, CAM_GAME_IDS);
+            cam.actives = norm.actives;
+            cam.active = norm.active || '';
+            camChanged = true;
+        }
+        L.camActives = [...new Set([...hidden.filter(id => locked.has(id)), ...nowLocked])];
+    }
+    // 2) Cờ enabled: game thường, Bắn Cung (link riêng), khung camgames. Level Quest không đọc enabled → chặn
+    //    qua lựa chọn Game Camera (bước 1) + overlay 🔒.
+    for (const id of Object.keys(GAMES)) {
+        if (lockViaCamSelection(id) || CAM_IGNORES_ENABLED.has(id)) continue;
+        const c = appConfig.games[id];
+        if (!c) continue;
+        if (locked.has(id)) {
+            if (c.enabled === false) continue;
+            c.enabled = false; L.games[id] = true; changed = true;
+            if (id === 'camgames') camChanged = true;
+            applyGameRuntime(id);
+            io.emit('gameConfig', { gameId: id, config: c });
+            emitGameStopped(id, { keepData: true });
+        } else if (L.games[id]) {
+            delete L.games[id]; changed = true;
+            if (c.enabled === false) {
+                c.enabled = true;
+                if (id === 'camgames') camChanged = true;
+                applyGameRuntime(id);
+                io.emit('gameConfig', { gameId: id, config: c });
+                io.emit('gameEnabled', { gameId: id, ts: Date.now() });
+            }
+        }
+    }
+    if (camChanged && camBefore) {
+        camGamesApplyActive(camBefore);
+        camApplyAllHotkeys();
+        io.emit('gameConfig', { gameId: 'camgames', config: appConfig.games.camgames });
+        changed = true;
+    }
+    // 3) Công cụ: Hiệu ứng OBS, Dịch Thuật LIVE (+ phụ đề giọng Creator đi cùng gói).
+    if (licenseToolLock('obsBridge', appConfig.obsBridge, locked.has('obs-effects'))) {
+        changed = true;
+        io.emit('obsBridge:config', {
+            enabled: appConfig.obsBridge.enabled !== false,
+            mapping: Array.isArray(appConfig.obsBridge.mapping) ? appConfig.obsBridge.mapping : [],
+            groupsDisabled: Array.isArray(appConfig.obsBridge.groupsDisabled) ? appConfig.obsBridge.groupsDisabled : []
+        });
+    }
+    if (licenseToolLock('liveTranslate', appConfig.liveTranslate, locked.has('liveTranslate'))) {
+        changed = true;
+        io.emit('translate:config', appConfig.liveTranslate);
+    }
+    if (licenseToolLock('creatorCaption', appConfig.creatorCaption, locked.has('liveTranslate'))) {
+        changed = true;
+        io.emit('creatorCaption:config', appConfig.creatorCaption);
+        try { global.__captionApplyHotkey?.(appConfig.creatorCaption); } catch (e) {}
+        if (appConfig.creatorCaption.enabled === false) { try { captionListenerStop(); } catch (e) {} }
+    }
+    if (changed) {
+        saveAppConfig();
+        console.log(`[license] tính năng theo key (${reason}): khoá ${[...locked].join(', ') || '—'}`);
+    }
+    io.emit('license:features', { features, locked: [...locked] });
+    return changed;
+}
+
 // ====== TikTok connection ======
 let connection = null;
 let currentUsername = null;
@@ -4670,6 +4840,7 @@ app.get('/api/live-translate/config', (req, res) => {
 
 app.post('/api/live-translate/config', (req, res) => {
     appConfig.liveTranslate = sanitizeLiveTranslateConfig(req.body || {});
+    licenseCoerceTool('liveTranslate', appConfig.liveTranslate, 'liveTranslate');
     saveAppConfig();
     io.emit('translate:config', appConfig.liveTranslate);
     res.json({ ok: true, config: appConfig.liveTranslate });
@@ -4783,6 +4954,7 @@ app.get('/api/creator-caption/config', (req, res) => {
 app.post('/api/creator-caption/config', (req, res) => {
     const wasEnabled = sanitizeCreatorCaptionConfig(appConfig.creatorCaption).enabled;
     appConfig.creatorCaption = sanitizeCreatorCaptionConfig(req.body || {});
+    licenseCoerceTool('creatorCaption', appConfig.creatorCaption, 'liveTranslate');
     saveAppConfig();
     io.emit('creatorCaption:config', appConfig.creatorCaption);
     try { global.__captionApplyHotkey?.(appConfig.creatorCaption); } catch (e) {}   // phím tắt Nghe/Dừng (Electron)
@@ -5082,9 +5254,16 @@ app.get('/api/games', (req, res) => {
     const list = Object.values(GAMES).map(g => ({
         id: g.id, name: g.name, description: g.description, icon: g.icon,
         overlayPath: g.overlayPath,
-        config: appConfig.games[g.id]
+        config: appConfig.games[g.id],
+        locked: !featureOn(g.id)      // tính năng theo KEY: giao diện hiện 🔒, không cho bật
     }));
     res.json(list);
+});
+
+// Tính năng theo KEY: danh sách mở (null = tất cả) + các id đang bị khoá (gồm cả công cụ ảo liveTranslate / obs-effects).
+app.get('/api/license/features', (req, res) => {
+    const features = licenseFeatures();
+    res.json({ features, locked: LicFeat.lockedIds(features), lockable: LicFeat.LOCKABLE });
 });
 
 app.get('/api/games/:id/config', (req, res) => {
@@ -5142,7 +5321,15 @@ app.post('/api/games/:id/config', (req, res) => {
         };
     }
     // Game Camera: {active} = chơi riêng, {actives} = chơi cùng lúc → chuẩn hoá theo khe (lib/camgames.js).
-    if (g.id === 'camgames') Object.assign(incoming, CamRules.applyPatch(prevConfig, incoming, CAM_GAME_IDS));
+    if (g.id === 'camgames') {
+        Object.assign(incoming, CamRules.applyPatch(prevConfig, incoming, CAM_GAME_IDS));
+        // Tính năng theo KEY: game con bị khoá không chọn được (rỗng → game con đầu tiên được mở, xem applyLicenseLocks).
+        let allowed = incoming.actives.filter(id => featureOn(id));
+        if (!allowed.length) allowed = CAM_GAME_IDS.filter(id => featureOn(id)).slice(0, 1);
+        if (allowed.length && allowed.join() !== incoming.actives.join()) {
+            Object.assign(incoming, CamRules.applyPatch(prevConfig, { actives: allowed }, CAM_GAME_IDS));
+        }
+    }
     appConfig.games[g.id] = { ...appConfig.games[g.id], ...incoming };
     if (g.id === 'thuytinh') cleanThuyTinhConfig(appConfig.games.thuytinh);   // app cũ POST config lẫn key game khác
     if (g.id === 'pktiktok') {
@@ -5191,38 +5378,53 @@ app.post('/api/games/:id/config', (req, res) => {
         // Đổi game đang chơi / game giữ phím → phân lại phím tắt (game không đổi enabled cũng có thể đổi chủ phím).
         camApplyAllHotkeys();
     }
+    // Tính năng theo KEY: mục bị khoá không bật được (các thiết lập khác vẫn lưu). Muốn bật lúc đang khoá → nhớ
+    // để mở khoá thì tự bật; tự tắt tay → bỏ nhớ (mở khoá không bật lại ngược ý người dùng).
+    const featLocked = !featureOn(g.id) && !CAM_IGNORES_ENABLED.has(g.id);
+    if (incoming.enabled === false) delete licenseLocks().games[g.id];
+    if (featLocked && appConfig.games[g.id].enabled !== false) {
+        appConfig.games[g.id].enabled = false;
+        if (!lockViaCamSelection(g.id)) licenseLocks().games[g.id] = true;
+    }
     const newEnabled = appConfig.games[g.id].enabled !== false;
     saveAppConfig();
     io.emit('gameConfig', { gameId: g.id, config: appConfig.games[g.id] });
     // Khi game vừa bị TẮT → gửi stop signal để overlay clear playback ngay lập tức
     if (prevEnabled && !newEnabled) {
-        if (g.id === 'pktiktok') {
-            io.emit('pktiktok:stop', { ts: Date.now(), reason: 'gameDisabled' });
-        } else if (g.id === 'vipwelcome') {
-            resetVipPlaybackState();
-            io.emit('vipwelcome:stop', { ts: Date.now(), reason: 'gameDisabled' });
-            io.emit('vipwelcome:queue', { size: 0 });
-        } else if (g.id === 'votecomment') {
-            voteCommentStop({ reason: 'gameDisabled' });
-        } else if (g.id === 'nhietdo') {
-            // Khi tắt game → giảm temp về min ngay để overlay clear hiệu ứng lửa
-            nhietDoState.temp = nhietDoState.tempMin;
-            broadcastNhietDoState({ immediate: true });
-        } else if (g.id === 'bancung') {
-            // Khi tắt → reset HP về full để khi bật lại không bị "chết treo"
-            banCungReset();
-        } else if (g.id === 'trongcay') {
-            trongCayReset();
-        }
-        // Generic event cho mọi game — overlay nào lắng nghe sẽ tự clear
-        io.emit('gameDisabled', { gameId: g.id, ts: Date.now() });
-        console.log(`[game-toggle] Game "${g.id}" disabled → emit stop signals`);
+        emitGameStopped(g.id);
     } else if (!prevEnabled && newEnabled) {
         io.emit('gameEnabled', { gameId: g.id, ts: Date.now() });
         console.log(`[game-toggle] Game "${g.id}" enabled`);
     }
-    res.json({ ok: true, config: appConfig.games[g.id] });
+    res.json({ ok: true, config: appConfig.games[g.id], locked: featLocked });
 });
+
+// Tín hiệu khi một game vừa bị TẮT: overlay xoá ngay hiệu ứng đang phát. keepData (tắt do KEY không có tính năng):
+// KHÔNG xoá dữ liệu người dùng — vườn Trồng Cây còn nguyên, mở khoá là chơi tiếp.
+function emitGameStopped(id, opts) {
+    const keepData = !!(opts && opts.keepData);
+    if (id === 'pktiktok') {
+        io.emit('pktiktok:stop', { ts: Date.now(), reason: 'gameDisabled' });
+    } else if (id === 'vipwelcome') {
+        resetVipPlaybackState();
+        io.emit('vipwelcome:stop', { ts: Date.now(), reason: 'gameDisabled' });
+        io.emit('vipwelcome:queue', { size: 0 });
+    } else if (id === 'votecomment') {
+        voteCommentStop({ reason: 'gameDisabled' });
+    } else if (id === 'nhietdo') {
+        // Khi tắt game → giảm temp về min ngay để overlay clear hiệu ứng lửa
+        nhietDoState.temp = nhietDoState.tempMin;
+        broadcastNhietDoState({ immediate: true });
+    } else if (id === 'bancung') {
+        // Khi tắt → reset HP về full để khi bật lại không bị "chết treo"
+        banCungReset();
+    } else if (id === 'trongcay' && !keepData) {
+        trongCayReset();
+    }
+    // Generic event cho mọi game — overlay nào lắng nghe sẽ tự clear
+    io.emit('gameDisabled', { gameId: id, ts: Date.now() });
+    console.log(`[game-toggle] Game "${id}" disabled → emit stop signals${keepData ? ' (khoá theo KEY, giữ dữ liệu)' : ''}`);
+}
 
 // Cache trạng thái game từng game — đẩy lên overlay khi (re)connect VÀ push realtime mỗi POST.
 // PERSISTENCE: lưu vào disk → restart app không mất quà đã tặng.
@@ -5768,6 +5970,7 @@ app.get('/api/license/status', async (req, res) => {
                 lastValidated: Date.now()
             };
             saveAppConfig();
+            applyLicenseLocks('status');   // tính năng theo KEY: khoá/mở theo danh sách mới nhất
             return res.json({
                 activated: true,
                 key: result.key,
@@ -5829,6 +6032,7 @@ app.post('/api/license/activate', async (req, res) => {
         lastValidated: Date.now()
     };
     saveAppConfig();
+    applyLicenseLocks('activate');   // tính năng theo KEY
     res.json(result);
 });
 
@@ -10983,7 +11187,12 @@ app.post('/api/obs-bridge/queue/simulate-gift', express.json(), (req, res) => {
 app.put('/api/obs-bridge/config', express.json(), (req, res) => {
     const body = req.body || {};
     if (!appConfig.obsBridge) appConfig.obsBridge = {};
-    if (typeof body.enabled === 'boolean') appConfig.obsBridge.enabled = body.enabled;
+    if (typeof body.enabled === 'boolean') {
+        // Tính năng theo KEY: Hiệu ứng OBS bị khoá thì không bật được (nhớ ý muốn bật để mở khoá thì tự bật).
+        const L = licenseLocks();
+        if (body.enabled && !featureOn('obs-effects')) { appConfig.obsBridge.enabled = false; L.obsBridge = true; }
+        else { appConfig.obsBridge.enabled = body.enabled; delete L.obsBridge; }
+    }
     if (typeof body.url === 'string') appConfig.obsBridge.url = body.url.trim();
     if (typeof body.password === 'string') appConfig.obsBridge.password = body.password;
     if (typeof body.autoConnect === 'boolean') appConfig.obsBridge.autoConnect = body.autoConnect;
@@ -11234,7 +11443,11 @@ io.on('connection', (socket) => {
     // level-quest/timer, click translate-toggle cho liveTranslate, control endpoint cho
     // votecomment). Broadcast tới MỌI client (kể cả sender) để app chính phản hồi nếu nó
     // chính là nguồn phát; cửa sổ rời tự ignore (kiểm tra trong handler client).
-    onTrusted('quickLaunch:cmd', (data) => { io.emit('quickLaunch:cmd', data); });
+    onTrusted('quickLaunch:cmd', (data) => {
+        // Tính năng theo KEY: lệnh bật/dừng/reset của mục bị khoá không chuyển tiếp (nút ⚙ mở = app chính tự báo 🔒).
+        if (data && typeof data.gameId === 'string' && data.action !== 'open' && !featureOn(data.gameId)) return;
+        io.emit('quickLaunch:cmd', data);
+    });
     // App chính broadcast trạng thái Đang chạy của caro + liveTranslate (heartbeat 2s + on-change).
     // Cửa sổ Khởi động nhanh listen để cập nhật chip "Đang chạy" / "Sẵn sàng".
     onTrusted('quickLaunch:status', (data) => { socket.broadcast.emit('quickLaunch:status', data); });
@@ -11471,6 +11684,9 @@ httpServer.on('error', (e) => {
     throw e;   // giữ hành vi cũ (crash) nhưng đã có dòng log giải thích
 });
 httpServer.listen(PORT, BIND_HOST, async () => {
+    // Tính năng theo KEY: áp theo danh sách đã lưu NGAY khi lên — trước mọi await (tải Google Sheet có thể mất vài
+    // giây khi mạng chậm; trong lúc đó game bị khoá không được chạy).
+    try { applyLicenseLocks('startup'); } catch (e) { console.warn('[license] áp khoá lúc khởi động lỗi:', e && e.message); }
     if (BIND_HOST === '127.0.0.1' || BIND_HOST === 'localhost' || BIND_HOST === '::1') {
         console.log(`[server] Lắng nghe ${BIND_HOST} (chỉ máy này)`);
     } else {
@@ -11491,6 +11707,17 @@ httpServer.listen(PORT, BIND_HOST, async () => {
     try {
         require('./hpkey/validate').startWatch({
             getKey: () => (appConfig.license && appConfig.license.key) || '',
+            // Mỗi lần verify OK (≤ RECHECK_SECONDS): admin đổi tính năng của key → khoá/mở ngay, khỏi mở lại app.
+            onOk: (payload, license) => {
+                try {
+                    if (!appConfig.license || !appConfig.license.key) return;
+                    const f = license && Array.isArray(license.features) ? license.features.map(String) : null;
+                    if (LicFeat.same(f, appConfig.license.features)) return;
+                    appConfig.license = { ...appConfig.license, features: f };
+                    saveAppConfig();
+                    applyLicenseLocks('watcher');
+                } catch (e) { console.warn('[license] cập nhật tính năng lỗi:', e && e.message); }
+            },
             onRevoked: (reason) => {
                 console.warn('[hpkey] Key bị thu hồi:', reason, '-> đóng app');
                 try {
