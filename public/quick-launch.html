@@ -913,7 +913,7 @@
                 });
                 games.sort((a, b) => STABLE_IDS.indexOf(a.id) - STABLE_IDS.indexOf(b.id));
                 // 🔒 Tính năng theo KEY (HP KEY): mục KEY chưa mở — thẻ mờ, nút ▶/↺ chỉ báo khoá.
-                // HP KEY gs: mục Ẩn (chưa ra mắt) bỏ khỏi danh sách; mục Tạm tắt hiện ⏸ Tạm bảo trì; Chỉ ADMIN gắn 🧪.
+                // HP KEY gs: mục Ẩn (chưa ra mắt) bỏ khỏi danh sách; mục Tạm tắt hiện ⏸ Tạm bảo trì; mục dùng thử ('admin') gắn 🧪.
                 try {
                     const lf = await (await fetch('/api/license/features')).json();
                     const locked = new Set(Array.isArray(lf.locked) ? lf.locked : []);
@@ -974,7 +974,7 @@
                 <span class="card-grip">${ICON.grip}</span>
                 <span class="card-ico">${g.icon}</span>
                 <div class="card-meta">
-                    <div class="card-name" title="${escapeHtml(g.name)}${g.lstate === 'admin' ? ' — 🧪 thử nghiệm, chỉ key ADMIN thấy' : ''} — kéo thẻ để đổi thứ tự">${g.lstate === 'admin' ? '🧪 ' : ''}${escapeHtml(g.name)}</div>
+                    <div class="card-name" title="${escapeHtml(g.name)}${g.lstate === 'admin' ? ' (🧪 Thử nghiệm — mới mở cho một số KEY dùng thử)' : ''} — kéo thẻ để đổi thứ tự">${g.lstate === 'admin' ? '🧪 ' : ''}${escapeHtml(g.name)}</div>
                     <div class="card-state ${st.cls}" title="${st.tip}">
                         <span class="dot"></span>
                         <span class="state-txt">${st.label}</span>

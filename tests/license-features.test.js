@@ -2,6 +2,9 @@
 // Tính năng theo KEY (HP KEY ft): lib/license-features.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
 const LF = require('../lib/license-features');
 
 test('key "Tất cả" (null / undefined / sai kiểu): mở mọi thứ, không khoá gì', () => {
@@ -95,7 +98,7 @@ test('stateOf camgames: còn game con dùng được → on; mọi game con ẩn
     const oneOff = { ...allHidden, dapmuoi: 'off' };
     assert.equal(LF.stateOf(minus(...kids), oneOff, 'camgames'), 'off');
     assert.equal(LF.stateOf(minus(...kids), {}, 'camgames'), 'locked');
-    assert.equal(LF.stateOf(minus(...kids.filter((k) => k !== 'bancung')), { bancung: 'admin' }, 'camgames'), 'on', 'chỉ còn game Chỉ ADMIN → vẫn mở');
+    assert.equal(LF.stateOf(minus(...kids.filter((k) => k !== 'bancung')), { bancung: 'admin' }, 'camgames'), 'on', 'chỉ còn game dùng thử (admin) → vẫn mở');
     assert.equal(LF.states(minus(...kids), allHidden).camgames, 'hidden');
 });
 
@@ -117,4 +120,119 @@ test('danh mục: id hợp lệ với HP KEY ([A-Za-z0-9_.-]{1,40}), không trù
     assert.equal(lines.length, 16);
     assert.equal(lines[0], 'thuytinh|Hũ Thủy Tinh');
     for (const l of lines) assert.match(l, /^[A-Za-z0-9_.-]+\|.+$/);
+});
+
+// Trang 🔒 / ⏸ của overlay OBS tự tải lại khi mục được mở (server.js licenseLockedHtml → lockedPageHtml).
+test('lockLifted(): mở lại khi id không còn trong locked và không còn off / hidden; trả lời lạ → đứng yên', () => {
+    assert.equal(LF.lockLifted('caro', { locked: [], states: {} }), true);
+    assert.equal(LF.lockLifted('caro', { locked: ['thuytinh'], states: { thuytinh: 'locked', timer: 'admin' } }), true);
+    assert.equal(LF.lockLifted('caro', { locked: ['caro'], states: { caro: 'locked' } }), false, 'vẫn khoá theo KEY');
+    assert.equal(LF.lockLifted('caro', { locked: ['caro'], states: { caro: 'off' } }), false, 'vẫn tạm bảo trì');
+    assert.equal(LF.lockLifted('caro', { locked: [], states: { caro: 'off' } }), false, 'off trong states → chưa mở');
+    assert.equal(LF.lockLifted('caro', { locked: [], states: { caro: 'hidden' } }), false, 'hidden trong states → chưa mở');
+    assert.equal(LF.lockLifted('caro', { locked: [], states: { caro: 'admin' } }), true, 'dùng thử = dùng được');
+    assert.equal(LF.lockLifted('caro', { locked: [] }), true, 'thiếu states vẫn đọc theo locked');
+    for (const bad of [null, undefined, 'x', 5, {}, { locked: 'caro' }, { states: {} }]) {
+        assert.equal(LF.lockLifted('caro', bad), false, JSON.stringify(bad));
+    }
+    // Khung Game Camera dùng id 'camgames' (lockedIds thêm khi không còn game con nào)
+    const lf = (features, gs) => ({ locked: LF.lockedIds(features), states: LF.states(features, gs) });
+    assert.equal(LF.lockLifted('camgames', lf(['caro'], {})), false);
+    assert.equal(LF.lockLifted('camgames', lf(['caro', 'dapmuoi'], {})), true);
+    assert.equal(LF.lockLifted('liveTranslate', lf(minus('liveTranslate'), { liveTranslate: 'off' })), false);
+    assert.equal(LF.lockLifted('liveTranslate', lf(null, {})), true, 'key Tất cả → mở');
+});
+
+test('lockedPageHtml(): giữ chữ + nền trong suốt như cũ, thêm script tự tải lại', () => {
+    const locked = LF.lockedPageHtml('caro', 'locked');
+    assert.match(locked, /<title>🔒 Caro Đối Đầu<\/title>/);
+    assert.ok(locked.includes('<div>🔒 Caro Đối Đầu: KEY chưa mở tính năng này — liên hệ HP Media</div>'));
+    assert.ok(locked.includes('html,body{margin:0;background:transparent;'));
+    assert.ok(LF.lockedPageHtml('timer', 'off').includes('<div>⏸ Thời Gian: đang tạm bảo trì — HP Media sẽ mở lại sớm</div>'));
+    assert.ok(LF.lockedPageHtml('nhatla', 'hidden').includes('<div>🔒 Nhặt Lá: chưa mở</div>'));
+    assert.ok(LF.lockedPageHtml('camgames', 'locked').includes('🔒 Game Camera: '));
+    assert.ok(LF.lockedPageHtml('lạ<b>', 'locked').includes('🔒 lạb: '), 'tên lạ bỏ ký tự HTML');
+    assert.equal(LF.LOCK_RECHECK_MS, 15000);
+    assert.equal((locked.match(/<script>/g) || []).length, 1);
+    assert.ok(locked.includes("fetch('/api/license/features',{cache:'no-store'})"));
+    assert.ok(locked.includes('location.reload()'));
+    assert.ok(locked.indexOf('<script>') > locked.indexOf('</div>') && locked.endsWith('</script></body></html>'));
+    assert.ok(!LF.lockedPageHtml('</script><b>', 'locked').includes('</script><b>'), 'id không phá được thẻ script');
+});
+
+// Chạy đúng đoạn script nhúng trong trang khoá với fetch / setInterval / location giả.
+function runLockedPage(id, answer) {
+    const html = LF.lockedPageHtml(id, 'locked');
+    const src = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'));
+    const ticks = [];
+    const seen = { reloads: 0, fetches: [] };
+    const ctx = {
+        setInterval: (fn, ms) => { ticks.push({ fn, ms }); return 1; },
+        fetch: (url, opt) => { seen.fetches.push({ url, opt }); return answer(); },
+        location: { reload: () => { seen.reloads++; } },
+    };
+    vm.runInNewContext(src, ctx);
+    const tick = async () => { ticks[0].fn(); for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r)); };
+    return { ticks, seen, tick };
+}
+const reply = (body, ok = true) => () => Promise.resolve({ ok, json: () => Promise.resolve(body) });
+
+test('trang khoá: cứ 15 s hỏi /api/license/features (no-store); mục mở lại → location.reload()', async () => {
+    let body = { locked: ['caro'], states: { caro: 'locked' } };
+    const p = runLockedPage('caro', () => reply(body)());
+    assert.equal(p.ticks.length, 1);
+    assert.equal(p.ticks[0].ms, 15000);
+    await p.tick();
+    assert.equal(p.seen.fetches[0].url, '/api/license/features');
+    assert.equal(p.seen.fetches[0].opt.cache, 'no-store');
+    assert.equal(p.seen.reloads, 0, 'còn khoá → đứng yên');
+    body = { locked: [], states: { caro: 'off' } };
+    await p.tick();
+    assert.equal(p.seen.reloads, 0, 'còn tạm bảo trì → đứng yên');
+    body = { locked: [], states: {} };
+    await p.tick();
+    assert.equal(p.seen.reloads, 1, 'mở lại → tải lại trang');
+});
+
+test('trang khoá: lỗi mạng / HTTP lỗi / JSON hỏng thì bỏ qua, lần sau hỏi tiếp', async () => {
+    let mode = 'net';
+    const p = runLockedPage('timer', () => {
+        if (mode === 'net') return Promise.reject(new Error('ECONNREFUSED'));
+        if (mode === 'http') return reply({ locked: [] }, false)();
+        if (mode === 'json') return Promise.resolve({ ok: true, json: () => Promise.reject(new SyntaxError('bad')) });
+        return reply({ locked: [], states: {} })();
+    });
+    for (const m of ['net', 'http', 'json']) { mode = m; await p.tick(); }
+    assert.equal(p.seen.reloads, 0);
+    assert.equal(p.seen.fetches.length, 3, 'mỗi nhịp hỏi một lần, lỗi không làm kẹt');
+    mode = 'ok';
+    await p.tick();
+    assert.equal(p.seen.reloads, 1);
+});
+
+test('nhãn 🧪 trung tính: không còn "chỉ key ADMIN" trong giao diện', () => {
+    const root = path.join(__dirname, '..');
+    for (const f of ['public/app.js', 'public/quick-launch.html', 'public/games/camgames/camgames-panel.js']) {
+        const src = fs.readFileSync(path.join(root, f), 'utf8');
+        assert.doesNotMatch(src, /key ADMIN thấy/i, f);
+        assert.match(src, /Thử nghiệm — mới mở cho một số KEY dùng thử/, f);
+    }
+});
+
+// Rà các chỗ liệt kê game cho người dùng chọn / mở: mục Ẩn không hiện, mục Tạm tắt có ⏸ (kiểm tĩnh mã nguồn).
+test('mục Ẩn không hiện ở mọi danh sách game; server trả trang khoá qua lockedPageHtml', () => {
+    const root = path.join(__dirname, '..');
+    const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
+    const app = read('public/app.js');
+    assert.match(app, /if \(g\.lstate === 'hidden'\) continue;/, 'Thư viện Game bỏ mục Ẩn');
+    assert.match(app, /games\.some\(g => g\.id === last && g\.lstate !== 'hidden'\)/, 'không mở lại màn đã nhớ của mục Ẩn');
+    assert.match(read('public/quick-launch.html'), /games = games\.filter\(g => g\.lstate !== 'hidden'\)/, 'Khởi động nhanh (thẻ + ⚙ thứ tự)');
+    assert.match(read('public/games/camgames/camgames-panel.js'), /filter\(g => lstates\[g\.id\] !== 'hidden'\)/, 'Game Camera');
+    const gb = read('public/_prototype/giftboard.html');
+    assert.match(gb, /fetch\('\/api\/license\/features'/, 'Bảng Quà Tổng đọc trạng thái mục');
+    assert.match(gb, /socket\.on\('license:features'/, 'Bảng Quà Tổng cập nhật khi admin đổi');
+    assert.match(gb, /SOURCE_ORDER\.filter\(id => \(games\[id\] \|\| id === 'obsEffects'\) && !srcHidden\(id\)\)/, 'nguồn Ẩn không hiện');
+    assert.match(gb, /if \(srcHidden\(id\)\) return false;/, 'quà của nguồn Ẩn không lên bảng');
+    assert.match(gb, /⏸ Tạm bảo trì/, 'nguồn Tạm tắt ghi ⏸');
+    assert.match(read('server.js'), /return LicFeat\.lockedPageHtml\(id, licenseStateOf\(id\)\);/);
 });

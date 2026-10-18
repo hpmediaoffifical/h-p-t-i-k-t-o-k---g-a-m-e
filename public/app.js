@@ -543,7 +543,7 @@
             const lockTip = paused ? 'Đang tạm bảo trì — HP Media sẽ mở lại sớm' : 'KEY chưa mở tính năng này';
             const badge = paused ? ` <span class="lock-badge" title="${lockTip}">⏸</span>`
                 : g.locked ? ' <span class="lock-badge" title="KEY chưa mở tính năng này">🔒</span>'
-                : g.lstate === 'admin' ? ' <span class="lock-badge" title="Thử nghiệm — chỉ key ADMIN thấy">🧪</span>' : '';
+                : g.lstate === 'admin' ? ' <span class="lock-badge" title="Thử nghiệm — mới mở cho một số KEY dùng thử">🧪</span>' : '';
             div.innerHTML = `<span class="ico">${g.icon}</span>
                 <div class="meta">
                     <div class="gn">${g.name}${badge}</div>
@@ -6838,7 +6838,8 @@
         await loadGames();
         let last = 'home';
         try { last = localStorage.getItem(LAST_VIEW_KEY) || 'home'; } catch (_) {}
-        if (last !== 'home' && games.some(g => g.id === last)) openGame(last);
+        // Màn nhớ lại là mục giờ đã Ẩn (HP KEY gs) → về Trang chủ, không bật hộp "Chưa mở" nêu tên mục ẩn.
+        if (last !== 'home' && games.some(g => g.id === last && g.lstate !== 'hidden')) openGame(last);
         else goHome();
         initSidebarToggle();
         // CHỈ check 1 lần khi mở app — KHÔNG có setInterval định kỳ.

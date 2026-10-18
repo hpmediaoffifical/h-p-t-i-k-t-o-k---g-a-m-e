@@ -2994,17 +2994,9 @@ function licenseLocks() {
 }
 // Game con Game Camera (trừ Bắn Cung có link riêng) bật/tắt theo lựa chọn của khung → khoá qua lựa chọn.
 function lockViaCamSelection(id) { return CAM_GAME_IDS.includes(id) && !CAM_STANDALONE_IDS.has(id); }
+// Trang 🔒 / ⏸ nền trong suốt; tự hỏi /api/license/features ~15 s và tải lại khi mục được mở (OBS khỏi bấm refresh).
 function licenseLockedHtml(id) {
-    const c = LicFeat.CATALOG.find(x => x.id === id);
-    const name = String(id === 'camgames' ? 'Game Camera' : (c ? c.name : id)).replace(/[<>&"]/g, '');
-    const st = licenseStateOf(id);
-    const ico = st === 'off' ? '⏸' : '🔒';
-    const msg = st === 'off' ? 'đang tạm bảo trì — HP Media sẽ mở lại sớm'
-        : st === 'hidden' ? 'chưa mở' : 'KEY chưa mở tính năng này — liên hệ HP Media';
-    return '<!doctype html><html><head><meta charset="utf-8"><title>' + ico + ' ' + name + '</title><style>'
-        + 'html,body{margin:0;background:transparent;font-family:system-ui,Segoe UI,sans-serif}'
-        + 'div{position:fixed;left:12px;top:12px;padding:8px 12px;border-radius:8px;background:rgba(0,0,0,.62);color:#fff;font-size:14px}'
-        + '</style></head><body><div>' + ico + ' ' + name + ': ' + msg + '</div></body></html>';
+    return LicFeat.lockedPageHtml(id, licenseStateOf(id));
 }
 // Áp lại phần chạy của game sau khi đổi enabled (như nhánh lưu cấu hình POST /api/games/:id/config).
 function applyGameRuntime(id) {
@@ -5979,7 +5971,7 @@ app.get('/api/license/status', async (req, res) => {
                 role: result.role || 'ADMIN',
                 allowedIds: result.allowedIds || [],
                 features: result.features === undefined ? null : result.features,   // null = toàn bộ tính năng (HP KEY ft)
-                gameState: LicFeat.normalizeState(result.gameState),                // mục Tạm tắt / Ẩn / Chỉ ADMIN (HP KEY gs)
+                gameState: LicFeat.normalizeState(result.gameState),                // mục Tạm tắt / Ẩn / Dùng thử 🧪 (HP KEY gs)
                 vip: result.vip,
                 expiry: result.expiry,
                 note: result.note,
@@ -6043,7 +6035,7 @@ app.post('/api/license/activate', async (req, res) => {
         role: result.role || 'ADMIN',          // ADMIN | CREATOR | VIP
         allowedIds: result.allowedIds || [],
         features: result.features === undefined ? null : result.features,   // null = toàn bộ tính năng (HP KEY ft)
-        gameState: LicFeat.normalizeState(result.gameState),                // mục Tạm tắt / Ẩn / Chỉ ADMIN (HP KEY gs)
+        gameState: LicFeat.normalizeState(result.gameState),                // mục Tạm tắt / Ẩn / Dùng thử 🧪 (HP KEY gs)
         vip: result.vip,
         expiry: result.expiry,
         note: result.note,

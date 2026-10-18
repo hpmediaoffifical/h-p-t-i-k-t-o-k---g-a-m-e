@@ -100,7 +100,7 @@
             const withTitle = canWith ? `Chơi cùng lúc với ${partners}${replaced ? ' (thay ' + replaced + ' — cùng khe ' + (g.slot === 'head' ? 'trên đầu' : 'dùng tay') + ')' : ''}` : '';
             return `<div class="cg-game ${on ? 'on' : ''}" data-id="${esc(g.id)}">
                 <div class="cg-game-head"><span class="cg-ico">${g.icon}</span><b>${esc(g.name)}</b>
-                    ${lstates[g.id] === 'admin' ? '<span class="cg-badge" title="Thử nghiệm — chỉ key ADMIN thấy">🧪 THỬ NGHIỆM</span>' : ''}
+                    ${lstates[g.id] === 'admin' ? '<span class="cg-badge" title="Thử nghiệm — mới mở cho một số KEY dùng thử">🧪 THỬ NGHIỆM</span>' : ''}
                     ${on ? '<span class="cg-badge">● ĐANG CHƠI TRÊN OBS</span>' : ''}
                     ${keyOwner === g.id ? '<span class="cg-badge keys" title="Phím tắt toàn cục đang thuộc game này; game chơi cùng tạm nhả phím (quà vẫn chạy bình thường)">⌨ GIỮ PHÍM TẮT</span>' : ''}
                     ${solo ? '<span class="cg-badge solo" title="Game vẫn nhận quà qua link OBS riêng của nó">● ĐANG BẬT Ở LINK RIÊNG</span>' : ''}</div>

@@ -463,6 +463,7 @@
     let catalog = {};        // giftId → { id, name, image, diamond }
     let timerCfg = null;     // relay 'timer:cfg' (RAM server)
     let obsCfg = null;       // /api/obs-bridge/config
+    let licStates = {};      // HP KEY gs (/api/license/features → states): mục 'hidden' (Ẩn) không hiện ở đây
     const running = {};      // gameId → phiên đang chạy?
     let rawEntries = [];     // trước khi gộp (bảng danh sách trong lab)
     let lastPanels = [];     // kết quả buildPanels() gần nhất (cả khối ẩn)
@@ -583,7 +584,12 @@
       return out;
     }
 
+    // Mục Ẩn (HP KEY gs, chưa ra mắt): không vào danh sách nguồn, không lên bảng. Cài đặt nguồn (cfg.sources) giữ nguyên.
+    // Mục Tạm tắt (bảo trì): vẫn hiện trong danh sách nguồn, chip ghi ⏸ Tạm bảo trì thay vì "TẮT ở Thư viện".
+    const srcState = id => licStates[id === 'obsEffects' ? 'obs-effects' : id];
+    function srcHidden(id) { return srcState(id) === 'hidden'; }
     function gameEnabled(id) {
+      if (srcHidden(id)) return false;
       if (id === 'obsEffects') return !!obsCfg && obsCfg.enabled !== false;
       return !!games[id] && games[id].config?.enabled !== false;
     }
@@ -931,11 +937,12 @@
       $('gb-count').textContent = `${total} thẻ · ${visiblePanels.length} khối · ${new Set(rawEntries.filter(e => cfg.sources[e.gameId] && gameEnabled(e.gameId)).map(e => e.gameId)).size} game`;
       renderPanelChips(); syncPanelInputs();
       const counts = {}; for (const e of rawEntries) counts[e.gameId] = (counts[e.gameId] || 0) + 1;
-      const known = SOURCE_ORDER.filter(id => games[id] || id === 'obsEffects');
+      const known = SOURCE_ORDER.filter(id => (games[id] || id === 'obsEffects') && !srcHidden(id));
       $('src-cnt').textContent = known.length + ' nguồn';
       $('src-list').innerHTML = known.map(id => {
         const m = gameMeta(id); const en = gameEnabled(id); const run = HAS_SESSION.has(id) ? running[id] : null;
-        const chip = !en ? '<span class="chip off">TẮT ở Thư viện</span>' : run === true ? '<span class="chip run">đang chạy phiên</span>' : run === false ? '<span class="chip">chưa chạy phiên</span>' : '<span class="chip on">BẬT</span>';
+        const chip = srcState(id) === 'off' ? '<span class="chip off" title="Đang tạm bảo trì — HP Media sẽ mở lại sớm">⏸ Tạm bảo trì</span>'
+          : !en ? '<span class="chip off">TẮT ở Thư viện</span>' : run === true ? '<span class="chip run">đang chạy phiên</span>' : run === false ? '<span class="chip">chưa chạy phiên</span>' : '<span class="chip on">BẬT</span>';
         return `<label class="src ${cfg.sources[id] && en ? '' : 'off'}"><input type="checkbox" data-src="${id}" ${cfg.sources[id] ? 'checked' : ''}><span>${esc(m.icon)}</span><span class="nm">${esc(m.name)}</span>${chip}<span class="n">${counts[id] || 0} quà</span></label>`;
       }).join('');
       $('src-list').querySelectorAll('input[data-src]').forEach(inp => inp.addEventListener('change', () => { cfg.sources[inp.dataset.src] = inp.checked; paint(); scheduleSave(); }));
@@ -953,13 +960,15 @@
     // ===== TẢI DỮ LIỆU =====
     async function loadAll() {
       try {
-        const [gl, gifts, ob, own] = await Promise.all([
+        const [gl, gifts, ob, own, lf] = await Promise.all([
           fetch('/api/games').then(r => r.json()),
           fetch('/api/gifts').then(r => r.json()).catch(() => []),
           fetch('/api/obs-bridge/config').then(r => r.ok ? r.json() : null).catch(() => null),
-          fetch(`/api/games/${GAME_ID}/config`).then(r => r.ok ? r.json() : null).catch(() => null)
+          fetch(`/api/games/${GAME_ID}/config`).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/license/features', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)
         ]);
         games = {}; for (const g of Array.isArray(gl) ? gl : []) games[g.id] = g;
+        licStates = obj(lf && lf.states);
         for (const g of Array.isArray(gifts) ? gifts : []) if (g?.id) catalog[String(g.id)] = g;
         if (ob) obsCfg = { enabled: ob.enabled !== false, mapping: ob.mapping || [], groupsDisabled: ob.groupsDisabled || [] };
         for (const id of HAS_SESSION) if (games[id]?.config && typeof games[id].config.sessionActive === 'boolean') running[id] = games[id].config.sessionActive;
@@ -990,6 +999,7 @@
       socket.on('gameEnabled', ({ gameId }) => { if (games[gameId]) { games[gameId].config = { ...(games[gameId].config || {}), enabled: true }; schedulePaint(); } if (gameId === GAME_ID) { cfg.enabled = true; fillInputs(); paint(); } });
       socket.on('giftSheet', list => { if (!Array.isArray(list)) return; for (const g of list) if (g?.id) catalog[String(g.id)] = g; schedulePaint(); });
       socket.on('timer:cfg', data => { timerCfg = data && data.cfg ? data.cfg : data; schedulePaint(); });
+      socket.on('license:features', d => { licStates = obj(d && d.states); schedulePaint(); });
       socket.on('obsBridge:config', data => { if (data) { obsCfg = { enabled: data.enabled !== false, mapping: data.mapping || [], groupsDisabled: data.groupsDisabled || [] }; schedulePaint(); } });
       socket.on('giftboard:transient', data => {
         if (!data?.panels || dragging) return;
