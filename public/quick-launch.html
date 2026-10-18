@@ -948,7 +948,7 @@
         }
 
         function stateOf(g) {
-            if (g.locked) return { cls: 'off', label: '🔒 Chưa mở', tip: 'KEY chưa mở tính năng này — liên hệ HP Media' };
+            if (g.locked) return { cls: 'off', label: '🔒 Đã khóa', tip: 'KEY chưa mở tính năng này — liên hệ HP Media' };
             const enabled = isEnabled(g);
             if (running[g.id]) return { cls: 'live', label: 'Đang chạy', tip: '' };
             if (enabled)       return { cls: 'on',   label: 'Sẵn sàng', tip: '' };

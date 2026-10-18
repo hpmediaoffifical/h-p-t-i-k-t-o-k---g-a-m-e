@@ -521,7 +521,7 @@
             div.innerHTML = `<span class="ico">${g.icon}</span>
                 <div class="meta">
                     <div class="gn">${g.name}${g.locked ? ' <span class="lock-badge" title="KEY chưa mở tính năng này">🔒</span>' : ''}</div>
-                    ${g.locked ? '<div class="gd game-lock-notice">KEY chưa mở — liên hệ HP Media</div>' : renderGameDevelopmentNotice(g)}
+                    ${g.locked ? '<div class="gd game-lock-notice">Đã khóa</div>' : renderGameDevelopmentNotice(g)}
                 </div>
                 <button class="game-toggle ${isEnabled ? 'on' : 'off'}" data-game-toggle="${g.id}" title="${g.locked ? 'KEY chưa mở tính năng này' : (isEnabled ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT') + ' ' + (g.virtual ? 'tool' : 'game') + ' chạy ngầm'}"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="3" x2="12" y2="12.5"/><path d="M7.1 6.7a7.3 7.3 0 1 0 9.8 0"/></svg></button>`;
             // Click toàn thân (trừ toggle) → mở game
