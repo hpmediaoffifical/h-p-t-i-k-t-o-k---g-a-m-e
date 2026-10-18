@@ -2,7 +2,7 @@
 /**
  * HP KEY adapter cho HP Action LIVE (product tiktok-game). Được sync-client copy thành
  * <app>/hpkey/validate.js — GIỮ NGUYÊN interface server.js đang gọi:
- *   validateLicenseKey(rawKey) → { ok, key, role, allowedIds, features, vip, expiry, expiryISO, status, note }
+ *   validateLicenseKey(rawKey) → { ok, key, role, allowedIds, features, gameState, vip, expiry, expiryISO, status, note }
  *   verifyKey(rawKey)          → { ok, payload, license } | { ok:false, error, _offline }
  *   startWatch(opts)           → hàm stop() (có thêm .state)
  *   getHWID()
@@ -28,6 +28,7 @@ function okShape(lic, extra) {
     role: lic.role || 'ADMIN',             // ADMIN | CREATOR | VIP
     allowedIds: lic.allowedIds || [],      // VIP: chỉ kết nối các ID này (rỗng = không giới hạn)
     features: lic.features === undefined ? null : lic.features, // null = toàn bộ tính năng
+    gameState: lic.gameState || {},        // SDK 2.1: { id: 'off'|'hidden'|'admin' } — mục tắt theo game (gs)
     vip: lic.role || '',
     expiry: index.fmtDmy(lic.expiresAt),   // '' nếu vĩnh viễn
     expiryISO: lic.expiresAt ? new Date(lic.expiresAt * 1000).toISOString() : null,

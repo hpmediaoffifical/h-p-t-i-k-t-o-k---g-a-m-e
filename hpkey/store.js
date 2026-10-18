@@ -193,6 +193,7 @@ function saveLicense(license) {
     expiresAt: l.expiresAt || '',
     allowedIds: Array.isArray(l.allowedIds) ? l.allowedIds : [],
     features: Array.isArray(l.features) ? l.features : null,
+    gameState: (l.gameState && typeof l.gameState === 'object' && !Array.isArray(l.gameState)) ? l.gameState : {},
     activatedAt: l.activatedAt || Date.now(),
     checkedAt: Date.now(),
   });

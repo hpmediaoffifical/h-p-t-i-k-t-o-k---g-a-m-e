@@ -16,6 +16,11 @@
     let overlaps = [];        // quà gán đích danh ở ≥2 game đang chơi (/api/camgames/overlap)
     const soloOn = {};        // game `standalone` (Bắn Cung) đang bật ở link OBS riêng: { id: true }
     let locked = new Set();   // 🔒 tính năng theo KEY: game con KEY chưa mở (/api/license/features) — server cũng lọc khi lưu
+    let lstates = {};         // HP KEY gs: { id: 'off' (⏸ Tạm bảo trì) | 'hidden' (không hiện) | 'admin' (🧪) | 'locked' }
+    function setLicense(d) {
+        locked = new Set(d && Array.isArray(d.locked) ? d.locked : []);
+        lstates = (d && d.states && typeof d.states === 'object') ? d.states : {};
+    }
     const POSE_GAMES = new Set(['bancung', 'level-quest']);   // overlay báo phase = id game; các game này đếm người, không đếm tay
     let socket = null, pollTimer = 0, built = false;
 
@@ -74,12 +79,14 @@
         const grid = $('#cg-grid');
         if (!grid) return;
         const now = playing(), cur = actives(), keyOwner = hotkeyOwner();
-        grid.innerHTML = games().map(g => {
+        grid.innerHTML = games().filter(g => lstates[g.id] !== 'hidden').map(g => {   // HP KEY: game con Ẩn không hiện
             const on = now.includes(g.id);
             if (locked.has(g.id)) {
+                const paused = lstates[g.id] === 'off';
                 return `<div class="cg-game" data-id="${esc(g.id)}" style="opacity:.55">
                 <div class="cg-game-head"><span class="cg-ico">${g.icon}</span><b>${esc(g.name)}</b>
-                    <span class="cg-badge" title="Liên hệ HP Media để mở thêm tính năng này cho KEY">🔒 KEY CHƯA MỞ</span></div>
+                    ${paused ? '<span class="cg-badge" title="HP Media sẽ mở lại sớm">⏸ TẠM BẢO TRÌ</span>'
+                        : '<span class="cg-badge" title="Liên hệ HP Media để mở thêm tính năng này cho KEY">🔒 KEY CHƯA MỞ</span>'}</div>
                 <div class="cg-desc">${esc(g.desc)}</div>
                 <div class="cg-actions"><button class="ghost small" data-settings="${esc(g.id)}">⚙ Cài đặt</button></div>
             </div>`;
@@ -93,6 +100,7 @@
             const withTitle = canWith ? `Chơi cùng lúc với ${partners}${replaced ? ' (thay ' + replaced + ' — cùng khe ' + (g.slot === 'head' ? 'trên đầu' : 'dùng tay') + ')' : ''}` : '';
             return `<div class="cg-game ${on ? 'on' : ''}" data-id="${esc(g.id)}">
                 <div class="cg-game-head"><span class="cg-ico">${g.icon}</span><b>${esc(g.name)}</b>
+                    ${lstates[g.id] === 'admin' ? '<span class="cg-badge" title="Thử nghiệm — chỉ key ADMIN thấy">🧪 THỬ NGHIỆM</span>' : ''}
                     ${on ? '<span class="cg-badge">● ĐANG CHƠI TRÊN OBS</span>' : ''}
                     ${keyOwner === g.id ? '<span class="cg-badge keys" title="Phím tắt toàn cục đang thuộc game này; game chơi cùng tạm nhả phím (quà vẫn chạy bình thường)">⌨ GIỮ PHÍM TẮT</span>' : ''}
                     ${solo ? '<span class="cg-badge solo" title="Game vẫn nhận quà qua link OBS riêng của nó">● ĐANG BẬT Ở LINK RIÊNG</span>' : ''}</div>
@@ -189,7 +197,7 @@
 
     async function loadConfig() {
         try { const j = await (await fetch('/api/games/camgames/config', { cache: 'no-store' })).json(); if (j) cfg = { ...cfg, ...j }; } catch (_) {}
-        try { const lf = await (await fetch('/api/license/features', { cache: 'no-store' })).json(); locked = new Set(Array.isArray(lf.locked) ? lf.locked : []); } catch (_) {}
+        try { setLicense(await (await fetch('/api/license/features', { cache: 'no-store' })).json()); } catch (_) {}
         await Promise.all((window.HpCamGames || []).filter(g => g.standalone).map(async g => {
             try { const c = await (await fetch('/api/games/' + encodeURIComponent(g.id) + '/config', { cache: 'no-store' })).json(); soloOn[g.id] = !!c && c.enabled !== false; } catch (_) {}
         }));
@@ -229,7 +237,7 @@
                     if (d.gameId === 'camgames') { cfg = { ...cfg, ...d.config }; renderGrid(); renderSources(); renderStatus(); loadOverlap(); }
                     else if ((window.HpCamGames || []).some(g => g.standalone && g.id === d.gameId)) { soloOn[d.gameId] = d.config.enabled !== false; renderGrid(); }
                 });
-                socket.on('license:features', d => { locked = new Set(d && Array.isArray(d.locked) ? d.locked : []); renderGrid(); });
+                socket.on('license:features', d => { setLicense(d); renderGrid(); });
             }
             build();
             loadConfig();

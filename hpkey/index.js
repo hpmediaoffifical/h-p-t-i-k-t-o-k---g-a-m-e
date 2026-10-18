@@ -46,6 +46,7 @@ function persist(hwid, r) {
   try {
     store.saveLicense({
       key: r.license.key, vip: r.license.role, allowedIds: r.license.allowedIds, features: r.license.features,
+      gameState: r.license.gameState,
       expiresAt: fmtDmy(r.license.expiresAt), expiresAtUnix: r.license.expiresAt,
     });
   } catch (_) {}

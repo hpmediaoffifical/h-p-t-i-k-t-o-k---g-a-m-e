@@ -124,6 +124,8 @@
     let currentGame = null;
     // Tính năng theo KEY (HP KEY): id đang bị khoá — server trả ở /api/license/features, đổi thì phát 'license:features'.
     let licenseLocked = new Set();
+    // Trạng thái hiển thị theo game (HP KEY gs): { id: 'locked' | 'off' (⏸ Tạm bảo trì) | 'hidden' (không hiện) | 'admin' (🧪) }.
+    let licenseStates = {};
     let gameInstance = null;
     const placeholderImg = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="%231f2533"/><text x="32" y="38" text-anchor="middle" fill="%23ff6b3d" font-size="14" font-family="Arial">QUÀ</text></svg>';
 
@@ -487,16 +489,34 @@
         try {
             const lf = await (await fetch('/api/license/features')).json();
             licenseLocked = new Set(Array.isArray(lf.locked) ? lf.locked : []);
-        } catch (e) { licenseLocked = new Set(); }
-        for (const g of games) g.locked = licenseLocked.has(g.id);
+            licenseStates = (lf.states && typeof lf.states === 'object') ? lf.states : {};
+        } catch (e) { licenseLocked = new Set(); licenseStates = {}; }
+        for (const g of games) {
+            g.locked = licenseLocked.has(g.id);
+            g.lstate = licenseStates[g.id] || (g.locked ? 'locked' : 'on');
+        }
         renderGameList();
         syncGiftboardSideButton();
     }
     // 🔒 Tính năng theo KEY: thông báo khi bấm vào mục KEY chưa mở (mở game / bật ⏻).
+    // ⏸ Mục admin HP KEY đang Tạm tắt (bảo trì) / Ẩn (chưa ra mắt) cho mọi KEY: báo đúng lý do, không bảo liên hệ mở KEY.
     function showLicenseLocked(g) {
+        const name = String(g.name || g.id).replace(/[<>&"]/g, '');
+        if (g.lstate === 'off') {
+            hpConfirm({
+                icon: '⏸', title: 'Đang tạm bảo trì',
+                body: `<b>${name}</b> đang tạm bảo trì.<br><span style="color:#8b93a8">HP Media sẽ mở lại sớm — không cần làm gì thêm.</span>`,
+                okLabel: 'Đã hiểu', cancelLabel: false
+            });
+            return;
+        }
+        if (g.lstate === 'hidden') {
+            hpConfirm({ icon: '🔒', title: 'Chưa mở', body: `<b>${name}</b> chưa mở.`, okLabel: 'Đã hiểu', cancelLabel: false });
+            return;
+        }
         hpConfirm({
             icon: '🔒', title: 'Chưa mở tính năng',
-            body: `KEY của bạn chưa có <b>${String(g.name || g.id).replace(/[<>&"]/g, '')}</b>.<br><span style="color:#8b93a8">Liên hệ HP Media để mở thêm tính năng này cho KEY.</span>`,
+            body: `KEY của bạn chưa có <b>${name}</b>.<br><span style="color:#8b93a8">Liên hệ HP Media để mở thêm tính năng này cho KEY.</span>`,
             okLabel: 'Đã hiểu', cancelLabel: false
         });
     }
@@ -511,19 +531,25 @@
         dom.gameList.innerHTML = '';
         for (const g of games) {
             if (LIBRARY_HIDDEN.has(g.id) || CAM_CHILD_GAMES.has(g.id)) continue;
+            if (g.lstate === 'hidden') continue;   // HP KEY: mục Ẩn (chưa ra mắt) không hiện
+            const paused = g.lstate === 'off';      // HP KEY: mục Tạm tắt (bảo trì) cho mọi KEY
             const div = document.createElement('div');
-            div.className = 'game-item' + (g.locked ? ' locked' : '');
+            div.className = 'game-item' + (g.locked ? ' locked' : '') + (paused ? ' paused' : '');
             div.dataset.id = g.id;
             // Determine if game has 'enabled' field in its config (pktiktok + vipwelcome)
             const cfg = g.config || {};
             const hasEnabledField = ('enabled' in cfg);
             const isEnabled = !g.locked && (!hasEnabledField || cfg.enabled !== false);
+            const lockTip = paused ? 'Đang tạm bảo trì — HP Media sẽ mở lại sớm' : 'KEY chưa mở tính năng này';
+            const badge = paused ? ` <span class="lock-badge" title="${lockTip}">⏸</span>`
+                : g.locked ? ' <span class="lock-badge" title="KEY chưa mở tính năng này">🔒</span>'
+                : g.lstate === 'admin' ? ' <span class="lock-badge" title="Thử nghiệm — chỉ key ADMIN thấy">🧪</span>' : '';
             div.innerHTML = `<span class="ico">${g.icon}</span>
                 <div class="meta">
-                    <div class="gn">${g.name}${g.locked ? ' <span class="lock-badge" title="KEY chưa mở tính năng này">🔒</span>' : ''}</div>
-                    ${g.locked ? '<div class="gd game-lock-notice">Đã khóa</div>' : renderGameDevelopmentNotice(g)}
+                    <div class="gn">${g.name}${badge}</div>
+                    ${paused ? '<div class="gd game-lock-notice">Tạm bảo trì</div>' : g.locked ? '<div class="gd game-lock-notice">Đã khóa</div>' : renderGameDevelopmentNotice(g)}
                 </div>
-                <button class="game-toggle ${isEnabled ? 'on' : 'off'}" data-game-toggle="${g.id}" title="${g.locked ? 'KEY chưa mở tính năng này' : (isEnabled ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT') + ' ' + (g.virtual ? 'tool' : 'game') + ' chạy ngầm'}"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="3" x2="12" y2="12.5"/><path d="M7.1 6.7a7.3 7.3 0 1 0 9.8 0"/></svg></button>`;
+                <button class="game-toggle ${isEnabled ? 'on' : 'off'}" data-game-toggle="${g.id}" title="${g.locked ? lockTip : (isEnabled ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT') + ' ' + (g.virtual ? 'tool' : 'game') + ' chạy ngầm'}"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="3" x2="12" y2="12.5"/><path d="M7.1 6.7a7.3 7.3 0 1 0 9.8 0"/></svg></button>`;
             // Click toàn thân (trừ toggle) → mở game
             div.addEventListener('click', (e) => {
                 if (e.target.closest('[data-game-toggle]')) return;

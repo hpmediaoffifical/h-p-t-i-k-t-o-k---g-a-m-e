@@ -256,7 +256,7 @@ const LICENSE_PAGE_ALIAS = {
 app.use((req, res, next) => {
     // Lệnh điều khiển game (bắt đầu/dừng phiên, lệnh tay, quà thử) của mục bị khoá → từ chối.
     const ctl = req.method === 'POST' && req.path.match(/^\/api\/games\/([A-Za-z-]+)\/(control|cmd|test-gift)$/);
-    if (ctl) return featureOn(ctl[1]) ? next() : res.status(403).json({ ok: false, error: 'feature_locked', message: 'KEY chưa mở tính năng này' });
+    if (ctl) return featureOn(ctl[1]) ? next() : res.status(403).json({ ok: false, error: 'feature_locked', message: licenseDeniedMessage(ctl[1]) });
     if (req.method !== 'GET') return next();
     const m = req.path.match(/^\/overlay\/([A-Za-z-]+)\/?$/)
         || req.path.match(/^\/games\/([A-Za-z-]+)\/[^/]+\.html$/i)
@@ -2977,6 +2977,15 @@ function licenseFeatures() {
     return Array.isArray(f) ? f : null;
 }
 function featureOn(id) { return LicFeat.can(licenseFeatures(), id); }
+// Trạng thái mục theo game (HP KEY gs, SDK 2.1 — appConfig.license.gameState): chỉ đổi cách HIỆN (⏸ Tạm bảo trì / ẩn / 🧪);
+// khoá vẫn theo features vì server đã trừ mục Tạm tắt / Ẩn khỏi ft.
+function licenseGameState() { return LicFeat.normalizeState(appConfig.license && appConfig.license.gameState); }
+function licenseStateOf(id) { return LicFeat.stateOf(licenseFeatures(), licenseGameState(), id); }
+function licenseDeniedMessage(id) {
+    const st = licenseStateOf(id);
+    return st === 'off' ? 'Mục này đang tạm bảo trì — HP Media sẽ mở lại sớm'
+        : st === 'hidden' ? 'Mục này chưa mở' : 'KEY chưa mở tính năng này';
+}
 function licenseLocks() {
     const l = appConfig.licenseLocks = (appConfig.licenseLocks && typeof appConfig.licenseLocks === 'object') ? appConfig.licenseLocks : {};
     if (!l.games || typeof l.games !== 'object') l.games = {};
@@ -2988,10 +2997,14 @@ function lockViaCamSelection(id) { return CAM_GAME_IDS.includes(id) && !CAM_STAN
 function licenseLockedHtml(id) {
     const c = LicFeat.CATALOG.find(x => x.id === id);
     const name = String(id === 'camgames' ? 'Game Camera' : (c ? c.name : id)).replace(/[<>&"]/g, '');
-    return '<!doctype html><html><head><meta charset="utf-8"><title>🔒 ' + name + '</title><style>'
+    const st = licenseStateOf(id);
+    const ico = st === 'off' ? '⏸' : '🔒';
+    const msg = st === 'off' ? 'đang tạm bảo trì — HP Media sẽ mở lại sớm'
+        : st === 'hidden' ? 'chưa mở' : 'KEY chưa mở tính năng này — liên hệ HP Media';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>' + ico + ' ' + name + '</title><style>'
         + 'html,body{margin:0;background:transparent;font-family:system-ui,Segoe UI,sans-serif}'
         + 'div{position:fixed;left:12px;top:12px;padding:8px 12px;border-radius:8px;background:rgba(0,0,0,.62);color:#fff;font-size:14px}'
-        + '</style></head><body><div>🔒 ' + name + ': KEY chưa mở tính năng này — liên hệ HP Media</div></body></html>';
+        + '</style></head><body><div>' + ico + ' ' + name + ': ' + msg + '</div></body></html>';
 }
 // Áp lại phần chạy của game sau khi đổi enabled (như nhánh lưu cấu hình POST /api/games/:id/config).
 function applyGameRuntime(id) {
@@ -3110,7 +3123,7 @@ function applyLicenseLocks(reason) {
         saveAppConfig();
         console.log(`[license] tính năng theo key (${reason}): khoá ${[...locked].join(', ') || '—'}`);
     }
-    io.emit('license:features', { features, locked: [...locked] });
+    io.emit('license:features', { features, locked: [...locked], states: LicFeat.states(features, licenseGameState()) });
     return changed;
 }
 
@@ -5255,15 +5268,17 @@ app.get('/api/games', (req, res) => {
         id: g.id, name: g.name, description: g.description, icon: g.icon,
         overlayPath: g.overlayPath,
         config: appConfig.games[g.id],
-        locked: !featureOn(g.id)      // tính năng theo KEY: giao diện hiện 🔒, không cho bật
+        locked: !featureOn(g.id),     // tính năng theo KEY: giao diện hiện 🔒, không cho bật
+        lstate: licenseStateOf(g.id)  // on | locked | off (⏸ Tạm bảo trì) | hidden (không hiện) | admin (🧪)
     }));
     res.json(list);
 });
 
-// Tính năng theo KEY: danh sách mở (null = tất cả) + các id đang bị khoá (gồm cả công cụ ảo liveTranslate / obs-effects).
+// Tính năng theo KEY: danh sách mở (null = tất cả) + các id đang bị khoá (gồm cả công cụ ảo liveTranslate / obs-effects)
+// + states = trạng thái hiển thị của mục khác 'on' (locked / off / hidden / admin — HP KEY gs).
 app.get('/api/license/features', (req, res) => {
     const features = licenseFeatures();
-    res.json({ features, locked: LicFeat.lockedIds(features), lockable: LicFeat.LOCKABLE });
+    res.json({ features, locked: LicFeat.lockedIds(features), lockable: LicFeat.LOCKABLE, states: LicFeat.states(features, licenseGameState()) });
 });
 
 app.get('/api/games/:id/config', (req, res) => {
@@ -5964,6 +5979,7 @@ app.get('/api/license/status', async (req, res) => {
                 role: result.role || 'ADMIN',
                 allowedIds: result.allowedIds || [],
                 features: result.features === undefined ? null : result.features,   // null = toàn bộ tính năng (HP KEY ft)
+                gameState: LicFeat.normalizeState(result.gameState),                // mục Tạm tắt / Ẩn / Chỉ ADMIN (HP KEY gs)
                 vip: result.vip,
                 expiry: result.expiry,
                 note: result.note,
@@ -5977,6 +5993,7 @@ app.get('/api/license/status', async (req, res) => {
                 role: result.role || 'ADMIN',
                 allowedIds: result.allowedIds || [],
                 features: appConfig.license.features,
+                gameState: appConfig.license.gameState,
                 vip: result.vip,
                 expiry: result.expiry,
                 note: result.note,
@@ -5995,6 +6012,7 @@ app.get('/api/license/status', async (req, res) => {
                     role: stored.role || 'ADMIN',
                     allowedIds: stored.allowedIds || [],
                     features: stored.features === undefined ? null : stored.features,
+                    gameState: LicFeat.normalizeState(stored.gameState),
                     vip: stored.vip || 'Thường',
                     expiry: stored.expiry || '',
                     offline: true,
@@ -6025,6 +6043,7 @@ app.post('/api/license/activate', async (req, res) => {
         role: result.role || 'ADMIN',          // ADMIN | CREATOR | VIP
         allowedIds: result.allowedIds || [],
         features: result.features === undefined ? null : result.features,   // null = toàn bộ tính năng (HP KEY ft)
+        gameState: LicFeat.normalizeState(result.gameState),                // mục Tạm tắt / Ẩn / Chỉ ADMIN (HP KEY gs)
         vip: result.vip,
         expiry: result.expiry,
         note: result.note,
@@ -11712,8 +11731,10 @@ httpServer.listen(PORT, BIND_HOST, async () => {
                 try {
                     if (!appConfig.license || !appConfig.license.key) return;
                     const f = license && Array.isArray(license.features) ? license.features.map(String) : null;
-                    if (LicFeat.same(f, appConfig.license.features)) return;
-                    appConfig.license = { ...appConfig.license, features: f };
+                    const gs = LicFeat.normalizeState(license && license.gameState);
+                    // ft giữ nguyên mà gs đổi (Tạm tắt → Ẩn) vẫn phải vẽ lại → so cả hai.
+                    if (LicFeat.same(f, appConfig.license.features) && LicFeat.sameState(gs, appConfig.license.gameState)) return;
+                    appConfig.license = { ...appConfig.license, features: f, gameState: gs };
                     saveAppConfig();
                     applyLicenseLocks('watcher');
                 } catch (e) { console.warn('[license] cập nhật tính năng lỗi:', e && e.message); }

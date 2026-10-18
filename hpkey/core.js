@@ -4,8 +4,10 @@
  *   - ký HMAC-SHA256 request (canonical JSON khớp PHP json_encode UNESCAPED_UNICODE|UNESCAPED_SLASHES)
  *   - verify token RSA-SHA256 bằng public key nhúng sẵn, bind product + HWID
  *   - đổi payload token thành object `license` CHUẨN dùng chung cho mọi app:
- *       { key, role, plan, allowedIds, features, expiresAt, offlineUntil, issuedAt, raw }
+ *       { key, role, plan, allowedIds, features, gameState, expiresAt, offlineUntil, issuedAt, raw }
  *     features = null nghĩa là dùng TOÀN BỘ tính năng (key cũ không có trường ft).
+ *     gameState = { id: 'off'|'hidden'|'admin' } — trạng thái mục theo game (trường gs, SDK 2.1); {} = mọi mục Bật.
+ *       Mục 'off'/'hidden' đã bị server trừ khỏi features; app dùng gameState để hiện ⏸ Tạm tắt / ẩn hẳn thay cho 🔒.
  *   - bảng mã lỗi cứng (thu hồi thật) + thông điệp tiếng Việt
  * Mọi I/O mạng đi qua _setTransport để test không cần server.
  */
@@ -146,6 +148,18 @@ function verifyToken(token, hwid) {
   };
 }
 
+const GAME_STATES = new Set(['off', 'hidden', 'admin']);
+/** Trường gs của token → object { id: 'off'|'hidden'|'admin' } (giá trị lạ bị bỏ). Thiếu / sai kiểu → {}. */
+function normGameState(gs) {
+  const out = {};
+  if (!gs || typeof gs !== 'object' || Array.isArray(gs)) return out;
+  for (const id of Object.keys(gs)) {
+    const st = gs[id];
+    if (typeof st === 'string' && GAME_STATES.has(st)) out[id] = st;
+  }
+  return out;
+}
+
 /** Payload token → license chuẩn. */
 function toLicense(p) {
   return {
@@ -154,6 +168,7 @@ function toLicense(p) {
     plan: p.pl || '',
     allowedIds: Array.isArray(p.ids) ? p.ids.map(String) : [],
     features: Array.isArray(p.ft) ? p.ft.map(String) : null,
+    gameState: normGameState(p.gs),
     expiresAt: Number(p.exp) || 0,
     offlineUntil: Number(p.off) || 0,
     issuedAt: Number(p.iat) || 0,
@@ -189,7 +204,7 @@ const heartbeat = (rawKey) => request('heartbeat', rawKey, 'revoked');
 module.exports = {
   HARD_CODES, ERR_VI, errVi,
   normalizeKey, canonical, signBody, apiCall,
-  verifyToken, toLicense, configured,
+  verifyToken, toLicense, normGameState, configured,
   activate, verifyKey, heartbeat,
   _setTransport, _setPublicKeyPem, _publicKeyPem: rsaPubKey,
 };

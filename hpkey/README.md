@@ -39,6 +39,12 @@ Danh mục + hàm thuần ở `lib/license-features.js` (test: `tests/license-fe
   nhanh, bị bỏ khỏi lựa chọn Game Camera, overlay OBS hiện 🔒 thay cho game; Thư viện Game hiện mờ + 🔒.
 - Mở khoá: bật lại đúng những gì đã tắt vì key (ghi nhớ ở `appConfig.licenseLocks`); mục người dùng tự tắt thì để nguyên.
 - Admin đổi tính năng → app áp trong ≤ 60 giây (watcher) mà không cần mở lại.
+- **Trạng thái mục theo game** (SDK 2.1, trường `gs` → `appConfig.license.gameState`): admin HP KEY bật/tắt từng mục cho
+  MỌI key ở Cài đặt › Game. Khoá vẫn theo `features` (server đã trừ mục tắt khỏi `ft`); app chỉ đổi cách hiện
+  (`LicFeat.stateOf` / `states`, `/api/license/features` trả `states`, `/api/games` trả `lstate`):
+  **Tạm tắt** → mờ kèm ⏸ "Tạm bảo trì" (Thư viện, Khởi động nhanh, Game Camera, overlay OBS, lệnh điều khiển 403);
+  **Ẩn** → không hiện ở Thư viện / Khởi động nhanh / Game Camera; **Chỉ ADMIN** (chỉ key ADMIN nhận) → dùng được, nhãn 🧪.
+  Watcher so cả `features` lẫn `gameState` (ft giữ nguyên mà Tạm tắt → Ẩn vẫn vẽ lại).
 
 **Danh mục dán vào HP KEY › Cài đặt › Game › `tiktok-game` › Tính năng** (id phải trùng từng ký tự):
 

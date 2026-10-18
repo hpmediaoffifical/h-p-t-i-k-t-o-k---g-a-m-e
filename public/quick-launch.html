@@ -913,10 +913,13 @@
                 });
                 games.sort((a, b) => STABLE_IDS.indexOf(a.id) - STABLE_IDS.indexOf(b.id));
                 // 🔒 Tính năng theo KEY (HP KEY): mục KEY chưa mở — thẻ mờ, nút ▶/↺ chỉ báo khoá.
+                // HP KEY gs: mục Ẩn (chưa ra mắt) bỏ khỏi danh sách; mục Tạm tắt hiện ⏸ Tạm bảo trì; Chỉ ADMIN gắn 🧪.
                 try {
                     const lf = await (await fetch('/api/license/features')).json();
                     const locked = new Set(Array.isArray(lf.locked) ? lf.locked : []);
-                    games.forEach(g => { g.locked = locked.has(g.id); });
+                    const states = (lf.states && typeof lf.states === 'object') ? lf.states : {};
+                    games.forEach(g => { g.locked = locked.has(g.id); g.lstate = states[g.id] || (g.locked ? 'locked' : 'on'); });
+                    games = games.filter(g => g.lstate !== 'hidden');
                 } catch (e) {}
                 // Game không có socket state riêng → trạng thái Đang chạy suy từ config ngay lúc load
                 games.forEach(syncRunningFromConfig);
@@ -948,6 +951,7 @@
         }
 
         function stateOf(g) {
+            if (g.lstate === 'off') return { cls: 'off', label: '⏸ Tạm bảo trì', tip: 'Đang tạm bảo trì — HP Media sẽ mở lại sớm' };
             if (g.locked) return { cls: 'off', label: '🔒 Đã khóa', tip: 'KEY chưa mở tính năng này — liên hệ HP Media' };
             const enabled = isEnabled(g);
             if (running[g.id]) return { cls: 'live', label: 'Đang chạy', tip: '' };
@@ -970,7 +974,7 @@
                 <span class="card-grip">${ICON.grip}</span>
                 <span class="card-ico">${g.icon}</span>
                 <div class="card-meta">
-                    <div class="card-name" title="${escapeHtml(g.name)} — kéo thẻ để đổi thứ tự">${escapeHtml(g.name)}</div>
+                    <div class="card-name" title="${escapeHtml(g.name)}${g.lstate === 'admin' ? ' — 🧪 thử nghiệm, chỉ key ADMIN thấy' : ''} — kéo thẻ để đổi thứ tự">${g.lstate === 'admin' ? '🧪 ' : ''}${escapeHtml(g.name)}</div>
                     <div class="card-state ${st.cls}" title="${st.tip}">
                         <span class="dot"></span>
                         <span class="state-txt">${st.label}</span>
@@ -1023,6 +1027,7 @@
         };
         function fireAction(g, action) {
             if (action === 'open') { toParent({ type: 'hp-ql:open', gameId: g.id }); return; }
+            if (g.lstate === 'off') { toast('⏸ Đang tạm bảo trì — HP Media sẽ mở lại sớm'); return; }
             if (g.locked) { toast('🔒 KEY chưa mở tính năng này — liên hệ HP Media'); return; }
             if (action === 'reset' && RESET_CONFIRM[g.id] && !confirm(RESET_CONFIRM[g.id])) return;
             const card = gridEl.querySelector(`.card[data-game-id="${g.id}"]`);
