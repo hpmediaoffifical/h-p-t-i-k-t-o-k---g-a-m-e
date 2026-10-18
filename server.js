@@ -260,7 +260,7 @@ app.use((req, res, next) => {
     if (req.method !== 'GET') return next();
     const m = req.path.match(/^\/overlay\/([A-Za-z-]+)\/?$/)
         || req.path.match(/^\/games\/([A-Za-z-]+)\/[^/]+\.html$/i)
-        || req.path.match(/^\/_prototype\/(touchplay|level-quest)\.html$/i);
+        || req.path.match(/^\/_prototype\/(touchplay|level-quest|timer)\.html$/i);
     if (!m) return next();
     const id = LICENSE_PAGE_ALIAS[m[1]] || m[1];
     if (featureOn(id)) return next();

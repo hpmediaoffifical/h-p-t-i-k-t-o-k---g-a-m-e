@@ -33,7 +33,7 @@ Danh mục + hàm thuần ở `lib/license-features.js` (test: `tests/license-fe
 `server.js` (`applyLicenseLocks()`), giao diện ở `public/app.js`, `public/quick-launch.html`, bảng Game Camera.
 
 - Key "Tất cả" (mọi key cũ, token không có `ft`) → mở hết như trước.
-- Khoá được: 8 game + 5 game camera + Dịch Thuật LIVE + Hiệu ứng OBS. Luôn mở: Bảng Quà Tổng, THỜI GIAN.
+- Khoá được: 9 game (kể cả THỜI GIAN) + 5 game camera + Dịch Thuật LIVE + Hiệu ứng OBS. Luôn mở: Bảng Quà Tổng.
   Khung Game Camera mở khi key có ít nhất 1 game camera.
 - Bị khoá: game tắt (KHÔNG xoá dữ liệu — vườn Trồng Cây còn nguyên), không bật lại được qua API / ⏻ / Khởi động
   nhanh, bị bỏ khỏi lựa chọn Game Camera, overlay OBS hiện 🔒 thay cho game; Thư viện Game hiện mờ + 🔒.
@@ -51,6 +51,7 @@ votecomment|Vote Bình Luận
 nhietdo|Biểu Cảm Nhiệt
 trongcay|Trồng Cây
 nhatla|Nhặt Lá
+timer|Thời Gian
 touchplay|Touch & Play (Game Camera)
 chemtraicay|Chém Trái Cây (Game Camera)
 dapmuoi|Đập Muỗi (Game Camera)

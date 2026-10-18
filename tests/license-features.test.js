@@ -22,11 +22,18 @@ test('danh sách: chỉ mở đúng id có trong danh sách (phân biệt hoa th
     assert.equal(LF.can(['LiveTranslate'], 'liveTranslate'), false, 'sai hoa thường = không mở');
 });
 
-test('công cụ luôn mở (giftboard, timer) và id ngoài danh mục không bao giờ bị khoá', () => {
-    for (const id of ['giftboard', 'timer', 'game-moi-chua-co']) {
+test('công cụ luôn mở (giftboard) và id ngoài danh mục không bao giờ bị khoá', () => {
+    for (const id of ['giftboard', 'game-moi-chua-co']) {
         assert.equal(LF.can([], id), true, id);
         assert.equal(LF.lockedIds([]).includes(id), false, id);
     }
+});
+
+test('THỜI GIAN (timer) khoá theo key như game thường', () => {
+    assert.equal(LF.can(['thuytinh'], 'timer'), false);
+    assert.equal(LF.can(['timer'], 'timer'), true);
+    assert.equal(LF.can(null, 'timer'), true, 'key Tất cả vẫn mở');
+    assert.equal(LF.lockedIds(['thuytinh']).includes('timer'), true);
 });
 
 test('[] = khoá hết các mục khoá được + khung camgames', () => {
@@ -52,14 +59,14 @@ test('same(): so tác dụng của 2 danh sách', () => {
     assert.equal(LF.same(['a', 'b'], ['b', 'a']), false);
 });
 
-test('danh mục: id hợp lệ với HP KEY ([A-Za-z0-9_.-]{1,40}), không trùng, đủ 15 mục; catalogText đúng định dạng id|Tên', () => {
+test('danh mục: id hợp lệ với HP KEY ([A-Za-z0-9_.-]{1,40}), không trùng, đủ 16 mục; catalogText đúng định dạng id|Tên', () => {
     const ids = LF.CATALOG.map((c) => c.id);
-    assert.equal(ids.length, 15);
+    assert.equal(ids.length, 16);
     assert.equal(new Set(ids).size, ids.length);
     for (const id of ids) assert.match(id, /^[A-Za-z0-9_.-]{1,40}$/);
     for (const c of LF.CAM_CHILDREN) assert.ok(ids.includes(c), c);
     const lines = LF.catalogText().split('\n');
-    assert.equal(lines.length, 15);
+    assert.equal(lines.length, 16);
     assert.equal(lines[0], 'thuytinh|Hũ Thủy Tinh');
     for (const l of lines) assert.match(l, /^[A-Za-z0-9_.-]+\|.+$/);
 });
