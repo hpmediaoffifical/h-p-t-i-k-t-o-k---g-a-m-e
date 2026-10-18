@@ -60,7 +60,8 @@
           "!gift-sheet-cache.json",
           "!unknown-gifts.json",
           "!soundfx.json",
-          "!vipwelcome-usermap.json"
+          "!vipwelcome-usermap.json",
+          "!caption-listener/**"
         ]
       },
       {
