@@ -1280,7 +1280,7 @@ ipcMain.on('nhatla-preview:close', () => {
 // 📦 Danh sách quà — cửa sổ tách rời, ghim trên cùng
 // ============================================================
 // User mở để test quà mọi game mà KHÔNG cần ở lại tab Hũ Thủy Tinh. Click 1 quà →
-// POST /api/games/thuytinh/test-gift → emitGift broadcast toàn cục → main window
+// POST /api/test-gift (không gắn game) → emitGift broadcast toàn cục → main window
 // route vào game đang bật. Lưu bounds + alwaysOnTop qua phiên (file disk dưới userData).
 let giftListWindow = null;
 function getGiftListPrefsPath() {

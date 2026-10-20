@@ -236,3 +236,23 @@ test('mục Ẩn không hiện ở mọi danh sách game; server trả trang kho
     assert.match(gb, /⏸ Tạm bảo trì/, 'nguồn Tạm tắt ghi ⏸');
     assert.match(read('server.js'), /return LicFeat\.lockedPageHtml\(id, licenseStateOf\(id\)\);/);
 });
+
+// 📦 Danh sách quà thả thử với MỌI KEY: route chung không gắn game (không dính khoá theo game của Hũ Thủy Tinh),
+// đi đúng đường quà thật (emitGift) nên game bị khoá tự bỏ qua; server lỗi thì toast báo lỗi.
+test('Danh sách quà: thả thử qua /api/test-gift, không qua khoá của một game cụ thể', () => {
+    const root = path.join(__dirname, '..');
+    const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
+    const gl = read('public/gift-list.html');
+    assert.match(gl, /fetch\('\/api\/test-gift'/);
+    assert.doesNotMatch(gl, /\/api\/games\/[a-z]+\/test-gift/);
+    assert.match(gl, /if \(!r\.ok \|\| j\.ok === false\) throw/, 'lỗi server → không báo "Đã thả thử"');
+    const srv = read('server.js');
+    const route = srv.match(/app\.post\('\/api\/test-gift', \(req, res\) => \{([\s\S]*?)\n\}\);/);
+    assert.ok(route, 'có route /api/test-gift');
+    assert.match(route[1], /emitTestGift\(/);
+    assert.match(srv, /function emitTestGift\(body\) \{[\s\S]*?emitGift\(\{/, 'đi đúng đường quà thật');
+    // Khoá theo game ở middleware vẫn chặn quà thử gắn id game bị khoá
+    const re = new RegExp(srv.match(/req\.path\.match\(\/(\^\\\/api\\\/games[^\n]*?\$)\/\)/)[1]);
+    assert.ok(re.test('/api/games/thuytinh/test-gift'));
+    assert.ok(!re.test('/api/test-gift'));
+});

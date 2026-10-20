@@ -124,11 +124,11 @@
         }
 
         let toastTimer = null;
-        function toast(msg) {
+        function toast(msg, ms = 1400) {
             toastEl.textContent = msg;
             toastEl.classList.add('show');
             clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1400);
+            toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms);
         }
 
         function render(filter = '') {
@@ -162,14 +162,20 @@
                 di.className = 'diamond'; di.textContent = `${g.diamond || 0}⭐`;
                 card.append(im, nm, idL, di);
                 card.addEventListener('click', () => {
-                    // emitGift là broadcast toàn cục → game id chỉ để validate; 'thuytinh'
-                    // luôn tồn tại. Main window route quà vào game đang bật qua socket 'gift'.
-                    fetch('/api/games/thuytinh/test-gift', {
+                    // Route chung KHÔNG gắn game: emitGift phát cho mọi game như quà thật (game bị khoá
+                    // theo KEY tự bỏ qua) → thả thử được với mọi KEY, kể cả KEY không có Hũ Thủy Tinh.
+                    const label = `${g.name || 'Quà'} (ID ${g.id})`;
+                    fetch('/api/test-gift', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ giftId: g.id, count: 1, nickname: 'preview' })
-                    }).catch(() => {});
-                    toast(`🎁 Đã thả thử: ${g.name || 'Quà'} (ID ${g.id})`);
+                    }).then(async (r) => {
+                        const j = await r.json().catch(() => ({}));
+                        if (!r.ok || j.ok === false) throw new Error(j.message || j.error || ('HTTP ' + r.status));
+                        toast(`🎁 Đã thả thử: ${label}`);
+                    }).catch((e) => {
+                        toast(`⚠ Không thả thử được ${label}: ${e.message || 'lỗi mạng'}`, 3500);
+                    });
                 });
                 frag.appendChild(card);
             }

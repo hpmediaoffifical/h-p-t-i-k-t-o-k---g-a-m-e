@@ -6233,10 +6233,8 @@ app.get('/api/touchplay/obs-sources', async (req, res) => {
 });
 
 // Test-spawn a gift (manual drop from UI)
-app.post('/api/games/:id/test-gift', (req, res) => {
-    const g = GAMES[req.params.id];
-    if (!g) return res.status(404).json({ ok: false, error: 'Không tìm thấy game' });
-    const body = req.body || {};
+// Quà thử đi đúng đường quà thật (emitGift phát cho mọi game) → mục bị khoá theo KEY tự bỏ qua y như quà TikTok.
+function emitTestGift(body) {
     const testGift = makeTestGiftPayload(body);
     const repeatCount = parseInt(body.count, 10) || 1;
     emitGift({
@@ -6253,7 +6251,17 @@ app.post('/api/games/:id/test-gift', (req, res) => {
         source: 'test',
         ...(testGift.extra || {})
     });
-    res.json({ ok: true, gift: testGift });
+    return testGift;
+}
+app.post('/api/games/:id/test-gift', (req, res) => {
+    const g = GAMES[req.params.id];
+    if (!g) return res.status(404).json({ ok: false, error: 'Không tìm thấy game' });
+    res.json({ ok: true, gift: emitTestGift(req.body || {}) });
+});
+// Thả quà thử KHÔNG gắn game (cửa sổ 📦 Danh sách quà): không qua khoá theo game ở middleware vì quà
+// phát chung cho mọi game như quà thật — game bị khoá tự bỏ qua; route này không bật/điều khiển game nào.
+app.post('/api/test-gift', (req, res) => {
+    res.json({ ok: true, gift: emitTestGift(req.body || {}) });
 });
 
 // OBS overlay (transparent fullpage)
