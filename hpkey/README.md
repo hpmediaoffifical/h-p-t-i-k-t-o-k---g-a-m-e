@@ -43,7 +43,7 @@ Danh mục + hàm thuần ở `lib/license-features.js` (test: `tests/license-fe
   MỌI key ở Cài đặt › Game. Khoá vẫn theo `features` (server đã trừ mục tắt khỏi `ft`); app chỉ đổi cách hiện
   (`LicFeat.stateOf` / `states`, `/api/license/features` trả `states`, `/api/games` trả `lstate`):
   **Tạm tắt** → mờ kèm ⏸ "Tạm bảo trì" (Thư viện, Khởi động nhanh, Game Camera, overlay OBS, lệnh điều khiển 403);
-  **Ẩn** → không hiện ở Thư viện / Khởi động nhanh / Game Camera; **Chỉ ADMIN** (chỉ key ADMIN nhận) → dùng được, nhãn 🧪.
+  **Ẩn** → không hiện ở Thư viện / Khởi động nhanh / Game Camera; **Chỉ key thử nghiệm** (chỉ KEY được đánh dấu thử nghiệm ở HP KEY v9 nhận) → dùng được, nhãn 🧪.
   Watcher so cả `features` lẫn `gameState` (ft giữ nguyên mà Tạm tắt → Ẩn vẫn vẽ lại).
 
 **Danh mục dán vào HP KEY › Cài đặt › Game › `tiktok-game` › Tính năng** (id phải trùng từng ký tự):

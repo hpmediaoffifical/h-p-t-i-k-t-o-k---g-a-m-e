@@ -5,6 +5,7 @@
  *   - null   = user bấm "Khôi phục mặc định" → dùng thứ tự gốc, KHÔNG theo bố cục kia
  *   - thiếu  = chưa từng sắp riêng → theo bố cục kia (nếu có), không thì thứ tự gốc
  * Game mới (chưa có trong thứ tự đã lưu) luôn nối cuối, id lạ/trùng bị bỏ.
+ * Lưu thứ tự (setLayoutOrder) giữ ô của id đang vắng (mục Ẩn theo KEY) — hiện lại đúng chỗ cũ.
  *
  * Bề rộng: "tự ôm sát" — Dọc rộng đúng bằng thẻ dài nhất; Ngang gọt khít N cột. */
 (function (root, factory) {
@@ -41,8 +42,29 @@
         return ids.slice();
     }
 
-    function setLayoutOrder(saved, layout, order) {
-        return { ...(isObj(saved) ? saved : {}), [layout]: order.slice() };
+    // Lưu thứ tự mới của bố cục. `order` chỉ gồm game đang có trong danh sách (mục Ẩn theo KEY bị bỏ khỏi đó),
+    // nên phải GỘP với thứ tự đã lưu: id có trong thứ tự cũ mà vắng trong `order` giữ nguyên ô của nó
+    // (cùng luật applyVisibleOrder) để khi hiện lại không bị đẩy xuống cuối.
+    // Thứ tự cũ = mảng của chính bố cục; chưa sắp riêng thì của bố cục kia (đúng như resolveOrder);
+    // không có (hoặc vừa khôi phục mặc định) thì `defaultIds` (thứ tự gốc đầy đủ) nếu có.
+    function setLayoutOrder(saved, layout, order, defaultIds) {
+        const s = isObj(saved) ? saved : {};
+        const own = s[layout];
+        const other = s[otherOf(layout)];
+        let base = Array.isArray(own) ? own
+            : (own === undefined && Array.isArray(other)) ? other
+            : null;
+        if (!base && Array.isArray(defaultIds)) base = defaultIds;
+        return { ...s, [layout]: base ? keepMissingSlots(base, order) : order.slice() };
+    }
+    function keepMissingSlots(base, order) {
+        const full = [];
+        const seen = new Set();
+        for (const id of base.concat(order)) {
+            if (typeof id !== 'string' || seen.has(id)) continue;
+            seen.add(id); full.push(id);
+        }
+        return applyVisibleOrder(full, order);
     }
     function resetLayoutOrder(saved, layout) {
         return { ...(isObj(saved) ? saved : {}), [layout]: null };

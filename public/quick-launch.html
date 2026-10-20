@@ -1158,7 +1158,7 @@
             itemSel: '.card', ignoreSel: 'button', scrollEl: mainEl,
             onDrop: (visibleIds) => {
                 const next = L.applyVisibleOrder(currentOrder(), visibleIds);
-                saveOrderStore(L.setLayoutOrder(loadOrderStore(), curLayout, next));
+                saveOrderStore(L.setLayoutOrder(loadOrderStore(), curLayout, next, STABLE_IDS));
                 toast('✓ Đã lưu thứ tự — bố cục ' + layoutName(curLayout));
                 if (renderPending) { renderPending = false; render(); }
             }
@@ -1367,8 +1367,9 @@
                 settingsBody.appendChild(row);
             });
         }
+        // `games` đã bỏ mục Ẩn theo KEY → setLayoutOrder gộp với thứ tự đã lưu để mục đó giữ ô cũ.
         function saveFullOrder(order) {
-            saveOrderStore(L.setLayoutOrder(loadOrderStore(), curLayout, order));
+            saveOrderStore(L.setLayoutOrder(loadOrderStore(), curLayout, order, STABLE_IDS));
             renderSettingsBody();
             render();
         }
