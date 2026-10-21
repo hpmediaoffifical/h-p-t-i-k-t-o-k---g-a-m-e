@@ -61,7 +61,9 @@
           "!unknown-gifts.json",
           "!soundfx.json",
           "!vipwelcome-usermap.json",
-          "!caption-listener/**"
+          "!caption-listener/**",
+          "!ai-art/**",
+          "!ai-sticker.json"
         ]
       },
       {

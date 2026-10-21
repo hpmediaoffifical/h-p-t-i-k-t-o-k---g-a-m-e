@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hũ Thủy Tinh — bố cục mới (mockup)</title>
+<link rel="stylesheet" href="/games/thuytinh/jar-text.css" />
+<style>
+:root {
+    color-scheme: dark;
+    --bg: #0e1117; --s1: #151922; --s2: #1b202b; --s3: #232938; --line: #252c3b; --line2: #303849;
+    --tx: #e9edf5; --mu: #8e97ab; --mu2: #626b80;
+    --acc: #ff6b3d; --acc-soft: rgba(255,107,61,.12);
+    --sel: #ffcf3d; --sel-soft: rgba(255,207,61,.10);
+    --ok: #34d399; --ai1: #8b5cf6; --ai2: #ec4899;
+    --r: 10px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--tx); font: 13px/1.45 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+input, textarea, select { font: inherit; color: inherit; }
+.mock-note { position: fixed; left: 12px; bottom: 10px; z-index: 50; font-size: 11px; color: var(--mu); background: var(--s2); border: 1px solid var(--line); padding: 4px 10px; border-radius: 99px; }
+
+/* ===== Khung trang ===== */
+.page { display: grid; grid-template-rows: 52px 1fr; height: 100vh; }
+.hdr { display: flex; align-items: center; gap: 12px; padding: 0 14px; border-bottom: 1px solid var(--line); background: var(--s1); }
+.hdr h1 { font-size: 16px; margin: 0; font-weight: 700; white-space: nowrap; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 99px; background: var(--s2); border: 1px solid var(--line); color: var(--mu); font-size: 12px; white-space: nowrap; }
+.chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px rgba(52,211,153,.18); }
+.goal { display: inline-flex; align-items: center; gap: 8px; }
+.goal .bar { width: 90px; height: 6px; background: var(--s3); border-radius: 9px; overflow: hidden; }
+.goal .bar i { display: block; height: 100%; width: 62%; background: linear-gradient(90deg, var(--acc), var(--sel)); }
+.hdr .sp { flex: 1; }
+.btn { height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2); background: var(--s2); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn:hover { border-color: #46506a; background: var(--s3); }
+.btn.pri { background: var(--acc); border-color: var(--acc); color: #fff; font-weight: 600; }
+.btn.pri:hover { filter: brightness(1.08); }
+.btn.ic { width: 30px; padding: 0; justify-content: center; }
+.seg { display: inline-flex; background: var(--s2); border: 1px solid var(--line); border-radius: 8px; padding: 2px; gap: 2px; }
+.seg button { border: 0; background: none; height: 24px; padding: 0 10px; border-radius: 6px; color: var(--mu); font-size: 12px; white-space: nowrap; }
+.seg button.on { background: var(--s3); color: var(--tx); box-shadow: 0 1px 0 rgba(255,255,255,.04) inset; }
+
+.body { display: grid; grid-template-columns: 68px 330px 1fr 312px; min-height: 0; }
+
+/* Thanh điều hướng mục lớn */
+.nav { background: var(--s1); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; padding: 8px 6px; }
+.nav button { border: 0; background: none; border-radius: 10px; padding: 8px 2px 6px; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--mu); font-size: 10.5px; line-height: 1.15; }
+.nav button b { font-size: 18px; font-weight: 400; line-height: 1; filter: grayscale(.5); }
+.nav button:hover { background: var(--s2); color: var(--tx); }
+.nav button.on { background: var(--acc-soft); color: var(--acc); }
+.nav button.on b { filter: none; }
+.nav .sep { height: 1px; background: var(--line); margin: 6px 8px; }
+
+/* Bảng giữa-trái */
+.panel { background: var(--s1); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.ph { padding: 12px 14px 8px; }
+.ph h2 { margin: 0; font-size: 14px; }
+.ph p { margin: 2px 0 0; color: var(--mu); font-size: 12px; }
+.ph .seg { margin-top: 10px; width: 100%; }
+.ph .seg button { flex: 1; }
+.pb { flex: 1; overflow: auto; padding: 4px 14px 14px; }
+.pb::-webkit-scrollbar, .insp::-webkit-scrollbar { width: 8px; }
+.pb::-webkit-scrollbar-thumb, .insp::-webkit-scrollbar-thumb { background: var(--s3); border-radius: 8px; }
+.grp { margin-top: 12px; }
+.grp > .gt { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--mu); margin-bottom: 6px; }
+.grp > .gt .sp { flex: 1; }
+.grp > .gt a { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--mu); cursor: pointer; }
+.search { width: 100%; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); padding: 0 10px; }
+.chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.chips button { height: 24px; padding: 0 9px; border-radius: 99px; border: 1px solid var(--line); background: none; color: var(--mu); font-size: 12px; }
+.chips button.on { border-color: var(--sel); color: var(--sel); background: var(--sel-soft); }
+
+.skins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.skin { position: relative; border: 1px solid var(--line); background: var(--s2); border-radius: 10px; padding: 4px 4px 5px; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+.skin img, .skin .def { width: 100%; aspect-ratio: 2/3; object-fit: contain; display: grid; place-items: center; font-size: 30px; }
+.skin span { font-size: 11px; color: var(--mu); width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.skin .tag { position: absolute; top: 4px; left: 4px; font-size: 9.5px; padding: 1px 5px; border-radius: 5px; background: rgba(0,0,0,.55); color: #ffd9a8; }
+.skin:hover { border-color: #46506a; }
+.skin.on { border-color: var(--sel); background: var(--sel-soft); box-shadow: 0 0 0 1px var(--sel) inset; }
+.skin.on span { color: var(--sel); }
+.swatches { display: flex; gap: 6px; }
+.swatches button { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; }
+.swatches button.on { border-color: var(--sel); }
+.note { font-size: 11.5px; color: var(--mu2); margin-top: 6px; }
+
+/* Lớp (layers) */
+.presets { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.presets button { flex: 0 0 auto; height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--s2); font-size: 12px; }
+.presets button.hot { border-color: rgba(255,207,61,.5); }
+.layers { display: flex; flex-direction: column; gap: 4px; }
+.layer { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 9px; border: 1px solid transparent; background: var(--s2); cursor: pointer; }
+.layer:hover { border-color: var(--line2); }
+.layer.on { border-color: var(--sel); background: var(--sel-soft); }
+.layer .th { width: 34px; height: 34px; border-radius: 7px; background: var(--bg); display: grid; place-items: center; font-size: 16px; overflow: hidden; }
+.layer .th img { width: 100%; height: 100%; object-fit: contain; }
+.layer .nm { min-width: 0; }
+.layer .nm b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.layer .nm small { color: var(--mu); font-size: 11px; }
+.layer .acts { display: flex; gap: 2px; opacity: .55; }
+.layer:hover .acts, .layer.on .acts { opacity: 1; }
+.layer .acts button { border: 0; background: none; width: 24px; height: 24px; border-radius: 6px; }
+.layer .acts button:hover { background: var(--s3); }
+.add-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.add-row .btn { justify-content: center; }
+
+/* Thư viện AI */
+.quota { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 10px; background: linear-gradient(135deg, rgba(139,92,246,.14), rgba(236,72,153,.10)); border: 1px solid rgba(139,92,246,.28); font-size: 12px; }
+.quota .bar { flex: 1; height: 5px; border-radius: 9px; background: rgba(255,255,255,.08); overflow: hidden; }
+.quota .bar i { display: block; height: 100%; width: 10%; background: linear-gradient(90deg, var(--ai1), var(--ai2)); }
+.lib { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.lib .it { aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--line); background: repeating-conic-gradient(#1f2430 0 25%, #191d27 0 50%) 50% / 14px 14px; display: grid; place-items: center; font-size: 40px; position: relative; }
+.lib .it:hover { border-color: var(--ai1); }
+.lib .it .plus { position: absolute; right: 4px; bottom: 4px; font-size: 11px; background: var(--ai1); color: #fff; border-radius: 6px; padding: 1px 6px; opacity: 0; }
+.lib .it:hover .plus { opacity: 1; }
+
+/* Sân khấu */
+.stage { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: radial-gradient(ellipse at 50% 35%, #1a1f2b 0%, var(--bg) 70%); }
+.stbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+.stbar .sp { flex: 1; }
+.stbar .op { display: inline-flex; align-items: center; gap: 6px; color: var(--mu); font-size: 12px; }
+.stbar .op input { width: 90px; accent-color: var(--acc); }
+.canvaswrap { flex: 1; min-height: 0; display: grid; place-items: center; padding: 4px 12px 8px; }
+.phone { position: relative; height: 100%; max-height: 100%; aspect-ratio: 9/16; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: repeating-conic-gradient(#191d27 0 25%, #151922 0 50%) 50% / 22px 22px; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+.phone .jar { position: absolute; left: 50%; bottom: 7%; width: 74%; aspect-ratio: 1024/1536; transform: translateX(-50%); container-type: inline-size; }
+.phone .jar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.phone .jar .tt-jar-texts { position: absolute; inset: 0; }
+.phone .gifts { position: absolute; left: 0; right: 0; bottom: 0; top: 0; pointer-events: none; }
+.phone .gifts span { position: absolute; font-size: 22px; }
+.phone .lb { position: absolute; top: 3%; left: 4%; right: 4%; display: flex; justify-content: space-between; font-size: 10px; }
+.phone .lb div { background: rgba(0,0,0,.45); padding: 4px 8px; border-radius: 8px; }
+.selbox { position: absolute; border: 1.5px dashed var(--sel); border-radius: 6px; pointer-events: none; }
+.selbox::before, .selbox::after { content: ''; position: absolute; width: 8px; height: 8px; background: var(--sel); border-radius: 2px; }
+.selbox::before { left: -5px; top: -5px; } .selbox::after { right: -5px; bottom: -5px; }
+
+/* Ô nhập prompt */
+.prompt { margin: 0 14px 14px; border-radius: 14px; padding: 1px; background: linear-gradient(135deg, rgba(139,92,246,.7), rgba(236,72,153,.6)); }
+.prompt .in { background: #141824; border-radius: 13px; padding: 10px 10px 8px; }
+.prompt .row1 { display: flex; gap: 10px; align-items: flex-start; }
+.prompt .att { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 10px; border: 1px dashed var(--line2); background: var(--s2); display: grid; place-items: center; font-size: 18px; color: var(--mu); position: relative; }
+.prompt .att.has { border-style: solid; border-color: var(--ai1); font-size: 26px; }
+.prompt .att.has::after { content: '×'; position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; background: var(--s3); font-size: 11px; display: grid; place-items: center; color: var(--tx); }
+.prompt textarea { flex: 1; min-height: 46px; max-height: 120px; resize: none; border: 0; outline: 0; background: none; font-size: 14px; line-height: 1.45; }
+.prompt textarea::placeholder { color: var(--mu2); }
+.prompt .row2 { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.prompt .row2 .chips button.on { border-color: var(--ai1); color: #c4b5fd; background: rgba(139,92,246,.14); }
+.prompt .row2 .sp { flex: 1; }
+.prompt .left { color: var(--mu); font-size: 11.5px; }
+.btn.ai { border: 0; height: 32px; padding: 0 16px; color: #fff; font-weight: 600; background: linear-gradient(135deg, var(--ai1), var(--ai2)); }
+.btn.ai:disabled { opacity: .55; cursor: wait; }
+.gen-tray { display: flex; gap: 8px; margin: -6px 14px 12px; }
+.gen-tray .g { width: 64px; height: 64px; border-radius: 10px; border: 1px solid var(--line); background: repeating-conic-gradient(#1f2430 0 25%, #191d27 0 50%) 50% / 12px 12px; display: grid; place-items: center; font-size: 34px; position: relative; overflow: hidden; }
+.gen-tray .g.load::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, rgba(139,92,246,.25) 50%, transparent 80%); animation: shim 1.2s infinite; }
+@keyframes shim { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+/* Inspector */
+.insp { background: var(--s1); border-left: 1px solid var(--line); overflow: auto; }
+.insp .sec { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.insp .sec:last-child { border-bottom: 0; }
+.insp h3 { margin: 0 0 8px; font-size: 11px; letter-spacing: .4px; text-transform: uppercase; color: var(--mu); display: flex; align-items: center; gap: 6px; }
+.insp h3 .sp { flex: 1; }
+.insp textarea.txt { width: 100%; min-height: 54px; resize: vertical; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); padding: 7px 9px; font-size: 14px; font-weight: 600; }
+.vars { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.vars button { height: 22px; padding: 0 7px; border-radius: 6px; border: 1px solid var(--line); background: none; color: var(--mu); font: 11px Consolas, monospace; }
+.vars button:hover { color: var(--tx); border-color: var(--line2); }
+.styles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.st { position: relative; height: 58px; border-radius: 9px; border: 1px solid var(--line); background: #10131a; overflow: hidden; container-type: inline-size; }
+.st .tt-jar-texts { position: absolute; inset: 0; }
+.st .tt-jt { pointer-events: none; }
+.st small { position: absolute; left: 0; right: 0; bottom: 2px; font-size: 9.5px; color: var(--mu); text-align: center; pointer-events: none; }
+.st:hover { border-color: #46506a; }
+.st.on { border-color: var(--sel); box-shadow: 0 0 0 1px var(--sel) inset; }
+.kv { display: grid; grid-template-columns: 70px 1fr 38px; align-items: center; gap: 8px; margin: 6px 0; }
+.kv label { color: var(--mu); font-size: 12px; }
+.kv input[type=range] { width: 100%; accent-color: var(--acc); }
+.kv output { text-align: right; font: 12px Consolas, monospace; color: var(--sel); }
+.colors { display: flex; gap: 6px; align-items: center; }
+.colors input[type=color] { width: 30px; height: 30px; border: 0; padding: 0; background: none; border-radius: 8px; }
+.colors span { color: var(--mu); font-size: 12px; margin-right: 6px; }
+.pos9 { display: grid; grid-template-columns: repeat(3, 26px); gap: 3px; }
+.pos9 button { height: 22px; border: 1px solid var(--line); background: var(--s2); border-radius: 5px; font-size: 10px; color: var(--mu); }
+.pos9 button:hover { border-color: var(--sel); color: var(--sel); }
+.row { display: flex; gap: 10px; align-items: flex-start; }
+.seg.full { width: 100%; } .seg.full button { flex: 1; }
+
+/* Mục khác (rút gọn) */
+.cfg { display: grid; grid-template-columns: 90px 1fr 42px; align-items: center; gap: 8px; margin: 7px 0; }
+.cfg label { color: var(--mu); }
+.cfg input[type=range] { width: 100%; accent-color: var(--acc); }
+.cfg output { text-align: right; font: 12px Consolas, monospace; color: var(--sel); }
+.tog { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.tog:last-child { border-bottom: 0; }
+.sw { width: 34px; height: 20px; border-radius: 99px; background: var(--s3); position: relative; border: 0; }
+.sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #9aa3b8; transition: .15s; }
+.sw.on { background: var(--acc); } .sw.on::after { left: 17px; background: #fff; }
+.gstream { display: flex; flex-direction: column; gap: 4px; }
+.gstream div { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; background: var(--s2); font-size: 12px; }
+.gstream b { font-weight: 600; } .gstream em { color: var(--sel); font-style: normal; margin-left: auto; }
+.gcat { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.gcat div { aspect-ratio: 1; border-radius: 9px; background: var(--s2); border: 1px solid var(--line); display: grid; place-items: center; font-size: 22px; }
+.hidden { display: none !important; }
+.layer { grid-template-columns: 14px 34px 1fr auto; }
+.layer .grip { color: var(--mu2); cursor: grab; font-size: 11px; letter-spacing: -2px; user-select: none; }
+.layer.dragging { opacity: .4; border-style: dashed; border-color: var(--sel); }
+.layer.off .th, .layer.off .nm { opacity: .45; }
+.lib .it, .gen-tray .g:not(.load) { cursor: grab; }
+.phone.drop { outline: 2px dashed var(--ai1); outline-offset: -6px; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); background: var(--s3); border: 1px solid var(--line2); padding: 8px 14px; border-radius: 10px; opacity: 0; transition: .2s; pointer-events: none; z-index: 60; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.keyrow { display: flex; gap: 6px; margin-top: 8px; }
+.keyrow .search { flex: 1; }
+.keystat { font-size: 12px; margin-top: 6px; min-height: 16px; }
+.keystat.ok { color: var(--ok); } .keystat.bad { color: #f87171; }
+.howto { margin-top: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--s2); }
+.howto summary { cursor: pointer; color: #c4b5fd; font-size: 12px; }
+.howto ol { margin: 8px 0 4px; padding-left: 18px; font-size: 12px; color: var(--mu); }
+.howto li { margin: 4px 0; } .howto b { color: var(--tx); font-weight: 600; }
+.howto code { background: var(--bg); padding: 0 4px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="page">
+    <header class="hdr">
+        <h1>🫙 Hũ Thủy Tinh</h1>
+        <span class="chip"><i class="dot"></i>Đang chạy</span>
+        <span class="chip goal">🎯 12,4K / 20K xu <span class="bar"><i></i></span></span>
+        <span class="sp"></span>
+        <div class="seg" title="Độ phân giải overlay OBS"><button class="on">HD 1080</button><button>4K</button></div>
+        <button class="btn pri">📋 Link OBS</button>
+        <button class="btn">↺ Hũ mới</button>
+        <button class="btn ic" title="Lưu tất cả">💾</button>
+    </header>
+
+    <div class="body">
+        <nav class="nav" id="nav">
+            <button data-sec="look" class="on"><b>🎨</b>Giao diện</button>
+            <button data-sec="phys"><b>⚙️</b>Vật lý</button>
+            <button data-sec="show"><b>✨</b>Hiển thị</button>
+            <button data-sec="trig"><b>🎯</b>Quà kích hoạt</button>
+            <button data-sec="thief"><b>🥷</b>Trộm & CS</button>
+            <button data-sec="badge"><b>🏷</b>Badge</button>
+            <div class="sep"></div>
+            <button data-sec="test"><b>🎬</b>Thử</button>
+        </nav>
+
+        <!-- ===== Bảng trái theo mục ===== -->
+        <section class="panel">
+            <!-- 🎨 Giao diện -->
+            <div data-pane="look" class="ph">
+                <h2>Giao diện hũ</h2>
+                <p>Chọn kiểu hũ, chữ và sticker. Xem ngay ở giữa, OBS tự cập nhật.</p>
+                <div class="seg" id="lookSeg">
+                    <button data-l="jar" class="on">🫙 Kiểu hũ</button>
+                    <button data-l="layers">✍️ Chữ & sticker</button>
+                    <button data-l="ai">🪄 AI</button>
+                </div>
+            </div>
+            <div data-pane="look" class="pb">
+                <div data-l-pane="jar">
+                    <div class="grp">
+                        <input class="search" id="skinSearch" placeholder="🔍 Tìm kiểu hũ… (vd: bí ngô, tim, Noel)" />
+                    </div>
+                    <div class="grp">
+                        <div class="chips" id="skinFilter"><button class="on" data-f="all">Tất cả</button><button data-f="normal">Thường</button><button data-f="season">Theo mùa</button><button data-f="mine">Của tôi</button></div>
+                    </div>
+                    <div class="grp"><div class="skins" id="skins"></div></div>
+                    <div class="grp">
+                        <div class="gt">Màu hũ mặc định</div>
+                        <div class="swatches" id="themes"></div>
+                        <div class="note">Chỉ đổi màu được với “Hũ mặc định”.</div>
+                    </div>
+                    <div class="grp">
+                        <div class="gt">Phụ kiện miệng hũ</div>
+                        <div class="chips"><button class="on">Không</button><button>🎀 Nơ hồng</button><button>👑 Vương miện</button><button>🌸 Anh đào</button><button>⭐ Sao vàng</button><button>🎄 Lá Noel</button><button>💎 Kim cương</button></div>
+                    </div>
+                </div>
+
+                <div data-l-pane="layers" class="hidden">
+                    <div class="grp">
+                        <div class="gt">Bộ mẫu theo dịp <span class="sp"></span><a>Xem tất cả</a></div>
+                        <div class="presets" id="presets"></div>
+                    </div>
+                    <div class="grp">
+                        <div class="gt">Lớp trên hũ <span class="sp"></span><span style="text-transform:none;letter-spacing:0;font-weight:500" id="layerCount"></span></div>
+                        <div class="layers" id="layers"></div>
+                        <div class="add-row">
+                            <button class="btn" id="addText">＋ Chữ</button>
+                            <button class="btn" id="addSticker">＋ Sticker</button>
+                        </div>
+                        <div class="note">✋ Kéo hàng ⋮⋮ để đổi lớp trên/dưới. Kéo chữ/sticker ngay trên hũ để đặt chỗ.</div>
+                    </div>
+                </div>
+
+                <div data-l-pane="ai" class="hidden">
+                    <div class="grp">
+                        <div class="gt">Nguồn AI</div>
+                        <div class="seg full" id="aiSrc"><button class="on" data-src="hp">⭐ HP Media</button><button data-src="own">🔑 Khoá API riêng</button></div>
+                        <div class="src-hp note">Không cần đăng ký gì — trừ lượt theo KEY của bạn.</div>
+                        <div class="src-own hidden">
+                            <div class="keyrow"><input class="search" id="ownKey" type="password" placeholder="Dán khoá OpenAI (sk-…)" autocomplete="off"><button class="btn" id="ownCheck">Kiểm tra</button></div>
+                            <div class="keystat" id="ownStat"></div>
+                            <details class="howto">
+                                <summary>Chưa có khoá? Đăng ký OpenAI (5 bước)</summary>
+                                <ol>
+                                    <li>Vào <b>platform.openai.com</b> → Sign up (khác gói ChatGPT Plus — Plus <b>không</b> dùng được cho app).</li>
+                                    <li><b>Settings › Billing</b> → nạp trước (tối thiểu ~5 USD, thẻ Visa/Master quốc tế).</li>
+                                    <li><b>Settings › Organization › Verify</b> → xác minh danh tính (model ảnh yêu cầu).</li>
+                                    <li><b>API keys</b> → Create new secret key → chép khoá <code>sk-…</code> dán vào ô trên.</li>
+                                    <li>Nên đặt <b>Limits › Budget</b> (vd 10 USD/tháng) để không bị trừ quá tay.</li>
+                                </ol>
+                                <div class="note">Mỗi sticker khoảng 0,01–0,05 USD. Khoá lưu mã hoá trong máy này, không gửi về HP Media.</div>
+                            </details>
+                        </div>
+                    </div>
+                    <div class="grp src-hp">
+                        <div class="quota">🪄 <span>Hôm nay còn <b id="qLeft">18</b>/20 lượt</span><span class="bar"><i id="qBar"></i></span></div>
+                    </div>
+                    <div class="grp">
+                        <div class="gt">Sticker đã tạo <span class="sp"></span><a>Quản lý</a></div>
+                        <div class="lib" id="lib"></div>
+                        <div class="note">✋ Kéo thả sticker lên hũ (hoặc bấm). Ảnh lưu trong máy, OBS dùng được khi mất mạng.</div>
+                    </div>
+                    <div class="grp">
+                        <div class="gt">Sắp có</div>
+                        <div class="chips"><button disabled>🧪 Hũ theo ý muốn</button><button disabled>🔤 Thêm font</button></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ⚙ Vật lý -->
+            <div data-pane="phys" class="ph hidden"><h2>Vật lý</h2><p>Quà rơi, nảy và nằm trong hũ thế nào.</p></div>
+            <div data-pane="phys" class="pb hidden">
+                <div class="grp"><div class="gt">Rơi & nảy</div>
+                    <div class="cfg"><label>Trọng lực</label><input type="range" min="0.2" max="3" step="0.1" value="1.4"><output>1.4</output></div>
+                    <div class="cfg"><label>Độ nảy</label><input type="range" min="0" max="1" step="0.05" value="0.42"><output>0.42</output></div>
+                    <div class="cfg"><label>Ma sát</label><input type="range" min="0" max="1" step="0.05" value="0.05"><output>0.05</output></div>
+                    <div class="cfg"><label>Độ cao thả</label><input type="range" min="80" max="700" step="20" value="220"><output>220</output></div>
+                </div>
+                <div class="grp"><div class="gt">Kích thước</div>
+                    <div class="cfg"><label>Cỡ hũ</label><input type="range" min="200" max="1300" step="20" value="1200"><output>1200</output></div>
+                    <div class="cfg"><label>Quà nhỏ nhất</label><input type="range" min="12" max="80" step="2" value="24"><output>24</output></div>
+                    <div class="cfg"><label>Quà to nhất</label><input type="range" min="40" max="320" step="5" value="120"><output>120</output></div>
+                </div>
+                <div class="grp"><div class="gt">Hũ</div>
+                    <div class="tog">Hiện hũ <button class="sw on"></button></div>
+                    <div class="tog">Hiện số đếm <button class="sw on"></button></div>
+                    <div class="tog">🔒 Khoá vị trí hũ <button class="sw"></button></div>
+                </div>
+            </div>
+
+            <!-- ✨ Hiển thị -->
+            <div data-pane="show" class="ph hidden"><h2>Hiển thị & hiệu ứng</h2><p>Bật/tắt từng thành phần trên overlay.</p></div>
+            <div data-pane="show" class="pb hidden">
+                <div class="grp"><div class="gt">Trên overlay</div>
+                    <div class="tog">🏆 Top tặng <button class="sw on"></button></div>
+                    <div class="tog">📊 Tổng quà <button class="sw on"></button></div>
+                    <div class="tog">🎯 Thanh mục tiêu <button class="sw on"></button></div>
+                    <div class="tog">Treo avatar <button class="sw on"></button></div>
+                    <div class="tog">👑 Vương miện <button class="sw"></button></div>
+                    <div class="tog">👋 Chào người xem <button class="sw on"></button></div>
+                </div>
+                <div class="grp"><div class="gt">Hiệu ứng</div>
+                    <div class="tog">🔥 Combo <button class="sw on"></button></div>
+                    <div class="tog">💥 Quà to <button class="sw"></button></div>
+                    <div class="tog">⚡ Tự lắc <button class="sw"></button></div>
+                    <div class="tog">🔊 Âm thanh <button class="sw on"></button></div>
+                </div>
+                <div class="grp"><div class="gt">Mục tiêu</div>
+                    <div class="cfg"><label>Mục tiêu xu</label><input type="range" value="50"><output>20K</output></div>
+                </div>
+            </div>
+
+            <div data-pane="trig" class="ph hidden"><h2>Quà kích hoạt</h2><p>Gán quà → hiệu ứng (không rơi vào hũ).</p></div>
+            <div data-pane="trig" class="pb hidden"><div class="note">(Giữ nguyên bảng gán quà hiện có — chỉ đổi khung.)</div></div>
+            <div data-pane="thief" class="ph hidden"><h2>Trộm & Cảnh sát</h2><p>Trộm lấy quà, cảnh sát tóm.</p></div>
+            <div data-pane="thief" class="pb hidden"><div class="note">(Cài đặt trộm + danh sách Cảnh sát / Kẻ trộm gộp về đây.)</div></div>
+            <div data-pane="badge" class="ph hidden"><h2>Badge hiệu ứng quà</h2><p>Thẻ quà hiện trên overlay.</p></div>
+            <div data-pane="badge" class="pb hidden"><div class="note">(Giữ nguyên các ô badge — chỉ đổi khung.)</div></div>
+            <div data-pane="test" class="ph hidden"><h2>Thử</h2><p>Thả quà, chạy hiệu ứng, xem lịch sử hũ.</p></div>
+            <div data-pane="test" class="pb hidden"><div class="note">(Nút hiệu ứng sẵn sàng + 🕘 Lịch sử hũ.)</div></div>
+        </section>
+
+        <!-- ===== Sân khấu ===== -->
+        <main class="stage">
+            <div class="stbar">
+                <div class="seg"><button class="on">Xem trước</button><button>Ẩn (đỡ lag)</button></div>
+                <span class="sp"></span>
+                <span class="op">🎚 Độ trong <input type="range" min="20" max="100" value="100"></span>
+            </div>
+            <div class="canvaswrap">
+                <div class="phone" id="phone">
+                    <div class="lb"><div>🏆 TOP 1 · Mây Hồng</div><div>💎 12,4K</div></div>
+                    <div class="jar" id="jar">
+                        <img id="jarBack" alt="" />
+                        <div class="gifts" id="gifts"></div>
+                        <img id="jarFront" alt="" />
+                        <div class="tt-jar-texts" id="jarTexts"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="gen-tray hidden" id="tray"></div>
+            <div class="prompt" id="prompt">
+                <div class="in">
+                    <div class="row1">
+                        <button class="att" id="att" title="Thêm ảnh thật (mặt, thú cưng, đồ vật…) để AI vẽ theo">📷</button>
+                        <textarea id="ptext" rows="2" placeholder="Mô tả sticker muốn tạo… vd: “mèo con chibi đội nón lá, cầm bảng CẢM ƠN”. Thêm ảnh thật ở nút 📷 để AI vẽ giống."></textarea>
+                    </div>
+                    <div class="row2">
+                        <div class="chips" id="pstyle"><button class="on">Chibi</button><button>Sticker viền trắng</button><button>3D dễ thương</button><button>Anime</button><button>Pixel</button></div>
+                        <span class="sp"></span>
+                        <span class="left">còn 18 lượt</span>
+                        <button class="btn ai" id="gen">✨ Tạo</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- ===== Bảng phải ===== -->
+        <aside class="insp" id="insp">
+            <div id="inspLook">
+                <div class="sec">
+                    <h3>Nội dung <span class="sp"></span><span style="text-transform:none;letter-spacing:0" id="selName"></span></h3>
+                    <textarea class="txt" id="itText"></textarea>
+                    <div class="vars" id="vars"></div>
+                </div>
+                <div class="sec text-only">
+                    <h3>Kiểu chữ</h3>
+                    <div class="styles" id="styles"></div>
+                </div>
+                <div class="sec text-only">
+                    <h3>Màu & chuyển động</h3>
+                    <div class="colors"><span>Màu</span><input type="color" id="c1" value="#ff8fc0"><input type="color" id="c2" value="#74c4ff"></div>
+                    <div style="margin-top:10px"><div class="chips" id="anims"></div></div>
+                </div>
+                <div class="sec">
+                    <h3>Cỡ & xoay</h3>
+                    <div class="kv"><label>Cỡ</label><input type="range" id="sz" min="4" max="30" step="0.5"><output id="szV"></output></div>
+                    <div class="kv"><label>Xoay</label><input type="range" id="rot" min="-45" max="45"><output id="rotV"></output></div>
+                    <div class="note">✋ Kéo thẳng trên hũ để đặt chỗ · lăn chuột = cỡ · Shift + lăn = xoay.</div>
+                </div>
+                <div class="sec">
+                    <h3>Hiện khi</h3>
+                    <div class="seg full"><button class="on">Luôn hiện</button><button>Có quà</button><button>Đạt mục tiêu</button></div>
+                </div>
+            </div>
+            <div id="inspOther" class="hidden">
+                <div class="sec">
+                    <h3>🎁 Quà nhận từ LIVE <span class="sp"></span><a style="text-transform:none;color:var(--mu);cursor:pointer">Xoá</a></h3>
+                    <div class="gstream"><div>🌹 <b>Mây Hồng</b> Hoa hồng ×5<em>5</em></div><div>🦁 <b>Gấu Bông</b> Sư tử<em>29,999</em></div><div>🍩 <b>Na Na</b> Donut ×2<em>60</em></div></div>
+                </div>
+                <div class="sec">
+                    <h3>📦 Danh sách quà — bấm để thả thử</h3>
+                    <div class="gcat"><div>🌹</div><div>🍩</div><div>💐</div><div>🎀</div><div>🦁</div><div>🚀</div><div>🧸</div><div>💎</div><div>🎂</div><div>🍦</div><div>🌈</div><div>⭐</div></div>
+                </div>
+            </div>
+        </aside>
+    </div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="mock-note">Mockup bố cục — chưa nối dữ liệu thật</div>
+
+<script src="/games/thuytinh/jar-skins.js"></script>
+<script src="/games/thuytinh/jar-text-3d.js"></script>
+<script src="/games/thuytinh/jar-text.js"></script>
+<script>
+(() => {
+    const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+    const JT = window.HpJarText, SK = window.HpJarSkins;
+    const DEF_FRONT = '/assets/thuytinh/ben-ngoai/jar-glass.png';
+
+    // ---- điều hướng mục lớn ----
+    $('#nav').addEventListener('click', e => {
+        const b = e.target.closest('button[data-sec]'); if (!b) return;
+        $$('#nav button').forEach(x => x.classList.toggle('on', x === b));
+        $$('.panel [data-pane]').forEach(p => p.classList.toggle('hidden', p.dataset.pane !== b.dataset.sec));
+        const look = b.dataset.sec === 'look';
+        $('#inspLook').classList.toggle('hidden', !look);
+        $('#inspOther').classList.toggle('hidden', look);
+        $('#prompt').classList.toggle('hidden', !look);
+        $('#tray').classList.toggle('hidden', !look || !$('#tray').childElementCount);
+    });
+    $('#lookSeg').addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        $$('#lookSeg button').forEach(x => x.classList.toggle('on', x === b));
+        $$('[data-l-pane]').forEach(p => p.classList.toggle('hidden', p.dataset.lPane !== b.dataset.l));
+    });
+
+    // ---- kiểu hũ ----
+    let skin = '', filter = 'all', q = '';
+    const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').toLowerCase();
+    function renderSkins() {
+        const list = (SK?.SKINS || []).filter(s => filter === 'all' || (filter === 'season' ? s.season : filter === 'normal' ? !s.season : false))
+            .filter(s => !q || norm(s.name).includes(norm(q)));
+        const tile = (id, name, img, tag) => `<button class="skin${id === skin ? ' on' : ''}" data-id="${id}" title="${name}">${tag ? `<i class="tag">${tag}</i>` : ''}${img ? `<img src="${img}" loading="lazy" alt="">` : '<div class="def">🫙</div>'}<span>${name}</span></button>`;
+        $('#skins').innerHTML = (filter === 'mine' ? '<div class="note" style="grid-column:1/-1">Chưa có hũ tự tạo. (Giai đoạn 2: tạo hũ bằng AI → hiện ở đây.)</div>' : '')
+            + ((filter === 'all' || filter === 'normal') && !q ? tile('', 'Mặc định', '', '') : '')
+            + list.map(s => tile(s.id, s.name.replace(/^Hũ\s+/i, ''), s.front, s.season ? 'Mùa' : '')).join('');
+    }
+    function applySkin() {
+        const s = SK?.byId[skin];
+        $('#jarFront').src = s ? s.front : DEF_FRONT;
+        $('#jarBack').src = s ? s.back : '';
+        $('#jarBack').style.display = s ? '' : 'none';
+    }
+    $('#skins').addEventListener('click', e => { const b = e.target.closest('.skin'); if (!b) return; skin = b.dataset.id; renderSkins(); applySkin(); });
+    $('#skinFilter').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; filter = b.dataset.f; $$('#skinFilter button').forEach(x => x.classList.toggle('on', x === b)); renderSkins(); });
+    $('#skinSearch').addEventListener('input', e => { q = e.target.value.trim(); renderSkins(); });
+    $('#themes').innerHTML = ['#e8eef7', '#4f8cff', '#ff9a3d', '#34c46a', '#ff7eb6', '#a46cff', '#ffd23f'].map((c, i) => `<button style="background:${c}" class="${i ? '' : 'on'}"></button>`).join('');
+    $('#themes').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; $$('#themes button').forEach(x => x.classList.toggle('on', x === b)); });
+
+    // ---- quà giả trong hũ ----
+    const G = ['🌹', '🍩', '💐', '🎀', '🧸', '💎', '⭐', '🍦', '🌹', '🎂', '🍩', '🌹', '💐', '🎀'];
+    $('#gifts').innerHTML = G.map((g, i) => `<span style="left:${18 + (i * 37) % 62}%;bottom:${12 + Math.floor(i / 5) * 8}%">${g}</span>`).join('');
+
+    // ---- lớp chữ & sticker: 1 mảng, thứ tự = lớp dưới → lớp trên ----
+    const fake = { top: [{ name: 'Mây Hồng', xu: 12400 }], tong: 12400, qua: 86, muctieu: 20000, nguoitang: 'Na Na' };
+    const mkSticker = (emoji, name, x, y) => ({ id: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), kind: 'emoji', emoji, name, x, y, size: 10, rot: 0, hidden: false });
+    let layers = [
+        ...JT.normalizeList([
+            { text: 'Cảm ơn\ncả nhà', style: 'puffy', deco: 'sparkle', anim: 'float', x: 50, y: 40, size: 14, rot: -4 },
+            { text: 'TOP 1: {top1}', style: 'plaque', deco: 'none', anim: 'none', x: 50, y: 78, size: 7, rot: 0 }
+        ]),
+        mkSticker('🐱', 'Mèo nón lá', 80, 18)
+    ];
+    let sel = layers[0].id;
+    const isText = (L) => L && L.kind !== 'emoji';
+    const cur = () => layers.find(x => x.id === sel);
+    const full = () => layers.length >= JT.MAX_ITEMS;
+    const jarBox = () => $('#jarTexts').getBoundingClientRect();
+    const clampPos = (v) => Math.round(Math.max(JT.POS_MIN, Math.min(JT.POS_MAX, v)) * 10) / 10;
+
+    function paintOne(el, L) {
+        if (isText(L)) { JT.paint(el, { ...L, text: JT.fillVars(L.text, fake) }); }
+        else {
+            el.className = 'tt-jt';
+            el.dataset.id = L.id;
+            el.style.left = L.x + '%'; el.style.top = L.y + '%';
+            el.style.setProperty('--jt-s', String(L.size)); el.style.setProperty('--jt-r', L.rot + 'deg');
+            if (!el.firstElementChild) el.innerHTML = '<div class="tt-jt-box" style="font-size:3em;line-height:1"></div>';
+            el.firstElementChild.textContent = L.emoji;
+        }
+        el.classList.toggle('tt-jt-sel', L.id === sel);
+        el.style.display = L.hidden ? 'none' : '';
+    }
+    function paintJar() {
+        const host = $('#jarTexts'); host.textContent = '';
+        host.classList.add('tt-jt-edit');
+        layers.forEach(L => { const el = document.createElement('div'); paintOne(el, L); host.appendChild(el); });
+    }
+    const repaintSel = () => { const el = $(`#jarTexts .tt-jt[data-id="${sel}"]`); const L = cur(); if (el && L) paintOne(el, L); };
+
+    // Kéo trên hũ = đặt chỗ · lăn chuột = cỡ · Shift + lăn = xoay · phím mũi tên = nhích
+    let drag = null;
+    $('#jarTexts').addEventListener('pointerdown', e => {
+        const el = e.target.closest('.tt-jt'); if (!el) return;
+        e.preventDefault();
+        sel = el.dataset.id;
+        const L = cur(), r = jarBox();
+        drag = { el, dx: L.x - (e.clientX - r.left) / r.width * 100, dy: L.y - (e.clientY - r.top) / r.height * 100 };
+        el.setPointerCapture(e.pointerId);
+        el.classList.add('tt-jt-drag');
+        $$('#jarTexts .tt-jt').forEach(x => x.classList.toggle('tt-jt-sel', x === el));
+        renderLayers(); renderInspector();
+    });
+    $('#jarTexts').addEventListener('pointermove', e => {
+        if (!drag) return;
+        const L = cur(), r = jarBox();
+        L.x = clampPos((e.clientX - r.left) / r.width * 100 + drag.dx);
+        L.y = clampPos((e.clientY - r.top) / r.height * 100 + drag.dy);
+        drag.el.style.left = L.x + '%'; drag.el.style.top = L.y + '%';
+    });
+    const endDrag = () => { if (!drag) return; drag.el.classList.remove('tt-jt-drag'); drag = null; };
+    $('#jarTexts').addEventListener('pointerup', endDrag);
+    $('#jarTexts').addEventListener('pointercancel', endDrag);
+    $('#jarTexts').addEventListener('wheel', e => {
+        const el = e.target.closest('.tt-jt'); if (!el) return;
+        e.preventDefault();
+        sel = el.dataset.id;
+        const L = cur(), d = e.deltaY < 0 ? 1 : -1;
+        if (e.shiftKey) L.rot = Math.max(-45, Math.min(45, L.rot + d * 3));
+        else L.size = Math.max(4, Math.min(30, Math.round((L.size + d * 0.5) * 2) / 2));
+        repaintSel(); renderLayers(); renderInspector();
+    }, { passive: false });
+    document.addEventListener('keydown', e => {
+        if (!/^Arrow/.test(e.key) || e.target.closest('input,textarea') || !cur()) return;
+        e.preventDefault();
+        const L = cur(), s = e.shiftKey ? 2 : 0.5;
+        if (e.key === 'ArrowLeft') L.x = clampPos(L.x - s);
+        if (e.key === 'ArrowRight') L.x = clampPos(L.x + s);
+        if (e.key === 'ArrowUp') L.y = clampPos(L.y - s);
+        if (e.key === 'ArrowDown') L.y = clampPos(L.y + s);
+        repaintSel();
+    });
+
+    // Thả sticker / ảnh vừa tạo từ thư viện xuống hũ
+    const phone = $('#phone');
+    phone.addEventListener('dragover', e => { if (e.dataTransfer.types.includes('text/x-hp-sticker')) { e.preventDefault(); phone.classList.add('drop'); } });
+    phone.addEventListener('dragleave', () => phone.classList.remove('drop'));
+    phone.addEventListener('drop', e => {
+        const emoji = e.dataTransfer.getData('text/x-hp-sticker'); phone.classList.remove('drop');
+        if (!emoji) return; e.preventDefault();
+        if (full()) return toast(`Tối đa ${JT.MAX_ITEMS} lớp — xoá bớt rồi thêm.`);
+        const r = jarBox();
+        const s = mkSticker(emoji, 'Sticker AI', clampPos((e.clientX - r.left) / r.width * 100), clampPos((e.clientY - r.top) / r.height * 100));
+        layers.push(s); sel = s.id; renderAll();
+    });
+    function addStickerCenter(emoji, name) {
+        if (full()) return toast(`Tối đa ${JT.MAX_ITEMS} lớp — xoá bớt rồi thêm.`);
+        const s = mkSticker(emoji, name, 50, 30); layers.push(s); sel = s.id; renderAll();
+    }
+
+    // Danh sách lớp: lớp TRÊN CÙNG ở đầu danh sách; kéo hàng để đổi lớp trên/dưới
+    function renderLayers() {
+        const rows = [...layers].reverse();
+        $('#layers').innerHTML = rows.map(L => {
+            const th = isText(L) ? '✍️' : L.emoji, nm = isText(L) ? L.text.replace(/\n/g, ' ') : L.name;
+            const sub = isText(L) ? ((JT.STYLES.find(s => s.id === L.style) || {}).label || L.style) : '🪄 Sticker AI';
+            return `<div class="layer${L.id === sel ? ' on' : ''}${L.hidden ? ' off' : ''}" data-id="${L.id}" draggable="true"><span class="grip" title="Kéo để đổi lớp trên/dưới">⋮⋮</span><div class="th">${th}</div><div class="nm"><b>${nm}</b><small>${sub}</small></div><div class="acts"><button data-act="eye" title="Ẩn/hiện">${L.hidden ? '🙈' : '👁'}</button><button data-act="dup" title="Nhân bản">⧉</button><button data-act="del" title="Xoá">🗑</button></div></div>`;
+        }).join('');
+        $('#layerCount').textContent = `${layers.length}/${JT.MAX_ITEMS}`;
+    }
+    $('#layers').addEventListener('click', e => {
+        const row = e.target.closest('.layer'); if (!row) return;
+        const id = row.dataset.id, act = e.target.closest('[data-act]')?.dataset.act, L = layers.find(x => x.id === id);
+        if (act === 'del') { layers = layers.filter(x => x.id !== id); if (sel === id) sel = layers[layers.length - 1]?.id; }
+        else if (act === 'eye') L.hidden = !L.hidden;
+        else if (act === 'dup') {
+            if (full()) return toast(`Tối đa ${JT.MAX_ITEMS} lớp.`);
+            const c = { ...L, id: 'c' + Date.now().toString(36), x: clampPos(L.x + 4), y: clampPos(L.y + 4) };
+            layers.splice(layers.indexOf(L) + 1, 0, c); sel = c.id;
+        }
+        else sel = id;
+        renderAll();
+    });
+    let dragRow = null;
+    $('#layers').addEventListener('dragstart', e => {
+        dragRow = e.target.closest('.layer'); if (!dragRow) return;
+        e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragRow.dataset.id);
+        requestAnimationFrame(() => dragRow && dragRow.classList.add('dragging'));
+    });
+    $('#layers').addEventListener('dragover', e => {
+        if (!dragRow) return; e.preventDefault();
+        const over = e.target.closest('.layer'); if (!over || over === dragRow) return;
+        const r = over.getBoundingClientRect();
+        over.parentNode.insertBefore(dragRow, e.clientY < r.top + r.height / 2 ? over : over.nextSibling);
+    });
+    $('#layers').addEventListener('dragend', () => {
+        if (!dragRow) return;
+        dragRow.classList.remove('dragging'); dragRow = null;
+        const order = $$('#layers .layer').map(x => x.dataset.id).reverse();   // danh sách hiện trên→dưới, mảng lưu dưới→trên
+        layers = order.map(id => layers.find(x => x.id === id));
+        renderAll();
+    });
+
+    $('#presets').innerHTML = (() => { const hot = new Set(JT.presetsFor(new Date())); return [...JT.PRESETS].sort((a, b) => hot.has(b.id) - hot.has(a.id)).map(p => `<button class="${hot.has(p.id) ? 'hot' : ''}" data-p="${p.id}">${hot.has(p.id) ? '⭐ ' : ''}${p.label}</button>`).join(''); })();
+    $('#presets').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; layers = [...JT.normalizeList(JT.presetItems(b.dataset.p)), ...layers.filter(x => !isText(x))].slice(0, JT.MAX_ITEMS); sel = layers[0]?.id; renderAll(); });
+    $('#addText').addEventListener('click', () => { if (full()) return toast(`Tối đa ${JT.MAX_ITEMS} lớp.`); const it = JT.normalizeList([{ text: 'Chữ mới', style: 'sticker', x: 50, y: 60, size: 10 }])[0]; it.id = 'n' + Date.now().toString(36); layers.push(it); sel = it.id; renderAll(); });
+    $('#addSticker').addEventListener('click', () => { $('#lookSeg [data-l="ai"]').click(); $('#ptext').focus(); });
+
+    // ---- inspector ----
+    const stylesHost = $('#styles');
+    stylesHost.innerHTML = JT.STYLES.map(s => `<button class="st" data-s="${s.id}"><div class="tt-jar-texts"></div><small>${s.label.replace(/^\S+\s/, '')}</small></button>`).join('');
+    function paintStyleTiles(text) {
+        $$('.st', stylesHost).forEach(b => {
+            const host = b.firstElementChild; host.textContent = '';
+            const el = document.createElement('div');
+            const t = (text || 'Abc').split('\n')[0].slice(0, 8) || 'Abc';
+            JT.paint(el, JT.normalizeList([{ text: t, style: b.dataset.s, deco: 'none', anim: 'none', x: 50, y: 42, size: 20, rot: 0 }])[0]);
+            host.appendChild(el);
+        });
+    }
+    $('#vars').innerHTML = JT.VARS.slice(0, 6).map(v => `<button title="${v.label}" data-v="${v.k}">${v.k}</button>`).join('');
+    $('#anims').innerHTML = JT.ANIMS.map(a => `<button data-a="${a.id}">${a.label}</button>`).join('');
+    function renderInspector() {
+        const L = cur(), t = isText(L);
+        $('#selName').textContent = !L ? '' : t ? 'Chữ' : 'Sticker';
+        $('#itText').value = L ? (t ? L.text : L.name) : '';
+        $('#itText').disabled = !t;
+        $$('.text-only').forEach(x => x.classList.toggle('hidden', !t));
+        $$('.st', stylesHost).forEach(b => b.classList.toggle('on', t && b.dataset.s === L.style));
+        $$('#anims button').forEach(b => b.classList.toggle('on', t && b.dataset.a === L.anim));
+        if (L) { $('#sz').value = L.size; $('#szV').textContent = L.size; $('#rot').value = L.rot; $('#rotV').textContent = L.rot + '°'; }
+        if (t) $('#c1').value = L.color || JT.DEFAULT_COLOR[L.style] || '#ff8fc0';
+    }
+    const upd = (patch, all) => {
+        const L = cur(); if (!L) return;
+        Object.assign(L, patch);
+        if (isText(L)) Object.assign(L, JT.normalizeItem(L));
+        repaintSel(); renderInspector(); if (all) renderLayers();
+    };
+    $('#itText').addEventListener('input', e => { upd({ text: e.target.value }, true); paintStyleTiles(e.target.value); });
+    stylesHost.addEventListener('click', e => { const b = e.target.closest('.st'); if (b) upd({ style: b.dataset.s, color: '' }, true); });
+    $('#anims').addEventListener('click', e => { const b = e.target.closest('button'); if (b) upd({ anim: b.dataset.a }); });
+    $('#sz').addEventListener('input', e => upd({ size: +e.target.value }));
+    $('#rot').addEventListener('input', e => upd({ rot: +e.target.value }));
+    $('#c1').addEventListener('input', e => upd({ color: e.target.value }));
+    $('#c2').addEventListener('input', e => upd({ color2: e.target.value }));
+    $('#vars').addEventListener('click', e => { const b = e.target.closest('button'); const L = cur(); if (!b || !isText(L)) return; upd({ text: (L.text + ' ' + b.dataset.v).trim() }, true); });
+
+    // ---- AI ----
+    const libHtml = (x) => `<div class="it" draggable="true" data-e="${x}" title="Kéo thả lên hũ (hoặc bấm)">${x}<span class="plus">＋ Gắn</span></div>`;
+    $('#lib').innerHTML = ['🐱', '🐶', '🐰', '👧', '🧋', '🌸'].map(libHtml).join('');
+    const dragSticker = (s) => (e) => { const t = e.target.closest(s); if (!t) return; e.dataTransfer.setData('text/x-hp-sticker', t.dataset.e); e.dataTransfer.effectAllowed = 'copy'; };
+    $('#lib').addEventListener('dragstart', dragSticker('.it'));
+    $('#tray').addEventListener('dragstart', dragSticker('.g'));
+    $('#lib').addEventListener('click', e => { const t = e.target.closest('.it'); if (t) addStickerCenter(t.dataset.e, 'Sticker AI'); });
+    $('#tray').addEventListener('click', e => { const g = e.target.closest('.g:not(.load)'); if (g) addStickerCenter(g.dataset.e, 'Sticker AI mới'); });
+    $('#att').addEventListener('click', () => { const a = $('#att'); a.classList.toggle('has'); a.textContent = a.classList.contains('has') ? '🧑' : '📷'; });
+    $('#pstyle').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; $$('#pstyle button').forEach(x => x.classList.toggle('on', x === b)); });
+    let left = 18;
+    $('#gen').addEventListener('click', () => {
+        const tray = $('#tray'); tray.classList.remove('hidden');
+        tray.insertAdjacentHTML('afterbegin', '<div class="g load"></div>');
+        $('#gen').disabled = true; $('#gen').textContent = '⏳ Đang vẽ…';
+        setTimeout(() => {
+            const g = tray.querySelector('.g.load'), em = ['🐱', '🦊', '🐼', '🐸'][Math.floor(Math.random() * 4)];
+            g.classList.remove('load'); g.textContent = em; g.dataset.e = em; g.draggable = true; g.title = 'Kéo thả lên hũ (hoặc bấm)';
+            $('#lib').insertAdjacentHTML('afterbegin', libHtml(em));
+            $('#gen').disabled = false; $('#gen').textContent = '✨ Tạo';
+            left = Math.max(0, left - 1); $('#qLeft').textContent = left; $('.prompt .left').textContent = `còn ${left} lượt`; $('#qBar').style.width = ((20 - left) / 20 * 100) + '%';
+        }, 1600);
+    });
+
+    // ---- nguồn AI ----
+    $('#aiSrc').addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        $$('#aiSrc button').forEach(x => x.classList.toggle('on', x === b));
+        const own = b.dataset.src === 'own';
+        $$('.src-hp').forEach(x => x.classList.toggle('hidden', own));
+        $$('.src-own').forEach(x => x.classList.toggle('hidden', !own));
+        $('.prompt .left').textContent = own ? 'khoá riêng' : `còn ${left} lượt`;
+    });
+    $('#ownCheck').addEventListener('click', () => {
+        const v = $('#ownKey').value.trim(), st = $('#ownStat');
+        st.className = 'keystat'; st.textContent = '⏳ Đang kiểm tra…';
+        setTimeout(() => {
+            if (/^sk-[\w-]{20,}$/.test(v)) { st.className = 'keystat ok'; st.textContent = '✓ Khoá dùng được (đã lưu, …' + v.slice(-4) + ')'; $('#ownKey').value = ''; }
+            else { st.className = 'keystat bad'; st.textContent = '✗ Khoá không đúng dạng (bắt đầu bằng sk-)'; }
+        }, 700);
+    });
+
+    let toastT = 0;
+    function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
+
+    function renderAll() { paintJar(); renderLayers(); renderInspector(); }
+    renderSkins(); applySkin(); paintStyleTiles('Abc'); renderAll();
+    document.fonts && document.fonts.ready.then(() => { paintStyleTiles($('#itText').value); paintJar(); });
+})();
+</script>
+</body>
+</html>

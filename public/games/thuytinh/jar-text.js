@@ -116,16 +116,23 @@
     const SHOW_IDS = new Set(SHOWS.map(x => x.id));
     const clamp = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
     const hex = (v) => /^#[0-9a-f]{6}$/i.test(v || '') ? v.toLowerCase() : '';
+    // 🪄 Lớp ẢNH (sticker AI / ảnh có sẵn): chỉ nhận đường dẫn nội bộ — overlay OBS chạy offline, không tải ảnh ngoài.
+    const IMG_SRC = /^\/(ai-art\/ai[a-z0-9]+\.png|assets\/[\w\-\/.]+\.(png|webp))$/i;
+    const imgSrc = (v) => (IMG_SRC.test(String(v || '')) && !/\.\./.test(v) ? String(v) : '');
 
     function normalizeItem(it, i) {
         it = it && typeof it === 'object' ? it : {};
+        const src = it.kind === 'img' ? imgSrc(it.src) : '';
         return {
             id: String(it.id || ('jt' + Date.now().toString(36) + i)).slice(0, 24),
+            kind: src ? 'img' : 'text',
+            src,
             text: String(it.text ?? '').replace(/\r/g, '').slice(0, MAX_LEN),
             style: STYLE_IDS.has(it.style) ? it.style : 'candy',
             anim: ANIM_IDS.has(it.anim) ? it.anim : 'none',
             deco: DECO_IDS.has(it.deco) ? it.deco : 'none',
             flip: !!it.flip,
+            hide: !!it.hide,
             show: SHOW_IDS.has(it.show) ? it.show : 'always',
             pop: !!it.pop,
             minXu: Math.round(clamp(it.minXu, 1, 100000, 100)),
@@ -230,6 +237,8 @@
     function paint(el, it) {
         // giữ class TRẠNG THÁI do engine/app gắn (ẩn chờ quà, đang chọn, đang nảy, đang kéo) — vẽ lại khi font nạp xong không được xoá
         const state = ['tt-jt-off', 'tt-jt-sel', 'tt-jt-pop', 'tt-jt-drag'].filter(c => el.classList && el.classList.contains(c));
+        el.style.display = it.hide ? 'none' : '';      // 👁 ẩn lớp (giữ trong danh sách)
+        if (it.kind === 'img' && it.src) return paintImage(el, it, state);
         el.className = `tt-jt tt-jt-${it.style}` + (it.anim !== 'none' ? ` tt-jt-a-${it.anim}` : '') + (state.length ? ' ' + state.join(' ') : '');
         el.dataset.id = it.id;
         el.style.left = it.x + '%';
@@ -302,5 +311,26 @@
         });
     }
 
-    return { SHOWS, PRESETS, presetsFor, presetItems, STYLES, ANIMS, DECOS, VARS, DEFAULT_COLOR, DEFAULT_COLOR2, MAX_ITEMS, MAX_LEN, POS_MIN, POS_MAX, normalizeItem, normalizeList, newItem, fillVars, paint };
+    function paintImage(el, it, state) {
+        el.className = 'tt-jt tt-jt-img' + (it.anim !== 'none' ? ` tt-jt-a-${it.anim}` : '') + (state.length ? ' ' + state.join(' ') : '');
+        el.dataset.id = it.id;
+        el.style.left = it.x + '%';
+        el.style.top = it.y + '%';
+        el.style.setProperty('--jt-s', String(it.size));
+        el.style.setProperty('--jt-r', it.rot + 'deg');
+        const key = ['img', it.src, it.flip, it.anim === 'shine'].join('|');
+        let box = el.firstElementChild;
+        if (!box || box.className !== 'tt-jt-box') { el.textContent = ''; box = document.createElement('div'); box.className = 'tt-jt-box'; el.appendChild(box); }
+        if (box.dataset.k === key) return;
+        box.dataset.k = key;
+        box.textContent = '';
+        const img = document.createElement('img');
+        img.className = 'tt-jt-pic' + (it.flip ? ' flip' : '');
+        img.alt = '';
+        img.draggable = false;
+        img.src = it.src;
+        box.appendChild(img);
+    }
+
+    return { SHOWS, PRESETS, presetsFor, presetItems, STYLES, ANIMS, DECOS, VARS, DEFAULT_COLOR, DEFAULT_COLOR2, MAX_ITEMS, MAX_LEN, POS_MIN, POS_MAX, normalizeItem, normalizeList, newItem, fillVars, paint, imgSrc };
 });

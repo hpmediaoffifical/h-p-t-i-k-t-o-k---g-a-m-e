@@ -246,3 +246,8 @@
 .tt-jar-texts.tt-jt-edit .tt-jt.tt-jt-sel::after { border-color: #ffcf3d; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
 .tt-jar-texts.tt-jt-edit .tt-jt.tt-jt-drag { cursor: grabbing; }
 @media (prefers-reduced-motion: reduce) { .tt-jt-box, .tt-jt-in, .tt-jt-in > span, .tt-jt-d { animation: none !important; } }
+
+/* 🪄 Lớp ảnh (sticker AI): rộng 4em theo cỡ chữ → kéo/lăn chuột/xoay y như chữ */
+.tt-jt-img { line-height: 0; filter: drop-shadow(0 .06em .1em rgba(0,0,0,.35)); }
+.tt-jt-pic { display: block; width: 4em; height: auto; pointer-events: none; }
+.tt-jt-pic.flip { transform: scaleX(-1); }

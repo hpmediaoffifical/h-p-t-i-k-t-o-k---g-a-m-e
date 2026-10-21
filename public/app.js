@@ -1417,6 +1417,7 @@
         fillJarSkinSelect();
         if (dom.cfgJarSkin) dom.cfgJarSkin.value = window.HpJarSkins?.byId[cfg.jarSkin] ? cfg.jarSkin : '';
         if (dom.cfgJarTheme) dom.cfgJarTheme.disabled = !!(dom.cfgJarSkin && dom.cfgJarSkin.value);
+        markJarSkinGrid();
         currentJarTexts = window.HpJarText ? window.HpJarText.normalizeList(cfg.jarTexts) : [];
         renderJarTextPanel();
         const bdg = cfg.badges || {};
@@ -2748,171 +2749,525 @@
     }
     dom.cfgJarSkin?.addEventListener('change', () => {
         if (dom.cfgJarTheme) dom.cfgJarTheme.disabled = !!dom.cfgJarSkin.value;
+        markJarSkinGrid();
         pushConfigUpdate();
     });
 
-    // ===== ✍️ Chữ trang trí hũ — danh sách chỉnh trong panel, kéo đặt chỗ trên khung xem trước =====
+    // ===== 🫙 Hũ Thủy Tinh — bố cục mới (21/10/2026, mockup /_prototype/thuytinh-redesign.html) =====
+    // Mục lớn bên trái → bảng của mục → xem trước + ô prompt AI → bảng chỉnh lớp (mục Giao diện) / quà LIVE (mục khác).
+    // Mọi control cũ giữ nguyên id: <select> kiểu hũ / màu / phụ kiện vẫn là giá trị thật, lưới + chip chỉ là lối chọn nhanh.
+    const ttToast = (msg, kind) => (typeof window.toast === 'function' ? window.toast(msg, kind || 'info', 2800) : toastInfo(msg));
+    const TT_THEME_COLORS = { default: '#e8eef7', blue: '#4f8cff', cam: '#ff9a3d', green: '#34c46a', pink: '#ff7eb6', tim: '#a46cff', yellow: '#ffd23f' };
+    let jarSkinFilter = 'all', jarSkinQuery = '';
+    const ttNorm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase();
+
+    function renderJarSkinGrid() {
+        const grid = document.getElementById('look-skin-grid');
+        if (!grid) return;
+        const q = ttNorm(jarSkinQuery);
+        const S = (window.HpJarSkins?.SKINS || [])
+            .filter(s => jarSkinFilter === 'all' || (jarSkinFilter === 'season' ? s.season : !s.season))
+            .filter(s => !q || ttNorm(s.name).includes(q));
+        const tile = (id, name, img, tag) => `<button type="button" class="look-skin" data-skin="${id}" title="${escHtml(name)}">`
+            + (tag ? `<i class="tag">${tag}</i>` : '')
+            + (img ? `<img src="${img}" alt="" loading="lazy" decoding="async">` : '<span class="look-skin-def">🫙</span>')
+            + `<span>${escHtml(name)}</span></button>`;
+        grid.innerHTML = (jarSkinFilter !== 'season' && !q ? tile('', 'Mặc định', '', '') : '')
+            + S.map(s => tile(s.id, s.name.replace(/^Hũ\s+/i, ''), s.front, s.season ? 'Mùa' : '')).join('')
+            || '<div class="tt-note">Không thấy kiểu hũ nào khớp.</div>';
+        markJarSkinGrid();
+    }
+    // Tô đúng lựa chọn hiện tại cho lưới hũ + màu + phụ kiện (gọi cả lúc nạp cấu hình)
+    function markJarSkinGrid() {
+        const skin = dom.cfgJarSkin?.value || '';
+        document.querySelectorAll('#look-skin-grid .look-skin').forEach(b => b.classList.toggle('on', b.dataset.skin === skin));
+        const theme = dom.cfgJarTheme?.value || 'default';
+        const sw = document.getElementById('look-theme');
+        if (sw) {
+            if (!sw.childElementCount && dom.cfgJarTheme) {
+                sw.innerHTML = [...dom.cfgJarTheme.options].map(o => `<button type="button" data-theme="${o.value}" title="${escHtml(o.textContent)}" style="background:${TT_THEME_COLORS[o.value] || '#888'}"></button>`).join('');
+            }
+            sw.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.theme === theme));
+            sw.classList.toggle('off', !!skin);
+        }
+        const note = document.getElementById('look-theme-note');
+        if (note) note.textContent = skin ? 'Đang dùng kiểu hũ riêng — chọn “Mặc định” để đổi màu.' : 'Chỉ đổi màu được với “Hũ mặc định”.';
+        const acc = document.getElementById('look-acc');
+        if (acc && dom.cfgJarAccessory) {
+            if (!acc.childElementCount) acc.innerHTML = [...dom.cfgJarAccessory.options].map(o => `<button type="button" data-acc="${o.value}">${escHtml(o.textContent)}</button>`).join('');
+            acc.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.acc === (dom.cfgJarAccessory.value || 'none')));
+        }
+    }
+    const pickSelect = (sel, value) => { if (!sel || sel.value === value) return; sel.value = value; sel.dispatchEvent(new Event('change')); };
+    document.getElementById('look-skin-grid')?.addEventListener('click', (e) => {
+        const b = e.target.closest('.look-skin');
+        if (b) pickSelect(dom.cfgJarSkin, b.dataset.skin);
+    });
+    document.getElementById('look-skin-filter')?.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-skin-filter]');
+        if (!b) return;
+        jarSkinFilter = b.dataset.skinFilter;
+        b.parentElement.querySelectorAll('[data-skin-filter]').forEach(x => x.classList.toggle('on', x === b));
+        renderJarSkinGrid();
+    });
+    document.getElementById('look-skin-search')?.addEventListener('input', (e) => { jarSkinQuery = e.target.value.trim(); renderJarSkinGrid(); });
+    document.getElementById('look-theme')?.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-theme]');
+        if (b) { pickSelect(dom.cfgJarTheme, b.dataset.theme); markJarSkinGrid(); }
+    });
+    document.getElementById('look-acc')?.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-acc]');
+        if (b) { pickSelect(dom.cfgJarAccessory, b.dataset.acc); markJarSkinGrid(); }
+    });
+
+    // ---- Điều hướng mục lớn + mục con của Giao diện ----
+    const ttBody = document.querySelector('#view-thuytinh .tt-body');
+    function ttShowLook(k) {
+        if (!ttBody) return;
+        ttBody.querySelectorAll('#tt-look-seg button').forEach(b => b.classList.toggle('on', b.dataset.look === k));
+        ttBody.querySelectorAll('.look-sub').forEach(p => p.classList.toggle('active', p.dataset.lookPane === k));
+        try { localStorage.setItem('hp.thuytinh.lookSub', k); } catch (_) {}
+        if (k === 'jar') { const grid = document.getElementById('look-skin-grid'); if (grid && !grid.childElementCount) renderJarSkinGrid(); }
+        if (k === 'ai') aiRefresh();
+    }
+    // 🔍 Phóng to hũ: CSS transform quanh .jar-glass (đo bằng offset* = toạ độ chưa biến đổi), chỉ ở mục Giao diện.
+    // Kéo chữ/sticker vẫn đúng vì engine tính theo getBoundingClientRect (đã gồm transform).
+    let ttZoom = true;
+    try { ttZoom = localStorage.getItem('hp.thuytinh.zoom') !== '0'; } catch (_) {}
+    let ttZoomKey = '';
+    function ttApplyZoom() {
+        const frame = dom.stageFrame, wrap = frame?.parentElement, btn = document.getElementById('tt-zoom');
+        if (!frame || !wrap) return;
+        btn?.classList.toggle('on', ttZoom);
+        const jar = frame.querySelector('.jar-glass');
+        const want = ttZoom && ttBody?.dataset.sec === 'look' && jar && jar.offsetWidth && !ttBody.classList.contains('preview-hidden');
+        if (!want) { if (frame.style.transform) frame.style.transform = ''; ttZoomKey = ''; return; }
+        const fw = frame.offsetWidth, fh = frame.offsetHeight, ww = wrap.clientWidth - 20, wh = wrap.clientHeight - 20;
+        const jx = jar.offsetLeft, jy = jar.offsetTop, jw = jar.offsetWidth, jh = jar.offsetHeight;
+        const key = [fw, fh, ww, wh, jx, jy, jw, jh].join(',');
+        if (key === ttZoomKey) return;
+        ttZoomKey = key;
+        // chừa lề để thấy chữ vắt ra ngoài hũ; khung đã vừa sẵn thì không thu nhỏ
+        const k = Math.max(1, Math.min(5, ww / (jw * 1.7), wh / (jh * 1.3)));
+        const cx = jx + jw / 2, cy = jy + jh / 2;
+        frame.style.transformOrigin = '0 0';
+        frame.style.transform = `translate(${(fw / 2 - k * cx).toFixed(1)}px, ${(fh / 2 - k * cy).toFixed(1)}px) scale(${k.toFixed(3)})`;
+    }
+    document.getElementById('tt-zoom')?.addEventListener('click', () => {
+        ttZoom = !ttZoom;
+        try { localStorage.setItem('hp.thuytinh.zoom', ttZoom ? '1' : '0'); } catch (_) {}
+        ttZoomKey = '';
+        ttApplyZoom();
+    });
+    // Hũ đổi chỗ / đổi cỡ / đổi kiểu, cửa sổ đổi cỡ → canh lại (rẻ: chỉ so offset, không đo lại khi không đổi)
+    setInterval(() => { if (document.getElementById('view-thuytinh')?.classList.contains('active')) ttApplyZoom(); }, 400);
+    function ttShowSec(sec) {
+        if (!ttBody || !ttBody.querySelector(`.tt-sec[data-sec="${sec}"]`)) return;
+        ttBody.dataset.sec = sec;
+        ttZoomKey = '';
+        setTimeout(ttApplyZoom, 0);
+        ttBody.querySelectorAll('#tt-nav button').forEach(b => b.classList.toggle('on', b.dataset.sec === sec));
+        ttBody.querySelectorAll('.tt-sec').forEach(s => { s.hidden = s.dataset.sec !== sec; });
+        try { localStorage.setItem('hp.thuytinh.sec', sec); } catch (_) {}
+        if (sec === 'look') ttShowLook(ttBody.querySelector('#tt-look-seg button.on')?.dataset.look || 'jar');
+    }
+    document.getElementById('tt-nav')?.addEventListener('click', (e) => { const b = e.target.closest('button[data-sec]'); if (b) ttShowSec(b.dataset.sec); });
+    document.getElementById('tt-look-seg')?.addEventListener('click', (e) => { const b = e.target.closest('button[data-look]'); if (b) ttShowLook(b.dataset.look); });
+    document.getElementById('tt-preview-on')?.addEventListener('click', () => document.getElementById('btn-toggle-thuytinh-preview')?.click());
+
+    // ===== ✍️ Lớp trang trí hũ (chữ + sticker AI): danh sách lớp bên trái, bảng chỉnh bên phải, kéo đặt chỗ trên khung xem trước =====
+    const jtFull = () => currentJarTexts.length >= (window.HpJarText?.MAX_ITEMS || 8);
+    const jtCur = () => currentJarTexts.find(x => x.id === jtSelected);
     function renderJarTextPanel() {
         const host = document.getElementById('jt-list');
         const JT = window.HpJarText;
         if (!host || !JT) return;
-        // Đang gõ trong 1 ô của danh sách → không vẽ lại (mất con trỏ); chỉ cập nhật ô đang chọn.
-        if (host.contains(document.activeElement) && document.activeElement.matches('textarea')) {
-            host.querySelectorAll('.jt-item').forEach(el => el.classList.toggle('sel', el.dataset.id === jtSelected));
-            return;
-        }
-        const esc = (v) => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-        host.innerHTML = currentJarTexts.map(it => {
-            const st = JT.STYLES.find(x => x.id === it.style) || JT.STYLES[0];
-            const color = it.color || JT.DEFAULT_COLOR[it.style] || '#ffffff';
-            return `
-            <div class="jt-item${it.id === jtSelected ? ' sel' : ''}" data-id="${esc(it.id)}">
-                <div class="jt-row">
-                    <textarea class="jt-text" rows="1" maxlength="${JT.MAX_LEN}" placeholder="Gõ chữ… (Enter = xuống dòng)">${esc(it.text)}</textarea>
-                    <button type="button" class="ghost small jt-del" title="Xoá chữ này">🗑</button>
-                </div>
-                <div class="jt-row">
-                    <select class="cfg-select jt-style" title="Kiểu chữ">${JT.STYLES.map(x => `<option value="${x.id}" ${x.id === it.style ? 'selected' : ''}>${x.label}</option>`).join('')}</select>
-                    <input type="color" class="jt-color" value="${color}" title="Màu chủ đạo (dòng 1)" ${st.hue ? '' : 'disabled'} />
-                    ${st.lines ? `<input type="color" class="jt-color2" value="${it.color2 || JT.DEFAULT_COLOR2}" title="Màu dòng 2 (mỗi dòng xen kẽ 2 màu)" />` : ''}
-                </div>
-                <div class="jt-row">
-                    <select class="cfg-select jt-deco" title="Sticker trang trí quanh chữ">${JT.DECOS.map(x => `<option value="${x.id}" ${x.id === it.deco ? 'selected' : ''}>${x.label}</option>`).join('')}</select>
-                    <select class="cfg-select jt-anim" title="Hiệu ứng động">${JT.ANIMS.map(x => `<option value="${x.id}" ${x.id === it.anim ? 'selected' : ''}>${x.label}</option>`).join('')}</select>
-                </div>
-                <div class="jt-row jt-sliders">
-                    <label>Cỡ <input type="range" class="jt-size" min="4" max="30" step="0.5" value="${it.size}" /></label>
-                    <label>Xoay <input type="range" class="jt-rot" min="-45" max="45" step="1" value="${it.rot}" /></label>
-                </div>
-                <div class="jt-row jt-react">
-                    <select class="cfg-select jt-show" title="Khi nào chữ hiện">${JT.SHOWS.map(x => `<option value="${x.id}" ${x.id === it.show ? 'selected' : ''}>${x.label}</option>`).join('')}</select>
-                    <label title="Nảy lên mỗi khi có quà từ mức xu này"><input type="checkbox" class="jt-pop" ${it.pop ? 'checked' : ''}/> Nảy</label>
-                    <label title="Quà từ bao nhiêu xu thì tính là quà lớn">≥ <input type="number" class="jt-minxu" min="1" max="100000" value="${it.minXu}" ${it.show === 'gift' || it.pop ? '' : 'disabled'}/> xu</label>
-                </div>
-                <div class="jt-row jt-sliders">
-                    <label>Ngang <input type="range" class="jt-x" min="${JT.POS_MIN}" max="${JT.POS_MAX}" step="0.5" value="${it.x}" /></label>
-                    <label>Dọc <input type="range" class="jt-y" min="${JT.POS_MIN}" max="${JT.POS_MAX}" step="0.5" value="${it.y}" /></label>
-                </div>
-                <div class="jt-row jt-pos">
-                    <button type="button" class="ghost small" data-jt-nudge="-1,0" title="Sang trái">◀</button>
-                    <button type="button" class="ghost small" data-jt-nudge="0,-1" title="Lên">▲</button>
-                    <button type="button" class="ghost small" data-jt-nudge="0,1" title="Xuống">▼</button>
-                    <button type="button" class="ghost small" data-jt-nudge="1,0" title="Sang phải">▶</button>
-                    <button type="button" class="ghost small" data-jt-place="50,16" title="Đặt vắt ngang miệng hũ">⤒ Miệng</button>
-                    <button type="button" class="ghost small" data-jt-place="50,48" title="Giữa thân hũ">⊙ Giữa</button>
-                    <button type="button" class="ghost small" data-jt-place="50,82" title="Gần đáy hũ">⤓ Đáy</button>
-                    <button type="button" class="ghost small${it.flip ? ' on' : ''}" data-jt-flip title="Đảo sticker trái ↔ phải">⇄</button>
-                    <button type="button" class="ghost small" data-jt-reset title="Thẳng lại (xoay 0°)">⟲ 0°</button>
-                </div>
-            </div>`;
-        }).join('') || '<div class="jt-empty">Chưa có chữ nào — bấm ➕ Thêm chữ.</div>';
+        if (!jtCur()) jtSelected = '';
+        const rows = [...currentJarTexts].reverse();      // lớp TRÊN CÙNG ở đầu danh sách
+        host.innerHTML = rows.map(it => {
+            const img = it.kind === 'img';
+            const st = JT.STYLES.find(x => x.id === it.style);
+            const name = img ? 'Sticker AI' : (it.text || '(chữ trống)').replace(/\n/g, ' ');
+            const sub = img ? '🪄 Ảnh' : (st ? st.label : it.style);
+            return `<div class="jt-layer${it.id === jtSelected ? ' on' : ''}${it.hide ? ' off' : ''}" data-id="${escHtml(it.id)}" draggable="true">`
+                + `<span class="jt-grip" title="Kéo để đổi lớp trên/dưới">⋮⋮</span>`
+                + `<div class="jt-th">${img ? `<img src="${escHtml(it.src)}" alt="">` : '✍️'}</div>`
+                + `<div class="jt-nm"><b>${escHtml(name)}</b><small>${escHtml(sub)}</small></div>`
+                + `<div class="jt-acts"><button type="button" data-act="eye" title="${it.hide ? 'Hiện lại' : 'Ẩn tạm'}">${it.hide ? '🙈' : '👁'}</button><button type="button" data-act="dup" title="Nhân bản">⧉</button><button type="button" data-act="del" title="Xoá">🗑</button></div>`
+                + `</div>`;
+        }).join('') || '<div class="jt-empty">Chưa có lớp nào — bấm ＋ Chữ, chọn bộ mẫu, hoặc tạo Sticker AI.</div>';
+        const cnt = document.getElementById('jt-count');
+        if (cnt) cnt.textContent = `${currentJarTexts.length}/${JT.MAX_ITEMS}`;
         const pre = document.getElementById('jt-presets');
         if (pre && !pre.childElementCount) {
             const hot = new Set(JT.presetsFor(new Date()));
             const list = [...JT.PRESETS].sort((a, b) => hot.has(b.id) - hot.has(a.id));
-            pre.innerHTML = '<span>🎁 Bộ chữ mẫu:</span>' + list.map(p => `<button type="button" class="ghost small${hot.has(p.id) ? ' hot' : ''}" data-jt-preset="${p.id}" title="${hot.has(p.id) ? 'Đúng dịp hôm nay — ' : ''}Bấm để dùng bộ này (thay chữ hiện tại)">${hot.has(p.id) ? '⭐ ' : ''}${p.label}</button>`).join('');
+            pre.innerHTML = list.map(p => `<button type="button" class="${hot.has(p.id) ? 'hot' : ''}" data-jt-preset="${p.id}" title="${hot.has(p.id) ? 'Đúng dịp hôm nay — ' : ''}Bấm để dùng bộ này (thay chữ hiện tại, giữ sticker)">${hot.has(p.id) ? '⭐ ' : ''}${p.label}</button>`).join('');
         }
-        const vars = document.getElementById('jt-vars');
-        if (vars && !vars.childElementCount) vars.innerHTML = '<span>Chèn chữ tự điền:</span>' + JT.VARS.map(v => `<button type="button" class="ghost small" data-jt-var="${v.k}" title="${v.label}">${v.k}</button>`).join('');
         const addBtn = document.getElementById('jt-add');
-        if (addBtn) addBtn.disabled = currentJarTexts.length >= JT.MAX_ITEMS;
+        if (addBtn) addBtn.disabled = jtFull();
+        renderJarTextInspector();
     }
-    function jtUpdate(id, patch, rerender) {
+    // Bảng chỉnh lớp đang chọn
+    let tiStyleKey = '';
+    function renderJarTextInspector() {
+        const JT = window.HpJarText;
+        const insp = document.getElementById('jt-insp');
+        if (!JT || !insp) return;
+        const it = jtCur();
+        document.getElementById('jt-insp-empty').hidden = !!it;
+        document.getElementById('jt-insp-body').hidden = !it;
+        if (!it) return;
+        const img = it.kind === 'img';
+        insp.classList.toggle('is-img', img);
+        document.getElementById('ti-kind').textContent = img ? 'Sticker AI' : 'Chữ';
+        const ta = document.getElementById('ti-text');
+        ta.hidden = img;
+        ta.maxLength = JT.MAX_LEN;
+        if (document.activeElement !== ta) ta.value = img ? '' : it.text;
+        const pic = document.getElementById('ti-img');
+        pic.hidden = !img;
+        if (img && pic.getAttribute('src') !== it.src) pic.src = it.src;
+        // lần đầu: dựng lưới kiểu chữ / sticker quanh chữ / chuyển động / hiện khi / biến
+        const stHost = document.getElementById('ti-styles');
+        if (!stHost.childElementCount) {
+            stHost.innerHTML = JT.STYLES.map(s => `<button type="button" class="ti-st" data-s="${s.id}" title="${escHtml(s.label)}"><div class="tt-jar-texts"></div><small>${escHtml(s.label.replace(/^\S+\s/, ''))}</small></button>`).join('');
+            document.getElementById('ti-deco').innerHTML = JT.DECOS.map(d => `<option value="${d.id}">${escHtml(d.label)}</option>`).join('');
+            document.getElementById('ti-anim').innerHTML = JT.ANIMS.map(a => `<button type="button" data-a="${a.id}">${escHtml(a.label)}</button>`).join('');
+            document.getElementById('ti-show').innerHTML = JT.SHOWS.map(x => `<button type="button" data-show="${x.id}">${escHtml(x.label.replace(/^\S+\s(?=Khi)/, ''))}</button>`).join('');
+            document.getElementById('jt-vars').innerHTML = JT.VARS.map(v => `<button type="button" data-jt-var="${v.k}" title="${escHtml(v.label)}">${v.k}</button>`).join('');
+        }
+        if (!img) {
+            const sample = ((it.text || 'Abc').split('\n')[0] || 'Abc').slice(0, 8);
+            if (tiStyleKey !== sample) {      // vẽ lại ô xem trước kiểu chữ theo chữ đang gõ
+                tiStyleKey = sample;
+                stHost.querySelectorAll('.ti-st').forEach(b => {
+                    const box = b.firstElementChild; box.textContent = '';
+                    const el = document.createElement('div');
+                    JT.paint(el, JT.normalizeItem({ text: sample, style: b.dataset.s, x: 50, y: 42, size: 20 }, 0));
+                    box.appendChild(el);
+                });
+            }
+            stHost.querySelectorAll('.ti-st').forEach(b => b.classList.toggle('on', b.dataset.s === it.style));
+            document.getElementById('ti-deco').value = it.deco;
+            document.getElementById('ti-flip').classList.toggle('ti-flip-on', !!it.flip);
+            const st = JT.STYLES.find(s => s.id === it.style) || {};
+            const c1 = document.getElementById('ti-c1'), c2 = document.getElementById('ti-c2');
+            c1.value = it.color || JT.DEFAULT_COLOR[it.style] || '#ffffff';
+            c1.disabled = !st.hue;
+            c1.title = st.hue ? 'Màu chủ đạo' : 'Kiểu này có màu cố định';
+            c2.value = it.color2 || JT.DEFAULT_COLOR2;
+            c2.hidden = !st.lines;
+        }
+        document.querySelectorAll('#ti-anim button').forEach(b => b.classList.toggle('on', b.dataset.a === it.anim));
+        document.querySelectorAll('#ti-show button').forEach(b => b.classList.toggle('on', b.dataset.show === it.show));
+        const size = document.getElementById('ti-size'), rot = document.getElementById('ti-rot');
+        size.value = it.size; rot.value = it.rot;
+        document.getElementById('ti-size-v').textContent = it.size;
+        document.getElementById('ti-rot-v').textContent = it.rot + '°';
+        document.getElementById('ti-pop').checked = !!it.pop;
+        const minxu = document.getElementById('ti-minxu');
+        minxu.value = it.minXu;
+        minxu.disabled = !(it.show === 'gift' || it.pop);
+    }
+    // layers: true = vẽ lại cả danh sách lớp (đổi tên/kiểu/ẩn), false = chỉ bảng chỉnh (kéo thanh trượt)
+    function jtUpdate(id, patch, layers) {
         const it = currentJarTexts.find(x => x.id === id);
         if (!it) return;
         Object.assign(it, patch);
         currentJarTexts = window.HpJarText.normalizeList(currentJarTexts);
         jtSelected = id;
         gameInstance?.selectJarText?.(id);
-        if (rerender) renderJarTextPanel();
+        if (layers) renderJarTextPanel(); else renderJarTextInspector();
         pushConfigUpdate();
+    }
+    function jtSelect(id) {
+        jtSelected = id || '';
+        gameInstance?.selectJarText?.(jtSelected);
+        renderJarTextPanel();
+    }
+    function jtAddItem(it) {
+        if (jtFull()) { ttToast(`Tối đa ${window.HpJarText.MAX_ITEMS} lớp — xoá bớt rồi thêm.`, 'warn'); return false; }
+        currentJarTexts.push(it);
+        currentJarTexts = window.HpJarText.normalizeList(currentJarTexts);
+        jtSelected = it.id;
+        renderJarTextPanel();
+        pushConfigUpdate();
+        gameInstance?.selectJarText?.(it.id);
+        return true;
+    }
+    function jtAddImage(src, x, y) {
+        const JT = window.HpJarText;
+        const it = JT.normalizeItem({ id: 'ji' + Date.now().toString(36), kind: 'img', src, x: x ?? 50, y: y ?? 30, size: 10, anim: 'float' }, 0);
+        if (it.kind !== 'img') return false;
+        return jtAddItem(it);
     }
     (function wireJarTextPanel() {
         const host = document.getElementById('jt-list');
         if (!host) return;
-        const idOf = (el) => el.closest('.jt-item')?.dataset.id;
-        host.addEventListener('input', (e) => {
-            const id = idOf(e.target); if (!id) return;
-            if (e.target.matches('.jt-text')) jtUpdate(id, { text: e.target.value });
-            else if (e.target.matches('.jt-size')) jtUpdate(id, { size: +e.target.value });
-            else if (e.target.matches('.jt-rot')) jtUpdate(id, { rot: +e.target.value });
-            else if (e.target.matches('.jt-x')) jtUpdate(id, { x: +e.target.value });
-            else if (e.target.matches('.jt-y')) jtUpdate(id, { y: +e.target.value });
-            else if (e.target.matches('.jt-color')) jtUpdate(id, { color: e.target.value });
-            else if (e.target.matches('.jt-color2')) jtUpdate(id, { color2: e.target.value });
-            else if (e.target.matches('.jt-minxu')) jtUpdate(id, { minXu: +e.target.value });
-        });
-        host.addEventListener('change', (e) => {
-            const id = idOf(e.target); if (!id) return;
-            if (e.target.matches('.jt-style')) jtUpdate(id, { style: e.target.value, color: '' }, true);
-            else if (e.target.matches('.jt-anim')) jtUpdate(id, { anim: e.target.value });
-            else if (e.target.matches('.jt-deco')) jtUpdate(id, { deco: e.target.value });
-            else if (e.target.matches('.jt-show')) jtUpdate(id, { show: e.target.value }, true);
-            else if (e.target.matches('.jt-pop')) jtUpdate(id, { pop: e.target.checked }, true);
-        });
         host.addEventListener('click', (e) => {
-            const id = idOf(e.target); if (!id) return;
-            if (e.target.closest('.jt-del')) {
+            const row = e.target.closest('.jt-layer'); if (!row) return;
+            const id = row.dataset.id, act = e.target.closest('[data-act]')?.dataset.act;
+            const it = currentJarTexts.find(x => x.id === id); if (!it) return;
+            if (act === 'del') {
                 currentJarTexts = currentJarTexts.filter(x => x.id !== id);
+                if (jtSelected === id) jtSelected = currentJarTexts[currentJarTexts.length - 1]?.id || '';
                 renderJarTextPanel();
                 pushConfigUpdate();
-                return;
-            }
-            const it = currentJarTexts.find(x => x.id === id);
-            const nudge = e.target.closest('[data-jt-nudge]'), place = e.target.closest('[data-jt-place]');
-            if (it && nudge) { const [dx, dy] = nudge.dataset.jtNudge.split(',').map(Number); jtUpdate(id, { x: it.x + dx, y: it.y + dy }, true); return; }
-            if (it && place) { const [px, py] = place.dataset.jtPlace.split(',').map(Number); jtUpdate(id, { x: px, y: py }, true); return; }
-            if (it && e.target.closest('[data-jt-flip]')) { jtUpdate(id, { flip: !it.flip }, true); return; }
-            if (it && e.target.closest('[data-jt-reset]')) { jtUpdate(id, { rot: 0 }, true); return; }
-            jtSelected = id;
-            gameInstance?.selectJarText?.(id);
-            host.querySelectorAll('.jt-item').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
+                gameInstance?.selectJarText?.(jtSelected);
+            } else if (act === 'eye') jtUpdate(id, { hide: !it.hide }, true);
+            else if (act === 'dup') {
+                if (jtFull()) { ttToast(`Tối đa ${window.HpJarText.MAX_ITEMS} lớp — xoá bớt rồi thêm.`, 'warn'); return; }
+                const c = { ...it, id: 'jc' + Date.now().toString(36), x: it.x + 4, y: it.y + 4 };
+                currentJarTexts.splice(currentJarTexts.indexOf(it) + 1, 0, c);       // bản sao nằm ngay trên lớp gốc
+                currentJarTexts = window.HpJarText.normalizeList(currentJarTexts);
+                jtSelected = c.id;
+                renderJarTextPanel();
+                pushConfigUpdate();
+                gameInstance?.selectJarText?.(c.id);
+            } else jtSelect(id);
         });
-        // 🎁 Bộ chữ mẫu theo mùa: thay toàn bộ chữ hiện tại (hỏi trước nếu đang có chữ)
-        document.getElementById('jt-presets')?.addEventListener('click', (e) => {
+        // Kéo hàng ⋮⋮ đổi lớp trên/dưới (danh sách hiện trên→dưới, mảng lưu dưới→trên)
+        let dragRow = null;
+        host.addEventListener('dragstart', (e) => {
+            dragRow = e.target.closest('.jt-layer'); if (!dragRow) return;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/x-hp-layer', dragRow.dataset.id);
+            requestAnimationFrame(() => dragRow && dragRow.classList.add('dragging'));
+        });
+        host.addEventListener('dragover', (e) => {
+            if (!dragRow) return;
+            e.preventDefault();
+            const over = e.target.closest('.jt-layer'); if (!over || over === dragRow) return;
+            const r = over.getBoundingClientRect();
+            host.insertBefore(dragRow, e.clientY < r.top + r.height / 2 ? over : over.nextSibling);
+        });
+        host.addEventListener('dragend', () => {
+            if (!dragRow) return;
+            dragRow.classList.remove('dragging');
+            dragRow = null;
+            const order = [...host.querySelectorAll('.jt-layer')].map(x => x.dataset.id).reverse();
+            const byId = new Map(currentJarTexts.map(x => [x.id, x]));
+            const next = order.map(id => byId.get(id)).filter(Boolean);
+            if (next.map(x => x.id).join('|') !== currentJarTexts.map(x => x.id).join('|')) { currentJarTexts = next; pushConfigUpdate(); }
+            renderJarTextPanel();
+        });
+        // Bảng chỉnh
+        const on = (id, ev, fn) => document.getElementById(id)?.addEventListener(ev, fn);
+        on('ti-text', 'input', (e) => { if (jtSelected) jtUpdate(jtSelected, { text: e.target.value }, false); const row = host.querySelector(`.jt-layer[data-id="${CSS.escape(jtSelected)}"] .jt-nm b`); if (row) row.textContent = e.target.value.replace(/\n/g, ' ') || '(chữ trống)'; });
+        on('ti-styles', 'click', (e) => { const b = e.target.closest('.ti-st'); if (b && jtSelected) jtUpdate(jtSelected, { style: b.dataset.s, color: '' }, true); });
+        on('ti-deco', 'change', (e) => jtSelected && jtUpdate(jtSelected, { deco: e.target.value }, false));
+        on('ti-flip', 'click', () => { const it = jtCur(); if (it) jtUpdate(it.id, { flip: !it.flip }, false); });
+        on('ti-c1', 'input', (e) => jtSelected && jtUpdate(jtSelected, { color: e.target.value }, false));
+        on('ti-c2', 'input', (e) => jtSelected && jtUpdate(jtSelected, { color2: e.target.value }, false));
+        on('ti-anim', 'click', (e) => { const b = e.target.closest('[data-a]'); if (b && jtSelected) jtUpdate(jtSelected, { anim: b.dataset.a }, false); });
+        on('ti-size', 'input', (e) => jtSelected && jtUpdate(jtSelected, { size: +e.target.value }, false));
+        on('ti-rot', 'input', (e) => jtSelected && jtUpdate(jtSelected, { rot: +e.target.value }, false));
+        on('ti-show', 'click', (e) => { const b = e.target.closest('[data-show]'); if (b && jtSelected) jtUpdate(jtSelected, { show: b.dataset.show }, false); });
+        on('ti-pop', 'change', (e) => jtSelected && jtUpdate(jtSelected, { pop: e.target.checked }, false));
+        on('ti-minxu', 'input', (e) => jtSelected && jtUpdate(jtSelected, { minXu: +e.target.value }, false));
+        // Chèn biến tự điền vào chữ đang chọn (đúng chỗ con trỏ)
+        on('jt-vars', 'click', (e) => {
+            const b = e.target.closest('[data-jt-var]'); const it = jtCur();
+            if (!b || !it || it.kind === 'img') return;
+            const ta = document.getElementById('ti-text');
+            const pos = document.activeElement === ta ? ta.selectionStart : it.text.length;
+            jtUpdate(it.id, { text: it.text.slice(0, pos) + b.dataset.jtVar + it.text.slice(pos) }, true);
+            ta.value = jtCur().text;
+        });
+        // 🎁 Bộ chữ mẫu: thay CHỮ hiện tại (giữ sticker AI)
+        on('jt-presets', 'click', async (e) => {
             const b = e.target.closest('[data-jt-preset]'); if (!b) return;
             const JT = window.HpJarText;
             const p = JT.PRESETS.find(x => x.id === b.dataset.jtPreset); if (!p) return;
-            if (currentJarTexts.length && !confirm(`Thay ${currentJarTexts.length} chữ đang có bằng bộ mẫu "${p.label}"?`)) return;
-            currentJarTexts = JT.presetItems(p.id);
+            const texts = currentJarTexts.filter(x => x.kind !== 'img');
+            if (texts.length && !(await hpConfirm({ icon: '🎁', title: `Dùng bộ mẫu "${p.label}"?`, body: `Thay ${texts.length} chữ đang có (sticker AI giữ nguyên).`, okLabel: 'Dùng bộ này' }))) return;
+            currentJarTexts = JT.normalizeList([...JT.presetItems(p.id), ...currentJarTexts.filter(x => x.kind === 'img')]);
             jtSelected = currentJarTexts[0]?.id || '';
             renderJarTextPanel();
             pushConfigUpdate();
             if (jtSelected) gameInstance?.selectJarText?.(jtSelected);
         });
-        // Chèn biến tự điền vào ô chữ đang chọn
-        document.getElementById('jt-vars')?.addEventListener('click', (e) => {
-            const b = e.target.closest('[data-jt-var]'); if (!b) return;
-            const id = jtSelected || currentJarTexts[0]?.id; if (!id) return;
-            const ta = document.querySelector(`#jt-list .jt-item[data-id="${id}"] .jt-text`);
-            const it = currentJarTexts.find(x => x.id === id); if (!it) return;
-            const pos = ta && document.activeElement === ta ? ta.selectionStart : it.text.length;
-            jtUpdate(id, { text: it.text.slice(0, pos) + b.dataset.jtVar + it.text.slice(pos) }, true);
-        });
-        // Phím mũi tên nhích chữ đang chọn (Shift = 5 bước) khi không gõ trong ô nhập
+        // Phím mũi tên nhích lớp đang chọn (Shift = 5 bước) khi không gõ trong ô nhập
         document.addEventListener('keydown', (e) => {
             if (!jtSelected || !document.getElementById('view-thuytinh')?.classList.contains('active')) return;
             if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
             const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
-            const it = currentJarTexts.find(x => x.id === jtSelected);
+            const it = jtCur();
             if (!d || !it) return;
             e.preventDefault();
             const k = e.shiftKey ? 5 : 1;
-            jtUpdate(it.id, { x: it.x + d[0] * k, y: it.y + d[1] * k });
-            const row = host.querySelector(`.jt-item[data-id="${it.id}"]`);
-            if (row) { row.querySelector('.jt-x').value = it.x; row.querySelector('.jt-y').value = it.y; }
+            jtUpdate(it.id, { x: it.x + d[0] * k, y: it.y + d[1] * k }, false);
         });
-        document.getElementById('jt-add')?.addEventListener('click', () => {
+        on('jt-add', 'click', () => {
             const JT = window.HpJarText;
-            if (!JT || currentJarTexts.length >= JT.MAX_ITEMS) return;
+            if (!JT) return;
             const it = JT.newItem(currentJarTexts.length);
-            currentJarTexts.push(it);
-            jtSelected = it.id;
-            renderJarTextPanel();
-            pushConfigUpdate();
-            gameInstance?.selectJarText?.(it.id);
-            document.querySelector(`#jt-list .jt-item[data-id="${it.id}"] .jt-text`)?.select();
+            if (jtAddItem(it)) { const ta = document.getElementById('ti-text'); ta.focus(); ta.select(); }
         });
+        on('jt-add-sticker', 'click', () => { ttShowLook('ai'); document.getElementById('ai-text')?.focus(); });
+    })();
+
+    // ===== 🪄 Sticker AI — người dùng TỰ tạo tài khoản OpenAI + dán khoá (lib/ai-openai.js gọi thẳng OpenAI) =====
+    const ai = { settings: null, image: null, preset: 'chibi', busy: false, lib: [], loaded: false };
+    const aiApi = async (url, opts) => {
+        try { const r = await fetch(url, opts); return await r.json(); }
+        catch (_) { return { ok: false, message: 'Không gọi được app (server cục bộ).' }; }
+    };
+    const aiPost = (url, body) => aiApi(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    function aiRenderKey() {
+        const st = ai.settings, el = document.getElementById('ai-keystat');
+        if (!el || !st) return;
+        el.className = 'ai-keystat ' + (st.hasKey ? 'ok' : '');
+        el.textContent = st.hasKey ? `✓ Đã có khoá OpenAI (${st.keyHint}) — sẵn sàng tạo sticker` : 'Chưa có khoá — tạo tài khoản OpenAI theo hướng dẫn dưới rồi dán khoá vào đây.';
+        const how = document.getElementById('ai-howto');
+        if (how && !st.hasKey) how.open = true;
+        const m = document.getElementById('ai-model');
+        if (m) {
+            if (![...m.options].some(o => o.value === st.model)) m.insertAdjacentHTML('beforeend', `<option value="${escHtml(st.model)}">${escHtml(st.model)}</option>`);
+            m.value = st.model;
+        }
+        document.querySelectorAll('#ai-quality button').forEach(b => b.classList.toggle('on', b.dataset.q === st.quality));
+        const left = document.getElementById('ai-left');
+        if (left) left.textContent = st.hasKey ? `khoá ${st.keyHint}` : 'chưa có khoá';
+    }
+    function aiRenderLib() {
+        const host = document.getElementById('ai-lib');
+        if (!host) return;
+        host.innerHTML = ai.lib.map(it => `<div class="ai-it" draggable="true" data-src="${escHtml(it.src)}" data-id="${escHtml(it.id)}" title="${escHtml(it.prompt || '')} — kéo thả lên hũ (hoặc bấm)"><img src="${escHtml(it.src)}" alt="" loading="lazy"><button type="button" class="ai-del" title="Xoá khỏi thư viện">✕</button></div>`).join('')
+            || '<div class="ai-lib-empty">Chưa có sticker nào — gõ mô tả ở ô dưới khung xem trước rồi bấm ✨ Tạo.</div>';
+        const c = document.getElementById('ai-lib-count');
+        if (c) c.textContent = ai.lib.length ? String(ai.lib.length) : '';
+    }
+    async function aiRefresh(force) {
+        if (ai.loaded && !force) return;
+        ai.loaded = true;
+        const [s, l] = await Promise.all([aiApi('/api/thuytinh/ai/settings'), aiApi('/api/thuytinh/ai/library')]);
+        if (s.ok) { ai.settings = s.settings; aiRenderKey(); }
+        if (l.ok) { ai.lib = l.items || []; aiRenderLib(); }
+    }
+    (function wireAi() {
+        const on = (id, ev, fn) => document.getElementById(id)?.addEventListener(ev, fn);
+        on('ai-key-save', 'click', async () => {
+            const inp = document.getElementById('ai-key'), el = document.getElementById('ai-keystat');
+            const key = inp.value.trim();
+            if (!key) { inp.focus(); return; }
+            el.className = 'ai-keystat'; el.textContent = '⏳ Đang kiểm tra khoá với OpenAI…';
+            const chk = await aiPost('/api/thuytinh/ai/settings/check', { apiKey: key });
+            // khoá đúng nhưng model/xác minh tổ chức chưa xong vẫn lưu — báo rõ việc cần làm
+            const keep = chk.ok || ['model_unavailable', 'org_unverified', 'no_network'].includes(chk.error);
+            if (!keep) { el.className = 'ai-keystat bad'; el.textContent = '✗ ' + (chk.message || 'Khoá không dùng được.'); return; }
+            const r = await aiPost('/api/thuytinh/ai/settings', { apiKey: key });
+            if (!r.ok) { el.className = 'ai-keystat bad'; el.textContent = '✗ ' + (r.message || 'Không lưu được khoá.'); return; }
+            inp.value = '';
+            ai.settings = r.settings;
+            aiRenderKey();
+            if (!chk.ok) { el.className = 'ai-keystat bad'; el.textContent = '⚠ Đã lưu khoá, nhưng: ' + chk.message; }
+            else ttToast('✓ Đã lưu khoá OpenAI', 'success');
+        });
+        on('ai-key', 'keydown', (e) => { if (e.key === 'Enter') document.getElementById('ai-key-save')?.click(); });
+        on('ai-model', 'change', async (e) => { const r = await aiPost('/api/thuytinh/ai/settings', { model: e.target.value }); if (r.ok) { ai.settings = r.settings; aiRenderKey(); } });
+        on('ai-quality', 'click', async (e) => {
+            const b = e.target.closest('[data-q]'); if (!b) return;
+            const r = await aiPost('/api/thuytinh/ai/settings', { quality: b.dataset.q });
+            if (r.ok) { ai.settings = r.settings; aiRenderKey(); }
+        });
+        // Thư viện: bấm = gắn lên hũ, ✕ = xoá, kéo thả lên khung xem trước = gắn đúng chỗ thả
+        on('ai-lib', 'click', async (e) => {
+            const t = e.target.closest('.ai-it'); if (!t) return;
+            if (e.target.closest('.ai-del')) {
+                if (!(await hpConfirm({ icon: '🗑', title: 'Xoá sticker này?', body: 'Lớp đang dùng ảnh này trên hũ sẽ mất ảnh.', okLabel: 'Xoá', tone: 'danger' }))) return;
+                const r = await aiApi('/api/thuytinh/ai/library/' + encodeURIComponent(t.dataset.id), { method: 'DELETE' });
+                if (r.ok) { ai.lib = ai.lib.filter(x => x.id !== t.dataset.id); aiRenderLib(); }
+                return;
+            }
+            if (jtAddImage(t.dataset.src)) ttToast('Đã gắn lên hũ — kéo trên khung xem trước để đặt chỗ');
+        });
+        const dragFrom = (sel) => (e) => { const t = e.target.closest(sel); if (!t || !t.dataset.src) return; e.dataTransfer.setData('text/x-hp-ai', t.dataset.src); e.dataTransfer.effectAllowed = 'copy'; };
+        on('ai-lib', 'dragstart', dragFrom('.ai-it'));
+        on('ai-tray', 'dragstart', dragFrom('.ai-it'));
+        on('ai-tray', 'click', (e) => { const t = e.target.closest('.ai-it[data-src]'); if (t && jtAddImage(t.dataset.src)) ttToast('Đã gắn lên hũ'); });
+        const wrap = document.querySelector('#view-thuytinh .stage-wrap');
+        if (wrap) {
+            wrap.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/x-hp-ai')) { e.preventDefault(); wrap.classList.add('drop'); } });
+            wrap.addEventListener('dragleave', (e) => { if (!wrap.contains(e.relatedTarget)) wrap.classList.remove('drop'); });
+            wrap.addEventListener('drop', (e) => {
+                const src = e.dataTransfer.getData('text/x-hp-ai');
+                wrap.classList.remove('drop');
+                if (!src) return;
+                e.preventDefault();
+                const layer = dom.stageFrame?.querySelector('.tt-jar-texts');
+                const r = layer?.getBoundingClientRect();
+                const JT = window.HpJarText;
+                const clamp = (v) => Math.round(Math.max(JT.POS_MIN, Math.min(JT.POS_MAX, v)) * 10) / 10;
+                if (r && r.width) jtAddImage(src, clamp((e.clientX - r.left) / r.width * 100), clamp((e.clientY - r.top) / r.height * 100));
+                else jtAddImage(src);
+            });
+        }
+        // Ảnh thật: thu về ≤1024px trước khi gửi (đỡ nặng, OpenAI cũng chỉ cần chừng đó)
+        const att = document.getElementById('ai-att'), file = document.getElementById('ai-file');
+        const setAtt = (dataUrl) => {
+            ai.image = dataUrl || null;
+            att.classList.toggle('has', !!dataUrl);
+            att.innerHTML = dataUrl ? `<img src="${dataUrl}" alt="">` : '📷';
+            att.title = dataUrl ? 'Bỏ ảnh này' : 'Thêm ảnh thật (mặt, thú cưng, đồ vật…) để AI vẽ theo';
+        };
+        att?.addEventListener('click', () => { if (ai.image) setAtt(null); else file?.click(); });
+        file?.addEventListener('change', () => {
+            const f = file.files && file.files[0];
+            file.value = '';
+            if (!f) return;
+            const url = URL.createObjectURL(f), im = new Image();
+            im.onload = () => {
+                const k = Math.min(1, 1024 / Math.max(im.naturalWidth, im.naturalHeight));
+                const cv = document.createElement('canvas');
+                cv.width = Math.round(im.naturalWidth * k); cv.height = Math.round(im.naturalHeight * k);
+                cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+                URL.revokeObjectURL(url);
+                setAtt(f.type === 'image/png' ? cv.toDataURL('image/png') : cv.toDataURL('image/jpeg', 0.9));
+            };
+            im.onerror = () => { URL.revokeObjectURL(url); ttToast('Ảnh không đọc được — dùng PNG/JPG/WebP.', 'error'); };
+            im.src = url;
+        });
+        on('ai-preset', 'click', (e) => {
+            const b = e.target.closest('[data-p]'); if (!b) return;
+            ai.preset = b.dataset.p;
+            b.parentElement.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b));
+        });
+        on('ai-text', 'keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) document.getElementById('ai-go')?.click(); });
+        on('ai-go', 'click', async () => {
+            if (ai.busy) return;
+            await aiRefresh();
+            const text = document.getElementById('ai-text').value.trim();
+            if (!ai.settings?.hasKey) { ttShowSec('look'); ttShowLook('ai'); document.getElementById('ai-key')?.focus(); ttToast('Dán khoá OpenAI của bạn trước (mục 🪄 AI).', 'warn'); return; }
+            if (!text && !ai.image) { document.getElementById('ai-text').focus(); return; }
+            const go = document.getElementById('ai-go'), tray = document.getElementById('ai-tray');
+            ai.busy = true; go.disabled = true; go.textContent = '⏳ Đang vẽ…';
+            tray.hidden = false;
+            tray.insertAdjacentHTML('afterbegin', '<div class="ai-it load" title="AI đang vẽ — thường 10–60 giây"></div>');
+            const tile = tray.firstElementChild;
+            const r = await aiPost('/api/thuytinh/ai/sticker', { prompt: text, preset: ai.preset, quality: ai.settings.quality, image: ai.image });
+            ai.busy = false; go.disabled = false; go.textContent = '✨ Tạo';
+            if (!r.ok) {
+                tile.className = 'ai-it err'; tile.textContent = '⚠'; tile.title = r.message || 'Lỗi';
+                ttToast(r.message || 'Không tạo được sticker.', 'error');
+                if (['key_invalid', 'no_key', 'no_credit', 'org_unverified', 'model_unavailable'].includes(r.error)) { ttShowLook('ai'); const el = document.getElementById('ai-keystat'); if (el) { el.className = 'ai-keystat bad'; el.textContent = '✗ ' + r.message; } }
+                return;
+            }
+            tile.className = 'ai-it'; tile.draggable = true; tile.dataset.src = r.item.src; tile.dataset.id = r.item.id;
+            tile.title = (r.item.alpha ? '' : '⚠ Ảnh không có nền trong suốt — ') + 'Kéo thả lên hũ (hoặc bấm)';
+            tile.innerHTML = `<img src="${escHtml(r.item.src)}" alt="">`;
+            ai.lib.unshift(r.item);
+            aiRenderLib();
+            if (jtAddImage(r.item.src)) ttToast('✨ Xong! Đã gắn lên hũ — kéo để đặt chỗ', 'success');
+        });
+    })();
+    // Mở lại đúng mục lớn / mục con lần trước (đặt SAU khi khai báo xong `ai`)
+    (function restoreTtNav() {
+        let sec = null, sub = null;
+        try { sec = localStorage.getItem('hp.thuytinh.sec'); sub = localStorage.getItem('hp.thuytinh.lookSub'); } catch (_) {}
+        if (sub && ttBody?.querySelector(`.look-sub[data-look-pane="${sub}"]`)) ttBody.querySelectorAll('#tt-look-seg button').forEach(b => b.classList.toggle('on', b.dataset.look === sub));
+        ttShowSec(sec && ttBody?.querySelector(`.tt-sec[data-sec="${sec}"]`) ? sec : 'look');
     })();
     dom.cfgJarTheme?.addEventListener('change', pushConfigUpdate);
     dom.cfgBadgesEnabled?.addEventListener('change', pushConfigUpdate);

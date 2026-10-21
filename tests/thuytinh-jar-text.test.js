@@ -78,3 +78,17 @@ test('show/pop/minXu: chuẩn hoá + biến {nguoitang}', () => {
     assert.equal(JT.presetItems('biggift')[0].show, 'gift');
     assert.equal(JT.presetItems('finish')[0].show, 'goal');
 });
+
+test('lớp ảnh (sticker AI): chỉ nhận đường dẫn nội bộ, sai → về chữ', () => {
+    const ok = JT.normalizeItem({ kind: 'img', src: '/ai-art/aik2x9abc.png', size: 12, x: 30 });
+    assert.strictEqual(ok.kind, 'img');
+    assert.strictEqual(ok.src, '/ai-art/aik2x9abc.png');
+    assert.strictEqual(ok.x, 30);
+    assert.strictEqual(JT.normalizeItem({ kind: 'img', src: '/assets/thuytinh/jar-text/meo.webp' }).kind, 'img');
+    for (const bad of ['https://evil.example/a.png', '/ai-art/../app-config.json', '/assets/../server.js', 'javascript:alert(1)', '/ai-art/x.png', '']) {
+        const it = JT.normalizeItem({ kind: 'img', src: bad });
+        assert.strictEqual(it.kind, 'text', bad);
+        assert.strictEqual(it.src, '', bad);
+    }
+    assert.strictEqual(JT.normalizeItem({ text: 'Chào' }).kind, 'text');
+});

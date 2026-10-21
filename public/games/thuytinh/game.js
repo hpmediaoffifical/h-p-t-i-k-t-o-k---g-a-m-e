@@ -2574,8 +2574,10 @@
                 goalEl.style.left = left + '%';
                 goalEl.style.top = top + '%';
                 // Ngắn hơn đáy hũ (70%) cho gọn
-                goalEl.style.width = (r.w * 0.7 / CANVAS_W * 100) + '%';
+                const gw = r.w * 0.7 / CANVAS_W * 100;
+                goalEl.style.width = gw + '%';
                 goalEl.style.maxWidth = 'none';
+                goalEl.style.setProperty('--gw', gw.toFixed(2));   // chữ/thanh co theo bề ngang (style.css .tt-goal)
                 goalEl.style.display = config.features.goalBar ? 'flex' : 'none';
             }
             // Totals trên cùng
@@ -2899,6 +2901,9 @@
                 el.classList.toggle('tt-jt-sel', !mirrorMode && it.id === _jarTextSel);
             });
             old.forEach(el => el.remove());
+            // Thứ tự lớp (kéo ⋮⋮ trong app): chỉ sắp lại khi khác — chèn lại node làm chạy lại hiệu ứng động
+            const want = list.map(it => it.id), have = [...host.children].map(el => el.dataset.id);
+            if (want.join('|') !== have.join('|')) want.forEach(id => { const el = host.querySelector(`.tt-jt[data-id="${CSS.escape(id)}"]`); if (el) host.appendChild(el); });
             refreshJarTextVis();
         }
         // Số liệu cho biến tự điền {top1} {tong}… (đọc từ stats của Hũ)
@@ -5614,8 +5619,9 @@
                 const r = jarRect();
                 countDisplay.style.left = (r.cx / CANVAS_W * 100) + '%';
                 countDisplay.style.top = ((r.y + r.h * 0.88) / CANVAS_H * 100) + '%';
+                // Cỡ tính theo khung 1080 → đổi ra cqw để khung xem trước nhỏ trong app co đúng tỉ lệ như OBS
                 const fontPx = Math.max(14, Math.min(72, r.h * 0.055));
-                countDisplay.style.fontSize = fontPx + 'px';
+                countDisplay.style.fontSize = (fontPx / CANVAS_W * 100).toFixed(3) + 'cqw';
             } else countDisplay.style.display = 'none';
         }
 

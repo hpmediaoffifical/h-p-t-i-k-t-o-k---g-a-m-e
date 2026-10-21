@@ -4815,6 +4815,40 @@ async function connectToUser(username, opts = {}) {
 // ====== Routes ======
 app.get('/api/gifts', (req, res) => res.json(giftList));
 
+// 🪄 Sticker AI (Hũ Thủy Tinh) — người dùng TỰ tạo tài khoản OpenAI và dán khoá API (platform.openai.com);
+// app gọi thẳng OpenAI, HP Media không trung gian. Khoá lưu mã hoá theo HWID ở <DATA_DIR>/ai-sticker.json và
+// KHÔNG bao giờ trả về giao diện. Ảnh lưu <DATA_DIR>/ai-art/, overlay OBS đọc /ai-art/<id>.png (chạy offline).
+const AiOpenAI = require('./lib/ai-openai');
+const AiSticker = require('./lib/ai-sticker');
+const aiOpenAI = AiOpenAI.createOpenAI();
+const aiSettings = AiOpenAI.createSettings({
+    dataDir: DATA_DIR,
+    machineSecret: () => { try { return require('./hpkey/validate').getHWID(); } catch (_) { return os.hostname(); } },
+});
+const aiSticker = AiSticker.createClient({ dataDir: DATA_DIR, settings: aiSettings, openai: aiOpenAI });
+app.use('/ai-art', express.static(aiSticker.dir, { maxAge: '7d', fallthrough: false }));
+app.get('/api/thuytinh/ai/library', (req, res) => res.json({ ok: true, items: aiSticker.library() }));
+app.post('/api/thuytinh/ai/sticker', async (req, res) => {
+    const r = await aiSticker.generate(req.body || {});
+    if (!r.ok) console.warn('[ai-sticker]', r.error, r.detail || '');
+    res.status(r.ok ? 200 : 400).json(r);
+});
+app.delete('/api/thuytinh/ai/library/:id', (req, res) => res.json({ ok: aiSticker.remove(req.params.id) }));
+app.get('/api/thuytinh/ai/settings', (req, res) => res.json({ ok: true, settings: aiSettings.view() }));
+app.post('/api/thuytinh/ai/settings', (req, res) => {
+    const r = aiSettings.set(req.body || {});
+    res.status(r.ok ? 200 : 400).json(r.ok ? r : { ...r, message: AiSticker.errVi(r.error) });
+});
+// Kiểm tra khoá (gọi /models — không tốn tiền ảnh). Có `apiKey` trong body thì thử khoá đó TRƯỚC khi lưu.
+app.post('/api/thuytinh/ai/settings/check', async (req, res) => {
+    const st = aiSettings.get();
+    const apiKey = String((req.body && req.body.apiKey) || st.apiKey || '').trim();
+    if (!apiKey) return res.json({ ok: false, error: 'no_key', message: AiSticker.errVi('no_key') });
+    if (!/^sk-[\w-]{20,}$/.test(apiKey)) return res.json({ ok: false, error: 'key_format', message: AiSticker.errVi('key_format') });
+    const r = await aiOpenAI.checkKey({ apiKey, model: (req.body && req.body.model) || st.model });
+    res.json(r.ok ? r : { ...r, message: AiSticker.errVi(r.error) });
+});
+
 // 🎵 Danh mục bài Ca khúc (tên bài thật, ca sĩ, ảnh đĩa). Nhập thêm bằng file JSON tải từ TikTok
 // (webcast.tiktok.com/webcast/gift/music/list/ … khi đã đăng nhập) hoặc file gom nhiều trang.
 app.get('/api/music-gifts', (req, res) => {

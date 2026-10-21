@@ -296,71 +296,306 @@
                             <option value="hd">📺 HD 1080</option>
                             <option value="4k">🖥 4K 2160x3840</option>
                         </select>
-                        <button id="btn-toggle-thuytinh-preview" class="ghost small" title="Ẩn/hiện preview hũ để giảm lag — khi cần config thì bật lại">🙈 Ẩn preview</button>
-                        <span class="thuytinh-opacity-ctrl" id="thuytinh-opacity-ctrl" title="Kéo để chỉnh độ trong suốt preview (trái = trong, phải = đục)">
-                            <span class="thuytinh-opacity-icon">🎚</span>
-                            <input type="range" id="thuytinh-preview-opacity" min="20" max="100" step="5" value="100" />
-                        </span>
                         <button id="btn-reset-session-top" class="ghost small" title="Reset session: clear hũ + reset stats / leaderboard / mục tiêu">↺ HŨ MỚI</button>
                         <button id="btn-save-all" class="ghost small" title="Lưu mọi cài đặt ngay lập tức">💾 Lưu tất cả</button>
                     </div>
                 </header>
 
-                <div class="game-body">
-                    <!-- Cột trái: cài đặt + bình luận -->
-                    <div class="col col-left">
-                        <div class="card tabbed-card">
-                            <div class="card-tabs">
-                                <button class="tab active" data-tab="phys">⚙ Cài đặt</button>
-                                <button class="tab" data-tab="feat">✨ Tính năng</button>
-                                <button class="tab" data-tab="trig">🎯 Quà</button>
-                                <button class="tab" data-tab="act">🎬 Thử</button>
+                <div class="game-body tt-body" data-sec="look">
+                    <nav class="tt-nav" id="tt-nav" aria-label="Mục cài đặt Hũ">
+                        <button type="button" data-sec="look" class="on"><b>🎨</b>Giao diện</button>
+                        <button type="button" data-sec="phys"><b>⚙️</b>Vật lý</button>
+                        <button type="button" data-sec="show"><b>✨</b>Hiển thị</button>
+                        <button type="button" data-sec="trig"><b>🎯</b>Quà kích hoạt</button>
+                        <button type="button" data-sec="thief"><b>🥷</b>Trộm & CS</button>
+                        <button type="button" data-sec="badge"><b>🏷</b>Badge</button>
+                        <i class="tt-nav-sep"></i>
+                        <button type="button" data-sec="test"><b>🎬</b>Thử</button>
+                    </nav>
+                    <div class="col col-left tt-panel">
+                        <section class="tt-sec" data-sec="look">
+                            <div class="tt-sec-head"><h3>Giao diện hũ</h3><p>Kiểu hũ, chữ và sticker — xem ngay ở giữa, OBS tự cập nhật.</p></div>
+                            <div class="tt-seg" id="tt-look-seg" role="tablist">
+                                <button type="button" class="on" data-look="jar">🫙 Kiểu hũ</button>
+                                <button type="button" data-look="text">✍️ Chữ & sticker</button>
+                                <button type="button" data-look="ai">🪄 AI</button>
                             </div>
+                            <div class="tt-sec-body">
+                                <div class="look-sub active" data-look-pane="jar">
+                                    <input type="search" id="look-skin-search" class="tt-search" placeholder="🔍 Tìm kiểu hũ… (vd: bí ngô, tim, Noel)" />
+                                    <div class="tt-chips" id="look-skin-filter">
+                                        <button type="button" class="on" data-skin-filter="all">Tất cả</button>
+                                        <button type="button" data-skin-filter="normal">Thường</button>
+                                        <button type="button" data-skin-filter="season">Theo mùa</button>
+                                    </div>
+                                    <select id="cfg-jar-skin" class="cfg-select" hidden></select>
+                                    <div class="look-skin-grid" id="look-skin-grid"></div>
+                                    <div class="tt-grp">
+                                        <div class="tt-gt">Màu hũ mặc định</div>
+                                        <div class="tt-swatches" id="look-theme"></div>
+                                        <div class="tt-note" id="look-theme-note">Chỉ đổi màu được với “Hũ mặc định”.</div>
+                                        <select id="cfg-jar-theme" class="cfg-select" hidden>
+                                            <option value="default">Mặc định (trắng)</option>
+                                            <option value="blue">Xanh dương</option>
+                                            <option value="cam">Cam</option>
+                                            <option value="green">Xanh lá</option>
+                                            <option value="pink">Hồng</option>
+                                            <option value="tim">Tím</option>
+                                            <option value="yellow">Vàng</option>
+                                        </select>
 
-                            <!-- ⚙ Vật lý -->
-                            <div class="tab-pane active" data-pane="phys">
-                                <div class="cfg-row">
-                                    <label>Trọng lực</label>
-                                    <input type="range" id="cfg-gravity" min="0.2" max="3" step="0.1" />
-                                    <span class="cfg-val" id="cfg-gravity-v">1.4</span>
+                                    </div>
+                                    <div class="tt-grp">
+                                        <div class="tt-gt">Phụ kiện miệng hũ</div>
+                                        <div class="tt-chips" id="look-acc"></div>
+                                        <select id="cfg-jar-accessory" class="cfg-select" hidden>
+                                            <option value="none">Không gắn</option>
+                                            <option value="bow-pink">🎀 Nơ hồng</option>
+                                            <option value="bow-blue">🎀 Nơ xanh</option>
+                                            <option value="bow-white">🎀 Nơ trắng</option>
+                                            <option value="bow-black">🎀 Nơ đen</option>
+                                            <option value="crown">👑 Vương miện</option>
+                                            <option value="flower-cherry">🌸 Hoa anh đào</option>
+                                            <option value="star-gold">⭐ Ngôi sao vàng</option>
+                                            <option value="leaves-christmas">🎄 Lá Noel</option>
+                                            <option value="gem-diamond">💎 Kim cương</option>
+                                        </select>
+
+                                    </div>
                                 </div>
-                                <div class="cfg-row">
-                                    <label>Độ nảy</label>
-                                    <input type="range" id="cfg-bounce" min="0" max="1" step="0.05" />
-                                    <span class="cfg-val" id="cfg-bounce-v">0.42</span>
+                                <div class="look-sub" data-look-pane="text">
+                                    <div class="tt-grp" id="jt-section">
+                                        <div class="tt-gt">Bộ mẫu theo dịp</div>
+                                        <div id="jt-presets" class="jt-presets"></div>
+                                    </div>
+                                    <div class="tt-grp">
+                                        <div class="tt-gt">Lớp trên hũ <span class="sp"></span><span id="jt-count" class="tt-count"></span></div>
+                                        <div id="jt-list" class="jt-layers"></div>
+                                        <div class="tt-add-row">
+                                            <button type="button" id="jt-add" class="ghost small">＋ Chữ</button>
+                                            <button type="button" id="jt-add-sticker" class="ghost small">＋ Sticker AI</button>
+                                        </div>
+                                        <div class="tt-note">✋ Kéo hàng ⋮⋮ để đổi lớp trên/dưới. Kéo chữ/sticker ngay trên hũ để đặt chỗ · lăn chuột = cỡ · Shift + lăn = xoay · phím mũi tên = nhích.</div>
+                                    </div>
                                 </div>
-                                <div class="cfg-row">
-                                    <label>Ma sát</label>
-                                    <input type="range" id="cfg-friction" min="0" max="1" step="0.05" />
-                                    <span class="cfg-val" id="cfg-friction-v">0.05</span>
+                                <div class="look-sub" data-look-pane="ai">
+                                    <div class="tt-grp">
+                                        <div class="tt-gt">Khoá OpenAI của bạn</div>
+                                        <div class="ai-keystat" id="ai-keystat">Đang kiểm tra…</div>
+                                        <div class="ai-keyrow">
+                                            <input type="password" id="ai-key" class="tt-search" placeholder="Dán khoá OpenAI (sk-…)" autocomplete="off" spellcheck="false" />
+                                            <button type="button" id="ai-key-save" class="ghost small">Lưu & kiểm tra</button>
+                                        </div>
+                                        <details class="ai-howto" id="ai-howto">
+                                            <summary>Chưa có khoá? Tạo tài khoản OpenAI (5 bước)</summary>
+                                            <ol>
+                                                <li>Vào <b>platform.openai.com</b> → <b>Sign up</b>. Gói ChatGPT Plus <b>không</b> dùng được cho app — phải là tài khoản API.</li>
+                                                <li><b>Settings › Billing</b> → nạp trước (khoảng 5–10 USD, thẻ Visa/Master quốc tế).</li>
+                                                <li><b>Settings › Organization › Verify</b> → xác minh danh tính (OpenAI có thể yêu cầu trước khi dùng model ảnh).</li>
+                                                <li><b>API keys</b> → <b>Create new secret key</b> → chép khoá <code>sk-…</code> dán vào ô trên.</li>
+                                                <li>Nên đặt <b>Limits › Budget</b> (vd 10 USD/tháng) để không bị trừ quá tay.</li>
+                                            </ol>
+                                            <div class="tt-note">Mỗi sticker tốn vài trăm đến vài nghìn đồng tuỳ chất lượng. Khoá lưu mã hoá trong máy này, chỉ gửi tới OpenAI.</div>
+                                        </details>
+                                        <div class="ai-opts">
+                                            <label>Model <select id="ai-model" class="cfg-select">
+                                                <option value="auto">Tự chọn (khuyên dùng)</option>
+                                                <option value="gpt-image-2.5-flare">gpt-image-2.5-flare — nhanh</option>
+                                                <option value="gpt-image-2.5-sunburst">gpt-image-2.5-sunburst — giữ nét ảnh thật</option>
+                                            </select></label>
+                                            <div class="tt-seg sm" id="ai-quality"><button type="button" data-q="low">Nhanh</button><button type="button" data-q="medium" class="on">Vừa</button><button type="button" data-q="high">Đẹp</button></div>
+                                        </div>
+                                    </div>
+                                    <div class="tt-grp">
+                                        <div class="tt-gt">Sticker đã tạo <span class="sp"></span><span id="ai-lib-count" class="tt-count"></span></div>
+                                        <div class="ai-lib" id="ai-lib"></div>
+                                        <div class="tt-note">✋ Kéo thả sticker lên hũ (hoặc bấm). Ảnh lưu trong máy — OBS dùng được cả khi mất mạng.</div>
+                                    </div>
                                 </div>
-                                <div class="cfg-row">
-                                    <label>Size Hũ</label>
-                                    <input type="range" id="cfg-jar-h" min="200" max="1300" step="20" />
-                                    <span class="cfg-val" id="cfg-jar-h-v">1200</span>
+                            </div>
+                        </section>
+                        <section class="tt-sec" data-sec="phys" hidden>
+                            <div class="tt-sec-head"><h3>Vật lý</h3><p>Quà rơi, nảy và nằm trong hũ thế nào.</p></div>
+                            <div class="tt-sec-body">
+                                <div class="feat-section">
+                                    <div class="feat-section-title">Rơi, nảy & kích thước</div>
+                                    <div class="cfg-row">
+                                        <label>Trọng lực</label>
+                                        <input type="range" id="cfg-gravity" min="0.2" max="3" step="0.1" />
+                                        <span class="cfg-val" id="cfg-gravity-v">1.4</span>
+                                    </div>
+                                    <div class="cfg-row">
+                                        <label>Độ nảy</label>
+                                        <input type="range" id="cfg-bounce" min="0" max="1" step="0.05" />
+                                        <span class="cfg-val" id="cfg-bounce-v">0.42</span>
+                                    </div>
+                                    <div class="cfg-row">
+                                        <label>Ma sát</label>
+                                        <input type="range" id="cfg-friction" min="0" max="1" step="0.05" />
+                                        <span class="cfg-val" id="cfg-friction-v">0.05</span>
+                                    </div>
+                                    <div class="cfg-row">
+                                        <label>Size Hũ</label>
+                                        <input type="range" id="cfg-jar-h" min="200" max="1300" step="20" />
+                                        <span class="cfg-val" id="cfg-jar-h-v">1200</span>
+                                    </div>
+                                    <div class="cfg-row">
+                                        <label>Quà min</label>
+                                        <input type="range" id="cfg-gmin" min="12" max="80" step="2" />
+                                        <span class="cfg-val" id="cfg-gmin-v">24</span>
+                                    </div>
+                                    <div class="cfg-row">
+                                        <label>Quà max</label>
+                                        <input type="range" id="cfg-gmax" min="40" max="320" step="5" />
+                                        <span class="cfg-val" id="cfg-gmax-v">120</span>
+                                    </div>
+                                    <div class="cfg-row" title="Độ cao thả quà thường trước khi rơi vào miệng hũ">
+                                        <label>Độ cao thả</label>
+                                        <input type="range" id="cfg-gdrop" min="80" max="700" step="20" />
+                                        <span class="cfg-val" id="cfg-gdrop-v">220</span>
+                                    </div>
+                                    <div class="cfg-row inline">
+                                        <label><input type="checkbox" id="cfg-show-count"/> Số đếm</label>
+                                        <label><input type="checkbox" id="cfg-jar-visible"/> Hiện hũ</label>
+                                        <label><input type="checkbox" id="cfg-jar-locked"/> 🔒 Khoá hũ</label>
+                                    </div>
                                 </div>
-                                <div class="cfg-row">
-                                    <label>Quà min</label>
-                                    <input type="range" id="cfg-gmin" min="12" max="80" step="2" />
-                                    <span class="cfg-val" id="cfg-gmin-v">24</span>
+                            </div>
+                        </section>
+                        <section class="tt-sec" data-sec="show" hidden>
+                            <div class="tt-sec-head"><h3>Hiển thị & hiệu ứng</h3><p>Bật/tắt từng thành phần trên overlay.</p></div>
+                            <div class="tt-sec-body">
+                                <div class="feat-section">
+                                    <div class="feat-section-title">Hiển thị</div>
+                                    <div class="feat-grid">
+                                        <label class="feat"><input type="checkbox" id="ft-audio"/> 🔊 Âm thanh</label>
+                                        <label class="feat feat-range" title="Âm lượng cho webm effect có âm thanh (rồng, nổ, FX...). 0 = mute, 100 = max.">
+                                            <span>🎬 Webm vol <b id="cfg-webm-vol-v">80</b>%</span>
+                                            <input type="range" id="cfg-webm-vol" min="0" max="100" step="5" value="80" />
+                                        </label>
+                                        <label class="feat"><input type="checkbox" id="ft-welcome"/> 👋 Welcome</label>
+                                        <label class="feat"><input type="checkbox" id="ft-crown"/> 👑 Vương miện</label>
+                                        <label class="feat"><input type="checkbox" id="ft-tophangers"/> Treo Avatar</label>
+                                        <label class="feat" title="Bật/tắt avatar HP mặc định ghim slot cuối. Tắt → top 5 user thật đầy đủ."><input type="checkbox" id="ft-default-hp"/> 🎀 HP Avatar</label>
+                                        <label class="feat"><input type="checkbox" id="ft-leaderboard"/> 🏆 Top tặng</label>
+                                        <label class="feat"><input type="checkbox" id="ft-totals"/> 📊 Tổng quà</label>
+                                        <label class="feat"><input type="checkbox" id="ft-goalbar"/> 🎯 Goal Bar</label>
+                                    </div>
                                 </div>
-                                <div class="cfg-row">
-                                    <label>Quà max</label>
-                                    <input type="range" id="cfg-gmax" min="40" max="320" step="5" />
-                                    <span class="cfg-val" id="cfg-gmax-v">120</span>
+                                <div class="feat-section">
+                                    <div class="feat-section-title">Hiệu ứng</div>
+                                    <div class="feat-grid">
+                                        <label class="feat"><input type="checkbox" id="ft-combo"/> 🔥 Combo</label>
+                                        <label class="feat"><input type="checkbox" id="ft-tier"/> ⭐ Viền tier</label>
+                                        <label class="feat"><input type="checkbox" id="ft-bigfx"/> 💥 Quà to</label>
+                                        <label class="feat"><input type="checkbox" id="ft-autoshake"/> ⚡ Tự lắc</label>
+                                        <label class="feat"><input type="checkbox" id="ft-random"/> 🎲 Ngẫu nhiên</label>
+                                        <label class="feat" title="Áp dụng CHO TẤT CẢ effects: khi quà kích hoạt hiệu ứng, vẫn thả icon quà gốc vào hũ thay vì biến mất."><input type="checkbox" id="ft-drop-with-trigger"/> 🪂 Rơi quà Chỉ Định</label>
+                                    </div>
                                 </div>
-                                <div class="cfg-row" title="Độ cao thả quà thường trước khi rơi vào miệng hũ">
-                                    <label>Độ cao thả</label>
-                                    <input type="range" id="cfg-gdrop" min="80" max="700" step="20" />
-                                    <span class="cfg-val" id="cfg-gdrop-v">220</span>
+                                <div class="feat-section">
+                                    <div class="feat-section-title">Mục tiêu</div>
+                                    <div class="cfg-row">
+                                        <label>Mục tiêu</label>
+                                        <input type="number" id="cfg-goal" min="100" max="1000000" step="100" value="5000" class="cfg-num-input"/>
+                                        <span class="cfg-val cfg-val-hidden" id="cfg-goal-v">5000</span>
+                                    </div>
+                                    <div class="cfg-row">
+                                        <label>Lắc khi</label>
+                                        <input type="range" id="cfg-shake-at" min="0" max="500" step="10"/>
+                                        <span class="cfg-val" id="cfg-shake-at-v">200</span>
+                                    </div>
+                                    <div class="cfg-row" title="Khoảng cách Goal bar so với đáy hũ. Âm = sát/chồng lên đáy.">
+                                        <label>Vị trí GBar</label>
+                                        <input type="range" id="cfg-goal-gap" min="-3" max="5" step="0.1"/>
+                                        <span class="cfg-val" id="cfg-goal-gap-v">-1.2</span>
+                                    </div>
                                 </div>
-                                <div class="cfg-row inline">
-                                    <label><input type="checkbox" id="cfg-show-count"/> Số đếm</label>
-                                    <label><input type="checkbox" id="cfg-jar-visible"/> Hiện hũ</label>
-                                    <label><input type="checkbox" id="cfg-jar-locked"/> 🔒 Khoá hũ</label>
+                                <div class="feat-section">
+                                    <div class="feat-section-title">Kích thước panel</div>
+                                    <div class="cfg-row">
+                                        <label>TOP TẶNG</label>
+                                        <input type="range" id="cfg-scale-lb" min="0.6" max="1.6" step="0.05"/>
+                                        <span class="cfg-val" id="cfg-scale-lb-v">1.0</span>
+                                    </div>
+                                    <div class="cfg-row">
+                                        <label>BỊ TÓM</label>
+                                        <input type="range" id="cfg-scale-caught" min="0.6" max="1.6" step="0.05"/>
+                                        <span class="cfg-val" id="cfg-scale-caught-v">1.0</span>
+                                    </div>
                                 </div>
+                            </div>
+                        </section>
+                        <section class="tt-sec" data-sec="trig" hidden>
+                            <div class="tt-sec-head"><h3>Quà kích hoạt</h3><p>Gán quà → hiệu ứng. Quà chỉ định KHÔNG rơi vào hũ.</p></div>
+                            <div class="tt-sec-body">
+                                                                <div class="trigger-list" id="trigger-list"></div>
+                                <datalist id="gift-options"></datalist>
+                            </div>
+                        </section>
+                        <section class="tt-sec" data-sec="thief" hidden>
+                            <div class="tt-sec-head"><h3>Trộm & Cảnh sát</h3><p>Trộm lấy quà, cảnh sát tóm — danh sách ở dưới.</p></div>
+                            <div class="tt-sec-body">
+                                <div class="feat-section">
+                                    <div class="feat-section-title">🥷 Trộm & 🚔 Cảnh sát</div>
+                                    <div class="feat-grid">
+                                        <label class="feat"><input type="checkbox" id="ft-thiefauto"/> Trộm tự động</label>
+                                        <label class="feat"><input type="checkbox" id="ft-police"/> Bật cảnh sát</label>
+                                    </div>
+                                    <div class="cfg-row">
+                                        <label>Trộm rớt</label>
+                                        <input type="range" id="cfg-thief-miss" min="0" max="100" step="5"/>
+                                        <span class="cfg-val" id="cfg-thief-miss-v">10</span>
+                                    </div>
+                                    <div class="cfg-row">
+                                        <label>CS tóm</label>
+                                        <input type="range" id="cfg-police-rate" min="0" max="100" step="5"/>
+                                        <span class="cfg-val" id="cfg-police-rate-v">25</span>
+                                    </div>
+                                    <div class="cfg-row">
+                                        <label>Giam (s)</label>
+                                        <input type="range" id="cfg-police-ban" min="5" max="300" step="5"/>
+                                        <span class="cfg-val" id="cfg-police-ban-v">30</span>
+                                    </div>
+                                    <div class="cfg-row cfg-row-text">
+                                        <label>Tên CS</label>
+                                        <input type="text" id="cfg-police-name" placeholder="Để trống = chọn ngẫu nhiên" class="text-input"/>
+                                    </div>
+                                    <div class="cfg-row" title="Kích thước icon Trộm (0.5 = nhỏ, 2.0 = to gấp đôi)">
+                                        <label>Cỡ Trộm</label>
+                                        <input type="range" id="cfg-scale-thief" min="0.5" max="2.5" step="0.05"/>
+                                        <span class="cfg-val" id="cfg-scale-thief-v">1.0</span>
+                                    </div>
+                                    <div class="cfg-row" title="Kích thước icon Cảnh sát">
+                                        <label>Cỡ CS</label>
+                                        <input type="range" id="cfg-scale-police" min="0.5" max="2.5" step="0.05"/>
+                                        <span class="cfg-val" id="cfg-scale-police-v">1.0</span>
+                                    </div>
+                                    <div class="cfg-row" title="Kích thước nhân vật Osin">
+                                        <label>Cỡ Osin</label>
+                                        <input type="range" id="cfg-scale-osin" min="0.5" max="2.5" step="0.05"/>
+                                        <span class="cfg-val" id="cfg-scale-osin-v">1.0</span>
+                                    </div>
+                                    <div class="cfg-row" title="Kích thước UFO">
+                                        <label>Cỡ UFO</label>
+                                        <input type="range" id="cfg-scale-ufo" min="0.5" max="2.5" step="0.05"/>
+                                        <span class="cfg-val" id="cfg-scale-ufo-v">1.0</span>
+                                    </div>
+                                </div>
+                                <div class="card thuy-side-panel">
+                                    <div class="thuy-side-switch">
+                                        <button id="thuy-police-tab" class="active" type="button">🚓 Cảnh Sát <span id="thuy-police-count">0</span></button>
+                                        <button id="thuy-caught-tab" type="button">🥷 Kẻ Trộm <span id="thuy-caught-count">0</span></button>
+                                    </div>
+                                    <div id="thuy-side-panel-host" class="thuy-side-panel-host"></div>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="tt-sec" data-sec="badge" hidden>
+                            <div class="tt-sec-head"><h3>Badge hiệu ứng quà</h3><p>Thẻ quà kích hoạt hiện trên overlay.</p></div>
+                            <div class="tt-sec-body">
                                 <!-- 🏷 Badge global config — để trong Cài đặt để tab Quà chỉ còn bảng gán quà -->
-                                <details class="badges-cfg-section badges-cfg-compact">
+                                <details class="badges-cfg-section badges-cfg-compact" open>
                                     <summary class="badges-cfg-title">🏷 Badge hiệu ứng quà</summary>
                                     <div class="badges-cfg-body">
                                         <div class="badges-cfg-row badges-cfg-checks">
@@ -433,189 +668,33 @@
                                     </div>
                                 </details>
                             </div>
-
-                            <!-- ✨ Tính năng -->
-                            <div class="tab-pane" data-pane="feat">
-                                <div class="feat-section">
-                                    <div class="feat-section-title">Hiển thị</div>
-                                    <div class="feat-grid">
-                                        <label class="feat"><input type="checkbox" id="ft-audio"/> 🔊 Âm thanh</label>
-                                        <label class="feat feat-range" title="Âm lượng cho webm effect có âm thanh (rồng, nổ, FX...). 0 = mute, 100 = max.">
-                                            <span>🎬 Webm vol <b id="cfg-webm-vol-v">80</b>%</span>
-                                            <input type="range" id="cfg-webm-vol" min="0" max="100" step="5" value="80" />
-                                        </label>
-                                        <label class="feat"><input type="checkbox" id="ft-welcome"/> 👋 Welcome</label>
-                                        <label class="feat"><input type="checkbox" id="ft-crown"/> 👑 Vương miện</label>
-                                        <label class="feat"><input type="checkbox" id="ft-tophangers"/> Treo Avatar</label>
-                                        <label class="feat" title="Bật/tắt avatar HP mặc định ghim slot cuối. Tắt → top 5 user thật đầy đủ."><input type="checkbox" id="ft-default-hp"/> 🎀 HP Avatar</label>
-                                        <label class="feat"><input type="checkbox" id="ft-leaderboard"/> 🏆 Top tặng</label>
-                                        <label class="feat"><input type="checkbox" id="ft-totals"/> 📊 Tổng quà</label>
-                                        <label class="feat"><input type="checkbox" id="ft-goalbar"/> 🎯 Goal Bar</label>
-                                    </div>
-                                </div>
-                                <div class="feat-section">
-                                    <div class="feat-section-title">Hiệu ứng</div>
-                                    <div class="feat-grid">
-                                        <label class="feat"><input type="checkbox" id="ft-combo"/> 🔥 Combo</label>
-                                        <label class="feat"><input type="checkbox" id="ft-tier"/> ⭐ Viền tier</label>
-                                        <label class="feat"><input type="checkbox" id="ft-bigfx"/> 💥 Quà to</label>
-                                        <label class="feat"><input type="checkbox" id="ft-autoshake"/> ⚡ Tự lắc</label>
-                                        <label class="feat"><input type="checkbox" id="ft-random"/> 🎲 Ngẫu nhiên</label>
-                                        <label class="feat" title="Áp dụng CHO TẤT CẢ effects: khi quà kích hoạt hiệu ứng, vẫn thả icon quà gốc vào hũ thay vì biến mất."><input type="checkbox" id="ft-drop-with-trigger"/> 🪂 Rơi quà Chỉ Định</label>
-                                    </div>
-                                </div>
-                                <div class="feat-section">
-                                    <div class="feat-section-title">🥷 Trộm & 🚔 Cảnh sát</div>
-                                    <div class="feat-grid">
-                                        <label class="feat"><input type="checkbox" id="ft-thiefauto"/> Trộm tự động</label>
-                                        <label class="feat"><input type="checkbox" id="ft-police"/> Bật cảnh sát</label>
-                                    </div>
-                                    <div class="cfg-row">
-                                        <label>Trộm rớt</label>
-                                        <input type="range" id="cfg-thief-miss" min="0" max="100" step="5"/>
-                                        <span class="cfg-val" id="cfg-thief-miss-v">10</span>
-                                    </div>
-                                    <div class="cfg-row">
-                                        <label>CS tóm</label>
-                                        <input type="range" id="cfg-police-rate" min="0" max="100" step="5"/>
-                                        <span class="cfg-val" id="cfg-police-rate-v">25</span>
-                                    </div>
-                                    <div class="cfg-row">
-                                        <label>Giam (s)</label>
-                                        <input type="range" id="cfg-police-ban" min="5" max="300" step="5"/>
-                                        <span class="cfg-val" id="cfg-police-ban-v">30</span>
-                                    </div>
-                                    <div class="cfg-row cfg-row-text">
-                                        <label>Tên CS</label>
-                                        <input type="text" id="cfg-police-name" placeholder="Để trống = chọn ngẫu nhiên" class="text-input"/>
-                                    </div>
-                                    <div class="cfg-row" title="Kích thước icon Trộm (0.5 = nhỏ, 2.0 = to gấp đôi)">
-                                        <label>Cỡ Trộm</label>
-                                        <input type="range" id="cfg-scale-thief" min="0.5" max="2.5" step="0.05"/>
-                                        <span class="cfg-val" id="cfg-scale-thief-v">1.0</span>
-                                    </div>
-                                    <div class="cfg-row" title="Kích thước icon Cảnh sát">
-                                        <label>Cỡ CS</label>
-                                        <input type="range" id="cfg-scale-police" min="0.5" max="2.5" step="0.05"/>
-                                        <span class="cfg-val" id="cfg-scale-police-v">1.0</span>
-                                    </div>
-                                    <div class="cfg-row" title="Kích thước nhân vật Osin">
-                                        <label>Cỡ Osin</label>
-                                        <input type="range" id="cfg-scale-osin" min="0.5" max="2.5" step="0.05"/>
-                                        <span class="cfg-val" id="cfg-scale-osin-v">1.0</span>
-                                    </div>
-                                    <div class="cfg-row" title="Kích thước UFO">
-                                        <label>Cỡ UFO</label>
-                                        <input type="range" id="cfg-scale-ufo" min="0.5" max="2.5" step="0.05"/>
-                                        <span class="cfg-val" id="cfg-scale-ufo-v">1.0</span>
-                                    </div>
-                                    <div class="cfg-row" title="Gắn phụ kiện trang trí lên miệng hũ — không che thân hũ">
-                                        <label>🎀 Phụ kiện hũ</label>
-                                        <select id="cfg-jar-accessory" class="cfg-select">
-                                            <option value="none">Không gắn</option>
-                                            <option value="bow-pink">🎀 Nơ hồng</option>
-                                            <option value="bow-blue">🎀 Nơ xanh</option>
-                                            <option value="bow-white">🎀 Nơ trắng</option>
-                                            <option value="bow-black">🎀 Nơ đen</option>
-                                            <option value="crown">👑 Vương miện</option>
-                                            <option value="flower-cherry">🌸 Hoa anh đào</option>
-                                            <option value="star-gold">⭐ Ngôi sao vàng</option>
-                                            <option value="leaves-christmas">🎄 Lá Noel</option>
-                                            <option value="gem-diamond">💎 Kim cương</option>
-                                        </select>
-                                    </div>
-                                    <div class="cfg-row" title="Kiểu hũ 2 lớp — đổi cả hình dáng va chạm (quà rơi/nằm theo đúng hình hũ)">
-                                        <label>🫙 Kiểu hũ</label>
-                                        <select id="cfg-jar-skin" class="cfg-select"></select>
-                                    </div>
-                                    <div class="cfg-row" title="Đổi màu hũ ngoài (7 màu PNG) — chỉ cho hũ mặc định">
-                                        <label>🎨 Theme hũ</label>
-                                        <select id="cfg-jar-theme" class="cfg-select">
-                                            <option value="default">Mặc định (trắng)</option>
-                                            <option value="blue">Xanh dương</option>
-                                            <option value="cam">Cam</option>
-                                            <option value="green">Xanh lá</option>
-                                            <option value="pink">Hồng</option>
-                                            <option value="tim">Tím</option>
-                                            <option value="yellow">Vàng</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="feat-section" id="jt-section">
-                                    <div class="feat-section-title">✍️ Chữ trang trí hũ</div>
-                                    <div class="jt-hint">Gõ chữ (Enter = xuống dòng) → chọn kiểu + sticker → <b>kéo chữ ở khung xem trước</b> để đặt chỗ, kéo được cả ra ngoài hũ (vd vắt ngang miệng hũ). Chọn 1 chữ rồi dùng phím mũi tên để nhích (Shift = nhích nhanh). Lăn chuột trên chữ = đổi cỡ, giữ <b>Shift</b> + lăn = xoay. OBS tự cập nhật theo.</div>
-                                    <div id="jt-presets" class="jt-presets"></div>
-                                    <div id="jt-list" class="jt-list"></div>
-                                    <div id="jt-vars" class="jt-vars" title="Bấm để chèn vào chữ đang chọn — tự đổi theo LIVE"></div>
-                                    <button type="button" id="jt-add" class="ghost small">➕ Thêm chữ</button>
-                                </div>
-                                <div class="feat-section">
-                                    <div class="feat-section-title">Mục tiêu</div>
-                                    <div class="cfg-row">
-                                        <label>Mục tiêu</label>
-                                        <input type="number" id="cfg-goal" min="100" max="1000000" step="100" value="5000" class="cfg-num-input"/>
-                                        <span class="cfg-val cfg-val-hidden" id="cfg-goal-v">5000</span>
-                                    </div>
-                                    <div class="cfg-row">
-                                        <label>Lắc khi</label>
-                                        <input type="range" id="cfg-shake-at" min="0" max="500" step="10"/>
-                                        <span class="cfg-val" id="cfg-shake-at-v">200</span>
-                                    </div>
-                                    <div class="cfg-row" title="Khoảng cách Goal bar so với đáy hũ. Âm = sát/chồng lên đáy.">
-                                        <label>Vị trí GBar</label>
-                                        <input type="range" id="cfg-goal-gap" min="-3" max="5" step="0.1"/>
-                                        <span class="cfg-val" id="cfg-goal-gap-v">-1.2</span>
-                                    </div>
-                                </div>
-                                <div class="feat-section">
-                                    <div class="feat-section-title">Kích thước panel</div>
-                                    <div class="cfg-row">
-                                        <label>TOP TẶNG</label>
-                                        <input type="range" id="cfg-scale-lb" min="0.6" max="1.6" step="0.05"/>
-                                        <span class="cfg-val" id="cfg-scale-lb-v">1.0</span>
-                                    </div>
-                                    <div class="cfg-row">
-                                        <label>BỊ TÓM</label>
-                                        <input type="range" id="cfg-scale-caught" min="0.6" max="1.6" step="0.05"/>
-                                        <span class="cfg-val" id="cfg-scale-caught-v">1.0</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 🎯 Quà kích hoạt -->
-                            <div class="tab-pane" data-pane="trig">
-                                <div class="hint" style="padding:6px 12px 0">Quà chỉ định KHÔNG rơi vào hũ. Bấm ⚙ để cài thông số.</div>
-                                <div class="trigger-list" id="trigger-list"></div>
-                                <datalist id="gift-options"></datalist>
-                            </div>
-
-                            <!-- 🎬 Thao tác thử -->
-                            <div class="tab-pane" data-pane="act">
+                        </section>
+                        <section class="tt-sec" data-sec="test" hidden>
+                            <div class="tt-sec-head"><h3>Thử</h3><p>Chạy thử hiệu ứng, xem lịch sử hũ. Bấm quà ở cột phải để thả thử.</p></div>
+                            <div class="tt-sec-body">
                                 <div class="cfg-actions">
                                     <button id="btn-jar-history" class="ghost small">🕘 Lịch sử hũ</button>
                                 </div>
                                 <div class="quick-test-section">
                                     <div class="quick-test-title">⚡ Có <span id="quick-test-count">0</span> hiệu ứng đã sẵn sàng</div>
                                     <div class="quick-test-grid" id="quick-test-grid"></div>
-                                    <div class="quick-test-empty" id="quick-test-empty">Chưa gán hiệu ứng cho quà nào. Vào tab 🎯 Quà để gán.</div>
+                                    <div class="quick-test-empty" id="quick-test-empty">Chưa gán hiệu ứng cho quà nào. Vào mục 🎯 Quà kích hoạt để gán.</div>
                                 </div>
                             </div>
-
-                            <div class="save-status" id="save-status">Cài đặt tự động lưu</div>
-                        </div>
-
-                        <div class="card thuy-side-panel">
-                            <div class="thuy-side-switch">
-                                <button id="thuy-police-tab" class="active" type="button">🚓 Cảnh Sát <span id="thuy-police-count">0</span></button>
-                                <button id="thuy-caught-tab" type="button">🥷 Kẻ Trộm <span id="thuy-caught-count">0</span></button>
-                            </div>
-                            <div id="thuy-side-panel-host" class="thuy-side-panel-host"></div>
-                        </div>
-
+                        </section>
+                        <div class="save-status" id="save-status">Cài đặt tự động lưu</div>
                     </div>
 
-                    <!-- Cột giữa: preview game -->
-                    <div class="col col-mid">
+                    <!-- Cột giữa: xem trước + ô nhập prompt AI -->
+                    <div class="col col-mid tt-stage">
+                        <div class="tt-stbar">
+                            <button type="button" id="tt-zoom" class="ghost small tt-zoom" title="Phóng to quanh hũ để dễ đặt chữ / sticker — chỉ trong app, OBS không đổi">🔍 Phóng to hũ</button>
+                            <button id="btn-toggle-thuytinh-preview" class="ghost small" title="Ẩn/hiện preview hũ để giảm lag — khi cần config thì bật lại">🙈 Ẩn preview</button>
+                            <span class="thuytinh-opacity-ctrl" id="thuytinh-opacity-ctrl" title="Kéo để chỉnh độ trong suốt preview (trái = trong, phải = đục)">
+                                <span class="thuytinh-opacity-icon">🎚</span>
+                                <input type="range" id="thuytinh-preview-opacity" min="20" max="100" step="5" value="100" />
+                            </span>
+                        </div>
                         <div class="stage-wrap">
                             <div class="stage-frame" id="stage-frame">
                                 <div class="stage-checker"></div>
@@ -625,10 +704,72 @@
                                 <div class="stage-info" id="stage-info">Sẵn sàng — chờ quà</div>
                             </div>
                         </div>
+                        <div class="tt-preview-off" id="tt-preview-off">Khung xem trước đang ẩn cho đỡ lag. <button type="button" class="ghost small" id="tt-preview-on">👁 Hiện để chỉnh giao diện</button></div>
+                        <div class="ai-tray" id="ai-tray" hidden></div>
+                        <div class="ai-prompt" id="ai-prompt">
+                            <div class="ai-prompt-in">
+                                <div class="ai-row1">
+                                    <button type="button" class="ai-att" id="ai-att" title="Thêm ảnh thật (mặt, thú cưng, đồ vật…) để AI vẽ theo">📷</button>
+                                    <input type="file" id="ai-file" accept="image/png,image/jpeg,image/webp" hidden />
+                                    <textarea id="ai-text" rows="2" maxlength="1000" placeholder="Mô tả sticker muốn tạo… vd: “mèo con chibi đội nón lá, cầm bảng CẢM ƠN”. Thêm ảnh thật ở nút 📷 để AI vẽ giống."></textarea>
+                                </div>
+                                <div class="ai-row2">
+                                    <div class="tt-chips ai-styles" id="ai-preset">
+                                        <button type="button" class="on" data-p="chibi">Chibi</button>
+                                        <button type="button" data-p="sticker">Sticker viền trắng</button>
+                                        <button type="button" data-p="3d">3D dễ thương</button>
+                                        <button type="button" data-p="anime">Anime</button>
+                                        <button type="button" data-p="pixel">Pixel</button>
+                                        <button type="button" data-p="none" title="Dùng nguyên câu mô tả, không thêm phong cách">Tự do</button>
+                                    </div>
+                                    <span class="sp"></span>
+                                    <span class="ai-left" id="ai-left"></span>
+                                    <button type="button" class="ai-go" id="ai-go">✨ Tạo</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Cột phải: quà -->
+                    <!-- Cột phải: bảng chỉnh (Giao diện) hoặc quà LIVE -->
                     <div class="col col-right">
+                        <!-- Bảng chỉnh lớp đang chọn (chỉ hiện ở mục 🎨 Giao diện) -->
+                        <div class="card tt-insp" id="jt-insp">
+                            <div class="tt-insp-empty" id="jt-insp-empty">Chọn 1 chữ hoặc sticker (bấm trên hũ hoặc trong danh sách lớp) để chỉnh.</div>
+                            <div id="jt-insp-body" hidden>
+                                <div class="ti-sec">
+                                    <h4>Nội dung <span class="sp"></span><span id="ti-kind" class="tt-count"></span></h4>
+                                    <textarea id="ti-text" class="ti-text" rows="2" placeholder="Gõ chữ… (Enter = xuống dòng)"></textarea>
+                                    <img id="ti-img" class="ti-img" alt="" hidden />
+                                    <div id="jt-vars" class="jt-vars ti-text-only" title="Bấm để chèn vào chữ — tự đổi theo LIVE"></div>
+                                </div>
+                                <div class="ti-sec ti-text-only">
+                                    <h4>Kiểu chữ</h4>
+                                    <div class="ti-styles" id="ti-styles"></div>
+                                </div>
+                                <div class="ti-sec ti-text-only">
+                                    <h4>Sticker quanh chữ</h4>
+                                    <div class="ti-row"><select id="ti-deco" class="cfg-select"></select><button type="button" id="ti-flip" class="ghost small" title="Đảo sticker trái ↔ phải">⇄</button></div>
+                                </div>
+                                <div class="ti-sec">
+                                    <h4>Màu & chuyển động</h4>
+                                    <div class="ti-row ti-text-only"><span class="ti-lbl">Màu</span><input type="color" id="ti-c1" /><input type="color" id="ti-c2" title="Màu dòng 2" /></div>
+                                    <div class="tt-chips" id="ti-anim"></div>
+                                </div>
+                                <div class="ti-sec">
+                                    <h4>Cỡ & xoay</h4>
+                                    <div class="ti-kv"><label>Cỡ</label><input type="range" id="ti-size" min="4" max="30" step="0.5" /><output id="ti-size-v"></output></div>
+                                    <div class="ti-kv"><label>Xoay</label><input type="range" id="ti-rot" min="-45" max="45" step="1" /><output id="ti-rot-v"></output></div>
+                                </div>
+                                <div class="ti-sec">
+                                    <h4>Hiện khi</h4>
+                                    <div class="tt-seg sm" id="ti-show"></div>
+                                    <div class="ti-row ti-react">
+                                        <label title="Nảy lên mỗi khi có quà từ mức xu này"><input type="checkbox" id="ti-pop" /> Nảy khi có quà</label>
+                                        <label title="Quà từ bao nhiêu xu thì tính là quà lớn">≥ <input type="number" id="ti-minxu" min="1" max="100000" /> xu</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="card">
                             <div class="card-title">🎁 Quà nhận từ LIVE
                                 <button id="btn-clear-gifts" class="ghost mini">Xoá</button>
