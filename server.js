@@ -5672,7 +5672,7 @@ app.get('/api/version', (req, res) => {
 // GitHub repo cho auto-update — PUBLIC để fetch unauth (không cần token).
 // Repo phải có Releases với tag vX.Y.Z và asset "HP-Action-LIVE-Setup-X.Y.Z.exe".
 // Override qua env HP_GITHUB_REPO=owner/repo nếu user dùng repo khác.
-const GITHUB_REPO = process.env.HP_GITHUB_REPO || 'hpmediaoffifical/hp-tiktok-game';
+const GITHUB_REPO = process.env.HP_GITHUB_REPO || 'phung-source/hp-action-live';
 
 app.get('/api/update/check', async (req, res) => {
     try {
