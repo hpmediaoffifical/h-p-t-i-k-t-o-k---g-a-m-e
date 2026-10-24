@@ -1,4 +1,4 @@
-# HP TIKTOK GAME
+# HP ACTION LIVE
 
 Thư viện game tương tác với TikTok LIVE cho streamer — kết nối realtime với phòng LIVE qua [tiktok-live-connector](https://github.com/zerodytrash/TikTok-Live-Connector), chạy game vật lý trên overlay OBS, đầy đủ tính năng tương tác viewer.
 
