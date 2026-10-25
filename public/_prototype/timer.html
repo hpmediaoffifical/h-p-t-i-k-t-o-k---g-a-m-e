@@ -1023,7 +1023,8 @@
     const el = $('log'); if (!el) return;
     const line = document.createElement('div');
     line.className = 'l' + (cls ? ' ' + cls : '');
-    line.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    // textContent: tin nhắn chứa tên quà / tên người xem từ TikTok — không bao giờ coi là HTML.
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
     el.appendChild(line);
     el.scrollTop = el.scrollHeight;
     while (el.children.length > 240) el.firstChild.remove();
@@ -1558,20 +1559,22 @@
       const sign = u.delta > 0 ? '+' : '';
       const txt = u.delta !== 0 ? `${sign}${u.delta}s` : `+${u.coins}💎`;
       const time = new Date(u.ts).toLocaleTimeString();
+      // Mọi trường từ TikTok (tên, tên quà, link ảnh) đều escape — tên người xem là dữ liệu của người lạ.
+      const nick = escAttr(u.nickname), gname = escAttr(u.giftName);
       const av = u.avatar
-        ? `<img class="av" src="${u.avatar}" onerror="this.style.visibility='hidden'"/>`
+        ? `<img class="av" src="${escAttr(u.avatar)}" onerror="this.style.visibility='hidden'"/>`
         : `<div class="av" style="background:#dde3ec;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:13px;">👤</div>`;
       const gi = u.giftImage
-        ? `<img class="gift" src="${u.giftImage}" onerror="this.style.visibility='hidden'" title="${u.giftName}"/>`
+        ? `<img class="gift" src="${escAttr(u.giftImage)}" onerror="this.style.visibility='hidden'" title="${gname}"/>`
         : '';
       return `<div class="ulrow">
         ${av}
         <div style="min-width:0;">
-          <div class="nick" title="${u.nickname}">${u.nickname}</div>
-          <div class="meta">${u.giftName} ×${u.repeat} · ${time}</div>
+          <div class="nick" title="${nick}">${nick}</div>
+          <div class="meta">${gname} ×${escAttr(u.repeat)} · ${escAttr(time)}</div>
         </div>
         ${gi}
-        <span class="delta ${cls}">${txt}</span>
+        <span class="delta ${cls}">${escAttr(txt)}</span>
       </div>`;
     }).join('');
     ul.innerHTML = html;

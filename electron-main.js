@@ -8,6 +8,18 @@ const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const { spawn } = require('child_process');
+const { isSafeExternalUrl } = require('./lib/net-guard');
+
+// Link từ trang (window.open / target=_blank) chỉ được ra trình duyệt khi là http/https —
+// file:, ms-settings:, search-ms:, smb:… qua shell.openExternal có thể mở/chạy thứ trên máy.
+function openExternalSafe(url) {
+    if (isSafeExternalUrl(url)) shell.openExternal(url);
+    else console.warn('[electron] chặn mở link ngoài không phải http/https:', String(url).slice(0, 200));
+}
+// Cùng origin với server nội bộ — so origin đã parse, không startsWith (http://localhost:3000.evil.com).
+function isAppUrl(url) {
+    try { return new URL(url).origin === new URL(APP_URL).origin; } catch (_) { return false; }
+}
 
 const PORT = process.env.PORT || 3000;
 const APP_URL = `http://localhost:${PORT}`;
@@ -220,13 +232,13 @@ function createMainWindow() {
         }
         // Chém Trái Cây: "Mở tracker trong Chrome" phải ra trình duyệt ngoài (Electron tắt GPU, MediaPipe chạy chậm).
         if (url.startsWith(`${APP_URL}/tracker/`)) {
-            shell.openExternal(url);
+            openExternalSafe(url);
             return { action: 'deny' };
         }
-        if (url.startsWith(APP_URL)) {
+        if (isAppUrl(url)) {
             return { action: 'allow' };
         }
-        shell.openExternal(url);
+        openExternalSafe(url);
         return { action: 'deny' };
     });
 
@@ -827,7 +839,7 @@ function openQuickLaunchWindow() {
     win.on('close', () => { flushQuickLaunchPrefs(); });
     win.on('closed', () => { quickLaunchWindow = null; });
     win.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url); return { action: 'deny' };
+        openExternalSafe(url); return { action: 'deny' };
     });
 }
 ipcMain.on('quick-launch:setAlwaysOnTop', (e, on) => {
@@ -986,7 +998,7 @@ function openCaroPreviewWindow() {
     caroPreviewWindow.on('close',  () => { persistBounds(); flushCaroPreviewPrefs(); });
     caroPreviewWindow.on('closed', () => { caroPreviewWindow = null; });
     caroPreviewWindow.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url); return { action: 'deny' };
+        openExternalSafe(url); return { action: 'deny' };
     });
 }
 ipcMain.on('caro-preview:setAlwaysOnTop', (e, on) => {
@@ -1220,7 +1232,7 @@ function openNhatLaPreviewWindow() {
         if (!nhatLaPreviewIsClosing && nhatLaPreviewWindow && !nhatLaPreviewWindow.isDestroyed()) nhatLaPreviewWindow.close();
     });
     nhatLaPreviewWindow.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url);
+        openExternalSafe(url);
         return { action: 'deny' };
     });
 }
@@ -1368,7 +1380,7 @@ function openGiftListWindow() {
     giftListWindow.on('close',  () => { persistBounds(); flushGiftListPrefs(); });
     giftListWindow.on('closed', () => { giftListWindow = null; });
     giftListWindow.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url); return { action: 'deny' };
+        openExternalSafe(url); return { action: 'deny' };
     });
 }
 ipcMain.on('gift-list:setAlwaysOnTop', (e, on) => {
@@ -1543,7 +1555,7 @@ function openNhietDoPopoutWindow({ pin = false, edit = false } = {}) {
         else nhietDoPopoutWindow = null;
     });
     win.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url); return { action: 'deny' };
+        openExternalSafe(url); return { action: 'deny' };
     });
     if (pin) nhietDoPinWindow = win;
     else nhietDoPopoutWindow = win;

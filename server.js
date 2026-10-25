@@ -104,7 +104,7 @@ async function loadTikTokConnector() {
 // Nạp sớm lúc khởi động (không chặn listen) để log phiên bản + báo sớm nếu gói hỏng.
 loadTikTokConnector().catch((e) => console.error('[tiktok] KHÔNG nạp được tiktok-live-connector:', e?.message || e));
 const { OBSBridge } = require('./lib/obs-bridge');
-const { ObsCameraFeed } = require('./lib/touchplay-obs-feed');
+const { ObsCameraFeed, TOUCHPLAY_FEED_ROOM } = require('./lib/touchplay-obs-feed');
 const CamRules = require('./lib/camgames');
 const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
 const MusicGifts = require('./lib/music-gifts');
@@ -118,6 +118,7 @@ const CaptionListener = require('./lib/caption-listener');
 // (không suy từ tên máy, để URL giống nhau trên mọi cài đặt HP Action LIVE). Lý do đầy đủ +
 // phần tự thêm vào hosts file nằm ở lib/obs-host.js.
 const { OBS_HOST: OBS_LOCAL_HOST, isHostMapped } = require('./lib/obs-host');
+const NetGuard = require('./lib/net-guard');
 // VIP Welcome — thẻ vào phòng: tín hiệu vào phòng (member + barrage), vào/ra/vào lại, bậc, sổ xu, hàng media.
 const vwSignals = require('./lib/vipwelcome/join-signals');
 const vwTiers = require('./lib/vipwelcome/tier-match');
@@ -199,6 +200,18 @@ function isTrustedRemote(remoteAddress, givenToken) {
     const n = networkConfig();
     return n.lanAccess === true && tokenMatches(givenToken, n.token);
 }
+// Header Host phải là tên của chính máy này (chống DNS rebinding: trang lạ trỏ tên miền của nó về
+// 127.0.0.1 → kết nối tới từ loopback nên được "tin cậy", nhưng Host vẫn là tên miền lạ).
+// Máy khác trong LAN gõ http://<IP LAN>:3000 hoặc http://<tên máy>:3000 → chỉ hợp lệ khi bật LAN / HP_BIND_HOST.
+function hostAllowed(hostHeader) {
+    const lan = networkConfig().lanAccess === true || (HP_BIND_HOST_ENV !== '' && !isLoopbackIp(HP_BIND_HOST_ENV) && HP_BIND_HOST_ENV !== 'localhost');
+    let lanHosts = [];
+    if (lan) {
+        lanHosts = lanAddresses();
+        try { const hn = os.hostname(); if (hn) lanHosts.push(hn, hn + '.local'); } catch (_) {}
+    }
+    return NetGuard.isAllowedHost(hostHeader, { localHosts: LOCAL_ORIGIN_HOSTS, lan, lanHosts });
+}
 function requestIsTrusted(req) {
     return isTrustedRemote(req && req.socket && req.socket.remoteAddress, req && req.headers && req.headers['x-hp-token']);
 }
@@ -215,7 +228,17 @@ const io = new SocketIOServer(httpServer, {
     cors: { origin: (origin, cb) => cb(null, originAllowed(origin)) },
     // Gói cors chỉ set header (không bao giờ trả 403) và CORS không áp dụng cho WebSocket →
     // allowRequest mới thật sự chặn handshake (polling lẫn websocket) từ trang lạ theo Origin.
-    allowRequest: (req, cb) => (originAllowed(req.headers.origin) ? cb(null, true) : cb('origin_not_allowed', false))
+    allowRequest: (req, cb) => {
+        if (!hostAllowed(req.headers.host)) return cb('host_not_allowed', false);
+        return originAllowed(req.headers.origin) ? cb(null, true) : cb('origin_not_allowed', false);
+    }
+});
+
+// Chống DNS rebinding cho MỌI request (kể cả GET): Host lạ → 403 trước mọi route/static.
+// (/socket.io do engine.io xử lý trước Express — chặn riêng trong allowRequest ở trên.)
+app.use((req, res, next) => {
+    if (!hostAllowed(req.headers.host)) return res.status(403).json({ ok: false, error: 'host_not_allowed' });
+    next();
 });
 
 // Chống CSRF / DNS rebinding cho mọi request GHI — đặt TRƯỚC express.static/express.json và mọi
@@ -4958,12 +4981,16 @@ app.get('/api/dashboard/state', (req, res) => {
 });
 
 app.get('/api/backup/export', (req, res) => {
+    // Máy LAN chưa có token chỉ nhận bản đã bỏ bí mật (token LAN, mật khẩu OBS, key bản quyền, sign API key)
+    // — nếu không, đọc token qua GET này rồi GHI thoải mái thì cổng X-HP-Token vô nghĩa.
+    const trusted = requestIsTrusted(req);
     res.json({
         ok: true,
         exportedAt: new Date().toISOString(),
         app: 'HP Action LIVE',
         version: require('./package.json').version,
-        config: appConfig
+        redacted: !trusted,
+        config: trusted ? appConfig : NetGuard.redactBackupConfig(appConfig)
     });
 });
 
@@ -11681,6 +11708,8 @@ io.on('connection', (socket) => {
         // Overlay Dịch gửi { room, speaker } (link có ?speaker=1 = nguồn được ưu tiên đọc); còn lại gửi chuỗi.
         const roomName = (subscription && typeof subscription === 'object') ? subscription.room : subscription;
         if (typeof roomName === 'string' && roomName.length < 32) {
+            // Phòng hình camera OBS chỉ cho socket tin cậy (loopback / LAN + đúng token) — xem touchplayFeed.attach.
+            if (roomName.startsWith(TOUCHPLAY_FEED_ROOM) && socket.data.trusted !== true) return;
             socket.join(roomName);
             // Dịch Thuật LIVE: mỗi lần có overlay mới vào/ra → bầu lại speaker duy nhất
             if (roomName === 'translateOverlay') {
