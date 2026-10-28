@@ -82,15 +82,31 @@
         renderGrid();
     }
 
+    // 🖼 Ảnh bìa hoạt hình 2.5D/3D (bộ của HP LIVE NPC) thay icon: public/games/camgames/thumb/<id game>.webp (270×480).
+    // Nạp xong mới thay icon (.has-art); thiếu file thì giữ icon như cũ, nhớ URL lỗi để vẽ lại lưới không hỏi lại server.
+    const artBad = new Set();
+    const artUrl = id => { const u = '/games/camgames/thumb/' + encodeURIComponent(id) + '.webp'; return artBad.has(u) ? '' : u; };
+    const artImg = id => (artUrl(id) ? `<img class="cg-art" src="${esc(artUrl(id))}" alt="" decoding="async">` : '');
+    function bindArt(root) {
+        root.querySelectorAll('img.cg-art').forEach(im => {
+            const card = im.closest('.cg-game');
+            const ok = () => card && card.classList.add('has-art');
+            const bad = () => { artBad.add(im.getAttribute('src')); im.remove(); };
+            if (im.complete) { if (im.naturalWidth) ok(); else bad(); return; }
+            im.addEventListener('load', ok, { once: true });
+            im.addEventListener('error', bad, { once: true });
+        });
+    }
     function renderGrid() {
         const grid = $('#cg-grid');
         if (!grid) return;
         const now = playing(), cur = actives(), keyOwner = hotkeyOwner();
-        grid.innerHTML = games().filter(g => lstates[g.id] !== 'hidden').map(g => {   // HP KEY: game con Ẩn không hiện
+        // 🧍 Bộ Tách Người không là thẻ: các game con của nó trải thành lưới ô riêng bên dưới (bodySection) để chọn nhanh như HP LIVE NPC.
+        grid.innerHTML = games().filter(g => lstates[g.id] !== 'hidden').filter(g => g.id !== 'body').map(g => {   // HP KEY: game con Ẩn không hiện
             const on = now.includes(g.id);
             if (locked.has(g.id)) {
                 const paused = lstates[g.id] === 'off';
-                return `<div class="cg-game" data-id="${esc(g.id)}" style="opacity:.55">
+                return `<div class="cg-game" data-id="${esc(g.id)}" style="opacity:.55">${artImg(g.id)}
                 <div class="cg-game-head"><span class="cg-ico">${g.iconSvg || g.icon}</span><b>${esc(g.name)}</b>
                     ${paused ? '<span class="cg-badge" title="HP Media sẽ mở lại sớm">⏸ TẠM BẢO TRÌ</span>'
                         : '<span class="cg-badge" title="Liên hệ HP Media để mở thêm tính năng này cho KEY">🔒 KEY CHƯA MỞ</span>'}</div>
@@ -105,7 +121,7 @@
             const partners = canWith ? withList.filter(x => x !== g.id).map(nameOf).join(' + ') : '';
             const replaced = canWith ? cur.filter(x => !withList.includes(x)).map(nameOf).join(', ') : '';
             const withTitle = canWith ? `Chơi cùng lúc với ${partners}${replaced ? ' (thay ' + replaced + ' — cùng khe ' + (g.slot === 'head' ? 'trên đầu' : 'dùng tay') + ')' : ''}` : '';
-            return `<div class="cg-game ${on ? 'on' : ''}" data-id="${esc(g.id)}">
+            return `<div class="cg-game ${on ? 'on' : ''}" data-id="${esc(g.id)}">${artImg(g.id)}
                 <div class="cg-game-head"><span class="cg-ico">${g.iconSvg || g.icon}</span><b>${esc(g.name)}</b>
                     ${lstates[g.id] === 'admin' ? '<span class="cg-badge" title="Thử nghiệm — mới mở cho một số KEY dùng thử">🧪 THỬ NGHIỆM</span>' : ''}
                     ${on ? '<span class="cg-badge">● ĐANG CHƠI TRÊN OBS</span>' : ''}
@@ -123,7 +139,9 @@
                     ${solo ? `<button class="ghost small" data-solo-off="${esc(g.id)}" title="Tắt game ở link riêng — quà không còn kích hoạt nó">⏻ Tắt</button>` : ''}
                 </div>
             </div>`;
-        }).join('');
+        }).join('') + bodySection();
+        bindArt(grid);
+        bindBody();
         grid.querySelectorAll('[data-play]').forEach(b => b.addEventListener('click', () => save({ active: b.dataset.play, enabled: true })));
         // Bấm vào game nào thì game đó giữ phím tắt (chơi kèm / ⚙ Cài đặt / ⌨ Nhận phím tắt).
         grid.querySelectorAll('[data-with]').forEach(b => b.addEventListener('click', () => save({ actives: norm([...actives(), b.dataset.with]), enabled: true, hotkeyGame: b.dataset.with })));
@@ -140,6 +158,51 @@
             window.hpOpenGame?.(id);
         }));
     }
+
+    // ---------- 🧍 GAME TÁCH NGƯỜI: lưới ô mọi game con (Rơi Hố, Bị Đuổi, Video Hành Động, Khóc Lóc, Bắn Tim, Bắt NPC, Biến Hình…) ----------
+    // Lõi ô / menu / thêm game nằm trong public/games/body/body-panel.js (window.HpBodyPanel.hub). Bấm ô = ▶ chạy thử,
+    // chuột phải = ⚙ Cài đặt / 🎁 Gắn quà / Nhân bản / Xoá. Nút Bật = chơi KÈM game đang chơi (khe 'body' riêng, không đá game khác).
+    function bodySection() {
+        const B = window.HpBodyPanel?.hub, g = gameOf('body');
+        if (!B || !g || lstates.body === 'hidden') return '';
+        if (locked.has('body')) return `<div class="cg-sec"><div class="cg-sec-head"><b>🧍 Game tách người</b><span class="cg-badge">${lstates.body === 'off' ? '⏸ TẠM BẢO TRÌ' : '🔒 KEY CHƯA MỞ'}</span></div></div>`;
+        const on = playing().includes('body');
+        return `<div class="cg-sec">
+                <div class="cg-sec-head"><b>🧍 Game tách người</b><em>${B.count()}</em>
+                    <button class="cg-power${on ? ' on' : ''}" id="cg-body-power" title="Bật = các game tách người chạy theo quà trên OBS (chơi kèm game đang chơi). Tắt = quà không chạy các game này.">${on ? '● Đang bật' : '⏻ Bật'}</button>
+                    <button class="ghost small" id="cg-body-cfg" title="Cỡ người - tách nền - cài đặt chung">⚙ Cài đặt</button>
+                    <span class="cg-sec-sp"></span>
+                    <select id="cg-body-new" title="Loại game mới">${B.types().map(([v, n]) => `<option value="${esc(v)}">${esc(n)}</option>`).join('')}</select>
+                    <button class="small primary" id="cg-body-add">＋ Thêm</button>
+                </div>
+                <div class="cg-sec-hint">Bấm ô = chạy thử trên OBS · chuột phải = Gắn quà / Cài đặt / Nhân bản / Xoá</div>
+                <div class="bt-vgrid cg-body-grid${on ? '' : ' off'}" id="cg-body-grid">${B.grid()}</div>
+            </div>`;
+    }
+    function bindBody() {
+        const B = window.HpBodyPanel?.hub, bg = $('#cg-body-grid');
+        if (!B || !bg) return;
+        B.bind(bg);
+        $('#cg-body-add').addEventListener('click', () => B.add($('#cg-body-new').value));
+        $('#cg-body-cfg').addEventListener('click', () => window.hpOpenGame?.('body'));
+        $('#cg-body-power').addEventListener('click', () => {
+            if (playing().includes('body')) {
+                const rest = actives().filter(x => x !== 'body');
+                return save(rest.length ? { actives: rest } : { enabled: false });
+            }
+            return cfg.enabled === false ? save({ active: 'body', enabled: true }) : save({ actives: norm([...actives(), 'body']), enabled: true });
+        });
+    }
+    // Lõi Bộ Tách Người nạp sau panel này / game tách người đổi (thêm, xoá, gắn quà) → vẽ lại lưới.
+    let bodyHooked = false;
+    function hookBody() {
+        const B = window.HpBodyPanel?.hub;
+        if (!B || bodyHooked || !socket) return;
+        bodyHooked = true;
+        B.onChange(() => { if (viewActive()) renderGrid(); });
+        B.ready(socket).then(renderGrid).catch(() => {});
+    }
+    window.addEventListener('hp-body-panel-ready', () => { if (built) hookBody(); });
 
     function renderStatus() {
         const el = $('#cg-status');
@@ -296,6 +359,7 @@
                 socket.on('license:features', d => { setLicense(d); renderGrid(); });
             }
             build();
+            hookBody();
             window.HpCamTrigger?.open(socket);   // 🎮 quà kích hoạt game (camgames-trigger.js)
             loadConfig();
             setTimeout(poll, 50);

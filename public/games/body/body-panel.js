@@ -76,6 +76,9 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             .bt-vthumb video, .bt-vthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
             video.packed { object-view-box: inset(0 50% 0 0); }
             .bt-vnone { font-size: 28px; opacity: .6; }
+            .bt-vthumb img.bt-vart { position: absolute; inset: 0; }
+            .bt-vthumb img.bt-vart.on { background: inherit; }   /* nạp xong mới che emoji dự phòng (kể cả ảnh trong suốt) */
+            .bt-vthumb img.bt-vart.over { transition: opacity .15s; } .bt-vtile:hover .bt-vthumb img.bt-vart.over { opacity: 0; }   /* rê chuột: ẩn ảnh bìa, phát video mẫu */
             .bt-vkind { position: absolute; left: 4px; top: 4px; font-size: 16px; background: rgba(10,12,18,.7); border-radius: 8px; padding: 1px 4px; }
             .bt-vgift { position: absolute; right: 4px; top: 4px; display: flex; align-items: center; gap: 2px; background: rgba(10,12,18,.7); border-radius: 8px; padding: 2px; font-size: 12px; }
             .bt-vgift img { width: 20px; height: 20px; object-fit: contain; } .bt-vgift em { font-style: normal; font-size: 10px; color: #25f4ee; }
@@ -1560,6 +1563,16 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
     const gType = (kind, x) => kind === 'vidfx' ? (VF_SHORT[x.motion] || '') : kind === 'cry' ? (x.mood === 'laugh' ? hpT('Cười ra nước mắt') : hpT('Khóc Lóc')) : kind === 'morph' ? (MO_SHORT()[x.style] || GKINDS.morph.name) : GKINDS[kind].name;
     const gFilterOf = (kind, x) => kind === 'vidfx' ? 'vf:' + x.motion : kind;
     const gKey = (kind, x) => kind + ':' + x.id;
+    // 🖼 Ảnh bìa: list/camgames/body/thumb/<tên>.webp (bảng tên: docs/thumbnail-game-ve-bang-ma.md). Game vẽ bằng mã + 🕳️ / 🏃 chưa có
+    // video → thay emoji; 🎬 Video Hành Động: ảnh theo KIỂU game (motion) đè khung hình video, video nào cũng vậy - máy dev gắn video
+    // nghiên cứu ngoài list/ cũng phải ra ảnh (user 2026-10-29); rê chuột thì ẩn ảnh, phát video. Chưa có file ảnh → ảnh lỗi bị gỡ
+    // (về emoji / video); nhớ URL lỗi để vẽ lại lưới không hỏi lại server.
+    const ART_DIR = '/games/body/samples/thumb/';
+    const artName = (kind, x, file) => file ? (kind === 'vidfx' && x.motion ? 'vf-' + x.motion : '')
+        : kind === 'morph' ? (x.style ? 'morph-' + x.style : '') : kind === 'cry' ? (x.mood === 'laugh' ? 'cry-laugh' : 'cry')
+        : ['heart', 'catch', 'roiho', 'biduoi'].includes(kind) ? kind : '';
+    const artBad = new Set();
+    const artUrl = (kind, x, file) => { const n = artName(kind, x, file), u = n ? ART_DIR + n + '.webp' : ''; return u && !artBad.has(u) ? u : ''; };
     // ▶ chạy thử: tam giác SVG có TRỌNG TÂM đúng x = 12 (giữa khung 24) → nhìn đúng giữa vòng tròn (ký tự "▶" lệch theo font).
     const PLAY_ICON = '<span class="bt-vplay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.6-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14z"/></svg></span>';
     let gQuery = '', gFilter = '', gOpen = '';
@@ -1588,8 +1601,9 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         const warn = needFile ? (kind === 'haucanh' ? hpT('Chưa có video nền') : hpT('Chưa có video')) : miss.length ? hpT('Thiếu file mẫu {v}', { v: miss.map(f => f.split('/').pop()).join(', ') }) : !x.gifts.length ? hpT('Chưa gắn quà') : (x.profileId && !profOf(x.profileId)) ? hpT('Hồ sơ đã xoá') : '';
         const t = kind === 'vidfx' ? (VF_THUMB_T[x.motion] || 1.2) : 1;
         const prof = x.profileId && profOf(x.profileId) ? npcName(profOf(x.profileId).groupId) : '';
+        const art = artUrl(kind, x, file), artOver = art && file && isVid(file);
         return `<button type="button" class="bt-vtile${warn ? ' warn' : ''}" data-g="${esc(gKey(kind, x))}" title="${hpTA('Bấm: chạy thử - Chuột phải: Cài đặt / Gắn quà / Nhân bản…')}">
-            <div class="bt-vthumb">${file && (meta.missingSamples || []).includes(file) ? `<span class="bt-vnone">${gIcon(kind, x)}</span>` : file && isVid(file) ? `<video${isPacked(file) ? ' class="packed"' : ''} muted loop playsinline preload="none" data-src="${esc(fileUrl(file))}#t=${t}" data-t="${t}"></video>` : file ? `<img src="${esc(fileUrl(file))}" alt="" loading="lazy">` : `<span class="bt-vnone">${gIcon(kind, x)}</span>`}
+            <div class="bt-vthumb">${file && (meta.missingSamples || []).includes(file) ? `<span class="bt-vnone">${gIcon(kind, x)}</span>` : file && isVid(file) ? `<video${isPacked(file) ? ' class="packed"' : ''} muted loop playsinline preload="none" data-src="${esc(fileUrl(file))}#t=${t}" data-t="${t}"></video>${artOver ? `<img class="bt-vart over" src="${esc(art)}" alt="" loading="lazy" decoding="async">` : ''}` : file ? `<img src="${esc(fileUrl(file))}" alt="" loading="lazy">` : `<span class="bt-vnone">${gIcon(kind, x)}</span>${art ? `<img class="bt-vart" src="${esc(art)}" alt="" loading="lazy" decoding="async">` : ''}`}
                 <span class="bt-vkind" title="${esc(gType(kind, x))}">${gIcon(kind, x)}</span>
                 ${g ? `<span class="bt-vgift" title="${esc(x.gifts.map(y => y.giftName).join(', '))}">${g.giftImage ? `<img src="${esc(g.giftImage)}" alt="">` : '🎁'}${x.gifts.length > 1 ? `<em>+${x.gifts.length - 1}</em>` : ''}</span>` : ''}
                 ${kind === 'biduoi' && x.videos.length > 1 ? `<span class="bt-vcount">📼 ${x.videos.length}</span>` : ''}
@@ -1653,7 +1667,16 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             const v = e.target; gThumbObs.unobserve(v);
             if (v.dataset.src && !v.src) { v.preload = 'metadata'; v.src = v.dataset.src; }
         }), { root: null, rootMargin: '200px' }) : null;
-        grid.querySelectorAll('video[data-src]').forEach(v => { if (gThumbObs) gThumbObs.observe(v); else { v.preload = 'metadata'; v.src = v.dataset.src; } });
+        const loadVid = v => { if (gThumbObs) gThumbObs.observe(v); else { v.preload = 'metadata'; v.src = v.dataset.src; } };
+        // video có ảnh bìa đè lên: khỏi nạp trước, rê chuột mới nạp (mouseenter bên dưới)
+        grid.querySelectorAll('video[data-src]').forEach(v => { if (!v.parentNode.querySelector('img.bt-vart')) loadVid(v); });
+        grid.querySelectorAll('img.bt-vart').forEach(im => {
+            const bad = () => { artBad.add(im.getAttribute('src')); const v = im.parentNode && im.parentNode.querySelector('video[data-src]'); im.remove(); if (v && !v.src) loadVid(v); };
+            const ok = () => im.classList.add('on');
+            if (im.complete) { if (im.naturalWidth) ok(); else bad(); return; }
+            im.addEventListener('load', ok, { once: true });
+            im.addEventListener('error', bad, { once: true });
+        });
         grid.querySelectorAll('.bt-vtile').forEach(t => {
             const v = t.querySelector('video');
             if (v) {
