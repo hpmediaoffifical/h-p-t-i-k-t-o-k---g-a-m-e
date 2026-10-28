@@ -1805,6 +1805,8 @@ const DEFAULT_CREATOR_CAPTION_CONFIG = {
     hotkey: 'Control+Shift+L',// phím tắt toàn cục Nghe/Tạm dừng ('' = không đăng ký)
     paceLines: true,          // overlay giữ mỗi câu đủ lâu để đọc, câu mới xếp hàng
     background: true,         // chạy ngầm: thu nhỏ cửa sổ nghe sau khi đã có quyền micro
+    micDevice: '',            // tên micro trang nghe dùng ('' = micro mặc định của Windows)
+    voiceFilter: 'normal',    // off | normal | strong — lọc dải giọng + cổng chặn nhạc/âm thanh desktop lọt vào micro
     maxItems: 3,
     holdSeconds: 12,
     autoTargetsEnabled: true,
@@ -2241,6 +2243,8 @@ function sanitizeCreatorCaptionConfig(input) {
     cfg.hotkey = CaptionListener.normalizeHotkey(src.hotkey == null ? d.hotkey : src.hotkey);
     cfg.paceLines = src.paceLines !== false;
     cfg.background = src.background !== false;
+    cfg.micDevice = String(src.micDevice == null ? d.micDevice : src.micDevice).replace(/[\u0000-\u001f]/g, '').trim().slice(0, 120);
+    cfg.voiceFilter = ['off', 'normal', 'strong'].includes(src.voiceFilter) ? src.voiceFilter : d.voiceFilter;
     cfg.maxItems = Math.max(1, Math.min(6, parseInt(src.maxItems, 10) || d.maxItems));
     cfg.holdSeconds = Math.max(3, Math.min(30, parseInt(src.holdSeconds, 10) || d.holdSeconds));
     cfg.autoTargetsEnabled = src.autoTargetsEnabled !== false;

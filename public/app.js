@@ -4101,6 +4101,8 @@
     const ccOriginal = document.getElementById('cc-original');
     const ccSource = document.getElementById('cc-source');
     const ccBrowser = document.getElementById('cc-browser');
+    const ccMic = document.getElementById('cc-mic');
+    const ccFilter = document.getElementById('cc-filter');
     const ccStyle = document.getElementById('cc-style');
     const ccInterim = document.getElementById('cc-interim');
     const ccListener = document.getElementById('cc-listener');
@@ -4520,6 +4522,8 @@
         if (ccSource) ccSource.value = creatorCaptionConfig.sourceLang || 'vi-VN';
         if (ccInterim) ccInterim.checked = creatorCaptionConfig.showInterim !== false;
         if (ccBrowser) ccBrowser.value = creatorCaptionConfig.browser === 'chrome' ? 'chrome' : 'edge';
+        if (ccFilter) ccFilter.value = ['off', 'strong'].includes(creatorCaptionConfig.voiceFilter) ? creatorCaptionConfig.voiceFilter : 'normal';
+        renderCaptionMicOptions();
         if (ccStyle) ccStyle.value = creatorCaptionConfig.style === 'subtitle' ? 'subtitle' : 'card';
         if (ccAutoStart) ccAutoStart.checked = creatorCaptionConfig.autoStart !== false;
         if (ccMode) ccMode.value = creatorCaptionConfig.mode === 'manual' ? 'manual' : 'auto';
@@ -4545,6 +4549,8 @@
             enabled: !!ccEnabled?.checked,
             sourceLang: ccSource?.value || 'vi-VN',
             browser: ccBrowser?.value === 'chrome' ? 'chrome' : 'edge',
+            micDevice: ccMic ? ccMic.value : undefined,
+            voiceFilter: ccFilter ? ccFilter.value : undefined,
             style: ccStyle?.value === 'subtitle' ? 'subtitle' : 'card',
             showInterim: ccInterim ? !!ccInterim.checked : true,
             autoStart: ccAutoStart ? !!ccAutoStart.checked : true,
@@ -4636,10 +4642,35 @@
         unsupported: 'Trình duyệt vừa mở không hỗ trợ nhận diện giọng — chọn "Nghe bằng" Edge hoặc Chrome.',
         'language-not-supported': 'Trình duyệt không hỗ trợ ngôn ngữ "Creator nói" đã chọn.'
     };
+    const CC_FILTER_TEXT = { normal: 'lọc nhạc nền', strong: 'lọc nhạc nền mạnh', off: 'không lọc', fallback: '⚠ không lọc được nhạc nền' };
     function captionBrowserLabel(b) { return b === 'chrome' ? 'Chrome' : 'Edge'; }
+    // Ô chọn micro: danh sách do cửa sổ nghe báo về (tên micro trình duyệt thấy) + micro đã lưu (kể cả khi
+    // đang rút ra). Tên có chữ Mix/Loopback/Stereo Mix/What U Hear thường là kênh đã trộn nhạc → ghi chú.
+    function renderCaptionMicOptions() {
+        if (!ccMic) return;
+        const mixedRe = /\b(mix|loopback|stereo mix|what u hear|wave out|virtual)\b/i;
+        const saved = creatorCaptionConfig?.micDevice || '';
+        const labels = Array.isArray(captionListenerState?.mics) ? captionListenerState.mics.slice() : [];
+        if (saved && !labels.includes(saved)) labels.unshift(saved);
+        const want = [''].concat(labels);
+        const have = Array.from(ccMic.options).map(o => o.value);
+        if (JSON.stringify(want) !== JSON.stringify(have)) {
+            ccMic.innerHTML = '';
+            for (const label of want) {
+                const opt = document.createElement('option');
+                opt.value = label;
+                opt.textContent = !label ? 'Mặc định của Windows'
+                    : label + (mixedRe.test(label) ? ' (kênh trộn nhạc?)' : '')
+                    + (captionListenerState?.mics?.length && !captionListenerState.mics.includes(label) ? ' — không thấy' : '');
+                ccMic.appendChild(opt);
+            }
+        }
+        ccMic.value = saved;
+    }
     function renderCaptionListenerState(state) {
         captionListenerState = state || { status: 'idle' };
         const s = captionListenerState;
+        renderCaptionMicOptions();
         const busy = s.status === 'opening' || s.status === 'listening';
         if (btnCcToggle) {
             btnCcToggle.textContent = busy ? 'DỪNG NGHE' : 'BẮT ĐẦU NGHE';
@@ -4653,7 +4684,7 @@
         const manual = creatorCaptionConfig?.mode === 'manual';
         if (s.status === 'opening') text = `Đang mở ${b}… Nếu được hỏi, hãy chọn Cho phép micro.`;
         else if (s.status === 'listening') {
-            text = `🎙 Đang nghe trong ${b}` + (s.micLabel ? ` · micro: ${s.micLabel}` : '') + (hk ? ` · ${hk}: ${manual ? 'dừng & dịch' : 'tạm dừng'}` : '');
+            text = `🎙 Đang nghe trong ${b}` + (s.micLabel ? ` · micro: ${s.micLabel}` : '') + (CC_FILTER_TEXT[s.filter] ? ` · ${CC_FILTER_TEXT[s.filter]}` : '') + (hk ? ` · ${hk}: ${manual ? 'dừng & dịch' : 'tạm dừng'}` : '');
             cls = 'ok';
         }
         else if (s.status === 'error') { text = CC_LISTENER_ERROR_TEXT[s.error] || ('Cửa sổ nghe lỗi: ' + (s.error || 'không rõ')); cls = 'err'; }
@@ -4767,6 +4798,8 @@
     btnCcReset?.addEventListener('click', resetCreatorCaptionMicPermission);
     // Đổi trình duyệt / kiểu overlay / chữ đang nói → lưu ngay (server phát config cho trang nghe + overlay)
     ccBrowser?.addEventListener('change', saveCreatorCaptionConfigSilent);
+    ccMic?.addEventListener('change', saveCreatorCaptionConfigSilent);
+    ccFilter?.addEventListener('change', saveCreatorCaptionConfigSilent);
     ccStyle?.addEventListener('change', saveCreatorCaptionConfigSilent);
     ccInterim?.addEventListener('change', saveCreatorCaptionConfigSilent);
     ccOriginal?.addEventListener('change', saveCreatorCaptionConfigSilent);

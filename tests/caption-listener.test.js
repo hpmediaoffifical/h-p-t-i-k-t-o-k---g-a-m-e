@@ -59,7 +59,8 @@ test('buildLaunchArgs: --app + profile riêng + cỡ cửa sổ', () => {
         '--no-default-browser-check',
         '--disable-sync',
         '--disable-features=TranslateUI,Translate',
-        '--window-size=460,340'
+        '--autoplay-policy=no-user-gesture-required',
+        '--window-size=460,380'
     ]);
 });
 
