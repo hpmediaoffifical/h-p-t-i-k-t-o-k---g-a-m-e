@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="vi">
 <head>
+<script src="/games/camgames/cam-frame-guard.js"></script><!-- 🔇 khung ẩn / mất kết nối app thì câm + ngưng (nạp trước mọi script) -->
 <meta charset="utf-8" />
 <title>TOUCH &amp; PLAY — Prototype</title>
 <script>
@@ -13,6 +14,9 @@
   })();
 </script>
 <script src="/lib/overlay-resolution.js"></script>
+<!-- 🎁 Icon nét HP Media + danh sách người tặng quà dùng chung mọi game Game Camera (mẫu Đập Muỗi) -->
+<script src="/lib/hp-icons.js"></script>
+<script src="/lib/hp-game-feed.js"></script>
 <style>
   :root { --bg:#eef2f7; --panel:#fff; --line:#e2e7ef; --text:#1d2433; --muted:#6c7689; --accent:#00b8d9; --ok:#1fbf75; --bad:#ff4d6d; --warn:#f59f00; }
   * { box-sizing:border-box; }
@@ -67,6 +71,28 @@
   .tiers { width:100%; border-collapse:collapse; font-size:12.5px; }
   .tiers td { padding:3px 2px; }
   .tiers input, .tiers select { width:100%; }
+  .card h4.sub { margin:14px 0 2px; font-size:13px; }
+  .gift-rows { display:flex; flex-direction:column; gap:5px; }
+  .gift-row { display:grid; grid-template-columns:112px 1fr 44px 28px; gap:6px; align-items:center; font-size:12.5px; }
+  .gift-row .act { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gift-pick { display:flex; align-items:center; gap:5px; min-width:0; padding:4px 6px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--text); cursor:pointer; text-align:left; }
+  .gift-pick:hover { border-color:#b8c4d8; }
+  .gift-pick.empty { color:var(--muted); border-style:dashed; }
+  .gift-pick > img { width:22px; height:22px; object-fit:contain; flex:none; }
+  .gift-pick .nm { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gift-pick .xu, .gp-item .xu { display:inline-flex; align-items:center; gap:2px; color:var(--muted); font-size:11.5px; flex:none; }
+  .gift-row input { width:100%; }
+  .coin-ico { width:12px; height:12px; }
+  .gp-ov { position:fixed; inset:0; z-index:50; background:rgba(15,22,38,.35); display:flex; align-items:center; justify-content:center; padding:16px; }
+  .gp-ov[hidden] { display:none; }
+  .gp-box { width:min(460px, 100%); max-height:80vh; display:flex; flex-direction:column; gap:8px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 14px; box-shadow:0 16px 40px rgba(15,22,38,.18); }
+  .gp-head { display:flex; align-items:center; gap:8px; } .gp-head b { flex:1; }
+  .gp-list { overflow:auto; display:flex; flex-direction:column; gap:3px; min-height:120px; }
+  .gp-item { display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:9px; cursor:pointer; border:1px solid transparent; }
+  .gp-item:hover { background:#f7f9fc; border-color:var(--line); }
+  .gp-item.on { background:#e6f9fc; border-color:#a6e6f2; }
+  .gp-item > img { width:28px; height:28px; object-fit:contain; }
+  .gp-item .nm { flex:1; min-width:0; } .gp-item .nm small { color:var(--muted); }
   .poses { display:grid; grid-template-columns:repeat(auto-fill, minmax(92px, 1fr)); gap:8px; }
   .pose-card { border:1px solid var(--line); border-radius:10px; padding:6px; text-align:center; font-size:11.5px; background:#fff; position:relative; }
   .pose-card.off { opacity:.4; }
@@ -106,7 +132,7 @@
 
       <div class="row"><span class="pill" id="camState">Nhận diện: tắt</span><span class="metrics" id="metrics"></span></div>
       <div class="grid2">
-        <label class="chk"><input type="checkbox" data-k="showHands"> Hiện điểm tay</label>
+        <label class="chk"><input type="checkbox" data-k="handDots"> Hiện vòng tròn ở tay</label>
         <label class="chk"><input type="checkbox" data-k="skeleton"> Khung xương</label>
       </div>
       <label class="field">Chất lượng nhận diện
@@ -138,13 +164,14 @@
 
     <div class="card">
       <h3>🎁 Quà → hành động</h3>
-      <p>Theo giá 1 quà (xu). Quà rơi vào mốc cao nhất mà nó đạt. Số lượng × số lần combo.</p>
+      <p>Quà chỉ định cho từng hành động — bấm ô quà để đổi. Số lượng × số lần combo.</p>
+      <div class="gift-rows" id="giftRows"></div>
+      <h4 class="sub">Quà khác — theo giá</h4>
+      <p>Theo giá 1 quà (xu). Quà rơi vào mốc cao nhất mà nó đạt.</p>
       <table class="tiers"><tbody id="tierBody"></tbody></table>
       <div class="row"><button class="btn small" id="addTier">+ Thêm mốc</button></div>
-      <div class="grid2">
-        <label class="chk"><input type="checkbox" data-k="autoStartOnGift"> Có quà tự bắt đầu ván</label>
-        <label class="field">Tối đa mỗi lần tặng<input type="number" data-k="maxPerGift" min="1" max="200"></label>
-      </div>
+      <p class="hint">Không có màn chờ: quà tới là game tự vào ván.</p>
+      <label class="field">Tối đa mỗi lần tặng<input type="number" data-k="maxPerGift" min="1" max="200"></label>
     </div>
 
     <div class="card">
@@ -153,14 +180,26 @@
         <label class="field">Tốc độ rơi ×<input type="number" data-k="fallSpeed" min="0.2" max="4" step="0.1"></label>
         <label class="field">Cỡ vật ×<input type="number" data-k="itemScale" min="0.5" max="2" step="0.1"></label>
         <label class="field">Vạch thua (% từ trên)<input type="number" data-k="dangerPercent" min="10" max="80"></label>
-        <label class="field">Giữ nút bắt đầu (giây)<input type="number" data-k="holdStart" min="0.2" max="3" step="0.1"></label>
         <label class="field">Độ dễ tư thế (độ lệch)<input type="number" data-k="poseTolerance" min="15" max="70"></label>
         <label class="field">Giữ tư thế (giây)<input type="number" data-k="poseHold" min="0.1" max="3" step="0.1"></label>
         <label class="field">Độ há miệng để ăn<input type="number" data-k="mouthOpen" min="0.1" max="0.9" step="0.05"></label>
         <label class="field">Âm lượng<input type="range" data-k="volume" min="0" max="1" step="0.05"></label>
       </div>
-      <div class="row"><label class="chk"><input type="checkbox" data-k="showDanger"> Hiện vạch thua</label></div>
+      <div class="grid2">
+        <label class="chk"><input type="checkbox" data-k="loseRule"> Luật thua (đống vật chạm vạch)</label>
+        <label class="chk"><input type="checkbox" data-k="showDanger"> Hiện vạch thua</label>
+      </div>
+      <p class="hint">Tắt luật thua: không hết ván — đống vật chất đầy màn hình thì tự hất bay.</p>
       <div class="row"><button class="btn small danger" id="resetCfg">Khôi phục mặc định</button></div>
+    </div>
+
+    <div class="card">
+      <h3>🎁 Danh sách người tặng quà</h3>
+      <p>Tránh góc dưới trái — ô bình luận TikTok.</p>
+      <label class="field"><span>Ngang (%) <b class="rv" data-v="listXPercent"></b></span><input type="range" data-k="listXPercent" min="0" max="100" step="1"></label>
+      <label class="field"><span>Dọc (%) <b class="rv" data-v="listYPercent"></b></span><input type="range" data-k="listYPercent" min="0" max="95" step="1"></label>
+      <label class="field"><span>Cỡ (%) <b class="rv" data-v="listScale"></b></span><input type="range" data-k="listScale" min="30" max="160" step="5"></label>
+      <div class="row"><button class="btn small" id="feedTest">👀 Xem thử</button></div>
     </div>
 
     <div class="card">
@@ -183,6 +222,7 @@
         <div class="tp-stage" id="stage">
           <video id="cam" muted playsinline></video>
           <canvas id="cv" width="1080" height="1920"></canvas>
+          <div id="feedBox"></div>
           <div class="tp-alert" id="alert"></div>
         </div>
       </div>
@@ -193,12 +233,13 @@
 <script src="/socket.io/socket.io.js"></script>
 <script type="module">
 import { HpTracker, sharedTracker, poseAngles, poseError } from '/lib/hp-tracking.mjs';
-import { cameraToStage } from '/lib/obs-scene-map.mjs';
+import { cameraToStage, createCamView } from '/lib/obs-scene-map.mjs';
 
 const IS_OVERLAY = document.documentElement.getAttribute('data-overlay') === '1';
 const GAME_ID = 'touchplay';
 const W = 1080, H = 1920;
 const $ = id => document.getElementById(id);
+const FEED = window.HpGameFeed || null;   // /lib/hp-game-feed.js: thẻ người tặng + icon nét (chữ canvas, ⚠)
 
 // ============================================================ CONFIG
 const ACTIONS = {
@@ -213,6 +254,8 @@ const ACTIONS = {
   fever:  { label: 'Điểm ×2 8s',    icon: '🔥' },
   rescue: { label: 'Giải cứu',      icon: '🧹' }
 };
+// Icon nét HP Media (/lib/hp-icons.js) của từng hành động trên OBS - thẻ người tặng + dòng hiệu ứng đang chạy.
+const ACT_ICON = { ball: 'ball', food: 'utensils', pose: 'user', rain: 'cloudRain', freeze: 'snow', slow: 'turtle', fast: 'zap', shield: 'shield', fever: 'flame', rescue: 'eraser' };
 // Góc 4 đoạn tay (độ, hệ màn hình): [cánh tay trái-màn-hình, cẳng, cánh tay phải-màn-hình, cẳng]
 // 0 = chỉ sang phải, 90 = chỉ xuống, -90 = chỉ lên, 180 = chỉ sang trái.
 const BUILTIN_POSES = [
@@ -228,11 +271,39 @@ const BUILTIN_POSES = [
   { id: 'l',      name: 'Chữ L',          a: [180, 180, -90, -90] },
   { id: 'side',   name: 'Một tay ngang',  a: [100, 90, 0, 0] }
 ];
+// Khoá cũ holdStart / autoStartOnGift / showHands vẫn được giữ nguyên trong cấu hình đã lưu nhưng không còn dùng:
+// không còn màn chờ "GIỮ TAY" (quà tới là vào ván), vòng tròn ở tay đổi sang handDots (mặc định ẩn).
 const DEFAULT_CFG = {
-  source: 'obs', obsSource: '', mirror: true, showHands: true, skeleton: false, quality: 'auto',
-  volume: 0.6, fallSpeed: 1, itemScale: 1, dangerPercent: 35, showDanger: true,
-  holdStart: 0.8, poseTolerance: 35, poseHold: 0.5, mouthOpen: 0.3,
-  autoStartOnGift: true, practice: false, maxPerGift: 40,
+  source: 'obs', obsSource: '', mirror: true, handDots: false, skeleton: false, quality: 'auto',
+  // 🎁 Danh sách người tặng quà: % vùng thấy + cỡ % (dưới HUD, tránh góc dưới trái = ô bình luận TikTok)
+  listXPercent: 50, listYPercent: 14, listScale: 70,
+  volume: 0.6, fallSpeed: 1, itemScale: 1, dangerPercent: 35, showDanger: true, loseRule: true,
+  poseTolerance: 35, poseHold: 0.5, mouthOpen: 0.3,
+  practice: false, maxPerGift: 40,
+  // Quà CHỈ ĐỊNH cho từng hành động (thắng mốc xu bên dưới) - quà rẻ vì game chơi nhẹ nhàng.
+  // Đồng bộ với TOUCHPLAY_GIFTS của lib/camgames.js (server giành quà khi chơi 2 game - camClaims).
+  gifts: [
+    { action: 'ball',   giftId: '5655',   giftName: 'Rose',                diamond: 1,  count: 1,
+      giftImage: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eba3a9bb85c33e017f3648eaf88d7189~tplv-obj.webp' },
+    { action: 'food',   giftId: '5487',   giftName: 'Finger Heart',        diamond: 5,  count: 1,
+      giftImage: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/a4c4dc437fd3a6632aba149769491f49.png~tplv-obj.webp' },
+    { action: 'pose',   giftId: '626064', giftName: 'G.O.A.T. Busker',     diamond: 20, count: 1,
+      giftImage: 'https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/a9ff60f42b278cc1e8278139dfebfca2.png~tplv-obj.webp' },
+    { action: 'rain',   giftId: '9947',   giftName: 'Friendship Necklace', diamond: 10, count: 1,
+      giftImage: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/e033c3f28632e233bebac1668ff66a2f.png~tplv-obj.webp' },
+    { action: 'freeze', giftId: '7412',   giftName: 'Ice cream',           diamond: 5,  count: 1,
+      giftImage: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/a40b91f7a11d4cbce780989e2d20a1f4~tplv-obj.webp' },
+    { action: 'slow',   giftId: '5658',   giftName: 'Perfume',             diamond: 20, count: 1,
+      giftImage: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/20b8f61246c7b6032777bb81bf4ee055~tplv-obj.webp' },
+    { action: 'fast',   giftId: '8913',   giftName: 'Rosa',                diamond: 10, count: 1,
+      giftImage: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eb77ead5c3abb6da6034d3cf6cfeb438~tplv-obj.webp' },
+    { action: 'shield', giftId: '9875',   giftName: 'Shamrock',            diamond: 10, count: 1,
+      giftImage: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/312f721603de550519983ca22f5cc445.png~tplv-obj.webp' },
+    { action: 'fever',  giftId: '19443',  giftName: 'Bravo!',              diamond: 15, count: 1,
+      giftImage: 'https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/075e206d6da035f10ff5f8fecd82abcc.png~tplv-obj.webp' },
+    { action: 'rescue', giftId: '5879',   giftName: 'Doughnut',            diamond: 30, count: 1,
+      giftImage: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp' }
+  ],
   tiers: [
     { min: 1,   action: 'ball',   count: 1 },
     { min: 5,   action: 'food',   count: 1 },
@@ -249,15 +320,26 @@ const num = (v, a, b, f) => { v = Number(v); return Number.isFinite(v) ? Math.ma
 function normalize(c) {
   const d = clone(DEFAULT_CFG), o = Object.assign(d, c && typeof c === 'object' ? c : {});
   o.fallSpeed = num(o.fallSpeed, 0.2, 4, 1); o.itemScale = num(o.itemScale, 0.5, 2, 1);
-  o.dangerPercent = num(o.dangerPercent, 10, 80, 35); o.holdStart = num(o.holdStart, 0.2, 3, 0.8);
+  o.dangerPercent = num(o.dangerPercent, 10, 80, 35);
   o.poseTolerance = num(o.poseTolerance, 15, 70, 35); o.poseHold = num(o.poseHold, 0.1, 3, 0.5);
   o.mouthOpen = num(o.mouthOpen, 0.1, 0.9, 0.3); o.volume = num(o.volume, 0, 1, 0.6);
   o.maxPerGift = Math.round(num(o.maxPerGift, 1, 200, 40));
+  o.listXPercent = num(o.listXPercent, 0, 100, 50); o.listYPercent = num(o.listYPercent, 0, 95, 14); o.listScale = num(o.listScale, 30, 160, 70);
+  o.loseRule = o.loseRule !== false; o.handDots = !!o.handDots;
   if (!['low', 'auto', 'high'].includes(o.quality)) o.quality = 'auto';
   if (!['obs', 'webcam'].includes(o.source)) o.source = 'obs';
   o.obsSource = typeof o.obsSource === 'string' ? o.obsSource.slice(0, 200) : '';
   o.tiers = (Array.isArray(o.tiers) ? o.tiers : []).filter(t => t && ACTIONS[t.action])
     .map(t => ({ min: Math.round(num(t.min, 1, 1e6, 1)), action: t.action, count: Math.round(num(t.count, 1, 100, 1)) }));
+  // Mỗi hành động đúng một dòng quà (theo thứ tự ACTIONS); dòng giftId + tên rỗng = chưa gán quà.
+  // Cấu hình cũ chưa có `gifts` → bộ quà mẫu ở DEFAULT_CFG; đã có mảng (kể cả streamer bỏ quà) → giữ nguyên.
+  const sN = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const gl = Array.isArray(o.gifts) ? o.gifts : [];
+  o.gifts = Object.keys(ACTIONS).map(k => {
+    const g = gl.find(x => x && x.action === k) || {};
+    return { action: k, giftId: sN(g.giftId, 40), giftName: sN(g.giftName, 80), giftImage: sN(g.giftImage, 600),
+      diamond: Math.round(num(g.diamond, 0, 1e6, 0)), count: Math.round(num(g.count, 1, 100, 1)) };
+  });
   o.posesOff = Array.isArray(o.posesOff) ? o.posesOff.filter(x => typeof x === 'string') : [];
   o.customPoses = (Array.isArray(o.customPoses) ? o.customPoses : [])
     .filter(p => p && Array.isArray(p.a) && p.a.length === 4 && p.a.every(Number.isFinite)).slice(0, 60);
@@ -329,7 +411,7 @@ function setCamState(text, level) {
 function showAlert(text) {
   const el = $('alert'); if (!el) return;
   if (!text) { el.style.display = 'none'; return; }
-  el.innerHTML = '⚠ ' + esc(text) + '<small>Touch &amp; Play đọc hình từ nguồn camera trong OBS. Mở Touch &amp; Play trong app để chọn nguồn.</small>';
+  el.innerHTML = (FEED ? FEED.icoHtml('⚠') : '⚠') + ' ' + esc(text) + '<small>Touch &amp; Play đọc hình từ nguồn camera trong OBS. Mở Touch &amp; Play trong app để chọn nguồn.</small>';
   el.style.display = 'block';
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -400,8 +482,8 @@ const S = {
   phase: 'idle',      // idle | playing | over
   score: 0, best: 0, combo: 0, lastHitAt: -99, time: 0,
   freeze: 0, slow: 0, fast: 0, fever: 0, shield: 0,
-  items: [], pile: [], exits: [], queue: [], particles: [], labels: [], notices: [],
-  startHold: 0, overAt: 0, practiceClock: 0, spawnClock: 0, poseProgress: 0, poseLive: null, poseErr: 999
+  items: [], pile: [], exits: [], queue: [], particles: [], labels: [],
+  overAt: 0, practiceClock: 0, spawnClock: 0, poseProgress: 0, poseLive: null, poseErr: 999
 };
 try { S.best = Number(localStorage.getItem('tp:best')) || 0; } catch (_) {}
 let nextId = 1;
@@ -410,27 +492,34 @@ let capturing = false;    // lab đang đếm ngược chụp tư thế → cầ
 // Sân chơi = phần camera đang hiện trên sân khấu. Tay chỉ bắt được trong khung camera, nên vật rơi,
 // đáy đống, vạch thua và nút bắt đầu đều phải nằm trong khung đó (camera đặt giữa màn hình, phía dưới
 // là ảnh nền → vật không được rơi xuống chỗ tay không với tới).
+// 👁 Vùng sân khấu còn thấy trên OBS (Scene PK / Colab cắt ô khung cam - createCamView (obs-scene-map.mjs)): sân chơi, HUD, chữ bật đều trong vùng này.
+const camView = createCamView({ W, H, overlayId: GAME_ID, getLayout: () => feed.layout, onChange: v => { placeAlert(v); queueMicrotask(placeFeed); } });   // microtask: lần gọi đầu chạy ngay trong createCamView, feedList chưa khai báo
+const VIEW = () => camView.rect;
+const VX = () => VIEW().x + VIEW().w / 2, VY = f => VIEW().y + VIEW().h * f;
+function placeAlert(v) {
+  const el = $('alert'); if (!el) return;
+  Object.assign(el.style, { left: (v.x + 60) + 'px', right: (W - v.x - v.w + 60) + 'px', top: (v.y + v.h * 0.42) + 'px' });
+}
 const AREA = { x0: 0, y0: 0, x1: W, y1: H, w: W, h: H };
 function updateArea() {
-  let a = { x0: 0, y0: 0, x1: W, y1: H };
+  const v = VIEW(), vx1 = v.x + v.w, vy1 = v.y + v.h;
+  let a = { x0: v.x, y0: v.y, x1: vx1, y1: vy1 };
   if (feed.on && feed.M && feed.bitmapW) {
     const M = feed.M, cs = [[0, 0], [feed.bitmapW, 0], [0, feed.bitmapH], [feed.bitmapW, feed.bitmapH]]
       .map(([x, y]) => ({ x: M[0] * x + M[2] * y + M[4], y: M[1] * x + M[3] * y + M[5] }));
-    const b = { x0: Math.max(0, Math.min(...cs.map(p => p.x))), x1: Math.min(W, Math.max(...cs.map(p => p.x))),
-                y0: Math.max(0, Math.min(...cs.map(p => p.y))), y1: Math.min(H, Math.max(...cs.map(p => p.y))) };
+    const b = { x0: Math.max(v.x, Math.min(...cs.map(p => p.x))), x1: Math.min(vx1, Math.max(...cs.map(p => p.x))),
+                y0: Math.max(v.y, Math.min(...cs.map(p => p.y))), y1: Math.min(vy1, Math.max(...cs.map(p => p.y))) };
     if (b.x1 - b.x0 > 300 && b.y1 - b.y0 > 400) a = b;     // camera quá nhỏ / ra ngoài khung → dùng cả sân khấu
   }
   Object.assign(AREA, a, { w: a.x1 - a.x0, h: a.y1 - a.y0 });
-  START_BTN.x = (AREA.x0 + AREA.x1) / 2; START_BTN.y = AREA.y0 + AREA.h * 0.74;
-  START_BTN.r = Math.max(80, Math.min(150, AREA.w * 0.18, AREA.h * 0.14));
 }
 function danger() { return AREA.y0 + AREA.h * cfg.dangerPercent / 100; }
 
 function startGame() {
-  Object.assign(S, { phase: 'playing', score: 0, combo: 0, lastHitAt: -99, time: 0, freeze: 0, slow: 0, fast: 0, fever: 0, shield: 0, startHold: 0, poseProgress: 0 });
+  Object.assign(S, { phase: 'playing', score: 0, combo: 0, lastHitAt: -99, time: 0, freeze: 0, slow: 0, fast: 0, fever: 0, shield: 0, poseProgress: 0 });
   S.items.length = S.queue.length = S.particles.length = 0;
   for (const p of S.pile) flyOut(p); S.pile.length = 0;
-  label('BẮT ĐẦU!', W / 2, H * 0.42, '#55efff', 1.4);
+  label('BẮT ĐẦU!', VX(), VY(0.42), '#55efff', 1.4);
   SFX.start();
 }
 function stopGame(showOver = true) {
@@ -446,24 +535,25 @@ function saveBest() { if (S.score > S.best) S.best = S.score; try { localStorage
 
 function rescue() {
   for (const p of S.pile) flyOut(p); S.pile.length = 0;
-  label('GIẢI CỨU!', W / 2, H * 0.45, '#55efff', 1.4); SFX.power();
+  label('GIẢI CỨU!', VX(), VY(0.45), '#55efff', 1.4); SFX.power();
 }
 
 // Hàng đợi: quà 40 cái không dội xuống một lúc mà xả dần.
 function enqueue(action, qty, from = {}) {
   if (!ACTIONS[action]) return;
   qty = Math.max(1, Math.min(200, Math.round(qty) || 1));
-  if (S.phase !== 'playing') {
-    if (!(cfg.autoStartOnGift || from.source === 'cmd')) return;
-    startGame();
-  }
+  if (S.phase !== 'playing') startGame();   // không có màn chờ: quà/lệnh tới là vào ván (khoá cũ autoStartOnGift bỏ qua)
   const sp = { avatar: from.avatar || '', icon: from.icon || '' };
+  // Chậm/Nhanh/×2 lúc sân trống thì chẳng có gì để thấy hiệu ứng → thả kèm vài quả bóng.
+  if (['slow', 'fast', 'fever'].includes(action) && !S.queue.length && !S.items.some(i => !i.dead)) {
+    for (let i = 0; i < 4; i++) S.queue.push({ kind: 'ball', ...sp });
+  }
   switch (action) {
-    case 'freeze': S.freeze = Math.min(30, S.freeze + 6 * qty); label('ĐÓNG BĂNG ❄', W / 2, H * 0.3, '#9be8ff'); SFX.power(); return;
-    case 'slow':   S.slow = Math.min(40, S.slow + 8 * qty); S.fast = 0; label('CHẬM LẠI 🐢', W / 2, H * 0.3, '#bca1ff'); SFX.power(); return;
-    case 'fast':   S.fast = Math.min(40, S.fast + 8 * qty); S.slow = 0; label('TĂNG TỐC ⚡', W / 2, H * 0.3, '#ff9f43'); SFX.power(); return;
-    case 'fever':  S.fever = Math.min(40, S.fever + 8 * qty); label('ĐIỂM ×2 🔥', W / 2, H * 0.3, '#ffbe64'); SFX.power(); return;
-    case 'shield': S.shield = Math.min(30, S.shield + qty); label('KHIÊN +' + qty + ' 🛡', W / 2, H * 0.3, '#bcff80'); SFX.power(); return;
+    case 'freeze': S.freeze = Math.min(30, S.freeze + 6 * qty); label('ĐÓNG BĂNG ❄', VX(), VY(0.3), '#9be8ff'); SFX.power(); return;
+    case 'slow':   S.slow = Math.min(40, S.slow + 8 * qty); S.fast = 0; label('CHẬM LẠI 🐢', VX(), VY(0.3), '#bca1ff'); SFX.power(); return;
+    case 'fast':   S.fast = Math.min(40, S.fast + 8 * qty); S.slow = 0; label('TĂNG TỐC ⚡', VX(), VY(0.3), '#ff9f43'); SFX.power(); return;
+    case 'fever':  S.fever = Math.min(40, S.fever + 8 * qty); label('ĐIỂM ×2 🔥', VX(), VY(0.3), '#ffbe64'); SFX.power(); return;
+    case 'shield': S.shield = Math.min(30, S.shield + qty); label('KHIÊN +' + qty + ' 🛡', VX(), VY(0.3), '#bcff80'); SFX.power(); return;
     case 'rescue': rescue(); return;
     case 'rain':   for (let i = 0; i < Math.min(160, qty * 8); i++) S.queue.push({ kind: 'ball', fast: true, ...sp }); break;
     default:       for (let i = 0; i < qty; i++) S.queue.push({ kind: action, ...sp });
@@ -494,7 +584,7 @@ function scorePoints(base, x, y, color) {
   S.score += pts;
   if (S.score > S.best) S.best = S.score;
   label('+' + pts, x, y, color);
-  if (S.combo > 0 && S.combo % 15 === 0) { S.fever = Math.min(40, S.fever + 8); label('COMBO ' + S.combo + ' · ĐIỂM ×2', W / 2, H * 0.28, '#ffbe64', 1.6); }
+  if (S.combo > 0 && S.combo % 15 === 0) { S.fever = Math.min(40, S.fever + 8); label('COMBO ' + S.combo + ' · ĐIỂM ×2', VX(), VY(0.28), '#ffbe64', 1.6); }
 }
 function popItem(it, base, sfx) {
   it.dead = true;
@@ -520,7 +610,9 @@ function settle(it) {
   S.combo = 0;
   S.pile.push({ kind: it.kind, x: it.x, y: it.y, r: it.r, avatar: it.avatar, icon: it.icon, food: it.food, pose: it.pose });
   SFX.land();
-  if (it.y - it.r < danger()) { label('THUA RỒI!', W / 2, H * 0.4, '#ff70bc', 2); stopGame(true); }
+  if (cfg.loseRule !== false) { if (it.y - it.r < danger()) { label('THUA RỒI!', VX(), VY(0.4), '#ff70bc', 2); stopGame(true); } }
+  // Không luật thua: đống chất tới đỉnh màn hình thì hất bay hết, ván chơi tiếp.
+  else if (it.y - it.r < AREA.y0 + AREA.h * 0.04) { label('ĐẦY MÀN HÌNH!', VX(), VY(0.4), '#ffbe64', 1.6); SFX.power(); for (const p of S.pile) flyOut(p); S.pile.length = 0; }
 }
 function flyOut(p) { if (S.exits.length < 160) S.exits.push({ ...p, vx: (p.x < W / 2 ? -1 : 1) * (500 + Math.random() * 400), vy: -900 - Math.random() * 500, life: 1.2 }); }
 
@@ -532,8 +624,28 @@ function burst(x, y, color, n) {
     S.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120, life: 0.5 + Math.random() * 0.5, r: 4 + Math.random() * 8, color });
   }
 }
-function label(text, x, y, color = '#fff', life = 1.1) { if (S.labels.length > 24) S.labels.shift(); S.labels.push({ text, x, y, color, life, max: life }); }
-function notice(text) { S.notices.push({ text, life: 3.2 }); if (S.notices.length > 4) S.notices.shift(); }
+// Chữ nổi: emoji đầu / cuối ("ĐÓNG BĂNG ❄") → icon nét (tách sẵn 1 lần, vẽ bằng HpGameFeed.drawLabel)
+function label(text, x, y, color = '#fff', life = 1.1) {
+  if (S.labels.length > 24) S.labels.shift();
+  S.labels.push({ sl: FEED ? FEED.splitLabel(text) : { ico: null, text }, x, y, color, life, max: life });
+}
+// Icon + chữ canh giữa tại (x, y = chân chữ); ctx.font / lineWidth / strokeStyle đặt sẵn.
+function drawIcoText(sl, x, y, size, color) {
+  if (FEED) return FEED.drawLabel(ctx, sl, x, y, size, color);
+  ctx.textAlign = 'center'; ctx.fillStyle = color; ctx.strokeText(sl.text, x, y); ctx.fillText(sl.text, x, y);
+}
+
+// 🎁 Danh sách người tặng quà (thư viện chung hp-game-feed.js, mẫu Đập Muỗi): thẻ [avatar] [icon] Tên · hành động,
+// nằm trong sân khấu 1080×1920 → toạ độ = vùng thấy camView.rect (Scene PK / Colab cắt ô thì co theo ô).
+const feedList = FEED ? FEED.createList($('feedBox'), { max: 4, life: 3200 }) : null;
+function placeFeed() { feedList?.place(VIEW(), { x: cfg.listXPercent, y: cfg.listYPercent, scale: cfg.listScale }); }
+function pushFeed(action, who, qty, image) {
+  if (!feedList || !ACTIONS[action]) return;
+  const once = ['freeze', 'slow', 'fast', 'fever', 'rescue'].includes(action);
+  const text = action === 'shield' ? ACTIONS.shield.label.replace('+1', '+' + qty) : ACTIONS[action].label + (qty > 1 && !once ? ' ×' + qty : '');
+  feedList.push({ icon: ACT_ICON[action], who: String(who || 'Ai đó').slice(0, 18), text, image: image || '' });
+  placeFeed();
+}
 
 // ============================================================ TAY (camera + chuột)
 const pointer = { x: 0, y: 0, down: false, inside: false };
@@ -558,7 +670,7 @@ function update(dt) {
   const needPose = (S.phase === 'playing' && S.items.some(i => i.kind === 'pose' && !i.dead)) || capturing;
   tracker.want({ face: needFace, pose: needPose || cfg.skeleton });
 
-  if (S.phase !== 'playing') { updateStartButton(dt, hs); return; }
+  if (S.phase !== 'playing') { updateIdle(); return; }
   S.time += dt;
   for (const k of ['freeze', 'slow', 'fast', 'fever']) S[k] = Math.max(0, S[k] - dt);
   if (S.time - S.lastHitAt > 2.5) S.combo = 0;
@@ -583,7 +695,7 @@ function update(dt) {
     S.poseErr = poseError(S.poseLive, target.pose.a);
     if (S.poseErr <= cfg.poseTolerance) S.poseProgress += dt;
     else S.poseProgress = Math.max(0, S.poseProgress - dt * 2);
-    if (S.poseProgress >= cfg.poseHold) { S.poseProgress = 0; popItem(target, 50, SFX.pose); label(target.pose.name + ' ✓', W / 2, H * 0.24, '#bcff80', 1.3); }
+    if (S.poseProgress >= cfg.poseHold) { S.poseProgress = 0; popItem(target, 50, SFX.pose); label(target.pose.name + ' ✓', VX(), VY(0.24), '#bcff80', 1.3); }
   } else { S.poseProgress = 0; S.poseErr = 999; }
 
   const speedMul = cfg.fallSpeed * (S.slow > 0 ? 0.45 : 1) * (S.fast > 0 ? 1.7 : 1);
@@ -643,15 +755,11 @@ function update(dt) {
   S.items = S.items.filter(i => !i.dead);
 }
 
-// Nút "giữ tay để bắt đầu" — tay (hoặc chuột) đặt lên nút đủ lâu thì vào ván.
-const START_BTN = { x: W / 2, y: H * 0.74, r: 150 };
-function updateStartButton(dt, hs) {
-  // Bảng điểm giữ 4 giây cùng đống vật thua cuộc, rồi dọn sân về màn chờ.
+// Không có màn chờ / nút "GIỮ TAY": lúc rảnh sân trong suốt, quà đúng luật tới là enqueue() tự vào ván.
+function updateIdle() {
+  // Bảng điểm giữ 4 giây cùng đống vật thua cuộc, rồi dọn sân.
   if (S.phase === 'over' && performance.now() - S.overAt > 4000) { S.phase = 'idle'; for (const p of S.pile) flyOut(p); S.pile.length = 0; }
-  if (S.phase !== 'idle') { S.startHold = 0; return; }
-  const on = hs.some(h => touchPoints(h).some(p => p && Math.hypot(p.x - START_BTN.x, p.y - START_BTN.y) < START_BTN.r));
-  S.startHold = on ? S.startHold + dt : Math.max(0, S.startHold - dt * 2);
-  if (S.startHold >= cfg.holdStart) startGame();
+  if (S.phase === 'idle' && cfg.practice) startGame();     // bật luyện tập = tự chạy cả khi chưa có quà
 }
 
 // ============================================================ RENDER
@@ -723,7 +831,7 @@ function render(dt) {
     ctx.strokeStyle = S.freeze > 0 ? 'rgba(130,230,255,.85)' : 'rgba(255,190,100,.85)';
     ctx.lineWidth = 12; ctx.strokeRect(6, 6, W - 12, H - 12);
   }
-  if (cfg.showDanger && (S.pile.length || S.phase === 'playing')) {
+  if (cfg.showDanger && cfg.loseRule !== false && (S.pile.length || S.phase === 'playing')) {
     ctx.save(); ctx.setLineDash([18, 16]); ctx.strokeStyle = 'rgba(255,112,188,.7)'; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.moveTo(AREA.x0, danger()); ctx.lineTo(AREA.x1, danger()); ctx.stroke(); ctx.restore();
   }
@@ -754,7 +862,8 @@ function render(dt) {
   if (cfg.skeleton) drawSkeleton(now);
 
   // tay
-  if (cfg.showHands) for (const h of hands()) {
+  // Mặc định ẩn vòng tròn ở tay (khoá cũ showHands bỏ hẳn - bản đã lưu "bật" không kéo nó hiện lại).
+  if (cfg.handDots) for (const h of hands()) {
     ctx.save();
     ctx.strokeStyle = h.pinching ? '#ffbe64' : '#55efff'; ctx.lineWidth = 5;
     ctx.beginPath(); ctx.arc(h.tip.x, h.tip.y, 20, 0, 7); ctx.stroke();
@@ -769,17 +878,16 @@ function render(dt) {
     ctx.globalAlpha = Math.min(1, p.life * 2); ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.r, p.r);
   }
   ctx.globalAlpha = 1;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
   for (let i = S.labels.length - 1; i >= 0; i--) {
     const l = S.labels[i]; l.life -= dt; if (l.life <= 0) { S.labels.splice(i, 1); continue; }
     l.y -= 60 * dt; ctx.globalAlpha = Math.min(1, l.life * 2.5);
     ctx.font = '900 54px "Segoe UI",sans-serif'; ctx.lineWidth = 10; ctx.strokeStyle = '#07101e';
-    ctx.strokeText(l.text, l.x, l.y); ctx.fillStyle = l.color; ctx.fillText(l.text, l.x, l.y);
+    drawIcoText(l.sl, l.x, l.y + 19, 54, l.color);     // l.y = tâm chữ, +19 ≈ chân chữ cỡ 54
   }
   ctx.globalAlpha = 1;
 
   drawHud(dt);
-  if (S.phase === 'idle') drawStartScreen();
   if (S.phase === 'over') drawOverScreen();
 }
 
@@ -789,25 +897,26 @@ function panel(x, y, w, h) { ctx.fillStyle = 'rgba(8,18,37,.78)'; roundRect(x, y
 function drawHud(dt) {
   if (S.phase === 'idle') return;
   ctx.save(); ctx.textBaseline = 'alphabetic';
-  panel(48, 48, 380, 150);
-  ctx.textAlign = 'left'; ctx.fillStyle = '#9bacbf'; ctx.font = '700 24px "Segoe UI",sans-serif'; ctx.fillText('ĐIỂM', 76, 92);
-  ctx.fillStyle = '#fff'; ctx.font = '900 64px "Segoe UI",sans-serif'; ctx.fillText(S.score.toLocaleString('vi-VN'), 76, 158);
+  const v = VIEW(), L = v.x, T = v.y, R = v.x + v.w;     // HUD bám mép vùng thấy (cả sân khấu khi không bị cắt)
+  panel(L + 48, T + 48, 380, 150);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#9bacbf'; ctx.font = '700 24px "Segoe UI",sans-serif'; ctx.fillText('ĐIỂM', L + 76, T + 92);
+  ctx.fillStyle = '#fff'; ctx.font = '900 64px "Segoe UI",sans-serif'; ctx.fillText(S.score.toLocaleString('vi-VN'), L + 76, T + 158);
   const mult = Math.min(5, 1 + Math.floor(S.combo / 5)) * (S.fever > 0 ? 2 : 1);
-  ctx.fillStyle = '#55efff'; ctx.font = '700 24px "Segoe UI",sans-serif'; ctx.fillText('×' + mult + ' · ' + S.combo + ' COMBO', 76, 186);
-  panel(W - 48 - 260, 48, 260, 150);
-  ctx.textAlign = 'right'; ctx.fillStyle = '#9bacbf'; ctx.font = '700 24px "Segoe UI",sans-serif'; ctx.fillText('KỶ LỤC', W - 76, 92);
-  ctx.fillStyle = '#ffdc88'; ctx.font = '900 48px "Segoe UI",sans-serif'; ctx.fillText(S.best.toLocaleString('vi-VN'), W - 76, 150);
+  ctx.fillStyle = '#55efff'; ctx.font = '700 24px "Segoe UI",sans-serif'; ctx.fillText('×' + mult + ' · ' + S.combo + ' COMBO', L + 76, T + 186);
+  panel(R - 48 - 260, T + 48, 260, 150);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#9bacbf'; ctx.font = '700 24px "Segoe UI",sans-serif'; ctx.fillText('KỶ LỤC', R - 76, T + 92);
+  ctx.fillStyle = '#ffdc88'; ctx.font = '900 48px "Segoe UI",sans-serif'; ctx.fillText(S.best.toLocaleString('vi-VN'), R - 76, T + 150);
 
-  const buffs = [S.freeze > 0 && '❄ ' + Math.ceil(S.freeze) + 's', S.slow > 0 && '🐢 ' + Math.ceil(S.slow) + 's', S.fast > 0 && '⚡ ' + Math.ceil(S.fast) + 's',
-    S.fever > 0 && '🔥 ' + Math.ceil(S.fever) + 's', S.shield > 0 && '🛡 ' + S.shield, S.queue.length > 0 && '⏳ ' + S.queue.length].filter(Boolean);
-  if (buffs.length) { ctx.textAlign = 'center'; ctx.font = '800 34px "Segoe UI","Segoe UI Emoji",sans-serif'; ctx.fillStyle = '#ffdc88'; ctx.lineWidth = 8; ctx.strokeStyle = '#07101e'; const t = buffs.join('   '); ctx.strokeText(t, W / 2, 250); ctx.fillText(t, W / 2, 250); }
-
-  // thông báo quà
-  ctx.textAlign = 'center'; ctx.font = '700 30px "Segoe UI","Segoe UI Emoji",sans-serif';
-  let y = H - 70;
-  for (let i = S.notices.length - 1; i >= 0; i--) {
-    const n = S.notices[i]; n.life -= dt; if (n.life <= 0) { S.notices.splice(i, 1); continue; }
-    ctx.globalAlpha = Math.min(1, n.life * 2); ctx.lineWidth = 7; ctx.strokeStyle = '#07101e'; ctx.strokeText(n.text, W / 2, y); ctx.fillStyle = '#fff'; ctx.fillText(n.text, W / 2, y); y -= 44;
+  // hiệu ứng đang chạy: [icon nét] 6s … canh giữa một hàng (thông báo người tặng = thẻ DOM #feedBox, không vẽ ở đây)
+  const buffs = [S.freeze > 0 && ['snow', '❄', Math.ceil(S.freeze) + 's'], S.slow > 0 && ['turtle', '🐢', Math.ceil(S.slow) + 's'], S.fast > 0 && ['zap', '⚡', Math.ceil(S.fast) + 's'],
+    S.fever > 0 && ['flame', '🔥', Math.ceil(S.fever) + 's'], S.shield > 0 && ['shield', '🛡', String(S.shield)], S.queue.length > 0 && ['hourglass', '⏳', String(S.queue.length)]].filter(Boolean);
+  if (buffs.length) {
+    const sz = 34, sp = 40; ctx.font = '800 34px "Segoe UI","Segoe UI Emoji",sans-serif'; ctx.lineWidth = 8; ctx.strokeStyle = '#07101e';
+    // Không có thư viện icon → giữ emoji trong chữ như cũ.
+    const items = buffs.map(([ico, emo, t]) => FEED ? { ico, text: t } : { ico: null, text: emo + ' ' + t });
+    const ws = items.map(it => (it.ico ? sz * 1.4 : 0) + ctx.measureText(it.text).width);
+    let x = (L + R) / 2 - (ws.reduce((a, b) => a + b, 0) + sp * (ws.length - 1)) / 2;
+    items.forEach((it, i) => { drawIcoText(it, x + ws[i] / 2, T + 250, sz, '#ffdc88'); x += ws[i] + sp; });
   }
   ctx.restore();
 }
@@ -844,28 +953,11 @@ function drawSkeleton(now) {
   ctx.restore();
 }
 
-// Màn chờ / kết thúc nằm trong khung camera, co theo bề rộng khung.
+// Bảng kết thúc nằm trong khung camera, co theo bề rộng khung.
 function cardAt(yTop, w0, h0) {
   const k = Math.min(1, (AREA.w - 40) / w0), cx = (AREA.x0 + AREA.x1) / 2;
   ctx.translate(cx, yTop); ctx.scale(k, k);
   panel(-w0 / 2, 0, w0, h0);
-}
-function drawStartScreen() {
-  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.save(); cardAt(AREA.y0 + Math.min(40, AREA.h * 0.04), 800, 330);
-  ctx.fillStyle = '#55efff'; ctx.font = '700 26px "Segoe UI",sans-serif'; ctx.fillText('HP ACTION LIVE', 0, 46);
-  ctx.fillStyle = '#fff'; ctx.font = '900 92px "Segoe UI",sans-serif'; ctx.fillText('TOUCH & PLAY', 0, 126);
-  ctx.fillStyle = '#c9d6e8'; ctx.font = '600 30px "Segoe UI",sans-serif';
-  ctx.fillText('Chạm bóng · Gắp đồ ăn đưa lên miệng', 0, 200);
-  ctx.fillText('Làm theo tư thế · Đừng để đống vật chạm vạch', 0, 244);
-  ctx.fillStyle = '#ffdc88'; ctx.font = '700 28px "Segoe UI",sans-serif'; ctx.fillText('Kỷ lục: ' + S.best.toLocaleString('vi-VN'), 0, 296);
-  ctx.restore();
-  const b = START_BTN, prog = Math.min(1, S.startHold / cfg.holdStart), f = b.r / 150;
-  ctx.fillStyle = 'rgba(85,239,255,.18)'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill();
-  ctx.strokeStyle = 'rgba(85,239,255,.5)'; ctx.lineWidth = 6; ctx.stroke();
-  if (prog > 0) { ctx.strokeStyle = '#55efff'; ctx.lineWidth = 16 * f; ctx.beginPath(); ctx.arc(b.x, b.y, b.r - 8 * f, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2); ctx.stroke(); }
-  ctx.fillStyle = '#fff'; ctx.font = `900 ${Math.round(44 * f)}px "Segoe UI",sans-serif`; ctx.fillText('GIỮ TAY', b.x, b.y - 22 * f); ctx.fillText('ĐỂ CHƠI', b.x, b.y + 30 * f);
-  ctx.restore();
 }
 function drawOverScreen() {
   ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -881,6 +973,8 @@ const STEP = 1 / 60;
 let acc = 0, last = 0, renderMs = 0;
 function frame(t) {
   requestAnimationFrame(frame);
+  // 🔇 Khung bị overlay mẹ ẩn (nạp sẵn / phiên game khác) hoặc mất kết nối app → ngưng hẳn, không rơi vật, không kêu.
+  if (window.HpCamFrame && !window.HpCamFrame.active) { last = 0; acc = 0; return; }
   const raw = last ? (t - last) / 1000 : STEP; last = t;
   const dt = Math.min(0.1, raw);
   acc += dt; let n = 0;
@@ -901,7 +995,11 @@ cv.addEventListener('pointerup', () => { pointer.down = false; });
 cv.addEventListener('pointercancel', () => { pointer.down = false; });
 
 // ============================================================ QUÀ + LỆNH
-function actionForGift(coin) {
+// Quà chỉ định (so id hoặc tên - khớp giftMatches/explicitGifts của lib/camgames.js) thắng mốc xu.
+function actionForGift(coin, g = {}) {
+  const id = String(g.giftId ?? ''), name = String(g.giftName || '').trim().toLowerCase();
+  const pick = cfg.gifts.find(x => (id && x.giftId === id) || (name && x.giftName.trim().toLowerCase() === name));
+  if (pick) return pick;
   const list = cfg.tiers.slice().sort((a, b) => b.min - a.min);
   return list.find(t => coin >= t.min) || null;
 }
@@ -910,29 +1008,35 @@ function handleGift(g) {
   // 🎥 Game Camera chơi 2 game cùng lúc: quà game kia gán đích danh thì nhường (Touch & Play nhận theo mức xu).
   if (Array.isArray(g.camClaims) && g.camClaims.length && !g.camClaims.includes('touchplay')) return;
   const coin = Number(g.coinValue ?? g.diamondCount ?? 1) || 1;
-  const tier = actionForGift(coin);
+  const tier = actionForGift(coin, g);
   if (!tier) return;
   const qty = Math.min(cfg.maxPerGift, tier.count * Math.max(1, parseInt(g.repeatCount, 10) || 1));
   enqueue(tier.action, qty, { avatar: g.profilePicture, icon: g.image || g.giftPicture, source: g.source });
-  if (S.phase === 'playing') notice(`${(g.nickname || g.uniqueId || 'Ai đó').slice(0, 18)} → ${ACTIONS[tier.action].icon} ${ACTIONS[tier.action].label}${qty > 1 && !['freeze', 'slow', 'fast', 'fever', 'rescue'].includes(tier.action) ? ' ×' + qty : ''}`);
+  if (S.phase === 'playing') pushFeed(tier.action, g.nickname || g.uniqueId, qty, g.profilePicture);
 }
 function handleCmd(cmd, p = {}) {
   if (cmd === 'start') startGame();
   else if (cmd === 'stop') stopGame(false);
   else if (cmd === 'rescue') { if (S.phase === 'playing') rescue(); }
-  else if (cmd === 'spawn' && ACTIONS[p.action]) enqueue(p.action, p.qty || 1, { source: 'cmd' });
+  else if (cmd === 'spawn' && ACTIONS[p.action]) { enqueue(p.action, p.qty || 1, { source: 'cmd' }); pushFeed(p.action, 'Thử', Math.max(1, Math.round(p.qty) || 1)); }
+  else if (cmd === 'feedTest') pushFeed('ball', 'Khán giả', 3);   // lab "Xem thử" vị trí danh sách - không vào ván
 }
 
 let gameDisabled = false;
 let socket = null;
 if (typeof io === 'function') {
   socket = io({ transports: ['websocket', 'polling'] });
+  let offlineTimer = 0;
   socket.on('connect', () => {
+    clearTimeout(offlineTimer); if (IS_OVERLAY) window.HpCamFrame?.setOnline(true);
     socket.emit('subscribe', IS_OVERLAY ? 'overlay' : 'preview');
     if (feed.on) socket.emit('touchplay:feed', feedReg());     // nối lại sau khi app khởi động lại
     const el = $('sockState'); if (el) { el.textContent = '● Đã nối app'; el.className = 'pill ok'; }
   });
-  socket.on('disconnect', () => { const el = $('sockState'); if (el) { el.textContent = '● Mất kết nối app'; el.className = 'pill bad'; } });
+  socket.on('disconnect', () => {
+    // 🔇 Mất kết nối app > 1,5 giây → overlay câm + ngưng (cam-frame-guard), nối lại là chạy tiếp.
+    clearTimeout(offlineTimer); if (IS_OVERLAY) offlineTimer = setTimeout(() => window.HpCamFrame?.setOnline(false), 1500);
+    const el = $('sockState'); if (el) { el.textContent = '● Mất kết nối app'; el.className = 'pill bad'; } });
   socket.on('gift', handleGift);
   socket.on('gameCmd', d => { if (d && d.gameId === GAME_ID) handleCmd(d.cmd, d.payload || {}); });
   // Lab là nguồn cấu hình duy nhất — chỉ overlay mới nhận cấu hình vọng lại (xem memory relay-cfg).
@@ -948,6 +1052,8 @@ if (typeof io === 'function') {
   socket.on('touchplay:feedStatus', st => { feed.status = st; renderObsState?.(); });
   socket.on('overlay:reload', d => { if (IS_OVERLAY && (!d?.gameId || d.gameId === GAME_ID)) location.reload(); });
 }
+// Khung bị overlay mẹ ẩn / mất kết nối app: giấu sân khấu (vòng lặp đã ngưng ở frame()), có lại thì hiện.
+window.HpCamFrame?.onChange(on => { if (IS_OVERLAY) $('stage').style.visibility = on ? '' : 'hidden'; last = 0; acc = 0; });
 function setDisabled(off) {
   if (off === gameDisabled) return;
   gameDisabled = off;
@@ -961,6 +1067,7 @@ function applyRemoteCfg(c) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); } catch (_) {}
   sprites.clear();
   applyCameraLook();
+  placeFeed();
 }
 
 // ============================================================ BOOT
@@ -1024,19 +1131,24 @@ async function bootLab() {
     }, 500);
   }
 
-  // ô cấu hình đơn giản: data-k
+  // ô cấu hình đơn giản: data-k (số đang chọn của thanh kéo hiện ở [data-v])
+  const showVal = k => { for (const b of document.querySelectorAll(`[data-v="${k}"]`)) b.textContent = cfg[k]; };
   for (const el of document.querySelectorAll('[data-k]')) {
     const k = el.dataset.k;
     if (el.type === 'checkbox') el.checked = !!cfg[k]; else el.value = cfg[k];
+    showVal(k);
     el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
       cfg[k] = el.type === 'checkbox' ? el.checked : (el.type === 'number' || el.type === 'range') ? Number(el.value) : el.value;
       cfg = normalize(cfg);
       if (el.type === 'number') el.value = cfg[k];
+      showVal(k);
       if (['mirror', 'quality'].includes(k)) applyCameraLook();
       if (k === 'itemScale') sprites.clear();
+      if (k.startsWith('list')) placeFeed();
       save();
     });
   }
+  placeFeed();
 
   // ---- nguồn camera ----
   const showSrc = () => {
@@ -1124,6 +1236,7 @@ async function bootLab() {
   const sendCmd = (cmd, payload) => fetch('/api/games/' + GAME_ID + '/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd, payload }) })
     .then(r => { if (!r.ok) throw 0; }).catch(() => handleCmd(cmd, payload || {}));
   for (const b of document.querySelectorAll('[data-cmd]')) b.onclick = () => sendCmd(b.dataset.cmd);
+  $('feedTest').onclick = () => sendCmd('feedTest');
   const grid = $('actGrid');
   for (const [k, a] of Object.entries(ACTIONS)) {
     const b = document.createElement('button'); b.className = 'btn small'; b.textContent = a.icon + ' ' + a.label;
@@ -1147,6 +1260,77 @@ async function bootLab() {
     });
   };
   renderTiers();
+
+  // quà chỉ định: mỗi hành động 1 quà TikTok, bấm ô quà mở bảng chọn (đủ danh mục /api/gifts của app)
+  let giftSheet = null;
+  const loadSheet = async () => {
+    if (giftSheet) return giftSheet;
+    try { const r = await fetch('/api/gifts'); if (r.ok) giftSheet = (await r.json()).slice().sort((a, b) => (a.diamond || 0) - (b.diamond || 0)); } catch (_) {}
+    return giftSheet || [];
+  };
+  const sheetImg = id => ((giftSheet || []).find(x => String(x.id) === id) || {}).image || '';
+  const coinIco = '<img class="coin-ico" src="/coin.svg" alt="">';
+  const renderGifts = () => {
+    const box = $('giftRows'); box.innerHTML = '';
+    cfg.gifts.forEach((g, i) => {
+      const a = ACTIONS[g.action], has = !!(g.giftId || g.giftName), img = g.giftImage || (g.giftId && sheetImg(g.giftId));
+      const row = document.createElement('div'); row.className = 'gift-row';
+      row.innerHTML = `<span class="act" title="${esc(a.label)}">${a.icon} ${esc(a.label)}</span>
+        <button class="gift-pick${has ? '' : ' empty'}" title="Chọn quà TikTok cho hành động này">${has
+          ? `${img ? `<img src="${esc(img)}" alt="">` : ''}<span class="nm">${esc(g.giftName || '#' + g.giftId)}</span>${g.diamond ? `<span class="xu">${g.diamond}${coinIco}</span>` : ''}`
+          : '<span class="nm">Chọn quà…</span>'}</button>
+        <input type="number" min="1" max="100" value="${g.count}" title="Số lượng mỗi lần tặng">
+        <button class="btn small danger" title="Bỏ quà"${has ? '' : ' disabled'}>✕</button>`;
+      row.querySelector('.gift-pick').onclick = () => openGiftPicker(i);
+      row.querySelector('input').onchange = e => { cfg.gifts[i].count = Math.max(1, Math.min(100, Number(e.target.value) || 1)); e.target.value = cfg.gifts[i].count; save(); };
+      row.querySelector('.danger').onclick = () => { Object.assign(cfg.gifts[i], { giftId: '', giftName: '', giftImage: '', diamond: 0 }); save(); renderGifts(); };
+      box.appendChild(row);
+    });
+  };
+  renderGifts();
+  loadSheet().then(() => renderGifts());   // ảnh quà thiếu trong cấu hình lấy từ danh mục
+
+  let gpEl = null, gpIdx = -1;
+  const renderPicker = filter => {
+    const list = gpEl.querySelector('.gp-list'), f = String(filter || '').trim().toLowerCase();
+    const cur = cfg.gifts[gpIdx] || {};
+    const items = (giftSheet || []).filter(x => !f || String(x.name || '').toLowerCase().includes(f) || String(x.id) === f);   // đủ danh mục - cắt 200 thì dừng ở ~150 xu
+    list.innerHTML = items.map(x => {
+      const owner = cfg.gifts.find(y => y.giftId && y.giftId === String(x.id));
+      return `<div class="gp-item${cur.giftId === String(x.id) ? ' on' : ''}" data-id="${esc(String(x.id))}">
+        ${x.image ? `<img src="${esc(x.image)}" alt="" loading="lazy">` : '<span style="width:28px"></span>'}
+        <span class="nm">${esc(x.name || '#' + x.id)}${owner && owner !== cur ? ` <small>· ${esc(ACTIONS[owner.action].label)}</small>` : ''}</span>
+        <span class="xu">${Number(x.diamond) || 0}${coinIco}</span></div>`;
+    }).join('') || '<p class="hint">Không tìm thấy quà</p>';
+    for (const el of list.querySelectorAll('.gp-item')) el.onclick = () => {
+      const x = (giftSheet || []).find(y => String(y.id) === el.dataset.id); if (!x) return;
+      const id = String(x.id);
+      // Một quà chỉ chạy một hành động: gán sang dòng này thì dòng cũ mất quà.
+      for (const y of cfg.gifts) if (y !== cfg.gifts[gpIdx] && y.giftId === id) Object.assign(y, { giftId: '', giftName: '', giftImage: '', diamond: 0 });
+      Object.assign(cfg.gifts[gpIdx], { giftId: id, giftName: String(x.name || ''), giftImage: String(x.image || ''), diamond: Number(x.diamond) || 0 });
+      save(); renderGifts(); gpEl.hidden = true;
+    };
+  };
+  async function openGiftPicker(i) {
+    gpIdx = i;
+    if (!gpEl) {
+      gpEl = document.createElement('div'); gpEl.className = 'gp-ov'; gpEl.hidden = true;
+      gpEl.innerHTML = `<div class="gp-box"><div class="gp-head"><b></b><button class="btn small">✕</button></div>
+        <input type="text" placeholder="Tìm quà hoặc ID…"><div class="gp-list"></div></div>`;
+      document.body.appendChild(gpEl);
+      gpEl.onclick = e => { if (e.target === gpEl) gpEl.hidden = true; };
+      gpEl.querySelector('.gp-head button').onclick = () => { gpEl.hidden = true; };
+      gpEl.querySelector('input').oninput = e => renderPicker(e.target.value);
+    }
+    const a = ACTIONS[cfg.gifts[i].action];
+    gpEl.querySelector('.gp-head b').textContent = 'Chọn quà cho "' + a.label + '"';
+    gpEl.querySelector('input').value = '';
+    gpEl.hidden = false;
+    await loadSheet();
+    renderPicker('');
+    setTimeout(() => gpEl.querySelector('input').focus(), 30);
+  }
+
   $('addTier').onclick = () => { const top = cfg.tiers.reduce((m, t) => Math.max(m, t.min), 0); cfg.tiers.push({ min: top + 100, action: 'ball', count: 5 }); save(); renderTiers(); };
   $('resetCfg').onclick = () => {
     if (!confirm('Khôi phục toàn bộ cài đặt Touch & Play về mặc định? (Tư thế tự chụp cũng mất)')) return;
@@ -1179,7 +1363,7 @@ async function bootLab() {
     const msg = $('captureMsg');
     if (!tracker.active) { msg.textContent = 'Bật camera trước đã.'; return; }
     capturing = true;
-    for (let s = 3; s > 0; s--) { msg.textContent = 'Chuẩn bị… ' + s; label(String(s), W / 2, H * 0.4, '#bcff80', 0.9); await new Promise(r => setTimeout(r, 1000)); }
+    for (let s = 3; s > 0; s--) { msg.textContent = 'Chuẩn bị… ' + s; label(String(s), VX(), VY(0.4), '#bcff80', 0.9); await new Promise(r => setTimeout(r, 1000)); }
     const a = poseAngles(tracker.pose);
     capturing = false;
     if (!a) { msg.textContent = 'Không thấy đủ vai–khuỷu–cổ tay. Lùi xa hơn rồi thử lại.'; return; }

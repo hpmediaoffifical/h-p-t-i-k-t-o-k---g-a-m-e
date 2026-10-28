@@ -155,3 +155,11 @@ test('Đá Cầu: quà đích danh chỉ so theo id (như handler)', () => {
     // mục không id bị bỏ (Đá Cầu không so tên) → quà Rose không bị giành khỏi Đập Muỗi
     assert.deepStrictEqual(Cam.giftClaims({ giftId: '1', giftName: 'Rose' }, cfgs, ['dapmuoi', 'dacau']), []);
 });
+
+test('Touch & Play: quà chỉ định từng hành động giành quà khi chơi kèm (chưa lưu gifts = bộ mẫu, so cả tên)', () => {
+    const cfgs = { touchplay: { tpCfg: {} }, bancung: { sessionActive: true, shotGifts: [] } };
+    assert.deepStrictEqual(Cam.giftClaims({ giftId: '5655', giftName: 'Rose' }, cfgs, ['touchplay', 'bancung']), ['touchplay']);
+    assert.deepStrictEqual(Cam.giftClaims({ giftId: 'x', giftName: 'perfume' }, cfgs, ['touchplay', 'bancung']), ['touchplay']);
+    // streamer bỏ hết quà chỉ định → không giành gì
+    assert.deepStrictEqual(Cam.giftClaims({ giftId: '5655' }, { ...cfgs, touchplay: { tpCfg: { gifts: [] } } }, ['touchplay', 'bancung']), []);
+});
