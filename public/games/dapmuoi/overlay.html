@@ -98,8 +98,8 @@
 
     // ---------- ảnh muỗi (SVG 320×200) ----------
     const BODY_W = Game.BASE_SIZE, BODY_H = Game.BASE_SIZE * 200 / 320;
-    const imgBody = new Image(), imgDead = new Image();
-    imgBody.src = '/games/dapmuoi/assets/muoi-than-3d.png'; imgDead.src = '/games/dapmuoi/assets/muoi-lat-ngua-3d.png';
+    const imgBody = new Image(), imgQueen = new Image(), imgDead = new Image();
+    imgBody.src = '/games/dapmuoi/assets/muoi-than-3d.png'; imgQueen.src = '/games/dapmuoi/assets/muoi-chua-3d.png'; imgDead.src = '/games/dapmuoi/assets/muoi-lat-ngua-3d.png';
     // Dụng cụ: bình xịt (200×320, vòi hướng phải), vợt điện (260×520, điểm cầm 130,470), màn (1080×700 treo mép trên)
     const imgSpray = new Image(), imgRacket = new Image(), imgNet = new Image(), imgCream = new Image(), imgBump = new Image();
     imgSpray.src = '/games/dapmuoi/assets/binh-xit-3d.png'; imgRacket.src = '/games/dapmuoi/assets/vot-muoi-3d.png'; imgNet.src = '/games/dapmuoi/assets/man-muoi.svg';
@@ -109,24 +109,46 @@
     let netSlide = 0;              // 0 = cuộn lên, 1 = rủ hết (trượt 0.5 s)
     // Sprite 3D vẽ đầu quay TRÁI → lật theo -m.dir (dir = 1 khi bay sang phải).
     const PIVOT = { x: (137 - 160) / 320, y: (76 - 100) / 200 };     // gốc cánh của sprite 3D
+    const QUEEN_PIVOT = { x: (150 - 160) / 320, y: (80 - 100) / 200 };
     const EYE = { x: (108 - 160) / 320, y: (88 - 100) / 200, r: 12 / 320 };
 
-    function drawWing(w, h, angle, alpha) {
+    function drawWing(w, h, angle, alpha, royal) {
         ctx.save();
-        ctx.translate(PIVOT.x * w, PIVOT.y * h);
+        const pivot = royal ? QUEEN_PIVOT : PIVOT;
+        ctx.translate(pivot.x * w, pivot.y * h);
         ctx.rotate(angle);
         ctx.globalAlpha *= alpha;
+        const len = w * (royal ? 0.48 : 0.36), thick = h * (royal ? 0.28 : 0.17);
+        const grad = ctx.createLinearGradient(0, 0, len, 0);
+        if (royal) {
+            grad.addColorStop(0, 'rgba(255,179,0,.82)');
+            grad.addColorStop(0.52, 'rgba(255,221,75,.58)');
+            grad.addColorStop(1, 'rgba(255,244,170,.18)');
+        } else {
+            grad.addColorStop(0, 'rgba(105,224,255,.72)');
+            grad.addColorStop(1, 'rgba(205,245,255,.2)');
+        }
         ctx.beginPath();
-        ctx.ellipse(w * 0.24, 0, w * 0.25, h * 0.13, 0, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(105,224,255,.62)'; ctx.fill();
-        ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(225,250,255,.95)'; ctx.stroke();
+        ctx.moveTo(0, -thick * 0.16);
+        ctx.bezierCurveTo(len * 0.2, -thick * 0.72, len * 0.63, -thick * 1.08, len * 0.88, -thick * 0.7);
+        ctx.bezierCurveTo(len * 1.04, -thick * 0.46, len * 1.04, thick * 0.34, len * 0.88, thick * 0.58);
+        ctx.bezierCurveTo(len * 0.58, thick * 0.78, len * 0.2, thick * 0.54, 0, thick * 0.16);
+        ctx.closePath();
+        ctx.fillStyle = grad; ctx.fill();
+        ctx.lineWidth = royal ? 2.6 : 2;
+        ctx.strokeStyle = royal ? 'rgba(255,232,105,.98)' : 'rgba(225,250,255,.95)'; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(len * 0.06, 0); ctx.lineTo(len * 0.88, -thick * 0.05);
+        ctx.moveTo(len * 0.28, -thick * 0.02); ctx.lineTo(len * 0.48, -thick * 0.62);
+        ctx.moveTo(len * 0.5, -thick * 0.04); ctx.lineTo(len * 0.7, thick * 0.46);
+        ctx.moveTo(len * 0.63, -thick * 0.04); ctx.lineTo(len * 0.79, -thick * 0.52);
+        ctx.strokeStyle = royal ? 'rgba(193,112,0,.65)' : 'rgba(95,175,215,.55)'; ctx.lineWidth = 1.2; ctx.stroke();
         ctx.restore();
     }
 
     // Cache bitmap theo (ảnh, cỡ): vẽ SVG thẳng mỗi khung là rasterize lại — 300 con là tụt khung.
     const spriteCache = new Map();
     function sprite(img, w, h) {
-        const key = (img === imgDead ? 'd' : 'b') + Math.round(w) + 'x' + Math.round(h);
+        const key = (img === imgDead ? 'd' : img === imgQueen ? 'q' : 'b') + Math.round(w) + 'x' + Math.round(h);
         let c = spriteCache.get(key);
         if (c) return c;
         if (!img.complete || !img.naturalWidth) return null;
@@ -141,7 +163,7 @@
     function drawMosquito(m, now, clock) {
         const w = BODY_W * m.scale * (m.smart ? 1.15 : 1), h = BODY_H * m.scale * (m.smart ? 1.15 : 1);
         const jx = Math.sin(now * 0.037 + m.id) * 3, jy = Math.sin(now * 0.029 + m.id * 1.7) * 4;
-        const body = sprite(imgBody, w, h), dead = sprite(imgDead, w, h);
+        const body = sprite(m.smart ? imgQueen : imgBody, w, h), dead = sprite(imgDead, w, h);
         ctx.save();
         if (m.state === 'dead') {
             const age = clock - m.deadAt;
@@ -169,22 +191,26 @@
             // đang chích: cánh xếp, cả con phồng dần theo thời gian đậu
             const k = Math.min(1, m.landedMs / (cfg.bite.landSec * 1000));
             ctx.scale(1 + 0.12 * k, 1 + 0.18 * k);
-            drawWing(w, h, 8 * Math.PI / 180, 0.58);
-            drawWing(w, h, 14 * Math.PI / 180, 0.42);
+            drawWing(w, h, 6 * Math.PI / 180, 0.7, m.smart);
+            drawWing(w, h, 20 * Math.PI / 180, 0.56, m.smart);
         } else {
             const flap = Math.sin(m.phase);
-            drawWing(w, h, (-18 + flap * 32) * Math.PI / 180, 0.95);
-            drawWing(w, h, (10 - flap * 28) * Math.PI / 180, 0.72);
+            drawWing(w, h, (-24 + flap * 32) * Math.PI / 180, 0.98, m.smart);
+            drawWing(w, h, (16 - flap * 30) * Math.PI / 180, 0.82, m.smart);
         }
         if (body) ctx.drawImage(body, -w / 2, -h / 2);
+        if (m.smart) {
+            // Khớp cánh nằm trên mép lưng: che điểm nối để cánh luôn trông gắn liền với thân.
+            ctx.beginPath();
+            ctx.ellipse(QUEEN_PIVOT.x * w, QUEEN_PIVOT.y * h, w * 0.027, h * 0.045, -0.25, 0, Math.PI * 2);
+            ctx.fillStyle = '#9b5b08'; ctx.fill();
+            ctx.lineWidth = 1.5; ctx.strokeStyle = '#ffd85a'; ctx.stroke();
+        }
         if (landed || m.state === 'seek') {
             ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w * 1.7, 0, Math.PI * 2);
             ctx.strokeStyle = 'rgba(255,60,60,.8)'; ctx.lineWidth = 3; ctx.stroke();
         }
-        if (m.smart) {
-            ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w, 0, Math.PI * 2); ctx.fillStyle = '#ffd54a'; ctx.fill();
-            ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w * 1.9, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,213,74,.45)'; ctx.lineWidth = 3; ctx.stroke();
-        }
+        // Muỗi thông minh dùng sprite muỗi chúa có vương miện; không vẽ thêm mắt vàng/HUD.
         ctx.restore();
     }
 
