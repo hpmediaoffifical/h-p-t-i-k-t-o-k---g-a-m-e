@@ -2125,11 +2125,19 @@ if (appConfig.games.chemtraicay) {
     appConfig.games.chemtraicay.display = { ...def.display, ...(appConfig.games.chemtraicay.display || {}) };
 }
 // Đập Muỗi: chuẩn hoá config cũ (khoá thiếu/rác → mặc định, actions/giftRules đúng dạng).
-// TẶNG BAO NHIÊU CHẠY BẤY NHIÊU (user 29/10/2026): máy còn đúng trần mặc định cũ (Chém Trái Cây 30 quả, Đập Muỗi 100 muỗi mỗi lần
-// quà) → nâng lên mặc định mới để combo ×N chạy đủ N lần. Cờ comboV để chỉ nâng một lần (streamer tự đặt lại thì giữ).
-for (const [id, oldMax, newMax] of [['chemtraicay', 30, 999], ['dapmuoi', 100, 1000]]) {
-    const c = appConfig.games[id];
-    if (c && !(Number(c.comboV) >= 1)) { if (Number(c.maxPerGift) === oldMax) c.maxPerGift = newMax; c.comboV = 1; }
+// TẶNG BAO NHIÊU CHẠY BẤY NHIÊU (user 29/10/2026): máy còn đúng trần mặc định cũ (Chém Trái Cây 30 quả, Đập Muỗi 100 muỗi mỗi
+// lần quà, hàng chờ Đá Cầu 10 quả) → nâng lên mặc định mới để combo ×N chạy đủ N lần. Một lần (cờ camgames.comboV — để ở
+// Game Camera vì normalizeConfig của từng game bỏ khoá lạ); streamer tự đặt lại sau đó thì giữ.
+{
+    const cam = appConfig.games.camgames = appConfig.games.camgames || {};
+    if (!(Number(cam.comboV) >= 1)) {
+        for (const [id, key, oldV, newV] of [['chemtraicay', 'maxPerGift', 30, 999], ['dapmuoi', 'maxPerGift', 100, 1000], ['dacau', 'queueMax', 10, 999]]) {
+            const c = appConfig.games[id];
+            if (c && Number(c[key]) === oldV) c[key] = newV;
+        }
+        cam.comboV = 1;
+        saveAppConfig();
+    }
 }
 if (appConfig.games.dapmuoi) appConfig.games.dapmuoi = DapMuoi.normalizeConfig(appConfig.games.dapmuoi);
 if (appConfig.games.dacau) appConfig.games.dacau = DaCau.normalizeConfig(appConfig.games.dacau);
