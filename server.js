@@ -1569,6 +1569,23 @@ function obsBridgeAutoRefreshOverlays(reason) {
 try { obsBridge.obs.on('Identified', () => obsBridgeAutoRefreshOverlays('OBS connected')); } catch (e) {}
 // TOUCH & PLAY: chụp nguồn camera TRONG scene OBS (không mở webcam riêng) gửi overlay nhận diện.
 // Chỉ chạy khi có overlay đăng ký 'touchplay:feed'. Cấu hình lấy từ tpCfg mà lab lưu.
+// 📷 Tự nhận camera: Scene đang phát có "Thiết bị quay video" (dshow…) → dùng khi streamer chưa chọn nguồn camera.
+// Chỉ ĐỌC OBS (GetSceneList / GetSceneItemList), 2 s/lần và chỉ khi có overlay đang nhận hình.
+let camAuto = { scene: '', source: '', at: 0 }, camAutoBusy = false;
+async function camAutoRefresh() {
+    if (camAutoBusy || !obsBridge.isConnected()) return camAuto;
+    camAutoBusy = true;
+    try {
+        const sc = await touchplayFeed.listScenes();
+        const scene = sc.currentScene || '';
+        const r = scene ? await touchplayFeed.listSceneSources(scene) : { sources: [] };
+        const cams = (r.sources || []).filter(s => s.camera);
+        const cam = cams.find(s => !s.hidden) || cams[0];
+        camAuto = { scene, source: cam ? cam.name : '', at: Date.now() };
+    } catch (_) {} finally { camAutoBusy = false; }
+    return camAuto;
+}
+setInterval(() => { try { if (obsBridge.isConnected() && touchplayFeed.subscribers() > 0) camAutoRefresh(); } catch (_) {} }, 2000).unref?.();
 const touchplayFeed = new ObsCameraFeed({
     bridge: obsBridge, io,
     logger: { log: (...a) => console.log(...a), warn: (...a) => console.warn(...a) },
@@ -1608,6 +1625,8 @@ const touchplayFeed = new ObsCameraFeed({
         // game. Chưa đặt (config cũ) → game đang có overlay nhận hình trước, rồi nguồn riêng từng game.
         let source = on.length ? (cam.source || '') : '';
         if (!source) for (const id of [...[...activeGames].filter(id => per[id] !== null), ...on]) if (per[id]) { source = per[id]; break; }
+        // 📷 Chưa chọn nguồn ở đâu → tự lấy thiết bị quay video trong Scene đang phát (camAutoRefresh, port HP LIVE NPC).
+        if (!source && on.length && camAuto.source && Date.now() - camAuto.at < 10000) source = camAuto.source;
         if (!source && on.length) source = c.obsSource || '';   // nguồn Touch & Play từng chọn
         return {
             enabled: on.length > 0,
@@ -6486,7 +6505,10 @@ app.get('/api/camgames/feed-status', (req, res) => {
     let status = {};
     try { status = touchplayFeed.status(); } catch (e) {}
     const cam = appConfig.games?.camgames || {};
-    res.json({ ok: true, obsConnected: status.obsConnected !== false, status, actives: camActives(), source: String(cam.source || '') });
+    const saved = String(cam.source || '');
+    const auto = !saved && !!camAuto.source && Date.now() - camAuto.at < 10000;
+    res.json({ ok: true, obsConnected: status.obsConnected !== false, status, actives: camActives(), source: saved || (auto ? camAuto.source : ''),
+        auto, scene: camAuto.scene || status.scene || '' });
 });
 app.get('/api/touchplay/obs-sources', async (req, res) => {
     try {
