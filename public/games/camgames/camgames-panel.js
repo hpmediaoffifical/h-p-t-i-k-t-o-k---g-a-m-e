@@ -87,7 +87,7 @@
         if (!grid) return;
         const now = playing(), cur = actives(), keyOwner = hotkeyOwner();
         // 🧍 Bộ Tách Người không là thẻ: các game con của nó trải thành lưới ô riêng bên dưới (bodySection) để chọn nhanh như HP LIVE NPC.
-        grid.innerHTML = games().filter(g => lstates[g.id] !== 'hidden' && g.id !== 'body').map(g => {   // HP KEY: game con Ẩn không hiện
+        grid.innerHTML = games().filter(g => lstates[g.id] !== 'hidden').filter(g => g.id !== 'body').map(g => {   // HP KEY: game con Ẩn không hiện
             const on = now.includes(g.id);
             if (locked.has(g.id)) {
                 const paused = lstates[g.id] === 'off';
