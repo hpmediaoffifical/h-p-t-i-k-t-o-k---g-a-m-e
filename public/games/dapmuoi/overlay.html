@@ -4,7 +4,9 @@
 <script src="/games/camgames/cam-frame-guard.js"></script><!-- 🔇 khung ẩn / mất kết nối app thì câm + ngưng (nạp trước mọi script) -->
     <script src="/lib/overlay-resolution.js"></script>
 <meta charset="utf-8" />
-<title>HP Đập Muỗi — Overlay</title>
+<!-- 🌐 Chữ khán giả thấy theo "Ngôn ngữ chữ trên LIVE" (settings.overlayLang) - hpT() + dịch chữ tĩnh; nạp TRƯỚC mọi script. -->
+<script src="/i18n/hp-i18n.js" data-scope="overlay"></script>
+<title>HP Đập Muỗi - Overlay</title>
 <style>
     /* OBS browser source: 1080×1920 trong suốt. Engine tính trong hệ 1080×1920; sân khấu giữ 9:16 giữa khung. */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -14,24 +16,21 @@
     #dm-canvas { position: absolute; inset: 0; width: 1080px; height: 1920px; display: block; }
     .dm-hud { position: absolute; transform: translate(-50%, -50%); text-align: center; pointer-events: none; white-space: nowrap;
         text-shadow: 0 2px 6px rgba(0,0,0,.8), 0 0 18px rgba(0,0,0,.6); }
-    .dm-hud .main { font-size: 52px; font-weight: 800; letter-spacing: .5px; }
+    .dm-hud .main { font-size: 52px; font-weight: 800; letter-spacing: .5px; display: flex; align-items: center; justify-content: center; gap: .3em; }
+    .dm-hud .main .sep { opacity: .7; margin: 0 .15em; }
     .dm-hud .main b { color: #ffd54a; }
     .dm-hud .combo { font-size: 44px; font-weight: 900; color: #ff6b3d; opacity: 0; transition: opacity .15s; }
     .dm-hud .combo.on { opacity: 1; }
     .dm-hud .chips { margin-top: 6px; font-size: 34px; font-weight: 700; display: flex; gap: 18px; justify-content: center; }
-    .dm-hud .chips span { padding: 4px 16px; border-radius: 999px; background: rgba(0,0,0,.55); border: 2px solid rgba(255,255,255,.25); }
-    .dm-hud .chips span.racket { border-color: #ffd54a; color: #ffd54a; }
-    .dm-hud .chips span.net { border-color: #7fd7ff; color: #7fd7ff; }
-    .dm-hud .chips span.cream { border-color: #5fe0c4; color: #5fe0c4; }
-    .dm-hud .chips span.bite { border-color: #ff5a6e; color: #ff5a6e; }
-    .dm-notices { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 10px; align-items: center; pointer-events: none; }
-    .dm-notice { display: flex; align-items: center; gap: 12px; padding: 10px 22px; border-radius: 999px; background: rgba(8,12,20,.85);
-        border: 2px solid rgba(255,255,255,.25); font-size: 34px; font-weight: 700; animation: dmIn .25s ease-out; }
-    .dm-notice img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
-    .dm-notice.out { opacity: 0; transition: opacity .4s; }
-    @keyframes dmIn { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .dm-hud .chips > span { display: inline-flex; align-items: center; gap: .3em; padding: 4px 16px; border-radius: 999px; background: rgba(0,0,0,.55); border: 2px solid rgba(255,255,255,.25); }
+    .dm-hud .chips > span.racket { border-color: #ffd54a; color: #ffd54a; }
+    .dm-hud .chips > span.spray { border-color: #2dd4bf; color: #2dd4bf; }
+    .dm-hud .chips > span.net { border-color: #7fd7ff; color: #7fd7ff; }
+    .dm-hud .chips > span.cream { border-color: #5fe0c4; color: #5fe0c4; }
+    .dm-hud .chips > span.bite { border-color: #ff5a6e; color: #ff5a6e; }
     .dm-alert { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; max-width: 86%; padding: 18px 26px;
         border-radius: 16px; background: rgba(120,20,20,.9); border: 2px solid #ff8a80; font-size: 30px; text-align: center; }
+    .dm-alert .hpf-ico { margin-right: .3em; }
     .dm-alert small { display: block; margin-top: 8px; font-size: 22px; opacity: .85; }
     .dm-alert.on { display: block; }
     .dm-hint { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); padding: 10px 18px; border-radius: 12px; display: none;
@@ -43,7 +42,7 @@
 <div id="dm-stage">
     <canvas id="dm-canvas" width="1080" height="1920"></canvas>
     <div class="dm-hud" id="dm-hud">
-        <div class="main">🦟 Còn lại <b id="dm-left">0</b> &nbsp;·&nbsp; ✋ Đã đập <b id="dm-killed">0</b></div>
+        <div class="main"><i data-ico="🦟"></i><span>Còn lại</span> <b id="dm-left">0</b><span class="sep">·</span><i data-ico="✋"></i><span>Đã đập</span> <b id="dm-killed">0</b></div>
         <div class="combo" id="dm-combo">COMBO ×2</div>
         <div class="chips" id="dm-chips"></div>
     </div>
@@ -52,6 +51,8 @@
     <div class="dm-hint">Chế độ chuột: bấm = vỗ tay tại con trỏ · giữ kéo = vợt · C = xoá hết muỗi · P = người giả (thử chích / kem)</div>
 </div>
 
+<script src="/lib/hp-icons.js"></script>
+<script src="/lib/hp-game-feed.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/games/dapmuoi/game.js"></script>
 <script src="/games/dapmuoi/clap.js"></script>
@@ -68,6 +69,12 @@
     const mouseMode = isReview || qs.get('mouse') === '1';
     const token = qs.get('token') || '';
     const $ = (id) => document.getElementById(id);
+    // ---------- icon nét HP Media + danh sách người tặng: thư viện chung overlays/lib/hp-game-feed.js ----------
+    const FEED = window.HpGameFeed;
+    const { icoHtml, icoLabel, icoImg } = FEED;
+    const ICO_COLOR = FEED.COLOR;
+    const feedList = FEED.createList($('dm-notices'), { max: 4, life: 2600 });
+    document.querySelectorAll('#dm-hud i[data-ico]').forEach(i => { i.outerHTML = icoHtml(i.dataset.ico); });
     const canvas = $('dm-canvas');
     const ctx = canvas.getContext('2d');
     if (mouseMode) document.body.classList.add('dm-mouse');
@@ -95,17 +102,30 @@
         $('dm-stage').style.transform = `translate(${stageX}px, ${stageY}px) scale(${stageScale})`;
     }
     fitStage(); window.addEventListener('resize', fitStage);
+    // 👁 Vùng sân khấu còn thấy trên OBS (Scene PK / Colab thu Game Camera vào ô khung cam, cắt bớt trên/dưới hoặc 2 bên): HUD, thông
+    // báo, chữ hướng dẫn và vùng muỗi bay bám vùng này (createCamView - obs-scene-map.mjs). Không ở Scene PK = cả sân khấu, không đổi gì.
+    let view = { x: 0, y: 0, w: W, h: H };
+    function applyView(v) {
+        view = v; engine.setArea(v);
+        const cx = (v.x + v.w / 2) + 'px';
+        Object.assign($('dm-alert').style, { left: cx, top: (v.y + v.h / 2) + 'px' });
+        Object.assign(document.querySelector('.dm-hint').style, { left: cx, bottom: (H - v.y - v.h + v.h * 0.03) + 'px' });
+        if (lastSnap) applyHud(lastSnap);
+    }
+    import('/lib/obs-scene-map.mjs').then(m => { window.__dm.view = m.createCamView({ W, H, overlayId: 'dapmuoi', getLayout: () => feed.layout, onChange: applyView }); applyView(window.__dm.view.rect); }).catch(e => console.warn('[dapmuoi] cam-view:', e));
     function toStage(clientX, clientY) { return { x: (clientX - stageX) / stageScale, y: (clientY - stageY) / stageScale }; }
 
     // ---------- ảnh muỗi (SVG 320×200) ----------
     const BODY_W = Game.BASE_SIZE, BODY_H = Game.BASE_SIZE * 200 / 320;
-    const imgBody = new Image(), imgDead = new Image();
+    const imgBody = new Image(), imgDead = new Image(), imgQueen = new Image();
     imgBody.src = '/games/dapmuoi/assets/muoi-than-3d.png'; imgDead.src = '/games/dapmuoi/assets/muoi-lat-ngua-3d.png';
+    // 👑 Muỗi Chúa: sprite riêng 320×200 (vương miện, bụng đỏ no máu, KHÔNG có cánh - cánh vàng vẽ động bằng drawRoyalWing)
+    imgQueen.src = '/games/dapmuoi/assets/muoi-chua-3d.png';
     // Dụng cụ: bình xịt (200×320, vòi hướng phải), vợt điện (260×520, điểm cầm 130,470), màn (1080×700 treo mép trên)
     const imgSpray = new Image(), imgRacket = new Image(), imgNet = new Image(), imgCream = new Image(), imgBump = new Image();
     imgSpray.src = '/games/dapmuoi/assets/binh-xit-3d.png'; imgRacket.src = '/games/dapmuoi/assets/vot-muoi-3d.png'; imgNet.src = '/games/dapmuoi/assets/man-muoi.svg';
     imgCream.src = '/games/dapmuoi/assets/kem-chong-muoi-3d.png'; imgBump.src = '/games/dapmuoi/assets/not-muoi-can.svg';
-    let lastHands = [];            // lòng bàn tay (sân khấu) khung AI gần nhất — để vẽ vợt theo tay
+    let lastHands = [];            // lòng bàn tay (sân khấu) khung AI gần nhất - để vẽ vợt theo tay
     let mousePos = null;           // chế độ chuột: vợt theo con trỏ
     let netSlide = 0;              // 0 = cuộn lên, 1 = rủ hết (trượt 0.5 s)
     // Sprite 3D vẽ đầu quay TRÁI → lật theo -m.dir (dir = 1 khi bay sang phải).
@@ -124,10 +144,37 @@
         ctx.restore();
     }
 
-    // Cache bitmap theo (ảnh, cỡ): vẽ SVG thẳng mỗi khung là rasterize lại — 300 con là tụt khung.
+    // Cánh vàng Muỗi Chúa (đặc tả "muỗi chúa cánh vàng" 2026-10-17): HAI cánh chung MỘT điểm neo trên lưng (QUEEN_PIVOT), đường cánh
+    // bắt đầu/kết thúc ngay tại gốc → mọi góc vỗ cánh vẫn dính thân; bản dài, đầu bo tròn, có gân, vàng trong suốt.
+    const QUEEN_PIVOT = { x: (150 - 160) / 320, y: (80 - 100) / 200 };
+    function drawRoyalWing(w, h, angle, alpha) {
+        ctx.save();
+        ctx.translate(QUEEN_PIVOT.x * w, QUEEN_PIVOT.y * h);
+        ctx.rotate(angle);
+        ctx.globalAlpha *= alpha;
+        const len = w * 0.48, thick = h * 0.28;
+        const grad = ctx.createLinearGradient(0, 0, len, 0);
+        grad.addColorStop(0, 'rgba(255,179,0,.82)'); grad.addColorStop(0.52, 'rgba(255,221,75,.58)'); grad.addColorStop(1, 'rgba(255,244,170,.18)');
+        ctx.beginPath();
+        ctx.moveTo(0, -thick * 0.16);
+        ctx.bezierCurveTo(len * 0.2, -thick * 0.72, len * 0.63, -thick * 1.08, len * 0.88, -thick * 0.7);
+        ctx.bezierCurveTo(len * 1.04, -thick * 0.46, len * 1.04, thick * 0.34, len * 0.88, thick * 0.58);
+        ctx.bezierCurveTo(len * 0.58, thick * 0.78, len * 0.2, thick * 0.54, 0, thick * 0.16);
+        ctx.closePath();
+        ctx.fillStyle = grad; ctx.fill();
+        ctx.lineWidth = 2.6; ctx.strokeStyle = 'rgba(255,232,105,.98)'; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(len * 0.06, 0); ctx.lineTo(len * 0.88, -thick * 0.05);
+        ctx.moveTo(len * 0.28, -thick * 0.02); ctx.lineTo(len * 0.48, -thick * 0.62);
+        ctx.moveTo(len * 0.5, -thick * 0.04); ctx.lineTo(len * 0.7, thick * 0.46);
+        ctx.moveTo(len * 0.63, -thick * 0.04); ctx.lineTo(len * 0.79, -thick * 0.52);
+        ctx.strokeStyle = 'rgba(193,112,0,.65)'; ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.restore();
+    }
+
+    // Cache bitmap theo (ảnh, cỡ): vẽ SVG thẳng mỗi khung là rasterize lại - 300 con là tụt khung.
     const spriteCache = new Map();
     function sprite(img, w, h) {
-        const key = (img === imgDead ? 'd' : 'b') + Math.round(w) + 'x' + Math.round(h);
+        const key = (img === imgDead ? 'd' : img === imgQueen ? 'q' : 'b') + Math.round(w) + 'x' + Math.round(h);
         let c = spriteCache.get(key);
         if (c) return c;
         if (!img.complete || !img.naturalWidth) return null;
@@ -142,7 +189,8 @@
     function drawMosquito(m, now, clock) {
         const w = BODY_W * m.scale * (m.smart ? 1.15 : 1), h = BODY_H * m.scale * (m.smart ? 1.15 : 1);
         const jx = Math.sin(now * 0.037 + m.id) * 3, jy = Math.sin(now * 0.029 + m.id * 1.7) * 4;
-        const body = sprite(imgBody, w, h), dead = sprite(imgDead, w, h);
+        const royal = !!m.boss;
+        const body = sprite(royal ? imgQueen : imgBody, w, h), dead = sprite(imgDead, w, h);
         ctx.save();
         if (m.state === 'dead') {
             const age = clock - m.deadAt;
@@ -150,8 +198,9 @@
             ctx.globalAlpha = alpha;
             ctx.translate(m.x, m.y);
             ctx.rotate(Math.sin(age / 1000 * Math.PI * 2 * 6) * 12 * Math.PI / 180);
-            ctx.scale(-m.dir, 1);
-            if (dead) ctx.drawImage(dead, -w / 2, -h / 2);
+            // Muỗi Chúa chết: chính sprite có vương miện lật ngửa; muỗi thường: ảnh xác lật ngửa
+            if (royal && body) { ctx.scale(-m.dir, -1); ctx.drawImage(body, -w / 2, -h / 2); }
+            else { ctx.scale(-m.dir, 1); if (dead) ctx.drawImage(dead, -w / 2, -h / 2); }
             ctx.restore();
             return;
         }
@@ -172,12 +221,22 @@
             ctx.scale(1 + 0.12 * k, 1 + 0.18 * k);
             drawWing(w, h, 8 * Math.PI / 180, 0.58);
             drawWing(w, h, 14 * Math.PI / 180, 0.42);
+        } else if (royal) {
+            // hai cánh vàng ngược pha, đều thấy rõ
+            const flap = Math.sin(m.phase);
+            drawRoyalWing(w, h, (-24 + flap * 32) * Math.PI / 180, 0.98);
+            drawRoyalWing(w, h, (16 - flap * 30) * Math.PI / 180, 0.82);
         } else {
             const flap = Math.sin(m.phase);
             drawWing(w, h, (-18 + flap * 32) * Math.PI / 180, 0.95);
             drawWing(w, h, (10 - flap * 28) * Math.PI / 180, 0.72);
         }
         if (body) ctx.drawImage(body, -w / 2, -h / 2);
+        if (royal) {
+            // khớp cánh trên lưng: che điểm nối để cánh luôn trông gắn liền thân
+            ctx.beginPath(); ctx.ellipse(QUEEN_PIVOT.x * w, QUEEN_PIVOT.y * h, w * 0.027, h * 0.045, -0.25, 0, Math.PI * 2);
+            ctx.fillStyle = '#9b5b08'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#ffd85a'; ctx.stroke();
+        }
         if (landed || m.state === 'seek') {
             ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w * 1.7, 0, Math.PI * 2);
             ctx.strokeStyle = 'rgba(255,60,60,.8)'; ctx.lineWidth = 3; ctx.stroke();
@@ -186,16 +245,59 @@
             ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w, 0, Math.PI * 2); ctx.fillStyle = '#ffd54a'; ctx.fill();
             ctx.beginPath(); ctx.arc(EYE.x * w, EYE.y * h, EYE.r * w * 1.9, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,213,74,.45)'; ctx.lineWidth = 3; ctx.stroke();
         }
+        if (m.boss) {
+            // chớp đỏ khi vừa dính đòn (sprite đã có mắt đỏ + vương miện)
+            const hurt = clock - m.hurtAt;
+            if (hurt >= 0 && hurt < 220) {
+                ctx.globalAlpha = 0.55 * (1 - hurt / 220); ctx.fillStyle = '#ff2a2a';
+                ctx.beginPath(); ctx.ellipse(0, 0, w * 0.42, h * 0.4, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+            }
+        }
         ctx.restore();
+        if (m.boss) drawBossHud(m, w, h, now, clock);
+    }
+
+    // 👑 Muỗi Chúa: hào quang + thanh máu + đồng hồ còn bao lâu thì tự bay đi (vẽ thẳng đứng, không lật theo hướng bay).
+    // Vương miện nằm sẵn trong sprite muoi-chua-3d.png.
+    function drawBossHud(m, w, h, now, clock) {
+        const x = m.x;
+        ctx.save();
+        // hào quang
+        const pulse = 0.5 + 0.5 * Math.sin(now / 160 + m.id);
+        const g = ctx.createRadialGradient(x, m.y, w * 0.15, x, m.y, w * (0.7 + 0.08 * pulse));
+        g.addColorStop(0, 'rgba(255,60,60,0)'); g.addColorStop(0.6, `rgba(255,70,40,${0.10 + 0.08 * pulse})`); g.addColorStop(1, 'rgba(255,70,40,0)');
+        ctx.globalCompositeOperation = 'destination-over'; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, m.y, w * 0.8, 0, Math.PI * 2); ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.textAlign = 'center';
+        if (m.state === 'flee') { ctx.restore(); return; }
+        // thanh máu
+        const bw = Math.max(120, w * 0.8), bh = 16, by = m.y + h * 0.55;
+        const k = Math.max(0, Math.min(1, m.hp / Math.max(1, m.maxHp)));
+        ctx.fillStyle = 'rgba(0,0,0,.65)'; roundRect(x - bw / 2 - 3, by - 3, bw + 6, bh + 6, 8); ctx.fill();
+        ctx.fillStyle = k > 0.5 ? '#4ade80' : k > 0.25 ? '#ffd54a' : '#ff4d4d'; roundRect(x - bw / 2, by, bw * k, bh, 6); ctx.fill();
+        ctx.font = '900 22px "Segoe UI", Arial, sans-serif'; ctx.textBaseline = 'top'; ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,.75)';
+        const left = Math.max(0, Math.ceil((m.fleeAt - clock) / 1000));
+        const ta = `♥ ${m.hp}/${m.maxHp}  ·  `, tb = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+        const col = left <= 10 ? '#ff6b6b' : '#fff', im = icoImg('timer', col), is = im ? 24 : 0, gap = is ? 4 : 0;
+        const wa = ctx.measureText(ta).width, wb = ctx.measureText(tb).width, x0 = x - (wa + is + gap + wb) / 2, ty = by + bh + 6;
+        ctx.textAlign = 'left'; ctx.fillStyle = col;
+        ctx.strokeText(ta, x0, ty); ctx.fillText(ta, x0, ty);
+        if (im) ctx.drawImage(im, x0 + wa, ty - 1, is, is);
+        ctx.strokeText(tb, x0 + wa + is + gap, ty); ctx.fillText(tb, x0 + wa + is + gap, ty);
+        ctx.restore();
+    }
+    function roundRect(x, y, w, h, r) {
+        ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
     }
 
     // ---------- hiệu ứng ----------
     const rings = [];      // { x, y, r, t0, hit }
     const labels = [];     // { x, y, text, color, t0, size }
     const zaps = [];       // { x, y, t0 }
-    // Vòng sóng chỉ là dấu "đã vỗ ở đây": nhỏ (≤ 90 px), KHÔNG vẽ theo bán kính đập — user thấy vòng to che mặt.
+    // Vòng sóng chỉ là dấu "đã vỗ ở đây": nhỏ (≤ 90 px), KHÔNG vẽ theo bán kính đập - user thấy vòng to che mặt.
     function addRing(x, y, r, hit) { rings.push({ x, y, r: Math.min(90, r * 0.35), t0: performance.now(), hit }); if (rings.length > 20) rings.shift(); }
-    function addLabel(x, y, text, color, size) { labels.push({ x, y, text, color, t0: performance.now(), size: size || 40 }); if (labels.length > 30) labels.shift(); }
+    function addLabel(x, y, text, color, size) { const sl = FEED.splitLabel(String(text)); labels.push({ x, y, text: sl.text, ico: sl.ico, color, t0: performance.now(), size: size || 40 }); if (labels.length > 30) labels.shift(); }
 
     function drawEffects(now, s) {
         if (cfg.display.showHitRing) for (const r of rings) {
@@ -229,7 +331,13 @@
             const k = (now - l.t0) / 900; if (k > 1) continue;
             ctx.save(); ctx.globalAlpha = 1 - k; ctx.font = `900 ${l.size}px "Segoe UI", Arial, sans-serif`; ctx.textAlign = 'center';
             ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.fillStyle = l.color;
-            ctx.strokeText(l.text, l.x, l.y - k * 80); ctx.fillText(l.text, l.x, l.y - k * 80); ctx.restore();
+            const im = l.ico && icoImg(l.ico, ICO_COLOR[l.ico] || l.color), y = l.y - k * 80;
+            if (im) {
+                const is = l.size * 1.15, gap = l.size * 0.25, tw = ctx.measureText(l.text).width, x0 = l.x - (is + gap + tw) / 2;
+                ctx.drawImage(im, x0, y - l.size * 0.92, is, is);
+                ctx.textAlign = 'left'; ctx.strokeText(l.text, x0 + is + gap, y); ctx.fillText(l.text, x0 + is + gap, y);
+            } else { ctx.strokeText(l.text, l.x, y); ctx.fillText(l.text, l.x, y); }
+            ctx.restore();
         }
         while (rings.length && now - rings[0].t0 > 300) rings.shift();
         while (zaps.length && now - zaps[0].t0 > 180) zaps.shift();
@@ -240,47 +348,85 @@
     function applyHud(s) {
         const d = cfg.display, hud = $('dm-hud');
         hud.style.display = d.showHud ? '' : 'none';
-        hud.style.left = d.hudXPercent + '%'; hud.style.top = d.hudYPercent + '%';
-        hud.style.transform = `translate(-50%, -50%) scale(${d.hudScale / 100})`;
+        hud.style.left = (view.x + d.hudXPercent / 100 * view.w) + 'px'; hud.style.top = (view.y + d.hudYPercent / 100 * view.h) + 'px';
         $('dm-left').textContent = s.flying + (s.queue ? ` (+${s.queue})` : '');
         $('dm-killed').textContent = s.killed;
         const c = $('dm-combo'); c.textContent = `COMBO ×${s.combo}`; c.classList.toggle('on', s.combo >= 2);
         const chips = [];
-        if (s.racketMs > 0) chips.push(`<span class="racket">🏸 Vợt ${Math.ceil(s.racketMs / 1000)}s</span>`);
-        if (s.netMs > 0) chips.push(`<span class="net">🛏 Màn ${Math.ceil(s.netMs / 1000)}s</span>`);
-        if (s.creamMs > 0) chips.push(`<span class="cream">🩹 Kem ${Math.ceil(s.creamMs / 1000)}s</span>`);
-        if (s.bites > 0) chips.push(`<span class="bite">🩸 Bị chích ${s.bites}</span>`);
-        const el = $('dm-chips'); const html = chips.join(''); if (el.innerHTML !== html) el.innerHTML = html;
+        if (s.racketMs > 0) chips.push(`<span class="racket">${icoLabel(hpT('🏸 Vợt {v}s', { v: Math.ceil(s.racketMs / 1000) }))}</span>`);
+        if (s.sprayLeft > 1) chips.push(`<span class="spray">${icoLabel(hpT('🧴 Xịt ×{n}', { n: s.sprayLeft }))}</span>`);   // combo bình xịt còn chờ
+        if (s.netMs > 0) chips.push(`<span class="net">${icoLabel(hpT('🛏 Màn {v}s', { v: Math.ceil(s.netMs / 1000) }))}</span>`);
+        if (s.creamMs > 0) chips.push(`<span class="cream">${icoLabel(`🩹 Kem ${Math.ceil(s.creamMs / 1000)}s`)}</span>`);
+        if (s.bites > 0) chips.push(`<span class="bite">${icoLabel(hpT('🩸 Bị chích {bites}', { bites: s.bites }))}</span>`);
+        // so với chuỗi lần trước (innerHTML có <svg> đọc lại khác chuỗi gốc → so innerHTML thì vẽ lại mỗi khung)
+        const el = $('dm-chips'); const html = chips.join(''); if (el.__html !== html) { el.__html = html; el.innerHTML = html; }
+        // Vùng thấy hẹp (Colab 540×1700 chỉ còn ~610 px bề ngang) → thu HUD cho vừa 94 % bề ngang vùng (đo SAU khi đổi chữ);
+        // đủ rộng thì giữ cỡ đặt tay và không đo (khỏi ép layout mỗi khung).
+        const hs = d.hudScale / 100, hw = view.w < W - 1 ? hud.offsetWidth * hs : 0;
+        const fit = hw > 0 ? Math.min(1, view.w * 0.94 / hw) : 1;
+        hud.style.transform = `translate(-50%, -50%) scale(${hs * fit})`;
+        // Danh sách người tặng quà: chỉnh tay ở tab Hiển thị (mặc định giữa khung - 24 % cũ đè mặt NPC, thử LIVE 2026-10-24).
+        feedList.place(view, { x: d.listXPercent, y: d.listYPercent, scale: d.listScale });
     }
 
-    function notice(icon, text, image) {
-        const box = $('dm-notices');
-        const el = document.createElement('div'); el.className = 'dm-notice';
-        el.innerHTML = `${image ? `<img src="${String(image).replace(/"/g, '&quot;')}" alt="">` : ''}<span>${icon} ${String(text).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</span>`;
-        box.appendChild(el);
-        while (box.children.length > 4) box.removeChild(box.firstChild);
-        setTimeout(() => el.classList.add('out'), 2600); setTimeout(() => el.remove(), 3100);
-    }
+    // who = tên người tặng (giữ nguyên chữ / emoji của họ - data-no-icon), text = hành động (màu theo icon).
+    function notice(icon, text, image, who) { feedList.push({ icon, text, image, who }); }
 
-    // ---------- âm thanh (WebAudio, không cần file) ----------
-    const audio = { ctx: null, buzz: null, buzzGain: null, lfo: null, target: 0 };
+    // ---------- âm thanh (WebAudio) ----------
+    // Tiếng vo ve: file thu thật assets/muoi-keu.mp3 (~5 s) phát LẶP liền mạch, to nhỏ theo số muỗi đang bay.
+    // Nạp file lỗi thì quay về tiếng tổng hợp (răng cưa + rung) như cũ. Đập / xịt / vợt vẫn là tiếng tổng hợp.
+    const BUZZ_URL = '/games/dapmuoi/assets/muoi-keu.mp3';
+    const BUZZ_GAIN = 1.0;        // file thu thật nhỏ hơn sóng răng cưa (đỉnh −12 dB) → hệ số lớn hơn 0,35 cũ
+    const audio = { ctx: null, buzz: null, buzzGain: null, lfo: null, target: 0, gainK: BUZZ_GAIN };
+    function synthBuzz(ac, g) {
+        const osc = ac.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 520;
+        const lfo = ac.createOscillator(); lfo.frequency.value = 6; const lfoG = ac.createGain(); lfoG.gain.value = 25;
+        lfo.connect(lfoG); lfoG.connect(osc.detune);
+        const filt = ac.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 1800;
+        osc.connect(filt); filt.connect(g); osc.start(); lfo.start();
+        audio.buzz = osc; audio.lfo = lfo; audio.gainK = 0.35;
+        if (audio.target > 0) audioBuzz(lastSnap ? lastSnap.flying : 0, true);
+    }
+    // Cắt khoảng lặng đầu/cuối (mp3 có đệm) rồi trộn chéo 80 ms cuối vào đầu → vòng lặp không có tiếng "tách".
+    function seamlessLoop(ac, buf) {
+        const ch0 = buf.getChannelData(0), sr = buf.sampleRate, thr = 0.01;
+        let s = 0, e = ch0.length - 1;
+        while (s < e && Math.abs(ch0[s]) < thr) s++;
+        while (e > s && Math.abs(ch0[e]) < thr) e--;
+        const F = Math.min(Math.floor(sr * 0.08), Math.floor((e - s) / 4));
+        const L = (e - s + 1) - F;
+        if (L <= F * 2) return buf;
+        const out = ac.createBuffer(buf.numberOfChannels, L, sr);
+        for (let c = 0; c < buf.numberOfChannels; c++) {
+            const src = buf.getChannelData(c), dst = out.getChannelData(c);
+            for (let i = 0; i < L; i++) dst[i] = src[s + i];
+            for (let i = 0; i < F; i++) { const k = i / F; dst[i] = src[s + i] * k + src[s + L + i] * (1 - k); }
+        }
+        return out;
+    }
+    async function fileBuzz(ac, g) {
+        const res = await fetch(BUZZ_URL, { cache: 'force-cache' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const buf = seamlessLoop(ac, await ac.decodeAudioData(await res.arrayBuffer()));
+        const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+        src.connect(g); src.start();
+        audio.buzz = src; audio.gainK = BUZZ_GAIN;
+        if (audio.target > 0) audioBuzz(lastSnap ? lastSnap.flying : 0, true);
+    }
     function audioInit() {
         if (audio.ctx || !cfg.sound.enabled) return;
         try {
             const ac = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ac.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 520;
-            const lfo = ac.createOscillator(); lfo.frequency.value = 6; const lfoG = ac.createGain(); lfoG.gain.value = 25;
-            lfo.connect(lfoG); lfoG.connect(osc.detune);
-            const filt = ac.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 1800;
-            const g = ac.createGain(); g.gain.value = 0;
-            osc.connect(filt); filt.connect(g); g.connect(ac.destination); osc.start(); lfo.start();
-            audio.ctx = ac; audio.buzz = osc; audio.buzzGain = g; audio.lfo = lfo;
+            const g = ac.createGain(); g.gain.value = 0; g.connect(ac.destination);
+            audio.ctx = ac; audio.buzzGain = g;
+            fileBuzz(ac, g).catch((e) => { console.warn('[dapmuoi] không nạp được tiếng muỗi mp3, dùng tiếng tổng hợp:', e && e.message || e); synthBuzz(ac, g); });
         } catch (e) { /* không có audio */ }
     }
     function audioResume() { if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume().catch(() => {}); }
-    function audioBuzz(n) {
+    function audioBuzz(n, force) {
         if (!audio.ctx) return;
-        const v = cfg.sound.enabled ? cfg.sound.volume * 0.35 * Math.min(1, Math.sqrt(n / 40)) : 0;
+        const v = cfg.sound.enabled ? cfg.sound.volume * audio.gainK * Math.min(1, Math.sqrt(n / 40)) : 0;
+        if (force) audio.target = -1;
         if (Math.abs(v - audio.target) > 0.002) { audio.target = v; audio.buzzGain.gain.setTargetAtTime(v, audio.ctx.currentTime, 0.12); }
     }
     function noise(ms, vol, lowpass) {
@@ -297,21 +443,32 @@
         g.gain.value = vol * cfg.sound.volume; g.gain.setTargetAtTime(0, ac.currentTime + ms / 1000 * 0.6, ms / 1000 * 0.2);
         o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + ms / 1000);
     }
-    const sfx = { bite: () => tone(2200, 90, 'sine', 0.35), cream: () => tone(660, 220, 'sine', 0.25), kill: () => noise(60, 0.9), miss: () => noise(40, 0.25, 900), spray: () => noise(1000, 0.5, 1200), zap: () => tone(90, 120, 'square', 0.4), dodge: () => tone(1400, 90, 'triangle', 0.3) };
+    const sfx = { bite: () => tone(2200, 90, 'sine', 0.35), cream: () => tone(660, 220, 'sine', 0.25), kill: () => noise(60, 0.9), miss: () => noise(40, 0.25, 900), spray: () => noise(1000, 0.5, 1200), zap: () => tone(90, 120, 'square', 0.4), dodge: () => tone(1400, 90, 'triangle', 0.3),
+        boss: () => { tone(110, 500, 'sawtooth', 0.35); setTimeout(() => tone(82, 600, 'sawtooth', 0.35), 250); },
+        bossKill: () => { noise(500, 0.9, 700); tone(880, 200, 'triangle', 0.3); setTimeout(() => tone(1320, 300, 'triangle', 0.3), 150); } };
 
     // ---------- sự kiện engine ----------
     let clockNow = 0;
     function handleEvents(ev) {
         for (const e of ev) {
-            if (e.type === 'kill') { sfx.kill(); addLabel(e.x, e.y - 40, e.caught ? 'Kịp rồi! +2' : (e.n > 1 ? `+${e.n}` : '+1'), e.caught ? '#5fe0c4' : '#ffd54a', 44); if (e.combo >= 2) addLabel(e.x, e.y - 100, `COMBO ×${e.combo}`, '#ff6b3d', 40); }
+            if (e.type === 'kill') { sfx.kill(); addLabel(e.x, e.y - 40, e.caught ? hpT('Kịp rồi! +2') : (e.n > 1 ? `+${e.n}` : '+1'), e.caught ? '#5fe0c4' : '#ffd54a', 44); if (e.combo >= 2) addLabel(e.x, e.y - 100, `COMBO ×${e.combo}`, '#ff6b3d', 40); }
             else if (e.type === 'miss') sfx.miss();
-            else if (e.type === 'dodge') { sfx.dodge(); addLabel(e.x, e.y - 60, `né! ♥${e.livesLeft}`, '#8fe8ff', 36); }
+            else if (e.type === 'dodge') { sfx.dodge(); addLabel(e.x, e.y - 60, hpT('né! ♥{livesLeft}', { livesLeft: e.livesLeft }), '#8fe8ff', 36); }
             else if (e.type === 'spray') sfx.spray();
             else if (e.type === 'zap') { sfx.zap(); zaps.push({ x: e.x, y: e.y, t0: performance.now() }); if (zaps.length > 12) zaps.shift(); }
-            else if (e.type === 'bite') { sfx.bite(); bumps.add({ frame: e.frame, a: e.a, b: e.b, zone: e.zone }, clockNow); addLabel(e.x, e.y - 70, 'Ái!', '#ff5a6e', 46); }
+            else if (e.type === 'bite') { sfx.bite(); bumps.add({ frame: e.frame, a: e.a, b: e.b, zone: e.zone }, clockNow); addLabel(e.x, e.y - 70, hpT('Ái!'), '#ff5a6e', 46); }
             else if (e.type === 'cream') { creamFlashAt = performance.now(); sfx.cream(); }
-            else if (e.type === 'repel') addLabel(W / 2, H * 0.3, 'Muỗi dạt ra!', '#5fe0c4', 40);
-            else if (e.type === 'net') addLabel(W / 2, H * 0.22, 'Trong màn an toàn!', '#7fd7ff', 40);
+            else if (e.type === 'repel') addLabel(W / 2, H * 0.3, hpT('Muỗi dạt ra!'), '#5fe0c4', 40);
+            else if (e.type === 'net') addLabel(W / 2, H * 0.22, hpT('Trong màn an toàn!'), '#7fd7ff', 40);
+            else if (e.type === 'bossSpawn') { sfx.boss(); addLabel(W / 2, H * 0.3, hpT('👑 MUỖI CHÚA XUẤT HIỆN!'), '#ff6b3d', 52); }
+            else if (e.type === 'bossHit') { sfx.kill(); addLabel(e.x, e.y - 120, hpT('-1 ♥ còn {hp}', { hp: e.hp }), '#ff6b6b', 46); }
+            else if (e.type === 'bossKill') {
+                sfx.bossKill(); addLabel(e.x, e.y - 140, hpT('👑 HẠ GỤC! 💥'), '#ffd54a', 64);
+                for (let i = 0; i < 3; i++) zaps.push({ x: e.x + (Math.random() - 0.5) * 120, y: e.y + (Math.random() - 0.5) * 120, t0: performance.now() + i * 60 });
+                // báo server (kèm id vé) để bật hiệu ứng trong 💥 Rổ hiệu ứng
+                if (e.fxId) socket.emit('camgames:fxhit', { game: 'dapmuoi', id: e.fxId });
+            }
+            else if (e.type === 'bossFlee') { addLabel(e.x, e.y - 120, hpT('👑 Bay mất rồi!'), '#c9d1e3', 44); notice('👑', hpT('Muỗi Chúa đã bay mất - hết giờ')); }
         }
     }
 
@@ -343,7 +500,7 @@
             if (!feed.on) return;
             feed.tracker.quality = cfg.quality;
             await feed.tracker.startExternal();
-            // want() gọi trước startExternal chỉ ghi nhớ — model body chỉ nạp khi tracker đang chạy (như Bắn Cung).
+            // want() gọi trước startExternal chỉ ghi nhớ - model body chỉ nạp khi tracker đang chạy (như Bắn Cung).
             feed.tracker.want({ hands: true, pose: true, face: false });
             feed.lastAt = performance.now();
             if (feed.on) socket.emit('touchplay:feed', feedReg());
@@ -363,16 +520,16 @@
     }
     function feedProblem() {
         const st = feed.status || {};
-        if (st.obsConnected === false) return ['App chưa kết nối OBS WebSocket.', 'OBS: Công cụ → Cài đặt WebSocket Server → bật; rồi kết nối ở mục Hiệu ứng OBS trong app.'];
-        if (!st.source) return ['Chưa chọn nguồn camera cho Game Camera.', 'Mở 🎥 Game Camera trong app → chọn Nguồn camera trong OBS.'];
+        if (st.obsConnected === false) return [hpT('App chưa kết nối OBS WebSocket.'), hpT('OBS: Công cụ → Cài đặt WebSocket Server → bật; rồi kết nối ở Cài đặt → Tạo Overlay OBS trong app.')];
+        if (!st.source) return [hpT('Chưa chọn nguồn camera cho Game Camera.'), hpT('Mở 🎥 Game Camera trong app → chọn Nguồn camera trong OBS.')];
         const src = String(st.source).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-        if (st.error === 'source-missing') return [`Không tìm thấy nguồn "${src}" trong OBS.`, ''];
-        return [`Chưa nhận được hình từ nguồn "${src}".`, 'Kiểm tra camera trong scene OBS đang phát.'];
+        if (st.error === 'source-missing') return [hpT('Không tìm thấy nguồn "{src}" trong OBS.', { src }), ''];
+        return [hpT('Chưa nhận được hình từ nguồn "{src}".', { src }), hpT('Kiểm tra camera trong scene OBS đang phát.')];
     }
     function showAlert(pair) {
         const el = $('dm-alert');
         if (!pair) { el.classList.remove('on'); return; }
-        el.innerHTML = `⚠ ${pair[0]}${pair[1] ? `<small>${pair[1]}</small>` : ''}`; el.classList.add('on');
+        el.innerHTML = `${icoHtml('⚠')}${pair[0]}${pair[1] ? `<small>${pair[1]}</small>` : ''}`; el.classList.add('on');
     }
     // Mỗi khung: kết quả nhận diện MỚI → vỗ tay / vợt / mặt.
     function pumpTracking(now) {
@@ -382,7 +539,7 @@
         const hands = now - t.handsAt < 400 ? t.hands : [];
         const pose = now - t.poseAt < 400 ? t.pose : null;
         lastHands = hands;
-        // Tốc độ khép tính theo thời điểm AI ra kết quả (handsAt), không theo nhịp rAF — lệch 16ms trên chu kỳ ~40ms làm sai ±30%.
+        // Tốc độ khép tính theo thời điểm AI ra kết quả (handsAt), không theo nhịp rAF - lệch 16ms trên chu kỳ ~40ms làm sai ±30%.
         for (const e of clap.update({ hands, pose, now: Math.max(t.handsAt, t.poseAt) || now })) hitAt(e.x, e.y, e.r, e.mode);
         if (pose && pose[0] && (pose[0].v == null || pose[0].v >= 0.35)) engine.setFace(pose[0].x, pose[0].y);
         pushFrames(pose);
@@ -433,7 +590,7 @@
         }
     }
     // Nốt muỗi cắn bám người + tuýp kem đang xoa. Dùng đồng hồ ENGINE (s.clock) vì nốt sinh từ event của engine.
-    // Nhịp nốt (hết hạn, bắt đầu/dừng xoa kem, tiến độ xoa) — tách khỏi vẽ để __dm.step cũng chạy được khi trang ẩn.
+    // Nhịp nốt (hết hạn, bắt đầu/dừng xoa kem, tiến độ xoa) - tách khỏi vẽ để __dm.step cũng chạy được khi trang ẩn.
     let rub = null;
     function tickBumps(s) {
         if (s.creamMs > 0 && !healing) { healing = true; bumps.startHeal(s.clock); }
@@ -527,7 +684,7 @@
         const now = performance.now();
         const dt = Math.min(50, now - lastT); lastT = now;   // dt cũng dùng cho hoạt ảnh màn (drawNet)
         frames++; if (now - fpsAt >= 1000) { fps = frames; frames = 0; fpsAt = now; }
-        // tắt game / khung bị overlay mẹ ẩn (nạp sẵn chờ phiên quà) / mất kết nối app → NGƯNG hẳn: không sinh muỗi, không kêu
+        // tắt game / khung bị overlay mẹ ẩn / mất kết nối app → NGƯNG hẳn: không sinh muỗi, không vẽ, không kêu
         if (disabled || !window.HpCamFrame.active) return;
         pumpTracking(now);
         pumpFakePose();
@@ -565,9 +722,9 @@
         disabled = off;
         canvas.style.display = off ? 'none' : ''; $('dm-hud').style.display = off ? 'none' : '';
         if (off) { engine.clear(); ctx.clearRect(0, 0, W, H); audioBuzz(0); showAlert(null); }
+        if (audio.ctx) { if (off) audio.ctx.suspend().catch(() => {}); else audioResume(); }
         syncFeed();
     }
-
     // 🔇 overlay mẹ ẩn khung / mất kết nối app: ẩn hình + câm (cam-frame-guard tự suspend âm thanh); chạy lại thì hiện như cũ.
     window.HpCamFrame.onChange((on) => {
         canvas.style.display = on && !disabled ? '' : 'none';
@@ -577,7 +734,7 @@
     });
 
     // ---------- socket ----------
-    const socket = io({ transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+    const socket = io({ query: { role: 'aux' }, transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
     window.__dm.socket = socket;
     // Đóng app (mất kết nối quá 1,5 s) → ngưng hẳn kể cả khi mở bằng link riêng; nối lại thì chạy tiếp.
     let offlineTimer = 0;
@@ -590,11 +747,19 @@
     socket.on('dapmuoi:gift', (d) => {
         if (disabled || !d || !Game.ACTION_TYPES.includes(d.action)) return;   // game tắt (hub chọn game khác) → bỏ, không dồn
         audioInit(); audioResume();
-        engine.applyAction({ type: d.action, params: d.params || {} }, d.qty || 1);
+        engine.applyAction({ type: d.action, params: d.params || {} }, d.qty || 1, { fxIds: d.fxIds });
         const who = d.nickname || '';
         const what = d.name || Game.ACTION_PRESET[d.action].name;
-        const extra = d.action === 'release' ? ` ${Math.floor(Number(d.params && d.params.count) || 0) * Math.max(1, Number(d.qty) || 1)} con` : (d.qty > 1 ? ` ×${d.qty}` : '');
-        notice(d.icon || Game.ACTION_PRESET[d.action].icon, `${who ? who + ' · ' : ''}${what}${extra}`, d.profilePicture);
+        const cnt = Math.floor(Number(d.params && d.params.count) || 0);
+        const extra = d.action === 'release' ? ` ${cnt * Math.max(1, Number(d.qty) || 1)} con` : d.action === 'boss' ? (cnt > 1 ? ` ×${cnt}` : '') : (d.qty > 1 ? ` ×${d.qty}` : '');
+        notice(d.icon || Game.ACTION_PRESET[d.action].icon, `${what}${extra}`, d.profilePicture, who);
+    });
+    // 💥 Server đã bốc hiệu ứng cho Muỗi Chúa vừa hạ (hoặc bỏ lượt vì hàng chờ đầy / rổ trống).
+    socket.on('camgames:fx', (d) => {
+        if (disabled || !d || d.game !== 'dapmuoi') return;
+        const ok = (d.effects || []).filter(e => e.ok).map(e => e.name);
+        const text = ok.length ? ok.join(' + ') : d.dropped ? hpT('Hiệu ứng đang chạy - bỏ lượt này') : d.empty ? hpT('Rổ hiệu ứng trống') : hpT('Chưa bật được hiệu ứng');
+        notice('💥', text, d.profilePicture, d.nickname || '');
     });
     socket.on('gameCmd', (d) => {
         if (!d || d.gameId !== 'dapmuoi') return;

@@ -1,4 +1,4 @@
-/* Đập Muỗi — nốt muỗi cắn (bump), thuần (không DOM). Nốt lưu theo toạ độ CỤC BỘ trên khung đầu/thân
+/* Đập Muỗi - nốt muỗi cắn (bump), thuần (không DOM). Nốt lưu theo toạ độ CỤC BỘ trên khung đầu/thân
  * (public/lib/body-frames.mjs) nên bám theo người; overlay gọi list(frames, now) mỗi khung để vẽ.
  *
  *   createBumps(cfg) → { add(mark, now), tick(now), list(frames, now), count(), startHeal(now), stopHeal(), heal(now), setConfig(cfg) }

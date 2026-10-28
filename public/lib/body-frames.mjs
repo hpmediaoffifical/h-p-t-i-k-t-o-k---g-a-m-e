@@ -1,7 +1,7 @@
-// public/lib/body-frames.mjs — khung ĐẦU / THÂN từ 33 điểm MediaPipe Pose (toạ độ sân khấu), thuần, test node.
+// overlays/lib/body-frames.mjs (port nguyên từ HP Action LIVE public/lib/body-frames.mjs) - khung ĐẦU / THÂN từ 33 điểm MediaPipe Pose (toạ độ sân khấu), thuần, test node.
 //
 // Chép công thức từ Bắn Cung (public/games/bancung/body-track.mjs: body()/toStage()/toLocal()) nhưng bỏ
-// socket/feed/mặt nạ để game khác (Đập Muỗi) dùng chung. Bắn Cung giữ code riêng — refactor để sau.
+// socket/feed/mặt nạ để game khác (Đập Muỗi) dùng chung. Bắn Cung giữ code riêng - refactor để sau.
 //
 // Toạ độ cục bộ: P = O + a·u + b·v.
 //   Khung THÂN: O = giữa hai vai, u = vai trái→vai phải (độ dài = bề vai), v = vai→hông.
@@ -14,7 +14,7 @@
 //   toLocal(x, y, frame, frames)  → {frame,a,b} | null
 //   biteSpots(frames, zones)      → điểm muỗi đậu: trán / má / cằm / cổ / vai
 //
-// Thanh bám trên đầu (Level Quest trong Game Camera) — vị trí là { x: tâm ngang, yBottom: mép dưới, s: tỉ lệ }:
+// Thanh bám trên đầu (Level Quest trong Game Camera) - vị trí là { x: tâm ngang, yBottom: mép dưới, s: tỉ lệ }:
 //   headAnchor(frames)                        → { crown, headW } | null  (không thấy đầu thì ước lượng từ vai)
 //   placeAbove(anchor, box, W, H, {scale,gap}) → cụm cỡ gốc box={w,h} đặt trên đỉnh đầu, kẹp trong khung W×H
 //   homePlace(box, W, H, {scale})             → chỗ mặc định khi mất người: giữa ngang, sát mép trên
@@ -23,7 +23,9 @@
 const VIS = 0.5;          // visibility tối thiểu để tin một điểm
 const EMA = 0.6;          // lọc rung: mới 60% + cũ 40%
 
-export const BITE_ZONES = ['forehead', 'cheekL', 'cheekR', 'chin', 'neck', 'shoulderL', 'shoulderR'];
+export const BITE_ZONES = ['forehead', 'cheekL', 'cheekR', 'chin', 'neck', 'shoulderL', 'shoulderR', 'belly', 'flankL', 'flankR', 'armL', 'armR'];
+// Vùng MẶT - Đập Muỗi chọn điểm đậu ở mặt theo tỉ lệ bite.facePercent (mặc định 70 %), còn lại rải khắp thân.
+export const FACE_ZONES = ['forehead', 'cheekL', 'cheekR', 'chin'];
 // (a,b) cục bộ của từng điểm đậu + vùng cấu hình bật/tắt
 const SPOTS = [
     { zone: 'forehead', frame: 'head', a: 0, b: -0.45, cfg: 'forehead' },
@@ -32,8 +34,29 @@ const SPOTS = [
     { zone: 'chin', frame: 'head', a: 0, b: 0.5, cfg: 'chin' },
     { zone: 'neck', frame: 'head', a: 0, b: 0.95, cfg: 'neck' },
     { zone: 'shoulderL', frame: 'torso', a: -0.4, b: 0.05, cfg: 'shoulders' },
-    { zone: 'shoulderR', frame: 'torso', a: 0.4, b: 0.05, cfg: 'shoulders' }
+    { zone: 'shoulderR', frame: 'torso', a: 0.4, b: 0.05, cfg: 'shoulders' },
+    // Toàn thân (khung thân: a theo bề ngang vai, b theo đoạn vai → hông). cfg 'body' bật/tắt cả nhóm.
+    // KHÔNG đậu ở NGỰC và HÁNG (TikTok coi là nhạy cảm - nốt đỏ / muỗi bu ở đó dễ dính vi phạm): bỏ chestL/chestR (cũ a ±0.22,
+    // b 0.3 = đúng vùng ngực), eo cũ (a ±0.3, b 0.9 + biến thể tới 0.98 = sát háng) dời thành HÔNG HAI BÊN cao hơn, ra ngoài.
+    // isSensitiveSpot() chặn thêm một lớp cho mọi điểm (kể cả biến thể lệch).
+    { zone: 'belly', frame: 'torso', a: 0, b: 0.6, cfg: 'body' },
+    { zone: 'flankL', frame: 'torso', a: -0.46, b: 0.62, cfg: 'body' },
+    { zone: 'flankR', frame: 'torso', a: 0.46, b: 0.62, cfg: 'body' },
+    { zone: 'armL', frame: 'torso', a: -0.62, b: 0.4, cfg: 'body' },
+    { zone: 'armR', frame: 'torso', a: 0.62, b: 0.4, cfg: 'body' }
 ];
+
+// Vùng nhạy cảm trên khung THÂN (a: ngang theo bề vai, 0 = giữa; b: 0 = vai, 1 = hông):
+//   NGỰC: |a| 0.06–0.42, b 0.15–0.5 (hai bên ngực, chừa xương quai xanh / vai / giữa bụng trên)
+//   HÁNG: b ≥ 0.78, |a| ≤ 0.55 (từ dưới rốn tới đường hông và thấp hơn)
+export function isSensitiveSpot(frame, a, b) {
+    if (frame !== 'torso') return false;
+    const x = Math.abs(Number(a)), y = Number(b);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return true;
+    if (x >= 0.06 && x <= 0.42 && y >= 0.15 && y <= 0.5) return true;
+    if (y >= 0.78 && x <= 0.55) return true;
+    return false;
+}
 
 function smoothPts(pose, prev) {
     if (!Array.isArray(pose) || pose.length < 33) return null;
@@ -72,7 +95,7 @@ export function bodyFrames(pose, prev) {
 }
 
 // Khung đầu từ tai / mắt / mũi. sh = { u, shoulderW } khi thấy vai: kẹp bề rộng đầu theo vai và lấy hướng vai làm
-// dự phòng. Không thấy vai (ngồi sát camera — chỉ headAnchor dùng) thì cần tai hoặc mắt; chỉ mũi → null.
+// dự phòng. Không thấy vai (ngồi sát camera - chỉ headAnchor dùng) thì cần tai hoặc mắt; chỉ mũi → null.
 function headFrom(P, ok, sh) {
     const ears = ok(7) && ok(8), eyes = ok(2) && ok(5);
     if (!(ears || eyes || (sh && ok(0)))) return null;
@@ -95,7 +118,7 @@ function headFrom(P, ok, sh) {
     }
     const n = { x: -hu.y, y: hu.x }; const nl = Math.hypot(n.x, n.y) || 1;
     if (n.y < 0) { n.x = -n.x; n.y = -n.y; }
-    // Tai nằm khoảng giữa đầu → đỉnh đầu cao hơn tâm ~0.72 bề rộng đầu (tóc tính vào) — công thức Bắn Cung.
+    // Tai nằm khoảng giữa đầu → đỉnh đầu cao hơn tâm ~0.72 bề rộng đầu (tóc tính vào) - công thức Bắn Cung.
     const hv = { x: n.x / nl * width, y: n.y / nl * width };
     return { O: c, u: hu, v: hv, width, crown: { x: c.x - hv.x * 0.72, y: c.y - hv.y * 0.72 } };
 }
@@ -127,6 +150,7 @@ export function biteSpots(F, zones) {
         if (z[s.cfg] === false) continue;
         for (let i = 0; i < VARIANTS.length; i++) {
             const m = { frame: s.frame, a: s.a + VARIANTS[i][0], b: s.b + VARIANTS[i][1] };
+            if (isSensitiveSpot(m.frame, m.a, m.b)) continue;
             const p = toStage(m, F);
             if (!p) continue;
             out.push({ id: s.zone + '#' + i, x: p.x, y: p.y, frame: s.frame, a: m.a, b: m.b, zone: s.zone });
@@ -143,7 +167,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 export function headAnchor(F) {
     if (!F) return null;
     if (!F.seen) {
-        // Không thấy vai (ngồi sát camera, chỉ có mặt) — vẫn đặt được thanh nếu thấy tai/mắt.
+        // Không thấy vai (ngồi sát camera, chỉ có mặt) - vẫn đặt được thanh nếu thấy tai/mắt.
         const P = F.pts, h = P ? headFrom(P, i => P[i] && P[i].v >= VIS, null) : null;
         return h ? { crown: h.crown, headW: h.width } : null;
     }

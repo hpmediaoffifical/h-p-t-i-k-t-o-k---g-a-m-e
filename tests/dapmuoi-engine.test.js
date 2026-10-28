@@ -14,8 +14,9 @@ test('defaultConfig đúng số spec và là bản sao', () => {
     assert.equal(a.maxOnScreen, 300); assert.equal(a.idleSpawnSeconds, 8); assert.equal(a.maxPerGift, 100);
     assert.equal(a.coinsPerMosquito, 1); assert.equal(a.gentlePercent, 35); assert.equal(a.crowdFrom, 120);
     assert.equal(a.smartPercent, 10); assert.equal(a.smartLives, 3);
-    assert.equal(a.actions.length, 5); assert.deepEqual(a.actions.map(x => x.type), ['release', 'spray', 'racket', 'net', 'cream']);
-    a.speed = 1; a.actions.length = 0; assert.equal(b.speed, 180); assert.equal(b.actions.length, 5);
+    // 6 hành động: thêm 👑 Muỗi Chúa (boss có thanh máu — theo HP LIVE NPC)
+    assert.equal(a.actions.length, 6); assert.deepEqual(a.actions.map(x => x.type), ['release', 'spray', 'racket', 'net', 'cream', 'boss']);
+    a.speed = 1; a.actions.length = 0; assert.equal(b.speed, 180); assert.equal(b.actions.length, 6);
 });
 
 test('enqueue xả spawnPerSecond/giây, không vượt maxOnScreen, hàng đợi trần 2000', () => {
@@ -90,7 +91,7 @@ function one(cfgExtra = {}) {
 test('hit trúng trong r + nửa cỡ muỗi: chết, score/killed +1, event kill; hụt → event miss', () => {
     const e = one(); const m = e.snapshot().mosquitoes[0];
     assert.equal(e.hit(m.x + 9999, m.y, 100), 0); assert.equal(e.snapshot().events[0].type, 'miss');
-    assert.equal(e.hit(m.x + 150 + 70, m.y, 150), 1);
+    assert.equal(e.hit(m.x + 150 + 45, m.y, 150), 1);   // cỡ muỗi 100 (theo NPC) → nửa cỡ 50
     const s = e.snapshot(); assert.equal(s.score, 1); assert.equal(s.killed, 1); assert.equal(s.flying, 0);
     assert.equal(s.mosquitoes[0].state, 'dead'); assert.equal(s.events[0].type, 'kill'); assert.equal(s.events[0].n, 1);
 });
@@ -139,8 +140,8 @@ test('normalizeConfig: config rỗng/rác → mặc định; actions params clam
     const c = normalizeConfig({ bite: {}, speed: 'abc', actions: [{ type: 'laser', params: { count: 99999, junk: 1 } }], giftRules: null });   // bite:{} = config sau GĐ2
     assert.equal(c.speed, 180); assert.equal(c.actions.length, 1); assert.equal(c.actions[0].type, 'release');
     assert.deepEqual(c.actions[0].params, { count: 1000 }); assert.deepEqual(c.giftRules, []);
-    assert.equal(normalizeConfig({}).actions.length, 5);
-    assert.equal(normalizeConfig(null).actions.length, 5);
+    assert.equal(normalizeConfig({}).actions.length, 6);
+    assert.equal(normalizeConfig(null).actions.length, 6);
 });
 
 test('actionForGift ưu tiên id, dự phòng tên; action tắt bỏ qua', () => {
@@ -215,22 +216,22 @@ test('normalizeAction: params rác → mặc định của loại (không về m
     assert.deepEqual(a.params, { radius: 1500, ms: 2500, count: 50, percent: 0 });
 });
 
-test('normalizeConfig: actions [] giữ rỗng (người dùng xoá hết), phần tử rác bị bỏ, thiếu khoá → 5 mặc định', () => {
+test('normalizeConfig: actions [] giữ rỗng (người dùng xoá hết), phần tử rác bị bỏ, thiếu khoá → 6 mặc định', () => {
     assert.equal(normalizeConfig({ actions: [] }).actions.length, 0);
     assert.equal(normalizeConfig({ bite: {}, actions: [null, 5, { type: 'net' }] }).actions.length, 1);
-    assert.equal(normalizeConfig({}).actions.length, 5);
+    assert.equal(normalizeConfig({}).actions.length, 6);
 });
 
 test('muỗi thông minh vùng trúng to hơn 15% như hình vẽ', () => {
     const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 100, smartLives: 2 });
     e.enqueue(1); e.step(16);
     const m = e.snapshot().mosquitoes[0];
-    // bán kính đập 0 + nửa cỡ 75×1.15 = 86.25 → điểm cách 80 phải CHẠM (con thông minh còn 2 mạng thì né, không chết)
-    assert.equal(e.hit(m.x + 80, m.y, 0), 0);
+    // bán kính đập 0 + nửa cỡ 50×1.15 = 57.5 → điểm cách 55 phải CHẠM (con thông minh còn 2 mạng thì né, không chết)
+    assert.equal(e.hit(m.x + 55, m.y, 0), 0);
     assert.equal(e.snapshot().events[0].type, 'dodge');
     const n = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 0 });
     n.enqueue(1); n.step(16); const k = n.snapshot().mosquitoes[0];
-    assert.equal(n.hit(k.x + 80, k.y, 0), 0); assert.equal(n.snapshot().events[0].type, 'miss');   // con thường cùng khoảng cách: hụt
+    assert.equal(n.hit(k.x + 55, k.y, 0), 0); assert.equal(n.snapshot().events[0].type, 'miss');   // con thường cùng khoảng cách: hụt
 });
 
 // ---------- Phản hồi sau khi chơi thật 13/10 ----------
@@ -278,11 +279,12 @@ function run(e, ms, seen = true) { for (let t = 0; t < ms; t += 16) { e.setPerso
 // chạy tới khi con đầu tiên đậu (tối đa 15 s)
 function untilLanded(e) { for (let t = 0; t < 15000; t += 16) { run(e, 16); if (e.snapshot().mosquitoes[0].state === 'landed') return; } throw new Error('không đậu'); }
 
-test('config bite mặc định + ACTION_TYPES có cream + 5 hành động mặc định', () => {
+test('config bite mặc định (nhịp chích cũ + đốt toàn thân 70 % vào mặt) + ACTION_TYPES có cream/boss + 6 hành động mặc định', () => {
     const c = defaultConfig();
-    assert.deepEqual(c.bite, { enabled: true, afterSec: 20, landSec: 1.2, gapSec: 3, bumpSec: 30, maxBumps: 12, maxLanded: 3, zones: { forehead: true, cheeks: true, chin: true, neck: true, shoulders: true } });
-    assert.ok(ACTION_TYPES.includes('cream'));
-    assert.equal(c.actions.length, 5); assert.equal(c.actions[4].type, 'cream'); assert.deepEqual(c.actions[4].params, { seconds: 30 });
+    assert.deepEqual(c.bite, { enabled: true, afterSec: 20, landSec: 1.2, gapSec: 3, bumpSec: 30, maxBumps: 12, maxLanded: 3, facePercent: 70,
+        zones: { forehead: true, cheeks: true, chin: true, neck: true, shoulders: true, body: true } });
+    assert.ok(ACTION_TYPES.includes('cream')); assert.ok(ACTION_TYPES.includes('boss'));
+    assert.equal(c.actions.length, 6); assert.equal(c.actions[4].type, 'cream'); assert.deepEqual(c.actions[4].params, { seconds: 30 });
     assert.deepEqual(normalizeConfig({}).bite, c.bite);
     assert.equal(normalizeConfig({ bite: { afterSec: 'x', zones: { cheeks: false } } }).bite.afterSec, 20);
     assert.equal(normalizeConfig({ bite: { zones: { cheeks: false } } }).bite.zones.cheeks, false);
@@ -395,4 +397,21 @@ test('mắc màn: muỗi không thể vào chích — không seek khi màn, con 
     a.enqueue(1); a.step(16); a.step(16); const v1 = Math.hypot(a.snapshot().mosquitoes[0].vx, a.snapshot().mosquitoes[0].vy);
     a.net(10); a.step(16); const v2 = Math.hypot(a.snapshot().mosquitoes[0].vx, a.snapshot().mosquitoes[0].vy);
     assert.ok(v2 < v1 * 0.7, `v1=${v1.toFixed(0)} v2=${v2.toFixed(0)}`);
+});
+
+test('👑 Muỗi Chúa: quà boss sinh con có máu, không sợ bình xịt, quá fleeSec thì bay mất', () => {
+    const e = createEngine({ ...defaultConfig(), spawnPerSecond: 0, idleSpawnSeconds: 0 });
+    e.applyAction({ type: 'boss', params: { count: 1, hp: 2, fleeSec: 20, size: 160 } }, 1);
+    for (let t = 0; t < 500 && !e.snapshot().bosses; t += 16) e.step(16);
+    let s = e.snapshot();
+    const b = s.mosquitoes.find(m => m.boss);
+    assert.ok(b, 'đã sinh boss'); assert.equal(b.maxHp, 2);
+    e.applyAction({ type: 'spray', params: {} }, 1);
+    for (let t = 0; t < 1500; t += 16) e.step(16);
+    assert.ok(e.snapshot().mosquitoes.some(m => m.boss && m.state !== 'dead'), 'bình xịt không giết boss');
+    const flee = createEngine({ ...defaultConfig(), spawnPerSecond: 0, idleSpawnSeconds: 0 });
+    flee.applyAction({ type: 'boss', params: { count: 1, hp: 5, fleeSec: 10 } }, 1);
+    let fled = false;
+    for (let t = 0; t < 15000 && !fled; t += 16) { flee.step(16); fled = flee.snapshot().events.some(ev => ev.type === 'bossFlee'); }
+    assert.ok(fled, 'quá fleeSec thì bay mất');
 });

@@ -1,4 +1,4 @@
-/* Đập Muỗi — nhận diện VỖ TAY thuần (không DOM). Vào: tay từ HpTracker ({ id, palm:{x,y}, size }) và
+/* Đập Muỗi - nhận diện VỖ TAY thuần (không DOM). Vào: tay từ HpTracker ({ id, palm:{x,y}, size }) và
  * pose 33 khớp (11/12 vai, 15/16 cổ tay) đã ở hệ sân khấu 1080×1920. Ra: sự kiện đập { x, y, r, mode }.
  *
  * Luật (spec mục 3):

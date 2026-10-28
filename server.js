@@ -9365,10 +9365,18 @@ app.get('/overlay/dapmuoi', (req, res) => {
 });
 
 function dapMuoiCfg() { return DapMuoi.normalizeConfig(appConfig.games.dapmuoi || makeDefaultDapMuoiConfig()); }
-const DAPMUOI_ACTION_MAX_REPEAT = 10;   // combo quà nhân xịt/vợt/màn tối đa 10 lượt (engine còn trần 60s/120s)
+const DAPMUOI_ACTION_MAX_REPEAT = 100;  // combo ×N quà = N lượt xịt / vợt / màn / kem (tối đa 100; engine còn trần giây vợt / màn / kem)
+const DAPMUOI_BOSS_MAX_PER_GIFT = 5;
 
 function emitDapMuoiGift(payload) {
     io.to('overlay').to('preview').emit('dapmuoi:gift', payload);
+}
+// 👑 Muỗi Chúa (boss có thanh máu, port HP LIVE NPC): combo ×N = N con, tối đa 5 mỗi lượt quà. Bên NPC mỗi con kèm vé
+// 💥 Thư viện hiệu ứng khi đập chết — app này chưa có thư viện đó nên fxIds rỗng.
+function dapMuoiBossPayload(params, repeat, base) {
+    const p = DapMuoi.normalizeAction({ type: 'boss', params }, 0).params;
+    const count = Math.min(DAPMUOI_BOSS_MAX_PER_GIFT, Math.max(1, Math.floor(Number(p.count) || 1)) * Math.max(1, Number(repeat) || 1));
+    return { ...base, action: 'boss', qty: 1, params: { ...p, count }, fxIds: [] };
 }
 
 // Quà → hành động đang bật (ưu tiên) hoặc N muỗi (quà chỉ định / theo xu). Luật ở game.js (mosquitoesForGift).
@@ -9384,6 +9392,8 @@ function handleDapMuoiGift({ nickname, profilePicture, giftId, giftName, giftIma
             // Thả muỗi theo hành động vẫn chịu trần một lượt maxPerGift như quà thường (combo ×99 không ra 2000 con).
             const count = Math.min(Math.max(1, Number(cfg.maxPerGift) || 100), Math.max(1, Math.floor(Number(action.params?.count) || 20)) * repeat);
             emitDapMuoiGift({ action: 'release', qty: 1, params: { count }, name: action.name, icon: action.icon, ...base });
+        } else if (action.type === 'boss') {
+            emitDapMuoiGift(dapMuoiBossPayload(action.params, repeat, { name: action.name, icon: action.icon, ...base }));
         } else {
             emitDapMuoiGift({ action: action.type, qty: Math.min(DAPMUOI_ACTION_MAX_REPEAT, repeat), params: action.params, name: action.name, icon: action.icon, ...base });
         }
@@ -9401,7 +9411,8 @@ app.post('/api/dapmuoi/test', (req, res) => {
     const qty = Math.min(100, Math.max(1, Math.floor(Number(req.body?.qty) || 1)));
     // params gửi kèm (từ hành động trong panel / hotkey) được chuẩn hoá qua normalizeAction; thiếu → mặc định loại.
     const act = DapMuoi.normalizeAction({ type: action, params: req.body?.params }, 0);
-    emitDapMuoiGift({ action, qty, params: act.params, name: act.name, icon: act.icon, nickname: 'Thử nghiệm', profilePicture: '', giftName: 'Gửi thử', image: '', source: 'test', ts: Date.now() });
+    const base = { name: act.name, icon: act.icon, nickname: 'Thử nghiệm', profilePicture: '', giftName: 'Gửi thử', image: '', source: 'test', ts: Date.now() };
+    emitDapMuoiGift(action === 'boss' ? dapMuoiBossPayload(act.params, qty, base) : { ...base, action, qty, params: act.params });
     res.json({ ok: true, action, qty });
 });
 
