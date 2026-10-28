@@ -27,7 +27,7 @@
             { key: 'pileStep', label: 'Mỗi quả rơi cộng vào vườn', min: 1, max: 50, step: 1, unit: '%' },
             { key: 'cuts', label: 'Số lần chém / quả gốc', min: 1, max: 4, step: 1, unit: '' },
             { key: 'spawnPerSecond', label: 'Tốc độ sinh quả', min: 1, max: 10, step: 1, unit: 'quả/giây' },
-            { key: 'maxPerGift', label: 'Tối đa quả mỗi lần quà', min: 1, max: 100, step: 1, unit: '' },
+            { key: 'maxPerGift', label: 'Tối đa quả mỗi lần quà', min: 1, max: 999, step: 1, unit: '' },
             { key: 'idleSpawnSeconds', label: 'Tự sinh quả khi rảnh (0 = tắt)', min: 0, max: 30, step: 0.5, unit: 'giây' }
         ] },
         { group: 'SỨC MẠNH CỘNG DỒN', items: [

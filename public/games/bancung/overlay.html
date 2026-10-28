@@ -1475,6 +1475,8 @@
             $arrowsLayer.appendChild(ar);
             const scl = Math.max(0.6, Math.min(1.1, sw / 360));
             bodyMarks.push({ el: ar, mark, pos, born, life: 3000, fadeFrom: 1900, alpha: 1, tail: 'rotate(' + angle + 'rad) scale(' + scl.toFixed(2) + ')' });
+            // Combo lớn (tới 999 mũi): giữ tối đa 80 vết máu / mũi găm trên trang, bỏ cái cũ nhất trước — OBS không nặng dần.
+            while (bodyMarks.length > 80) { const old = bodyMarks.shift(); try { old.el.remove(); } catch (_) {} }
         }
         // Bóng người đặc từ 33 điểm pose: đầu (elip), thân (tứ giác vai–hông), tay/chân (nét tròn đầu).
         // Vẽ đặc màu trắng lên canvas phụ → chồng lên nhau không bị đậm gấp đôi.

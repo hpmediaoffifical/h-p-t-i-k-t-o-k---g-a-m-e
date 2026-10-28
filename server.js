@@ -679,8 +679,9 @@ function camEndSession(reason = 'timeout', { next = true } = {}) {
             broadcastBanCungState({ immediate: true });
         }
         // Trả cờ bật như trước phiên, rồi áp lại luật thường (streamer có thể đã đổi game đang chơi trong lúc phiên chạy).
-        for (const [id, on] of Object.entries(snap.enabled)) {
+        for (const [id, was] of Object.entries(snap.enabled)) {
             const c = games[id];
+            const on = was && featureOn(id);          // KEY khoá game giữa phiên → không bật lại
             if (!c || (c.enabled !== false) === on) continue;
             c.enabled = on;
             io.emit('gameConfig', { gameId: id, config: c });
@@ -696,7 +697,7 @@ function camEndSession(reason = 'timeout', { next = true } = {}) {
         camStartSession(q.gameId, q.seconds, q.gift);
         return true;
     }
-    if (!next) camSessionQueue = [];
+    if (!next || camSessionQueue.length) camSessionQueue = [];   // dừng tay / overlay mẹ không còn mở → bỏ hàng chờ
     camEmitSession();
     return true;
 }
@@ -706,7 +707,7 @@ function camEndSession(reason = 'timeout', { next = true } = {}) {
 function camSessionGift(gift, { force = false } = {}) {
     const now = Date.now();
     const rule = CamSession.matchTrigger(camTriggerCfg(), gift);
-    if (!rule || !GAMES[rule.gameId]) return null;
+    if (!rule || !GAMES[rule.gameId] || !featureOn(rule.gameId)) return null;   // 🔑 game KEY chưa mở → quà chạy như thường
     const sec = CamSession.comboSeconds(rule, gift);
     if (camSession) {
         if (rule.gameId === camSession.gameId) {
@@ -746,7 +747,7 @@ function makeDefaultChemTraiCayConfig() {
         cutRadius: 15, baseSpeed: 0.65, objectScale: 1.5, peak: 72, points: 10, bombPenalty: 50, blast: 24,
         danger: 50, cuts: 2, pileStep: 5, godSeconds: 10, fastFactor: 1.7, fastSeconds: 10,
         slowFactor: 0.55, slowSeconds: 10, rescuePercent: 100, holdSeconds: 0.85,
-        spawnPerSecond: 3, maxPerGift: 30, idleSpawnSeconds: 0,
+        spawnPerSecond: 3, maxPerGift: 999, idleSpawnSeconds: 0,
         camRect: null,
         videoSource: { mode: 'obs-source', scene: '', source: '', fps: 15, width: 640 },
         mirror: true,
@@ -1472,11 +1473,20 @@ function loadAppConfig() {
     } catch (e) {}
     return { games: {}, license: { key: '', email: '' } };
 }
+// 🎮 Đang phiên game theo quà: cờ enabled / sessionActive của game camera là của PHIÊN (chỉ RAM) → ghi đĩa bản trước phiên,
+// app tắt / crash giữa phiên khởi động lại không giữ cờ của phiên.
+function appConfigForDisk() {
+    if (typeof camSession === 'undefined' || !camSession || !camSessionSnap) return appConfig;
+    const games = { ...appConfig.games };
+    for (const [id, on] of Object.entries(camSessionSnap.enabled || {})) if (games[id]) games[id] = { ...games[id], enabled: on };
+    if (camSession.gameId === 'bancung' && !camSessionSnap.bancungActive && games.bancung) games.bancung = { ...games.bancung, sessionActive: false };
+    return { ...appConfig, games };
+}
 function saveAppConfig() {
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(appConfig, null, 2));
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(appConfigForDisk(), null, 2));
     try {
         if (!fs.existsSync(CONFIG_BACKUP_DIR)) fs.mkdirSync(CONFIG_BACKUP_DIR, { recursive: true });
-        fs.writeFileSync(path.join(CONFIG_BACKUP_DIR, 'app-config-autobackup.json'), JSON.stringify({ exportedAt: new Date().toISOString(), config: appConfig }, null, 2));
+        fs.writeFileSync(path.join(CONFIG_BACKUP_DIR, 'app-config-autobackup.json'), JSON.stringify({ exportedAt: new Date().toISOString(), config: appConfigForDisk() }, null, 2));
     } catch (e) { /* backup is best-effort */ }
 }
 // Đã có app-config.json = máy đang nâng cấp từ bản trước (phân biệt với cài mới khi thêm mặc định mới).
@@ -1613,7 +1623,7 @@ const touchplayFeed = new ObsCameraFeed({
         touchplay: (url) => feedUrlIs(url, 'touchplay', /touchplay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         chemtraicay: (url) => feedUrlIs(url, 'chemtraicay', /\/overlay\/chemtraicay/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         // Bắn Cung chơi riêng có link riêng; đang chọn trong Game Camera thì nằm trong overlay mẹ.
-        bancung: (url) => feedUrlIs(url, 'bancung', /\/overlay\/bancung/i) || (camGameInHub('bancung') && feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)),
+        bancung: (url) => feedUrlIs(url, 'bancung', /\/overlay\/bancung/i) || (camPlayActives().includes('bancung') && feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)),
         dapmuoi: (url) => feedUrlIs(url, 'dapmuoi', /\/overlay\/dapmuoi/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         dacau: (url) => feedUrlIs(url, 'dacau', /\/overlay\/dacau/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         body: (url) => feedUrlIs(url, 'body', /\/overlay\/body/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
@@ -1632,7 +1642,8 @@ const touchplayFeed = new ObsCameraFeed({
         const per = {
             touchplay: tp.enabled !== false && c.source !== 'webcam' ? (c.obsSource || '') : null,
             chemtraicay: ct.enabled !== false && vs.mode !== 'webcam' ? ((vs.mode === 'obs-scene' ? vs.scene : vs.source) || '') : null,
-            bancung: bc.enabled !== false && (bcd.bodyTrack === true || camGameInHub('bancung')) ? (bcd.trackSource || '') : null,
+            // camPlayActives: phiên 🎮 quà kích hoạt Bắn Cung (không nằm trong actives) cũng phải nhận hình để bám người
+            bancung: bc.enabled !== false && (bcd.bodyTrack === true || camPlayActives().includes('bancung')) ? (bcd.trackSource || '') : null,
             dapmuoi: dm.enabled !== false ? '' : null,     // không có nguồn riêng: dùng nguồn chung Game Camera
             dacau: G.dacau?.enabled !== false ? '' : null,  // như trên
             body: G.body?.enabled !== false ? '' : null,    // như trên
@@ -2114,6 +2125,12 @@ if (appConfig.games.chemtraicay) {
     appConfig.games.chemtraicay.display = { ...def.display, ...(appConfig.games.chemtraicay.display || {}) };
 }
 // Đập Muỗi: chuẩn hoá config cũ (khoá thiếu/rác → mặc định, actions/giftRules đúng dạng).
+// TẶNG BAO NHIÊU CHẠY BẤY NHIÊU (user 29/10/2026): máy còn đúng trần mặc định cũ (Chém Trái Cây 30 quả, Đập Muỗi 100 muỗi mỗi lần
+// quà) → nâng lên mặc định mới để combo ×N chạy đủ N lần. Cờ comboV để chỉ nâng một lần (streamer tự đặt lại thì giữ).
+for (const [id, oldMax, newMax] of [['chemtraicay', 30, 999], ['dapmuoi', 100, 1000]]) {
+    const c = appConfig.games[id];
+    if (c && !(Number(c.comboV) >= 1)) { if (Number(c.maxPerGift) === oldMax) c.maxPerGift = newMax; c.comboV = 1; }
+}
 if (appConfig.games.dapmuoi) appConfig.games.dapmuoi = DapMuoi.normalizeConfig(appConfig.games.dapmuoi);
 if (appConfig.games.dacau) appConfig.games.dacau = DaCau.normalizeConfig(appConfig.games.dacau);
 // 🎥 Bộ quà mẫu Game Camera (lib/camgames-gift-seed.js): một lần, chỉ điền game còn trống quà.
@@ -6537,6 +6554,7 @@ app.post('/api/camgames/session/stop', (req, res) => res.json({ ok: camEndSessio
 app.post('/api/camgames/session/test', (req, res) => {
     const b = req.body || {};
     const gameId = CamSession.TRIGGER_GAMES.includes(b.gameId) && GAMES[b.gameId] ? b.gameId : '';
+    if (gameId && !featureOn(gameId)) return res.status(403).json({ ok: false, locked: true, error: 'KEY chưa mở game này' });
     if (!gameId) return res.status(400).json({ ok: false, error: 'gameId phải là ' + CamSession.TRIGGER_GAMES.join('|') });
     const force = b.force === true && requestIsTrusted(req);
     if (!force && !camHubOverlayOnline()) return res.status(409).json({ ok: false, error: 'Chưa thấy overlay Game Camera mở trên OBS — dán 📋 Link OBS vào Browser Source trước.' });
@@ -9098,7 +9116,7 @@ function banCungClearBurstTimers() {
     for (const t of banCungBurstTimers) clearTimeout(t);
     banCungBurstTimers.clear();
 }
-const BANCUNG_MAX_BURST = 300;
+const BANCUNG_MAX_BURST = 999;   // combo ×N = đủ N mũi (user 29/10/2026), trần an toàn
 function banCungFireBurst(shotCount, contribUser, giftMeta) {
     const cfg = appConfig.games.bancung || makeDefaultBanCungConfig();
     const arrowDur  = Math.max(100, Number(cfg.display?.arrowDurationMs) || 700);
@@ -9255,6 +9273,8 @@ function banCungRegenTick() {
     // Đang gục vẫn hồi: bắn vào lúc này không trừ máu (banCungApplyShotDamage bỏ qua) nên idle tính từ lúc gục.
     if (banCungState.hp >= banCungState.maxHp || rate <= 0
         || idleSec < (Number(cfg.idleBeforeRegen) || 0)) { banCungRegenStartAt = 0; return; }
+    // Tắt "Tự hồi sinh nếu không ai cứu" → đã gục thì nằm chờ quà Hồi sinh (không hồi máu, không tự sống lại).
+    if (banCungState.deadAt && cfg.autoReviveAfterWindow === false) { banCungRegenStartAt = 0; return; }
     // Hồi chậm rồi nhanh dần (trần = regenPerSecond) → người tặng thấy máu đang leo lại mà phải bắn tiếp;
     // một phát trúng là đợt hồi về lại tốc độ chậm.
     if (!banCungRegenStartAt) banCungRegenStartAt = now - dt * 1000;
@@ -9322,7 +9342,7 @@ function handleChemTraiCayGift({ nickname, profilePicture, giftId, giftName, gif
     const gid = String(giftId);
     const rule = rules.find(r => r && r.enabled !== false && String(r.giftId) === gid && CHEMTRAICAY_ACTIONS.includes(r.action));
     if (!rule) return;
-    const maxPerGift = Math.max(1, Number(cfg.maxPerGift) || 30);
+    const maxPerGift = Math.max(1, Number(cfg.maxPerGift) || 999);
     const count = Math.max(1, Math.floor(Number(rule.count) || 1));
     const qty = Math.min(maxPerGift, count * Math.max(1, Number(repeatCount) || 1));
     emitChemTraiCayGift({
@@ -9342,7 +9362,7 @@ app.post('/api/chemtraicay/control', (req, res) => {
 app.post('/api/chemtraicay/test', (req, res) => {
     const action = String(req.body?.action || '');
     if (!CHEMTRAICAY_ACTIONS.includes(action)) return res.status(400).json({ error: 'action không hợp lệ' });
-    const maxPerGift = Math.max(1, Number(chemTraiCayCfg().maxPerGift) || 30);
+    const maxPerGift = Math.max(1, Number(chemTraiCayCfg().maxPerGift) || 999);
     const qty = Math.min(maxPerGift, Math.max(1, Math.floor(Number(req.body?.qty) || 1)));
     emitChemTraiCayGift({ action, qty, nickname: 'Thử nghiệm', profilePicture: '', giftName: 'Gửi thử', image: '', source: 'test', ts: Date.now() });
     res.json({ ok: true, action, qty });
@@ -9471,8 +9491,9 @@ app.get('/overlay/dapmuoi', (req, res) => {
 });
 
 function dapMuoiCfg() { return DapMuoi.normalizeConfig(appConfig.games.dapmuoi || makeDefaultDapMuoiConfig()); }
-const DAPMUOI_ACTION_MAX_REPEAT = 100;  // combo ×N quà = N lượt xịt / vợt / màn / kem (tối đa 100; engine còn trần giây vợt / màn / kem)
-const DAPMUOI_BOSS_MAX_PER_GIFT = 5;
+// TẶNG BAO NHIÊU CHẠY BẤY NHIÊU (user 29/10/2026): combo ×N quà = N lượt xịt / vợt / màn / kem / Muỗi Chúa, chạy tới hết; trần an toàn 999.
+const DAPMUOI_ACTION_MAX_REPEAT = 999;
+const DAPMUOI_BOSS_MAX_PER_GIFT = 999;
 
 function emitDapMuoiGift(payload) {
     io.to('overlay').to('preview').emit('dapmuoi:gift', payload);
@@ -9495,8 +9516,8 @@ function handleDapMuoiGift({ nickname, profilePicture, giftId, giftName, giftIma
     if (action) {
         const repeat = Math.max(1, Number(repeatCount) || 1);
         if (action.type === 'release') {
-            // Thả muỗi theo hành động vẫn chịu trần một lượt maxPerGift như quà thường (combo ×99 không ra 2000 con).
-            const count = Math.min(Math.max(1, Number(cfg.maxPerGift) || 100), Math.max(1, Math.floor(Number(action.params?.count) || 20)) * repeat);
+            // Thả muỗi theo hành động: combo ×N = N lượt thả (trần maxPerGift, mặc định 1000; muỗi xả dần theo nhịp sinh tới hết).
+            const count = Math.min(Math.max(1, Number(cfg.maxPerGift) || 1000), Math.max(1, Math.floor(Number(action.params?.count) || 20)) * repeat);
             emitDapMuoiGift({ action: 'release', qty: 1, params: { count }, name: action.name, icon: action.icon, ...base });
         } else if (action.type === 'boss') {
             emitDapMuoiGift(dapMuoiBossPayload(action.params, repeat, { name: action.name, icon: action.icon, ...base }));

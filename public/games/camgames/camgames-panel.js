@@ -200,7 +200,7 @@
         if (!B || bodyHooked || !socket) return;
         bodyHooked = true;
         B.onChange(() => { if (viewActive()) renderGrid(); });
-        B.ready(socket).then(renderGrid).catch(() => {});
+        B.ready(socket).then(renderGrid).catch(() => { bodyHooked = false; });   // nạp lỗi → lần mở màn sau thử lại
     }
     window.addEventListener('hp-body-panel-ready', () => { if (built) hookBody(); });
 

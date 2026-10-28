@@ -17,6 +17,18 @@ test('máy mới: gieo đủ game + luật quà kích hoạt (tắt sẵn), mộ
     assert.deepEqual(applyGiftSeed(games, mk), [], 'đã gieo thì thôi');
 });
 
+test('Đập Muỗi: gắn quà vào hành động cùng loại, GIỮ phím tắt / thông số streamer đã chỉnh; loại chưa có thì thêm', () => {
+    const games = { dapmuoi: { actions: [{ type: 'spray', hotkey: 'Ctrl+1', params: { seconds: 9 } }], giftRules: [] } };
+    applyGiftSeed(games, mk);
+    const spray = games.dapmuoi.actions.find(a => a.type === 'spray');
+    assert.equal(spray.hotkey, 'Ctrl+1');
+    assert.deepEqual(spray.params, { seconds: 9 });
+    const seedSpray = SEED.dapmuoi.actions.find(a => a.type === 'spray');
+    if (seedSpray && seedSpray.giftId) assert.equal(spray.giftId, seedSpray.giftId);
+    assert.ok(games.dapmuoi.actions.some(a => a.type === 'boss'), 'Muỗi Chúa thêm vào config cũ');
+    assert.equal(games.dapmuoi.actions.filter(a => a.type === 'spray').length, 1, 'không nhân đôi hành động');
+});
+
 test('máy đã gắn quà: giữ nguyên quà của streamer, chỉ điền game còn trống', () => {
     const games = { dacau: { gifts: [{ giftId: '1', ball: 'gold' }] }, bancung: { shotGifts: [{ giftId: '2' }] },
         camgames: { trigger: { enabled: true, rules: [{ giftId: '3', gameId: 'dacau' }] } } };

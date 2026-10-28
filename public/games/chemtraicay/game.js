@@ -17,7 +17,7 @@
 
     const BASE_RADIUS = 40;      // px khi objectScale = 1
     const GRAVITY = 1800;        // px/s²
-    const MAX_QUEUE = 300;       // trần tổng quả chờ sinh
+    const MAX_QUEUE = 9999;      // trần AN TOÀN tổng quả chờ sinh — combo ×N chạy đủ N lần tới hết (user 29/10/2026)
 
     function defaultConfig() {
         return {
@@ -26,7 +26,7 @@
             cutRadius: 15, baseSpeed: 0.65, objectScale: 1.5, peak: 72, points: 10, bombPenalty: 50, blast: 24,
             danger: 50, cuts: 2, pileStep: 5, godSeconds: 10, fastFactor: 1.7, fastSeconds: 10,
             slowFactor: 0.55, slowSeconds: 10, rescuePercent: 100, holdSeconds: 0.85,
-            spawnPerSecond: 3, maxPerGift: 30, idleSpawnSeconds: 0,
+            spawnPerSecond: 3, maxPerGift: 999, idleSpawnSeconds: 0,
             camRect: null,
             videoSource: { mode: 'obs-source', scene: '', source: '', fps: 15, width: 640 },
             mirror: true,
@@ -189,7 +189,7 @@
 
         function enqueue(action, qty) {
             if (ACTIONS.indexOf(action) < 0) return 0;
-            const max = Math.max(1, num(cfg.maxPerGift, 30));
+            const max = Math.max(1, num(cfg.maxPerGift, 999));
             const n = Math.min(max, Math.max(1, Math.floor(num(qty, 1))));
             if (action === 'god' || action === 'fast' || action === 'slow' || action === 'rescue') { applyBuff(action, n); return n; }
             // Trần tổng hàng đợi: bão quà không biến thành hàng giờ quả bay.

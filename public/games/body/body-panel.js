@@ -355,7 +355,8 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         if (!bound) { bindShell(); bound = true; }
         attachSocket(socket);
         if (socket) socket.emit('subscribe', 'preview');
-        Promise.all([loadMeta(), loadConfig()]).then(() => { renderSettings(); reloadPreview(); });
+        Promise.all([loadMeta(), loadConfig()]).then(() => { renderSettings(); reloadPreview(); })
+            .catch(() => window.toast?.(hpT('Không tải được cấu hình Bộ Tách Người - bấm lại ⚙ Cài đặt để thử lại'), 'error'));
         clearInterval(feedPoll);
         feedPoll = setInterval(poll, 2000);
         poll();
@@ -374,8 +375,15 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         try { const j = await fetch('/api/body/meta', { cache: 'no-store' }).then(r => r.json()); if (j && Array.isArray(j.groups)) meta = j; } catch (_) {}
     }
     async function loadConfig() {
-        try { cfg = norm(await fetch('/api/games/body/config', { cache: 'no-store' }).then(r => r.json())); }
-        catch (e) { cfg = norm(null); }
+        // Nạp lỗi (server bận / đang khởi động lại) → ném lỗi, KHÔNG dùng config mặc định: lưu đè bản mặc định lên config thật là mất game.
+        for (let i = 0; ; i++) {
+            try {
+                const r = await fetch('/api/games/body/config', { cache: 'no-store' });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                cfg = norm(await r.json());
+                break;
+            } catch (e) { if (i >= 4) throw e; await new Promise(res => setTimeout(res, 1000)); }   // thử lại 5 lần, ~1 s / lần
+        }
         if (!cfg.profiles.some(p => p.id === sel)) setSel(meta.activeProfileId || (cfg.profiles[0] && cfg.profiles[0].id) || '');
     }
     function schedulePersist() { clearTimeout(persistTimer); persistTimer = setTimeout(persistConfig, 350); }
@@ -2126,10 +2134,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             </div>
             <div class="ctc-card">
                 <h3>${hpT('HÀNG CHỜ')}</h3>
-                ${row('q:comboMax', hpT('Combo 🕳️ / 🏃 tối đa'), 1, 10, 1, cfg.comboMax, hpT('lượt'), hpT('Quà combo ×N = N lượt nối nhau, tối đa bấy nhiêu'))}
-                ${row('q:queueMax', hpT('Hàng chờ 🕳️ / 🏃'), 1, 30, 1, cfg.queueMax, hpT('lượt'), hpT('Rơi Hố và Bị Đuổi cùng vẽ lại người → xếp chung một hàng, lượt một'))}
-                ${row('q:hc:comboMax', hpT('Combo 🦊 tối đa'), 1, 10, 1, cfg.haucanh.comboMax, hpT('lượt'))}
-                ${row('q:hc:queueMax', hpT('Hàng chờ 🦊'), 1, 30, 1, cfg.haucanh.queueMax, hpT('lượt'), hpT('Hậu Cảnh có hàng riêng - chạy song song với Rơi Hố / Bị Đuổi'))}
+                <div class="hint">${hpT('Tặng bao nhiêu chạy bấy nhiêu: tặng 1 lần = 1 lượt, combo ×5 = 5 lượt, ×99 = 99 lượt nối nhau tới hết - không bỏ quà khi hàng dài.')}</div>
             </div>`;
     }
     function bindMatte() {
@@ -2164,7 +2169,8 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         else bindMatte();
         bindRows(host);
         renderStatus();
-        if (tab === 'games') refreshGModal(); else closeGModal();
+        // Popup mở từ lưới 🎥 Game Camera (màn Bộ Tách Người không hiện) thì giữ mở, chỉ vẽ lại — đóng chỉ khi ở chính màn này đổi tab.
+        if (tab === 'games' || !document.getElementById('view-body')?.classList.contains('active')) refreshGModal(); else closeGModal();
         notifyHub();
     }
 
@@ -2176,7 +2182,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         ready(sk) {
             if (sk) { socket = socket || sk; attachSocket(sk); }
             ensureGridCss(); ensureBodyCss();
-            if (!hubReady) hubReady = Promise.all([loadMeta(), loadConfig()]);
+            if (!hubReady) hubReady = Promise.all([loadMeta(), loadConfig()]).catch(e => { hubReady = null; throw e; });
             return hubReady;
         },
         grid: () => (cfg ? gAll().map(gTile).join('') : ''),

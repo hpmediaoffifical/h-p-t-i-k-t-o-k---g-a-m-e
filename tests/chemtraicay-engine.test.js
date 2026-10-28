@@ -230,10 +230,13 @@ test('holdTarget đổi vị trí thì tiến độ giữ về 0', () => {
     assert.equal(eng.snapshot().hold.progress, 0);
 });
 
-test('tổng hàng đợi sinh quả có trần 300 dù nhiều quà liên tiếp', () => {
+test('combo nhiều quà liên tiếp: hàng đợi giữ ĐỦ (tặng bao nhiêu chạy bấy nhiêu), chỉ trần an toàn 9999', () => {
     const eng = createEngine({ ...defaultConfig(), maxPerGift: 30 }); eng.start();
     for (let i = 0; i < 20; i++) eng.enqueue('apple', 30);
-    assert.equal(eng.snapshot().queue, 300);
+    assert.equal(eng.snapshot().queue, 600);
+    const big = createEngine({ ...defaultConfig() }); big.start();
+    for (let i = 0; i < 20; i++) big.enqueue('apple', 999);
+    assert.equal(big.snapshot().queue, 9999);
 });
 
 // ---------- Chuyển từ HP LIVE NPC (2026-10): quả nằm lại ở đáy, Giải Cứu dọn quả nằm, vùng chơi setArea, isPlaying ----------

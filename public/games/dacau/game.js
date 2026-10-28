@@ -41,7 +41,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
     };
     const PARTS = ['both', 'head', 'thigh'];
     const BALL_R = 46;            // bán kính va chạm cầu thường (px)
-    const MAX_PER_GIFT = 5;       // combo ×99 không thành 99 quả
+    const MAX_PER_GIFT = 999;     // combo ×N = N quả lần lượt tới hết (user 29/10/2026), trần an toàn 999
     const MILESTONES = [10, 25, 50, 100, 200, 500];
     const HIST_MS = 600;          // giữ vị trí cầu 0,6 s để so với khung camera trễ
 
@@ -54,7 +54,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             requireLift: true,
             floorPercent: 92,          // vạch sàn (% chiều cao sân khấu) - cầu rơi qua là chết
             maxBalls: 3,               // cầu bay cùng lúc (1–5); quà sau xếp hàng
-            queueMax: 10,
+            queueMax: 999,
             hitScale: 100,             // % vùng chạm
             headPower: 100,            // % độ mạnh cú đội đầu cần có (cao = phải đội rõ hơn)
             latencyMs: 120,            // độ trễ camera bù khi so vị trí
@@ -99,7 +99,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             requireLift: c.requireLift !== false,
             floorPercent: num(c.floorPercent, 50, 100, d.floorPercent),
             maxBalls: Math.round(num(c.maxBalls, 1, 5, d.maxBalls)),
-            queueMax: Math.round(num(c.queueMax, 1, 50, d.queueMax)),
+            queueMax: Math.round(num(c.queueMax, 1, 999, d.queueMax)),
             hitScale: num(c.hitScale, 50, 200, d.hitScale),
             headPower: num(c.headPower, 30, 250, d.headPower),
             latencyMs: num(c.latencyMs, 0, 400, d.latencyMs),

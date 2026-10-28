@@ -502,10 +502,13 @@ let hc = null;                 // { d, p, it, m, main, layers, start, endAt } - 
 const clamp01 = t => t < 0 ? 0 : t > 1 ? 1 : t;
 const ease = t => t * t * (3 - 2 * t);
 const RUN_CAP = 120000;          // video chưa biết độ dài (lỗi tải) - tối đa 2 phút
+// TẶNG BAO NHIÊU CHẠY BẤY NHIÊU (user 29/10/2026): combo ×N = N lượt nối nhau, hàng chờ KHÔNG bỏ quà; chỉ trần an toàn RUN_MAX.
+const RUN_MAX = 999;
+const qtyOf = d => Math.max(1, Math.min(RUN_MAX, Number(d && d.qty) || 1));
 function hcEnqueue(d) {
-    const n = Math.max(1, Math.min(cfg.haucanh.comboMax || 3, Number(d?.qty) || 1));
+    const n = qtyOf(d);
     let pushed = 0;
-    for (let i = 0; i < n && hcQueue.length < (cfg.haucanh.queueMax || 6); i++, pushed++) hcQueue.push({ ...(d || {}), at: performance.now() });
+    for (let i = 0; i < n && hcQueue.length < RUN_MAX; i++, pushed++) hcQueue.push({ ...(d || {}), at: performance.now() });
     rowAdd(d, pushed);
 }
 // Còn lại của hàng (lượt đang chạy + lượt cùng hàng còn chờ) - để app giữ hàng đúng độ dài video.
@@ -697,10 +700,10 @@ function poseNow() {
 const cQueue = [];
 let cry = null;                // { d, sc, units, mp3 }
 function cryEnqueue(d) {
-    const n = Math.max(1, Math.min(cfg.comboMax || 5, Number(d.qty) || 1));
+    const n = qtyOf(d);
     // Đang khóc đúng kịch bản này (không giữ hàng 📋) → combo kéo dài lượt thay vì xếp thêm lượt.
     if (cry && cry.sc.id === d.scriptId && !cry.d.rowId && !d.rowId) { cry.units += n; mods.cry.extend(n); return; }
-    if (cQueue.length >= (cfg.queueMax || 10)) { rowAdd(d, 0); return; }
+    if (cQueue.length >= RUN_MAX) { rowAdd(d, 0); return; }
     cQueue.push({ ...d, units: n, at: performance.now() });
     rowAdd(d, n);
     // ▶ Thử / quà của kịch bản CHƯA gắn quà (hoặc hồ sơ khác) → model mặt chưa nạp sẵn: nạp ngay khi lệnh tới (như mọi game
@@ -800,12 +803,12 @@ const hQueue = [];
 let heart = null;              // { d, sc, units, who, mp3 }
 const whoOf = d => String((d && (d.uniqueId || d.nickname)) || '').toLowerCase();
 function heartEnqueue(d) {
-    const n = Math.max(1, Math.min(cfg.comboMax || 5, Number(d.qty) || 1)), who = whoOf(d);
+    const n = qtyOf(d), who = whoOf(d);
     // Cùng người tặng (không giữ hàng 📋): đang tới lượt → tim dày / dài thêm; đang chờ → gộp vào lượt đó (không chiếm thêm lượt).
     if (who && !d.rowId && heart && !heart.d.rowId && heart.who === who && heart.sc.id === d.scriptId) { heart.units += n; mods.heart.extend(n); return; }
     const same = who && !d.rowId ? hQueue.find(q => !q.rowId && q.who === who && q.scriptId === d.scriptId) : null;
     if (same) { same.units += n; return; }
-    if (hQueue.length >= (cfg.queueMax || 10)) { rowAdd(d, 0); return; }
+    if (hQueue.length >= RUN_MAX) { rowAdd(d, 0); return; }
     hQueue.push({ ...d, who, units: n, at: performance.now() });
     rowAdd(d, n);
     if (handFail) { handTrk?.stop(); handTrk = null; }      // lần trước nạp model tay hỏng → thử lại
@@ -905,9 +908,9 @@ function actEnqueue(d) {
     if (!d || !HB.KINDS.includes(d.kind)) return;
     if (d.kind === 'cry') { cryEnqueue(d); return; }          // 😭 lớp mặt: hàng chờ riêng, song song
     if (d.kind === 'heart') { heartEnqueue(d); return; }      // 💗 lớp tay: mỗi người tặng một lượt, song song
-    const n = Math.max(1, Math.min(cfg.comboMax || 5, Number(d.qty) || 1));
+    const n = qtyOf(d);
     let pushed = 0;
-    for (let i = 0; i < n && aQueue.length < (cfg.queueMax || 10); i++, pushed++) aQueue.push({ ...d, at: performance.now() });
+    for (let i = 0; i < n && aQueue.length < RUN_MAX; i++, pushed++) aQueue.push({ ...d, at: performance.now() });
     rowAdd(d, pushed);
 }
 function actStart(d, now) {

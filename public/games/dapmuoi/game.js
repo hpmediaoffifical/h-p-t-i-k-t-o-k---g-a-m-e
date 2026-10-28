@@ -58,11 +58,12 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         cream:   { seconds: [1, 120] },
         boss:    { count: [1, 5], hp: [1, 50], fleeSec: [10, 3600], size: [100, 400] }
     };
-    const RACKET_MAX_MS = 60000, NET_MAX_MS = 120000, CREAM_MAX_MS = 120000;
+    // Combo ×N = N lần thời lượng, chạy tới hết (user 29/10/2026) - chỉ trần an toàn 6 giờ.
+    const RACKET_MAX_MS = 6 * 3600000, NET_MAX_MS = 6 * 3600000, CREAM_MAX_MS = 6 * 3600000;
     const ACTION_ICONS = ['🦟', '🧴', '🏸', '🛏', '💨', '⚡', '🌿', '🪰', '👑'];
     const BOSS_SIZE_DEFAULT = 160;   // Muỗi Chúa mặc định to bằng 160% muỗi thường (params.size chỉnh 100–400%)
     const BOSS_MAX_ALIVE = 3;        // tối đa 3 con trên màn, dư thì chờ
-    const BOSS_QUEUE_MAX = 20;
+    const BOSS_QUEUE_MAX = 999;
     const BOSS_RACKET_GAP_MS = 500;  // vợt điện lướt qua: mỗi 0,5 s trừ 1 máu (không chết ngay như muỗi thường)
     const BOSS_POINTS = 10;
     const FX_DEFAULT = { pool: [], pickMin: 1, pickMax: 2, cooldownSec: 4, maxPending: 3 };
@@ -208,7 +209,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             sidePercent: 60,               // % đích bay nằm ở 2 mép khi còn ít muỗi (đỡ dồn giữa mặt)
             speed: 180, mosquitoScale: 100, faceAttract: true, faceRadius: 260,
             gentlePercent: 35, crowdFrom: 120, smartPercent: 10, smartLives: 3,
-            spawnPerSecond: 6, maxOnScreen: 300, idleSpawnSeconds: 8, maxPerGift: 100,
+            spawnPerSecond: 6, maxOnScreen: 300, idleSpawnSeconds: 8, maxPerGift: 1000,
             coinsPerMosquito: 1, giftRules: [],
             actions: defaultActions(),
             fx: { ...FX_DEFAULT, pool: [] },
@@ -247,7 +248,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         let spray = null;         // { x, y, radius, ms, elapsed, limit, killed }
         // Lượt xịt còn chờ: combo ×N / quà xịt mới lúc đang xịt → xịt NỐI TIẾP từng mây (trước đây combo chỉ ra 1 mây).
         let sprayPending = 0, sprayParams = null;
-        const SPRAY_MAX_PENDING = 200;
+        const SPRAY_MAX_PENDING = 999;
         let personSeen = false;   // overlay báo pose còn tươi
         let spots = [];           // điểm đậu trên người (sân khấu + cục bộ), overlay cập nhật mỗi khung
         let bites = 0;
@@ -268,7 +269,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             if (m.hp <= 0) { kill(m); return true; }
             let dx = m.x - px, dy = m.y - py; const d = Math.hypot(dx, dy);
             if (d < 1) { const a = rng() * Math.PI * 2; dx = Math.cos(a); dy = Math.sin(a); } else { dx /= d; dy /= d; }
-            m.state = 'dodge'; m.dodgeUntil = clock + 250; m.vx = dx * 900; m.vy = dy * 900;
+            if (m.state !== 'flee') { m.state = 'dodge'; m.dodgeUntil = clock + 250; m.vx = dx * 900; m.vy = dy * 900; }   // đang bay đi thì cứ bay đi
             if (Math.abs(m.vx) > 1) m.dir = m.vx < 0 ? -1 : 1;
             m.hurtAt = clock;
             events.push({ type: 'bossHit', id: m.id, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp });
@@ -575,8 +576,8 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             let seeking = seekingCount();
             for (const m of mosquitoes) {
                 // 👑 Bỏ qua quá fleeSec: Muỗi Chúa vụt bay ra mép gần nhất rồi biến mất (vé hiệu ứng bỏ).
-                if (m.boss && (m.state === 'fly' || m.state === 'dodge') && clock >= m.fleeAt) {
-                    m.state = 'flee';
+                if (m.boss && !m.fled && (m.state === 'fly' || m.state === 'dodge') && clock >= m.fleeAt) {
+                    m.state = 'flee'; m.fled = true;
                     m.target = { x: m.x < A.x + A.w / 2 ? A.x - 400 : A.x + A.w + 400, y: Math.max(A.y - 200, m.y - 500) };
                     events.push({ type: 'bossFlee', id: m.id, x: m.x, y: m.y, fxId: m.fxId || '' });
                 }

@@ -171,7 +171,7 @@
       <table class="tiers"><tbody id="tierBody"></tbody></table>
       <div class="row"><button class="btn small" id="addTier">+ Thêm mốc</button></div>
       <p class="hint">Không có màn chờ: quà tới là game tự vào ván.</p>
-      <label class="field">Tối đa mỗi lần tặng<input type="number" data-k="maxPerGift" min="1" max="200"></label>
+      <label class="field">Tối đa mỗi lần tặng<input type="number" data-k="maxPerGift" min="1" max="999"></label>
     </div>
 
     <div class="card">
@@ -279,7 +279,7 @@ const DEFAULT_CFG = {
   listXPercent: 50, listYPercent: 14, listScale: 70,
   volume: 0.6, fallSpeed: 1, itemScale: 1, dangerPercent: 35, showDanger: true, loseRule: true,
   poseTolerance: 35, poseHold: 0.5, mouthOpen: 0.3,
-  practice: false, maxPerGift: 40,
+  practice: false, maxPerGift: 999,
   // Quà CHỈ ĐỊNH cho từng hành động (thắng mốc xu bên dưới) - quà rẻ vì game chơi nhẹ nhàng.
   // Đồng bộ với TOUCHPLAY_GIFTS của lib/camgames.js (server giành quà khi chơi 2 game - camClaims).
   gifts: [
@@ -323,7 +323,9 @@ function normalize(c) {
   o.dangerPercent = num(o.dangerPercent, 10, 80, 35);
   o.poseTolerance = num(o.poseTolerance, 15, 70, 35); o.poseHold = num(o.poseHold, 0.1, 3, 0.5);
   o.mouthOpen = num(o.mouthOpen, 0.1, 0.9, 0.3); o.volume = num(o.volume, 0, 1, 0.6);
-  o.maxPerGift = Math.round(num(o.maxPerGift, 1, 200, 40));
+  // Combo ×N = N lần hành động tới hết (user 29/10/2026): mặc định 999; máy còn đúng mặc định cũ 40 → nâng một lần (comboV).
+  if (!(Number(o.comboV) >= 1)) { if (Number(o.maxPerGift) === 40) o.maxPerGift = 999; o.comboV = 1; }
+  o.maxPerGift = Math.round(num(o.maxPerGift, 1, 999, 999));
   o.listXPercent = num(o.listXPercent, 0, 100, 50); o.listYPercent = num(o.listYPercent, 0, 95, 14); o.listScale = num(o.listScale, 30, 160, 70);
   o.loseRule = o.loseRule !== false; o.handDots = !!o.handDots;
   if (!['low', 'auto', 'high'].includes(o.quality)) o.quality = 'auto';
@@ -541,7 +543,7 @@ function rescue() {
 // Hàng đợi: quà 40 cái không dội xuống một lúc mà xả dần.
 function enqueue(action, qty, from = {}) {
   if (!ACTIONS[action]) return;
-  qty = Math.max(1, Math.min(200, Math.round(qty) || 1));
+  qty = Math.max(1, Math.min(999, Math.round(qty) || 1));
   if (S.phase !== 'playing') startGame();   // không có màn chờ: quà/lệnh tới là vào ván (khoá cũ autoStartOnGift bỏ qua)
   const sp = { avatar: from.avatar || '', icon: from.icon || '' };
   // Chậm/Nhanh/×2 lúc sân trống thì chẳng có gì để thấy hiệu ứng → thả kèm vài quả bóng.

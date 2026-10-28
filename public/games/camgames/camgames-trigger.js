@@ -126,7 +126,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         const on = (trig.rules || []).filter(r => r.enabled !== false);
         const icon = id => (GAMES.find(g => g[0] === id)?.[1] || '').split(' ')[0];
         el.innerHTML = !on.length ? `<span class="cg-chip dim">${hpT('Chưa có quà kích hoạt')}</span>`
-            : on.map(r => `<span class="cg-chip ${trig.enabled && !licBlocked(r.gameId) ? 'ok' : 'dim'}" title="${hpTA('{v} → {v2} {v3} giây', { v: esc(r.giftName || (hpT('Quà #{giftId}', { giftId: r.giftId }))), v2: esc((GAMES.find(g => g[0] === r.gameId) || [])[1] || r.gameId), v3: Number(r.seconds) || 60 })}${licTip(r.gameId) ? esc(' - ' + licTip(r.gameId)) : ''}">${r.giftImage ? `<img src="${esc(r.giftImage)}" alt="">` : '🎁'} → ${icon(r.gameId)} ${Number(r.seconds) || 60}s${licBlocked(r.gameId) ? ' ' + esc(licTag(r.gameId)) : ''}</span>`).join('')
+            : on.map(r => `<span class="cg-chip ${trig.enabled && !licBlocked(r.gameId) ? 'ok' : 'dim'}" title="${hpTA('{v} → {v2} {v3} giây', { v: esc(r.giftName || (hpT('Quà #{giftId}', { giftId: r.giftId }))), v2: esc((GAMES.find(g => g[0] === r.gameId) || [])[1] || r.gameId), v3: Number(r.seconds) || 300 })}${licTip(r.gameId) ? esc(' - ' + licTip(r.gameId)) : ''}">${r.giftImage ? `<img src="${esc(r.giftImage)}" alt="">` : '🎁'} → ${icon(r.gameId)} ${Number(r.seconds) || 300}s${licBlocked(r.gameId) ? ' ' + esc(licTag(r.gameId)) : ''}</span>`).join('')
               + (trig.enabled ? '' : `<span class="cg-chip dim">${hpT('đang tắt')}</span>`);
     }
 

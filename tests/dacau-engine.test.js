@@ -33,10 +33,11 @@ test('normalizeConfig: mặc định, kẹp số, quà trùng / loại cầu l�
     assert.equal(D.normalizeConfig({ requireLift: false }).requireLift, false);
 });
 
-test('ballsForGift: chỉ quà đã chọn (so id), combo ×N = N quả, trần 5', () => {
+test('ballsForGift: chỉ quà đã chọn (so id), combo ×N = N quả (×99 = 99 quả), trần an toàn 999', () => {
     const c = D.normalizeConfig({ gifts: [{ giftId: '5655', ball: 'gold' }] });
     assert.deepEqual(D.ballsForGift(c, '5655', 3), { type: 'gold', count: 3 });
-    assert.deepEqual(D.ballsForGift(c, 5655, 99), { type: 'gold', count: 5 });
+    assert.deepEqual(D.ballsForGift(c, 5655, 99), { type: 'gold', count: 99 });
+    assert.equal(D.ballsForGift(c, 5655, 5000).count, 999);
     assert.equal(D.ballsForGift(c, '1', 1), null);
     assert.equal(D.ballsForGift(c, '', 1), null);
 });

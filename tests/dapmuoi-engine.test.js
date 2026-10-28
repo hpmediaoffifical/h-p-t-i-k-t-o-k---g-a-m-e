@@ -11,7 +11,7 @@ test('defaultConfig đúng số spec và là bản sao', () => {
     const a = defaultConfig(), b = defaultConfig();
     assert.equal(a.hitMode, 'clap'); assert.equal(a.clapDistance, 1.2); assert.equal(a.clapSpeed, 900);
     assert.equal(a.hitRadius, 14); assert.equal(a.speed, 180); assert.equal(a.spawnPerSecond, 6);
-    assert.equal(a.maxOnScreen, 300); assert.equal(a.idleSpawnSeconds, 8); assert.equal(a.maxPerGift, 100);
+    assert.equal(a.maxOnScreen, 300); assert.equal(a.idleSpawnSeconds, 8); assert.equal(a.maxPerGift, 1000);
     assert.equal(a.coinsPerMosquito, 1); assert.equal(a.gentlePercent, 35); assert.equal(a.crowdFrom, 120);
     assert.equal(a.smartPercent, 10); assert.equal(a.smartLives, 3);
     // 6 hành động: thêm 👑 Muỗi Chúa (boss có thanh máu — theo HP LIVE NPC)
@@ -171,17 +171,18 @@ test('spray percent=50 giết nửa số đang bay', () => {
     assert.equal(e.snapshot().killed, 20);
 });
 
-test('racket: sweep chỉ giết khi racketMs>0, giết cả smart, cộng dồn trần 60s', () => {
+test('racket: sweep chỉ giết khi racketMs>0, giết cả smart, cộng dồn đủ (combo chạy tới hết, trần an toàn 6 giờ)', () => {
     const e = createEngine({ ...defaultConfig(), spawnPerSecond: 1e6, idleSpawnSeconds: 0, smartPercent: 100 }); e.enqueue(1); e.step(16);
     const m = e.snapshot().mosquitoes[0];
     assert.equal(e.sweep(m.x, m.y, 100), 0);
-    e.racket(50); e.racket(50); assert.equal(e.snapshot().racketMs, 60000);
+    e.racket(50); e.racket(50); assert.equal(e.snapshot().racketMs, 100000);
+    e.racket(1e9); assert.equal(e.snapshot().racketMs, 6 * 3600000);
     assert.equal(e.sweep(m.x, m.y, 100), 1);
 });
 
-test('net cộng dồn, trần 120s', () => {
+test('net cộng dồn đủ, trần an toàn 6 giờ', () => {
     const e = createEngine(defaultConfig());
-    e.net(2); e.net(200); assert.equal(e.snapshot().netMs, 120000);
+    e.net(2); e.net(200); assert.equal(e.snapshot().netMs, 202000);
 });
 
 test('net: chặn xả hàng đợi và sinh nền, hết màn xả tiếp (quà trong lúc màn không mất)', () => {
@@ -338,9 +339,9 @@ test('đập trúng con đang đậu: chết, +2 điểm, event kill caught', ()
     const s = e.snapshot(); assert.equal(s.score, 2); assert.equal(s.events[0].caught, true); assert.equal(s.bites, 0);
 });
 
-test('cream: cộng dồn trần 120s; đẩy văng con đang seek/landed; không seek khi kem còn', () => {
+test('cream: cộng dồn đủ; đẩy văng con đang seek/landed; không seek khi kem còn', () => {
     const e = biter(); untilLanded(e); assert.equal(e.snapshot().mosquitoes[0].state, 'landed');
-    e.cream(100); e.cream(100); let s = e.snapshot(); assert.equal(s.creamMs, 120000);
+    e.cream(100); e.cream(100); let s = e.snapshot(); assert.equal(s.creamMs, 200000);
     assert.ok(s.events.some(x => x.type === 'repel' && x.n === 1));
     assert.equal(s.mosquitoes[0].state, 'dodge');
     run(e, 20000); assert.equal(e.snapshot().mosquitoes[0].state, 'fly');
