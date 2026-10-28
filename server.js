@@ -1364,6 +1364,7 @@ const obsBridge = new OBSBridge({
 // Giải quyết "lỗi muôn thuở": mở lại app → overlay OBS đứng yên (trang cũ trỏ server đã chết),
 // phải vào OBS bấm Refresh thủ công. Giờ app tự bấm Refresh hộ qua OBS WebSocket — chỉ refresh
 // các source trỏ overlay của app (lọc theo URL), KHÔNG đụng source khác (BEAUTY, WEBM…).
+// Lọc thêm theo CỔNG: HP LIVE NPC (:3001) cùng máy cũng có /overlay/… — không được refresh hộ app kia.
 // Chạy MỘT LẦN cho mỗi phiên app (lần OBS connect đầu tiên) để tránh refresh lặp khi reconnect.
 let obsBridgeStartupRefreshDone = false;
 function obsBridgeAutoRefreshOverlays(reason) {
@@ -1372,7 +1373,8 @@ function obsBridgeAutoRefreshOverlays(reason) {
     // Delay nhỏ để chắc chắn HTTP server đã phục vụ overlay trước khi OBS nạp lại trang.
     setTimeout(() => {
         obsBridge.refreshBrowserSources({
-            urlIncludes: ['/overlay/', '/_prototype/', `localhost:${PORT}`, `127.0.0.1:${PORT}`]
+            urlIncludes: ['/overlay/', '/_prototype/', `localhost:${PORT}`, `127.0.0.1:${PORT}`],
+            port: PORT
         })
         .then(r => {
             if (r && r.ok) console.log(`[obs-bridge] startup auto-refresh overlay (${reason}) → ${r.refreshed.length} source`);
