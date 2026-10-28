@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { ObsCameraFeed } = require('../lib/touchplay-obs-feed');
-const { createCamObs } = require('../lib/camgames-obs');
+const { createCamObs, urlOnPort } = require('../lib/camgames-obs');
 
 const HUB = 'http://localhost:3000/overlay/camgames';
 
@@ -50,7 +50,7 @@ function fakeObs({ scenes, inputs, current, groups = {} }) {
 function setup(state, opts = {}) {
     const o = fakeObs(state);
     const feed = new ObsCameraFeed({ bridge: { connected: true, obs: { call: o.call } }, io: { sockets: { adapter: { rooms: new Map() } } }, getOptions: () => ({}) });
-    const cam = createCamObs({ obs: o.call, feed, overlayUrl: () => HUB, cameraName: () => opts.camera || '', savedScene: () => opts.scene || '' });
+    const cam = createCamObs({ obs: o.call, feed, overlayUrl: () => HUB, cameraName: () => opts.camera || '', savedScene: () => opts.scene || '', port: opts.port });
     return { o, feed, cam };
 }
 const names = arr => arr.map(it => it.sourceName);
@@ -167,4 +167,24 @@ test('OBS chưa nối → programCheck ok:false, addHubOverlay báo lỗi, khôn
     assert.deepEqual(await cam.programCheck(), { ok: false, obsConnected: false });
     await assert.rejects(cam.addHubOverlay(), /Chưa kết nối OBS/);
     assert.equal(n, 0);
+});
+
+test('urlOnPort: cổng mặc định theo giao thức, URL hỏng không chặn', () => {
+    assert.equal(urlOnPort('http://localhost:3000/overlay/camgames', 3000), true);
+    assert.equal(urlOnPort('http://hpnpc.obs:3001/overlay/camgames?quality=1080', 3000), false);
+    assert.equal(urlOnPort('http://192.168.1.5:3000/overlay/shared/abc', '3000'), true);
+    assert.equal(urlOnPort('https://x.dev/overlay/camgames', 443), true);
+    assert.equal(urlOnPort('không phải url', 3000), true);
+    assert.equal(urlOnPort('http://localhost:3001/overlay/camgames', 0), true);
+});
+
+test('OBS dựng cho HP LIVE NPC (overlay mẹ cổng 3001) → app cổng 3000 coi là CHƯA có, tạo nguồn mới chứ không Add Existing nguồn của NPC', async () => {
+    const { cam, o } = setup({ current: 'Yuna',
+        scenes: { Yuna: [{ sceneItemId: 1, sourceName: 'Cam' }, { sceneItemId: 2, sourceName: 'Trình duyệt 6' }] },
+        inputs: { Cam: { kind: 'dshow_input' }, 'Trình duyệt 6': { kind: 'browser_source', settings: { url: 'http://hpnpc.obs:3001/overlay/camgames?quality=1080&sharp=1' } } } }, { port: 3000 });
+    assert.equal((await cam.programCheck()).overlay, 'missing');
+    const r = await cam.addHubOverlay();
+    assert.equal(r.created, true);
+    assert.deepEqual(names(o.scenes.Yuna), ['Cam', 'HP Game Camera', 'Trình duyệt 6']);
+    assert.equal((await setup({ current: 'Yuna', scenes: o.scenes, inputs: o.inputs }, { port: 3000 }).cam.programCheck()).overlay, 'ok');
 });

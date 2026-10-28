@@ -67,5 +67,5 @@ overlay vào Scene, ẩn cam trong Group OBS (`hp-cam-hide`), vùng nhìn thấy
 | Quà mẫu | ✅ e9e7c43 |
 | 📷 Tự nhận camera | ✅ a46b814 |
 | 🧍 Bộ Tách Người (đủ 10 loại + 72 MB mẫu, ẩn cam OBS) | ✅ 5ec0990 — đã thử Ninja + Đóng băng bằng video giả, chưa thử OBS/camera thật |
-| ＋ Thêm nhanh overlay vào Scene OBS + cảnh báo Scene đang phát thiếu overlay (sceneCheck, program-check) | ✅ 56c99b9 — test OBS giả; CHƯA thử OBS thật (ghi Scene, cần user cho phép) |
+| ＋ Thêm nhanh overlay vào Scene OBS + cảnh báo Scene đang phát thiếu overlay (sceneCheck, program-check) | ✅ 56c99b9 + sửa cổng — đã thử OBS thật 29/10 (tạo + đặt trên camera + bật lại 👁), đã dọn |
 | 💥 Rổ hiệu ứng (bom hiệu ứng Chém Trái Cây, phạt Đá Cầu, vé Muỗi Chúa) | chưa — app chưa có Thư viện hiệu ứng Douyin/TikTok Studio |

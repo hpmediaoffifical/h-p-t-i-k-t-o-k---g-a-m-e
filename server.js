@@ -6556,7 +6556,8 @@ const camObs = createCamObs({
     isHubUrl: url => feedUrlIs(url || '', 'camgames', /\/overlay\/camgames(?:[/?#]|$)/i),
     cameraName: () => String(appConfig.games?.camgames?.source || '') || (Date.now() - camAuto.at < 10000 ? camAuto.source : ''),
     savedScene: () => String(appConfig.games?.camgames?.scene || ''),
-    overlayUrl: () => `http://localhost:${PORT}/overlay/camgames`
+    overlayUrl: () => `http://localhost:${PORT}/overlay/camgames`,
+    port: PORT
 });
 let camProgCache = { at: 0, data: null };
 // Scene ĐANG PHÁT có overlay mẹ chưa — thanh cảnh báo panel Game Camera (game chỉ chạy trong khung xem thử của app mà
