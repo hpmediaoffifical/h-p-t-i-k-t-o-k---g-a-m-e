@@ -62,6 +62,7 @@
             <div class="cg-card">
                 <h3>📺 TRÊN OBS</h3>
                 <div class="cg-status" id="cg-status"><span class="cg-chip dim">Đang kiểm tra…</span></div>
+                <div class="cg-guard" id="cg-guard" hidden></div>
                 <div class="cg-row">
                     <label for="cg-source">Nguồn camera trong OBS (chung mọi game)</label>
                     <select id="cg-source"><option value="">— Chọn nguồn camera —</option></select>
@@ -228,10 +229,59 @@
         if ('active' in patch || 'actives' in patch) loadOverlap();
     }
 
+    // ----- 🛰 Scene ĐANG PHÁT có overlay Game Camera chưa? (/api/camgames/obs/program-check) -----
+    // Khung xem thử trong app chạy game ngay trong cửa sổ app — nhìn thì "chạy", nhưng LIVE chỉ thấy cái Browser Source
+    // trong OBS vẽ. Scene đang phát có camera mà thiếu link Game Camera (tắt 👁 / trang chưa chạy) → báo + nút sửa 1 bấm.
+    // × ẩn 10 phút cho đúng Scene + lỗi đó.
+    let guard = null, guardBusy = false;
+    const snoozeKey = (scene, kind) => 'hp.cgguard.' + kind + '.' + scene;
+    const snoozed = (scene, kind) => { try { return Number(localStorage.getItem(snoozeKey(scene, kind)) || 0) > Date.now(); } catch (_) { return false; } };
+    const toast = (msg, kind, ms) => { try { window.toast?.(msg, kind, ms); } catch (_) {} };
+    function renderGuard() {
+        const el = $('#cg-guard');
+        if (!el) return;
+        const d = guard;
+        let kind = '', msg = '', btn = '', tip = '';
+        if (d && d.ok && d.camera && d.actives && d.actives.length) {
+            const sc = '«' + esc(d.scene) + '»';
+            if (d.overlay === 'missing') { kind = 'missing'; msg = `⚠ Scene đang phát ${sc} chưa có overlay <b>🎥 Game Camera</b> — LIVE không thấy game`; btn = `＋ Thêm nhanh vào ${sc}`; tip = 'Thêm Browser Source Game Camera đã có vào Scene này (chưa có thì tạo mới 1080×1920), đặt ngay trên camera, phủ kín khung'; }
+            else if (d.overlay === 'hidden') { kind = 'hidden'; msg = `⚠ Overlay <b>🎥 Game Camera</b> ở Scene ${sc} đang <b>TẮT 👁</b> — LIVE không thấy game`; btn = '👁 Bật lại'; tip = 'Bật lại nguồn overlay Game Camera trong Scene này'; }
+            else if (!d.hubOnline) { kind = 'offline'; msg = `⚠ Scene ${sc} có overlay <b>🎥 Game Camera</b> nhưng trang chưa chạy`; btn = '↻ Tải lại overlay'; tip = 'Buộc Browser Source Game Camera tải lại'; }
+        }
+        const dup = d && d.ok && d.dupInputs ? `<span class="cg-chip warn" title="Hai Browser Source khác nhau cùng mở Game Camera → game chạy 2 lần (2 tiếng, đếm quà 2 lần). Xoá bớt, chỉ giữ 1.">⚠ Scene «${esc(d.scene)}» có ${d.inputs.length} Browser Source Game Camera khác nhau: ${d.inputs.map(esc).join(', ')}</span>` : '';
+        if (kind && snoozed(d.scene, kind)) kind = '';
+        if (!kind && !dup) { el.hidden = true; el.innerHTML = ''; return; }
+        el.hidden = false;
+        el.className = 'cg-guard' + (kind === 'offline' || !kind ? ' soft' : '');
+        el.innerHTML = (kind ? `<span class="cg-guard-msg">${msg}</span>
+            <button type="button" class="btn-outline small" id="cg-guard-go" title="${esc(tip)}" ${guardBusy ? 'disabled' : ''}>${guardBusy ? '⏳ Đang sửa…' : btn}</button>
+            <button type="button" class="ghost small" id="cg-guard-x" title="Ẩn 10 phút">×</button>` : '') + dup;
+        $('#cg-guard-go')?.addEventListener('click', () => fixGuard(d, kind));
+        $('#cg-guard-x')?.addEventListener('click', () => { try { localStorage.setItem(snoozeKey(d.scene, kind), String(Date.now() + 10 * 60 * 1000)); } catch (_) {} renderGuard(); });
+    }
+    async function fixGuard(d, kind) {
+        if (guardBusy) return;
+        guardBusy = true; renderGuard();
+        try {
+            if (kind === 'offline') { window.HpCamGamesPanel.reloadOverlay(); toast('Đã yêu cầu overlay Game Camera tải lại', 'info', 2500); }
+            else {
+                const j = await (await fetch('/api/camgames/obs/add-overlay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scenes: [d.scene] }) })).json();
+                if (!j.ok) throw new Error(j.error || 'Không thêm được');
+                toast('✓ Overlay Game Camera: ' + (j.created ? 'tạo «' + j.inputName + '» · ' : '') + (j.added?.length ? 'thêm vào ' + j.added.join(', ') : j.shown?.length ? 'bật lại ở ' + j.shown.join(', ') : 'đã đủ'), 'success', 4000);
+            }
+        } catch (e) { toast('⚠ ' + (e.message || e), 'error', 5000); }
+        guardBusy = false;
+        await loadGuard();
+    }
+    async function loadGuard() {
+        try { guard = await (await fetch('/api/camgames/obs/program-check', { cache: 'no-store' })).json(); } catch (_) { guard = null; }
+        renderGuard();
+    }
+
     function poll() {
         clearTimeout(pollTimer);
         if (!viewActive()) return;              // rời màn → thôi hỏi
-        loadFeed().finally(() => { pollTimer = setTimeout(poll, 3000); });
+        Promise.all([loadFeed(), loadGuard()]).finally(() => { pollTimer = setTimeout(poll, 3000); });
     }
 
     window.HpCamGamesPanel = {

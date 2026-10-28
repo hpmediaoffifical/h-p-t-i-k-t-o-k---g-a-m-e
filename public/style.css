@@ -9326,6 +9326,11 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .cg-chip.ok { border-color: #2f7a4a; color: #9bf26b; }
 .cg-chip.warn { border-color: #7a5a1f; color: #ffd54a; }
 .cg-chip.dim { color: #8b93a8; }
+/* 🛰 Scene đang phát thiếu overlay Game Camera (camgames-panel.js renderGuard) */
+.cg-guard { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; border: 1px solid #a8741f; background: rgba(255, 179, 0, 0.1); font-size: 13px; color: #ffe2a0; }
+.cg-guard.soft { border-color: #3a4256; background: rgba(127, 182, 255, 0.06); color: #c9dbf7; }
+.cg-guard[hidden] { display: none; }
+.cg-guard-msg { flex: 1 1 240px; line-height: 1.45; }
 .cg-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 .cg-row label { font-size: 13px; color: #cdd3e0; flex: 0 0 auto; }
 .cg-row select { flex: 1 1 200px; background: #0e1118; border: 1px solid #2c3243; color: #e6e8ee; border-radius: 6px; padding: 6px 8px; font-size: 13px; min-width: 0; }

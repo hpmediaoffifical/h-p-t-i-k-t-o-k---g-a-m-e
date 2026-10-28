@@ -107,6 +107,7 @@ const { OBSBridge } = require('./lib/obs-bridge');
 const { ObsCameraFeed } = require('./lib/touchplay-obs-feed');
 const CamRules = require('./lib/camgames');
 const CamSession = require('./lib/camgames-session');
+const { createCamObs } = require('./lib/camgames-obs');
 const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
 const MusicGifts = require('./lib/music-gifts');
 const { LuaSync } = require('./lib/lua-sync');
@@ -6546,6 +6547,39 @@ app.get('/api/camgames/feed-status', (req, res) => {
     const auto = !saved && !!camAuto.source && Date.now() - camAuto.at < 10000;
     res.json({ ok: true, obsConnected: status.obsConnected !== false, status, actives: camActives(), source: saved || (auto ? camAuto.source : ''),
         auto, scene: camAuto.scene || status.scene || '' });
+});
+// 🛰 Overlay mẹ có trong Scene OBS chưa + ＋ Thêm nhanh (lib/camgames-obs.js, port HP LIVE NPC — không có Scene theo NPC:
+// chỉ Scene cố định camgames.scene hoặc Scene đang phát). Nguồn camera = đã chọn, chưa chọn thì camera tự nhận.
+const camObs = createCamObs({
+    obs: (type, data) => obsBridge.obs.call(type, data),
+    feed: touchplayFeed,
+    isHubUrl: url => feedUrlIs(url || '', 'camgames', /\/overlay\/camgames(?:[/?#]|$)/i),
+    cameraName: () => String(appConfig.games?.camgames?.source || '') || (Date.now() - camAuto.at < 10000 ? camAuto.source : ''),
+    savedScene: () => String(appConfig.games?.camgames?.scene || ''),
+    overlayUrl: () => `http://localhost:${PORT}/overlay/camgames`
+});
+let camProgCache = { at: 0, data: null };
+// Scene ĐANG PHÁT có overlay mẹ chưa — thanh cảnh báo panel Game Camera (game chỉ chạy trong khung xem thử của app mà
+// OBS không có link Game Camera là lỗi dễ mắc nhất). hubOnline: trang overlay mẹ đang nối socket (Browser Source chạy thật).
+app.get('/api/camgames/obs/program-check', async (req, res) => {
+    if (!obsBridge.isConnected()) return res.json({ ok: false, obsConnected: false });
+    if (camProgCache.data && Date.now() - camProgCache.at < 2500) return res.json({ ...camProgCache.data, actives: camActives(), hubOnline: camHubOverlayOnline() });
+    try {
+        const data = await camObs.programCheck();
+        if (data.ok) camProgCache = { at: Date.now(), data };
+        res.json({ ...data, actives: camActives(), hubOnline: camHubOverlayOnline() });
+    } catch (e) { res.json({ ok: false, obsConnected: true, error: e?.message || String(e) }); }
+});
+// ＋ Thêm nhanh overlay mẹ vào Scene còn thiếu (body.scenes: chỉ các Scene này). Sửa Scene OBS → chỉ máy chạy app.
+app.post('/api/camgames/obs/add-overlay', async (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'Chỉ bấm được trên máy chạy app' });
+    if (!obsBridge.isConnected()) return res.status(409).json({ ok: false, error: 'Chưa kết nối OBS WebSocket — mở mục Hiệu ứng OBS → Kết nối' });
+    try {
+        const only = Array.isArray(req.body?.scenes) ? req.body.scenes.map(String).slice(0, 20) : null;
+        const r = await camObs.addHubOverlay(only);
+        camProgCache = { at: 0, data: null };
+        res.json({ ok: true, ...r, check: await camObs.sceneCheck(await touchplayFeed.listScenes(), true) });
+    } catch (e) { res.status(500).json({ ok: false, error: e?.message || String(e) }); }
 });
 app.get('/api/touchplay/obs-sources', async (req, res) => {
     try {
