@@ -2745,9 +2745,10 @@
         if (!sel || sel.options.length) return;
         const S = window.HpJarSkins?.SKINS || [];
         const opt = (s) => `<option value="${s.id}">${String(s.no).padStart(2, '0')}. ${s.name}</option>`;
+        const group = (label, list) => list.length ? `<optgroup label="${label} (${list.length})">${list.map(opt).join('')}</optgroup>` : '';
         sel.innerHTML = '<option value="">Hũ mặc định</option>'
-            + `<optgroup label="Kiểu thường (${S.filter(s => !s.season).length})">${S.filter(s => !s.season).map(opt).join('')}</optgroup>`
-            + `<optgroup label="Theo mùa / dịp lễ (${S.filter(s => s.season).length})">${S.filter(s => s.season).map(opt).join('')}</optgroup>`;
+            + group('Kiểu thường', S.filter(s => !s.season))
+            + group('Theo mùa / dịp lễ', S.filter(s => s.season));
     }
     dom.cfgJarSkin?.addEventListener('change', () => {
         if (dom.cfgJarTheme) dom.cfgJarTheme.disabled = !!dom.cfgJarSkin.value;
@@ -2766,6 +2767,12 @@
     function renderJarSkinGrid() {
         const grid = document.getElementById('look-skin-grid');
         if (!grid) return;
+        // Chưa có kiểu nào ngoài hũ mặc định → ẩn ô tìm, bộ lọc và lưới (một ô "Mặc định" đứng một mình là thừa)
+        const hasSkins = !!window.HpJarSkins?.SKINS?.length;
+        for (const id of ['look-skin-search', 'look-skin-filter', 'look-skin-grid']) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = hasSkins ? '' : 'none';
+        }
         const q = ttNorm(jarSkinQuery);
         const S = (window.HpJarSkins?.SKINS || [])
             .filter(s => jarSkinFilter === 'all' || (jarSkinFilter === 'season' ? s.season : !s.season))
@@ -2793,7 +2800,7 @@
             sw.classList.toggle('off', !!skin);
         }
         const note = document.getElementById('look-theme-note');
-        if (note) note.textContent = skin ? 'Đang dùng kiểu hũ riêng — chọn “Mặc định” để đổi màu.' : 'Chỉ đổi màu được với “Hũ mặc định”.';
+        if (note) note.textContent = skin ? 'Đang dùng kiểu hũ riêng — chọn “Mặc định” để đổi màu.' : (window.HpJarSkins?.SKINS?.length ? 'Chỉ đổi màu được với “Hũ mặc định”.' : '');
         const acc = document.getElementById('look-acc');
         if (acc && dom.cfgJarAccessory) {
             if (!acc.childElementCount) acc.innerHTML = [...dom.cfgJarAccessory.options].map(o => `<button type="button" data-acc="${o.value}">${escHtml(o.textContent)}</button>`).join('');
