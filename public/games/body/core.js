@@ -64,7 +64,7 @@
     // 🎞 Video MẪU giao kèm (list/camgames/body → /games/body/samples/) đều là .webm (user 2026-10-24: "chuyển tất cả file mp4 kể cả
     // background của game sang webm" - .pack.mp4 / .mp4 đã xoá khỏi bản cài). Cấu hình cũ trỏ <tên>.pack.mp4 / <tên>.mp4 → tự đổi sang
     // <tên>.webm (sampleWebm, normalizeConfig). Trong suốt / phủ kín theo TÊN mẫu (overlay không đoán theo đuôi .mp4 được nữa).
-    const SAMPLE_ALPHA = ['thien-thach-roi', 'ufo', 'dam-boc', 'dam-bep-di', 'ninja-chan', 'ho-ly-trang', 'ho-ly-den', 'canh-hoa-dao', 'batu', 'meo-dance', 'meo-wtf', 'ngoai-hanh-tinh', 'pikachu-dance', 'rong-con', 'sieu-nhan'];
+    const SAMPLE_ALPHA = ['thien-thach-roi', 'ufo', 'dam-boc', 'dam-bep-di', 'ninja-chan', 'batu', 'meo-dance', 'meo-wtf', 'ngoai-hanh-tinh', 'pikachu-dance', 'rong-con', 'sieu-nhan'];
     const SAMPLE_OPAQUE = ['cua-scifi', 'mario-30fps', 'ninja', 'san-pickleball', 'batu-nen', 'pikachu-full'];
     const sampleName = f => {
         const m = /^\/games\/body\/samples\/([a-z0-9-]+?)(?:[._-]pack(?:ed)?)?\.(mp4|webm)$/i.exec(String(f || '').trim());
@@ -729,21 +729,11 @@
     // ---------- 🦊 Hậu Cảnh (luật hiệu ứng = lõi HpHauCanh) ----------
     function makeItem(over = {}) { return { ...SND_DEFAULT, ...HC.makeItem(over), profileId: str(over.profileId, 24) }; }
     function normalizeItem(x, i) { const s = obj(x); return { ...HC.normalizeItem(s, i), profileId: str(s.profileId, 24), queueMode: queueModeOf(s.queueMode, 'attach'), ...snd(s) }; }
-    // 📦 Hậu Cảnh mẫu GIAO KÈM APP (list/camgames/body → /games/body/samples/, như video 🎬 mẫu): id CỐ ĐỊNH, Mọi NPC, CHƯA gắn quà.
-    // 🦊 Hồ ly trắng (user 2026-10-23, theo máy user): Lớp 1 đuôi hồ ly 9 đuôi từ 700 ms + Lớp 2 cánh hoa đào, trong suốt, ẩn cam gốc, câm.
-    // Gieo MỘT lần mỗi đợt (cờ haucanh.tplV): chỉ thêm mẫu ra đời SAU đợt máy đã gieo, máy đã có game cùng id / cùng tên thì bỏ
-    // (máy user tự dựng "Hồ ly trắng" từ trước); xoá mẫu rồi không hiện lại.
-    // 🦊 Hồ ly đen (đợt 2, user 2026-10-23 "cài đầy đủ như bản dev"): Hậu Cảnh "Hiệu ứng 1" trên máy user (9_duoi_den.webm 6,07 s, có tiếng)
-    // → ho-ly-den.webm, trong suốt, ẩn cam gốc, tiếng video bật, ⏭ Kế tiếp, 🔔 chạy nền như máy user. same: máy đã có game dùng file
-    // cùng nguồn (tên file chứa 9_duoi_den / ho-ly-den) thì không gieo thêm (máy user đặt tên "Hiệu ứng 1").
-    const HC_TPL_V = 2;
-    const HC_TEMPLATES = [
-        { v: 1, item: { id: 'hct_holy', name: 'Hồ ly trắng', file: VIDFX_SAMPLE_DIR + 'ho-ly-trang.webm', startMs: 700,
-            layers: [{ file: VIDFX_SAMPLE_DIR + 'canh-hoa-dao.webm', startMs: 0, endMs: 0 }],
-            alpha: true, hideCam: true, sound: false, fit: 'cover', queueMode: 'attach' } },
-        { v: 2, same: /9_duoi_den|ho-ly-den/i, item: { id: 'hct_holyden', name: 'Hồ ly đen', file: VIDFX_SAMPLE_DIR + 'ho-ly-den.webm', startMs: 0,
-            alpha: true, hideCam: true, sound: true, fit: 'cover', queueMode: 'next', runMode: 'background' } }
-    ];
+    // 📦 Hậu Cảnh mẫu GIAO KÈM: HP LIVE NPC có 🦊 Hồ ly trắng / Hồ ly đen — app này KHÔNG giao kèm (user 29/10/2026: xoá 2 game hồ ly).
+    // Hậu Cảnh vẫn dùng được với video streamer tự tải lên. HC_TPL_V 3: máy đã lỡ được gieo 2 mẫu đó (nhánh thử) → gỡ MỘT lần.
+    const HC_TPL_V = 3;
+    const HC_TEMPLATES = [];
+    const HC_REMOVED_IDS = new Set(['hct_holy', 'hct_holyden']);
     const hcTemplates = () => HC_TEMPLATES.map((t, i) => normalizeItem(makeItem(t.item), i));
     // Hậu Cảnh x (game riêng của máy) đã có mẫu giao kèm tương đương chưa (cùng tên / cùng nguồn file) - scripts/check-release-media.cjs.
     const hcSampleOf = x => HC_TEMPLATES.find(t => String(x.name || '').trim().toLowerCase() === t.item.name.toLowerCase() || (t.same && t.same.test(String(x.file || '')))) || null;
@@ -798,7 +788,7 @@
         // 🦊 Hậu Cảnh mẫu giao kèm: gieo một lần (cờ tplV). KHÔNG đặt cờ trong defaultConfig (normalizeGamesConfig trộn mặc định vào
         // cấu hình cũ → máy cũ nhận cờ mà chưa được gieo) - máy mới cũng đi qua đây.
         let items = uniqIds(arr(hc.items).slice(0, MAX_ITEMS).map(normalizeItem));
-        if (!(Number(hc.tplV) >= HC_TPL_V)) items = uniqIds(seedHauCanh(items, hc.tplV));
+        if (!(Number(hc.tplV) >= HC_TPL_V)) items = uniqIds(seedHauCanh(items.filter(x => !HC_REMOVED_IDS.has(x.id)), hc.tplV));
         const crScripts = Array.isArray(cr.scripts) ? uniqIds(arr(cr.scripts).slice(0, MAX_SCRIPTS).map(normalizeCry)) : d.cry.scripts;
         // 💗 máy cũ chưa có nhánh heart → nhận kịch bản mặc định (gắn sẵn Heart Me); xoá hết = giữ rỗng.
         const htScripts = Array.isArray(ht.scripts) ? uniqIds(arr(ht.scripts).slice(0, MAX_SCRIPTS).map(normalizeHeart)) : d.heart.scripts;

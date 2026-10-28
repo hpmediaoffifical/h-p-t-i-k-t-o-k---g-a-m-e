@@ -88,8 +88,9 @@ test('▶ Thử / ⏹ Ngưng: từng loại; kind lạ → 400; Bị Đuổi ch�
         assert.equal(r.ok, true, kind + ' ' + JSON.stringify(r));
         assert.equal(h.sent.at(-1)[1].kind, kind);
     }
-    assert.equal(h.call('POST /api/body/test', { kind: 'haucanh' }).ok, true);
-    assert.equal(h.sent.at(-1)[0], 'body:play');
+    // không giao kèm Hậu Cảnh mẫu (bỏ 2 game hồ ly) → chưa tạo hiệu ứng nào thì nút thử báo rõ
+    const noHc = h.call('POST /api/body/test', { kind: 'haucanh' });
+    assert.equal(noHc.ok, false); assert.match(String(noHc.error), /Chưa có hiệu ứng Hậu Cảnh/);
     assert.equal(h.call('POST /api/body/test', { kind: 'xx' })._code, 400);
     const bd = harness({ config: BS.normalizeConfig({ biduoi: { scripts: [{ id: 'b', videos: [{ file: '/media/1.mp4' }, { file: '/media/2.mp4' }] }] } }) });
     assert.equal(bd.call('POST /api/body/test', { kind: 'biduoi', id: 'b', videoIdx: 1 }).videoIdx, 1);

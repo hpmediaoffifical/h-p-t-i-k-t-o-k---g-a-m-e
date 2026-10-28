@@ -27,7 +27,7 @@ test('normalizeConfig: mặc định đủ 3 nhánh + hồ sơ, kẹp số, id t
     assert.equal(B.normalizeConfig({ roiho: { bgMode: 'effect' } }).roiho.bgMode, 'room');                  // lưu từ trước: mặc định cũ
     assert.equal(B.normalizeConfig({ roiho: { bgMode: 'effect', bgModeV: 2 } }).roiho.bgMode, 'effect');    // streamer đã tự chọn
     assert.equal(B.normalizeConfig({ biduoi: { bgMode: 'none' } }).biduoi.bgMode, 'none');
-    assert.deepEqual([d.enabled, d.profiles.length, d.roiho.scripts.length, d.biduoi.scripts.length, d.haucanh.items.length, d.matte.model], [true, 0, 1, 1, 2, 'selfie']);   // 🦊 2 = Hồ ly trắng + Hồ ly đen mẫu giao kèm
+    assert.deepEqual([d.enabled, d.profiles.length, d.roiho.scripts.length, d.biduoi.scripts.length, d.haucanh.items.length, d.matte.model], [true, 0, 1, 1, 0, 'selfie']);   // 🦊 không giao kèm Hậu Cảnh mẫu
     const c = B.normalizeConfig({ comboMax: 99, profiles: [{ id: 'a', scale: 5 }, { id: 'a' }], roiho: { bgMode: 'always', scripts: [{ id: 's', shake: 999 }, { id: 's' }] },
         biduoi: { bgMode: 'room', scripts: [] }, haucanh: { items: [{ id: 'i', durSec: -1, gifts: [{ giftName: 'không id' }, { giftId: 3 }] }] } });
     assert.equal(c.comboMax, 10);
@@ -237,26 +237,15 @@ test('💗 Bắn Tim: 🤾 vung tay ném avatar - mặc định bật, tắt đ�
     assert.ok(panel.includes('data-act="fling"') && panel.includes("['showName', 'hint', 'fling']"), 'panel: công tắc Vung tay ném');
 });
 
-test('🦊 Hậu Cảnh mẫu giao kèm "Hồ ly trắng": máy mới có sẵn (Mọi NPC, chưa quà), gieo MỘT lần, máy đã có cùng tên không thêm, xoá rồi không hiện lại', () => {
+test('🦊 Hậu Cảnh: KHÔNG giao kèm game hồ ly (user 29/10/2026); máy đã lỡ gieo thì gỡ một lần, game của streamer giữ nguyên', () => {
     const d = B.normalizeConfig(null);
     assert.equal(d.haucanh.tplV, B.HC_TPL_V);
-    const fox = d.haucanh.items.find(x => x.id === 'hct_holy');
-    assert.deepEqual([fox.name, fox.file, fox.layers.map(L => L.file), fox.startMs, fox.alpha, fox.hideCam, fox.sound, fox.queueMode, fox.profileId, fox.gifts.length],
-        ['Hồ ly trắng', '/games/body/samples/ho-ly-trang.webm', ['/games/body/samples/canh-hoa-dao.webm'], 700, true, true, false, 'attach', '', 0]);
-    for (const f of [fox.file, fox.layers[0].file]) assert.ok(fs.existsSync(path.join(__dirname, '../public/games/body/samples', path.basename(f))), 'giao kèm ' + f);
-    assert.deepEqual(B.normalizeConfig({ haucanh: { items: [{ id: 'mine', name: '  hồ ly TRẮNG ', file: '/media/x.mp4' }] } }).haucanh.items.map(x => x.id), ['mine', 'hct_holyden'], 'máy đã tự dựng cùng tên: không thêm Hồ ly trắng');
-    assert.equal(B.normalizeConfig({ haucanh: { tplV: B.HC_TPL_V, items: [] } }).haucanh.items.length, 0, 'xoá rồi không hiện lại');
-    const twice = B.normalizeConfig(B.normalizeConfig({ haucanh: { items: [{ id: 'a', name: 'Pháo' }] } }));
-    assert.deepEqual(twice.haucanh.items.map(x => x.id), ['a', 'hct_holy', 'hct_holyden'], 'xếp sau game của streamer, không nhân đôi');
-    // 🦊 Hồ ly đen (đợt 2, "cài đầy đủ như bản dev"): giao kèm, có tiếng, ⏭ Kế tiếp, 🔔 chạy nền; máy đợt 1 nhận thêm; máy đã có game cùng nguồn file thì thôi
-    const den = d.haucanh.items.find(x => x.id === 'hct_holyden');
-    assert.deepEqual([den.name, den.file, den.sound, den.queueMode, den.runMode, den.hideCam, den.alpha], ['Hồ ly đen', '/games/body/samples/ho-ly-den.webm', true, 'next', 'background', true, true]);
-    assert.ok(fs.existsSync(path.join(__dirname, '../public/games/body/samples/ho-ly-den.webm')), 'giao kèm Hồ ly đen');
-    assert.deepEqual(B.normalizeConfig({ haucanh: { tplV: 1, items: [{ id: 'hct_holy', name: 'Hồ ly trắng' }] } }).haucanh.items.map(x => x.id), ['hct_holy', 'hct_holyden']);
-    assert.deepEqual(B.normalizeConfig({ haucanh: { tplV: 1, items: [{ id: 'hc1', name: 'Hiệu ứng 1', file: '/media/179-9_duoi_den.webm' }] } }).haucanh.items.map(x => x.id), ['hc1'], 'máy dev đã có (cùng nguồn file)');
-    assert.ok(B.hcSampleOf({ name: 'Hiệu ứng 1', file: '/media/179-9_duoi_den.webm' }) && !B.hcSampleOf({ name: 'Khác', file: '/media/a.webm' }));
-    // máy cũ qua lib/body-server.js normalizeConfig vẫn được gieo
-    assert.ok(require('../lib/body-server.js').normalizeConfig({ haucanh: { items: [] } }).haucanh.items.some(x => x.id === 'hct_holy'));
+    assert.equal(d.haucanh.items.length, 0, 'máy mới: không có Hậu Cảnh mẫu');
+    for (const f of ['ho-ly-trang.webm', 'ho-ly-den.webm', 'canh-hoa-dao.webm']) assert.ok(!fs.existsSync(path.join(__dirname, '../public/games/body/samples', f)), 'đã bỏ ' + f);
+    const old = B.normalizeConfig({ haucanh: { tplV: 2, items: [{ id: 'hct_holy', name: 'Hồ ly trắng' }, { id: 'mine', name: 'Pháo', file: '/media/x.webm' }, { id: 'hct_holyden', name: 'Hồ ly đen' }] } });
+    assert.deepEqual(old.haucanh.items.map(x => x.id), ['mine'], 'gỡ 2 mẫu hồ ly đã gieo, giữ game của streamer');
+    assert.deepEqual(B.normalizeConfig(old).haucanh.items.map(x => x.id), ['mine'], 'chạy lại không đổi');
+    assert.ok(!require('../lib/body-server.js').normalizeConfig({ haucanh: { items: [] } }).haucanh.items.length);
     // overlay OBS không nạp sẵn video Hậu Cảnh CHƯA gắn quà
     const ov = fs.readFileSync(path.join(__dirname, '../public/games/body/overlay.html'), 'utf8');
     assert.ok(ov.includes('for (const it of cfg.haucanh.items) if (forProfile(it, p) && (isReview || (it.gifts && it.gifts.length)))'));
@@ -384,7 +373,7 @@ test('🧍 quà mẫu Bộ Tách Người (lib/body-gift-seed.json): CHỈ máy 
     assert.equal(hasOwnGifts(own), true);
     assert.deepEqual(applyBodyGiftSeed(own, seed), []);
     assert.deepEqual([own.roiho.scripts[0].gifts.map(g => g.giftId), own.catch.scripts[0].gifts.length, own.giftSeedV], [['9'], 0, 3]);
-    const hc = B.normalizeConfig({}); hc.haucanh.items[0].gifts = [{ giftId: '8' }];
+    const hc = B.normalizeConfig({ haucanh: { items: [{ id: 'h', name: 'Nền', file: '/media/a.webm', gifts: [{ giftId: '8' }] }] } });
     assert.equal(hasOwnGifts(hc), true);                                                       // quà ở 🦊 Hậu Cảnh cũng tính
     // máy mới: chỉ có 💗 Heart Me mặc định → coi như chưa gắn; gieo theo LOẠI (mã game khác vẫn khớp theo kiểu)
     const body = B.normalizeConfig({});
