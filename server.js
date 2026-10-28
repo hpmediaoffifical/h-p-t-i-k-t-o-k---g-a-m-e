@@ -2064,6 +2064,12 @@ if (appConfig.games.chemtraicay) {
 // Đập Muỗi: chuẩn hoá config cũ (khoá thiếu/rác → mặc định, actions/giftRules đúng dạng).
 if (appConfig.games.dapmuoi) appConfig.games.dapmuoi = DapMuoi.normalizeConfig(appConfig.games.dapmuoi);
 if (appConfig.games.dacau) appConfig.games.dacau = DaCau.normalizeConfig(appConfig.games.dacau);
+// 🎥 Bộ quà mẫu Game Camera (lib/camgames-gift-seed.js): một lần, chỉ điền game còn trống quà.
+try {
+    const seeded = require('./lib/camgames-gift-seed').applyGiftSeed(appConfig.games,
+        id => GAMES[id] ? JSON.parse(JSON.stringify(GAMES[id].defaultConfig)) : null);
+    if (seeded.length) { console.log('[camgames] gieo quà mẫu:', seeded.join(', ')); saveAppConfig(); }
+} catch (e) { console.warn('[camgames] gieo quà mẫu lỗi:', e?.message || e); }
 if (camGamesApplyActive()) saveAppConfig();
 // Bản 906d73c..4c68a00 lỡ để hub ghi enabled=false cho Level Quest → bật lại lúc khởi động. Level Quest không đọc cờ
 // này (chỉ Khởi động nhanh hiển thị) nên luôn để bật là đúng sự thật.

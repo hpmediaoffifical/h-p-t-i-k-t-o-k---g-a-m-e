@@ -1,0 +1,383 @@
+{
+  "v": 1,
+  "force": false,
+  "trigger": {
+    "enabled": true,
+    "introSec": 3,
+    "rules": [
+      {
+        "giftId": "6267",
+        "giftName": "Corgi",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/148eef0884fdb12058d1c6897d1e02b9~tplv-obj.webp",
+        "gameId": "touchplay",
+        "seconds": 300,
+        "queueMode": "next",
+        "enabled": true
+      },
+      {
+        "giftId": "6007",
+        "giftName": "Boxing Gloves",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/9f8bd92363c400c284179f6719b6ba9c~tplv-obj.webp",
+        "gameId": "chemtraicay",
+        "seconds": 300,
+        "queueMode": "next",
+        "enabled": true
+      },
+      {
+        "giftId": "9465",
+        "giftName": "Fruit Friends",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/1153dd51308c556cb4fcc48c7d62209f.png~tplv-obj.webp",
+        "gameId": "dapmuoi",
+        "seconds": 300,
+        "queueMode": "next",
+        "enabled": true
+      },
+      {
+        "giftId": "7168",
+        "giftName": "Money Gun",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/e0589e95a2b41970f0f30f6202f5fce6~tplv-obj.webp",
+        "gameId": "bancung",
+        "seconds": 300,
+        "queueMode": "next",
+        "enabled": true
+      },
+      {
+        "giftId": "11808",
+        "giftName": "Rock Star",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/57acaf0590c56c219493b71fe8d2961d.png~tplv-obj.webp",
+        "gameId": "dacau",
+        "seconds": 300,
+        "queueMode": "next",
+        "enabled": true
+      }
+    ]
+  },
+  "camDisplay": {
+    "giftsXPercent": 6,
+    "giftsYPercent": 48,
+    "giftsScale": 55
+  },
+  "chemtraicay": [
+    {
+      "giftId": "5487",
+      "giftName": "Finger Heart",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/a4c4dc437fd3a6632aba149769491f49.png~tplv-obj.webp",
+      "action": "apple",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "7412",
+      "giftName": "Ice cream",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/a40b91f7a11d4cbce780989e2d20a1f4~tplv-obj.webp",
+      "action": "orange",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "919386",
+      "giftName": "Love in Scent",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/374430f1a9035c2f78ab0f918bf5df40.png~tplv-obj.webp",
+      "action": "lemon",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "19445",
+      "giftName": "Name shoutout",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/9b1d432109c95e77e8de11dd442c0a1f.png~tplv-obj.webp",
+      "action": "pear",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "8635",
+      "giftName": "Okay",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/0573114db41d2cf9c7dd70c8b0fab38e.png~tplv-obj.webp",
+      "action": "peach",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "19447",
+      "giftName": "Overreact",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/dfd48ef1952b6d315856adda7705d02d.png~tplv-obj.webp",
+      "action": "strawberry",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "10961",
+      "giftName": "Peach",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/ff861a220649506452e3dc35c58266ea.png~tplv-obj.webp",
+      "action": "pineapple",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "10138",
+      "giftName": "Drip Brewing",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/3c5e5fc699ed9bee71e79cc90bc5ab37.png~tplv-obj.webp",
+      "action": "pineapple",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "8825",
+      "giftName": "Lucky Pig",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/d53125bd5416e6f2f6ab61da02ddd302.png~tplv-obj.webp",
+      "action": "kiwi",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "8913",
+      "giftName": "Rosa",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eb77ead5c3abb6da6034d3cf6cfeb438~tplv-obj.webp",
+      "action": "bomb",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "19443",
+      "giftName": "Bravo!",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/075e206d6da035f10ff5f8fecd82abcc.png~tplv-obj.webp",
+      "action": "watermelon",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "17465",
+      "giftName": "little kisses",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/0a5db92508ee667339289b2f87bc3123.png~tplv-obj.webp",
+      "action": "fxbomb",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "1354581",
+      "giftName": "Mushroom",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/b48dd927cf3deb1a2012a1c3082ac9fb.png~tplv-obj.webp",
+      "action": "god",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "5879",
+      "giftName": "Doughnut",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp",
+      "action": "fast",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "17044",
+      "giftName": "Takoyaki",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/b0d9f32b9d4c04afbb0267dcb5b576fa.png~tplv-obj.webp",
+      "action": "slow",
+      "count": 1,
+      "enabled": true
+    },
+    {
+      "giftId": "17666",
+      "giftName": "Family",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/8821932e2d3fe78e9af0bcf785ca1759.png~tplv-obj.webp",
+      "action": "rescue",
+      "count": 1,
+      "enabled": true
+    }
+  ],
+  "dapmuoi": {
+    "actions": [
+      {
+        "id": "act-release",
+        "type": "release",
+        "icon": "🦟",
+        "name": "Thả muỗi",
+        "enabled": true,
+        "giftId": "5655",
+        "giftName": "Rose",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eba3a9bb85c33e017f3648eaf88d7189~tplv-obj.webp",
+        "diamond": 1,
+        "hotkey": "",
+        "params": {
+          "count": 1
+        }
+      },
+      {
+        "id": "act-spray",
+        "type": "spray",
+        "icon": "🧴",
+        "name": "Bình xịt",
+        "enabled": true,
+        "giftId": "5879",
+        "giftName": "Doughnut",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp",
+        "diamond": 30,
+        "hotkey": "",
+        "params": {
+          "radius": 600,
+          "ms": 2500,
+          "count": 20,
+          "percent": 0
+        }
+      },
+      {
+        "id": "act-racket",
+        "type": "racket",
+        "icon": "🏸",
+        "name": "Vợt điện",
+        "enabled": true,
+        "giftId": "17044",
+        "giftName": "Takoyaki",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/b0d9f32b9d4c04afbb0267dcb5b576fa.png~tplv-obj.webp",
+        "diamond": 88,
+        "hotkey": "",
+        "params": {
+          "seconds": 10
+        }
+      },
+      {
+        "id": "act-net",
+        "type": "net",
+        "icon": "🛏",
+        "name": "Mắc màn",
+        "enabled": true,
+        "giftId": "19443",
+        "giftName": "Bravo!",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/075e206d6da035f10ff5f8fecd82abcc.png~tplv-obj.webp",
+        "diamond": 15,
+        "hotkey": "",
+        "params": {
+          "seconds": 5
+        }
+      },
+      {
+        "id": "act-cream",
+        "type": "cream",
+        "icon": "🛏",
+        "name": "Kem chống muỗi",
+        "enabled": true,
+        "giftId": "5658",
+        "giftName": "Perfume",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/20b8f61246c7b6032777bb81bf4ee055~tplv-obj.webp",
+        "diamond": 20,
+        "hotkey": "",
+        "params": {
+          "seconds": 5
+        }
+      },
+      {
+        "id": "act-5-1792174842124",
+        "type": "boss",
+        "icon": "👑",
+        "name": "Muỗi Chúa",
+        "enabled": true,
+        "giftId": "5585",
+        "giftName": "Confetti",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/cb4e11b3834e149f08e1cdcc93870b26~tplv-obj.webp",
+        "diamond": 100,
+        "hotkey": "",
+        "params": {
+          "count": 1,
+          "hp": 3,
+          "fleeSec": 300,
+          "size": 110
+        }
+      },
+      {
+        "id": "act-36-1792839192910",
+        "type": "release",
+        "icon": "🦟",
+        "name": "Thả muỗi",
+        "enabled": true,
+        "giftId": "19445",
+        "giftName": "Name shoutout",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/9b1d432109c95e77e8de11dd442c0a1f.png~tplv-obj.webp",
+        "diamond": 5,
+        "hotkey": "",
+        "params": {
+          "count": 5
+        }
+      }
+    ],
+    "giftRules": []
+  },
+  "bancung": {
+    "shotGifts": [
+      {
+        "giftId": "5655",
+        "giftName": "Rose",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eba3a9bb85c33e017f3648eaf88d7189~tplv-obj.webp",
+        "shots": 1,
+        "customLabel": "x1"
+      },
+      {
+        "giftId": "8635",
+        "giftName": "Okay",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/0573114db41d2cf9c7dd70c8b0fab38e.png~tplv-obj.webp",
+        "shots": 5,
+        "customLabel": "X5"
+      },
+      {
+        "giftId": "17465",
+        "giftName": "little kisses",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/0a5db92508ee667339289b2f87bc3123.png~tplv-obj.webp",
+        "shots": 20,
+        "customLabel": "x20"
+      }
+    ],
+    "healGifts": [
+      {
+        "giftId": "9875",
+        "giftName": "Shamrock",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/312f721603de550519983ca22f5cc445.png~tplv-obj.webp",
+        "healHearts": 2,
+        "customLabel": "Hồi máu"
+      }
+    ],
+    "reviveGifts": [
+      {
+        "giftId": "13087",
+        "giftName": "Bubble Gum",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/52ebbe9f3f53b5567ad11ad6f8303c58.png~tplv-obj.webp",
+        "customLabel": "Hồi sinh"
+      }
+    ],
+    "shieldGifts": [
+      {
+        "giftId": "5879",
+        "giftName": "Doughnut",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp",
+        "durationSec": 5,
+        "customLabel": "Bảo vệ"
+      }
+    ]
+  },
+  "dacau": [
+    {
+      "giftId": "231958",
+      "giftName": "Mind Blown",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/3f230e969ca578becbee3709fee859be.png~tplv-obj.webp",
+      "ball": "normal"
+    },
+    {
+      "giftId": "5658",
+      "giftName": "Perfume",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/20b8f61246c7b6032777bb81bf4ee055~tplv-obj.webp",
+      "ball": "gold"
+    },
+    {
+      "giftId": "5879",
+      "giftName": "Doughnut",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp",
+      "ball": "big"
+    },
+    {
+      "giftId": "17044",
+      "giftName": "Takoyaki",
+      "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/b0d9f32b9d4c04afbb0267dcb5b576fa.png~tplv-obj.webp",
+      "ball": "fire"
+    }
+  ]
+}
