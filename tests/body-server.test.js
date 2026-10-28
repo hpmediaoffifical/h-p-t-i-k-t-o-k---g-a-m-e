@@ -39,11 +39,12 @@ function harness({ config, enabled = true, trusted = true } = {}) {
 }
 const gift = (o = {}) => ({ uniqueId: 'an', nickname: 'An', profilePicture: '', giftId: '5655', giftName: 'Rose', giftImage: '', coinValue: 1, repeatCount: 1, source: 'tiktok', ...o });
 
-test('cấu hình: MỘT hồ sơ "Mọi NPC", kịch bản không gắn hồ sơ, KHÔNG tự gắn quà mẫu (theo NPC be67192); cài là ghi lại bản chuẩn', () => {
+test('cấu hình: MỘT hồ sơ "Mọi NPC", kịch bản không gắn hồ sơ, quà mẫu chỉ máy chưa gắn quà; cài là ghi lại bản chuẩn', () => {
     const d = BS.defaultConfig();
     assert.equal(d.profiles.length, 1);
     assert.equal(d.profiles[0].groupId, '');
-    assert.equal(d.roiho.scripts[0].gifts.length, 0, 'máy mới: game chưa gắn quà (quà mẫu trùng quà game khác)');
+    assert.ok(d.giftSeedV >= 1);
+    assert.ok(d.roiho.scripts[0].gifts.length > 0, 'máy mới nhận quà mẫu');
     const many = BS.normalizeConfig({ profiles: [{ id: 'a', groupId: 'g1', scale: 70 }, { id: 'b' }], roiho: { scripts: [{ id: 'k', profileId: 'b', gifts: [{ giftId: '1' }] }] } });
     assert.deepEqual(many.profiles.map(p => [p.id, p.groupId, p.scale]), [['a', '', 70]]);
     assert.equal(many.roiho.scripts[0].profileId, '');
@@ -57,17 +58,16 @@ test('cấu hình: MỘT hồ sơ "Mọi NPC", kịch bản không gắn hồ s�
     assert.ok(BS.explicitGifts(d).some(g => g.giftId === '7934'), 'explicitGifts có Heart Me');
 });
 
-test('quà → chạy NGAY: Hậu Cảnh body:play + hành động body:run (tặng bao nhiêu chạy bấy nhiêu); game tắt / không chọn chơi → im', () => {
+test('quà → chạy NGAY: Hậu Cảnh body:play + hành động body:run (combo theo trần); game tắt / không chọn chơi → im', () => {
     const c = BS.normalizeConfig({ comboMax: 3, haucanh: { comboMax: 2, items: [{ id: 'h1', name: 'Nền', file: '/media/a.webm', gifts: [{ giftId: '5655' }] }] },
         roiho: { scripts: [{ id: 'k1', gifts: [{ giftId: '5655' }] }] }, biduoi: { scripts: [{ id: 'b1', videos: [{ file: '/media/x.mp4' }], gifts: [{ giftId: '5655' }] }] } });
     const h = harness({ config: c });
     const out = h.api.handleGift(gift({ repeatCount: 9 }));
-    assert.deepEqual(out.map(x => [x.kind, x.id, x.qty, x.ok]), [['haucanh', 'h1', 9, true], ['roiho', 'k1', 9, true], ['biduoi', 'b1', 9, true]]);
+    assert.deepEqual(out.map(x => [x.kind, x.id, x.qty, x.ok]), [['haucanh', 'h1', 2, true], ['roiho', 'k1', 3, true], ['biduoi', 'b1', 3, true]]);
     const play = h.sent.find(([e]) => e === 'body:play')[1];
-    assert.deepEqual([play.itemId, play.qty, play.nickname, play.profileId], ['h1', 9, 'An', h.cfg().profiles[0].id]);
+    assert.deepEqual([play.itemId, play.qty, play.nickname, play.profileId], ['h1', 2, 'An', h.cfg().profiles[0].id]);
     const runs = h.sent.filter(([e]) => e === 'body:run').map(([, d]) => d);
-    assert.deepEqual(runs.map(r => [r.kind, r.scriptId, r.videoIdx, r.qty]), [['roiho', 'k1', -1, 9], ['biduoi', 'b1', 0, 9]]);
-    assert.equal(h.api.handleGift(gift({ repeatCount: 5000 }))[0].qty, 999, 'trần an toàn 999 lượt');
+    assert.deepEqual(runs.map(r => [r.kind, r.scriptId, r.videoIdx, r.qty]), [['roiho', 'k1', -1, 3], ['biduoi', 'b1', 0, 3]]);
     assert.equal(runs.some(r => r.rowId), false, 'không có mã hàng Danh sách hiệu ứng');
     assert.deepEqual(h.api.handleGift(gift({ giftId: '999' })), []);
     const off = harness({ config: { ...c, enabled: false } });

@@ -2103,7 +2103,10 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             </div>
             <div class="ctc-card">
                 <h3>${hpT('HÀNG CHỜ')}</h3>
-                <div class="hint">${hpT('Tặng bao nhiêu chạy bấy nhiêu: tặng 1 lần = 1 lượt, combo ×12 = 12 lượt nối nhau - quà lớn hay bé như nhau, không bỏ quà khi hàng dài.')}</div>
+                ${row('q:comboMax', hpT('Combo 🕳️ / 🏃 tối đa'), 1, 10, 1, cfg.comboMax, hpT('lượt'), hpT('Quà combo ×N = N lượt nối nhau, tối đa bấy nhiêu'))}
+                ${row('q:queueMax', hpT('Hàng chờ 🕳️ / 🏃'), 1, 30, 1, cfg.queueMax, hpT('lượt'), hpT('Rơi Hố và Bị Đuổi cùng vẽ lại người → xếp chung một hàng, lượt một'))}
+                ${row('q:hc:comboMax', hpT('Combo 🦊 tối đa'), 1, 10, 1, cfg.haucanh.comboMax, hpT('lượt'))}
+                ${row('q:hc:queueMax', hpT('Hàng chờ 🦊'), 1, 30, 1, cfg.haucanh.queueMax, hpT('lượt'), hpT('Hậu Cảnh có hàng riêng - chạy song song với Rơi Hố / Bị Đuổi'))}
             </div>`;
     }
     function bindMatte() {
