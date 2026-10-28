@@ -15,6 +15,7 @@
 
 import { createFly } from './fx-morph-fly.mjs';
 import { createMore } from './fx-morph-more.mjs';
+import { drawLogo } from './hp-brand.mjs';
 
 export function createMorph(env) {
     const { ctx, W, H } = env;
@@ -1072,6 +1073,7 @@ export function createMorph(env) {
             ctx.fillStyle = gx; ctx.beginPath(); ctx.ellipse(x, y + h * 0.5, w, h * 0.72, 0, 0, TAU); ctx.fill();
             ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.ellipse(x, y + h * 0.95, w * 0.95, h * 0.2, 0, 0, Math.PI); ctx.fill();
         }
+        drawLogo(ctx, x, my - bellH * 0.5, Math.min(hw * 0.85, bellH * 0.66));    // 🅷 logo hp trên miệng loe ống hút
         ctx.fillStyle = '#050506'; ctx.beginPath(); ctx.ellipse(x, my, mw * 0.9, bellH * 0.16, 0, 0, TAU); ctx.fill();
         ctx.strokeStyle = 'rgba(160,162,170,.55)'; ctx.lineWidth = Math.max(2, hw * 0.05);
         ctx.beginPath(); ctx.ellipse(x, my, mw * 0.93, bellH * 0.18, 0, 0, Math.PI); ctx.stroke();

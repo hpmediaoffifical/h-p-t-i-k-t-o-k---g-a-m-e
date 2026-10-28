@@ -11,9 +11,11 @@
  * env: như fx-roiho.mjs (ctx, W, H, view, person, backdrop, media, playOnce, drawAt, sfx, sfxOn, cfg). */
 
 import { packedLayout } from './alpha-pack.mjs';
+import { hpLogo, drawLogo } from './hp-brand.mjs';
 
 export function createCatch(env) {
     const { ctx, W, H } = env;
+    hpLogo();                                      // 🅷 nạp sẵn logo hp (nút giữa cầu mặc định)
     const TAU = Math.PI * 2;
     const FULL = { x: 0, y: 0, w: W, h: H };
     const viewNow = () => (env.view && env.view()) || FULL;
@@ -111,6 +113,7 @@ export function createCatch(env) {
                 ctx.fillStyle = gb; ctx.beginPath(); ctx.arc(0, 0, br * 0.64, 0, TAU); ctx.fill();
                 ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = Math.max(1, br * 0.06);
                 ctx.beginPath(); ctx.arc(0, 0, br * 0.4, 0, TAU); ctx.stroke();
+                drawLogo(ctx, 0, 0, br * 0.9, { round: true });                // 🅷 logo hp giữa nút cầu (cầu mặc định)
             }
             if (glow > 0) {
                 ctx.globalCompositeOperation = 'lighter';
