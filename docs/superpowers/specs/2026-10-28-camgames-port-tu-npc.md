@@ -48,7 +48,24 @@ overlay vào Scene, ẩn cam trong Group OBS (`hp-cam-hide`), vùng nhìn thấy
    P3 Bắt NPC → P4 Khóc Lóc + Bắn Tim → P5 Biến Hình. Lấy theo commit NPC `1e884fe` (working tree NPC có 6 kiểu Biến Hình
    dở dang, thiếu `fx-morph-more.mjs`).
 
-## Việc cần user quyết
-- Muỗi Chúa: giữ spec "skin" của mình hay theo boss có thanh máu của NPC.
-- Kích thước muỗi `BASE_SIZE` 150 (mình) hay 100 (NPC).
-- Đốt toàn thân (70 % vào mặt, còn lại bụng/hông/bắp tay).
+## Quyết định của user (28/10/2026)
+- 👑 Muỗi Chúa: **boss như NPC** (thanh máu + đồng hồ, cánh vàng theo spec 2026-10-17 — NPC đã làm sẵn). WIP Muỗi Chúa "skin"
+  chưa commit ở nhánh chính thành thừa: bản trên nhánh port đã gồm cánh vàng.
+- Đập Muỗi: lấy **đốt toàn thân** + **muỗi cỡ 100**; KHÔNG lấy nhịp chích dồn dập (giữ 20 s / 3 s / 3 con / 12 nốt).
+- Bộ Tách Người: **đưa hết ~72 MB video mẫu** vào bản cài.
+- Quà mẫu: **chỉ máy chưa gắn quà** (không ép như NPC).
+
+## Tiến độ (nhánh feature/camgames-npc-port)
+| Hạng mục | Trạng thái |
+|---|---|
+| Hạ tầng client (libs, frame-guard, i18n tối giản, createCamView) | ✅ 1938bd6 |
+| 🏸 Đá Cầu | ✅ 1938bd6 (chưa có 💥 Rổ PHẠT — cần thư viện hiệu ứng) |
+| 🎮 Phiên game theo quà + overlay mẹ bản NPC | ✅ 35a56b5 |
+| 🏹 Bắn Cung / 🍉 Chém Trái Cây / 🎯 Level Quest | ✅ 35a56b5 |
+| 🖐 Touch & Play | ✅ 7e883a8 |
+| 🦟 Đập Muỗi (boss, đốt toàn thân) | ✅ 948381c |
+| Quà mẫu | ✅ e9e7c43 |
+| 📷 Tự nhận camera | ✅ a46b814 |
+| 🧍 Bộ Tách Người | đang làm |
+| ＋ Thêm nhanh overlay vào Scene OBS, ẩn cam trong Group, cảnh báo Scene đang phát thiếu overlay | chưa — ghi vào Scene OBS, cần thử với OBS thật |
+| 💥 Rổ hiệu ứng (bom hiệu ứng Chém Trái Cây, phạt Đá Cầu, vé Muỗi Chúa) | chưa — app chưa có Thư viện hiệu ứng Douyin/TikTok Studio |
