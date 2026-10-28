@@ -82,6 +82,21 @@
         renderGrid();
     }
 
+    // 🖼 Ảnh bìa hoạt hình 2.5D/3D (bộ của HP LIVE NPC) thay icon: public/games/camgames/thumb/<id game>.webp (270×480).
+    // Nạp xong mới thay icon (.has-art); thiếu file thì giữ icon như cũ, nhớ URL lỗi để vẽ lại lưới không hỏi lại server.
+    const artBad = new Set();
+    const artUrl = id => { const u = '/games/camgames/thumb/' + encodeURIComponent(id) + '.webp'; return artBad.has(u) ? '' : u; };
+    const artImg = id => (artUrl(id) ? `<img class="cg-art" src="${esc(artUrl(id))}" alt="" decoding="async">` : '');
+    function bindArt(root) {
+        root.querySelectorAll('img.cg-art').forEach(im => {
+            const card = im.closest('.cg-game');
+            const ok = () => card && card.classList.add('has-art');
+            const bad = () => { artBad.add(im.getAttribute('src')); im.remove(); };
+            if (im.complete) { if (im.naturalWidth) ok(); else bad(); return; }
+            im.addEventListener('load', ok, { once: true });
+            im.addEventListener('error', bad, { once: true });
+        });
+    }
     function renderGrid() {
         const grid = $('#cg-grid');
         if (!grid) return;
@@ -91,7 +106,7 @@
             const on = now.includes(g.id);
             if (locked.has(g.id)) {
                 const paused = lstates[g.id] === 'off';
-                return `<div class="cg-game" data-id="${esc(g.id)}" style="opacity:.55">
+                return `<div class="cg-game" data-id="${esc(g.id)}" style="opacity:.55">${artImg(g.id)}
                 <div class="cg-game-head"><span class="cg-ico">${g.iconSvg || g.icon}</span><b>${esc(g.name)}</b>
                     ${paused ? '<span class="cg-badge" title="HP Media sẽ mở lại sớm">⏸ TẠM BẢO TRÌ</span>'
                         : '<span class="cg-badge" title="Liên hệ HP Media để mở thêm tính năng này cho KEY">🔒 KEY CHƯA MỞ</span>'}</div>
@@ -106,7 +121,7 @@
             const partners = canWith ? withList.filter(x => x !== g.id).map(nameOf).join(' + ') : '';
             const replaced = canWith ? cur.filter(x => !withList.includes(x)).map(nameOf).join(', ') : '';
             const withTitle = canWith ? `Chơi cùng lúc với ${partners}${replaced ? ' (thay ' + replaced + ' — cùng khe ' + (g.slot === 'head' ? 'trên đầu' : 'dùng tay') + ')' : ''}` : '';
-            return `<div class="cg-game ${on ? 'on' : ''}" data-id="${esc(g.id)}">
+            return `<div class="cg-game ${on ? 'on' : ''}" data-id="${esc(g.id)}">${artImg(g.id)}
                 <div class="cg-game-head"><span class="cg-ico">${g.iconSvg || g.icon}</span><b>${esc(g.name)}</b>
                     ${lstates[g.id] === 'admin' ? '<span class="cg-badge" title="Thử nghiệm — mới mở cho một số KEY dùng thử">🧪 THỬ NGHIỆM</span>' : ''}
                     ${on ? '<span class="cg-badge">● ĐANG CHƠI TRÊN OBS</span>' : ''}
@@ -125,6 +140,7 @@
                 </div>
             </div>`;
         }).join('') + bodySection();
+        bindArt(grid);
         bindBody();
         grid.querySelectorAll('[data-play]').forEach(b => b.addEventListener('click', () => save({ active: b.dataset.play, enabled: true })));
         // Bấm vào game nào thì game đó giữ phím tắt (chơi kèm / ⚙ Cài đặt / ⌨ Nhận phím tắt).

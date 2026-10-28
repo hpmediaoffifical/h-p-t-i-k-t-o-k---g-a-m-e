@@ -9645,3 +9645,10 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .cg-power { border: 1px solid #3a4254; background: #1b2030; color: #cdd3e0; border-radius: 99px; padding: 4px 12px; font-weight: 700; cursor: pointer; font-size: 12px; }
 .cg-power.on { border-color: #25f4ee; color: #25f4ee; background: rgba(37, 244, 238, .08); }
 .cg-body-grid.off { opacity: .55; }
+
+/* 🖼 ảnh bìa game camera (camgames-panel.js artImg): khung dọc 9:16 bên trái thẻ, thay icon emoji khi nạp xong */
+.cg-game { position: relative; }
+.cg-game .cg-art { display: none; }
+.cg-game.has-art { padding-left: 104px; min-height: 160px; }
+.cg-game.has-art .cg-art { display: block; position: absolute; left: 12px; top: 12px; width: 80px; height: 142px; object-fit: cover; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+.cg-game.has-art .cg-ico { display: none; }
