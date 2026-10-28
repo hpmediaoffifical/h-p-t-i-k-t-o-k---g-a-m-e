@@ -68,9 +68,9 @@
                     <button class="ghost small" id="cg-refresh" title="Tải lại danh sách nguồn">🔄</button>
                 </div>
                 <details class="cg-howto">
-                    <summary>ⓘ Cách dùng — 1 link OBS cho mọi game, chơi 2 game cùng lúc</summary>
+                    <summary>ⓘ Cách dùng — 1 link OBS cho mọi game, chơi tối đa 4 game cùng lúc</summary>
                 <div class="hint">Trong OBS chỉ cần <b>một Browser Source</b> 1080×1920 với link <b>📋 Link OBS</b> ở trên, đặt <b>phía trên</b> nguồn camera và phủ kín khung hình. Đổi game ở dưới thì OBS đổi theo, không phải sửa scene. Cần kết nối OBS WebSocket ở mục <b>Hiệu ứng OBS</b>.</div>
-                <div class="hint"><b>Chơi cùng lúc:</b> bấm <b>＋ Chơi kèm</b> để ghép <b>1 game dùng tay</b> (Touch &amp; Play / Chém Trái Cây / Đập Muỗi) với <b>1 game trên đầu</b> (Bắn Cung / Level Quest) và <b>Đá Cầu</b> — tối đa 1 game mỗi loại. Hai game dùng chung một lần nhận diện nên máy không nặng gấp đôi. Quà đã gán riêng cho game nào thì chỉ game đó nhận; quà chưa gán ở đâu mới vào game nhận mọi quà.</div>
+                <div class="hint"><b>Chơi cùng lúc:</b> bấm <b>＋ Chơi kèm</b> để ghép <b>1 game dùng tay</b> (Touch &amp; Play / Chém Trái Cây / Đập Muỗi) với <b>1 game trên đầu</b> (Bắn Cung / Level Quest) , <b>Đá Cầu</b> và <b>Bộ Tách Người</b> — tối đa 1 game mỗi loại. Hai game dùng chung một lần nhận diện nên máy không nặng gấp đôi. Quà đã gán riêng cho game nào thì chỉ game đó nhận; quà chưa gán ở đâu mới vào game nhận mọi quà.</div>
                 </details>
                 <div class="cg-status" id="cg-overlap"></div>
             </div>
