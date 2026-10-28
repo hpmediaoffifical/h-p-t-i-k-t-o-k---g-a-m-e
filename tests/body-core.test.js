@@ -290,38 +290,55 @@ test('🖐 Tát bay: bộ ảnh bàn tay nhiều góc giao kèm có đủ file +
     assert.deepEqual(B.morphMediaFiles(B.makeMorph({ style: 'ice' })), []);
 });
 
-test('✨ Biến Hình: kind "morph" (hàng hành động) - 7 game mẫu chưa gắn quà, kẹp số, mốc lượt, quà → lượt morph, máy cũ nhận mẫu', () => {
+test('✨ Biến Hình: kind "morph" (hàng hành động) - 13 game mẫu chưa gắn quà, kẹp số, mốc lượt, quà → lượt morph, máy cũ nhận mẫu', () => {
     const d = B.defaultConfig();
     assert.ok(B.ACTION_KINDS.includes('morph') && B.KINDS.includes('morph'));
     assert.equal(d.morph.bgMode, 'room');
-    assert.deepEqual(d.morph.scripts.map(s => s.id), ['mot_ice', 'mot_pixel', 'mot_zap', 'mot_vacuum', 'mot_bees', 'mot_slap', 'mot_fly']);
+    const NEW4 = ['ghost', 'clone', 'melt', 'balloon', 'lipo', 'phone', 'anime'];
+    assert.deepEqual(d.morph.scripts.map(s => s.id), ['mot_ice', 'mot_pixel', 'mot_zap', 'mot_vacuum', 'mot_bees', 'mot_slap', 'mot_fly', ...NEW4.map(x => 'mot_' + x)]);
     // máy đã có 5 game ✨ đợt đầu (chưa cờ tplV) → nhận thêm 🖐 + 🐉 một lần; đợt 2 (có 🖐) chỉ nhận 🐉; đã có cờ mới thì không gieo lại
-    const old5 = d.morph.scripts.filter(s => s.style !== 'slap' && s.style !== 'fly');
-    assert.deepEqual(B.normalizeConfig({ morph: { scripts: old5 } }).morph.scripts.slice(5).map(s => s.style), ['slap', 'fly']);
-    assert.deepEqual(B.normalizeConfig({ morph: { tplV: 2, scripts: old5 } }).morph.scripts.slice(5).map(s => s.style), ['fly']);
+    const old5 = d.morph.scripts.slice(0, 5);
+    assert.deepEqual(B.normalizeConfig({ morph: { scripts: old5 } }).morph.scripts.slice(5).map(s => s.style), ['slap', 'fly', ...NEW4]);
+    assert.deepEqual(B.normalizeConfig({ morph: { tplV: 2, scripts: old5 } }).morph.scripts.slice(5).map(s => s.style), ['fly', ...NEW4]);
+    assert.deepEqual(B.normalizeConfig({ morph: { tplV: 3, scripts: d.morph.scripts.slice(0, 7) } }).morph.scripts.slice(7).map(s => s.style), NEW4);   // đợt 4 (2026-10-28)
+    assert.deepEqual(B.normalizeConfig({ morph: { tplV: 4, scripts: d.morph.scripts.filter(s => s.style !== 'lipo') } }).morph.scripts.slice(13).map(s => s.style), ['lipo']);   // đợt 5 = 💉
     assert.ok(!B.normalizeConfig({ morph: { tplV: B.MORPH_TPL_V, scripts: old5 } }).morph.scripts.some(s => s.style === 'slap' || s.style === 'fly'));
     assert.ok(d.morph.scripts.every(s => !s.gifts.length && !s.profileId && s.queueMode === 'next'));
     // máy cũ (không có nhánh morph) nhận đủ 7 mẫu; xoá hết = giữ rỗng (đợt mẫu mới vẫn gieo một lần)
-    assert.equal(B.normalizeConfig({ roiho: { scripts: [] } }).morph.scripts.length, 7);
-    assert.deepEqual(B.normalizeConfig({ morph: { scripts: [] } }).morph.scripts.map(s => s.style), ['slap', 'fly']);
+    assert.equal(B.normalizeConfig({ roiho: { scripts: [] } }).morph.scripts.length, 14);
+    assert.deepEqual(B.normalizeConfig({ morph: { scripts: [] } }).morph.scripts.map(s => s.style), ['slap', 'fly', ...NEW4]);
     assert.equal(B.normalizeConfig({ morph: { tplV: B.MORPH_TPL_V, scripts: [] } }).morph.scripts.length, 0);
     const n = B.normalizeMorph({ style: 'x', durSec: 1, power: 9, color: 'xanh' }, 0);
     assert.deepEqual([n.style, n.durSec, n.power, n.color], ['ice', B.MORPH_MIN.ice, 3, B.MORPH_COLOR.ice]);
     // mốc: mọi kiểu kết thúc đúng durSec, các pha nối tiếp nhau kể cả ở thời lượng tối thiểu
     for (const st of B.MORPH_STYLES) for (const dur of [B.MORPH_MIN[st], B.MORPH_DUR[st], 20]) {
         const P = B.morphPlan(B.normalizeMorph({ style: st, durSec: dur }, 0));
-        if (st === 'bees' || st === 'fly') assert.equal(P.end, Math.round(dur * 1000), st + ' end');      // 🧊 👾 🌀 dài theo waitSec, ⚡ 🖐 theo power
+        if (['bees', 'fly', 'ghost', 'clone', 'balloon', 'lipo', 'phone', 'anime'].includes(st)) assert.equal(P.end, Math.round(dur * 1000), st + ' end');      // 🧊 👾 🌀 dài theo waitSec, ⚡ 🖐 theo power
         const seq = st === 'ice' ? [P.freezeA, P.freezeB, P.crack, P.shatter, P.reform, P.end]
             : st === 'pixel' ? [P.pixA, P.pixB, P.fall, P.rebuild, P.rebuildB, P.end]
             : st === 'zap' ? [P.cloudB, ...P.strikes, P.drop, P.leave, P.end]
             : st === 'vacuum' ? [P.drop, P.down, P.suckB, P.gone, P.upA, P.upB, P.lowA, P.lowB, P.spit, P.land, P.back, P.backB, P.end]
             : st === 'slap' ? [...P.hits, P.backA, P.land, P.end]
-            : st === 'fly' ? [P.sceneB, P.hide, P.riseA, P.riseB, P.actB, P.land, P.end] : [P.drop, P.land, P.leave, P.end];
+            : st === 'fly' ? [P.sceneB, P.hide, P.riseA, P.riseB, P.actB, P.land, P.end]
+            : st === 'ghost' ? [P.out, P.outB, P.back, P.snap, P.end]
+            : st === 'clone' ? [P.inA, P.inB, P.merge, P.mergeB, P.end]
+            : st === 'melt' ? [P.heatB, P.meltA, P.meltB, P.cool, P.rise, P.riseB, P.end]
+            : st === 'balloon' ? [P.inflA, P.inflB, P.pop, P.deflB, P.flatB, P.reinB, P.end]
+            : st === 'lipo' ? [P.machB, P.suckA, P.suckB, P.back, P.backB, P.end]
+            : st === 'phone' ? [P.phoneB, P.suckB, P.swipe, P.land, P.end]
+            : st === 'anime' ? [P.inB, P.tear, P.end] : [P.drop, P.land, P.leave, P.end];
+        if (st === 'clone') for (const power of [1, 2, 3]) { const Q = B.morphPlan(B.normalizeMorph({ style: st, durSec: dur, power }, 0)); assert.ok(Q.inB < Q.merge, 'clone power ' + power + ' ' + dur); }
         assert.equal(B.normalizeMorph({ style: 'tires' }, 0).style, 'vacuum');         // bản thử đầu gọi Ống hút là tires
         for (let i = 1; i < seq.length; i++) assert.ok(seq[i] > seq[i - 1], `${st} ${dur}s: mốc ${i} tăng dần (${seq.join(' ')})`);
     }
     assert.equal(B.morphPlan({ style: 'vacuum', waitSec: 5 }).lowA - B.morphPlan({ style: 'vacuum', waitSec: 2 }).lowA, 3000);   // 🌀 chờ trong ống
     assert.deepEqual([1, 2, 3].map(power => B.morphPlan({ style: 'zap', power }).strikes.length), [2, 3, 4]);      // ⚡ số tia theo power
+    assert.deepEqual([1, 2, 3].map(power => B.morphPlan({ style: 'clone', power }).n), [4, 6, 8]);                   // 🪞 số bản sao theo power
+    assert.equal(B.morphPlan({ style: 'melt', waitSec: 5 }).rise - B.morphPlan({ style: 'melt', waitSec: 2 }).rise, 3000);      // 🫠 nằm vũng
+    // đợt 4 vẽ ở fx-morph-more.mjs, KHÔNG chạy model dáng (nặng luồng chính)
+    assert.ok(fs.readFileSync(path.join(__dirname, '../public/games/body/fx-morph.mjs'), 'utf8').includes("import { createMore } from './fx-morph-more.mjs'"));
+    const ovNP = fs.readFileSync(path.join(__dirname, '../public/games/body/overlay.html'), 'utf8');
+    assert.ok(ovNP.includes("MORPH_NO_POSE = new Set(['fly', 'ghost', 'clone', 'melt', 'balloon', 'lipo', 'phone', 'anime'])"), 'đợt 4 không chạy model dáng');
     // 🐉 kiểu ra đòn: mặc định ngẫu nhiên, lạ → ngẫu nhiên; chỉ kiểu fly mới có trường act; ra đòn có ≥ 3 s ở thời lượng tối thiểu
     assert.equal(B.makeMorph({ style: 'fly' }).act, 'random');
     assert.deepEqual(['beam', 'dive', 'fight', 'xx'].map(act => B.normalizeMorph({ style: 'fly', act }, 0).act), ['beam', 'dive', 'fight', 'random']);

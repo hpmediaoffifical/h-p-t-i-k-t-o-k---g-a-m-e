@@ -467,7 +467,77 @@ export function createSfx({ muted = () => false } = {}) {
         const o = a.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(R(150, 190), t); o.frequency.exponentialRampToValueAtTime(70, t + 0.09);
         const c3 = chain(o, { pan, wet: 0.15 }); envl(c3.g, t, 0.002, 0.55 * p, 0, 0.1); o.start(t); o.stop(t + 0.2);
     }
+    // 👻 Hồn lìa: tiếng hú ma (2 sine lệch nhau rung chậm kiểu theremin, trượt lên rồi xuống) + gió thì thào (nhiễu dải cao).
+    function ghost(dur = 1.6, { vol = 1, at = 0, up = true } = {}) {
+        const a = get(); if (!a || vol <= 0 || dur < 0.2) return;
+        const t = a.currentTime + at, f0 = up ? 330 : 700, f1 = up ? 760 : 300;
+        for (const [m, gv] of [[1, 0.13], [1.503, 0.06]]) {
+            const o = a.createOscillator(); o.type = 'sine';
+            o.frequency.setValueAtTime(f0 * m, t); o.frequency.exponentialRampToValueAtTime(f1 * m, t + dur * 0.7); o.frequency.exponentialRampToValueAtTime(f1 * m * 0.82, t + dur);
+            const lfo = a.createOscillator(), lg = a.createGain(); lfo.frequency.value = 5.5; lg.gain.value = 14 * m; lfo.connect(lg).connect(o.frequency);
+            const c = chain(o, { wet: 0.6 }); envl(c.g, t, dur * 0.25, gv * vol, dur * 0.35, dur * 0.4);
+            o.start(t); o.stop(t + dur + 0.1); lfo.start(t); lfo.stop(t + dur + 0.1);
+        }
+        const s = noise(white, t, dur), bp = filt('bandpass', 2400, 3);
+        bp.frequency.setValueAtTime(1800, t); bp.frequency.exponentialRampToValueAtTime(3600, t + dur);
+        const c2 = chain(s, { wet: 0.5, nodes: [bp] }); envl(c2.g, t, dur * 0.3, 0.07 * vol, dur * 0.3, dur * 0.4);
+    }
+    // 🎈 Bơm hơi: n nhịp "xì" (nhiễu dải cao, cao dần) - mỗi nhịp một lần bơm.
+    function inflate(n = 4, { vol = 1, at = 0, dur = 1.8 } = {}) {
+        const a = get(); if (!a || vol <= 0) return;
+        const t0 = a.currentTime + at;
+        for (let i = 0; i < n; i++) {
+            const t = t0 + i * dur / n, s = noise(white, t, 0.3), bp = filt('bandpass', 1800 + i * 500, 2);
+            const c = chain(s, { wet: 0.15, nodes: [bp] }); envl(c.g, t, 0.04, 0.22 * vol, 0.08, 0.12);
+            const o = a.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(140 + i * 40, t); o.frequency.exponentialRampToValueAtTime(220 + i * 50, t + 0.25);
+            const c2 = chain(o, { wet: 0.1 }); envl(c2.g, t, 0.03, 0.06 * vol, 0.1, 0.12); o.start(t); o.stop(t + 0.35);
+        }
+    }
+    // 🎈 Bóng xì hơi bay vòng vèo: "phrrrt" (răng cưa lọc + rung nhanh, cao độ lượn sóng rồi tụt).
+    function deflate(dur = 1.2, { vol = 1, at = 0 } = {}) {
+        const a = get(); if (!a || vol <= 0 || dur < 0.2) return;
+        const t = a.currentTime + at, o = a.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(420, t);
+        for (let i = 1; i <= 6; i++) o.frequency.linearRampToValueAtTime((i % 2 ? 560 : 330) * (1 - i * 0.08), t + dur * i / 7);
+        o.frequency.exponentialRampToValueAtTime(90, t + dur);
+        const am = a.createOscillator(), ag = a.createGain(); am.frequency.value = 38; ag.gain.value = 0.5;
+        const c = chain(o, { wet: 0.2, nodes: [filt('lowpass', 1600, 2)] });
+        am.connect(ag).connect(c.g.gain);
+        envl(c.g, t, 0.02, 0.2 * vol, dur - 0.2, 0.18);
+        o.start(t); o.stop(t + dur + 0.1); am.start(t); am.stop(t + dur + 0.1);
+    }
+    // 🫠 Tan chảy: bọt sủi ọc ọc (nhiều "bụp" nhỏ cao độ ngẫu nhiên, sine trượt lên) + nền nhớt trầm.
+    function gloop(dur = 2, { vol = 1, at = 0 } = {}) {
+        const a = get(); if (!a || vol <= 0) return;
+        const t0 = a.currentTime + at, n = Math.round(dur * 9);
+        for (let i = 0; i < n; i++) {
+            const t = t0 + R(0, dur), o = a.createOscillator(), f = R(160, 520); o.type = 'sine';
+            o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * R(1.8, 2.6), t + 0.06);
+            const c = chain(o, { pan: R(-0.5, 0.5), wet: 0.25 }); envl(c.g, t, 0.004, R(0.05, 0.12) * vol, 0, 0.06); o.start(t); o.stop(t + 0.12);
+        }
+        const s = noise(brown, t0, dur), c2 = chain(s, { wet: 0.2, nodes: [filt('lowpass', 380)] }); envl(c2.g, t0, 0.3, 0.25 * vol, dur - 0.6, 0.3);
+    }
+    // 🪞 Phân thân: chuông lấp lánh (1 nốt cho mỗi bản sao, đi lên) - n nốt cách nhau gap giây.
+    function shimmer(n = 6, { vol = 1, at = 0, gap = 0.18 } = {}) {
+        const a = get(); if (!a || vol <= 0) return;
+        const scale = [659.3, 784, 987.8, 1174.7, 1318.5, 1568, 1975.5, 2349.3];
+        for (let i = 0; i < n; i++) {
+            const t = a.currentTime + at + i * gap, f = scale[i % scale.length];
+            for (const [m, g] of [[1, 0.12], [2.76, 0.04], [5.4, 0.015]]) {
+                const o = a.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(f * m, t);
+                const c = chain(o, { pan: (i % 2 ? 0.4 : -0.4), wet: 0.5 }); envl(c.g, t, 0.003, g * vol, 0, 0.8 / m + 0.2); o.start(t); o.stop(t + 1.2);
+            }
+        }
+    }
+    // 🎨 Anime: trống taiko "DÔNG" (sine tụt + nhiễu da trống) - power 0.5…1.5.
+    function taiko(power = 1, { vol = 1, at = 0 } = {}) {
+        const a = get(); if (!a || vol <= 0) return;
+        const t = a.currentTime + at, p = power * vol, o = a.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(52, t + 0.35);
+        const c = chain(o, { wet: 0.45 }); envl(c.g, t, 0.002, 0.8 * p, 0.03, 0.5); o.start(t); o.stop(t + 0.7);
+        const s = noise(white, t, 0.1), c2 = chain(s, { wet: 0.3, nodes: [filt('bandpass', 900, 1.2)] }); envl(c2.g, t, 0.001, 0.3 * p, 0, 0.06);
+    }
     function warm() { get(); }
     return { thud, whoosh, wind, crack, debris, rumble, portal, rustle, steps, chip, click, ding, pop, beam, rattle, shatter, freeze, zap, buzz,
-        iceForm, creak, tinkle, glitch, clack, swirl, thunder, sizzle, boing, splat, vacuum, slurp, hose, slap, warm };
+        iceForm, creak, tinkle, glitch, clack, swirl, thunder, sizzle, boing, splat, vacuum, slurp, hose, slap, ghost, inflate, deflate, gloop, shimmer, taiko, warm };
 }

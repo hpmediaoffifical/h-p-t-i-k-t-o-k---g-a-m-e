@@ -1258,8 +1258,9 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         });
     }
     // ---------- ✨ BIẾN HÌNH (vẽ bằng mã, không cần video; body/fx-morph.mjs) ----------
-    const MO_ICON = { ice: '🧊', pixel: '👾', zap: '⚡', vacuum: '🌀', bees: '🐝', slap: '🖐', fly: '' };      // Son Goku không biểu tượng (user 2026-10-28)
-    const MO_SHORT = () => ({ ice: hpT('Đóng băng'), pixel: hpT('Vỡ điểm ảnh'), zap: hpT('Sét đánh'), vacuum: hpT('Ống hút người'), bees: hpT('Ong vỡ tổ'), slap: hpT('Tát bay'), fly: 'Son Goku' });
+    const MO_ICON = { ice: '🧊', pixel: '👾', zap: '⚡', vacuum: '🌀', bees: '🐝', slap: '🖐', fly: '', ghost: '👻', clone: '🪞', melt: '🫠', balloon: '🎈', lipo: '💉', phone: '📱', anime: '🎨' };      // Son Goku không biểu tượng (user 2026-10-28)
+    const MO_SHORT = () => ({ ice: hpT('Đóng băng'), pixel: hpT('Vỡ điểm ảnh'), zap: hpT('Sét đánh'), vacuum: hpT('Ống hút người'), bees: hpT('Ong vỡ tổ'), slap: hpT('Tát bay'), fly: 'Son Goku',
+        ghost: hpT('Hồn lìa khỏi xác'), clone: hpT('Phân thân'), melt: hpT('Tan chảy'), balloon: hpT('Thổi phồng'), lipo: hpT('Hút mỡ'), phone: hpT('Hút vào điện thoại'), anime: hpT('Biến hoạt hình') });
     const MO_HINT = () => ({
         ice: hpT('gió băng thổi qua, người đóng băng dần thành tượng pha lê, đứng vài giây rồi tan rã thành mảnh kính'),
         pixel: hpT('người chớp glitch nhiều kiểu, thành khối vuông 3D, đổ sụp xuống sàn rồi xoáy bay về ghép lại'),
@@ -1267,13 +1268,20 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         vacuum: hpT('ống hút thả xuống, hút người thu nhỏ vào ống rồi rút đi; vài giây sau ống hạ xuống thả người ra'),
         bees: hpT('tổ ong rơi trúng đầu, đàn ong bu lên người; người vung tay xua thì ong tản ra rồi bu lại'),
         slap: hpT('bàn tay khổng lồ tát qua tát lại, người bay văng nhiều hướng có vệt nhoè rồi bay về đáp đất'),
-        fly: hpT('cảnh trời mây núi, người thu nhỏ nấp sau toà nhà rồi bay vụt lên có hào quang, chưởng / lao vào màn hình / đánh nhau với bản sao')
+        fly: hpT('cảnh trời mây núi, người thu nhỏ nấp sau toà nhà rồi bay vụt lên có hào quang, chưởng / lao vào màn hình / đánh nhau với bản sao'),
+        ghost: hpT('thân người đứng im như chết, hồn ma trong suốt phát sáng bay ra (cử động theo người thật), lượn vòng rồi bị hút về nhập lại'),
+        clone: hpT('người phân thân thành nhiều bản sao đứng hàng sau, nhảy trễ nhịp như nhóm nhảy rồi nhập lại làm một'),
+        melt: hpT('mặt trời chói chang hạ xuống, nhiệt kế vọt đỏ, người đổ mồ hôi rồi chảy xuống như kem thành vũng sủi bọt; mặt trời đi thì mọc lên lại'),
+        balloon: hpT('người bị bơm phồng tròn như bóng bay, bay lên rồi nổ BỤP, xì hơi bay vòng vèo, nằm bẹp rồi phồng về như cũ'),
+        lipo: hpT('máy hút mỡ lăn tới cắm ống vào bụng, mỡ vàng chảy vào bình, người tóp dần ốm nhom, má hóp rồi bật phồng lại'),
+        phone: hpT('điện thoại khổng lồ bay tới hút người vào màn hình LIVE có avatar người tặng, rồi bị vuốt văng ra'),
+        anime: hpT('người biến thành nhân vật truyện tranh: viền mực, tô màu phẳng, vệt tốc độ, chữ tượng thanh; cuối lượt trang truyện xé đôi')
     });
     const moLabel = v => (MO_ICON[v] ? MO_ICON[v] + ' ' : '') + MO_SHORT()[v];
     const MO_STYLES = () => HB().MORPH_STYLES.map(v => [v, moLabel(v)]);
     const FLY_ACTS = () => [['random', hpT('🎲 Ngẫu nhiên')], ['beam', hpT('🌊 Chưởng vào màn hình')], ['dive', hpT('🚀 Lao vào màn hình')], ['fight', hpT('🥊 Đánh nhau với bản sao')]];
     function morphCard(sc, i) {
-        const k = key => `mo:${i}:${key}`, col = sc.style === 'ice' || sc.style === 'zap' || sc.style === 'fly';
+        const k = key => `mo:${i}:${key}`, col = ['ice', 'zap', 'fly', 'ghost', 'clone', 'balloon'].includes(sc.style);
         return `
             <div class="ctc-card bt-item" data-kind="morph" data-i="${i}">
                 <div class="bt-head"><input class="bt-name" value="${esc(sc.name)}" title="${hpTA('Tên kịch bản')}" />${headBtns(i, hpT('Chạy thử trên OBS + khung xem trước'))}</div>
@@ -1281,7 +1289,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
                 <div class="bt-opts">
                     ${optCell(hpT('Kiểu'), hpTA('Mỗi kiểu một hiệu ứng vẽ bằng mã - không cần video'), selOpt('style', MO_STYLES(), sc.style))}
                     ${sc.style === 'fly' ? optCell(hpT('Ra đòn'), hpTA('Bay lên xong người làm gì; Ngẫu nhiên = mỗi lượt một kiểu, không lặp lượt trước'), selOpt('act', FLY_ACTS(), sc.act || 'random')) : ''}
-                    ${col ? optCell(sc.style === 'ice' ? hpT('Màu băng') : sc.style === 'fly' ? hpT('Màu hào quang') : hpT('Màu tia sét'), hpTA('Màu chủ đạo của hiệu ứng'), `<input type="color" data-act="color" value="${esc(sc.color)}">`) : ''}
+                    ${col ? optCell(sc.style === 'ice' ? hpT('Màu băng') : sc.style === 'fly' ? hpT('Màu hào quang') : sc.style === 'ghost' ? hpT('Màu hồn') : sc.style === 'clone' ? hpT('Màu viền bản sao') : sc.style === 'balloon' ? hpT('Màu bóng') : hpT('Màu tia sét'), hpTA('Màu chủ đạo của hiệu ứng'), `<input type="color" data-act="color" value="${esc(sc.color)}">`) : ''}
                 </div>
                 ${sc.style === 'slap' ? `<div class="bt-vrow">${dropMini('mohand', sc.handFile, hpT('Ảnh bàn tay riêng (tuỳ chọn)'), hpT('PNG nền trong suốt, khung dọc ~3:4 (vd 960×1320): lòng bàn tay hướng camera, ngón chỉ LÊN, ngón cái chìa sang TRÁI, cổ tay sát mép dưới. App tự lật gương khi tát sang trái. Trống = bàn tay vẽ sẵn'))}</div>` : ''}
                 <div class="bt-toggles">
@@ -1291,9 +1299,10 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
                 ${sc.style === 'vacuum' ? row(k('waitSec'), hpT('Giữ trong ống'), 0, 20, 0.5, sc.waitSec, hpT('giây'), hpT('Ống hút người lên rồi rút đi; sau ngần này giây ống hạ xuống thả người ra'))
                     : sc.style === 'ice' ? row(k('waitSec'), hpT('Đóng băng giữ'), 0.5, 20, 0.5, sc.waitSec, hpT('giây'), hpT('Tượng băng đứng yên ngần này giây rồi mới tan rã'))
                     : sc.style === 'pixel' ? row(k('waitSec'), hpT('Nằm vụn'), 0.5, 20, 0.5, sc.waitSec, hpT('giây'), hpT('Khối vỡ nằm trên sàn ngần này giây rồi mới bay về ghép lại'))
+                    : sc.style === 'melt' ? row(k('waitSec'), hpT('Nằm thành vũng'), 0.5, 20, 0.5, sc.waitSec, hpT('giây'), hpT('Vũng sủi bọt ngần này giây rồi người mới mọc lên lại'))
                     : sc.style === 'slap' || sc.style === 'zap' ? ''
                     : row(k('durSec'), hpT('Thời lượng'), HB().MORPH_MIN[sc.style] || 3, 30, 0.5, sc.durSec, hpT('giây'), hpT('Độ dài cả lượt; combo ×N chạy N lượt nối nhau'))}
-                ${row(k('power'), sc.style === 'slap' ? hpT('Số cú tát') : sc.style === 'zap' ? hpT('Số tia sét') : hpT('Cường độ'), 1, 3, 1, sc.power, '', sc.style === 'slap' ? hpT('1 = 3 cú - 2 = 4 cú - 3 = 5 cú') : sc.style === 'zap' ? hpT('1 = 2 tia - 2 = 3 tia - 3 = 4 tia') : sc.style === 'fly' ? hpT('Đánh nhau: 1 = 3 hiệp - 2 = 4 hiệp - 3 = 5 hiệp (lượt ngắn thì bớt); chưởng: rung mạnh hơn') : hpT('1 nhẹ - 2 vừa - 3 mạnh: nhiều mảnh vỡ / khối / ong / tia điện hơn'))}
+                ${row(k('power'), sc.style === 'slap' ? hpT('Số cú tát') : sc.style === 'zap' ? hpT('Số tia sét') : sc.style === 'clone' ? hpT('Số bản sao') : hpT('Cường độ'), 1, 3, 1, sc.power, '', sc.style === 'slap' ? hpT('1 = 3 cú - 2 = 4 cú - 3 = 5 cú') : sc.style === 'zap' ? hpT('1 = 2 tia - 2 = 3 tia - 3 = 4 tia') : sc.style === 'clone' ? hpT('1 = 4 bản - 2 = 6 bản - 3 = 8 bản') : sc.style === 'fly' ? hpT('Đánh nhau: 1 = 3 hiệp - 2 = 4 hiệp - 3 = 5 hiệp (lượt ngắn thì bớt); chưởng: rung mạnh hơn') : hpT('1 nhẹ - 2 vừa - 3 mạnh: nhiều mảnh vỡ / khối / ong / tia điện hơn'))}
             </div>`;
     }
     function bindMorph(host) {

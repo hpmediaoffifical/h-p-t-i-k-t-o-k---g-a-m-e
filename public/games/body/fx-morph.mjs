@@ -14,6 +14,7 @@
  * env: như fx-catch.mjs (ctx, W, H, view, person, backdrop, sfx, sfxOn, cfg) + plan (HpBody.morphPlan). */
 
 import { createFly } from './fx-morph-fly.mjs';
+import { createMore } from './fx-morph-more.mjs';
 
 export function createMorph(env) {
     const { ctx, W, H } = env;
@@ -1762,7 +1763,10 @@ export function createMorph(env) {
     }
 
     // ---------- lượt ----------
+    // 👻 🪞 🫠 🎈 📱 🎨 đợt 4 vẽ ở file riêng (fx-morph-more.mjs)
+    const more = createMore({ ctx, W, H, cue, shakeAt, drawPersonPlain, snapInto, mk, rng });
     const FRAMES = { ice: iceFrame, pixel: pixelFrame, zap: zapFrame, vacuum: vacuumFrame, bees: beesFrame, slap: slapFrame, fly: (f, e, dt, g) => fly.frame(f, e, dt, g) };
+    for (const st of more.styles) FRAMES[st] = (f, e, dt, g) => more.frame(f, e, dt, g);
     function start(d, now) {
         person = env.person();
         const sc = d.script, seed = (Math.random() * 1e9) | 0;
@@ -1771,6 +1775,7 @@ export function createMorph(env) {
         if (sc.style === 'ice') iceStart(fx);
         if (sc.style === 'slap') slapStart(fx);
         if (sc.style === 'fly') fly.start(fx);
+        if (more.styles.includes(sc.style)) more.start(fx);
                 return true;
     }
     function stop() { fx = null; }

@@ -663,7 +663,8 @@ function faceNow() {
 let poseTrk = null, poseWarm = 0, posePushAt = 0;
 const POSE_EVERY_MS = 66;
 // 🐉 Bay chưởng KHÔNG dùng dáng (cảnh + mây che chân) - bỏ qua: bộ nhận diện ~30 ms × 15 lần/giây trên luồng chính là cú khựng user báo 2026-10-28
-const morphPose = sc => !!sc && sc.style !== 'fly';
+const MORPH_NO_POSE = new Set(['fly', 'ghost', 'clone', 'melt', 'balloon', 'lipo', 'phone', 'anime']);     // game ✨ không cần dáng: không chạy model dáng (~30 ms luồng chính / lần)
+const morphPose = sc => !!sc && !MORPH_NO_POSE.has(sc.style);
 const morphBusy = () => !!(act && act.kind === 'morph' && morphPose(act.sc)) || aQueue.some(q => q.kind === 'morph' && morphPose(cfg.morph.scripts.find(sc => sc.id === q.scriptId)));
 const needPose = () => !disabled && (morphBusy() || cfg.morph.scripts.some(sc => morphPose(sc) && forProfile(sc, curProfile()) && (isReview || (sc.gifts && sc.gifts.length))));
 function syncPose() {

@@ -510,11 +510,14 @@
         if (!sc || sc.style !== 'slap' || !sc.handFile) return [];
         return sc.handFile === SLAP_HAND_FILE ? [SLAP_HAND_FILE, ...Object.values(SLAP_HAND_SET).map(h => h.file)] : [sc.handFile];
     }
-    const MORPH_STYLES = ['ice', 'pixel', 'zap', 'vacuum', 'bees', 'slap', 'fly'];
-    const MORPH_NAMES = { ice: 'Đóng băng', pixel: 'Vỡ điểm ảnh', zap: 'Sét đánh', vacuum: 'Ống hút người', bees: 'Ong vỡ tổ', slap: 'Tát bay', fly: 'Son Goku' };
-    const MORPH_DUR = { ice: 6.5, pixel: 6.5, zap: 6, vacuum: 6.5, bees: 8, slap: 4.5, fly: 10 };
-    const MORPH_MIN = { ice: 5.2, pixel: 5.1, zap: 3.5, vacuum: 5.2, bees: 4, slap: 3, fly: 8 };
-    const MORPH_COLOR = { ice: '#6cc0ff', zap: '#b8dcff', pixel: '#ffffff', vacuum: '#ffffff', bees: '#ffc21a', slap: '#ffffff', fly: '#ffd23a' };
+    // đợt 4 (user 2026-10-28 chọn từ gợi ý): 👻 ghost · 🪞 clone · 🫠 melt · 🎈 balloon · 📱 phone · 🎨 anime - vẽ ở fx-morph-more.mjs
+    const MORPH_STYLES = ['ice', 'pixel', 'zap', 'vacuum', 'bees', 'slap', 'fly', 'ghost', 'clone', 'melt', 'balloon', 'lipo', 'phone', 'anime'];
+    const MORPH_NAMES = { ice: 'Đóng băng', pixel: 'Vỡ điểm ảnh', zap: 'Sét đánh', vacuum: 'Ống hút người', bees: 'Ong vỡ tổ', slap: 'Tát bay', fly: 'Son Goku',
+        ghost: 'Hồn lìa khỏi xác', clone: 'Phân thân', melt: 'Tan chảy', balloon: 'Thổi phồng', lipo: 'Hút mỡ', phone: 'Hút vào điện thoại', anime: 'Biến hoạt hình' };
+    const MORPH_DUR = { ice: 6.5, pixel: 6.5, zap: 6, vacuum: 6.5, bees: 8, slap: 4.5, fly: 10, ghost: 7, clone: 8, melt: 7, balloon: 7.5, lipo: 8, phone: 8, anime: 7 };
+    const MORPH_MIN = { ice: 5.2, pixel: 5.1, zap: 3.5, vacuum: 5.2, bees: 4, slap: 3, fly: 8, ghost: 5, clone: 4, melt: 5, balloon: 6.5, lipo: 6, phone: 6, anime: 4 };
+    const MORPH_COLOR = { ice: '#6cc0ff', zap: '#b8dcff', pixel: '#ffffff', vacuum: '#ffffff', bees: '#ffc21a', slap: '#ffffff', fly: '#ffd23a',
+        ghost: '#7fe8ff', clone: '#ff5ad1', melt: '#ffffff', balloon: '#ff3d6e', lipo: '#ffc93c', phone: '#fe2c55', anime: '#ffffff' };
     // bản thử đầu tiên (chưa phát hành) gọi Ống hút là 'tires'
     const morphStyle = v => (v === 'tires' ? 'vacuum' : MORPH_STYLES.includes(v) ? v : 'ice');
     // 🐉 kiểu ra đòn: random = mỗi lượt bốc một (không lặp lượt trước)
@@ -544,13 +547,13 @@
         return { act: flyAct(s.act), sfxFile: had ? file : file || FLY_MUSIC, musV: FLY_MUSIC_V };
     }
     // 5 game mẫu (một mỗi kiểu): id CỐ ĐỊNH mot_<kiểu>, Mọi NPC, chưa gắn quà.
-    const MORPH_ICON = { ice: '🧊', pixel: '👾', zap: '⚡', vacuum: '🌀', bees: '🐝', slap: '🖐', fly: '' };      // Son Goku: user chốt 2026-10-28 KHÔNG biểu tượng
+    const MORPH_ICON = { ice: '🧊', pixel: '👾', zap: '⚡', vacuum: '🌀', bees: '🐝', slap: '🖐', fly: '', ghost: '👻', clone: '🪞', melt: '🫠', balloon: '🎈', lipo: '💉', phone: '📱', anime: '🎨' };      // Son Goku: user chốt 2026-10-28 KHÔNG biểu tượng
     const morphLabel = st => (MORPH_ICON[st] ? MORPH_ICON[st] + ' ' : '') + MORPH_NAMES[st];
     function morphTemplates() { return MORPH_STYLES.map((st, i) => normalizeMorph(makeMorph({ id: 'mot_' + st, style: st, name: morphLabel(st) }), i)); }
     // Gieo game mẫu kiểu MỚI một lần mỗi đợt (cờ morph.tplV) cho máy đã có nhánh morph: đợt 1 = 5 kiểu đầu, đợt 2 = 🖐 Tát bay, đợt 3 = 🐉 Bay chưởng (2026-10-28).
     // Máy đã có game cùng kiểu thì bỏ; xoá mẫu rồi không hiện lại.
-    const MORPH_TPL_V = 3;
-    const MORPH_TPL_ADDED = { slap: 2, fly: 3 };
+    const MORPH_TPL_V = 5;
+    const MORPH_TPL_ADDED = { slap: 2, fly: 3, ghost: 4, clone: 4, melt: 4, balloon: 4, lipo: 5, phone: 4, anime: 4 };     // 💉 thêm sau đợt 4 → đợt 5 (máy đã nhận đợt 4 vẫn có)
     function seedMorph(list, fromV) {
         const out = list.slice(), from = Number(fromV) || 1;
         for (const t of morphTemplates()) {
@@ -601,6 +604,40 @@
             // chờ waitSec · lowA→lowB ống hạ xuống một chút · spit→land người rơi ra, lớn lại · back→backB ống rút đi
             const upB = 3500, lowA = upB + w, spit = lowA + 750;
             return { style: st, drop: 300, down: 1000, suckB: 2200, gone: 2700, upA: 2800, upB, lowA, lowB: lowA + 600, spit, land: spit + 650, back: spit + 1150, backB: spit + 1750, end: spit + 1900 };
+        }
+        if (st === 'ghost') {
+            // out→outB hồn kéo ra khỏi thân (thân gục dần) · lơ lửng lượn vòng tới back · back→snap bị hút ngược về, nhập lại loé sáng · →end thân đứng dậy
+            return { style: st, out: 500, outB: 1900, back: D - 1900, snap: D - 700, end: D };
+        }
+        if (st === 'clone') {
+            // n = 2 + 2 × power bản sao hiện lần lượt (mỗi bản 0,18 s) → nhảy theo trễ thời gian → merge→mergeB bay vào giữa nhập một
+            const n = 2 + 2 * Math.round(Math.max(1, Math.min(3, Number(sc.power) || 2)));
+            return { style: st, n, inA: 200, inB: 200 + n * 180 + 400, merge: D - 1300, mergeB: D - 300, end: D };
+        }
+        if (st === 'melt') {
+            // LÝ DO tan chảy (user 2026-10-28): 0→meltA mặt trời chói hạ xuống, nhiệt kế vọt đỏ, mồ hôi · meltA→meltB chảy từ đầu xuống thành
+            // vũng · nằm vũng waitSec · cool (rise − 700) mặt trời đi, trời dịu · rise→riseB mọc lên lại từ vũng · →end rung nhẹ
+            const rise = 4100 + Math.max(500, w);
+            return { style: st, heatB: 1200, meltA: 1500, meltB: 4100, cool: rise - 700, rise, riseB: rise + 1500, end: rise + 2000 };
+        }
+        if (st === 'balloon') {
+            // inflA→inflB bơm phồng 4 nhịp · bay lên lơ lửng tới pop · NỔ · pop→deflB xì hơi bay vòng vèo · →flatB nằm bẹp · →reinB phồng về như cũ
+            const pop = D - 3000;
+            return { style: st, inflA: 300, inflB: 2300, pop, deflB: pop + 1300, flatB: pop + 1800, reinB: pop + 2700, end: D };
+        }
+        if (st === 'lipo') {
+            // →machB máy hút mỡ lăn vào, ống cắm bụng · suckA→suckB hút: người tóp dần, má hóp (KHÔNG vẽ vạch xương - user chốt), mỡ vàng chảy qua ống
+            // vào bình · giữ dáng gầy tới back · back→backB bật phồng lại (lò xo) · →end máy lăn đi
+            return { style: st, machB: 800, suckA: 1000, suckB: 3800, back: D - 1300, backB: D - 450, end: D };
+        }
+        if (st === 'phone') {
+            // →phoneB điện thoại 3D bay vào xoay · suckA→suckB NPC bị hút thu nhỏ vào màn hình · ở trong màn (LIVE mini + avatar người tặng)
+            // · swipe vuốt văng ra → land đáp lại chỗ cũ · land→end điện thoại bay đi
+            return { style: st, phoneB: 800, suckA: 900, suckB: 2100, swipe: D - 1900, land: D - 1000, end: D };
+        }
+        if (st === 'anime') {
+            // →inB chớp trắng + vệt tốc độ, NPC thành nhân vật manga (viền mực, tô phẳng, chấm lưới) · trang truyện · tear→end trang xé đôi bay đi
+            return { style: st, inB: 600, tear: D - 1100, end: D };
         }
         return { style: st, drop: 300, land: 750, leave: D - 1300, end: D };
     }
