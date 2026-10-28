@@ -66,6 +66,6 @@ overlay vào Scene, ẩn cam trong Group OBS (`hp-cam-hide`), vùng nhìn thấy
 | 🦟 Đập Muỗi (boss, đốt toàn thân) | ✅ 948381c |
 | Quà mẫu | ✅ e9e7c43 |
 | 📷 Tự nhận camera | ✅ a46b814 |
-| 🧍 Bộ Tách Người | đang làm |
+| 🧍 Bộ Tách Người (đủ 10 loại + 72 MB mẫu, ẩn cam OBS) | ✅ 5ec0990 — đã thử Ninja + Đóng băng bằng video giả, chưa thử OBS/camera thật |
 | ＋ Thêm nhanh overlay vào Scene OBS, ẩn cam trong Group, cảnh báo Scene đang phát thiếu overlay | chưa — ghi vào Scene OBS, cần thử với OBS thật |
 | 💥 Rổ hiệu ứng (bom hiệu ứng Chém Trái Cây, phạt Đá Cầu, vé Muỗi Chúa) | chưa — app chưa có Thư viện hiệu ứng Douyin/TikTok Studio |
