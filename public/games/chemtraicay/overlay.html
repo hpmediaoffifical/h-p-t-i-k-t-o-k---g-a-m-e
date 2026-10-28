@@ -1,8 +1,11 @@
 <!doctype html>
 <html lang="vi">
 <head>
+<script src="/games/camgames/cam-frame-guard.js"></script><!-- 🔇 khung ẩn / mất kết nối app thì câm + ngưng (nạp trước mọi script) -->
     <script src="/lib/overlay-resolution.js"></script>
 <meta charset="utf-8" />
+<script src="/lib/hp-icons.js"></script>
+<script src="/lib/hp-game-feed.js"></script>
 <title>HP Chém Trái Cây — Overlay</title>
 <style>
     /* OBS browser source: 1080×1920 trong suốt. Engine tính trong hệ 1080×1920; canvas phủ toàn khung. */
@@ -11,7 +14,8 @@
         font-family: 'Segoe UI', Arial, sans-serif; }
     #ctc-stage { position: fixed; inset: 0; }
     #ctc-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-    .ctc-hud { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; }
+    /* 👁 --cv-t/r/b/l = khoảng lùi của vùng sân khấu còn thấy trên OBS (Scene PK cắt ô - createCamView (obs-scene-map.mjs)); thiếu = 0 = cả khung. */
+    .ctc-hud { position: absolute; left: var(--cv-l, 0px); right: var(--cv-r, 0px); top: var(--cv-t, 0px); pointer-events: none; }
     .ctc-score { position: absolute; left: 3%; top: 2.2%; padding: 10px 18px; border-radius: 16px;
         background: rgba(10, 14, 22, .62); border: 1px solid rgba(255,255,255,.14); min-width: 180px; }
     .ctc-score .lbl, .ctc-pile .lbl { font-size: 14px; letter-spacing: .14em; color: #c9d1e3; font-weight: 700; }
@@ -28,30 +32,15 @@
     .ctc-combo { position: absolute; left: 50%; top: 9%; transform: translateX(-50%) scale(1); font-size: 44px; font-weight: 900;
         color: #ffd23f; text-shadow: 0 3px 10px rgba(0,0,0,.6); opacity: 0; transition: opacity .2s, transform .2s; }
     .ctc-combo.show { opacity: 1; transform: translateX(-50%) scale(1.12); }
-    .ctc-danger { position: absolute; left: 0; right: 0; height: 3px; background: rgba(255,90,90,.9); box-shadow: 0 0 12px #ff5a5a; }
+    .ctc-danger { position: absolute; left: var(--cv-l, 0px); right: var(--cv-r, 0px); height: 3px; background: rgba(255,90,90,.9); box-shadow: 0 0 12px #ff5a5a; }
     .ctc-danger span { position: absolute; right: 3%; top: -22px; font-size: 13px; color: #ffb3b3; letter-spacing: .1em; }
-    .ctc-notices { position: absolute; left: 3%; bottom: 4%; display: flex; flex-direction: column; gap: 8px; max-width: 60%; }
-    .ctc-notice { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; border-radius: 999px;
-        background: rgba(10,14,22,.78); border: 1px solid rgba(255,255,255,.18); font-size: 18px; animation: ctc-in .25s ease-out; }
-    .ctc-notice img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; background: #222; }
-    .ctc-notice b { color: #ffd23f; }
-    @keyframes ctc-in { from { transform: translateX(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
-    .ctc-start { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 640px; padding: 36px 32px;
-        border-radius: 28px; background: rgba(8, 12, 20, .78); border: 1px solid rgba(255,255,255,.16); text-align: center; pointer-events: none; }
-    .ctc-start h1 { font-size: 72px; line-height: 1; font-weight: 900; letter-spacing: .02em; }
-    .ctc-start h1 span { display: block; color: #9bf26b; }
-    .ctc-start p { margin-top: 14px; font-size: 20px; color: #c9d1e3; line-height: 1.4; }
-    .ctc-hold { position: relative; width: 240px; height: 240px; margin: 26px auto 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-        background: rgba(155,242,107,.12); border: 3px solid rgba(155,242,107,.5); font-size: 26px; font-weight: 800; color: #e9ffdd; }
-    .ctc-hold svg { position: absolute; inset: -3px; width: calc(100% + 6px); height: calc(100% + 6px); transform: rotate(-90deg); }
-    .ctc-hold circle { fill: none; stroke: #9bf26b; stroke-width: 8; stroke-linecap: round; stroke-dasharray: 740; stroke-dashoffset: 740; }
-    .ctc-start small { display: block; margin-top: 10px; font-size: 16px; color: #8fa0bf; }
-    .ctc-end { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 30px 48px; border-radius: 24px; text-align: center;
+    /* 🎁 Danh sách người tặng quà = thư viện chung /lib/hp-game-feed.js (.hpf-*), vị trí theo display.list* (placeFeed) */
+    .ctc-end { position: absolute; left: calc((100% + var(--cv-l, 0px) - var(--cv-r, 0px)) / 2); top: calc((100% + var(--cv-t, 0px) - var(--cv-b, 0px)) / 2); transform: translate(-50%, -50%); padding: 30px 48px; border-radius: 24px; text-align: center;
         background: rgba(8,12,20,.85); border: 1px solid rgba(255,90,90,.5); display: none; }
     .ctc-end h2 { font-size: 40px; color: #ff8a8a; } .ctc-end .sc { font-size: 72px; font-weight: 900; color: #ffd23f; }
-    .ctc-dot { position: absolute; left: 10px; bottom: 10px; width: 10px; height: 10px; border-radius: 50%; background: #ff5a5a; opacity: .8; }
+    .ctc-dot { position: absolute; left: calc(var(--cv-l, 0px) + 10px); bottom: calc(var(--cv-b, 0px) + 10px); width: 10px; height: 10px; border-radius: 50%; background: #ff5a5a; opacity: .8; }
     .ctc-dot.on { background: #4ade80; opacity: .4; }
-    .ctc-trk { position: absolute; left: 26px; bottom: 6px; font-size: 12px; color: #8fa0bf; }
+    .ctc-trk { position: absolute; left: calc(var(--cv-l, 0px) + 26px); bottom: calc(var(--cv-b, 0px) + 6px); font-size: 12px; color: #8fa0bf; }
     .hidden { display: none !important; }
     body.ctc-stopped #ctc-stage { display: none; }
 
@@ -81,13 +70,7 @@
     </div>
     <div class="ctc-danger" id="ctc-danger-line"><span>VẠCH NGUY HIỂM</span></div>
     <div class="ctc-notices" id="ctc-notices"></div>
-    <div class="ctc-start" id="ctc-start">
-        <h1>CHÉM<span>TRÁI CÂY</span></h1>
-        <p>Lướt ngón trỏ chém quả đang bay. Cẩn thận với bom.<br>Đừng để vườn đầy quá vạch giới hạn.</p>
-        <div class="ctc-hold" id="ctc-hold"><svg viewBox="0 0 246 246"><circle id="ctc-hold-ring" cx="123" cy="123" r="118"/></svg><span>Giữ để bắt đầu</span></div>
-        <small id="ctc-hold-hint">Giữ ngón trỏ trên nút trong 0,85 giây. Cũng có thể nhấn giữ bằng chuột.</small>
-    </div>
-    <div class="ctc-end" id="ctc-end"><h2>VƯỜN ĐẦY RỒI!</h2><div class="sc" id="ctc-end-score">0</div><p>Giữ nút để chơi tiếp</p></div>
+    <div class="ctc-end" id="ctc-end"><h2>VƯỜN ĐẦY RỒI!</h2><div class="sc" id="ctc-end-score">0</div><p>Ván mới tự bắt đầu — tặng quà để quả rơi</p></div>
     <div class="ctc-dot" id="ctc-dot"></div>
     <div class="ctc-trk" id="ctc-trk"></div>
     <div class="ctc-cam" id="ctc-cam"><div class="lbl">📷 Vùng camera</div><div class="h tl" data-h="tl"></div><div class="h tr" data-h="tr"></div><div class="h bl" data-h="bl"></div><div class="h br" data-h="br"></div></div>
@@ -108,11 +91,17 @@
     const token = qs.get('token') || '';
 
     const $ = (id) => document.getElementById(id);
+    // 🎁 danh sách người tặng (thư viện chung) - tạo SỚM: cấu hình tới qua socket gọi placeFeed() trước phần thông báo bên dưới
+    const FEED = window.HpGameFeed;
+    const feedList = FEED.createList($('ctc-notices'), { max: 4, life: 3200 });
     const canvas = $('ctc-canvas');
     const ctx = canvas.getContext('2d');
 
     let cfg = Game.defaultConfig();
     let engine = Game.createEngine(cfg, { width: W, height: H });
+    // 👁 Vùng sân khấu còn thấy trên OBS (Scene PK / Colab cắt ô khung cam): quả tung từ đáy vùng, quả rơi nằm ở đáy vùng, HUD theo --cv-*.
+    let camView = null;
+    import('/lib/obs-scene-map.mjs').then(m => { camView = m.createCamView({ W, H, overlayId: 'chemtraicay', getLayout: () => local.layout, onChange: r => { engine.setArea(r); placeFeed(); } }); engine.setArea(camView.rect); placeFeed(); }).catch(e => console.warn('[chemtraicay] cam-view:', e));
     let lastAspect = 16 / 9;
     const trails = { L: [], R: [] };
     let particles = [];
@@ -120,6 +109,9 @@
     let shake = 0;
     let comboTimer = 0;
     let endTimer = 0;
+    // Game tự chạy (không còn nút "Giữ để bắt đầu"): ván luôn mở, quả chỉ rơi khi có quà. ⏸ Dừng từ app thì tạm nghỉ
+    // tới khi bấm ▶ Bắt đầu hoặc có quà mới.
+    let held = false;
     let lastT = performance.now();
     let frames = 0, fpsAt = performance.now(), fps = 0;
 
@@ -234,7 +226,12 @@
 
     // ---------- socket ----------
     const socket = io({ transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+    // Đóng app (mất kết nối quá 1,5 s) → ngưng hẳn kể cả link riêng; nối lại chạy tiếp.
+    let offlineTimer = 0;
+    socket.on('disconnect', () => { clearTimeout(offlineTimer); offlineTimer = setTimeout(() => window.HpCamFrame.setOnline(false), 1500); });
+    window.HpCamFrame.onChange((on) => { $('ctc-stage').style.visibility = on ? '' : 'hidden'; lastT = performance.now(); });
     socket.on('connect', () => {
+        clearTimeout(offlineTimer); window.HpCamFrame.setOnline(true);
         $('ctc-dot').classList.add('on');
         socket.emit('subscribe', isReview ? 'preview' : 'overlay');
         if (local.on) socket.emit('touchplay:feed', feedReg());     // app vừa khởi động lại → đăng ký lại
@@ -244,7 +241,9 @@
     socket.on('gameConfig', ({ gameId, config }) => { if (gameId === 'chemtraicay') applyConfig(config); });
     socket.on('gameCmd', ({ gameId, cmd }) => {
         if (gameId !== 'chemtraicay') return;
-        if (cmd === 'start') engine.start(); else if (cmd === 'stop') engine.stop(); else if (cmd === 'reset') engine.reset();
+        if (cmd === 'start') { held = false; endTimer = 0; engine.start(); }
+        else if (cmd === 'stop') { held = true; engine.stop(); }
+        else if (cmd === 'reset') { engine.reset(); if (!held) { endTimer = 0; engine.start(); } }
     });
     socket.on('gameDisabled', ({ gameId }) => { if (gameId === 'chemtraicay') { document.body.classList.add('ctc-stopped'); cfg.enabled = false; syncLocal(); } });
     socket.on('gameEnabled', ({ gameId }) => { if (gameId === 'chemtraicay') { document.body.classList.remove('ctc-stopped'); cfg.enabled = true; syncLocal(); } });
@@ -264,6 +263,8 @@
     });
     socket.on('chemtraicay:gift', (g) => {
         if (!g || !Game.ACTIONS.includes(g.action)) return;
+        // Có quà (thật hoặc gửi thử) mà ván chưa chạy (vừa ⏸ Dừng / màn vườn đầy) → mở ván ngay để quả rơi luôn.
+        if (!isEdit && cfg.enabled !== false && !engine.isPlaying()) { held = false; endTimer = 0; $('ctc-end').style.display = 'none'; engine.start(); }
         engine.enqueue(g.action, g.qty);
         if (cfg.showNotices !== false) notice(g);
     });
@@ -278,24 +279,32 @@
         $('ctc-danger-line').classList.toggle('hidden', cfg.showDanger === false);
         $('ctc-danger-val').textContent = Math.round(Number(cfg.danger) || 50);
         $('ctc-pile-mark').style.left = Math.min(100, Number(cfg.danger) || 50) + '%';
-        $('ctc-danger-line').style.top = (100 - Math.min(100, Number(cfg.danger) || 50) * 0.5) + '%';
-        $('ctc-hold-hint').textContent = `Giữ ngón trỏ trên nút trong ${String(Number(cfg.holdSeconds) || 0.85).replace('.', ',')} giây. Cũng có thể nhấn giữ bằng chuột.`;
+        // vạch nguy hiểm theo vùng thấy (--cv-*): tỉ lệ cũ (danger×0.5 % từ đáy) nhưng tính trên chiều cao vùng
+        const dk = (100 - Math.min(100, Number(cfg.danger) || 50) * 0.5) / 100;
+        $('ctc-danger-line').style.top = `calc(var(--cv-t, 0px) + (100% - var(--cv-t, 0px) - var(--cv-b, 0px)) * ${dk})`;
+        placeFeed();
         if (isEdit) layoutCamRect();
     }
 
     // ---------- thông báo quà ----------
-    function notice(g) {
-        const box = $('ctc-notices');
-        const el = document.createElement('div');
-        el.className = 'ctc-notice';
-        const img = g.profilePicture || g.image;
-        el.innerHTML = (img ? `<img src="${String(img).replace(/"/g, '')}" alt="">` : '') +
-            `<span>${escapeHtml(g.nickname || 'Khán giả')} → <b>${g.qty} ${escapeHtml(Game.ACTION_LABELS[g.action] || g.action)}</b></span>`;
-        box.appendChild(el);
-        while (box.children.length > 4) box.removeChild(box.firstChild);
-        setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .4s'; setTimeout(() => el.remove(), 420); }, 3500);
+    // Thẻ gọn [avatar] [icon] Tên · "5 Táo đỏ" (thư viện chung hp-game-feed.js, mẫu Đập Muỗi). Icon nét theo loại hành động.
+    const ACT_ICON = { bomb: ['bomb', '#ff6b6b'], god: ['zap', '#ffd23f'], fast: ['flame', '#ff8a5a'], slow: ['snow', '#8ad5ff'], rescue: ['shield', '#7ee081'] };
+    // Vùng thấy theo px trang (createCamView đặt --cv-* = khoảng lùi px của Scene PK / Colab).
+    function viewPx() {
+        const cs = getComputedStyle(document.documentElement), px = k => parseFloat(cs.getPropertyValue(k)) || 0;
+        const l = px('--cv-l'), t = px('--cv-t');
+        return { x: l, y: t, w: innerWidth - l - px('--cv-r'), h: innerHeight - t - px('--cv-b') };
     }
-    function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+    function placeFeed() {
+        const d = cfg.display || {};
+        feedList.place(viewPx(), { x: d.listXPercent ?? 50, y: d.listYPercent ?? 13, scale: d.listScale ?? 70 });
+    }
+    window.addEventListener('resize', placeFeed);
+    function notice(g) {
+        const ic = ACT_ICON[g.action] || ['melon', '#7ee081'];
+        feedList.push({ icon: ic[0], color: ic[1], who: g.nickname || 'Khán giả', text: `${g.qty} ${Game.ACTION_LABELS[g.action] || g.action}`, image: g.profilePicture || g.image });
+        placeFeed();
+    }
 
     // ---------- âm thanh tổng hợp (WebAudio) ----------
     let actx = null;
@@ -519,15 +528,6 @@
         if (s.buffs.fast > 0) bf.push(`<span class="ctc-buff fast">🔥 Tăng Tốc ${Math.ceil(s.buffs.fast / 1000)}s</span>`);
         if (s.buffs.slow > 0) bf.push(`<span class="ctc-buff slow">❄ Giảm Tốc ${Math.ceil(s.buffs.slow / 1000)}s</span>`);
         $('ctc-buffs').innerHTML = bf.join('');
-        $('ctc-start').style.display = s.playing || endTimer > 0 ? 'none' : 'block';
-        $('ctc-hold-ring').style.strokeDashoffset = String(740 * (1 - s.hold.progress));
-    }
-
-    function updateHoldTarget() {
-        const el = $('ctc-hold'); const r = el.getBoundingClientRect();
-        const c = toStage(r.left + r.width / 2, r.top + r.height / 2);
-        const rad = r.width / 2 / (canvas.getBoundingClientRect().width / W);
-        engine.holdTarget(c.x, c.y, rad);
     }
 
     // ---------- vòng chính ----------
@@ -540,12 +540,14 @@
         pumpLocalHands();
         // Khung bị ngắt lâu (OBS tiết kiệm CPU) hoặc tracker im lặng → coi tay vắng, tránh đoạn thẳng ma khi quay lại.
         if (bladesLive && (rawDt > 0.25 || now - lastHandAt > 300)) clearBlades();
-        if (!isEdit) engine.step(dt * 1000);
+        // khung bị overlay mẹ ẩn / mất kết nối app → ngưng (không rơi quả, không kêu); cam-frame-guard câm âm thanh
+        const live = window.HpCamFrame.active;
+        if (!isEdit && live) engine.step(dt * 1000);
         const s = engine.snapshot();
         handleEvents(s.events);
-        if (!s.playing && endTimer <= 0) updateHoldTarget();
-        else if (endTimer > 0) engine.holdTarget(0, 0, 0);   // màn kết thúc 4 s: ngón để giữa màn không restart sớm
         if (endTimer > 0) { endTimer -= dt; if (endTimer <= 0) $('ctc-end').style.display = 'none'; }
+        // Tự mở ván: lúc mới vào và 4 s sau màn vườn đầy (trừ khi app vừa ⏸ Dừng).
+        if (!isEdit && live && !s.playing && endTimer <= 0 && !held && cfg.enabled !== false) engine.start();
         if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) $('ctc-combo').classList.remove('show'); }
 
         ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -564,7 +566,7 @@
     }
     requestAnimationFrame(loop);
 
-    // ---------- chuột: giữ nút bắt đầu; ở review/mouse=1 chuột là dao phải (để thử không cần tracker) ----------
+    // ---------- chuột: ở review/mouse=1 chuột là dao phải (để thử không cần tracker) ----------
     let mouseDown = false;
     const mouseSide = mouseCuts ? 'R' : 'M';
     window.addEventListener('pointerdown', (e) => { if (isEdit && e.target.closest('.ctc-cam')) return; mouseDown = true; const p = toStage(e.clientX, e.clientY); engine.setBlade(mouseSide, p.x, p.y, true); if (mouseCuts) trails.R.push({ x: p.x, y: p.y, t: performance.now() }); audio(); });

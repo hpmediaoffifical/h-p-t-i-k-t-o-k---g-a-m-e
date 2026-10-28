@@ -11,7 +11,9 @@
   }
 </script>
 <style>
-  html[data-overlay="1"], html[data-overlay="1"] body { background: transparent !important; }
+  /* Overlay OBS: KHÔNG thanh cuộn. Cụm thanh level rộng hơn khung (nhất là trong iframe 🎥 Game Camera, nơi CSS tuỳ chỉnh
+     của Browser Source không với tới) → trình duyệt vẽ thanh kéo ngang ở mép dưới. */
+  html[data-overlay="1"], html[data-overlay="1"] body { background: transparent !important; overflow: hidden !important; }
 </style>
 <!-- Vietnamese-friendly fonts (graceful fallback nếu offline) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -104,6 +106,9 @@
   /* Chưa đặt chỗ lần đầu (đang nạp module) thì giấu — khỏi nháy thanh cỡ gốc ở góc trái trên OBS. */
   body.lq-cam:not(.lq-placed) #lqAnchor{ visibility: hidden; }
   body.lq-tracking .quest-group{ animation: none !important; }
+  /* Link riêng (?mode=overlay, không cam=1) khi Level Quest đang chơi trong overlay mẹ 🎥 Game Camera đang mở trên OBS
+     → ẩn hẳn, khỏi hiện 2 thanh. Server báo qua 'levelquest:hub' {hubOwned}. */
+  body.lq-hub-owned > *{ visibility: hidden !important; }
 
   .level-badge{
     width:var(--badge); height:var(--badge);
@@ -509,6 +514,12 @@
         <input id="cfgTimerS" type="number" value="0" min="0" max="59" style="width:50px;padding:4px;border:1px solid #f4a07a;border-radius:6px;" />s
       </span>
       <button class="b orange" id="btnTimerToggle" onclick="toggleQuestTimer()" style="font-size:13px;padding:7px 16px;">▶ BẮT ĐẦU</button>
+      <span style="display:flex;align-items:center;gap:6px; font-size:12px; color:#5c0a0a; font-weight:700;" title="Màu &amp; cỡ chữ đồng hồ trên OBS — đổi là thấy ngay">
+        🎨 Màu
+        <input id="cfgTimerColor2" type="color" value="#ff4040" oninput="setTimerColor(this.value)" style="width:40px;height:28px;padding:0;border:1px solid #f4a07a;border-radius:6px;cursor:pointer;" />
+        Cỡ
+        <input id="cfgTimerFs2" type="number" value="44" min="16" max="220" oninput="setTimerFs(this.value)" onchange="syncTimerInputs()" style="width:58px;padding:4px;border:1px solid #f4a07a;border-radius:6px;" />px
+      </span>
       <span style="font-size:11px;opacity:.75;flex-basis:100%;color:#5c0a0a;">
         Bấm <b>▶ BẮT ĐẦU</b> để khởi động đếm lùi. Hết giờ → khoá nhận KPI. Bấm <b>■ DỪNG</b> để kết thúc quest.
       </span>
@@ -520,7 +531,7 @@
         <span>💎 <input id="cfgTotalDia"   type="number" value="30000"  min="1" max="100000000" style="width:90px;padding:5px;border:1px solid #c39bf0;border-radius:6px;"/></span>
         <span>❤ <input id="cfgTotalHeart" type="number" value="100000" min="1" max="1000000000" style="width:100px;padding:5px;border:1px solid #c39bf0;border-radius:6px;"/></span>
         <span>🔄 <input id="cfgTotalShare" type="number" value="100"    min="1" max="100000" style="width:70px;padding:5px;border:1px solid #c39bf0;border-radius:6px;"/></span>
-        <span>Max Lv <input id="cfgTotalMaxLv" type="number" value="18" min="1" max="50" style="width:60px;padding:5px;border:1px solid #c39bf0;border-radius:6px;"/></span>
+        <span>Max Lv <input id="cfgTotalMaxLv" type="number" value="18" min="1" max="18" title="Tối đa 18 cấp như Liên Quân / Liên Minh" style="width:60px;padding:5px;border:1px solid #c39bf0;border-radius:6px;"/></span>
         <select id="cfgTotalMode" style="padding:5px;border:1px solid #c39bf0;border-radius:6px;font-size:13px;">
           <option value="curve">Cong (early dễ, late khó)</option>
           <option value="linear">Đều mỗi level</option>
@@ -542,7 +553,7 @@
           </div>
           <div class="ctrl">
             <label>Max level</label>
-            <input id="cfgMaxLv" type="number" value="18" min="1" max="50" />
+            <input id="cfgMaxLv" type="number" value="18" min="1" max="18" title="Tối đa 18 cấp như Liên Quân / Liên Minh" />
           </div>
           <div class="ctrl">
             <label>Tên — offset Y (âm = sát badge hơn)</label>
@@ -620,7 +631,7 @@
           </div>
           <div class="ctrl">
             <label>⏱ Timer font-size (px)</label>
-            <input id="cfgTimerFs" type="number" value="44" min="16" max="100" />
+            <input id="cfgTimerFs" type="number" value="44" min="16" max="220" />
           </div>
           <div class="ctrl">
             <label>⏱ Timer màu chữ</label>
@@ -689,9 +700,13 @@ const IS_OVERLAY = new URLSearchParams(location.search).get('mode') === 'overlay
 const LS_KEY = 'levelQuest.cfg.v1';
 const LS_STATE_KEY = 'levelQuest.state.v1';   // tiến trình LIVE (level/💎/❤/🔄/timer) — chỉ lưu khi bật "Giữ tiến trình"
 
+// Tối đa 18 cấp như Liên Quân / Liên Minh — không cho nhập cao hơn (bản lưu cũ tới 50 cấp tự cắt về 18 lúc nạp).
+const LQ_MAX_LEVEL = 18;
+const LQ_DEFAULT_DIA = 30000;   // mục tiêu 💎 mặc định (app này vốn 30.000 từ đầu)
+
 const cfg = {
   title: "HP Media",
-  maxLevel: 18,
+  maxLevel: LQ_MAX_LEVEL,
   useDia: true, useHeart: true, useShare: true,
   diaKPI: [], heartKPI: [], shareKPI: [],
   shareBuckets: 5,
@@ -847,10 +862,13 @@ function saveCfg(){
       persistState: cfg.persistState,
       camScale: cfg.camScale, camGap: cfg.camGap,
       // Lưu cả input totals mong muốn để khôi phục đúng cấu hình
-      totDia: parseInt($("cfgTotalDia")?.value)   || 30000,
+      totDia: parseInt($("cfgTotalDia")?.value)   || LQ_DEFAULT_DIA,
+      // Mốc của bản NPC (nâng 💎 mặc định 10.000 → 30.000). App này vốn 30.000 nên KHÔNG nâng ai — chỉ ghi mốc để
+      // nếu sau này chép bộ nạp của NPC sang thì bản lưu của khách không bị nâng nhầm mục tiêu tự đặt 10.000.
+      diaDefaultV: 2,
       totHeart: parseInt($("cfgTotalHeart")?.value)|| 100000,
       totShare: parseInt($("cfgTotalShare")?.value)|| 100,
-      totMaxLv: parseInt($("cfgTotalMaxLv")?.value)|| 18,
+      totMaxLv: Math.min(LQ_MAX_LEVEL, parseInt($("cfgTotalMaxLv")?.value) || LQ_MAX_LEVEL),
       totMode: $("cfgTotalMode")?.value || 'curve',
     };
     localStorage.setItem(LS_KEY, JSON.stringify(dump));
@@ -858,6 +876,7 @@ function saveCfg(){
   } catch (e) { console.warn('saveCfg failed', e); }
 }
 
+let cfgMigrated = false;   // loadCfg vừa cắt bản lưu >18 cấp → lưu lại (và phát sang overlay) sau khi khởi động
 function loadCfg(){
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -886,6 +905,20 @@ function loadCfg(){
       camScale: Number.isFinite(d.camScale) ? d.camScale : cfg.camScale,
       camGap: Number.isFinite(d.camGap) ? d.camGap : cfg.camGap,
     });
+    // Bản lưu cũ cho tới 50 cấp → còn 18 cấp. Chia lại TỔNG mục tiêu cho 18 cấp theo kiểu đang chọn (cắt bớt bảng
+    // cũ làm KPI tụt hẳn): ưu tiên tổng đã nhập (totDia/totHeart/totShare), không có thì tổng bảng cũ.
+    if (!(cfg.maxLevel >= 1)) cfg.maxLevel = LQ_MAX_LEVEL;
+    if (cfg.maxLevel > LQ_MAX_LEVEL) {
+      const ratio = d.totMode === 'linear' ? 1.0 : 1.2;
+      const tot = (k, t) => Number(t) > 0 ? Number(t) : Math.max(1, sum(cfg[k] || []));
+      cfg.diaKPI   = buildCurveBySum(tot('diaKPI', d.totDia), LQ_MAX_LEVEL, ratio);
+      cfg.heartKPI = buildCurveBySum(tot('heartKPI', d.totHeart), LQ_MAX_LEVEL, ratio);
+      cfg.shareKPI = buildCurveBySum(tot('shareKPI', d.totShare), LQ_MAX_LEVEL, ratio);
+      cfg.maxLevel = LQ_MAX_LEVEL;
+      cfgMigrated = true;
+    }
+    if (Number(d.totMaxLv) > LQ_MAX_LEVEL) cfgMigrated = true;
+    d.totMaxLv = Math.min(LQ_MAX_LEVEL, Number(d.totMaxLv) || LQ_MAX_LEVEL);
     // Sync UI inputs
     const set = (id, v) => { const e = $(id); if (e && v !== undefined && v !== null) e.value = v; };
     set('cfgTitle', cfg.title); set('cfgMaxLv', cfg.maxLevel);
@@ -895,6 +928,7 @@ function loadCfg(){
     set('cfgLevelNumFs', cfg.levelNumFs); set('cfgTitleMb', cfg.titleMb);
     set('cfgTickW', cfg.tickW); set('cfgTitleFont', cfg.titleFont);
     set('cfgTimerFs', cfg.timerFs); set('cfgTimerColor', cfg.timerColor);
+    set('cfgTimerFs2', cfg.timerFs); set('cfgTimerColor2', cfg.timerColor);
     set('cfgFloatDur', cfg.floatDur);
     set('cfgCamScale', cfg.camScale); set('cfgCamGap', cfg.camGap);
     if ($("enFloating")) $("enFloating").checked = !!cfg.floatingEnabled;
@@ -950,7 +984,7 @@ function loadState(){
     const raw = localStorage.getItem(LS_STATE_KEY);
     if (!raw) return false;
     const d = JSON.parse(raw);
-    state.level    = d.level || 0;
+    state.level    = Math.min(Math.max(0, Number(d.level) || 0), cfg.maxLevel - 1);   // tiến trình từ hồi >18 cấp → cấp cuối
     state.dia      = d.dia   || 0;
     state.heart    = d.heart || 0;
     state.share    = d.share || 0;
@@ -1250,10 +1284,35 @@ function updateVisibility(){
 }
 function cap(s){ return s[0].toUpperCase()+s.slice(1); }
 
+/* ---------- chỉnh nhanh màu & cỡ chữ ĐỒNG HỒ (hàng Đếm lùi) — đổi là áp + lưu + phát sang overlay ngay ---------- */
+function syncTimerInputs(){
+  const set = (id, v) => { const e = $(id); if (e) e.value = v; };
+  set('cfgTimerColor', cfg.timerColor); set('cfgTimerColor2', cfg.timerColor);
+  set('cfgTimerFs', cfg.timerFs); set('cfgTimerFs2', cfg.timerFs);
+}
+function setTimerColor(v){
+  cfg.timerColor = /^#[0-9a-f]{6}$/i.test(String(v || '')) ? v : '#ff4040';
+  const a = $("cfgTimerColor"); if (a) a.value = cfg.timerColor;
+  applyFontSizes(); scheduleCfgSave();
+}
+// KHÔNG ghi đè ô đang gõ (cfgTimerFs2) → xoá trắng để nhập số mới được; chuẩn hoá khi rời ô (onchange → syncTimerInputs).
+function setTimerFs(v){
+  const n = parseInt(v, 10); if (!isFinite(n)) return;
+  cfg.timerFs = Math.max(16, Math.min(220, n));
+  const a = $("cfgTimerFs"); if (a) a.value = cfg.timerFs;
+  applyFontSizes(); scheduleCfgSave();
+}
+// Kéo màu / gõ số bắn input liên tục → gom lại 1 lần lưu (localStorage + relay levelquest:cfg).
+let cfgSaveTimer = null;
+function scheduleCfgSave(){
+  if (cfgSaveTimer) clearTimeout(cfgSaveTimer);
+  cfgSaveTimer = setTimeout(() => { cfgSaveTimer = null; saveCfg(); }, 150);
+}
+
 /* ---------- config ---------- */
 function applyConfig(){
   cfg.title    = $("cfgTitle").value.trim() || "HP Media";
-  cfg.maxLevel = clampInt($("cfgMaxLv").value, 1, 50);
+  cfg.maxLevel = clampInt($("cfgMaxLv").value, 1, LQ_MAX_LEVEL);
   const dB = clampInt($("cfgDiaBase").value, 1, 1e7);
   const dS = clampInt($("cfgDiaStep").value, 0, 1e7);
   const hB = clampInt($("cfgHeartBase").value, 1, 1e7);
@@ -1273,8 +1332,9 @@ function applyConfig(){
   cfg.titleFont   = $("cfgTitleFont").value;
   cfg.titleMb     = clampInt($("cfgTitleMb").value, -100, 60);
   cfg.tickW       = clampInt($("cfgTickW").value, 1, 20);
-  cfg.timerFs     = clampInt($("cfgTimerFs").value, 16, 100);
+  cfg.timerFs     = clampInt($("cfgTimerFs").value, 16, 220);
   cfg.timerColor  = $("cfgTimerColor").value || '#ff4040';
+  syncTimerInputs();
   // Floating effect
   cfg.floatingEnabled = !!$("enFloating")?.checked;
   cfg.floatDur = Math.max(0.8, Math.min(8, parseFloat($("cfgFloatDur").value) || 2.8));
@@ -1289,7 +1349,7 @@ function applyTotalsPreset(){
   const totDia   = clampInt($("cfgTotalDia").value,   1, 1e8);
   const totHeart = clampInt($("cfgTotalHeart").value, 1, 1e9);
   const totShare = clampInt($("cfgTotalShare").value, 1, 1e5);
-  const lv       = clampInt($("cfgTotalMaxLv").value, 1, 50);
+  const lv       = clampInt($("cfgTotalMaxLv").value, 1, LQ_MAX_LEVEL);
   const mode     = $("cfgTotalMode").value;
   const ratio    = mode === 'curve' ? 1.2 : 1.0;
 
@@ -1314,7 +1374,7 @@ function applyTotalsPreset(){
 function presetCurve18(){
   cfg.title = $("cfgTitle").value.trim() || "HP Media";
   cfg.maxLevel = 18; cfg.shareBuckets = 5;
-  cfg.diaKPI   = buildCurveBySum(30000,  18, 1.2);
+  cfg.diaKPI   = buildCurveBySum(LQ_DEFAULT_DIA, 18, 1.2);
   cfg.heartKPI = buildCurveBySum(100000, 18, 1.2);
   cfg.shareKPI = buildCurveBySum(100,    18, 1.2);
   $("cfgMaxLv").value = 18; $("cfgShareBuckets").value = 5;
@@ -1327,7 +1387,7 @@ function presetCurve18(){
 function presetLinear18(){
   cfg.title = $("cfgTitle").value.trim() || "HP Media";
   cfg.maxLevel = 18; cfg.shareBuckets = 5;
-  cfg.diaKPI   = buildCurveBySum(30000,  18, 1.0);
+  cfg.diaKPI   = buildCurveBySum(LQ_DEFAULT_DIA, 18, 1.0);
   cfg.heartKPI = buildCurveBySum(100000, 18, 1.0);
   cfg.shareKPI = buildCurveBySum(100,    18, 1.0);
   $("cfgMaxLv").value = 18; $("cfgShareBuckets").value = 5;
@@ -1472,6 +1532,8 @@ function initSocket(){
   // LAB → broadcast cfg/state; OVERLAY → listen + apply (OVERLAY là client read-only)
   _sock.on('levelquest:cfg',   applyRemoteCfg);
   _sock.on('levelquest:state', applyRemoteState);
+  // 🎥 Overlay mẹ Game Camera đang giữ Level Quest → link riêng nhường chỗ (server: 'levelquest:hub' {hubOwned}).
+  _sock.on('levelquest:hub', applyHubOwned);
 
   // Universal overlay reload — server emit khi user mở game / bắt đầu phiên → OBS tự refresh
   // Chỉ overlay: app phát sự kiện này MỖI lần mở màn Level Quest — trang điều khiển nghe vào là tự tải lại.
@@ -1481,6 +1543,16 @@ function initSocket(){
   });
 
   if (IS_CAM) bootCamFollow();
+}
+
+/* 🎥 Link riêng (?mode=overlay, KHÔNG cam=1) nhường overlay mẹ Game Camera: server báo hubOwned=true khi Level Quest
+   đang chọn trong Game Camera VÀ overlay mẹ đang mở trên OBS → ẩn hẳn, OBS khỏi hiện 2 thanh. Overlay mẹ chưa mở (khách
+   chỉ dán link riêng) thì vẫn hiện. Bản trong hub (cam=1) và trang điều khiển (không mode) không bao giờ ẩn.
+   Server cũ không phát sự kiện này → không đổi gì. */
+function applyHubOwned(data){
+  if (!IS_OVERLAY || IS_CAM) return;
+  const owned = !!(data && typeof data === 'object' && data.hubOwned === true);
+  document.body.classList.toggle('lq-hub-owned', owned);
 }
 
 /* ============================================================
@@ -1580,6 +1652,9 @@ $("enPersist")?.addEventListener('change', () => {
 const restored = loadCfg();
 if (!restored){
   applyTotalsPreset();   // dùng input defaults
+} else if (cfgMigrated && !IS_OVERLAY){
+  saveCfg();             // ghi lại bản đã cắt về 18 cấp + phát sang overlay (socket chưa nối thì lúc connect phát)
+  log(`<span class="lv">✂ Cấu hình cũ quá ${LQ_MAX_LEVEL} cấp — đã chia lại mục tiêu cho ${LQ_MAX_LEVEL} cấp</span>`);
 }
 
 // Khôi phục tiến trình LIVE đã lưu (nếu bật "Giữ tiến trình") — chỉ ở LAB.

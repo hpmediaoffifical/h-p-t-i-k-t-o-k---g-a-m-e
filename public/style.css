@@ -9616,3 +9616,15 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .tt-body .col-right .card-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .tt-body .col-right .card-title .ghost.mini { white-space: nowrap; }
 .tt-body .col-right .card-title .search-mini { flex: 1 1 100%; margin: 0; }
+/* 🎮 Thẻ gọn trong panel Game Camera (port HP LIVE NPC): hàng tiêu đề + tóm tắt + nút Cài đặt mở phần dưới */
+.cg-head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.cg-head-row h3 { margin: 0; }
+.cg-compact .cg-head-row { margin-bottom: 0; flex-wrap: wrap; }
+.cg-compact .cg-head-row h3 { white-space: nowrap; }
+.cg-sum { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
+.cg-sum .cg-chip { padding: 3px 9px; }
+.cg-sum img { width: 18px; height: 18px; object-fit: contain; }
+.cg-more-btn { flex: 0 0 auto; }
+.cg-more-btn.open { color: #c9dbf7; border-color: #3b5b8f; background: rgba(127, 182, 255, 0.08); }
+.cg-more { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #2c3243; }
+.cg-compact .cgt-live:empty { display: none; }

@@ -14,9 +14,8 @@
 
     const SETTINGS = [
         { group: 'VÙNG CHÉM', items: [
-            { key: 'cutRadius', label: 'Bán kính chém quanh ngón trỏ', min: 0, max: 60, step: 1, unit: 'px', hint: 'Tăng bán kính để dễ chém hơn.' },
-            { key: 'holdSeconds', label: 'Giữ ngón trỏ để bắt đầu', min: 0.3, max: 3, step: 0.05, unit: 'giây' }
-        ] },
+            { key: 'cutRadius', label: 'Bán kính chém quanh ngón trỏ', min: 0, max: 60, step: 1, unit: 'px', hint: 'Tăng bán kính để dễ chém hơn.' }
+        ], hint: 'Game tự chạy, không cần giữ nút bắt đầu: ai tặng quà thì quả rơi. Quả rơi chạm đáy nằm lại ở đáy màn hình — cúi xuống chém cho xong; Giải Cứu dọn luôn quả đang nằm.' },
         { group: 'VẬT LÝ & TÍNH ĐIỂM', items: [
             { key: 'baseSpeed', label: 'Tốc độ mặc định', min: 0.25, max: 1.5, step: 0.05, unit: '×' },
             { key: 'objectScale', label: 'Kích thước quả và bom', min: 0.5, max: 2.5, step: 0.1, unit: '×' },
@@ -109,7 +108,7 @@
         const el = $('#ctc-status'); if (!el) return;
         const s = liveState || {};
         const trk = activeTracker ? `<span class="ctc-chip ok">🖐 Tracker ${escapeHtml(activeTracker)}</span>` : '<span class="ctc-chip warn">🖐 Chưa có tracker</span>';
-        const play = s.playing ? '<span class="ctc-chip ok">▶ Đang chơi</span>' : '<span class="ctc-chip">⏸ Màn chờ</span>';
+        const play = s.playing ? '<span class="ctc-chip ok">▶ Đang chạy · chờ quà</span>' : '<span class="ctc-chip">⏸ Tạm dừng</span>';
         const buffs = s.buffs || {};
         const bf = ['god', 'fast', 'slow'].filter(k => buffs[k] > 0).map(k => ({ god: '⚡', fast: '🔥', slow: '❄' })[k] + Math.ceil(buffs[k] / 1000) + 's').join(' ');
         el.innerHTML = `${trk} ${play} <span class="ctc-chip">🏆 ${Number(s.score) || 0} điểm</span> <span class="ctc-chip">🧺 Vườn ${Math.round(Number(s.pile) || 0)}%</span>${bf ? ` <span class="ctc-chip">${bf}</span>` : ''}${s.fps ? ` <span class="ctc-chip dim">${s.fps} fps</span>` : ''}`;
@@ -181,7 +180,7 @@
                     <input id="ctc-test-qty" type="number" min="1" max="100" value="3">
                     <button class="primary small" id="ctc-btn-test">🎯 Gửi thử lên overlay</button>
                 </div>
-                <div class="hint">Overlay phải đang mở (OBS hoặc tab preview). Game cần ở trạng thái Đang chơi mới sinh quả — bấm ▶ Bắt đầu ở trên.</div>
+                <div class="hint">Overlay phải đang mở (OBS hoặc tab preview). Game tự chạy — gửi thử là quả rơi ngay (đang ⏸ Dừng cũng tự chạy lại).</div>
             </div>`;
         $('#ctc-btn-add-gift').addEventListener('click', () => openGiftPicker(-1));
         host.querySelectorAll('.ctc-gift-row').forEach(row => {
@@ -236,9 +235,9 @@
         const f = String(filter || '').toLowerCase().trim();
         const used = new Set((cfg.giftRules || []).map(g => String(g.giftId)));
         const items = !f ? sheet : sheet.filter(g => (g.name || '').toLowerCase().includes(f) || String(g.id || '').includes(f));
-        list.innerHTML = items.slice(0, 200).map(g => `
+        list.innerHTML = items.map(g => `
             <div class="nd-gp-row${used.has(String(g.id)) ? ' active' : ''}" data-gid="${escapeHtml(String(g.id))}" data-gn="${escapeHtml(g.name || '')}" data-gi="${escapeHtml(g.image || '')}">
-                ${g.image ? `<img class="nd-gp-img" src="${escapeHtml(g.image)}" />` : '<span class="nd-gp-icon">🎁</span>'}
+                ${g.image ? `<img class="nd-gp-img" loading="lazy" decoding="async" src="${escapeHtml(g.image)}" />` : '<span class="nd-gp-icon">🎁</span>'}
                 <span class="nd-gp-name">${escapeHtml(g.name || ('Quà #' + g.id))}</span>
                 <span class="nd-gp-dia">${g.diamond || 0}💎</span>
                 ${used.has(String(g.id)) ? '<span class="nd-gp-tick">✓</span>' : ''}
@@ -302,6 +301,9 @@
     function renderDisplay() {
         const host = $('#ctc-display-pane'); if (!host || !cfg) return;
         const sc = cfg.obsScene || (cfg.obsScene = { enabled: false, playScene: '', backScene: '' });
+        const listDef = Game().defaultConfig().display;
+        const listRow = (k, label, min, max, step) => { const v = fmt((cfg.display || {})[k] ?? listDef[k]);
+            return `<div class="ctc-row" data-dk="${k}"><label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${v}"><input type="number" min="${min}" max="${max}" step="${step}" value="${v}"><span class="unit">%</span></div>`; };
         host.innerHTML = `
             <div class="ctc-card">
                 <h3>HUD TRÊN OVERLAY</h3>
@@ -311,6 +313,13 @@
                 <div class="ctc-row" data-key="volume"><label>Âm lượng</label><input type="range" min="0" max="1" step="0.05" value="${fmt(cfg.volume)}"><input type="number" min="0" max="1" step="0.05" value="${fmt(cfg.volume)}"><span class="unit"></span></div>
                 <div class="ctc-row"><label>Chất lượng</label>
                     <select id="ctc-quality"><option value="auto" ${cfg.quality === 'auto' ? 'selected' : ''}>Cân bằng</option><option value="low" ${cfg.quality === 'low' ? 'selected' : ''}>Nhẹ</option><option value="high" ${cfg.quality === 'high' ? 'selected' : ''}>Đẹp</option></select></div>
+            </div>
+            <div class="ctc-card">
+                <h3>DANH SÁCH NGƯỜI TẶNG QUÀ</h3>
+                ${listRow('listXPercent', 'Vị trí ngang', 0, 100, 1)}
+                ${listRow('listYPercent', 'Vị trí dọc', 0, 95, 1)}
+                ${listRow('listScale', 'Cỡ chữ', 30, 300, 5)}
+                <div class="hint">Tính theo % vùng camera còn thấy trên OBS. Mặc định 50 / 13 / 70: ngay dưới bảng điểm, tránh ô bình luận TikTok.</div>
             </div>
             <div class="ctc-card">
                 <h3>SCENE OBS KHI CHƠI</h3>
@@ -324,6 +333,12 @@
                 <div class="hint">Nguồn hình là <b>Scene OBS</b> → tọa độ tay khớp 1:1 với overlay, không cần chỉnh. Nguồn là Source OBS/Webcam → bấm <b>🎯 Chỉnh vùng camera</b> ở trên để kéo khung trùng vị trí camera trong OBS (thả chuột là lưu), hoặc "📐 Lấy vùng camera từ OBS" ở tab Camera.</div>
                 <div class="hint">${cfg.camRect ? `Đang dùng khung tùy chỉnh: x ${cfg.camRect.xPercent}% · y ${cfg.camRect.yPercent}% · rộng ${cfg.camRect.widthPercent}% · cao ${cfg.camRect.heightPercent}%. <button class="ghost small" id="ctc-cam-reset">↺ Về tự động</button>` : 'Đang dùng khung tự động.'}</div>
             </div>`;
+        // Vị trí / cỡ danh sách người tặng (display.list*) - kéo là overlay đổi ngay.
+        host.querySelectorAll('.ctc-row[data-dk]').forEach(r => {
+            const k = r.dataset.dk, range = r.querySelector('input[type=range]'), num = r.querySelector('input[type=number]');
+            const apply = (v) => { const n = Number(v); if (!Number.isFinite(n)) return; cfg.display = { ...(cfg.display || {}), [k]: n }; range.value = n; num.value = fmt(n); schedulePersist(); };
+            range.addEventListener('input', () => apply(range.value)); num.addEventListener('change', () => apply(num.value));
+        });
         host.querySelectorAll('.ctc-toggle input[data-k]').forEach(i => i.addEventListener('change', () => { cfg[i.dataset.k] = i.checked; schedulePersist(); }));
         const vr = host.querySelector('.ctc-row[data-key=volume]');
         const vrange = vr.querySelector('input[type=range]'), vnum = vr.querySelector('input[type=number]');

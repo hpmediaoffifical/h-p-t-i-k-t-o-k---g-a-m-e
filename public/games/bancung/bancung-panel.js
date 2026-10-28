@@ -83,6 +83,7 @@
         ['shotGifts','healGifts','reviveGifts','shieldGifts'].forEach(k => {
             if (!Array.isArray(cfg[k])) cfg[k] = [];
         });
+        if (!presets) await loadPresets();
         try {
             const r = await fetch('/api/games/bancung/livestate');
             liveState = r.ok ? await r.json() : null;
@@ -120,8 +121,8 @@
             if (e.target?.isContentEditable) return;
             // Skip if modifier keys held (avoid conflicts with browser shortcuts)
             if (e.ctrlKey || e.metaKey || e.altKey) return;
-            // Bancung disabled or session inactive → ignore
-            if (!cfg || cfg.enabled === false || cfg.sessionActive === false) return;
+            // Bắn Cung tắt → bỏ qua. Không đòi đã bấm ▶ Bắt đầu (trước đây đòi → phím "không ăn" khi chưa bắt đầu).
+            if (!cfg || cfg.enabled === false) return;
             const d = cfg.display || {};
             const key = e.key.toUpperCase();
             const action = matchHotkey(d, key);
@@ -278,6 +279,41 @@
     // ============================================================
     // RENDER
     // ============================================================
+    // ----- Số mũi để gục = số tim ÷ sát thương mỗi mũi (chưa tính chí mạng / combo / headshot) -----
+    const PRESET_KEYS = new Set(['damagePerShot', 'regenPerSecond', 'idleBeforeRegen', 'regenRampSec']);
+    let presets = null;                 // /api/games/bancung/presets — sát thương + hồi theo mốc 10 tim
+    const shotsToKill = (hearts, dmg) => (dmg > 0 ? Math.ceil(hearts / dmg - 1e-9) : Infinity);
+    function shotsCalcHtml() {
+        const hearts = Math.max(1, Number(cfg?.maxHearts) || 10), dmg = Number(cfg?.damagePerShot) || 0;
+        const n = shotsToKill(hearts, dmg);
+        return n === Infinity ? '⚠ Sát thương = 0 → bắn không bao giờ gục.'
+            : `= <b>≈ ${n} mũi tên</b> là gục (${hearts} tim ÷ ${dmg} mỗi mũi, chưa tính chí mạng/combo). Tim nhiều hơn hoặc sát thương nhỏ hơn → cần nhiều mũi hơn.`;
+    }
+    function presetDescHtml(p) {
+        const hearts = Math.max(1, Number(cfg?.maxHearts) || 10);
+        const dmg = Number(p.damagePerShot) || 0;
+        const regen = Math.round((Number(p.regenPerSecond) || 0) * hearts / 10 * 100) / 100;
+        const n = shotsToKill(hearts, dmg);
+        return `<b>${n === Infinity ? '∞' : '≈ ' + n} mũi</b> là gục · ${dmg}♥/mũi<br>hồi ${regen}♥/s · Crit ${Number(p.criticalChance) || 0}%${p.headshotChance ? ' · Headshot ' + p.headshotChance + '%' : ''}`;
+    }
+    // Server trả { easy: {...}, normal: {...}, ... } (bản bọc { presets: {...} } cũng nhận).
+    async function loadPresets() {
+        try {
+            const r = await fetch('/api/games/bancung/presets', { cache: 'no-store' });
+            if (!r.ok) return;
+            const j = await r.json();
+            const p = j && typeof j.presets === 'object' ? j.presets : j;
+            if (p && typeof p === 'object' && Object.values(p).some(v => v && typeof v === 'object' && 'damagePerShot' in v)) presets = p;
+        } catch (e) {}
+    }
+    function renderPresetDescs(host) {
+        if (!presets || !host) return;
+        host.querySelectorAll('.bc-preset-btn').forEach(b => {
+            const p = presets[b.dataset.preset], el = b.querySelector('.bc-preset-desc');
+            if (p && el) { const html = presetDescHtml(p); if (el.innerHTML !== html) el.innerHTML = html; }
+        });
+    }
+
     function renderAll() {
         renderForm();
         renderHpTab();
@@ -301,14 +337,15 @@
                 <label class="nd-inline">Số trái tim tối đa <input type="number" id="bc-maxHearts" min="1" max="30" step="1" value="${cfg.maxHearts ?? 10}" /></label>
                 <label class="nd-inline">Máu khởi đầu khi RESET <input type="number" id="bc-initialHearts" min="0" step="0.5" value="${cfg.initialHearts ?? cfg.maxHearts ?? 10}" /></label>
                 <label class="nd-inline">Sát thương MỖI mũi tên <input type="number" id="bc-damagePerShot" min="0.01" step="0.05" value="${cfg.damagePerShot ?? 0.25}" /> ♥</label>
-                <div class="nd-hint">VD: 10 trái tim × 0.25 sát thương = 40 mũi tên mới chết. 0.5 = 20 mũi.</div>
+                <div class="nd-hint" id="bc-shots-calc">${shotsCalcHtml()}</div>
             </div>
 
             <div class="nd-card">
                 <div class="nd-card-title">💚 Tự hồi máu (khi không bị bắn)</div>
-                <label class="nd-inline">Tốc độ hồi <input type="number" id="bc-regenPerSecond" min="0" step="0.05" value="${cfg.regenPerSecond ?? 0.2}" /> ♥/giây</label>
-                <label class="nd-inline">Sau <input type="number" id="bc-idleBeforeRegen" min="0" step="1" value="${cfg.idleBeforeRegen ?? 3}" /> giây không bị bắn</label>
-                <div class="nd-hint">VD: 0.2 ♥/s + idle 3s → 5 giây không bị bắn = +0.4 ♥.</div>
+                <label class="nd-inline">Bắt đầu hồi sau <input type="number" id="bc-idleBeforeRegen" min="0" step="1" value="${cfg.idleBeforeRegen ?? 3}" /> giây không bị bắn</label>
+                <label class="nd-inline">Tốc độ hồi tối đa <input type="number" id="bc-regenPerSecond" min="0" step="0.05" value="${cfg.regenPerSecond ?? 0.2}" /> ♥/giây</label>
+                <label class="nd-inline">Nhanh dần trong <input type="number" id="bc-regenRampSec" min="0" step="1" value="${cfg.regenRampSec ?? 10}" /> giây</label>
+                <div class="nd-hint">Máu leo lại CHẬM lúc đầu (15% tốc độ) rồi nhanh dần tới tối đa — trúng 1 phát là về chậm lại. 0 giây = hồi đều như cũ.</div>
             </div>
 
             <div class="nd-card">
@@ -328,7 +365,7 @@
                     🏹 <input type="number" id="bc-ff-kc-shot" min="1" step="1" value="${cfg.freeFireKcPerShot ?? 10}" /> KC = 1 mũi tên
                 </label>
                 <label class="nd-inline" title="Cap số mũi tối đa mỗi gift event để tránh combo siêu khủng spam 1000 mũi.">
-                    🚫 Tối đa <input type="number" id="bc-ff-max-shots" min="1" max="50" step="1" value="${cfg.freeFireMaxShots ?? 20}" /> mũi / quà
+                    🚫 Tối đa <input type="number" id="bc-ff-max-shots" min="1" max="300" step="1" value="${cfg.freeFireMaxShots ?? 20}" /> mũi / quà
                 </label>
                 <div class="nd-hint" style="color:#4ade80">
                     💡 VD config (100 KC = 1 ♥, 10 KC = 1 mũi, max 20):<br>
@@ -344,7 +381,7 @@
                 <label class="nd-inline"><input type="checkbox" id="bc-autoReviveAfterWindow" ${cfg.autoReviveAfterWindow !== false ? 'checked' : ''} /> Tự hồi sinh nếu không ai cứu</label>
                 <label class="nd-inline">Máu khi tự hồi sinh <input type="number" id="bc-autoReviveHearts" min="0.5" step="0.5" value="${cfg.autoReviveHearts ?? 5}" /> ♥</label>
                 <label class="nd-inline">Giáp bất tử sau khi hồi sinh <input type="number" id="bc-reviveProtectionSec" min="0" step="1" value="${cfg.reviveProtectionSec ?? 3}" /> giây</label>
-                <div class="nd-hint">Trong 5s sau khi chết: ai tặng quà "hồi sinh" (tab Quà chỉ định) sẽ cứu. Nếu không, tự hồi sinh sau 5s với máu cấu hình.</div>
+                <div class="nd-hint">Đang gục: bắn không trừ máu. Bật <b>💚 Tự hồi máu</b> (tốc độ &gt; 0) thì sau "Bắt đầu hồi sau" giây máu bắt đầu hồi là <b>sống lại ngay</b> (hết cháy đen), máu leo tiếp chậm rồi nhanh dần — 3 ô cửa sổ / tự hồi sinh / máu khi tự hồi ở trên chỉ dùng khi tắt tự hồi máu. Quà "hồi sinh" (tab Quà chỉ định) vẫn cứu ngay.</div>
             </div>
         `;
         const wireNum = (id, key, opts = {}) => {
@@ -353,6 +390,8 @@
             $('#' + id, host)?.addEventListener('input', e => {
                 const v = isFloat ? parseFloat(e.target.value) : parseInt(e.target.value, 10);
                 cfg[key] = Math.max(min, isFinite(v) ? v : 0);
+                if (PRESET_KEYS.has(key)) cfg.preset = '';   // sửa tay thông số preset quản → không còn đúng preset nào
+                const calc = $('#bc-shots-calc', host); if (calc) calc.innerHTML = shotsCalcHtml();
                 schedulePersist();
             });
         };
@@ -361,6 +400,7 @@
         wireNum('bc-damagePerShot', 'damagePerShot', { min: 0.01 });
         wireNum('bc-regenPerSecond', 'regenPerSecond', { min: 0 });
         wireNum('bc-idleBeforeRegen', 'idleBeforeRegen', { min: 0, float: false });
+        wireNum('bc-regenRampSec', 'regenRampSec', { min: 0, float: false });
         wireNum('bc-reviveWindowSec', 'reviveWindowSec', { min: 1, float: false });
         wireNum('bc-autoReviveHearts', 'autoReviveHearts', { min: 0.5 });
         wireNum('bc-reviveProtectionSec', 'reviveProtectionSec', { min: 0, float: false });
@@ -483,6 +523,7 @@
                     <input class="bc-gr-custom" type="text" placeholder="🏷 Tên hiển thị" value="${escapeHtml(g.customLabel || '')}" title="Tên hiện trên overlay (bỏ trống = dùng tên gốc)" />
                     ${valField}
                     ${extraField}
+                    <button class="primary small bc-gift-play" title="Phát thử quà này, chạy y như quà thật">▶ Phát thử</button>
                     <button class="ghost small bc-gift-swap" title="Đổi quà khác">↻ Đổi</button>
                     <button class="danger small bc-gift-del" title="Xoá">🗑</button>
                 </div>
@@ -508,6 +549,16 @@
                 const calc = row.querySelector('.bc-gift-calc');
                 if (calc) calc.textContent = v > 0 ? '(' + (1/v).toFixed(3) + ' ♥)' : '';
                 schedulePersist();
+            });
+            // ▶ Phát thử: thả quà thử qua đường quà THẬT của app (POST /api/test-gift) → chạy y như khán giả tặng.
+            row.querySelector('.bc-gift-play')?.addEventListener('click', () => {
+                const g = cfg[key][idx];
+                if (!g) return;
+                fetch('/api/test-gift', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ giftId: g.giftId, giftName: g.giftName || '', giftImage: g.giftImage || '', count: 1, uniqueId: 'tester', nickname: 'Tester' })
+                }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); toastOk('▶ Đã thả thử: ' + (g.customLabel || g.giftName || ('Quà #' + g.giftId))); })
+                  .catch(e => toastWarn('Phát thử lỗi: ' + (e.message || e)));
             });
             row.querySelector('.bc-gift-swap')?.addEventListener('click', () => openGiftPicker(
                 key === 'shotGifts' ? 'shot' :
@@ -675,7 +726,13 @@
                 </label>
                 <div class="nd-hint">Nguồn này dùng <b>chung cho mọi game trong 🎥 Game Camera</b> — đổi ở đây hay ở Game Camera đều như nhau.</div>
                 <div class="nd-hint" id="bc-track-status">Đang hỏi OBS…</div>
-                <label class="nd-inline"><input type="checkbox" id="bc-track-blood" ${d.bloodMarks !== false ? 'checked' : ''} /> 🩸 Vết đỏ nhạt chỗ trúng (mờ dần sau 4 giây)</label>
+                <label class="nd-inline">🎨 Màu máu
+                    <select id="bc-blood-color">
+                        ${[['red', '🔴 Đỏ'], ['green', '🟢 Xanh lá'], ['blue', '🔵 Xanh dương'], ['pink', '🩷 Hồng']].map(([v, t]) => `<option value="${v}"${(d.bloodColor || 'red') === v ? ' selected' : ''}>${t}</option>`).join('')}
+                    </select>
+                </label>
+                <div class="nd-hint">Như PUBG: đổi màu VẾT MÁU chỗ mũi tên găm (chớp đỏ trên người giữ màu đỏ) — chọn xanh/hồng cho an toàn với quy định LIVE.</div>
+                <label class="nd-inline"><input type="checkbox" id="bc-track-blood" ${d.bloodMarks !== false ? 'checked' : ''} /> 🩸 Vết máu chỗ trúng (mờ dần sau 4 giây)</label>
                 <label class="nd-inline"><input type="checkbox" id="bc-track-flash" ${d.bodyFlash !== false ? 'checked' : ''} /> 🔴 Trúng thì cả người phủ đỏ nhạt (thay chớp đỏ toàn màn hình)</label>
                 <label class="nd-inline">Độ đậm màu đỏ khi trúng <input type="range" id="bc-flashop" min="10" max="100" step="5" value="${d.bodyFlashOpacity ?? 50}" /><span id="bc-flashop-v">${d.bodyFlashOpacity ?? 50}%</span></label>
                 <label class="nd-inline"><input type="checkbox" id="bc-track-char" ${d.bodyChar !== false ? 'checked' : ''} /> ⚫ Hết máu thì cả người cháy đen (thay màn tối toàn khung) — tự hồi theo "Cửa sổ chờ hồi sinh" ở tab Máu</label>
@@ -713,6 +770,19 @@
                 <label class="nd-inline">Scale <input type="range" id="bc-bs" min="30" max="250" step="5" value="${d.bowScale ?? 100}" /><span id="bc-bs-v">${d.bowScale ?? 100}%</span></label>
                 <label class="nd-inline"><input type="checkbox" id="bc-autoAim" ${d.autoAimBow !== false ? 'checked' : ''} /> Tự xoay cung ngắm mục tiêu (bám người: ngắm mặt, khi bắn ngắm đúng chỗ trúng)</label>
                 <div class="nd-hint">💡 Bấm <b>✏ Sửa vị trí</b> rồi kéo chuột để di chuyển, cuộn để zoom.</div>
+            </div>
+
+            <div class="nd-card">
+                <div class="nd-card-title">🎁 Vị trí DANH SÁCH QUÀ</div>
+                <label class="nd-inline">X (ngang) <input type="range" id="bc-gx" min="0" max="100" step="1" value="${d.giftListXPercent ?? 4}" /><span id="bc-gx-v">${d.giftListXPercent ?? 4}%</span></label>
+                <label class="nd-inline">Y (dọc) <input type="range" id="bc-gy" min="0" max="100" step="1" value="${d.giftListYPercent ?? 30}" /><span id="bc-gy-v">${d.giftListYPercent ?? 30}%</span></label>
+                <label class="nd-inline">Scale <input type="range" id="bc-gs" min="30" max="250" step="5" value="${d.giftListScale ?? 100}" /><span id="bc-gs-v">${d.giftListScale ?? 100}%</span></label>
+                <label class="nd-inline">Bố cục danh sách quà
+                    <select id="bc-fx-layout">
+                        <option value="vertical" ${(d.giftListLayout || 'vertical') === 'vertical' ? 'selected' : ''}>↕ Dọc</option>
+                        <option value="horizontal" ${d.giftListLayout === 'horizontal' ? 'selected' : ''}>↔ Ngang</option>
+                    </select>
+                </label>
             </div>
 
             <div class="nd-card">
@@ -780,12 +850,6 @@
                 <label class="nd-inline"><input type="checkbox" id="bc-fx-podium" ${d.showPodium !== false ? 'checked' : ''} /> 🏆 Podium top-3 cuối phiên</label>
                 <label class="nd-inline"><input type="checkbox" id="bc-fx-giftlist" ${d.showGiftList !== false ? 'checked' : ''} /> 🎁 Danh sách quà chỉ định trên overlay (kéo trong edit mode)</label>
                 <label class="nd-inline"><input type="checkbox" id="bc-fx-hpnum" ${d.showHpNumber !== false ? 'checked' : ''} /> 🔢 Số máu dưới hàng trái tim (5.6/10 ❤)</label>
-                <label class="nd-inline">Bố cục danh sách quà
-                    <select id="bc-fx-layout">
-                        <option value="vertical" ${(d.giftListLayout || 'vertical') === 'vertical' ? 'selected' : ''}>↕ Dọc</option>
-                        <option value="horizontal" ${d.giftListLayout === 'horizontal' ? 'selected' : ''}>↔ Ngang</option>
-                    </select>
-                </label>
             </div>
 
             <div class="nd-card">
@@ -827,6 +891,9 @@
         wireRange('bc-bx', 'bowXPercent', '%');
         wireRange('bc-by', 'bowYPercent', '%');
         wireRange('bc-bs', 'bowScale', '%');
+        wireRange('bc-gx', 'giftListXPercent', '%');
+        wireRange('bc-gy', 'giftListYPercent', '%');
+        wireRange('bc-gs', 'giftListScale', '%');
         wireRange('bc-ix', 'impactXPercent', '%');
         wireRange('bc-iy', 'impactYPercent', '%');
         wireRange('bc-ispread', 'impactSpread', '%');
@@ -840,6 +907,7 @@
         // Bám theo người — nguồn camera lấy từ OBS qua API dùng chung với Touch & Play
         $('#bc-track-on', host)?.addEventListener('change', e => { d.bodyTrack = !!e.target.checked; schedulePersist(); setTimeout(loadTrackSources, 800); });
         $('#bc-track-blood', host)?.addEventListener('change', e => { d.bloodMarks = !!e.target.checked; schedulePersist(); });
+        $('#bc-blood-color', host)?.addEventListener('change', e => { d.bloodColor = e.target.value; schedulePersist(); });
         $('#bc-track-flash', host)?.addEventListener('change', e => { d.bodyFlash = !!e.target.checked; schedulePersist(); });
         $('#bc-track-char', host)?.addEventListener('change', e => { d.bodyChar = !!e.target.checked; schedulePersist(); });
         $('#bc-track-smooth', host)?.addEventListener('change', e => { d.maskSmooth = !!e.target.checked; schedulePersist(); });
@@ -969,32 +1037,32 @@
                 </div>
                 <div class="nd-card">
                     <div class="nd-card-title">⚡ PRESET nhanh — bấm 1 phát set cấu hình</div>
-                    <div class="nd-hint">Áp dụng tức thì: max HP, sát thương, hồi máu, % chí mạng — tùy độ khó bạn muốn.</div>
+                    <div class="nd-hint">Giữ nguyên <b>số tim</b> bạn đặt ở tab Máu — preset chỉ đổi <b>sát thương mỗi mũi</b> và tốc độ hồi. Số mũi để gục = số tim ÷ sát thương (tim nhiều hơn → nhiều mũi hơn). Bấm là áp ngay và <b>nạp đầy máu</b>. Ô sáng = preset đang dùng; sửa tay ở tab Máu thì bỏ sáng.</div>
                     <div class="bc-preset-grid">
                         <button class="bc-preset-btn" data-preset="easy">
                             <span class="bc-preset-emoji">😌</span>
                             <span class="bc-preset-name">Dễ thở</span>
-                            <span class="bc-preset-desc">HP 20 · DMG 0.2 · Regen 0.3 · Crit 3%</span>
+                            <span class="bc-preset-desc"></span>
                         </button>
                         <button class="bc-preset-btn" data-preset="normal">
                             <span class="bc-preset-emoji">⚖</span>
                             <span class="bc-preset-name">Cân bằng</span>
-                            <span class="bc-preset-desc">HP 10 · DMG 0.25 · Regen 0.2 · Crit 5%</span>
+                            <span class="bc-preset-desc"></span>
                         </button>
                         <button class="bc-preset-btn" data-preset="hardcore">
                             <span class="bc-preset-emoji">💀</span>
                             <span class="bc-preset-name">Hardcore</span>
-                            <span class="bc-preset-desc">HP 5 · DMG 1.0 · No regen · Crit 10%</span>
+                            <span class="bc-preset-desc"></span>
                         </button>
                         <button class="bc-preset-btn" data-preset="boss">
                             <span class="bc-preset-emoji">👹</span>
                             <span class="bc-preset-name">Boss</span>
-                            <span class="bc-preset-desc">HP 50 · DMG 0.5 · Headshot 20%</span>
+                            <span class="bc-preset-desc"></span>
                         </button>
                         <button class="bc-preset-btn" data-preset="sandbox">
                             <span class="bc-preset-emoji">🧪</span>
-                            <span class="bc-preset-name">Sandbox</span>
-                            <span class="bc-preset-desc">HP 999 · DMG 0 — test mode</span>
+                            <span class="bc-preset-name">Thử nhanh</span>
+                            <span class="bc-preset-desc"></span>
                         </button>
                     </div>
                 </div>
@@ -1005,7 +1073,7 @@
                 </div>
                 <div class="nd-card">
                     <div class="nd-card-title">⌨ Phím tắt cho streamer</div>
-                    <div class="nd-hint">Bấm phím (khi không gõ trong ô input) để kích hoạt ngay. Để trống = tắt phím đó.</div>
+                    <div class="nd-hint">Bấm phím (khi không gõ trong ô input) để kích hoạt ngay — chạy khi Bắn Cung đang bật, không cần bấm ▶ Bắt đầu. Để trống = tắt phím đó.</div>
                     <label class="nd-inline" style="background:#1a2a35;border:1.5px solid #25f4ee;padding:8px 12px;border-radius:8px;margin:6px 0">
                         <input type="checkbox" id="bc-global-hk" ${cfg.display?.globalHotkeys === true ? 'checked' : ''} />
                         <b style="color:#25f4ee">⚡ Phím tắt GLOBAL — bấm <kbd style="background:#0c0e15;padding:2px 6px;border-radius:4px;color:#ff8ec0">Ctrl+Shift+&lt;phím&gt;</kbd> ở MỌI NƠI</b>
@@ -1057,6 +1125,7 @@
                 b.addEventListener('click', async () => {
                     const id = b.dataset.preset;
                     await sendControl({ cmd: 'preset', preset: id });
+                    host.querySelectorAll('.bc-preset-btn').forEach(x => x.classList.toggle('active', x === b));
                     toastOk(`✓ Áp dụng preset: ${b.querySelector('.bc-preset-name')?.textContent || id}`);
                     // Reload config + re-render tabs
                     await loadAll();
@@ -1064,6 +1133,8 @@
                 });
             });
         }
+        host.querySelectorAll('.bc-preset-btn').forEach(b => b.classList.toggle('active', !!cfg.preset && b.dataset.preset === cfg.preset));
+        renderPresetDescs(host);
         // Update top table
         const $tt = $('#bc-top-table');
         if ($tt) {

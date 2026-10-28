@@ -87,7 +87,17 @@
                 const rapid = now - c.lastShotAt < 250;
                 c.lastShotAt = now;
                 const want = Math.max(40, opts.drawMs || 110);
-                c.queue.push({ cb: onRelease, at: now, drawMs: rapid ? Math.min(want, 55) : want, rapid });
+                const it = { cb: onRelease, at: now, drawMs: rapid ? Math.min(want, 55) : want, rapid };
+                c.queue.push(it);
+                // Phao: khung vẽ (rAF) bị dừng/ghìm (nguồn OBS ẩn, tab nền…) thì cung không bước → mũi tên kẹt trong hàng
+                // chờ mãi không bay. Quá hạn kéo + 250ms mà chưa buông thì tự buông.
+                // Có opts.now = đồng hồ giả (test) → không đặt phao theo đồng hồ thật.
+                if (typeof setTimeout === 'function' && opts.now == null) setTimeout(() => {
+                    const i = c.queue.indexOf(it);
+                    if (i < 0) return;
+                    c.queue.splice(i, 1);
+                    it.cb(performance.now() - it.at);
+                }, it.drawMs + 250);
                 // Dồn quá nhiều (combo lớn) → xả bớt ngay, chỉ giữ 2 phát cuối để cung còn kịp diễn.
                 while (c.queue.length > 3) { const it = c.queue.shift(); it.cb(now - it.at); }
             },

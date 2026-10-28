@@ -106,6 +106,7 @@ loadTikTokConnector().catch((e) => console.error('[tiktok] KHÔNG nạp được
 const { OBSBridge } = require('./lib/obs-bridge');
 const { ObsCameraFeed } = require('./lib/touchplay-obs-feed');
 const CamRules = require('./lib/camgames');
+const CamSession = require('./lib/camgames-session');
 const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
 const MusicGifts = require('./lib/music-gifts');
 const { LuaSync } = require('./lib/lua-sync');
@@ -496,6 +497,9 @@ function camActives() {
     return cam.enabled === false ? [] : CamRules.activesOf(cam, CAM_GAME_IDS);
 }
 function camGameInHub(id) { return camActives().includes(id); }
+// Game THẬT SỰ đang nhận quà: đang có 🎮 phiên game theo quà thì chỉ game của phiên (độc quyền).
+let camSession = null;
+function camPlayActives() { return camSession ? [camSession.gameId] : camActives(); }
 // Phím tắt toàn cục của game camera: chơi 2 game cùng có phím thì chỉ game streamer bấm vào gần nhất trong
 // Game Camera (`hotkeyGame`) giữ phím, game kia tạm nhả (đưa cấu hình enabled:false cho electron-main → gỡ phím).
 // Mọi chỗ áp phím tắt Bắn Cung / Đập Muỗi đi qua đây để luật không bị chỗ khác đăng ký đè.
@@ -515,13 +519,13 @@ function camApplyAllHotkeys() {
 // Chơi ≥2 game cùng lúc: "quà riêng trước, quà chung sau" — game nào gán ĐÍCH DANH quà này (lib/camgames.js).
 // [] khi chỉ chơi 1 game (không lọc gì, như trước).
 function camGiftClaims(g) {
-    const act = camActives();
+    const act = camPlayActives();
     return act.length >= 2 ? CamRules.giftClaims(g, appConfig.games, act) : [];
 }
 // Nhánh bắt-mọi-quà của `id` (Đập Muỗi xu/con, Bắn Cung bắn tự do + nạp cung) nhường quà mà game đang
 // chơi cùng đã gán đích danh. Touch & Play lọc ở client theo `camClaims` trong sự kiện 'gift'.
 function camGiftYields(id, g) {
-    const act = camActives();
+    const act = camPlayActives();
     if (act.length < 2 || !act.includes(id)) return false;
     return CamRules.claimedElsewhere(id, CamRules.giftClaims(g, appConfig.games, act), act.length);
 }
@@ -531,6 +535,8 @@ function camGamesApplyActive(prevCam) {
     const cam = appConfig.games.camgames = { ...GAMES.camgames.defaultConfig, ...(appConfig.games.camgames || {}) };
     const sel = CamRules.applyPatch(cam, {}, CAM_GAME_IDS);
     cam.actives = sel.actives; cam.active = sel.active;
+    cam.trigger = CamSession.normalizeTrigger(cam.trigger);
+    if (camSession) return false;        // đang phiên game: cờ bật do phiên giữ, hết phiên mới áp lại
     const hubOn = cam.enabled !== false;
     const prevSel = prevCam && prevCam.enabled !== false ? CamRules.activesOf(prevCam, CAM_GAME_IDS) : [];
     let changed = false;
@@ -558,6 +564,167 @@ function camGamesApplyActive(prevCam) {
     return changed;
 }
 
+// ================= 🎮 PHIÊN GAME THEO QUÀ (port từ HP LIVE NPC) =================
+// Người xem tặng QUÀ KÍCH HOẠT (camgames.trigger.rules) → game gắn với quà chơi ĐỘC QUYỀN N giây trong overlay mẹ:
+// chỉ game đó bật + nhận quà (camPlayActives), game camera khác tạm tắt; hết giờ trả lại cờ bật như trước.
+// Luật thuần ở lib/camgames-session.js. Phiên chỉ ở RAM: app khởi động lại = như thường.
+// Overlay mẹ PHẢI đang mở trên OBS (socket query hub=camgames) — không thì quà kích hoạt chạy như quà thường.
+let camSessionTimer = null, camSessionSeq = 0, camSessionSnap = null, camExtendSeq = 0;
+let camSessionQueue = [];            // phiên chờ: [{ gameId, seconds, gift }] — quà kích hoạt game khác lúc đang có phiên
+const camTriggerCfg = () => CamSession.normalizeTrigger(appConfig.games?.camgames?.trigger);
+function camHubOverlayOnline() {
+    for (const s of io.sockets.sockets.values()) if (s.data?.camHub) return true;
+    return false;
+}
+// 🎯 LEVEL QUEST đang chọn trong Game Camera VÀ overlay mẹ đang mở trên OBS → link riêng
+// /_prototype/level-quest.html?mode=overlay (không cam=1) tự ẩn, OBS khỏi hiện 2 thanh (port HP LIVE NPC).
+function levelQuestHubOwned() { return camGameInHub('level-quest') && camHubOverlayOnline(); }
+let lqHubOwnedLast = null;
+setInterval(() => {
+    try {
+        const owned = levelQuestHubOwned();
+        if (owned !== lqHubOwnedLast) { lqHubOwnedLast = owned; io.emit('levelquest:hub', { hubOwned: owned }); }
+    } catch (e) {}
+}, 1500);
+function camGiftCatalog() {
+    return Object.values(giftMap || {}).filter(g => g && g.id != null).map(g => ({ id: String(g.id), name: g.name, image: g.image, diamonds: g.diamond }));
+}
+const camQueuePublic = () => camSessionQueue.map(q => ({ gameId: q.gameId, seconds: q.seconds }));
+function camSessionPublic() {
+    const s = camSession;
+    if (!s) return null;
+    const g = GAMES[s.gameId] || {};
+    return { active: true, seq: s.seq, gameId: s.gameId, gameName: g.name || s.gameId, icon: g.icon || '🎮',
+        startedAt: s.startedAt, introUntil: s.introUntil, until: s.until, seconds: s.seconds,
+        by: s.by, giftName: s.giftName, giftImage: s.giftImage, extend: s.extend || null, gifts: s.gifts || [],
+        queue: camQueuePublic() };
+}
+function camEmitSession() {
+    if (camSession) camSession.gifts = CamSession.gameGiftList(camSession.gameId, appConfig.games[camSession.gameId], camGiftCatalog());
+    io.emit('camgames:session', { ...(camSessionPublic() || { active: false, queue: camQueuePublic() }), serverNow: Date.now() });
+}
+function camArmSessionTimer() {
+    clearTimeout(camSessionTimer);
+    if (!camSession) return;
+    camSessionTimer = setTimeout(() => {
+        if (camSession && Date.now() >= camSession.until - 20) camEndSession('timeout');
+        else camArmSessionTimer();
+    }, Math.max(50, camSession.until - Date.now()));
+}
+// Bật đúng game của phiên, tạm tắt mọi game camera khác (kể cả Bắn Cung đang bật ở link riêng).
+function camApplySessionEnable() {
+    for (const id of CAM_GAME_IDS) {
+        if (!GAMES[id] || CAM_IGNORES_ENABLED.has(id)) continue;
+        const c = appConfig.games[id] = appConfig.games[id] || { ...GAMES[id].defaultConfig };
+        const want = !!camSession && id === camSession.gameId;
+        if ((c.enabled !== false) === want) continue;
+        c.enabled = want;
+        io.emit('gameConfig', { gameId: id, config: c });
+        io.emit(want ? 'gameEnabled' : 'gameDisabled', { gameId: id, ts: Date.now() });
+        if (id === 'dapmuoi' || id === 'bancung') camApplyHotkeys(id);
+    }
+}
+function camStartSession(gameId, seconds, gift, now = Date.now()) {
+    const t = camTriggerCfg();
+    const games = appConfig.games;
+    camSessionSnap = {
+        cam: JSON.parse(JSON.stringify(games.camgames || {})),
+        enabled: Object.fromEntries(CAM_GAME_IDS.filter(id => GAMES[id]).map(id => [id, (games[id] || {}).enabled !== false])),
+        bancungActive: (games.bancung || {}).sessionActive === true
+    };
+    const introMs = t.introSec * 1000;
+    camSession = {
+        seq: ++camSessionSeq, gameId, startedAt: now, introUntil: now + introMs,
+        until: now + introMs + seconds * 1000, seconds,
+        by: { nickname: String(gift?.nickname || gift?.uniqueId || ''), uniqueId: String(gift?.uniqueId || ''), avatar: String(gift?.profilePicture || '') },
+        giftName: String(gift?.giftName || ''), giftImage: String(gift?.giftPicture || gift?.giftImage || ''), extend: null
+    };
+    camApplySessionEnable();
+    // Bắn Cung chỉ nhận quà khi phiên ▶ BẮT ĐẦU — phiên game tự bắt đầu, hết phiên trả lại như trước.
+    if (gameId === 'bancung' && !camSessionSnap.bancungActive) {
+        const bc = games.bancung = games.bancung || makeDefaultBanCungConfig();
+        bc.sessionActive = true;
+        banCungState.sessionStartedAt = now;
+        io.emit('gameConfig', { gameId: 'bancung', config: bc });
+        broadcastBanCungState({ immediate: true });
+    }
+    camArmSessionTimer();
+    console.log(`[camgames] 🎮 phiên ${gameId} ${seconds}s — ${camSession.by.nickname} tặng ${camSession.giftName}`);
+    camEmitSession();
+}
+function camEndSession(reason = 'timeout', { next = true } = {}) {
+    if (!camSession) return false;
+    const ended = camSessionPublic();
+    const snap = camSessionSnap;
+    camSession = null; camSessionSnap = null;
+    clearTimeout(camSessionTimer); camSessionTimer = null;
+    const games = appConfig.games;
+    if (snap) {
+        if (ended.gameId === 'bancung' && !snap.bancungActive && games.bancung) {
+            games.bancung.sessionActive = false;
+            io.emit('gameConfig', { gameId: 'bancung', config: games.bancung });
+            broadcastBanCungState({ immediate: true });
+        }
+        // Trả cờ bật như trước phiên, rồi áp lại luật thường (streamer có thể đã đổi game đang chơi trong lúc phiên chạy).
+        for (const [id, on] of Object.entries(snap.enabled)) {
+            const c = games[id];
+            if (!c || (c.enabled !== false) === on) continue;
+            c.enabled = on;
+            io.emit('gameConfig', { gameId: id, config: c });
+            io.emit(on ? 'gameEnabled' : 'gameDisabled', { gameId: id, ts: Date.now() });
+            if (id === 'dapmuoi' || id === 'bancung') camApplyHotkeys(id);
+        }
+        camGamesApplyActive(snap.cam);
+    }
+    console.log(`[camgames] 🎮 hết phiên ${ended.gameId} (${reason})`);
+    // Hàng chờ: mở phiên kế tiếp ngay (overlay mẹ còn mở) — dừng tay thì không nối tiếp.
+    if (next && camSessionQueue.length && camHubOverlayOnline()) {
+        const q = camSessionQueue.shift();
+        camStartSession(q.gameId, q.seconds, q.gift);
+        return true;
+    }
+    if (!next) camSessionQueue = [];
+    camEmitSession();
+    return true;
+}
+// Gọi từ emitGift cho MỌI quà (combo đã gộp: repeatCount = tổng). Trả null (không dính phiên) hoặc
+// { action: 'start' | 'extend' | 'queue' | 'cut' | 'skip', gameId }. Quà vẫn đi tiếp tới các game như thường —
+// game không thuộc phiên đã bị tắt nên tự bỏ qua.
+function camSessionGift(gift, { force = false } = {}) {
+    const now = Date.now();
+    const rule = CamSession.matchTrigger(camTriggerCfg(), gift);
+    if (!rule || !GAMES[rule.gameId]) return null;
+    const sec = CamSession.comboSeconds(rule, gift);
+    if (camSession) {
+        if (rule.gameId === camSession.gameId) {
+            const before = camSession.until;
+            camSession.until = CamSession.extendUntil(camSession.until, sec * 1000, now);
+            const added = Math.round((camSession.until - before) / 1000);
+            camSession.extend = { seq: ++camExtendSeq, sec: added, nickname: String(gift.nickname || gift.uniqueId || ''), at: now };
+            camArmSessionTimer();
+            camEmitSession();
+            return { action: 'extend', gameId: rule.gameId, added };
+        }
+        if (rule.queueMode === 'cut') {
+            const queue = camSessionQueue;
+            camEndSession('cut', { next: false });
+            camSessionQueue = queue;           // cắt ngang chỉ thay phiên đang chạy, hàng chờ giữ nguyên
+            camStartSession(rule.gameId, sec, gift, now);
+            return { action: 'cut', gameId: rule.gameId };
+        }
+        camSessionQueue = CamSession.enqueue(camSessionQueue, { gameId: rule.gameId, seconds: sec, gift: { nickname: gift.nickname, uniqueId: gift.uniqueId,
+            profilePicture: gift.profilePicture, giftName: gift.giftName, giftPicture: gift.giftPicture || gift.image } }, rule.queueMode);
+        camEmitSession();
+        return { action: 'queue', gameId: rule.gameId };
+    }
+    if (!force && !camHubOverlayOnline()) {
+        console.log(`[camgames] 🎮 quà kích hoạt ${rule.gameId} nhưng overlay Game Camera chưa mở trên OBS — chạy như quà thường`);
+        return { action: 'skip', gameId: rule.gameId };
+    }
+    camStartSession(rule.gameId, sec, gift, now);
+    return { action: 'start', gameId: rule.gameId };
+}
+
 // Đồng bộ với HpGame.chemtraicay.defaultConfig() (public/games/chemtraicay/game.js)
 function makeDefaultChemTraiCayConfig() {
     return {
@@ -572,7 +739,7 @@ function makeDefaultChemTraiCayConfig() {
         mirror: true,
         giftRules: [],
         obsScene: { enabled: false, playScene: '', backScene: '' },
-        display: { scale: 100, xPercent: 50, yPercent: 50 }
+        display: { scale: 100, xPercent: 50, yPercent: 50, listXPercent: 50, listYPercent: 13, listScale: 70 }
     };
 }
 const CHEMTRAICAY_ACTIONS = ['apple', 'orange', 'lemon', 'pear', 'peach', 'strawberry', 'plum', 'watermelon',
@@ -1093,12 +1260,16 @@ function makeDefaultNhietDoConfig() {
 // Server giữ HP authoritative, emit shot events cho overlay animate.
 //
 // PRESET BUNDLES — apply via cmd:preset
+// Preset KHÔNG đổi số tim (streamer tự chọn ở tab Máu) — chỉ đặt sát thương mỗi mũi + nhịp hồi máu (theo HP LIVE NPC).
+// Số mũi để gục = số tim ÷ damagePerShot (chưa tính chí mạng/combo): ở 10 tim là 20 → 40 → 67 → 118; tim nhiều hơn thì
+// số mũi tăng theo. regenPerSecond ghi theo mốc 10 tim, áp vào thì nhân theo số tim (20 tim hồi gấp đôi ♥/giây) để
+// tỉ lệ hồi so với thanh máu giữ nguyên. Thử nhanh (sandbox) = thử vòng trúng → gục → hồi → sống lại.
 const BANCUNG_PRESETS = {
-    easy:     { maxHearts: 20, damagePerShot: 0.20, regenPerSecond: 0.3, idleBeforeRegen: 2, criticalChance: 3,  headshotChance: 0 },
-    normal:   { maxHearts: 10, damagePerShot: 0.25, regenPerSecond: 0.2, idleBeforeRegen: 3, criticalChance: 5,  headshotChance: 0 },
-    hardcore: { maxHearts: 5,  damagePerShot: 1.0,  regenPerSecond: 0,   idleBeforeRegen: 10, criticalChance: 10, headshotChance: 0 },
-    boss:     { maxHearts: 50, damagePerShot: 0.5,  regenPerSecond: 0.5, idleBeforeRegen: 3, criticalChance: 10, headshotChance: 20 },
-    sandbox:  { maxHearts: 999, damagePerShot: 0,   regenPerSecond: 0,   idleBeforeRegen: 1, criticalChance: 0,  headshotChance: 0 }
+    easy:     { damagePerShot: 0.5,   regenPerSecond: 0.1,  idleBeforeRegen: 4, regenRampSec: 12, criticalChance: 5,  headshotChance: 0 },   // ≈ 20 mũi
+    normal:   { damagePerShot: 0.25,  regenPerSecond: 0.2,  idleBeforeRegen: 3, regenRampSec: 10, criticalChance: 5,  headshotChance: 0 },   // ≈ 40 mũi
+    hardcore: { damagePerShot: 0.15,  regenPerSecond: 0.3,  idleBeforeRegen: 3, regenRampSec: 8,  criticalChance: 8,  headshotChance: 0 },   // ≈ 67 mũi
+    boss:     { damagePerShot: 0.085, regenPerSecond: 0.35, idleBeforeRegen: 3, regenRampSec: 8,  criticalChance: 10, headshotChance: 15 },  // ≈ 118 mũi
+    sandbox:  { damagePerShot: 1,     regenPerSecond: 1,    idleBeforeRegen: 2, regenRampSec: 3,  criticalChance: 0,  headshotChance: 0 }    // 10 mũi — thử nhanh
 };
 
 function makeDefaultBanCungConfig() {
@@ -1111,8 +1282,9 @@ function makeDefaultBanCungConfig() {
         initialHearts: 10,
         damagePerShot: 0.1,           // user-curated: 0.1 ♥/mũi (tank hơn = ít chết oan)
         // ===== Regen =====
-        regenPerSecond: 0.2,
+        regenPerSecond: 0.2,          // tốc độ hồi TỐI ĐA (♥/giây) — đạt sau regenRampSec giây hồi liên tục
         idleBeforeRegen: 3,
+        regenRampSec: 10,             // hồi CHẬM lúc đầu (15% tốc độ) rồi nhanh dần tới tối đa sau ngần này giây
         // ===== Chết / hồi sinh =====
         reviveWindowSec: 30,          // 30s chờ khán giả tặng quà hồi sinh, hết giờ thì tự hồi
         autoReviveAfterWindow: true,
@@ -1887,6 +2059,7 @@ if (appConfig.games.chemtraicay) {
     }
     appConfig.games.chemtraicay.videoSource = { ...def.videoSource, ...(appConfig.games.chemtraicay.videoSource || {}) };
     appConfig.games.chemtraicay.obsScene = { ...def.obsScene, ...(appConfig.games.chemtraicay.obsScene || {}) };
+    appConfig.games.chemtraicay.display = { ...def.display, ...(appConfig.games.chemtraicay.display || {}) };
 }
 // Đập Muỗi: chuẩn hoá config cũ (khoá thiếu/rác → mặc định, actions/giftRules đúng dạng).
 if (appConfig.games.dapmuoi) appConfig.games.dapmuoi = DapMuoi.normalizeConfig(appConfig.games.dapmuoi);
@@ -4371,6 +4544,9 @@ function nhatLaResetDonors() {
 
 function emitGift(g) {
     rememberLiveTranslateUser(liveTranslateRecentGifts, g);
+    // 🎮 Phiên game theo quà: quà kích hoạt mở / gia hạn / xếp hàng phiên TRƯỚC khi đưa quà cho các game
+    // (để game của phiên nhận luôn quà này nếu nó cũng là quà chơi game).
+    try { camSessionGift(g); } catch (e) { console.warn('[camgames] phiên game lỗi:', e?.message || e); }
     let sheetItem = giftMap[String(g.giftId)] || null;
     // 🎵 Quà Ca khúc gom về quà ảo: giữ ẢNH ĐĨA + tên bài riêng (client ưu tiên sheetItem.image) — mỗi bài 1 màu đĩa.
     if (sheetItem && sheetItem.virtual && g.musicGift && g.giftPicture) {
@@ -6285,6 +6461,21 @@ app.post('/api/games/:id/cmd', (req, res) => {
 // Touch & Play: danh sách nguồn hình trong OBS để lab chọn camera + trạng thái cấp hình.
 // 📡 Trạng thái nhận hình cho chip các trang game camera (2 s/lần) — KHÔNG hỏi OBS như /api/touchplay/obs-sources
 // (GetSceneList + quét Scene mỗi lần chỉ để lấy `status`). Cùng dạng với HP LIVE NPC để panel chép sang chạy nguyên.
+// 🎮 Phiên game theo quà: xem trạng thái / ⏹ kết thúc ngay / ▶ thử (mở phiên không cần quà — vẫn đòi overlay mẹ đang
+// mở trên OBS, trừ khi gửi force:true từ máy chạy app để thử không cần OBS).
+app.get('/api/camgames/session', (req, res) => res.json({ session: camSessionPublic(), queue: camQueuePublic(), hubOnline: camHubOverlayOnline(), trigger: camTriggerCfg() }));
+app.post('/api/camgames/session/stop', (req, res) => res.json({ ok: camEndSession('manual', { next: false }), session: camSessionPublic() }));
+app.post('/api/camgames/session/test', (req, res) => {
+    const b = req.body || {};
+    const gameId = CamSession.TRIGGER_GAMES.includes(b.gameId) && GAMES[b.gameId] ? b.gameId : '';
+    if (!gameId) return res.status(400).json({ ok: false, error: 'gameId phải là ' + CamSession.TRIGGER_GAMES.join('|') });
+    const force = b.force === true && requestIsTrusted(req);
+    if (!force && !camHubOverlayOnline()) return res.status(409).json({ ok: false, error: 'Chưa thấy overlay Game Camera mở trên OBS — dán 📋 Link OBS vào Browser Source trước.' });
+    const seconds = Math.max(5, Math.min(600, parseInt(b.seconds, 10) || 30));
+    if (camSession) camEndSession('restart', { next: false });
+    camStartSession(gameId, seconds, { nickname: 'Thử nghiệm', uniqueId: 'tester', profilePicture: '', giftName: 'Thử phiên game' });
+    res.json({ ok: true, session: camSessionPublic() });
+});
 app.get('/api/camgames/feed-status', (req, res) => {
     let status = {};
     try { status = touchplayFeed.status(); } catch (e) {}
@@ -8724,8 +8915,10 @@ function banCungTriggerDeath(killerUser) {
         survivalRecordSec: banCungState.survivalRecordSec
     });
     console.log('[bancung] DEATH' + (killerUser ? ` by ${killerUser.nickname || killerUser.uniqueId}` : '') + ' — chờ revive ' + (cfg.reviveWindowSec || 5) + 's');
-    // Auto-revive after window
+    // Auto-revive after window — CHỈ khi tắt tự hồi máu. Có tự hồi thì gục idleBeforeRegen giây rồi máu bắt đầu hồi là
+    // sống lại luôn (banCungRegenTick), máu leo tiếp chậm rồi nhanh dần; quà Hồi sinh vẫn cứu ngay.
     if (banCungAutoReviveTimer) { clearTimeout(banCungAutoReviveTimer); banCungAutoReviveTimer = null; }
+    if ((Number(cfg.regenPerSecond) || 0) > 0) return;
     const winMs = Math.max(1000, (Number(cfg.reviveWindowSec) || 5) * 1000);
     banCungAutoReviveTimer = setTimeout(() => {
         const c = appConfig.games.bancung || makeDefaultBanCungConfig();
@@ -8799,13 +8992,13 @@ function banCungClearBurstTimers() {
     for (const t of banCungBurstTimers) clearTimeout(t);
     banCungBurstTimers.clear();
 }
+const BANCUNG_MAX_BURST = 300;
 function banCungFireBurst(shotCount, contribUser, giftMeta) {
     const cfg = appConfig.games.bancung || makeDefaultBanCungConfig();
     const arrowDur  = Math.max(100, Number(cfg.display?.arrowDurationMs) || 700);
-    // Trước đây kẹt cứng 20 mũi → combo x50 sát thương y hệt x20. Giờ tối đa 60 mũi, combo lớn thì bắn dồn
-    // để cả loạt xong trong ~6s.
-    const n = Math.max(1, Math.min(60, parseInt(shotCount, 10) || 1));
-    const burstDelay = Math.min(Math.max(0, Number(cfg.display?.burstDelayMs) || 280), n > 20 ? Math.floor(6000 / n) : Infinity);
+    // Combo / Bắn tự do: tối đa BANCUNG_MAX_BURST mũi (trước là 60 → 100 hoa hồng chỉ ra 60 mũi); loạt dài ~40 ms / mũi (300 mũi ≈ 12 s).
+    const n = Math.max(1, Math.min(BANCUNG_MAX_BURST, parseInt(shotCount, 10) || 1));
+    const burstDelay = Math.min(Math.max(0, Number(cfg.display?.burstDelayMs) || 280), n > 20 ? Math.floor(Math.max(6000, n * 40) / n) : Infinity);
     for (let i = 0; i < n; i++) {
         const launchAt = i * burstDelay;
         const tOuter = setTimeout(() => {
@@ -8814,11 +9007,13 @@ function banCungFireBurst(shotCount, contribUser, giftMeta) {
             // to animate "hit and disappear" hoặc "fly through and pass" (shield deflect).
             const now0 = Date.now();
             const willBlock = banCungState.deadAt > 0 || (banCungState.shieldUntil || 0) > now0;
+            const shielded = !banCungState.deadAt && (banCungState.shieldUntil || 0) > now0;
             io.emit('bancung:shot', {
                 ts: now0,
                 seed: Math.random(),
                 arrowDurationMs: arrowDur,
-                blocked: willBlock,           // true = arrow sẽ bị shield chặn → bay xuyên
+                blocked: willBlock,           // true = không trừ máu (giáp / đã gục)
+                shielded,                     // true = GIÁP chặn → bay xuyên; đã gục thì mũi tên vẫn găm vào người, chỉ không trừ máu
                 user: contribUser ? { uniqueId: contribUser.uniqueId, nickname: contribUser.nickname, avatar: contribUser.avatar } : null,
                 gift: giftMeta || null
             });
@@ -8924,7 +9119,7 @@ function handleBanCungGift({ uniqueId, nickname, profilePicture, giftId, giftNam
         if (totalKc <= 0) return;
         const kcPerHeart = Math.max(1, Number(cfg.freeFireKcPerHeart) || 100);
         const kcPerShot  = Math.max(1, Number(cfg.freeFireKcPerShot)  || 10);
-        const maxShots   = Math.max(1, Math.min(50, Number(cfg.freeFireMaxShots) || 20));
+        const maxShots   = Math.max(1, Math.min(BANCUNG_MAX_BURST, Number(cfg.freeFireMaxShots) || 20));
         const totalDamage = totalKc / kcPerHeart;
         const shots = Math.max(1, Math.min(maxShots, Math.round(totalKc / kcPerShot)));
         const damagePerShot = totalDamage / shots;
@@ -8939,23 +9134,32 @@ function handleBanCungGift({ uniqueId, nickname, profilePicture, giftId, giftNam
     }
 }
 
-// Regen tick — 500ms. Hồi máu khi idle > idleBeforeRegen + còn sống
+// Regen tick — 500ms. Hồi máu khi idle > idleBeforeRegen.
+const BANCUNG_REGEN_MIN = 0.15;        // tốc độ lúc mới hồi = 15% tối đa
+let banCungRegenStartAt = 0;           // lúc bắt đầu đợt hồi hiện tại (0 = không hồi) — bị bắn là về 0, hồi lại từ chậm
 function banCungRegenTick() {
     const now = Date.now();
     const dt = (now - banCungLastRegenAt) / 1000;
     banCungLastRegenAt = now;
     const cfg = appConfig.games?.bancung;
     if (!cfg || cfg.enabled === false) return;
-    if (cfg.sessionActive === false) return;
-    if (banCungState.deadAt) return;
-    if (banCungState.hp >= banCungState.maxHp) return;
+    // Hồi máu chạy cả khi chưa bấm ▶ Bắt đầu (bắn thử / gục khi đang dừng thì vẫn hồi lại, không kẹt).
     const idleSec = banCungState.lastDamageAt ? (now - banCungState.lastDamageAt) / 1000 : Infinity;
-    if (idleSec < (Number(cfg.idleBeforeRegen) || 0)) return;
     const rate = Number(cfg.regenPerSecond) || 0;
-    if (rate <= 0) return;
-    const inc = rate * dt;
+    // Đang gục vẫn hồi: bắn vào lúc này không trừ máu (banCungApplyShotDamage bỏ qua) nên idle tính từ lúc gục.
+    if (banCungState.hp >= banCungState.maxHp || rate <= 0
+        || idleSec < (Number(cfg.idleBeforeRegen) || 0)) { banCungRegenStartAt = 0; return; }
+    // Hồi chậm rồi nhanh dần (trần = regenPerSecond) → người tặng thấy máu đang leo lại mà phải bắn tiếp;
+    // một phát trúng là đợt hồi về lại tốc độ chậm.
+    if (!banCungRegenStartAt) banCungRegenStartAt = now - dt * 1000;
+    const ramp = Math.max(0, Number(cfg.regenRampSec ?? 10));
+    const e = ramp > 0 ? Math.min(1, (now - banCungRegenStartAt) / 1000 / ramp) : 1;
+    const inc = rate * (BANCUNG_REGEN_MIN + (1 - BANCUNG_REGEN_MIN) * e * e) * dt;
     const before = banCungState.hp;
     banCungState.hp = banCungClampHp(before + inc);
+    // Đang gục mà máu bắt đầu hồi → sống lại NGAY với lượng máu đang có (hết cháy đen, tim đỏ lại), máu tiếp tục
+    // leo theo cùng đợt hồi. Kèm giáp ngắn reviveProtectionSec để khỏi gục lại tức thì.
+    if (banCungState.deadAt && banCungState.hp > 0) { banCungDoRevive(banCungState.hp, null, true); return; }
     if (Math.abs(banCungState.hp - before) > 0.005) {
         broadcastBanCungState();
     }
@@ -9001,6 +9205,7 @@ app.get('/tracker/chemtraicay', (req, res) => {
 function chemTraiCayCfg() { return appConfig.games.chemtraicay || makeDefaultChemTraiCayConfig(); }
 
 function emitChemTraiCayGift(payload) {
+    chemLastGiftAt = Date.now();
     io.to('overlay').to('preview').emit('chemtraicay:gift', payload);
 }
 
@@ -9137,9 +9342,13 @@ app.post('/api/chemtraicay/obs-scan-scene', async (req, res) => {
 });
 
 // Đổi Scene OBS khi ván bắt đầu / kết thúc (config obsScene)
+// Ván tự mở lại sau mỗi lần vườn đầy (bản port NPC bỏ màn GIỮ TAY) → chỉ sang Scene chơi khi ván mở do CÓ QUÀ
+// (≤ 15 s), kẻo Scene OBS lật qua lại mỗi ván không ai tặng.
+let chemLastGiftAt = 0;
 async function chemTraiCaySceneFor(type) {
     const sc = chemTraiCayCfg().obsScene || {};
     if (!sc.enabled) return;
+    if (type === 'start' && Date.now() - chemLastGiftAt > 15000) return;
     const name = type === 'start' ? sc.playScene : type === 'end' ? sc.backScene : '';
     if (!name) return;
     if (!obsBridge.isConnected()) return;
@@ -9243,6 +9452,8 @@ app.get('/api/games/bancung/livestate', (req, res) => {
 });
 
 // Control endpoint — reset / setHp / damage / heal / revive / shield / start / stop / testShot
+// Bảng preset cho panel tự tính "≈ N mũi là gục" theo số tim đang đặt.
+app.get('/api/games/bancung/presets', (req, res) => res.json(BANCUNG_PRESETS));
 app.post('/api/games/bancung/control', (req, res) => {
     const cmd = String(req.body?.cmd || '').toLowerCase();
     if (cmd === 'start') {
@@ -9287,14 +9498,22 @@ app.post('/api/games/bancung/control', (req, res) => {
         if (!appConfig.games.bancung) appConfig.games.bancung = makeDefaultBanCungConfig();
         const cfg = appConfig.games.bancung;
         const d = cfg.display = cfg.display || {};
-        // Apply top-level + display fields from preset
+        // Apply top-level + display fields from preset (giữ số tim; regenPerSecond theo mốc 10 tim → nhân theo số tim)
+        const hearts = Math.max(1, Number(cfg.maxHearts) || 10);
         for (const [k, v] of Object.entries(preset)) {
-            if (k in d) d[k] = v;
-            else cfg[k] = v;
+            const val = k === 'regenPerSecond' ? Math.round(v * hearts / 10 * 1000) / 1000 : v;
+            if (k in d) d[k] = val;
+            else cfg[k] = val;
         }
-        cfg.initialHearts = preset.maxHearts;
+        d.headshotEnabled = (Number(preset.headshotChance) || 0) > 0;   // Boss 'Headshot' chỉ ăn khi bật vùng headshot
+        cfg.preset = presetId;                                         // panel tô sáng preset đang dùng
         saveAppConfig();
         banCungApplyConfigToState(cfg);
+        // Đổi độ khó → nạp đầy máu theo max mới.
+        if (banCungAutoReviveTimer) { clearTimeout(banCungAutoReviveTimer); banCungAutoReviveTimer = null; }
+        banCungState.deadAt = 0;
+        banCungState.hp = banCungState.maxHp;
+        banCungState.lastDamageAt = 0;
         io.emit('gameConfig', { gameId: 'bancung', config: cfg });
         broadcastBanCungState({ immediate: true });
         console.log(`[bancung] PRESET applied: ${presetId}`);
@@ -11485,6 +11704,7 @@ io.on('connection', (socket) => {
     // Reset OBS mới buộc lab broadcast lại
     if (relayCache.levelquest.cfg)   socket.emit('levelquest:cfg',   relayCache.levelquest.cfg);
     if (relayCache.levelquest.state) socket.emit('levelquest:state', relayCache.levelquest.state);
+    socket.emit('levelquest:hub', { hubOwned: levelQuestHubOwned() });
     if (relayCache.timer.cfg)        socket.emit('timer:cfg',        relayCache.timer.cfg);
     if (relayCache.timer.state)      socket.emit('timer:state',      relayCache.timer.state);
 
@@ -11758,6 +11978,11 @@ io.on('connection', (socket) => {
                 assignTranslateSpeaker();
             }
             // Overlay Chào Mừng VIP vừa mở/nối lại → gửi thẻ vào phòng còn chờ + chạy tiếp hàng media.
+            // Overlay mẹ 🎥 Game Camera (io query hub=camgames): quà kích hoạt phiên game chỉ mở khi trang này đang mở trên OBS.
+            if (roomName === 'overlay' && socket.handshake?.query?.hub === 'camgames') {
+                socket.data.camHub = true;
+                if (camSession) socket.emit('camgames:session', { ...camSessionPublic(), serverNow: Date.now() });
+            }
             if (roomName === 'overlay:vipwelcome') vipFlushPendingTo(socket);
             if (roomName === 'overlay:vipwelcome-board') socket.emit('vipwelcome:board', vipBoardPayload());
             // Khi overlay/preview subscribe → gửi BOTH config + state snapshot.

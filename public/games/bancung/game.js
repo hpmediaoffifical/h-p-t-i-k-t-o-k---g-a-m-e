@@ -19,6 +19,7 @@
             damagePerShot: 0.1,
             regenPerSecond: 0.2,
             idleBeforeRegen: 3,
+            regenRampSec: 10,
             reviveWindowSec: 10,
             autoReviveAfterWindow: true,
             autoReviveHearts: 5,

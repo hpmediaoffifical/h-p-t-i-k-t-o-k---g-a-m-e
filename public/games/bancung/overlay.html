@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="vi">
 <head>
+<script src="/games/camgames/cam-frame-guard.js"></script><!-- 🔇 khung ẩn / mất kết nối app thì câm + ngưng (nạp trước mọi script) -->
     <script src="/lib/overlay-resolution.js"></script>
 <meta charset="utf-8" />
 <title>HP Bắn Cung — Overlay</title>
@@ -23,6 +24,13 @@
         --flash-strength: 0.6;
         --death-opacity: 0.75;
     }
+
+    /* Màu VẾT MÁU chỗ mũi tên găm (kiểu PUBG) — JS đặt theo display.bloodColor: lõi sẫm / giữa / nhạt (r,g,b).
+       Chớp đỏ trên người / chớp màn giữ màu đỏ. */
+    body { --blood-core: 120,0,0; --blood-mid: 165,8,8; --blood-lite: 190,15,15; }
+    /* 👁 VÙNG THẤY (Scene PK / Colab cắt ô khung cam — createCamView (/lib/obs-scene-map.mjs) đặt --cv-t/r/b/l = khoảng lùi px so với mép trang):
+       chữ / bảng / HUD gắn mép bám vùng này. Thiếu biến = 0 = cả khung như cũ. --cv-w / --cv-h = cỡ vùng thấy. */
+    :root { --cv-w: calc(100vw - var(--cv-l, 0px) - var(--cv-r, 0px)); --cv-h: calc(100vh - var(--cv-t, 0px) - var(--cv-b, 0px)); }
 
     /* ===== EFFECT LAYERS — bao toàn khung ===== */
     /* Red flash on hit */
@@ -47,7 +55,7 @@
 
     /* Death dim overlay — fade in slow */
     .bc-deathveil {
-        position: fixed; inset: 0;
+        position: fixed; top: var(--cv-t, 0px); right: var(--cv-r, 0px); bottom: var(--cv-b, 0px); left: var(--cv-l, 0px);
         background: rgba(0,0,0,0);
         pointer-events: none;
         z-index: 45;
@@ -257,7 +265,7 @@
     .bc-arrows-layer {
         position: fixed; inset: 0;
         pointer-events: none;
-        z-index: 30;
+        z-index: 42;      /* TRÊN lớp tô đỏ thân người (40) / cháy đen (38) — trước đây 30 nên mũi tên + vết máu bị phủ đỏ lẫn mất */
     }
     .bc-fly-arrow {
         position: absolute;
@@ -387,7 +395,7 @@
     /* ===== KILLING-BLOW callout — name + avatar bottom-center spotlight ===== */
     .bc-killing-blow {
         position: fixed;
-        left: 50%; bottom: 25%;
+        left: calc(var(--cv-l, 0px) + var(--cv-w) * .5); bottom: calc(var(--cv-b, 0px) + var(--cv-h) * .25);
         transform: translateX(-50%) scale(0.5);
         z-index: 60;
         pointer-events: none;
@@ -437,7 +445,7 @@
     /* ===== COMBO METER — top-right counter ===== */
     .bc-combo {
         position: fixed;
-        right: 24px; top: 60%;
+        right: calc(var(--cv-r, 0px) + 24px); top: calc(var(--cv-t, 0px) + var(--cv-h) * .6);
         transform: translateY(-50%);
         z-index: 32;
         pointer-events: none;
@@ -530,7 +538,7 @@
     /* ===== SURVIVAL TIMER — top-right ===== */
     .bc-survival {
         position: fixed;
-        right: 24px; top: 24px;
+        right: calc(var(--cv-r, 0px) + 24px); top: calc(var(--cv-t, 0px) + 24px);
         z-index: 31;
         pointer-events: none;
         background: rgba(20, 10, 14, 0.6);
@@ -562,7 +570,7 @@
 
     /* ===== TOP-3 PODIUM — end-of-session overlay ===== */
     .bc-podium {
-        position: fixed; inset: 0;
+        position: fixed; top: var(--cv-t, 0px); right: var(--cv-r, 0px); bottom: var(--cv-b, 0px); left: var(--cv-l, 0px);
         z-index: 70;
         pointer-events: none;
         background: rgba(0,0,0,0.85);
@@ -700,7 +708,7 @@
 
     /* ===== HEAL / SHIELD / REVIVE BANNER ===== */
     .bc-banner {
-        position: fixed; left: 50%; top: 40%;
+        position: fixed; left: calc(var(--cv-l, 0px) + var(--cv-w) * .5); top: calc(var(--cv-t, 0px) + var(--cv-h) * .4);
         transform: translate(-50%, -50%) scale(0.5);
         z-index: 50;
         pointer-events: none;
@@ -921,24 +929,41 @@
     body.bc-tracking .bc-impact-zone { transition: none; }
     body.bc-tracking .bc-hearts-inner { transition: none; }
     /* Vết đỏ nhạt chỗ trúng — dính theo thân người, mờ dần (opacity do JS đặt theo tuổi) */
+    /* Gốc (0,0) = điểm trúng; JS đặt translate theo thân + scale. Vết loang xoay ngẫu nhiên, vệt chảy luôn hướng xuống. */
     .bc-blood {
         position: absolute;
-        width: 90px; height: 90px;
-        border-radius: 50%;
-        background: radial-gradient(ellipse at 50% 50%, rgba(255,75,75,0.78) 0%, rgba(235,45,45,0.55) 40%, rgba(210,25,25,0.22) 62%, rgba(200,20,20,0) 76%);
-        filter: blur(2px);
+        left: 0; top: 0; width: 0; height: 0;
         pointer-events: none;
         will-change: transform, opacity;
         z-index: 21;
     }
-    .bc-blood::after {
-        /* giọt nhỏ lệch tâm cho vết bớt tròn đều */
-        content: '';
-        position: absolute; left: 58%; top: 56%;
-        width: 42%; height: 42%;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(255,90,90,0.6) 0%, rgba(255,80,80,0) 70%);
+    .bc-blood .splat {
+        position: absolute;
+        left: -40px; top: -40px; width: 80px; height: 80px;
+        border-radius: 46% 54% 50% 50% / 52% 44% 56% 48%;
+        background: radial-gradient(ellipse at 50% 50%, rgba(var(--blood-core),0.95) 0%, rgba(var(--blood-mid),0.88) 28%, rgba(var(--blood-lite),0.55) 50%, rgba(var(--blood-lite),0) 70%);
+        filter: blur(0.6px);
+        animation: bc-blood-pop 260ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
     }
+    .bc-blood .splat::before, .bc-blood .splat::after {
+        /* giọt bắn văng ra quanh vết */
+        content: '';
+        position: absolute;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(var(--blood-core),0.95) 0%, rgba(var(--blood-mid),0.7) 45%, rgba(var(--blood-mid),0) 72%);
+    }
+    .bc-blood .splat::before { left: 78%; top: 8%;  width: 26%; height: 22%; }
+    .bc-blood .splat::after  { left: -6%; top: 64%; width: 20%; height: 18%; }
+    .bc-blood .drip {
+        position: absolute;
+        left: -3px; top: 0;
+        width: 6px; height: 0;
+        border-radius: 3px 3px 4px 4px;
+        background: linear-gradient(180deg, rgba(var(--blood-mid),0.92), rgba(var(--blood-core),0.85) 80%, rgba(var(--blood-core),0.95));
+        animation: bc-blood-drip 1800ms cubic-bezier(0.3, 0.1, 0.4, 1) 180ms forwards;
+    }
+    @keyframes bc-blood-pop { from { transform: scale(0.15); opacity: 0.6; } to { transform: scale(1); opacity: 1; } }
+    @keyframes bc-blood-drip { to { height: var(--drip, 44px); } }
     /* Mũi tên cắm lại trên người một lúc rồi mờ — đầu mũi tên nằm đúng điểm chạm */
     .bc-stuck-arrow {
         position: absolute;
@@ -954,6 +979,16 @@
         width: 112px; height: 27px;
         right: -8px; top: -13.5px;   /* đầu mũi tên (x≈132/140) trùng gốc, cắm sâu ~8px vào thân */
         overflow: visible;
+        transform-origin: 104px 13.5px;   /* lắc quanh chỗ cắm */
+        animation: bc-stick-wobble 420ms ease-out;
+    }
+    @keyframes bc-stick-wobble {
+        0%   { transform: translateX(-10px) rotate(0deg); }
+        18%  { transform: translateX(0) rotate(-7deg); }
+        40%  { transform: rotate(5deg); }
+        62%  { transform: rotate(-3deg); }
+        82%  { transform: rotate(1.4deg); }
+        100% { transform: rotate(0deg); }
     }
     .bc-stuck-arrow .shaft { stroke: var(--arrow-color); stroke-width: 4; fill: var(--arrow-color); }
     .bc-stuck-arrow .head { fill: var(--arrow-color); stroke: var(--arrow-color); stroke-width: 1.5; }
@@ -1044,7 +1079,9 @@
     /* Khi phiên KẾT THÚC — vẫn HIỂN THỊ ĐẦY ĐỦ hearts + bow ở opacity 100% (OBS preview rõ).
        Chỉ ẩn các effect layers (chớp đỏ / particles / banner / podium).
        User không cần bấm "Bắt đầu" để thấy overlay trong OBS. */
-    body.bc-stopped .bc-arrows-layer,
+    /* App đóng (mất kết nối) / game tắt / chưa bấm ▶ Bắt đầu → ẩn TRỌN overlay trong OBS (trừ chế độ sửa vị trí). */
+    body { transition: opacity 400ms ease; }
+    body.bc-hide:not(.bc-edit) { opacity: 0 !important; }
     body.bc-stopped .bc-redflash,
     body.bc-stopped .bc-deathveil,
     body.bc-stopped .bc-banner,
@@ -1166,6 +1203,8 @@
 
         // Edit mode (panel popout) — drag + wheel zoom + right-click close
         const isEdit = new URLSearchParams(location.search).get('edit') === '1';
+        // 🔇 cam-frame-guard.js: khung đang được chơi (link riêng luôn true khi còn nối app). Chế độ sửa vị trí luôn chạy.
+        const frameOn = () => isEdit || !window.HpCamFrame || window.HpCamFrame.active;
         // Nạp trong 🎥 Game Camera (/overlay/camgames → iframe ?cam=1): luôn bám người thật, khỏi bật ô bodyTrack.
         const isCamHub = new URLSearchParams(location.search).get('cam') === '1';
         if (isEdit) {
@@ -1188,6 +1227,17 @@
         // đầu, điểm trúng = tâm thân, mũi tên bay vào thân/đầu thật, vết máu + mũi tên cắm dính theo người.
         const $trackWarn = document.getElementById('bc-track-warn');
         let bodyTrack = null;
+        // 👁 Vùng khung trang còn thấy trên OBS (Scene PK / Colab cắt ô khung cam): tim / cung / điểm trúng / bảng quà / top đặt % theo
+        // vùng này (createCamView (/lib/obs-scene-map.mjs), toạ độ = px trang như body-track). Không bị cắt thì giữ '%' như cũ.
+        let camView = null;
+        const viewRect = () => (camView ? camView.rect : null);
+        const viewCut = () => { const v = viewRect(); return !!v && (v.x > 0.5 || v.y > 0.5 || v.w < innerWidth - 1 || v.h < innerHeight - 1); };
+        const atX = p => { if (!viewCut()) return p + '%'; const v = viewRect(); return (v.x + p / 100 * v.w) + 'px'; };
+        const atY = p => { if (!viewCut()) return p + '%'; const v = viewRect(); return (v.y + p / 100 * v.h) + 'px'; };
+        import('/lib/obs-scene-map.mjs').then(m => {
+            camView = m.createCamView({ W: innerWidth, H: innerHeight, overlayId: 'bancung', getLayout: () => bodyTrack && bodyTrack.layout,
+                onChange: () => { if (config) applyConfig(config); } });
+        }).catch(e => console.warn('[bancung] cam-view:', e));
         let trackWanted = false;
         let trackingNow = false;          // khung vừa rồi có thấy người
         let lastHitPt = null;             // { x, y, at } — điểm mũi tên vừa chạm (cho hạt bụi / banner)
@@ -1214,13 +1264,17 @@
         // ===== Heart bar render (supports half hearts) =====
         function renderHearts(hp, maxHp) {
             const max = Math.max(1, Math.round(maxHp || 10));
+            // Máu lớn (Boss/tự nhập 50, 999…) mà vẽ 1 tim/1 máu thì hàng tim tràn ngang khung → trên 20 máu chỉ vẽ 10 tim,
+            // mỗi tim = max/10 máu. Số máu thật vẫn hiện ở dòng số bên dưới.
+            const icons = max > 20 ? 10 : max;
+            const unit = max / icons;
             $heartsRow.innerHTML = '';
-            for (let i = 0; i < max; i++) {
+            for (let i = 0; i < icons; i++) {
                 const idx = i + 1;
                 const h = document.createElement('div');
                 h.className = 'bc-heart';
-                // Each heart represents 1 unit. fillThis = clamp(hp - i, 0, 1)
-                const fill = Math.max(0, Math.min(1, hp - i));
+                // Mỗi tim = `unit` máu. fillThis = clamp((hp - i·unit) / unit, 0, 1)
+                const fill = Math.max(0, Math.min(1, (hp - i * unit) / unit));
                 if (fill >= 0.9) {
                     // full
                 } else if (fill >= 0.4) {
@@ -1229,7 +1283,7 @@
                     h.classList.add('empty');
                 }
                 // recently-lost: if was full and now isn't
-                if (_prevHp != null && Math.ceil(_prevHp) >= idx && Math.ceil(hp) < idx) {
+                if (_prevHp != null && Math.ceil(_prevHp / unit) >= idx && Math.ceil(hp / unit) < idx) {
                     h.classList.add('recently-lost');
                 }
                 $heartsRow.appendChild(h);
@@ -1238,19 +1292,34 @@
             _prevHp = hp;
         }
 
+        // ===== Màu vết máu: đỏ / xanh lá / xanh dương / hồng (lõi, giữa, nhạt) — chỉ vết máu, chớp đỏ giữ nguyên =====
+        const BLOOD_COLORS = {
+            red:   ['120,0,0',   '165,8,8',    '190,15,15'],
+            green: ['12,90,16',  '30,150,36',  '70,195,50'],
+            blue:  ['8,40,130',  '25,85,195',  '60,135,240'],
+            pink:  ['140,15,85', '210,45,135', '245,100,180']
+        };
+        function applyBloodColor(name) {
+            const p = BLOOD_COLORS[name] || BLOOD_COLORS.red;
+            const st = document.body.style;
+            st.setProperty('--blood-core', p[0]); st.setProperty('--blood-mid', p[1]); st.setProperty('--blood-lite', p[2]);
+        }
+
         // ===== Apply config (skin, position, scale, toggles) =====
         function applyConfig(cfg) {
             config = cfg || {};
             const d = config.display || {};
-            // Hearts position
-            $stageHearts.style.left = (d.heartsXPercent ?? 50) + '%';
-            $stageHearts.style.top  = (d.heartsYPercent ?? 14) + '%';
+            // Màu vết máu (PUBG-style) — chỉ vết máu chỗ mũi tên găm
+        applyBloodColor(d.bloodColor);
+        // Hearts position
+            $stageHearts.style.left = atX(d.heartsXPercent ?? 50);
+            $stageHearts.style.top  = atY(d.heartsYPercent ?? 14);
             const hScale = ((d.heartsScale ?? 100) / 100);
             $innerHearts.style.transform = 'scale(' + hScale + ')';
             document.body.style.setProperty('--hp-scale', hScale);
             // Bow position
-            $stageBow.style.left = (d.bowXPercent ?? 85) + '%';
-            $stageBow.style.top  = (d.bowYPercent ?? 80) + '%';
+            $stageBow.style.left = atX(d.bowXPercent ?? 85);
+            $stageBow.style.top  = atY(d.bowYPercent ?? 80);
             $innerBow.style.transform = 'scale(' + ((d.bowScale ?? 100) / 100) + ')';
             // Bow skin colors
             const skin = helper.getBowSkin(d.bowSkin || 'classic');
@@ -1272,13 +1341,13 @@
             // Top position
             $top.style.left = $top.style.right = $top.style.top = $top.style.bottom = '';
             const pos = d.topContribPos || 'bottom-left';
-            if (pos.includes('top')) $top.style.top = '24px';
-            else $top.style.bottom = '40px';
-            if (pos.includes('right')) $top.style.right = '24px';
-            else $top.style.left = '24px';
+            if (pos.includes('top')) $top.style.top = 'calc(var(--cv-t, 0px) + 24px)';
+            else $top.style.bottom = 'calc(var(--cv-b, 0px) + 40px)';
+            if (pos.includes('right')) $top.style.right = 'calc(var(--cv-r, 0px) + 24px)';
+            else $top.style.left = 'calc(var(--cv-l, 0px) + 24px)';
             // Impact zone position (where arrows land)
-            $impact.style.left = (d.impactXPercent ?? 50) + '%';
-            $impact.style.top = (d.impactYPercent ?? 18) + '%';
+            $impact.style.left = atX(d.impactXPercent ?? 50);
+            $impact.style.top = atY(d.impactYPercent ?? 18);
             // Survival timer visibility
             if ($survival) $survival.style.display = (d.showSurvivalTimer !== true) ? 'none' : '';
             // Bow charge ring visibility
@@ -1287,8 +1356,8 @@
             document.body.classList.toggle('no-giftlist', d.showGiftList === false);
             document.body.classList.toggle('no-hpnum', d.showHpNumber === false);
             if ($giftList) {
-                $giftList.style.left = (d.giftListXPercent ?? 4) + '%';
-                $giftList.style.top = (d.giftListYPercent ?? 30) + '%';
+                $giftList.style.left = atX(d.giftListXPercent ?? 4);
+                $giftList.style.top = atY(d.giftListYPercent ?? 30);
                 $giftList.style.transform = 'scale(' + ((d.giftListScale ?? 100) / 100) + ')';
                 $giftList.classList.toggle('layout-horizontal', d.giftListLayout === 'horizontal');
             }
@@ -1311,13 +1380,13 @@
             trackingNow = false;
             document.body.classList.remove('bc-tracking');
             const d = config?.display || {};
-            $stageHearts.style.left = (d.heartsXPercent ?? 50) + '%';
-            $stageHearts.style.top  = (d.heartsYPercent ?? 14) + '%';
+            $stageHearts.style.left = atX(d.heartsXPercent ?? 50);
+            $stageHearts.style.top  = atY(d.heartsYPercent ?? 14);
             const hScale = ((d.heartsScale ?? 100) / 100);
             $innerHearts.style.transform = 'scale(' + hScale + ')';
             document.body.style.setProperty('--hp-scale', hScale);
-            $impact.style.left = (d.impactXPercent ?? 50) + '%';
-            $impact.style.top = (d.impactYPercent ?? 18) + '%';
+            $impact.style.left = atX(d.impactXPercent ?? 50);
+            $impact.style.top = atY(d.impactYPercent ?? 18);
             requestAnimationFrame(updateBowAim);
         }
         function showTrackWarn(text) {
@@ -1341,9 +1410,10 @@
             const r = $innerHearts.getBoundingClientRect();
             const h = r.height || 60, w = r.width || 200;
             const gap = 14 + headW * 0.08;
-            // Giữ trọn hàng tim trong khung: hàng rộng hơn khung thì căn giữa khung.
-            const x = w + 12 < W ? Math.max(w / 2 + 6, Math.min(W - w / 2 - 6, crown.x)) : W / 2;
-            const y = Math.max(h / 2 + 6, Math.min(H - h / 2, crown.y - gap - h / 2));
+            // Giữ trọn hàng tim trong khung (vùng thấy — Scene PK cắt ô): hàng rộng hơn khung thì căn giữa khung.
+            const v = viewRect() || { x: 0, y: 0, w: W, h: H };
+            const x = w + 12 < v.w ? Math.max(v.x + w / 2 + 6, Math.min(v.x + v.w - w / 2 - 6, crown.x)) : v.x + v.w / 2;
+            const y = Math.max(v.y + h / 2 + 6, Math.min(v.y + v.h - h / 2, crown.y - gap - h / 2));
             $stageHearts.style.left = x + 'px';
             $stageHearts.style.top = y + 'px';
             // Điểm trúng = tâm thân → cung tự xoay theo người (chỉ tính lại khi dời > 3px cho nhẹ).
@@ -1354,7 +1424,8 @@
         // Vòng vẽ: lọc pose, bám đầu, kéo vết máu/mũi tên cắm theo thân, mờ dần theo tuổi.
         function trackFrame(now) {
             requestAnimationFrame(trackFrame);
-            if (!bodyTrack) return;
+            if (!frameOn()) return;                 // khung không được chơi (ẩn trong 🎥 Game Camera / mất kết nối app)
+            if (!bodyTrack) { updateMarks(now, null); return; }
             let B = null;
             if (trackWanted) {
                 bodyTrack.tick(now);
@@ -1364,31 +1435,38 @@
             }
             drawBodyFlash(now, B);
             drawBodyChar(now, B);
+            updateMarks(now, B);
+        }
+        // Vết máu / mũi tên cắm: mark → dính theo thân (toạ độ cục bộ); pos → đứng yên tại điểm trúng (không bám người).
+        function updateMarks(now, B) {
             for (let i = bodyMarks.length - 1; i >= 0; i--) {
                 const m = bodyMarks[i], age = now - m.born;
                 if (age > m.life) { m.el.remove(); bodyMarks.splice(i, 1); continue; }
-                const p = B ? bodyTrack.toStage(m.mark, B) : null;
+                const p = m.pos || (B && bodyTrack ? bodyTrack.toStage(m.mark, B) : null);
                 if (!p) { m.el.style.opacity = '0'; continue; }     // mất người: ẩn, thấy lại thì hiện đúng chỗ
                 const fade = age < m.fadeFrom ? 1 : 1 - (age - m.fadeFrom) / (m.life - m.fadeFrom);
                 m.el.style.opacity = (m.alpha * fade).toFixed(3);
                 m.el.style.transform = 'translate(' + p.x + 'px, ' + p.y + 'px) ' + m.tail;
             }
         }
-        // Mũi tên vừa chạm người tại (x,y): vết đỏ nhạt + mũi tên cắm lại, cả hai dính theo thân.
+        // Mũi tên vừa chạm người tại (x,y): mũi tên GĂM lại (lắc nhẹ) + vết máu loang/chảy, dính theo thân rồi mờ dần.
+        // B = null → không bám người: đứng yên tại điểm trúng.
         function landOnBody(x, y, frame, fallbackMark, angle, B) {
-            const mark = bodyTrack.toLocal(x, y, frame, B) || fallbackMark;
-            if (!mark) return;
+            const mark = B ? (bodyTrack.toLocal(x, y, frame, B) || fallbackMark) : null;
+            if (B && !mark) return;
+            const pos = mark ? null : { x, y };
             const sw = B ? B.shoulderW : 300;
+            const born = performance.now();
             if (config?.display?.bloodMarks !== false) {
                 const el = document.createElement('div');
                 el.className = 'bc-blood';
-                const size = sw * (0.3 + Math.random() * 0.16);
-                el.style.width = el.style.height = size + 'px';
-                el.style.left = (-size / 2) + 'px'; el.style.top = (-size / 2) + 'px';
+                const k = sw * (0.24 + Math.random() * 0.1) / 80;           // vết ~ 1/4 bề vai
+                el.innerHTML = '<div class="splat" style="transform-origin:50% 50%;rotate:' + Math.floor(Math.random() * 360) + 'deg"></div>'
+                             + '<div class="drip" style="--drip:' + Math.round(30 + Math.random() * 40) + 'px;left:' + Math.round(-8 + Math.random() * 10) + 'px"></div>';
                 el.style.opacity = '0';
-                $arrowsLayer.appendChild(el);
-                bodyMarks.push({ el, mark, born: performance.now(), life: 4000, fadeFrom: 1800, alpha: 0.9,
-                    tail: 'rotate(' + Math.floor(Math.random() * 360) + 'deg) scale(' + (0.9 + Math.random() * 0.3).toFixed(2) + ', 1)' });
+                $arrowsLayer.insertBefore(el, $arrowsLayer.firstChild);   // máu nằm dưới mũi tên
+                bodyMarks.push({ el, mark, pos, born, life: 4500, fadeFrom: 2600, alpha: 1,
+                    tail: 'scale(' + k.toFixed(3) + ')' });
             }
             const ar = document.createElement('div');
             ar.className = 'bc-stuck-arrow';
@@ -1396,7 +1474,7 @@
             ar.style.opacity = '0';
             $arrowsLayer.appendChild(ar);
             const scl = Math.max(0.6, Math.min(1.1, sw / 360));
-            bodyMarks.push({ el: ar, mark, born: performance.now(), life: 1600, fadeFrom: 1000, alpha: 1, tail: 'rotate(' + angle + 'rad) scale(' + scl.toFixed(2) + ')' });
+            bodyMarks.push({ el: ar, mark, pos, born, life: 3000, fadeFrom: 1900, alpha: 1, tail: 'rotate(' + angle + 'rad) scale(' + scl.toFixed(2) + ')' });
         }
         // Bóng người đặc từ 33 điểm pose: đầu (elip), thân (tứ giác vai–hông), tay/chân (nét tròn đầu).
         // Vẽ đặc màu trắng lên canvas phụ → chồng lên nhau không bị đậm gấp đôi.
@@ -1758,6 +1836,8 @@
             if (!s) return;
             state = s;
             document.body.classList.toggle('bc-stopped', s.sessionActive === false || s.enabled === false);
+            _gameOff = s.enabled === false;
+            updateHidden();
             renderHearts(s.hp || 0, s.maxHp || 10);
             updateLowHpShake(s.hp || 0, s.maxHp || 10);
             updateCombo(s.comboCount || 0);
@@ -1859,6 +1939,9 @@
         // - Khi hit (mặc định): arrow biến mất ngay tại impact + flash đỏ
         // - Khi blocked (có shield): arrow BAY XUYÊN target ra ngoài màn hình + shield ping
         const MAX_CONCURRENT_ARROWS = 12;   // chống spam → audio kẹt / lag main thread
+        const MIN_FLIGHT_MS = 300;          // + 0.12ms/px quãng bay → ~400ms qua nửa khung 1080×1920
+        const FLIGHT_EASE = 'cubic-bezier(0.25, 0.4, 0.6, 1)';   // rời cung là nhanh ngay, chậm rất nhẹ cuối
+        const landingQueue = [];            // performance.now() lúc từng mũi tên (không bị chặn) chạm đích, theo thứ tự bắn
         function spawnFlyingArrow(durationMs, userInfo, opts) {
             opts = opts || {};
             const blocked = opts.blocked === true;
@@ -1893,7 +1976,11 @@
                 endY = ty + Math.sin(angle) * extra;
             }
 
-            const totalDur = blocked ? durationMs * 1.6 : durationMs;
+            // Mặc định server để 200ms → trừ nhịp kéo dây còn ~120ms = mắt không kịp thấy mũi tên bay.
+            // Ép tối thiểu theo quãng bay; hiệu ứng trúng (chớp đỏ/hạt) chờ mũi tên tới nơi (landingQueue).
+            const flight = Math.max(durationMs, MIN_FLIGHT_MS + Math.hypot(dx, dy) * 0.12);
+            const totalDur = blocked ? flight * 1.6 : flight;
+            if (!blocked) landingQueue.push(performance.now() + totalDur * 0.92);
 
             const arrow = document.createElement('div');
             arrow.className = 'bc-fly-arrow';
@@ -1916,10 +2003,10 @@
                 // Move trail with arrow — use same animation timing
                 try {
                     trail.animate([
-                        { left: sx + 'px', top: sy + 'px', opacity: 0.9 },
-                        { left: tx + 'px', top: ty + 'px', opacity: 0.9, offset: blocked ? 0.5 : 0.85 },
+                        { left: sx + 'px', top: sy + 'px', opacity: 0.9, easing: blocked ? 'linear' : FLIGHT_EASE },
+                        { left: tx + 'px', top: ty + 'px', opacity: 0.9, offset: blocked ? 0.5 : 0.92 },
                         { left: (blocked ? endX : tx) + 'px', top: (blocked ? endY : ty) + 'px', opacity: 0 }
-                    ], { duration: totalDur, easing: blocked ? 'linear' : 'cubic-bezier(0.3, 0, 0.7, 1)', fill: 'forwards' });
+                    ], { duration: totalDur, easing: 'linear', fill: 'forwards' });
                 } catch (e) {}
                 setTimeout(() => trail?.remove(), totalDur + 200);
             }
@@ -1952,18 +2039,23 @@
                         { left: endX + 'px', top: endY + 'px', transform: `translate(-50%,-50%) rotate(${angle}rad)`, opacity: 0, offset: 1 }
                     ], { duration: totalDur, easing: 'linear', fill: 'forwards' });
                     // Spawn shield ping at impact moment (when arrow reaches target)
-                    setTimeout(() => spawnShieldPing(tx, ty), durationMs * 0.5);
+                    setTimeout(() => spawnShieldPing(tx, ty), totalDur * 0.5);
                 } else {
-                    if (bodyTgt) setTimeout(() => {
+                    setTimeout(() => {
                         lastHitPt = { x: tx, y: ty, at: performance.now() };
-                        const B = bodyTrack?.body();
-                        if (B) landOnBody(tx, ty, bodyTgt.frame, { frame: bodyTgt.frame, a: bodyTgt.a, b: bodyTgt.b }, angle, B);
+                        const B = bodyTgt ? bodyTrack?.body() : null;
+                        // Mất người đúng lúc chạm → vẫn găm tại chỗ (đứng yên) thay vì biến mất.
+                        landOnBody(tx, ty, bodyTgt?.frame, bodyTgt ? { frame: bodyTgt.frame, a: bodyTgt.a, b: bodyTgt.b } : null, angle, B || null);
                     }, totalDur * 0.92);
+                    // Mũi tên vẽ có mũi nhọn ở ĐẦU khung → dời tâm khung lùi nửa thân để mũi nhọn (không phải giữa thân) chạm đích.
+                    const back = 61, bx = Math.cos(angle) * back, by = Math.sin(angle) * back;
+                    // Bay gần như đều (thoát cung là nhanh ngay, không "ì" ở đầu); tới nơi thì tắt nhanh — mũi tên cắm thay chỗ.
                     arrow.animate([
-                        { left: sx + 'px', top: sy + 'px', transform: `translate(-50%,-50%) rotate(${angle}rad)`, opacity: 1, offset: 0 },
-                        { left: tx + 'px', top: ty + 'px', transform: `translate(-50%,-50%) rotate(${angle}rad)`, opacity: 1, offset: 0.92 },
-                        { left: tx + 'px', top: ty + 'px', transform: `translate(-50%,-50%) rotate(${angle}rad)`, opacity: 0, offset: 1 }
-                    ], { duration: totalDur, easing: 'cubic-bezier(0.3, 0, 0.7, 1)', fill: 'forwards' });
+                        { left: (sx - bx) + 'px', top: (sy - by) + 'px', transform: `translate(-50%,-50%) rotate(${angle}rad)`, opacity: 1, offset: 0, easing: FLIGHT_EASE },
+                        { left: (tx - bx) + 'px', top: (ty - by) + 'px', transform: `translate(-50%,-50%) rotate(${angle}rad)`, opacity: 1, offset: 0.92 },
+                        { left: (tx - bx) + 'px', top: (ty - by) + 'px', transform: `translate(-50%,-50%) rotate(${angle}rad)`, opacity: 0, offset: 0.96 },
+                        { left: (tx - bx) + 'px', top: (ty - by) + 'px', transform: `translate(-50%,-50%) rotate(${angle}rad)`, opacity: 0, offset: 1 }
+                    ], { duration: totalDur, easing: 'linear', fill: 'forwards' });   // easing theo đoạn → tới đích đúng mốc 0.92 thời gian
                 }
             } catch (e) {
                 // Fallback: CSS transition
@@ -2047,8 +2139,10 @@
         });
         socket.on('bancung:state', applyState);
         socket.on('bancung:shot', (d) => {
+            if (!frameOn()) return;
             const dur = Number(d.arrowDurationMs) || 700;
-            const opts = { blocked: !!d.blocked };
+            // Chỉ GIÁP mới làm mũi tên bay xuyên; đã gục thì vẫn găm (server bản cũ không gửi shielded → theo blocked).
+            const opts = { blocked: d.shielded !== undefined ? !!d.shielded : !!d.blocked };
             const drawMs = Math.max(50, Math.min(110, dur * 0.4));
             // Bám người: chọn điểm trúng NGAY bây giờ để cung xoay về đó trong lúc kéo dây.
             if (trackWanted && bodyTrack && trackingNow && !opts.blocked) {
@@ -2064,6 +2158,14 @@
             } else spawnFlyingArrow(dur, d.user || null, opts);
         });
         socket.on('bancung:hit', (d) => {
+            if (!frameOn()) return;
+            // Mũi tên bay lâu hơn nhịp server (MIN_FLIGHT_MS) → đợi đúng lúc mũi tên tương ứng chạm đích rồi mới chớp/nổ hạt.
+            const now = performance.now();
+            while (landingQueue.length && landingQueue[0] < now - 1500) landingQueue.shift();   // mũi tên đã bị bỏ/lạc nhịp
+            const wait = landingQueue.length ? Math.max(0, landingQueue.shift() - now) : 0;
+            if (wait > 16) setTimeout(() => onHit(d), Math.min(wait, 1500)); else onHit(d);
+        });
+        function onHit(d) {
             // Đang bám được người → chớp đỏ theo hình cơ thể, KHÔNG chớp toàn màn (phần ngoài người không liên quan).
             if (trackWanted && trackingNow && config?.display?.bodyFlash !== false) bodyFlashAt = performance.now();
             else flashRed();
@@ -2095,7 +2197,7 @@
                 $arrowsLayer.appendChild(el);
                 setTimeout(() => el.remove(), 1600);
             }
-        });
+        }
         socket.on('bancung:podium', (d) => showPodium(d));
         socket.on('bancung:charge', (d) => updateBowCharge(d.value || 0));
         socket.on('bancung:autoburst', (d) => {
@@ -2136,7 +2238,21 @@
         socket.on('gameDisabled', ({ gameId }) => {
             if (gameId !== 'bancung') return;
             document.body.classList.add('bc-stopped');
+            _gameOff = true;
+            updateHidden();
         });
+        socket.on('gameEnabled', ({ gameId }) => { if (gameId === 'bancung') { _gameOff = false; updateHidden(); } });
+        // Đóng app → socket rớt → ẩn sau 1.5s (chớp mạng ngắn không nháy); nối lại thì hiện theo trạng thái game.
+        // Chỉ ẩn khi mất kết nối hoặc game bị TẮT — chưa bấm ▶ Bắt đầu thì vẫn hiện tim + cung như cũ.
+        let _offlineTimer = 0, _offline = false, _gameOff = false;
+        // + khung bị overlay mẹ (🎥 Game Camera) ẩn / nạp sẵn → HpCamFrame.active = false (cam-frame-guard.js câm âm thanh).
+        function updateHidden() { document.body.classList.toggle('bc-hide', _offline || _gameOff || state?.enabled === false || !frameOn()); }
+        socket.on('disconnect', () => {
+            clearTimeout(_offlineTimer);
+            _offlineTimer = setTimeout(() => { _offline = true; window.HpCamFrame?.setOnline(false); updateHidden(); }, 1500);
+        });
+        socket.on('connect', () => { clearTimeout(_offlineTimer); _offline = false; window.HpCamFrame?.setOnline(true); updateHidden(); });
+        window.HpCamFrame?.onChange(() => updateHidden());
         socket.on('overlay:reload', (data) => {
             // Filter by gameId nếu có — chỉ reload nếu match hoặc broadcast chung
             if (!data || !data.gameId || data.gameId === 'bancung') location.reload();

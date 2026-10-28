@@ -2,19 +2,98 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<title>Game Camera — overlay</title>
+<!-- 🌐 Chữ khán giả thấy theo "Ngôn ngữ chữ trên LIVE" (settings.overlayLang) - hpT() + dịch chữ tĩnh; nạp TRƯỚC mọi script. -->
+<script src="/i18n/hp-i18n.js" data-scope="overlay"></script>
+<script src="/lib/hp-icons.js"></script>
+<script src="/lib/hp-game-feed.js"></script>
+<title>Game Camera - overlay</title>
 <script src="/lib/overlay-resolution.js"></script>
 <style>
   /* Một Browser Source cho mọi game camera: trang mẹ trong suốt, mỗi game đang chơi một iframe phủ kín
      (chơi 2 game cùng lúc = 2 lớp chồng: game tay dưới, game trên đầu ở trên).
-     Không có nút/cài đặt nào ở đây — mọi cài đặt làm trong app (Game Camera). */
+     Không có nút/cài đặt nào ở đây - mọi cài đặt làm trong app (Game Camera). */
   html, body { margin: 0; height: 100%; background: transparent !important; overflow: hidden; }
   iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: transparent;
            opacity: 1; transition: opacity .35s ease; }
-  iframe.out { opacity: 0; }
+  iframe.out { opacity: 0; pointer-events: none; }
+  /* Đóng app (mất kết nối) → ẩn mọi game; nối lại thì hiện như cũ (iframe giữ nguyên, không nạp lại). */
+  body.offline iframe, body.offline .cgs { opacity: 0; }
+
+  /* 🎮 PHIÊN GAME THEO QUÀ - lớp trên cùng: màn mở đầu, đồng hồ đếm ngược, bảng quà của game. Không nhận chuột. */
+  .cgs { position: fixed; inset: 0; z-index: 10; pointer-events: none; opacity: 0; transition: opacity .4s ease;
+         font-family: "Segoe UI", system-ui, sans-serif; color: #fff; }
+  .cgs.on { opacity: 1; }
+  /* Dưới HUD điểm của các game (mép trên ~0–14vmin) và dưới thanh tiêu đề TikTok LIVE. */
+  .cgs-top { position: absolute; top: 17vmin; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column;
+             align-items: center; gap: 1vmin; }
+  .cgs-pill { display: flex; align-items: center; gap: 1.6vmin; padding: 1.2vmin 3vmin; border-radius: 99vmin;
+              background: rgba(10, 12, 28, .78); border: .35vmin solid rgba(255, 214, 90, .9);
+              box-shadow: 0 .6vmin 2.4vmin rgba(0, 0, 0, .45); font-size: 3.6vmin; font-weight: 800; white-space: nowrap; }
+  .cgs-pill .ico { font-size: 4.4vmin; display: inline-flex; }
+  /* icon nét HP Media (hp-game-feed.js) thay emoji trong lớp phiên game */
+  .cgs .hpf-ico { margin-right: .3em; } .cgs-pill .ico .hpf-ico, .cgs-item .ic .hpf-ico { margin: 0; width: 1em; height: 1em; }
+  .cgs-pill .sec { min-width: 8vmin; text-align: right; color: #ffd65a; font-variant-numeric: tabular-nums; }
+  .cgs-bar { width: 46vmin; height: 1.3vmin; border-radius: 99vmin; background: rgba(0, 0, 0, .45); overflow: hidden; }
+  .cgs-bar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #ffb13b, #ffe07a);
+               transform-origin: left center; transition: transform .25s linear; }
+  .cgs.warn .cgs-pill { border-color: #ff4d5e; animation: cgsPulse .6s ease-in-out infinite alternate; }
+  .cgs.warn .cgs-pill .sec { color: #ff6b78; }
+  .cgs.warn .cgs-bar i { background: linear-gradient(90deg, #ff4d5e, #ff9aa3); }
+  @keyframes cgsPulse { from { transform: scale(1); } to { transform: scale(1.06); } }
+  .cgs-plus { font-size: 5vmin; font-weight: 900; color: #7dffa1; text-shadow: 0 .4vmin 1.6vmin rgba(0, 0, 0, .7);
+              opacity: 0; transform: translateY(1vmin) scale(.8); }
+  .cgs-plus.go { animation: cgsPlus 1.8s ease-out forwards; }
+  @keyframes cgsPlus { 0% { opacity: 0; transform: translateY(2vmin) scale(.7); } 15% { opacity: 1; transform: translateY(0) scale(1.15); }
+                       70% { opacity: 1; transform: translateY(-1vmin) scale(1); } 100% { opacity: 0; transform: translateY(-4vmin) scale(1); } }
+
+  .cgs-gifts { position: absolute; left: 1.8vmin; top: 50%; transform: translateY(-50%); width: 30vmin; padding: 1.6vmin;
+               border-radius: 2.4vmin; background: rgba(10, 12, 28, .72); border: .25vmin solid rgba(255, 255, 255, .18);
+               box-shadow: 0 .6vmin 2.4vmin rgba(0, 0, 0, .4); }
+  .cgs-gifts.empty { display: none; }
+  .cgs-gifts-title { font-size: 2.6vmin; font-weight: 900; color: #ffd65a; letter-spacing: .1vmin; margin-bottom: 1.2vmin; text-align: center; }
+  .cgs-item { display: flex; align-items: center; gap: 1.4vmin; padding: .8vmin .4vmin; border-top: .15vmin solid rgba(255, 255, 255, .08); }
+  .cgs-item:first-of-type { border-top: 0; }
+  .cgs-item .ic { width: 6.4vmin; height: 6.4vmin; flex: none; display: grid; place-items: center; font-size: 4.4vmin; }
+  .cgs-gifts-title, .cgs-item .lb, .cgs-intro .dur, .cgs-intro .game { display: flex; align-items: center; justify-content: inherit; }
+  .cgs-gifts-title { justify-content: center; }
+  .cgs-item .ic img { width: 100%; height: 100%; object-fit: contain; }
+  .cgs-item .tx { min-width: 0; line-height: 1.15; }
+  .cgs-item .nm { font-size: 2.4vmin; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cgs-item .lb { font-size: 2.6vmin; font-weight: 800; color: #ffe07a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .cgs-intro { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(.6); opacity: 0;
+               display: flex; flex-direction: column; align-items: center; gap: 1.2vmin; padding: 4vmin 6vmin; min-width: 58vmin;
+               border-radius: 4vmin; background: radial-gradient(circle at 50% 0%, rgba(255, 196, 64, .35), rgba(10, 12, 28, .9) 70%);
+               border: .45vmin solid rgba(255, 214, 90, .95); box-shadow: 0 0 6vmin rgba(255, 190, 60, .45);
+               transition: opacity .35s ease, transform .45s cubic-bezier(.2, 1.6, .4, 1); text-align: center; }
+  .cgs.intro .cgs-intro { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .cgs-intro .av { width: 16vmin; height: 16vmin; border-radius: 50%; object-fit: cover; border: .5vmin solid #ffd65a; background: #222; }
+  .cgs-intro .av.none { display: none; }
+  .cgs-intro .who { font-size: 4.2vmin; font-weight: 900; max-width: 70vmin; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cgs-intro .act { font-size: 3vmin; opacity: .85; display: flex; align-items: center; gap: 1vmin; }
+  .cgs-intro .act img { width: 5vmin; height: 5vmin; object-fit: contain; }
+  .cgs-intro .game { font-size: 7.4vmin; font-weight: 900; color: #ffd65a; text-shadow: 0 .5vmin 2vmin rgba(0, 0, 0, .6); }
+  .cgs-intro .dur { font-size: 3.4vmin; font-weight: 800; padding: .6vmin 2.4vmin; border-radius: 99vmin; background: rgba(255, 214, 90, .2); }
+  .cgs.intro .cgs-top, .cgs.intro .cgs-gifts { opacity: 0; }
+  .cgs-top, .cgs-gifts { transition: opacity .35s ease; }
 </style>
 </head>
 <body>
+<div class="cgs" id="cgs">
+  <div class="cgs-top">
+    <div class="cgs-pill"><span class="ico" id="cgsIco">🎮</span><b id="cgsName">Game</b><span class="sec" id="cgsSec">0s</span></div>
+    <div class="cgs-bar"><i id="cgsBar"></i></div>
+    <div class="cgs-plus" id="cgsPlus"></div>
+  </div>
+  <div class="cgs-gifts empty" id="cgsGifts"><div class="cgs-gifts-title"><i data-ico="🎁"></i><span>QUÀ CHƠI GAME</span></div><div id="cgsList"></div></div>
+  <div class="cgs-intro">
+    <img class="av none" id="cgsAv" alt="">
+    <div class="who" id="cgsWho"></div>
+    <div class="act"><span>đã kích hoạt</span><img id="cgsGiftImg" alt="" hidden></div>
+    <div class="game" id="cgsGame"></div>
+    <div class="dur" id="cgsDur"></div>
+  </div>
+</div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/games/camgames/registry.js"></script>
 <script type="module">
@@ -22,11 +101,17 @@ import { createCamShared } from '/lib/hp-cam-shared.mjs';
 
 const qs = new URLSearchParams(location.search);
 const token = qs.get('token') || '';
-const SLOT_Z = { body: 0, hands: 1, kick: 1, head: 2 };   // body = người tách nền: nằm dưới mọi game
-const frames = new Map();          // id game → iframe đang chạy
-const socket = io({ transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
-// Bộ nhận diện chung — tạo TRƯỚC khi nạp game con để game con tìm thấy (sharedTracker trong hp-tracking.mjs).
+const SLOT_Z = { body: 0, hands: 1, kick: 1, head: 2 };   // body = Rơi Hố vẽ lại người tách nền: nằm dưới mọi game
+const frames = new Map();          // id game → iframe (đang hiện hoặc nạp sẵn chờ phiên)
+// hub=camgames: server biết overlay mẹ đang mở (link LEVEL QUEST riêng tự ẩn; quà kích hoạt phiên game chỉ mở khi có trang này).
+const socket = io({ query: { hub: 'camgames' }, transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+// Bộ nhận diện chung - tạo TRƯỚC khi nạp game con để game con tìm thấy (sharedTracker trong hp-tracking.mjs).
 const shared = window.__hpCamShared = createCamShared({ socket });
+const gameById = id => (window.HpCamGames || []).find(g => g.id === id) || null;
+
+let lastCfg = null;                // config camgames gần nhất
+let session = null;                // 🎮 phiên game theo quà đang chạy (server: camgames:session)
+let skew = 0;                      // đồng hồ server − đồng hồ trang (OBS có thể chạy máy khác)
 
 // Chuyển tiếp query của link OBS (token máy thứ 2, res=4k…) sang game con.
 function childUrl(game) {
@@ -34,15 +119,31 @@ function childUrl(game) {
     return game.overlay + (extra ? (game.overlay.includes('?') ? '&' : '?') + extra : '');
 }
 
+// 🔑 Game KEY không cho chơi (⏸ Tạm tắt / 🔒 chưa mở / Ẩn) KHÔNG nạp khung: lựa chọn của streamer vẫn giữ (mở lại là chơi tiếp),
+// nhưng trước đây khung game bị khoá vẫn nạp → trang khoá của nó hiện hộp "⏸ … tạm bảo trì" lên LIVE, 2 game thì 2 hộp chồng nhau.
+let licBlocked = new Set();
+function setLicense(lf) {
+    const st = (lf && lf.states) || {};
+    licBlocked = new Set([...((lf && lf.locked) || []), ...Object.keys(st).filter(k => ['off', 'hidden', 'locked'].includes(st[k]))]);
+    show();
+}
+const playable = g => !!g && !licBlocked.has(g.id);
 // Config cũ chỉ có `active`; bản mới có `actives` (các game chơi cùng lúc).
 function activesOf(cfg) {
     const list = Array.isArray(cfg.actives) && cfg.actives.length ? cfg.actives : [cfg.active];
-    return list.map(id => (window.HpCamGames || []).find(g => g.id === id)).filter(Boolean);
+    return list.map(gameById).filter(playable);
 }
+// Game gắn quà kích hoạt: nạp sẵn (ẩn) để lúc có quà là hiện ngay - model nhận diện nặng vài chục MB, chờ có quà mới nạp thì trễ.
+function standbyOf(cfg) {
+    const t = cfg && cfg.trigger;
+    if (!t || t.enabled !== true || !Array.isArray(t.rules)) return [];
+    return [...new Set(t.rules.filter(r => r && r.enabled !== false).map(r => r.gameId))].map(gameById).filter(playable);
+}
+const sessionLive = () => !!(session && session.active && session.until + 3000 > Date.now() + skew);
 
-// 🔇 Báo khung game có đang ĐƯỢC CHƠI không (cam-frame-guard.js trong game con): khung sắp gỡ / mất kết nối app
-// → active:false → game con khoá hết âm thanh và ngưng chạy (không vo ve / sinh vật mãi trong OBS).
-let offline = false;
+// 🔇 Báo khung game có đang ĐƯỢC CHƠI không (camgames/cam-frame-guard.js trong game con): khung ẩn / nạp sẵn / sắp gỡ /
+// mất kết nối app → active:false → game con khoá hết âm thanh và ngưng chạy. Trước đây khung ẩn vẫn chạy → Đập Muỗi vo ve mãi.
+const isOffline = () => document.body.classList.contains('offline');
 function tellFrame(f, active) {
     if (f.dataset.active === String(active)) return;
     f.dataset.active = String(active);
@@ -50,51 +151,136 @@ function tellFrame(f, active) {
 }
 
 // Thêm/bớt iframe theo danh sách; game vẫn đang chơi KHÔNG nạp lại (giữ muỗi/điểm giữa live).
-function show(cfg) {
-    const want = cfg && cfg.enabled !== false ? activesOf(cfg) : [];
+// Đang phiên game: chỉ game của phiên hiện, game khác giữ nguyên trong trang nhưng ẩn (hết phiên hiện lại như cũ).
+function show() {
+    const cfg = lastCfg;
+    const normal = cfg && cfg.enabled !== false ? activesOf(cfg) : [];
+    const sGame = sessionLive() ? gameById(session.gameId) : null;
+    const visible = sGame ? [sGame] : normal;
+    const keep = [...normal, ...standbyOf(cfg), ...visible];
     for (const [id, f] of frames) {
-        if (want.some(g => g.id === id)) continue;
+        if (keep.some(g => g.id === id)) continue;
         frames.delete(id);
         shared.drop(id);                   // game rời: thôi nhận diện phần của nó ngay, khỏi đợi iframe gỡ
         tellFrame(f, false);               // im ngay, không đợi 350 ms gỡ khung
         f.classList.add('out');
         setTimeout(() => f.remove(), 350);
     }
-    for (const game of want) {
+    for (const game of keep) {
         if (frames.has(game.id)) continue;
         const f = document.createElement('iframe');
         f.allow = 'autoplay'; f.title = game.name; f.className = 'out'; f.dataset.id = game.id;
-        f.style.zIndex = SLOT_Z[game.slot] ?? 1;   // ?? chứ không ||: body = 0 phải giữ 0
-        f.onload = () => { f.classList.remove('out'); f.dataset.active = ''; tellFrame(f, !offline); };
+        f.style.zIndex = SLOT_Z[game.slot] ?? 1;   // ?? chứ không ||: body = 0 phải giữ 0 (nằm dưới game tay)
+        f.onload = () => { f.dataset.loaded = '1'; delete f.dataset.active; show(); };
         f.src = childUrl(game);
         document.body.appendChild(f);
         frames.set(game.id, f);
     }
-    // Lớp trên (game bám đầu) phủ kín màn: có game tay bên dưới thì cho chuột xuyên qua — kẻo tay/vợt/chém
+    // Lớp trên (game bám đầu) phủ kín màn: có game tay bên dưới thì cho chuột xuyên qua - kẻo tay/vợt/chém
     // bằng chuột của game dưới (thử trong cửa sổ Tương tác của OBS) không nhận được gì.
-    for (const f of frames.values()) if (f.dataset.active !== undefined && f.contentWindow) tellFrame(f, !offline);
-    const hasHands = want.some(g => g.slot === 'hands');
+    const hasHands = visible.some(g => g.slot === 'hands');
     for (const [id, f] of frames) {
-        const g = want.find(x => x.id === id);
+        const g = visible.find(x => x.id === id);
+        f.classList.toggle('out', !g || f.dataset.loaded !== '1');
         f.style.pointerEvents = hasHands && g && g.slot !== 'hands' ? 'none' : '';
+        if (f.dataset.loaded === '1') tellFrame(f, !!g && !isOffline());
     }
 }
 
 function load() {
-    fetch('/api/games/camgames/config', { cache: 'no-store' }).then(r => r.json()).then(show).catch(() => {});
+    fetch('/api/license/features', { cache: 'no-store' }).then(r => r.json()).then(setLicense).catch(() => {});
+    fetch('/api/games/camgames/config', { cache: 'no-store' }).then(r => r.json()).then(c => { lastCfg = c; show(); }).catch(() => {});
+}
+socket.on('license:features', setLicense);
+
+// ---------- 🎮 lớp phiên game ----------
+const $ = id => document.getElementById(id);
+const ui = $('cgs');
+const FEED = window.HpGameFeed;
+document.querySelectorAll('#cgs i[data-ico]').forEach(i => { i.outerHTML = FEED.icoHtml(i.dataset.ico, '#ffd65a'); });
+// 🎁 Khung QUÀ CHƠI GAME: vị trí / cỡ chỉnh ở 🎥 Game Camera → Cài đặt (camgames.display.gifts*, % khung hình). Mặc định 6 % / 48 % / cỡ 55 % (máy dev chốt 2026-10-24), sát mép trái giữa
+// như trước; sát mép trái / phải (< 34 % / > 66 %) thì canh theo mép đó.
+function placeGifts() {
+    const d = (lastCfg && lastCfg.display) || {}, box = $('cgsGifts');
+    const x = Number(d.giftsXPercent ?? 6), y = Number(d.giftsYPercent ?? 48), sc = Number(d.giftsScale ?? 55) / 100;
+    const al = x < 34 ? 0 : x > 66 ? 1 : 0.5;
+    box.style.left = x + '%'; box.style.top = y + '%';
+    box.style.transformOrigin = (al * 100) + '% 50%';
+    box.style.transform = 'translate(' + (-al * 100) + '%, -50%) scale(' + sc + ')';
+}
+let lastExtendSeq = 0, lastSessionSeq = 0, tickTimer = 0;
+function renderGifts(list) {
+    const box = $('cgsGifts'), el = $('cgsList');
+    el.textContent = '';
+    for (const it of list || []) {
+        const row = document.createElement('div'); row.className = 'cgs-item';
+        const ic = document.createElement('div'); ic.className = 'ic';
+        if (it.image) { const im = document.createElement('img'); im.src = it.image; im.alt = ''; ic.appendChild(im); } else ic.innerHTML = FEED.icoHtml(it.emoji || '🎁');
+        const tx = document.createElement('div'); tx.className = 'tx';
+        const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = it.name || '';
+        const lb = document.createElement('div'); lb.className = 'lb'; lb.innerHTML = FEED.icoLabel(it.label || '');
+        tx.append(nm, lb); row.append(ic, tx); el.appendChild(row);
+    }
+    box.classList.toggle('empty', !(list && list.length));
+    placeGifts();
+}
+function applySession(s) {
+    const was = sessionLive();
+    session = s && s.active ? s : null;
+    if (s && Number.isFinite(s.serverNow)) skew = s.serverNow - Date.now();
+    if (session) {
+        $('cgsIco').innerHTML = FEED.icoHtml(session.icon || '🎮', '#ffd65a');
+        $('cgsName').textContent = session.gameName || '';
+        $('cgsGame').innerHTML = FEED.icoHtml(session.icon || '🎮', '#ffd65a') + FEED.esc((session.gameName || '').toUpperCase());
+        $('cgsWho').textContent = session.by?.nickname ? '@' + session.by.nickname : '';
+        $('cgsDur').innerHTML = FEED.icoLabel(`⏱ ${session.seconds}s`);
+        const av = $('cgsAv');
+        if (session.by?.avatar) { av.src = session.by.avatar; av.classList.remove('none'); } else av.classList.add('none');
+        const gi = $('cgsGiftImg');
+        if (session.giftImage) { gi.src = session.giftImage; gi.hidden = false; } else gi.hidden = true;
+        renderGifts(session.gifts);
+        if (session.seq !== lastSessionSeq) { lastSessionSeq = session.seq; lastExtendSeq = session.extend?.seq || 0; }
+        const ex = session.extend;
+        if (ex && ex.seq !== lastExtendSeq) {
+            lastExtendSeq = ex.seq;
+            const p = $('cgsPlus');
+            p.textContent = ex.sec > 0 ? `+${ex.sec}s${ex.nickname ? ' · @' + ex.nickname : ''}` : hpT('ĐÃ TỐI ĐA');
+            p.classList.remove('go'); void p.offsetWidth; p.classList.add('go');
+        }
+    }
+    if (was !== sessionLive() || session) show();
+    tick();
+}
+function tick() {
+    clearTimeout(tickTimer);
+    const live = sessionLive();
+    if (!live) {
+        ui.classList.remove('on', 'intro', 'warn');
+        if (session) { session = null; show(); }   // lỡ sự kiện kết thúc → tự về như thường theo mốc giờ
+        return;
+    }
+    const now = Date.now() + skew;
+    const intro = now < session.introUntil;
+    const left = Math.max(0, session.until - now);
+    const total = Math.max(1, session.until - session.introUntil);
+    ui.classList.add('on');
+    ui.classList.toggle('intro', intro);
+    ui.classList.toggle('warn', !intro && left <= 5000);
+    $('cgsSec').textContent = Math.ceil(left / 1000) + 's';
+    $('cgsBar').style.transform = `scaleX(${intro ? 1 : Math.min(1, left / total)})`;
+    tickTimer = setTimeout(tick, 200);
 }
 
 let offlineTimer = 0;
-socket.on('connect', () => { clearTimeout(offlineTimer); offline = false; socket.emit('subscribe', 'overlay'); load(); });
-socket.on('disconnect', () => {
-    clearTimeout(offlineTimer);
-    offlineTimer = setTimeout(() => { offline = true; for (const f of frames.values()) tellFrame(f, false); }, 1500);
-});
-socket.on('gameConfig', d => { if (d && d.gameId === 'camgames') show(d.config); });
-socket.on('gameDisabled', d => { if (d && d.gameId === 'camgames') show({ enabled: false }); });
+socket.on('connect', () => { clearTimeout(offlineTimer); document.body.classList.remove('offline'); socket.emit('subscribe', 'overlay'); load(); show(); });
+// Chớp mạng ngắn (server khởi động lại) không nháy: chỉ ẩn khi rớt quá 1.5s. Ẩn = mọi game NGƯNG + câm (không chỉ làm mờ).
+socket.on('disconnect', () => { clearTimeout(offlineTimer); offlineTimer = setTimeout(() => { document.body.classList.add('offline'); show(); }, 1500); });
+socket.on('gameConfig', d => { if (d && d.gameId === 'camgames') { lastCfg = d.config; show(); placeGifts(); } });
+socket.on('gameDisabled', d => { if (d && d.gameId === 'camgames') { lastCfg = { ...(lastCfg || {}), enabled: false }; show(); } });
 socket.on('gameEnabled', d => { if (d && d.gameId === 'camgames') load(); });
 socket.on('overlay:reload', d => { if (d && d.gameId === 'camgames') location.reload(); });
-window.__cg = { frames, shared };      // soi/thử trong DevTools
+socket.on('camgames:session', applySession);
+window.__cg = { frames, shared, get session() { return session; } };      // soi/thử trong DevTools
 load();
 </script>
 </body>

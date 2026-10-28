@@ -32,7 +32,8 @@
             mirror: true,
             giftRules: [],
             obsScene: { enabled: false, playScene: '', backScene: '' },
-            display: { scale: 100, xPercent: 50, yPercent: 50 }
+            // list*: danh sách người tặng quà (% vùng cam thấy được, % cỡ) - dưới HUD, tránh góc chat TikTok
+            display: { scale: 100, xPercent: 50, yPercent: 50, listXPercent: 50, listYPercent: 13, listScale: 70 }
         };
     }
 
@@ -44,6 +45,13 @@
         const height = opts.height || 1920;
         let rng = opts.random || Math.random;
         let cfg = Object.assign(defaultConfig(), config || {});
+        // 👁 Vùng chơi = phần sân khấu còn thấy trên OBS (Scene PK cắt ô khung cam - overlay gọi setArea): quả tung lên từ ĐÁY vùng,
+        // quả rơi nằm lại ở đáy vùng. Mặc định cả sân khấu (dãy rng() y hệt bản cũ).
+        let A = { x: 0, y: 0, w: width, h: height };
+        function setArea(r) {
+            const ok = r && [r.x, r.y, r.w, r.h].every(Number.isFinite) && r.w > 0 && r.h > 0;
+            A = ok ? { x: r.x, y: r.y, w: r.w, h: r.h } : { x: 0, y: 0, w: width, h: height };
+        }
 
         let playing = false;
         let score = 0;
@@ -81,7 +89,11 @@
                 buffs[other] -= cancel; add -= cancel;
                 buffs[action] += add;
             } else if (action === 'rescue') {
+                const before = pile;
                 pile = Math.max(0, pile - num(cfg.rescuePercent, 100) * n);
+                // xả vườn = dọn luôn quả đang nằm dưới đáy (cũ nhất trước), theo đúng phần vườn vừa xả
+                let drop = pile <= 0 ? Infinity : Math.round((before - pile) / Math.max(1, num(cfg.pileStep, 5)));
+                objects = objects.filter(o => { if (o.landed && drop > 0) { drop--; return false; } return true; });
                 events.push({ type: 'rescue', pile });
                 return;
             }
@@ -92,7 +104,7 @@
             score -= num(cfg.bombPenalty, 50);
             events.push({ type: 'bomb', x: bomb.x, y: bomb.y });
             const radius = width * num(cfg.blast, 24) / 100;
-            const gone = objects.filter(o => o !== bomb && o.kind !== 'bomb' && Math.hypot(o.x - bomb.x, o.y - bomb.y) <= radius + o.r);
+            const gone = objects.filter(o => o !== bomb && o.kind !== 'bomb' && !o.landed && Math.hypot(o.x - bomb.x, o.y - bomb.y) <= radius + o.r);
             for (const o of gone) {
                 objects = objects.filter(q => q !== o);
                 pile += num(cfg.pileStep, 5);
@@ -133,14 +145,17 @@
             const pts = num(cfg.points, 10);
             score += pts;
             registerHit();
-            events.push({ type: 'cut', kind: o.kind, x: o.x, y: o.y, points: pts, combo, depth: o.depth + 1 });
+            // Quả đang nằm dưới đáy: chém là xong luôn (2 mảnh rơi khỏi màn), trả lại phần vườn nó chiếm.
+            if (o.landed) pile = Math.max(0, pile - num(cfg.pileStep, 5));
+            const depth = o.landed ? Math.max(1, num(cfg.cuts, 2)) : o.depth + 1;
+            events.push({ type: 'cut', kind: o.kind, x: o.x, y: o.y, r: o.r, angle: Math.atan2(by - ay, bx - ax), points: pts, combo, depth, floor: !!o.landed });
             // pháp tuyến của đoạn cắt → 2 mảnh văng ngược chiều
             let nx = -(by - ay), ny = bx - ax;
             const len = Math.hypot(nx, ny) || 1; nx /= len; ny /= len;
             for (const sgn of [1, -1]) {
                 objects.push({ id: nextId++, kind: o.kind, x: o.x + nx * sgn * o.r * 0.3, y: o.y + ny * sgn * o.r * 0.3,
                     r: o.r * 0.7, vx: o.vx + nx * sgn * 180, vy: o.vy - 150, rot: o.rot, rot0: o.rot, spin: o.spin + sgn * 2,
-                    depth: o.depth + 1, golden: o.golden, cutAngle: Math.atan2(by - ay, bx - ax), half: sgn });
+                    depth, golden: o.golden, cutAngle: Math.atan2(by - ay, bx - ax), half: sgn });
             }
         }
 
@@ -185,12 +200,12 @@
 
         function spawn(kind) {
             const r = radius();
-            const x = width * (0.15 + 0.70 * rng());
-            const h = height * num(cfg.peak, 72) / 100 + r;
+            const x = A.x + A.w * (0.15 + 0.70 * rng());
+            const h = A.h * num(cfg.peak, 72) / 100 + r;
             const vy = -Math.sqrt(2 * GRAVITY * h) * num(cfg.baseSpeed, 0.65);
-            const toward = x < width / 2 ? 1 : -1;
+            const toward = x < A.x + A.w / 2 ? 1 : -1;
             const vx = toward * 120 * rng();
-            objects.push({ id: nextId++, kind, x, y: height + r, r, vx, vy, rot: rng() * Math.PI * 2, spin: (rng() - 0.5) * 3, depth: 0, golden: kind === 'bomb' && buffs.god > 0 });
+            objects.push({ id: nextId++, kind, x, y: A.y + A.h + r, r, vx, vy, rot: rng() * Math.PI * 2, spin: (rng() - 0.5) * 3, depth: 0, golden: kind === 'bomb' && buffs.god > 0 });
         }
 
         function step(dtMs) {
@@ -225,21 +240,25 @@
             const g = GRAVITY * num(cfg.baseSpeed, 0.65) * num(cfg.baseSpeed, 0.65);
             const dte = dt * speedMul;
             for (const o of objects) {
+                if (o.landed) continue;
                 o.vy += g * dte;
                 o.x += o.vx * dte;
                 o.y += o.vy * dte;
                 o.rot += o.spin * dte;
             }
+            // Quả (còn chém được) chạm đáy vùng → nằm lại ở đáy, cộng vào vườn; người chơi cúi xuống chém cho xong.
+            // Bom và mảnh đã chém hết lượt thì rơi khỏi màn như cũ.
             const maxDepth = Math.max(1, num(cfg.cuts, 2));
-            const landed = objects.filter(o => o.vy > 0 && o.y > height + 2 * o.r);
-            if (landed.length) {
-                objects = objects.filter(o => !landed.includes(o));
-                for (const o of landed) {
-                    if (o.kind === 'bomb' || o.depth >= maxDepth) continue;
-                    pile += num(cfg.pileStep, 5);
-                    events.push({ type: 'land', kind: o.kind, x: o.x, depth: o.depth });
-                }
+            const floor = A.y + A.h;
+            for (const o of objects) {
+                if (o.landed || o.vy <= 0 || o.kind === 'bomb' || o.depth >= maxDepth || o.y + o.r < floor) continue;
+                o.landed = true;
+                o.y = floor - o.r; o.vy = 0; o.vx = 0; o.spin = 0;
+                o.x = Math.max(A.x + o.r, Math.min(A.x + A.w - o.r, o.x));
+                pile += num(cfg.pileStep, 5);
+                events.push({ type: 'land', kind: o.kind, x: o.x, depth: o.depth });
             }
+            objects = objects.filter(o => o.landed || !(o.vy > 0 && o.y > floor + 2 * o.r));
             if (pile >= num(cfg.danger, 50)) endGame();
         }
 
@@ -257,7 +276,9 @@
                 hold: { side: hold.side, progress: Math.min(1, hold.ms / (holdSec * 1000)) } };
         }
 
-        return { enqueue, step, start, stop, reset, snapshot, setConfig, setBlade, holdTarget };
+        function isPlaying() { return playing; }
+
+        return { enqueue, step, start, stop, reset, snapshot, setConfig, setArea, setBlade, holdTarget, isPlaying };
     }
 
     return { ACTIONS, FRUITS, ACTION_LABELS, defaultConfig, createEngine };

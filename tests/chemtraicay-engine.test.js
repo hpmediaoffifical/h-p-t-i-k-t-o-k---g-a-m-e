@@ -235,3 +235,90 @@ test('tổng hàng đợi sinh quả có trần 300 dù nhiều quà liên tiế
     for (let i = 0; i < 20; i++) eng.enqueue('apple', 30);
     assert.equal(eng.snapshot().queue, 300);
 });
+
+// ---------- Chuyển từ HP LIVE NPC (2026-10): quả nằm lại ở đáy, Giải Cứu dọn quả nằm, vùng chơi setArea, isPlaying ----------
+test('quả chạm đáy → nằm lại ở đáy màn (không biến mất), pile += pileStep một lần, event land', () => {
+    const eng = createEngine({ ...defaultConfig(), pileStep: 5, danger: 50, spawnPerSecond: 100 }); eng.start();
+    oneFruitAt(eng, 540, 1900); dropAll(eng);
+    const s = eng.snapshot();
+    assert.equal(s.pile, 5); assert.equal(s.playing, true);
+    assert.ok(s.events.some(e => e.type === 'land' && e.kind === 'apple'));
+    assert.equal(s.objects.length, 1);
+    const o = s.objects[0];
+    assert.equal(o.landed, true); assert.ok(Math.abs(o.y + o.r - H) < 0.01, `đáy ${o.y + o.r}`);
+    eng.step(2000);   // nằm yên, không cộng vườn lần 2
+    assert.equal(eng.snapshot().pile, 5); assert.ok(Math.abs(eng.snapshot().objects[0].y + o.r - H) < 0.01);
+});
+
+test('chém quả đang nằm dưới đáy → +points, trả lại vườn, 2 mảnh rơi khỏi màn (xong luôn)', () => {
+    const eng = createEngine({ ...defaultConfig(), pileStep: 5, points: 10, cuts: 2, spawnPerSecond: 100 }); eng.start();
+    oneFruitAt(eng, 540, 1900); dropAll(eng);
+    const o = eng.snapshot().objects[0];
+    swipe(eng, o.y, 400, 700);
+    let s = eng.snapshot();
+    assert.equal(s.score, 10); assert.equal(s.pile, 0);
+    assert.ok(s.events.some(e => e.type === 'cut' && e.floor === true && Number.isFinite(e.angle) && e.r === o.r));
+    assert.equal(s.objects.length, 2); assert.ok(s.objects.every(p => p.depth === 2 && !p.landed));
+    for (let i = 0; i < 200; i++) eng.step(16);
+    s = eng.snapshot(); assert.equal(s.objects.length, 0); assert.equal(s.pile, 0);
+});
+
+test('bom chạm đáy rơi khỏi màn, không nằm lại, không cộng vườn', () => {
+    const eng = createEngine({ ...defaultConfig(), pileStep: 5, spawnPerSecond: 100 }); eng.start();
+    oneFruitAt(eng, 540, 1900, 'bomb'); dropAll(eng); eng.step(500);
+    const s = eng.snapshot(); assert.equal(s.objects.length, 0); assert.equal(s.pile, 0);
+});
+
+test('bom nổ không cuốn quả đang nằm dưới đáy', () => {
+    const eng = createEngine({ ...defaultConfig(), pileStep: 5, blast: 60, danger: 90, spawnPerSecond: 100 }); eng.start();
+    oneFruitAt(eng, 540, 1900); dropAll(eng);
+    assert.equal(eng.snapshot().pile, 5);
+    oneFruitAt(eng, 540, 1600, 'bomb');
+    swipe(eng, 1600, 400, 700);
+    const s = eng.snapshot();
+    assert.ok(s.events.some(e => e.type === 'bomb'));
+    assert.equal(s.pile, 5); assert.equal(s.objects.filter(o => o.landed).length, 1);
+});
+
+test('Giải Cứu xả vườn dọn luôn quả nằm dưới đáy (cũ nhất trước)', () => {
+    const eng = createEngine({ ...defaultConfig(), pileStep: 10, danger: 80, rescuePercent: 20, spawnPerSecond: 100 }); eng.start();
+    for (let i = 0; i < 3; i++) { oneFruitAt(eng, 200 + i * 300, 1900); dropAll(eng); }
+    assert.equal(eng.snapshot().pile, 30); assert.equal(eng.snapshot().objects.filter(o => o.landed).length, 3);
+    eng.enqueue('rescue', 1); eng.step(16);
+    let s = eng.snapshot(); assert.equal(s.pile, 10);
+    const left = s.objects.filter(o => o.landed);
+    assert.equal(left.length, 1); assert.ok(Math.abs(left[0].x - 800) < 1, `còn quả mới nhất, x ${left[0].x}`);
+    eng.enqueue('rescue', 1); eng.step(16);
+    s = eng.snapshot(); assert.equal(s.pile, 0); assert.equal(s.objects.length, 0);
+});
+
+test('isPlaying theo start/stop/hết vườn', () => {
+    const eng = createEngine({ ...defaultConfig(), pileStep: 50, danger: 50, spawnPerSecond: 100 });
+    assert.equal(eng.isPlaying(), false); eng.start(); assert.equal(eng.isPlaying(), true);
+    oneFruitAt(eng, 540, 1900); dropAll(eng); assert.equal(eng.isPlaying(), false);
+    eng.start(); eng.stop(); assert.equal(eng.isPlaying(), false);
+});
+
+test('setArea: quả sinh từ đáy vùng thấy, rơi nằm ở đáy vùng trong biên ngang; rect rác → cả sân khấu', () => {
+    const area = { x: 270, y: 480, w: 540, h: 960 };
+    const eng = createEngine({ ...defaultConfig(), spawnPerSecond: 100, pileStep: 5 }); eng.start();
+    eng.setArea(area);
+    eng.enqueue('apple', 1); eng.step(16);
+    const o = eng.snapshot().objects[0];
+    assert.ok(o.x >= area.x && o.x <= area.x + area.w, `x ${o.x}`);
+    assert.ok(o.y > area.y + area.h - 10 && o.y < area.y + area.h + o.r + 10, `y ${o.y}`);
+    o.x = 100; o.y = area.y + area.h - 5; o.vx = 0; o.vy = 3000; eng.step(100);   // ngoài mép trái vùng → kẹp vào trong
+    const l = eng.snapshot().objects[0];
+    assert.equal(l.landed, true);
+    assert.ok(Math.abs(l.y + l.r - (area.y + area.h)) < 0.01, `đáy vùng ${l.y + l.r}`);
+    assert.ok(Math.abs(l.x - (area.x + l.r)) < 0.01, `x kẹp ${l.x}`);
+    eng.setArea({ x: 0, y: 0, w: 0, h: NaN });
+    eng.enqueue('apple', 1); eng.step(16);
+    const n = eng.snapshot().objects.find(q => !q.landed);
+    assert.ok(n.y > H - 10, `rect rác → đáy sân khấu, y ${n.y}`);
+});
+
+test('defaultConfig.display có vị trí danh sách người tặng 50/13/70', () => {
+    const d = defaultConfig().display;
+    assert.equal(d.listXPercent, 50); assert.equal(d.listYPercent, 13); assert.equal(d.listScale, 70);
+});

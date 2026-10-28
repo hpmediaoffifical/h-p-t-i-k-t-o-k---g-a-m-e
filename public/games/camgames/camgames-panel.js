@@ -20,6 +20,11 @@
     function setLicense(d) {
         locked = new Set(d && Array.isArray(d.locked) ? d.locked : []);
         lstates = (d && d.states && typeof d.states === 'object') ? d.states : {};
+        // thẻ 🎮 Quà kích hoạt game (camgames-trigger.js): game ⏸ / 🔒 / Ẩn gắn nhãn hoặc bỏ khỏi ô chọn
+        const st = { ...lstates };
+        for (const id of locked) st[id] = st[id] && st[id] !== 'on' ? st[id] : 'locked';
+        window.HpCamLicenseStates = Object.fromEntries(Object.entries(st).filter(([, v]) => v && v !== 'on'));
+        try { window.HpCamTrigger?.refreshLicense?.(); } catch (_) {}
     }
     const POSE_GAMES = new Set(['bancung', 'level-quest']);   // overlay báo phase = id game; các game này đếm người, không đếm tay
     let socket = null, pollTimer = 0, built = false;
@@ -65,10 +70,11 @@
                 <details class="cg-howto">
                     <summary>ⓘ Cách dùng — 1 link OBS cho mọi game, chơi 2 game cùng lúc</summary>
                 <div class="hint">Trong OBS chỉ cần <b>một Browser Source</b> 1080×1920 với link <b>📋 Link OBS</b> ở trên, đặt <b>phía trên</b> nguồn camera và phủ kín khung hình. Đổi game ở dưới thì OBS đổi theo, không phải sửa scene. Cần kết nối OBS WebSocket ở mục <b>Hiệu ứng OBS</b>.</div>
-                <div class="hint"><b>Chơi cùng lúc:</b> bấm <b>＋ Chơi kèm</b> để ghép <b>1 game dùng tay</b> (Touch &amp; Play / Chém Trái Cây / Đập Muỗi) với <b>1 game trên đầu</b> (Bắn Cung / Level Quest). Hai game dùng chung một lần nhận diện nên máy không nặng gấp đôi. Quà đã gán riêng cho game nào thì chỉ game đó nhận; quà chưa gán ở đâu mới vào game nhận mọi quà.</div>
+                <div class="hint"><b>Chơi cùng lúc:</b> bấm <b>＋ Chơi kèm</b> để ghép <b>1 game dùng tay</b> (Touch &amp; Play / Chém Trái Cây / Đập Muỗi) với <b>1 game trên đầu</b> (Bắn Cung / Level Quest) và <b>Đá Cầu</b> — tối đa 1 game mỗi loại. Hai game dùng chung một lần nhận diện nên máy không nặng gấp đôi. Quà đã gán riêng cho game nào thì chỉ game đó nhận; quà chưa gán ở đâu mới vào game nhận mọi quà.</div>
                 </details>
                 <div class="cg-status" id="cg-overlap"></div>
             </div>
+            <div id="cg-trigger"></div>
             <div class="cg-grid" id="cg-grid"></div>`;
         $('#cg-refresh').addEventListener('click', loadFeed);
         $('#cg-source').addEventListener('change', e => save({ source: e.target.value }));
@@ -240,6 +246,7 @@
                 socket.on('license:features', d => { setLicense(d); renderGrid(); });
             }
             build();
+            window.HpCamTrigger?.open(socket);   // 🎮 quà kích hoạt game (camgames-trigger.js)
             loadConfig();
             setTimeout(poll, 50);
         },

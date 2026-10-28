@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="vi">
 <head>
+<script src="/games/camgames/cam-frame-guard.js"></script><!-- 🔇 khung ẩn / mất kết nối app thì câm + ngưng (nạp trước mọi script) -->
     <script src="/lib/overlay-resolution.js"></script>
 <meta charset="utf-8" />
 <title>HP Đập Muỗi — Overlay</title>
@@ -526,7 +527,8 @@
         const now = performance.now();
         const dt = Math.min(50, now - lastT); lastT = now;   // dt cũng dùng cho hoạt ảnh màn (drawNet)
         frames++; if (now - fpsAt >= 1000) { fps = frames; frames = 0; fpsAt = now; }
-        if (disabled) return;
+        // tắt game / khung bị overlay mẹ ẩn (nạp sẵn chờ phiên quà) / mất kết nối app → NGƯNG hẳn: không sinh muỗi, không kêu
+        if (disabled || !window.HpCamFrame.active) return;
         pumpTracking(now);
         pumpFakePose();
         if (lastSnap) sweepRackets(lastSnap, now);
@@ -566,10 +568,22 @@
         syncFeed();
     }
 
+    // 🔇 overlay mẹ ẩn khung / mất kết nối app: ẩn hình + câm (cam-frame-guard tự suspend âm thanh); chạy lại thì hiện như cũ.
+    window.HpCamFrame.onChange((on) => {
+        canvas.style.display = on && !disabled ? '' : 'none';
+        $('dm-hud').style.display = on && !disabled ? '' : 'none';
+        if (!on) { audioBuzz(0); showAlert(null); }
+        lastT = performance.now();
+    });
+
     // ---------- socket ----------
     const socket = io({ transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
     window.__dm.socket = socket;
+    // Đóng app (mất kết nối quá 1,5 s) → ngưng hẳn kể cả khi mở bằng link riêng; nối lại thì chạy tiếp.
+    let offlineTimer = 0;
+    socket.on('disconnect', () => { clearTimeout(offlineTimer); offlineTimer = setTimeout(() => window.HpCamFrame.setOnline(false), 1500); });
     socket.on('connect', () => {
+        clearTimeout(offlineTimer); window.HpCamFrame.setOnline(true);
         socket.emit('subscribe', isReview ? 'preview' : 'overlay');
         if (feed.on) socket.emit('touchplay:feed', feedReg());
     });
