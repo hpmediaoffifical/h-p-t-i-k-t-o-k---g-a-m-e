@@ -9633,3 +9633,15 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .cg-more-btn.open { color: #c9dbf7; border-color: #3b5b8f; background: rgba(127, 182, 255, 0.08); }
 .cg-more { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #2c3243; }
 .cg-compact .cgt-live:empty { display: none; }
+
+/* 🧍 Game tách người trong màn Game Camera: khu riêng trải hết chiều ngang lưới thẻ, ô game kiểu HP LIVE NPC (bt-vgrid của body-panel.js) */
+.cg-grid > .cg-sec { grid-column: 1 / -1; background: #12151e; border: 1px solid #262c3b; border-radius: 12px; padding: 12px; }
+.cg-sec-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cg-sec-head b { font-size: 15px; color: #e6e8ee; }
+.cg-sec-head em { font-style: normal; font-size: 12px; color: #8b93a8; background: #1b2030; border-radius: 99px; padding: 1px 8px; }
+.cg-sec-sp { flex: 1 1 auto; }
+.cg-sec-head select { padding: 4px 8px; height: auto; }
+.cg-sec-hint { font-size: 12px; color: #8b93a8; margin: 6px 0 10px; }
+.cg-power { border: 1px solid #3a4254; background: #1b2030; color: #cdd3e0; border-radius: 99px; padding: 4px 12px; font-weight: 700; cursor: pointer; font-size: 12px; }
+.cg-power.on { border-color: #25f4ee; color: #25f4ee; background: rgba(37, 244, 238, .08); }
+.cg-body-grid.off { opacity: .55; }
