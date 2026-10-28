@@ -919,7 +919,7 @@
         rememberView(gameId);
         // Nhặt Lá giữ batch lá đang chạy trong RAM; chỉ reload thủ công khi cần nạp asset mới.
         // Đập Muỗi cũng vậy: reload là mất sạch muỗi + điểm đang chơi giữa live (có nút 🔄 Reload riêng).
-        if (gameId !== 'nhatla' && gameId !== 'dapmuoi' && gameId !== 'dacau') {
+        if (gameId !== 'nhatla' && gameId !== 'dapmuoi' && gameId !== 'dacau' && gameId !== 'body') {
             try { socket && socket.emit('overlay:reload', { gameId }); } catch (e) {}
         }
         // Đóng các popup Hũ khi rời sang game khác (tránh popup mở treo)
@@ -936,6 +936,7 @@
         else if (gameId === 'bancung') openBanCung(game);
         else if (gameId === 'chemtraicay') openChemTraiCay(game);
         else if (gameId === 'dapmuoi') openDapMuoi(game);
+        else if (gameId === 'body') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpBodyPanel?.open(socket); }
         else if (gameId === 'dacau') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpDaCauPanel?.open(socket); }
         else if (gameId === 'trongcay') openTrongCay(game);
         else if (gameId === 'nhatla') openNhatLa(game);

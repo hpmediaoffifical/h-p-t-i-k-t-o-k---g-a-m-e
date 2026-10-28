@@ -626,7 +626,7 @@
     }
     function feedProblem() {
         const st = feed.status || {};
-        if (st.obsConnected === false) return [hpT('App chưa kết nối OBS WebSocket.'), hpT('OBS: Công cụ → Cài đặt WebSocket Server → bật; rồi kết nối ở Cài đặt → Tạo Overlay OBS trong app.')];
+        if (st.obsConnected === false) return [hpT('App chưa kết nối OBS WebSocket.'), hpT('OBS: Công cụ → Cài đặt WebSocket Server → bật; rồi kết nối ở mục Hiệu ứng OBS trong app.')];
         if (!st.source) return [hpT('Chưa chọn nguồn camera cho Game Camera.'), hpT('Mở 🎥 Game Camera trong app → chọn Nguồn camera trong OBS.')];
         const src = escHtml(st.source);
         if (st.error === 'source-missing') return [hpT('Không tìm thấy nguồn "{src}" trong OBS.', { src }), ''];

@@ -1,0 +1,96 @@
+{
+  "v": 1,
+  "slots": {
+    "roiho": [
+      {
+        "giftId": "9875",
+        "giftName": "Shamrock",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/312f721603de550519983ca22f5cc445.png~tplv-obj.webp"
+      }
+    ],
+    "biduoi": [
+      {
+        "giftId": "19448",
+        "giftName": "Slow motion",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/12374117770f779919bf002461fdfac0.png~tplv-obj.webp"
+      }
+    ],
+    "vidfx:portal": [
+      {
+        "giftId": "626056",
+        "giftName": "Kudos for My Star",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/538dd8c1904f795fced4ae91f0a2aab0.png~tplv-obj.webp"
+      }
+    ],
+    "vidfx:abduct": [
+      {
+        "giftId": "1354581",
+        "giftName": "Mushroom",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/b48dd927cf3deb1a2012a1c3082ac9fb.png~tplv-obj.webp"
+      }
+    ],
+    "vidfx:knock": [
+      {
+        "giftId": "16552",
+        "giftName": "Balloon Crown",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/d1cc3f587941bd7af50929aee49ac070.png~tplv-obj.webp"
+      }
+    ],
+    "vidfx:crush": [
+      {
+        "giftId": "15189",
+        "giftName": "Chatting Popcorn",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/f4813ddce6a6b3268df01af9fe3764d9.png~tplv-obj.webp"
+      }
+    ],
+    "vidfx:mario": [
+      {
+        "giftId": "170506",
+        "giftName": "Singing Mushroom",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/072a4e4c2f4435282354492360e16571.png~tplv-obj.webp"
+      }
+    ],
+    "vidfx:pickle": [
+      {
+        "giftId": "19168",
+        "giftName": "Love Glasses",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/7b3f141efe8a943faba19f855a003943.png~tplv-obj.webp"
+      }
+    ],
+    "vidfx:ninja": [
+      {
+        "giftId": "17590",
+        "giftName": "Juicy Smile",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/b897b374103a142ce550afec4c54d9aa.png~tplv-obj.webp"
+      }
+    ],
+    "vidfx:batu": [
+      {
+        "giftId": "14000",
+        "giftName": "Bowknot",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/dd02c4c2cb726134314e89abec0b5476.png~tplv-obj.webp"
+      }
+    ],
+    "cry:cry": [
+      {
+        "giftId": "1329117",
+        "giftName": "Lyric Mail",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/8f666cf5d61636ff963c0633679e9c58.png~tplv-obj.webp"
+      }
+    ],
+    "heart": [
+      {
+        "giftId": "7934",
+        "giftName": "Heart Me",
+        "giftImage": "https://hpvn.media/quatiktok/7934.png"
+      }
+    ],
+    "catch": [
+      {
+        "giftId": "5660",
+        "giftName": "Hand Heart",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/6cd022271dc4669d182cad856384870f~tplv-obj.webp"
+      }
+    ]
+  }
+}

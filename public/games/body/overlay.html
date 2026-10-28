@@ -1,0 +1,1147 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<!-- 🌐 Chữ khán giả thấy theo "Ngôn ngữ chữ trên LIVE" (settings.overlayLang) - hpT() + dịch chữ tĩnh; nạp TRƯỚC mọi script. -->
+<script src="/i18n/hp-i18n.js" data-scope="overlay"></script>
+<title>Bộ Tách Người - overlay</title>
+<script src="/games/camgames/cam-frame-guard.js"></script>
+<script src="/games/biduoi/core.js"></script>
+<script src="/games/haucanh/core.js"></script>
+<script src="/games/body/core.js"></script>
+<style>
+  /* 🧍 BỘ TÁCH NGƯỜI - một overlay, tách nền người MỘT lần cho 3 hiệu ứng theo quà (lõi overlays/camgames/body/core.cjs):
+       🦊 Hậu Cảnh - nền thường trực của hồ sơ NPC + video SAU LƯNG theo quà (hàng chờ riêng, chạy song song)
+       🕳️ Rơi Hố / 🏃 Bị Đuổi / 🎬 Video Hành Động - lượt "hành động" vẽ lại + di chuyển người (chung một hàng chờ, lượt một) -
+       mô-đun fx-roiho / fx-biduoi / fx-vidfx
+     Cỡ / vị trí NPC theo HỒ SƠ NPC đang dùng áp cho cả ba (lúc camera gốc đã bị che). Lớp vẽ (dưới → trên):
+       [phòng sạch / khung cam gốc khi ẩn cam] · nền Hậu Cảnh (thường trực + 🎞 lớp sau xa hơn + video sau lưng) · video kịch bản · NGƯỜI · cổng / khói / lớp trước.
+     Trong OBS (trên → dưới): overlay 🎁 Bảng Quà · link 🎥 Game Camera (trang này) · camera. Ngoài hiệu ứng overlay TRONG SUỐT. */
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  #alert { position: fixed; left: 50%; top: calc(var(--cv-t, 0px) + 3vmin); transform: translateX(-50%); padding: 1.2vmin 2.4vmin; border-radius: 1.4vmin;
+           background: rgba(20, 10, 10, .82); color: #ffd0d0; font: 600 2.4vmin "Segoe UI", system-ui, sans-serif; display: none;
+           max-width: 86vw; text-align: center; }
+  #alert.on { display: block; }
+  #stats { position: fixed; left: calc(var(--cv-l, 0px) + 1vmin); bottom: calc(var(--cv-b, 0px) + 1vmin); font: 12px/1.35 Consolas, monospace; color: #9f9; background: rgba(0, 0, 0, .6);
+           padding: 4px 8px; border-radius: 6px; display: none; white-space: pre; }
+  #stats.on { display: block; }
+</style>
+</head>
+<body>
+<canvas id="stage" width="1080" height="1920"></canvas>
+<div id="alert"></div>
+<div id="stats"></div>
+<script src="/socket.io/socket.io.js"></script>
+<script type="module">
+import { HpMatte, MATTE_DEFAULTS } from '/lib/hp-matte.mjs';
+import { HpPersonSeg } from '/lib/hp-person-seg.mjs';
+import { cameraToStage, createCamView } from '/lib/obs-scene-map.mjs';
+import { HpCamHide, HpRoom } from '/lib/hp-cam-hide.mjs';
+import { createRoiHo } from '/games/body/fx-roiho.mjs';
+import { createBiDuoi } from '/games/body/fx-biduoi.mjs';
+import { createVidFx } from '/games/body/fx-vidfx.mjs';
+import { createCatch } from '/games/body/fx-catch.mjs';
+import { createMorph } from '/games/body/fx-morph.mjs';
+import { createCry } from '/games/body/fx-cry.mjs';
+import { createHeart } from '/games/body/fx-heart.mjs';
+import { HpTracker } from '/lib/hp-tracking.mjs';
+import { isPackedFile, packedLayout, createAlphaUnpacker, softwareWebGL } from '/games/body/alpha-pack.mjs';
+import { createSfx } from '/games/body/sfx-real.mjs';
+
+const HB = window.HpBody;
+const GAME = 'body';
+const W = 1080, H = 1920;
+const qs = new URLSearchParams(location.search);
+const token = qs.get('token') || '';
+const isReview = qs.get('review') === '1';
+const SRC = qs.get('src') || '';                 // thử không cần OBS: video làm "camera"
+const BG = qs.get('bg') || '';                   // chỉ để xem thử: checker | #màu
+const FORCE = qs.get('profile') || '';           // khung xem trước: hồ sơ đang sửa trong panel
+const VIEW = { alpha: 1, mask: 2 }[qs.get('view')] || 0;      // soi tách nền (tab ✂ Tách nền)
+const SPLIT = qs.has('split') ? Number(qs.get('split')) : -1;
+const RAW = qs.get('raw') === '1';
+const MUTE = isReview && qs.get('sound') !== '1';
+// Model tay (💗 Bắn Tim) trong worker chạy CPU (mặc định) - GPU thì giành card với model tách người: đo 2026-10-24 cùng lượt, có lượt
+// Heart Me người tách nền 1.3.0 ~30 khung/s · tay GPU 24-25 · tay CPU 27-28; video tim thật bắt 8/8 cả hai (CPU trễ ≤ 0,5 s ở 1 lần).
+// ?hand=gpu để ép GPU.
+const HAND_DELEGATE = String(qs.get('hand') || 'cpu').toUpperCase();
+const $ = id => document.getElementById(id);
+const stage = $('stage'), ctx = stage.getContext('2d');
+if (qs.get('stats') === '1') $('stats').classList.add('on');
+// 🎞 Trình duyệt này (Chrome / CEF của OBS) giải mã mp4 xếp cặp 2160×1920 bằng GPU? powerEfficient = có tăng tốc phần cứng.
+let packHw = '?';
+navigator.mediaCapabilities?.decodingInfo({ type: 'file', video: { contentType: 'video/mp4; codecs="avc1.640032"', width: 2160, height: 1920, bitrate: 12e6, framerate: 30 } })
+    .then(r => { packHw = !r.supported ? 'x' : r.powerEfficient ? 'GPU' : 'CPU'; }).catch(() => {});
+
+let cfg = HB.normalizeConfig(null);
+let disabled = false;
+let activeId = '';                               // hồ sơ của NPC đang bật (server 'body:profile')
+const profileOf = id => (id && cfg.profiles.find(p => p.id === id)) || null;
+// HP Action LIVE: chỉ MỘT hồ sơ (không có NPC) → chưa biết hồ sơ đang dùng thì lấy hồ sơ đầu.
+const curProfile = () => profileOf(FORCE) || profileOf(activeId) || cfg.profiles[0] || null;
+// Kịch bản / hiệu ứng áp cho hồ sơ p (rỗng = mọi hồ sơ). Khung thử chưa chọn hồ sơ: tất cả.
+const forProfile = (x, p) => !x.profileId || (p ? x.profileId === p.id : isReview);
+
+// 📦 file mẫu CHƯA chép vào public/games/body/samples (server /api/body/meta → missingSamples): video 'bắt được' của 🔴 Bắt NPC
+// thiếu thì bỏ khỏi danh sách bốc (không có video nào → lượt bắt được không có video). Video chính thiếu thì server không gửi lệnh.
+const MISSING = new Set();
+function dropMissing() { if (!MISSING.size) return; for (const sc of cfg.catch.scripts) sc.winFiles = (sc.winFiles || []).filter(f => !MISSING.has(f)); }
+function applyConfig(c) {
+    const src = c && typeof c === 'object' ? c : {};
+    cfg = HB.normalizeConfig(src);
+    dropMissing();
+    if (qs.get('model')) cfg.matte.model = qs.get('model');
+    if (qs.get('tiles')) cfg.matte.tiles = Number(qs.get('tiles'));
+    if (seg) { seg.tiles = cfg.matte.tiles === 2 ? 2 : 1; seg.setModel(cfg.matte.model).catch(e => console.warn('[body] model:', e)); }
+    // Khung xem trước trong panel (review=1) chạy cả khi chưa chọn chơi trong Game Camera.
+    setDisabled(src.enabled === false && !isReview);
+    syncMedia();
+    sndLiveVol();
+}
+// 🔊 Kéo thanh âm lượng mp3 / tiếng video trong panel → mp3 + video ĐANG PHÁT đổi to / nhỏ ngay (user 2026-10-23: "chỉnh realtime cho
+// dễ căn chỉnh", "âm thanh video nền và mp3 cũng tương tự").
+const volOf = v => Math.max(0, Math.min(1, (v == null ? 100 : Number(v) || 0) / 100));
+function actVidVol(sc) { if (act && sc) for (const m of act.mod.playing() || []) if (m && m.isVideo) m.el.volume = volOf(sc.vidVol); }
+function hcVidVol(it) { if (hc && it && hc.m && hc.m.isVideo) hc.m.el.volume = volOf(it.vidVol); }
+function sndLiveVol() {
+    const set = (a, list, x) => {
+        const y = x ? (list || []).find(s => s.id === x.id) : null;
+        if (a && y && y.sfxFile === x.sfxFile) a.volume = volOf(y.sfxVol);
+        return y;
+    };
+    if (act) actVidVol(set(act.mp3, HB.listOf(cfg, act.kind), act.sc));
+    if (hc) hcVidVol(set(hc.mp3, cfg.haucanh.items, hc.it));
+    if (cry) set(cry.mp3, cfg.cry.scripts, cry.sc);
+    if (heart) set(heart.mp3, cfg.heart && cfg.heart.scripts, heart.sc);
+}
+
+// ---------- video / ảnh (nền thường trực, sau lưng, video kịch bản, lớp trước) - một bộ đệm chung ----------
+const media = new Map();               // file → { el, isVideo, file }
+// /media/… (tải lên) và /glassets/… (📦 video mẫu giao kèm app, list/camgames/body) là URL của server; còn lại là đường dẫn máy.
+const fileUrl = f => /^\/(media|games|api\/body\/asset)\//i.test(f) ? f : '/api/body/file?path=' + encodeURIComponent(f);
+function mediaFor(f) {
+    f = String(f || '').trim();
+    if (!f) return null;
+    let m = media.get(f);
+    if (m) return m;
+    const isVideo = HB.isVideo(f);
+    const el = document.createElement(isVideo ? 'video' : 'img');
+    // Gắn vào trang (ẩn) - video ngoài DOM có máy không giải mã khung khi tab nền / rVFC không chạy.
+    el.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+    if (isVideo) Object.assign(el, { playsInline: true, preload: 'auto', muted: true });
+    const packed = isVideo && isPackedFile(f);
+    // alpha: .pack.mp4 của streamer, hoặc webm trong suốt MẪU giao kèm (từ 2026-10-24 mẫu đều là .webm - HB.isAlphaSample).
+    m = { el, isVideo, file: f, packed, alpha: packed || HB.isAlphaSample(f), audio: null };
+    el.src = fileUrl(f);
+    if (!isVideo) el.decode?.().catch(() => {});      // giải mã ảnh ở luồng nền ngay khi nạp - lần vẽ đầu không khựng
+    document.body.appendChild(el);
+    if (isVideo) el.addEventListener('loadedmetadata', () => probeAudio(m), { once: true });
+    media.set(f, m);
+    return m;
+}
+// 🔊 Video có tiếng không - đọc một lần lúc nạp xong (captureStream → số track tiếng); máy không có captureStream thì đếm byte tiếng
+// đã giải mã lúc đang chạy (webkitAudioDecodedByteCount, có cả khi video câm). null = chưa biết → coi như không tiếng.
+function probeAudio(m) {
+    try { const st = m.el.captureStream(); m.audio = st.getAudioTracks().length > 0; st.getTracks().forEach(t => t.stop()); } catch (_) {}
+}
+function hasAudio(m) {
+    if (!m || !m.isVideo) return false;
+    if (m.audio != null) return m.audio;
+    return m.el.webkitAudioDecodedByteCount > 0;
+}
+const OPAQUE_FILE = /\.(mp4|m4v|mkv|jpe?g)(\?|$)/i;      // định dạng không có kênh trong suốt → video / ảnh phủ kín
+// …trừ mp4 "xếp cặp" (….pack.mp4 = nửa màu + nửa alpha; GPU giải mã thay webm VP9 alpha tốn CPU - /games/body/alpha-pack.mjs)
+// …và nền MẪU giao kèm là webm phủ kín (Cửa Scifi, Mario, Pickleball, Ninja - HB.isOpaqueSample).
+const opaqueFile = f => (OPAQUE_FILE.test(f) && !isPackedFile(f)) || HB.isOpaqueSample(f);
+const unpack = createAlphaUnpacker();
+const ready = m => { if (!m) return false; const el = m.el; return m.isVideo ? el.readyState >= 2 && el.videoWidth > 0 : el.complete && el.naturalWidth > 0; };
+// 🔊 ÂM THANH mỗi lượt (user 2026-10-19): tiếng của video (mp4 / webm có tiếng, công tắc "Phát tiếng của video") + mp3 riêng
+// (sfxFile - user dựng theo video mẫu) phát CÙNG lúc; KHÔNG có cả hai → tiếng giả lập của máy (sfx-real.mjs / tiếng hoạt hình Bị Đuổi).
+// mp3: phát từ đầu lượt; lượt có video thì đợi video thật sự chạy ('playing', tối đa 1,5 s) cho khớp mốc. Nạp sẵn như video (syncMedia).
+const mp3s = new Map();                // file → <audio>
+function audioFor(f) {
+    let a = mp3s.get(f);
+    if (a) return a;
+    a = document.createElement('audio');
+    a.preload = 'auto';
+    a.src = fileUrl(f);
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    mp3s.set(f, a);
+    return a;
+}
+function mp3Start(x, videoEl) {
+    if (!x || !x.sfxFile) return null;
+    const a = audioFor(x.sfxFile);
+    a.pause();
+    a.volume = Math.max(0, Math.min(1, (Number(x.sfxVol) || 0) / 100));
+    a.muted = MUTE;
+    try { a.currentTime = 0; } catch (_) {}
+    let gone = false;
+    const go = () => { if (gone) return; gone = true; if (a.__run === run) a.play().catch(() => {}); };
+    const run = {}; a.__run = run;
+    if (videoEl && (videoEl.paused || videoEl.readyState < 3)) { videoEl.addEventListener('playing', go, { once: true }); setTimeout(go, 1500); }
+    else go();
+    return a;
+}
+function mp3Stop(a) { if (a) { a.__run = null; a.pause(); } }
+// Video của lượt hành động đang chạy có tiếng nghe được? (video nền / video kịch bản; lớp trước Bị Đuổi luôn câm)
+function runVideoSound(x) {
+    if (!act || act.sc !== x || !act.mod.fx) return false;
+    const f = act.mod.fx, m = act.kind === 'vidfx' ? f.m : f.bg, on = act.kind === 'vidfx' ? x.sound : x.bgSound;
+    return !!on && hasAudio(m);
+}
+// 🥷 Ninja (user 2026-10-23: "có nhạc background và mp3 cùng hoạt động thì lấy cả 2 âm thanh"): mp3 = nhạc chạy suốt lượt, tiếng giả
+// lập = tiếng HIỆU ỨNG game (vút / trúng đòn / nhạc WIN - GAME OVER) → luôn chạy cùng mp3 + tiếng video; tắt bằng công tắc 🎧.
+// Công tắc chung `sfxMix` (core.cjs snd, user 2026-10-28): bật = tiếng giả lập chạy CÙNG mp3 / tiếng video (Ninja, Son Goku mặc định bật).
+const sfxOn = x => !!x && x.sfx !== false && (x.sfxMix === true || (!x.sfxFile && !runVideoSound(x)));
+const sfx = createSfx({ muted: () => MUTE || disabled });
+function playOnce(m, sound) {
+    if (!m || !m.isVideo) return;
+    const el = m.el;
+    el.loop = false;
+    el.muted = MUTE || !sound;
+    try { el.currentTime = 0; } catch (_) {}
+    el.play().catch(() => { el.muted = true; el.play().catch(() => {}); });
+}
+// Nạp sẵn file của hồ sơ đang dùng (có quà là phát ngay); bỏ file không còn dùng cho nhẹ máy. Video đang phát giữ nguyên,
+// còn lại dừng; nền thường trực chạy lặp, câm.
+function syncMedia() {
+    const p = curProfile();
+    const want = new Set();
+    if (p && p.idleFile) want.add(p.idleFile);
+    // 🦊 như 🎬: chỉ nạp sẵn hiệu ứng ĐÃ GẮN QUÀ (🦊 Hồ ly trắng mẫu giao kèm chưa có quà thì không nạp ~15 MB vào OBS); ▶ thử nạp lúc cần.
+    for (const it of cfg.haucanh.items) if (forProfile(it, p) && (isReview || (it.gifts && it.gifts.length))) { if (it.file) want.add(it.file); for (const L of it.layers || []) if (L.file) want.add(L.file); }
+    for (const sc of cfg.roiho.scripts) if (sc.bgFile && forProfile(sc, p)) want.add(sc.bgFile);
+    // 🎬 chỉ nạp sẵn game ĐÃ GẮN QUÀ (quà về là phát ngay): 7 game mẫu giao kèm chưa có quà thì không nạp ~49 MB video vào OBS;
+    // ▶ thử / khung xem trước vẫn chạy được - mediaFor() nạp lúc cần.
+    for (const sc of cfg.vidfx.scripts) if (forProfile(sc, p) && (isReview || (sc.gifts && sc.gifts.length))) { if (sc.file) want.add(sc.file); if (sc.bgFile) want.add(sc.bgFile); }    // + 🎞 video nền dưới cùng (🪢 Ba Tư)
+    if (cfg.vidfx.scripts.some(sc => sc.motion === 'ninja' && forProfile(sc, p) && (isReview || (sc.gifts && sc.gifts.length)))) want.add(HB.NINJA_FEET_FILE);   // 🥷 đĩa chân chạy
+    for (const sc of cfg.biduoi.scripts) if (forProfile(sc, p)) for (const v of sc.videos) { want.add(v.file); if (v.fg) want.add(v.fg); }
+    // 🔴 Bắt NPC: video hài lúc xổng + ảnh cầu riêng (chỉ game đã gắn quà, như 🎬)
+    for (const sc of cfg.catch.scripts) if (forProfile(sc, p) && (isReview || (sc.gifts && sc.gifts.length))) { if (sc.failFile) want.add(sc.failFile); if (sc.ballFile) want.add(sc.ballFile); }
+    for (const sc of cfg.morph.scripts) if (forProfile(sc, p) && (isReview || (sc.gifts && sc.gifts.length))) for (const f of HB.morphMediaFiles(sc)) want.add(f);   // 🖐 ảnh bàn tay (bộ nhiều góc / ảnh riêng)
+    if (act && act.mod.preload) for (const f of act.mod.preload()) want.add(f);      // 🔴 video bắt được của lượt đang chạy (bốc lúc start)
+    const busy = new Set([...(hc && hc.m ? [hc.m] : []), ...(hc ? hc.layers.map(L => L.m) : []), ...(act ? act.mod.playing() : [])]);
+    for (const m of busy) want.add(m.file);
+    for (const [f, m] of media) if (!want.has(f)) { if (m.packed) unpack.release(m.el); try { m.el.pause?.(); m.el.removeAttribute('src'); m.el.load?.(); } catch (_) {} m.el.remove(); media.delete(f); }
+    for (const f of want) mediaFor(f);
+    const wantA = new Set();
+    for (const list of [cfg.haucanh.items, cfg.roiho.scripts, cfg.vidfx.scripts, cfg.biduoi.scripts, cfg.cry.scripts, cfg.heart.scripts, cfg.catch.scripts, cfg.morph.scripts]) for (const x of list) if (x.sfxFile && forProfile(x, p)) wantA.add(x.sfxFile);
+    if (act && act.sc.sfxFile) wantA.add(act.sc.sfxFile);
+    if (hc && hc.it.sfxFile) wantA.add(hc.it.sfxFile);
+    if (cry && cry.sc.sfxFile) wantA.add(cry.sc.sfxFile);
+    if (heart && heart.sc.sfxFile) wantA.add(heart.sc.sfxFile);
+    for (const sc of cfg.catch.scripts) if (forProfile(sc, p)) { if (sc.winAudio) wantA.add(sc.winAudio); if (sc.failAudio) wantA.add(sc.failAudio); }   // 🔴 mp3 lúc bắt được / xổng
+    syncFace();
+    syncHand();
+    syncPose();
+    for (const [f, a] of mp3s) if (!wantA.has(f)) { try { a.pause(); a.removeAttribute('src'); a.load(); } catch (_) {} a.remove(); mp3s.delete(f); }
+    for (const f of wantA) audioFor(f);
+    const idle = p && p.idleFile ? media.get(p.idleFile) : null;
+    for (const [, m] of media) {
+        if (!m.isVideo || busy.has(m)) continue;
+        if (m === idle && !disabled) { m.el.loop = true; m.el.muted = true; m.el.play().catch(() => {}); }
+        else m.el.pause();
+    }
+}
+// Vẽ video / ảnh phủ sân khấu (+ tràn mép margin). opaque: lề trống (kiểu 'contain') tô đen để vẫn che camera gốc.
+function drawMedia(m, fit = 'cover', opaque = false, margin = 0) {
+    if (opaque) { ctx.fillStyle = '#000'; ctx.fillRect(-4 - margin, -4 - margin, W + 8 + 2 * margin, H + 8 + 2 * margin); }
+    if (!ready(m)) return false;
+    let el = m.el, w = m.isVideo ? el.videoWidth : el.naturalWidth, h = m.isVideo ? el.videoHeight : el.naturalHeight;
+    if (m.packed) { const L = packedLayout(w, h); el = unpack.draw(el); if (!el) return false; w = L.w; h = L.h; }
+    if (fit === 'stretch') { ctx.drawImage(el, -margin, -margin, W + 2 * margin, H + 2 * margin); return true; }
+    const k = fit === 'contain' ? Math.min(W / w, H / h) : Math.max((W + 2 * margin) / w, (H + 2 * margin) / h);
+    ctx.drawImage(el, (W - w * k) / 2, (H - h * k) / 2, w * k, h * k);
+    return true;
+}
+// Vẽ video / ảnh vào khung w×h, tâm (x, y), xoay rot, mờ alpha (🥷 đĩa chân chạy của Ninja) - nhận cả .pack.mp4.
+function drawAt(m, x, y, w, h, rot = 0, alpha = 1) {
+    if (!ready(m) || alpha <= 0.01) return false;
+    let el = m.el;
+    if (m.packed) { el = unpack.draw(el); if (!el) return false; }
+    ctx.save();
+    ctx.globalAlpha *= alpha;
+    ctx.translate(x, y);
+    if (rot) ctx.rotate(rot);
+    ctx.drawImage(el, -w / 2, -h / 2, w, h);
+    ctx.restore();
+    return true;
+}
+function darkFill(m) {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#14131c'); g.addColorStop(1, '#282634');
+    ctx.fillStyle = g; ctx.fillRect(-m, -m, W + 2 * m, H + 2 * m);
+}
+
+// ---------- tách người (MỘT lần cho cả 3 hiệu ứng) ----------
+let matte = null, seg = null, matteErr = '';
+try { matte = new HpMatte(); } catch (e) { matteErr = e.message || String(e); console.warn('[body] matte:', e); }
+seg = new HpPersonSeg({ model: cfg.matte.model, tiles: cfg.matte.tiles });
+const person = { ready: false, img: null, M: null, feet: null, head: null, w: 0, seenAt: 0, frames: 0, fps: 0, lastAt: 0 };
+const matteOpts = () => ({ ...MATTE_DEFAULTS, ...cfg.matte, view: VIEW, split: SPLIT, raw: RAW });
+const stageOf = (M, x, y) => ({ x: M[0] * x + M[2] * y + M[4], y: M[1] * x + M[3] * y + M[5] });
+// 📷 ẩn cam gốc + phòng (overlays/lib/hp-cam-hide.mjs): 'raw' = khung cam gốc của đúng ảnh vừa tách (người đứng yên - Hậu Cảnh),
+// 'plate' = phòng SẠCH tự học (người rời chỗ / đổi cỡ - Rơi Hố, Bị Đuổi, hồ sơ cỡ ≠ 100 %).
+const room = new HpRoom();
+const camHide = new HpCamHide({ game: GAME, getSocket: () => socket, allowed: !isReview && !SRC });
+const posed = p => p && (p.scale !== 100 || p.x || p.y);
+const needPlate = () => cfg.roiho.bgMode === 'room' || cfg.biduoi.bgMode === 'room' || (cfg.catch.bgMode === 'room' && cfg.catch.scripts.length) || (cfg.morph.bgMode === 'room' && cfg.morph.scripts.length) || (cfg.vidfx.bgMode === 'room' && cfg.vidfx.scripts.length) || cfg.profiles.some(posed)
+    || cfg.haucanh.items.some(it => it.scale > 0 && it.scale !== 100);
+
+async function processFrame(img, iw, ih, M) {
+    if (!seg.seg || !matte) return;
+    const m = await seg.request(img, iw, ih);
+    if (!m || disabled) return;
+    const now = performance.now();
+    matte.render(img, iw, ih, m, matteOpts());
+    const tR = performance.now();
+    room.update(img, iw, ih, matte.canvas, { plate: needPlate(), found: !!m.box, box: m.box });
+    if (typeof fst !== 'undefined') { const ms = performance.now() - tR; fst.room = (fst.room || 0) * 0.8 + ms * 0.2; fst.roomMax = Math.max(fst.roomMax || 0, ms); fst.mat = (fst.mat || 0) * 0.8 + (tR - now) * 0.2; }
+    person.img = matte.canvas; person.M = M; person.ready = true;
+    if (m.box) {
+        const [bx, by, bw, bh] = m.box;
+        const feet = stageOf(M, bx + bw / 2, by + bh), head = stageOf(M, bx + bw / 2, by);
+        const w = Math.hypot(M[0], M[1]) * bw;
+        const k = person.feet ? 0.45 : 1;          // làm mượt - neo co giãn / hố / vòng chân không giật theo mặt nạ
+        person.feet = person.feet ? { x: person.feet.x + (feet.x - person.feet.x) * k, y: person.feet.y + (feet.y - person.feet.y) * k } : feet;
+        person.head = person.head ? { x: person.head.x + (head.x - person.head.x) * k, y: person.head.y + (head.y - person.head.y) * k } : head;
+        person.w = person.w ? person.w + (w - person.w) * k : w;
+        person.seenAt = now;
+    }
+    const dt = person.lastAt ? now - person.lastAt : 0;
+    person.lastAt = now; person.frames++;
+    if (dt > 0) person.fps = person.fps * 0.9 + 1000 / dt * 0.1;
+}
+
+// ---------- 📐 tư thế NPC theo hồ sơ (cỡ % quanh chân + lệch x/y) ----------
+// view = người đã áp tư thế: M (ảnh → sân khấu), chân / đầu / bề ngang - mô-đun Rơi Hố / Bị Đuổi dùng y như người gốc.
+const ID_POSE = { s: 1, dx: 0, dy: 0 };
+const poseOf = (p, s100) => p ? { s: s100 / 100, dx: p.x / 100 * W, dy: p.y / 100 * H } : ID_POSE;
+let view = { ready: false };
+function makeView(ps) {
+    if (!person.ready || !person.M) return { ready: false };
+    if (ps.s === 1 && !ps.dx && !ps.dy) return person;
+    const ax = person.feet ? person.feet.x : W / 2, ay = person.feet ? Math.min(person.feet.y, H) : H;
+    const s = ps.s, tx = ax + ps.dx - s * ax, ty = ay + ps.dy - s * ay, M = person.M;
+    const T = q => q && { x: s * q.x + tx, y: s * q.y + ty };
+    return { ready: true, img: person.img, M: [s * M[0], s * M[1], s * M[2], s * M[3], s * M[4] + tx, s * M[5] + ty],
+        feet: T(person.feet), head: T(person.head), w: person.w * s };
+}
+function drawPerson(v = view) {
+    if (!v.ready || !v.img || !v.M) return;
+    const M = v.M;
+    ctx.save(); ctx.transform(M[0], M[1], M[2], M[3], M[4], M[5]); ctx.drawImage(v.img, 0, 0); ctx.restore();
+}
+
+// ---------- nguồn hình ----------
+const feed = { on: false, layout: null, busy: false, lastAt: 0, status: null };
+function startVideoSource() {
+    const video = Object.assign(document.createElement('video'), { muted: true, loop: true, playsInline: true, crossOrigin: 'anonymous', src: SRC });
+    video.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+    document.body.appendChild(video);
+    video.play().catch(() => {});
+    let lastVt = -1;
+    const step = async () => {
+        // readyState < 2: đang tua / chưa có khung → createImageBitmap ném InvalidStateError
+        if (disabled || !video.videoWidth || video.readyState < 2 || video.seeking || !seg.seg || seg.busy || video.currentTime === lastVt) return;
+        lastVt = video.currentTime;
+        const w = video.videoWidth, h = video.videoHeight, s = Math.max(W / w, H / h);
+        let snap;
+        try { snap = await createImageBitmap(video); } catch (_) { lastVt = -1; return; }
+        const M = [s, 0, 0, s, (W - w * s) / 2, (H - h * s) / 2];
+        let keep = false;
+        try { await processFrame(snap, w, h, M); keep = trkFeed(snap, M); } finally { if (!keep) snap.close(); }
+        feed.lastAt = performance.now();
+    };
+    const onVf = () => { step(); video.requestVideoFrameCallback(onVf); };
+    video.requestVideoFrameCallback(onVf);
+    setInterval(step, 40);       // trang ẩn → rVFC đứng
+    window.__bodySrc = video;
+}
+// 📊 HUD ?stats=1: khung nhận / xử lý mỗi giây, giải mã / tổng ms, trễ, học phòng - soi "cam bị giật" ngay trong OBS (2026-10-22: lộ ra
+// OBS chạy GPU tích hợp + tắt tăng tốc Browser Source → học phòng 330-500 ms / khung). Chụp nguồn bằng GetSourceScreenshot để đọc.
+const fst = { rx: 0, rxAll: 0, ok: 0, rxR: 0, okR: 0, dec: 0, tot: 0, lag: 0, at: performance.now() };
+// ⏱ lượt hiệu ứng (HUD ?stats=1): lệnh tới → lượt bắt đầu → video thật sự chạy, khung khựng dài nhất 3 s đầu - so lần đầu / lần sau.
+const runT = { list: [], cur: null, n: {} };
+function runRecv(kind) { runT.cur = { kind: String(kind || '?'), recv: performance.now(), start: 0, vid: 0, stall: 0, nth: 0, lt: 0 }; }
+// 📓 Số đo MỖI LƯỢT gửi về app ('camgames:bodyStat' → logs/queue-events.log; lượt nặng hiện cả trong Nhật ký): máy streamer báo lag
+// thì đọc được game / tổ hợp nào nặng mà không cần chụp HUD (2026-10-24). perfOpen lúc lượt bắt đầu, perfClose lúc xong / bị dừng;
+// tác vụ dài + khung hụt + vẽ chậm cộng cho MỌI lượt đang mở (lượt chạy cùng lúc ghi tên nhau trong `with`).
+const perf = { open: new Set(), errs: new Map() };
+function perfOpen(kind, name) {
+    const r = { kind, name: String(name || '').slice(0, 60), t0: performance.now(), lt: 0, ltN: 0, ltMax: 0, gapMax: 0, drawMax: 0,
+        pf0: person.frames, rx0: fst.rxAll, with: new Set() };
+    for (const o of perf.open) { o.with.add(kind); r.with.add(o.kind); }
+    perf.open.add(r);
+    return r;
+}
+function perfClose(r, ok) {
+    if (!r || !perf.open.delete(r)) return;
+    const sec = Math.max(0.001, (performance.now() - r.t0) / 1000);
+    if (isReview || !socket.connected) return;
+    const n = v => Math.round(v);
+    socket.emit('camgames:bodyStat', { type: 'run', kind: r.kind, name: r.name, ok: !!ok, sec: +sec.toFixed(1), lt: n(r.lt), ltN: r.ltN, ltMax: n(r.ltMax),
+        gapMax: n(r.gapMax), drawMax: +r.drawMax.toFixed(1), personFps: +((person.frames - r.pf0) / sec).toFixed(1), rxFps: +((fst.rxAll - r.rx0) / sec).toFixed(1),
+        lag: n(fst.lag), seg: seg.delegate || '', segMs: n(seg.ms), faceMs: faceTrk ? n(faceTrk.aiMs) : -1, handMs: handTrk ? n(handTrk.aiMs) : -1,
+        softGL: softwareWebGL() ? 1 : 0, with: [...r.with] });
+}
+// Lỗi JS của trang (kể cả lỗi trong mô-đun game) → app ghi nhật ký; cùng một lỗi tối đa 1 lần / phút.
+function perfErr(msg) {
+    msg = String(msg || '').slice(0, 300);
+    const now = performance.now();
+    if (!msg || now - (perf.errs.get(msg) || -1e9) < 60000) return;
+    perf.errs.set(msg, now);
+    // try: lỗi xảy ra lúc trang còn khởi tạo (socket / act chưa khai - TDZ) thì thôi, không ném tiếp từ trình bắt lỗi.
+    try { if (!isReview && socket.connected) socket.emit('camgames:bodyStat', { type: 'error', msg, phase: act || hc || cry || heart ? 'fx' : 'play' }); } catch (_) {}
+}
+window.addEventListener('error', e => perfErr(`${e.message} @${String(e.filename || '').split('/').pop()}:${e.lineno || 0}`));
+window.addEventListener('unhandledrejection', e => perfErr('promise: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)));
+try {
+    new PerformanceObserver(l => {
+        for (const e of l.getEntries()) for (const r of perf.open) { r.lt += e.duration; r.ltN++; r.ltMax = Math.max(r.ltMax, e.duration); }
+        const c = runT.cur;
+        if (!c) return;
+        for (const e of l.getEntries()) if (e.startTime + e.duration >= c.recv - 50 && e.startTime <= (c.start || performance.now()) + 3000) c.lt = Math.max(c.lt, e.duration);
+    }).observe({ type: 'longtask', buffered: false });
+} catch (_) {}
+function runStarted(kind) {
+    const c = runT.cur;
+    if (!c || c.start) return;
+    c.start = performance.now(); c.kind = kind; c.nth = runT.n[kind] = (runT.n[kind] || 0) + 1;
+    runT.list.unshift(c); if (runT.list.length > 4) runT.list.length = 4;
+}
+function runTick(t) {
+    const c = runT.cur;
+    if (!c || !c.start || t - c.start > 3000) return;
+    if (rafAt) c.stall = Math.max(c.stall, t - rafAt);
+    if (!c.vid) {
+        const m = (act && act.mod.playing ? (act.mod.playing() || []).find(x => x && x.isVideo) : null) || (hc && hc.m && hc.m.isVideo ? hc.m : null);
+        if (m && !m.el.paused && m.el.currentTime > 0) c.vid = t - c.start;
+    }
+}
+async function onFrame(f) {
+    fst.rx++; fst.rxAll++;
+    if (f && f.ts) fst.lag = fst.lag * 0.8 + Math.max(0, Date.now() - f.ts) * 0.2;
+    if (!feed.on || feed.busy || seg.busy || disabled || !f || !f.img || !seg.seg) return;
+    feed.busy = true;
+    const t0 = performance.now();
+    try {
+        const bmp = await createImageBitmap(new Blob([f.img], { type: 'image/jpeg' }));
+        fst.dec = fst.dec * 0.8 + (performance.now() - t0) * 0.2;
+        const M = cameraToStage(feed.layout, bmp.width, bmp.height, W, H, GAME);
+        let keep = false;
+        try { await processFrame(bmp, bmp.width, bmp.height, M); keep = trkFeed(bmp, M); }
+        finally { if (!keep) bmp.close(); }
+        feed.lastAt = performance.now();
+        fst.ok++; fst.tot = fst.tot * 0.8 + (performance.now() - t0) * 0.2;
+    } catch (e) { console.warn('[body] khung lỗi:', e); } finally { feed.busy = false; }
+}
+function syncFeed() {
+    const want = !SRC && !disabled;
+    if (want === feed.on) return;
+    feed.on = want;
+    if (socket.connected) socket.emit('touchplay:feed', want ? GAME : false);
+    feedBoost.sent = null;
+    if (!want) { person.ready = false; matte?.reset(); }
+}
+// ⚡ Chụp theo nhu cầu: chỉ xin OBS chụp nét + dày (1080 px / 30 khung) khi đang / sắp có hiệu ứng vẽ lại người hoặc phải vẽ
+// người liên tục (nền thường trực, NPC đổi cỡ đang che cam). Rảnh → server hạ 960 px / 8 khung. Hết hiệu ứng giữ thêm 3 s.
+const feedBoost = { sent: null, until: 0 };
+function syncBoost(now, need) {
+    if (need) feedBoost.until = now + 3000;
+    const on = feed.on && (need || now < feedBoost.until);
+    if (on === feedBoost.sent || !socket.connected) return;
+    feedBoost.sent = on;
+    socket.emit('touchplay:boost', on);
+}
+function setDisabled(v) {
+    disabled = !!v;
+    if (disabled) { clearAll(); person.ready = false; }
+    syncFeed();
+    syncMedia();
+}
+
+// ---------- 📋 hàng DANH SÁCH HIỆU ỨNG (d.rowId) ----------
+// Quà chế độ ⏭ Kế tiếp / 📋 Xếp hàng tới lượt trong DANH SÁCH HIỆU ỨNG của app → lệnh kèm rowId. Trang trên OBS báo lại để app nhả
+// hàng đúng lúc: 'start' (lượt đầu bắt đầu, ms = còn lại ước tính, 0 = chưa biết) · 'len' (biết độ dài video Hậu Cảnh) · 'done'
+// (lượt cuối xong) · 'skip' (không chạy được: chưa tách được người 8 s, kịch bản đã xoá, hàng chờ đầy, game tắt). Khung xem thử
+// (review) không báo. 'body:cancel' = app đã xoá / bỏ qua hàng → dừng lượt đang chạy + bỏ lượt còn chờ của hàng đó.
+const rows = new Map();          // rowId → { left: số lượt chưa xong, started }
+function rowReport(rowId, phase, extra) {
+    if (!rowId || isReview || !socket.connected) return;
+    socket.emit('camgames:fxrow', { rowId, phase, ...(extra || {}) });
+}
+function rowAdd(d, n) {
+    if (!d || !d.rowId) return;
+    if (n <= 0) { rowReport(d.rowId, 'skip', { reason: hpT('hàng chờ của trang game đã đầy') }); return; }
+    const r = rows.get(d.rowId) || { left: 0, started: false };
+    r.left += n; rows.set(d.rowId, r);
+}
+function rowStarted(d, ms) {
+    const r = d && d.rowId ? rows.get(d.rowId) : null;
+    if (!r || r.started) return;
+    r.started = true;
+    rowReport(d.rowId, 'start', { ms: Number.isFinite(ms) && ms > 0 ? Math.round(ms) : 0 });
+}
+function rowRunEnd(d, ok, reason) {
+    const r = d && d.rowId ? rows.get(d.rowId) : null;
+    if (!r) return;
+    r.left -= 1;
+    if (r.left > 0) return;
+    rows.delete(d.rowId);
+    if (ok || r.started) rowReport(d.rowId, 'done');
+    else rowReport(d.rowId, 'skip', { reason: reason || hpT('không chạy được') });
+}
+
+// ---------- 🦊 Hậu Cảnh: hàng chờ riêng, chạy song song với lượt hành động ----------
+const hcQueue = [];
+let hc = null;                 // { d, p, it, m, main, layers, start, endAt } - main / layers[]: { file, startMs, endMs, m, on, sound } (🎞 lớp sau xa hơn vẽ dưới main, câm)
+const clamp01 = t => t < 0 ? 0 : t > 1 ? 1 : t;
+const ease = t => t * t * (3 - 2 * t);
+const RUN_CAP = 120000;          // video chưa biết độ dài (lỗi tải) - tối đa 2 phút
+function hcEnqueue(d) {
+    const n = Math.max(1, Math.min(cfg.haucanh.comboMax || 3, Number(d?.qty) || 1));
+    let pushed = 0;
+    for (let i = 0; i < n && hcQueue.length < (cfg.haucanh.queueMax || 6); i++, pushed++) hcQueue.push({ ...(d || {}), at: performance.now() });
+    rowAdd(d, pushed);
+}
+// Còn lại của hàng (lượt đang chạy + lượt cùng hàng còn chờ) - để app giữ hàng đúng độ dài video.
+function hcRowLeft(h) {
+    const run = hcEnd(h);      // một lượt (ms); video chưa biết độ dài → RUN_CAP = chưa biết
+    if (!Number.isFinite(run) || run >= RUN_CAP) return 0;
+    return run * (1 + hcQueue.filter(x => x.rowId && x.rowId === h.d.rowId).length);
+}
+function hcStart(d, now) {
+    const it = cfg.haucanh.items.find(x => x.id === d.itemId);
+    if (!it) { rowRunEnd(d, false, hpT('hiệu ứng Hậu Cảnh đã xoá')); return; }
+    const p = profileOf(d.profileId) || curProfile();
+    const m = it.file ? mediaFor(it.file) : null;
+    // ⏱ video chính + 🎞 lớp sau xa hơn đều là "lớp" có cửa sổ [startMs, endMs); lớp startMs 0 bật ngay, lớp trễ bật ở hcLayerTick khi tới giờ.
+    const main = m ? { file: it.file, startMs: it.startMs || 0, endMs: it.endMs || 0, m, on: false, sound: !!it.sound } : null;
+    const layers = (it.layers || []).map(L => ({ ...L, m: mediaFor(L.file), on: false, sound: false })).filter(L => L.m);
+    hc = { d, p, it, m, main, layers, start: now, endAt: null, perf: perfOpen('haucanh', it.name) };
+    runStarted('haucanh');
+    if (main) hcLayerTick(main, 0);
+    for (const L of layers) hcLayerTick(L, 0);
+    if (m && m.isVideo) {
+        const el = m.el;
+        // Độ dài video không đọc được (duration NaN / Infinity) → kết thúc theo 'ended', mờ dần từ khung cuối.
+        el.onended = () => { if (hc && hc.m === m && !el.loop && hc.endAt == null && !Number.isFinite(el.duration)) hc.endAt = performance.now() - hc.start + fadeOf(hc); };
+        // Hàng 📋: độ dài video biết muộn (chưa nạp xong) → báo app giữ hàng đúng độ dài.
+        if (d.rowId && !Number.isFinite(el.duration)) el.addEventListener('loadedmetadata', () => { if (hc && hc.d === d) { const ms = hcRowLeft(hc) - (performance.now() - hc.start); if (ms > 0) rowReport(d.rowId, 'len', { ms: Math.round(ms) }); } }, { once: true });
+    }
+    hcVidVol(it);
+    hc.mp3 = mp3Start(it, m && m.isVideo ? m.el : null);
+    rowStarted(d, hcRowLeft(hc));
+    syncMedia();
+}
+// ok: lượt chạy hết (true) hay bị dừng giữa chừng (false - xoá hàng / dọn trang).
+function hcStop(ok = false) {
+    const d = hc && hc.d;
+    if (hc && hc.m && hc.m.isVideo) { hc.m.el.pause(); hc.m.el.onended = null; }
+    if (hc) { for (const L of hc.layers) if (L.m.isVideo) L.m.el.pause(); mp3Stop(hc.mp3); perfClose(hc.perf, ok); }
+    hc = null;
+    syncMedia();
+    if (ok && d) rowRunEnd(d, true);
+}
+const fadeOf = h => (h.p ? h.p.fadeMs : 350);
+function hcEnd(h) {
+    if (h.endAt != null) return h.endAt;
+    const run = HB.runMs(h.it, h.m && h.m.isVideo ? h.m.el.duration : NaN);
+    return Number.isFinite(run) ? run : RUN_CAP;
+}
+// Lớp nền Hậu Cảnh lúc này: nền thường trực (hồ sơ) + video sau lưng (mờ dần vào / ra).
+// alphaOnly: chỉ các lớp TRONG SUỐT (đặt trên video kịch bản đã phủ kín - đuôi hồ ly vẫn sau lưng NPC lúc rơi hố / bị đuổi).
+// Trong suốt = streamer tick "trong suốt" HOẶC file .pack.mp4 (luôn có kênh alpha - config cũ / sửa tay chưa tick vẫn đúng).
+const idleAlpha = p => !!(p.idleAlpha || isPackedFile(p.idleFile) || HB.isAlphaSample(p.idleFile));
+const hcAlpha = () => !!(hc && (hc.it.alpha || (hc.m && hc.m.alpha)));
+function hcLayer(p, idleOn, margin, now, alphaOnly = false) {
+    if (idleOn && (!alphaOnly || idleAlpha(p))) drawMedia(media.get(p.idleFile), 'cover', !idleAlpha(p), margin);
+    if (!hc) return;
+    const e = now - hc.start, end = hcEnd(hc), fade = fadeOf(hc);
+    const a = fade > 0 ? Math.min(clamp01(e / fade), clamp01((end - e) / fade)) : 1;
+    // 🎞 lớp sau xa hơn vẽ DƯỚI video chính (Lớp 1): layers[0] = Lớp 2, layers[1] = Lớp 3 → vẽ từ CUỐI danh sách (xa nhất) lên;
+    // luôn coi là trong suốt (không tô đen lề); mỗi lớp có cửa sổ [startMs, endMs) riêng (endMs 0 = cuối video của lớp) - mờ vào /
+    // ra ở mép cửa sổ, và không vượt độ mờ chung của lượt. Tick MỌI lớp mỗi khung (kể cả lớp vẽ sau) để video bật / tắt đúng mốc.
+    const winAlpha = w => Math.min(a, fade > 0 ? Math.min(clamp01(w.t / fade), clamp01((w.end - w.t) / fade)) : 1);
+    for (let i = hc.layers.length - 1; i >= 0; i--) {
+        const L = hc.layers[i], w = hcLayerTick(L, e);
+        if (!w) continue;
+        ctx.globalAlpha = winAlpha(w);
+        drawMedia(L.m, hc.it.fit, false, margin);
+    }
+    // Video chính: tick trước điều kiện vẽ để tiếng / lặp bật đúng mốc dù người chưa tách xong.
+    const wm = hc.main ? hcLayerTick(hc.main, e) : null;
+    if (wm && (person.ready || hcAlpha()) && (!alphaOnly || hcAlpha())) {
+        ctx.globalAlpha = winAlpha(wm);
+        drawMedia(hc.m, hc.it.fit, !hcAlpha(), margin);
+    }
+    ctx.globalAlpha = 1;
+}
+// Lớp L (video chính / lớp sau) ở mốc e (ms từ đầu lượt): trong cửa sổ [startMs, endMs) → trả { t: ms đã hiện, end: dài cửa sổ }
+// và bật video đúng lúc cửa sổ mở; ngoài cửa sổ → null và dừng video. endMs 0 = CUỐI VIDEO (phát một lần; độ dài chưa đọc được
+// → tới hết lượt, mờ từ khung cuối), ảnh = tới hết lượt; endMs > 0 = tắt đúng mốc (video ngắn hơn thì lặp). Gọi mỗi khung từ hcLayer.
+function hcLayerTick(L, e) {
+    const t = e - L.startMs, el = L.m.el;
+    const nat = L.m.isVideo && Number.isFinite(el.duration) && el.duration > 0 ? el.duration * 1000 : Infinity;
+    const end = L.endMs > 0 ? Math.max(0, L.endMs - L.startMs) : nat;
+    const inside = t >= 0 && t < end;
+    if (inside !== L.on) { L.on = inside; if (L.m.isVideo) { if (inside) { playOnce(L.m, L.sound); el.loop = L.endMs > 0; } else el.pause(); } }
+    return inside ? { t, end } : null;
+}
+const hcOpaque = (p, idleOn) => (idleOn && !idleAlpha(p)) || !!(hc && hc.m && !hcAlpha() && ready(hc.m));
+
+// ---------- 👁 nhận diện mặt (😭 Khóc Lóc): MediaPipe FaceLandmarker trên CÙNG khung camera đã tách nền ----------
+// Chỉ nạp model khi có kịch bản Khóc Lóc gắn quà của hồ sơ đang dùng (hoặc khung xem trước / đang khóc); không thì gỡ cho nhẹ.
+let faceTrk = null;
+const needFace = () => !disabled && (!!cry || cQueue.length > 0
+    || cfg.cry.scripts.some(sc => forProfile(sc, curProfile()) && (isReview || (sc.gifts && sc.gifts.length))));
+// Model mặt chỉ thấy khuôn mặt chiếm ≳ 10 % ảnh đưa vào; khung 9:16 nguyên (ảnh cắt 270×480) thì người đứng xa mặt chỉ vài chục px → trượt.
+// → Bộ nhận diện mặt có "sân khấu" VUÔNG FW×FW và mỗi khung được đưa qua ma trận dời/co sao cho Ô VUÔNG QUANH ĐẦU (đầu + bề ngang
+// người từ mặt nạ tách nền) phủ kín sân khấu đó → ảnh cắt 480×480 toàn đầu-vai, xa gần đều bắt được. faceNow() đổi ngược về sân khấu thật.
+const FW = 1080;
+let faceBox = { bx: (W - H) / 2, by: 0, side: H };
+let faceWarm = 0;              // số khung "khởi động" model mặt đã chạy (đặt lại khi tạo bộ nhận diện mới)
+function faceFeed(bmp, M) {
+    // Model mặt NẠP SẴN (needFace) nhưng chỉ TÍNH khi có lượt 😭 đang chạy / đang chờ: FaceLandmarker chạy trên luồng chính ~70 ms
+    // mỗi khung - tính suốt lúc rảnh / lúc Rơi Hố, Bị Đuổi (cam gốc ẩn, người là hình vẽ lại) làm overlay OBS tụt 1-2 khung/giây
+    // = "cam bị giật" (đo OBS thật 2026-10-22). Lượt 😭 mới tới → khung kế tiếp đã có mặt (faceNow cần mặt mới ≤ 700 ms).
+    if (!faceTrk || !faceTrk.active) return false;
+    // Model vừa nạp xong: cho chạy 8 khung "khởi động" (lần tính đầu biên dịch shader GPU - đo OBS 2026-10-22: lượt 😭 đầu chờ 1,8 s,
+    // lượt sau 50 ms) rồi mới nghỉ tới khi có lượt 😭.
+    const need = !!(cry || cQueue.length);
+    if (!need) { if (!(faceTrk.models && faceTrk.models.face) || faceWarm >= 8) return false; faceWarm++; }
+    if (person.head && person.w > 0) {
+        const side = Math.min(H, Math.max(420, person.w * 2.2));
+        faceBox = { bx: person.head.x - side / 2, by: person.head.y - side * 0.26, side };
+    } else faceBox = { bx: (W - H) / 2, by: 0, side: H };
+    const k = FW / faceBox.side;
+    faceTrk.pushFrame(bmp, [M[0] * k, M[1] * k, M[2] * k, M[3] * k, (M[4] - faceBox.bx) * k, (M[5] - faceBox.by) * k]);
+    return true;
+}
+function syncFace() {
+    const want = needFace();
+    if (want && !faceTrk) {
+        faceWarm = 0;
+        faceTrk = new HpTracker({ width: FW, height: FW, mirror: false, quality: 'auto', onStatus: (t, lv) => { if (lv === 'error') console.warn('[body] nhận diện mặt:', t); } });
+        const trk = faceTrk;
+        trk.want({ hands: false, face: true, pose: false, segment: false });
+        // want() trước startExternal chỉ ghi nhớ - model mặt chỉ nạp khi tracker ĐANG chạy → xin lại sau khi chạy.
+        trk.startExternal().then(() => { if (faceTrk === trk) trk.want({ face: true }); }).catch(e => console.warn('[body] nhận diện mặt:', e));
+    } else if (!want && faceTrk) { faceTrk.stop(); faceTrk = null; }
+}
+// (faceFeed trao bitmap cho bộ nhận diện mặt - nó tự đóng bitmap cũ → trả true = overlay KHÔNG được close() bitmap này nữa.)
+// Mặt theo toạ độ sân khấu của NGƯỜI ĐANG VẼ: sân khấu vuông của bộ nhận diện → sân khấu thật (ô quanh đầu) → nếu người đang được
+// vẽ lại theo tư thế hồ sơ (cỡ / lệch, Hậu Cảnh đổi cỡ) thì áp thêm phép co + dời của view (view.M = s · person.M + t).
+const FACE_FRESH_MS = 700;
+// Sân khấu vuông FW×FW của một bộ nhận diện (ô box trên sân khấu thật) → sân khấu của NGƯỜI ĐANG VẼ: { s: hệ số co, P: điểm → điểm }.
+function boxMapper(box) {
+    const v = view, pm = person.M, ik = box.side / FW;
+    let s = ik, tx = box.bx, ty = box.by;
+    if (v.ready && v.M && v !== person && pm) {
+        const vs = Math.hypot(v.M[0], v.M[1]) / (Math.hypot(pm[0], pm[1]) || 1), vtx = v.M[4] - vs * pm[4], vty = v.M[5] - vs * pm[5];
+        s = ik * vs; tx = vs * box.bx + vtx; ty = vs * box.by + vty;
+    }
+    return { s, P: q => q && { x: s * q.x + tx, y: s * q.y + ty } };
+}
+function faceNow() {
+    const F = faceTrk && faceTrk.face;
+    if (!F || !F.eyes || performance.now() - faceTrk.faceAt > FACE_FRESH_MS) return null;
+    const { s, P } = boxMapper(faceBox);
+    const E = e => ({ outer: P(e.outer), inner: P(e.inner), upper: P(e.upper), lower: P(e.lower), c: P(e.c), w: e.w * s, open: e.open });
+    return { ...F, mouth: P(F.mouth), width: F.width * s, mouthL: P(F.mouthL), mouthR: P(F.mouthR), nose: P(F.nose), chin: P(F.chin), brow: P(F.brow),
+        cheekL: P(F.cheekL), cheekR: P(F.cheekR), eyes: { L: E(F.eyes.L), R: E(F.eyes.R) } };
+}
+
+// ---------- 🦴 nhận diện DÁNG NGƯỜI (✨ Biến Hình: ⚡ bộ xương X-quang + 2 con mắt theo dáng thật; mọi kiểu: cổ chân = mặt sàn) ----------
+// MediaPipe PoseLandmarker lite (33 điểm, /lib/mediapipe) trên cả sân khấu W×H. Nạp sẵn khi có game ✨ gắn quà của hồ sơ đang dùng
+// (hoặc khung xem trước); CHỈ TÍNH lúc lượt ✨ đang chạy / đang chờ (tối đa ~15 lần / giây, bản sao bitmap) + 8 khung khởi động.
+// Không có dáng (model chưa nạp / không thấy người) → fx-morph dựng dáng đứng thẳng theo khung người.
+let poseTrk = null, poseWarm = 0, posePushAt = 0;
+const POSE_EVERY_MS = 66;
+// 🐉 Bay chưởng KHÔNG dùng dáng (cảnh + mây che chân) - bỏ qua: bộ nhận diện ~30 ms × 15 lần/giây trên luồng chính là cú khựng user báo 2026-10-28
+const morphPose = sc => !!sc && sc.style !== 'fly';
+const morphBusy = () => !!(act && act.kind === 'morph' && morphPose(act.sc)) || aQueue.some(q => q.kind === 'morph' && morphPose(cfg.morph.scripts.find(sc => sc.id === q.scriptId)));
+const needPose = () => !disabled && (morphBusy() || cfg.morph.scripts.some(sc => morphPose(sc) && forProfile(sc, curProfile()) && (isReview || (sc.gifts && sc.gifts.length))));
+function syncPose() {
+    const want = needPose();
+    if (want && !poseTrk) {
+        poseWarm = 0;
+        poseTrk = new HpTracker({ width: W, height: H, mirror: false, quality: 'auto', onStatus: (t, lv) => { if (lv === 'error') console.warn('[body] nhận diện dáng:', t); } });
+        const trk = poseTrk;
+        trk.want({ hands: false, face: false, pose: true, segment: false });
+        trk.startExternal().then(() => { if (poseTrk === trk) trk.want({ pose: true }); }).catch(e => console.warn('[body] nhận diện dáng:', e));
+    } else if (!want && poseTrk) { poseTrk.stop(); poseTrk = null; }
+}
+function poseWants(now) {
+    if (!poseTrk || !poseTrk.active || now - posePushAt < POSE_EVERY_MS) return false;
+    if (morphBusy()) return true;
+    if (!(poseTrk.models && poseTrk.models.pose) || poseWarm >= 8) return false;
+    poseWarm++;
+    return true;
+}
+const POSE_FRESH_MS = 700;
+// Dáng theo toạ độ sân khấu của NGƯỜI ĐANG VẼ (như faceNow) - null nếu cũ / chưa có.
+function poseNow() {
+    const L = poseTrk && poseTrk.pose;
+    if (!L || performance.now() - poseTrk.poseAt > POSE_FRESH_MS) return null;
+    const { P } = boxMapper({ bx: 0, by: 0, side: FW });
+    return L.map(p => ({ ...P(p), v: p.v }));
+}
+
+// ---------- 😭 Khóc Lóc: lớp mặt - hàng chờ riêng, chạy song song, vẽ TRÊN CÙNG (không dời cam, không vẽ lại người) ----------
+const cQueue = [];
+let cry = null;                // { d, sc, units, mp3 }
+function cryEnqueue(d) {
+    const n = Math.max(1, Math.min(cfg.comboMax || 5, Number(d.qty) || 1));
+    // Đang khóc đúng kịch bản này (không giữ hàng 📋) → combo kéo dài lượt thay vì xếp thêm lượt.
+    if (cry && cry.sc.id === d.scriptId && !cry.d.rowId && !d.rowId) { cry.units += n; mods.cry.extend(n); return; }
+    if (cQueue.length >= (cfg.queueMax || 10)) { rowAdd(d, 0); return; }
+    cQueue.push({ ...d, units: n, at: performance.now() });
+    rowAdd(d, n);
+    // ▶ Thử / quà của kịch bản CHƯA gắn quà (hoặc hồ sơ khác) → model mặt chưa nạp sẵn: nạp ngay khi lệnh tới (như mọi game
+    // nạp video lúc cần), không thì OBS chờ 8 s rồi bỏ "chưa thấy mặt" dù khung xem trước (review) vẫn chạy.
+    syncFace();
+}
+function cryStart(d, now) {
+    const sc = cfg.cry.scripts.find(x => x.id === d.scriptId);
+    if (!sc) { for (let i = 0; i < d.units; i++) rowRunEnd(d, false, hpT('kịch bản đã xoá')); return; }
+    cry = { d, sc, units: d.units, mp3: null, perf: perfOpen('cry', sc.name) };
+    runStarted('cry');
+    mods.cry.start({ script: sc, units: d.units }, now);
+    cry.mp3 = mp3Start(sc, null);
+    rowStarted(d, mods.cry.estMs());
+    syncMedia();
+}
+function cryStop(ok = false) {
+    const c = cry; if (!c) return;
+    mp3Stop(c.mp3); mods.cry.stop(); perfClose(c.perf, ok); cry = null;
+    syncMedia();
+    if (ok) for (let i = 0; i < c.units; i++) rowRunEnd(c.d, true);
+}
+
+// ---------- ✋ nhận diện tay (💗 Bắn Tim): MediaPipe HandLandmarker, bộ nhận diện RIÊNG (ô vuông quanh nửa trên người) ----------
+// Như mặt: model nạp sẵn khi có kịch bản Bắn Tim gắn quà của hồ sơ đang dùng (hoặc khung xem trước / đang có lượt), chỉ TÍNH khi có
+// lượt đang chạy / đang chờ (+ 8 khung khởi động). Ô vuông = từ trên đỉnh đầu xuống ngực-bụng, cạnh 1,15 × bề ngang người (kẹp 420..H):
+// tay bắn tim trước mặt / ngực lọt hẳn vào ảnh cắt, tay vẫn đủ to cho model (ô 2,6 × như bản đầu: tay ~22 px trong ảnh 480 →
+// thường chỉ bắt được 1 trong 2 tay của 🫶 - đo video mẫu 2026-10-23).
+let handTrk = null, handFail = false, handWarm = 0;
+let handBox = { bx: (W - H) / 2, by: 0, side: H };
+const needHand = () => !disabled && (!!heart || hQueue.length > 0
+    || cfg.heart.scripts.some(sc => forProfile(sc, curProfile()) && (isReview || (sc.gifts && sc.gifts.length))));
+function handWants() {
+    if (!handTrk || !handTrk.active) return false;
+    if (heart || hQueue.length) return true;
+    if (!(handTrk.models && handTrk.models.hand) || handWarm >= 8) return false;
+    handWarm++;
+    return true;
+}
+function handPush(bmp, M) {
+    if (person.head && person.w > 0) {
+        const side = Math.min(H, Math.max(420, person.w * 1.15));
+        handBox = { bx: person.head.x - side / 2, by: person.head.y - side * 0.15, side };
+    } else handBox = { bx: (W - H) / 2, by: 0, side: H };
+    const k = FW / handBox.side;
+    handTrk.pushFrame(bmp, [M[0] * k, M[1] * k, M[2] * k, M[3] * k, (M[4] - handBox.bx) * k, (M[5] - handBox.by) * k]);
+}
+// Một khung camera cho cả 2 bộ nhận diện: mỗi bộ GIỮ bitmap của nó tới khung sau (tự đóng) → cả hai cần thì tay nhận bản sao.
+// true = overlay KHÔNG được close() bitmap này.
+// ⚡ Model tay / mặt chạy detectForVideo TRÊN LUỒNG CHÍNH (30-200 ms / lần): tính mỗi khung camera lúc có lượt 💗 chờ tay thì mọi
+// game cùng chạy giật, người tách nền chập chờn (đo 2026-10-24: Bắn Tim + Đấm Box = 41 tác vụ dài / 9,5 s, chặn 28 % luồng chính).
+// → tay tối đa 10 lần / giây (cử chỉ tính theo GIÂY giữ tay, kết quả tay còn mới 400 ms - đủ nhạy); đang có lượt hành động thì
+// lớp 💗 / 😭 GIỮ đồng hồ, không dùng tay / mặt → khỏi tính (mặt vẫn tính khi còn lượt 😭 chờ thấy mặt để bắt đầu).
+const HAND_EVERY_MS = 100;
+// 🤾 Vung tay ném avatar: lúc avatar ĐANG HIỆN (vài giây) đo tay 20 lần / giây - 10 lần / giây chỉ được 2 điểm trong cú hất 0,2 s.
+const HAND_FLING_MS = 50;
+const handFast = () => !!(heart && heart.sc.fling && mods.heart.fx && mods.heart.fx.phase === 'show' && !mods.heart.fx.fly);
+let handPushAt = 0;
+function trkFeed(bmp, M) {
+    const now = performance.now();
+    if (poseWants(now)) { posePushAt = now; createImageBitmap(bmp).then(c => { if (poseTrk && poseTrk.active) poseTrk.pushFrame(c, M); else c.close(); }).catch(() => {}); }
+    const wantHand = !act && now - handPushAt >= (handFast() ? HAND_FLING_MS : HAND_EVERY_MS) && handWants();
+    if (wantHand) handPushAt = now;
+    if (!(act && cry) && faceFeed(bmp, M)) {
+        if (wantHand) createImageBitmap(bmp).then(c => { if (handTrk && handTrk.active) handPush(c, M); else c.close(); }).catch(() => {});
+        return true;
+    }
+    if (wantHand) { handPush(bmp, M); return true; }
+    return false;
+}
+function syncHand() {
+    const want = needHand();
+    if (want && !handTrk) {
+        handWarm = 0; handFail = false;
+        // handWorker: model tay chạy trong Web Worker - luồng vẽ không bị chặn mỗi lần nhận diện (so 1.3.0 / 1.3.3 / 1.5.2 ngày 2026-10-24:
+        // từ 1.3.3 mọi máy tự gắn Heart Me → có lượt là luồng chính tụt ~20 → 10-12 khung/s, tách người kém, game giật). Worker GPU cho
+        // kết quả y hệt bản luồng chính (cùng khung: lệch 0 px); worker CPU (mặc định) lệch nhẹ nhãn trái / phải nhưng bắt 🫶 thật 8/8.
+        // Vẫn giữ HAND_EVERY_MS: tay tính ít, nhường CPU / GPU cho model tách người.
+        handTrk = new HpTracker({ width: FW, height: FW, mirror: false, quality: 'auto', handWorker: true, handDelegate: HAND_DELEGATE, onStatus: (t, lv) => { if (lv === 'error') console.warn('[body] nhận diện tay:', t); } });
+        const trk = handTrk;
+        trk.want({ hands: true, face: false, pose: false, segment: false });
+        // startExternal nạp model tay xong mới chạy (active) - nạp hỏng thì lượt 💗 bỏ "không nạp được model tay", lượt sau thử lại.
+        trk.startExternal().catch(e => { if (handTrk === trk) handFail = true; console.warn('[body] nhận diện tay:', e); });
+    } else if (!want && handTrk) { handTrk.stop(); handTrk = null; }
+}
+const HAND_FRESH_MS = 400;
+function handsNow() {
+    if (!handTrk || !handTrk.active || performance.now() - handTrk.handsAt > HAND_FRESH_MS) return [];
+    const { P } = boxMapper(handBox);
+    return handTrk.hands.map(h => ({ id: h.id, pts: h.pts.map(P) }));
+}
+
+// ---------- 💗 Bắn Tim: MỖI NGƯỜI TẶNG MỘT LƯỢT - hàng chờ riêng, chạy song song, vẽ TRÊN CÙNG ----------
+// Tới lượt → ô "Bắn tim cho @tên" + đếm ngược waitSec; NPC đưa tay hình tim → avatar + tim bay; hết giờ không thấy tay → lượt
+// MẤT HIỆU LỰC, chuyển người kế (mô-đun fx-heart.mjs tự đếm - chỉ đếm khi model tay đã nạp).
+const hQueue = [];
+let heart = null;              // { d, sc, units, who, mp3 }
+const whoOf = d => String((d && (d.uniqueId || d.nickname)) || '').toLowerCase();
+function heartEnqueue(d) {
+    const n = Math.max(1, Math.min(cfg.comboMax || 5, Number(d.qty) || 1)), who = whoOf(d);
+    // Cùng người tặng (không giữ hàng 📋): đang tới lượt → tim dày / dài thêm; đang chờ → gộp vào lượt đó (không chiếm thêm lượt).
+    if (who && !d.rowId && heart && !heart.d.rowId && heart.who === who && heart.sc.id === d.scriptId) { heart.units += n; mods.heart.extend(n); return; }
+    const same = who && !d.rowId ? hQueue.find(q => !q.rowId && q.who === who && q.scriptId === d.scriptId) : null;
+    if (same) { same.units += n; return; }
+    if (hQueue.length >= (cfg.queueMax || 10)) { rowAdd(d, 0); return; }
+    hQueue.push({ ...d, who, units: n, at: performance.now() });
+    rowAdd(d, n);
+    if (handFail) { handTrk?.stop(); handTrk = null; }      // lần trước nạp model tay hỏng → thử lại
+    syncHand();
+}
+function heartStart(d, now) {
+    const sc = cfg.heart.scripts.find(x => x.id === d.scriptId);
+    if (!sc) { for (let i = 0; i < d.units; i++) rowRunEnd(d, false, hpT('kịch bản đã xoá')); return; }
+    heart = { d, sc, units: d.units, who: d.who, mp3: null, perf: perfOpen('heart', sc.name) };
+    runStarted('heart');
+    mods.heart.start({ script: sc, units: d.units, user: { name: d.nickname, avatar: d.profilePicture } }, now);
+    rowStarted(d, mods.heart.estMs());
+    syncMedia();
+}
+// Thấy tay hình tim → mp3 riêng phát lúc tim hiện; hàng 📋 biết độ dài thật.
+function heartShown() {
+    if (!heart) return;
+    heart.mp3 = mp3Start(heart.sc, null);
+    if (heart.d.rowId) rowReport(heart.d.rowId, 'len', { ms: Math.round(mods.heart.estMs()) });
+}
+function heartStop(ok = false) {
+    const h = heart; if (!h) return;
+    const res = mods.heart.fx ? mods.heart.fx.result : '';
+    mp3Stop(h.mp3); mods.heart.stop(); perfClose(h.perf, ok); heart = null;
+    syncMedia();
+    if (!ok) return;
+    const why = res === 'expired' ? hpT('người không bắn tim trong {n} giây', { n: h.sc.waitSec }) : res === 'nomodel' ? hpT('không nạp được model tay') : '';
+    for (let i = 0; i < h.units; i++) rowRunEnd(h.d, !why, why);
+}
+
+// ---------- 🕳️ / 🏃 lượt hành động: chung một hàng chờ, lượt một ----------
+const aQueue = [];
+let act = null;                // { kind, mod, d, sc }
+const actMode = () => (act ? cfg[act.kind].bgMode : 'effect');
+let frameState = { p: null, idleOn: false, now: 0 };
+// Nền dưới người của lượt hành động (mô-đun gọi sau khi đặt rung / máy quay).
+function backdrop(margin, bg) {
+    const mode = actMode(), { p, idleOn, now } = frameState;
+    if (mode === 'none') { hcLayer(p, idleOn, margin, now); return; }      // streamer tự che camera trong OBS; nền Hậu Cảnh vẫn giữ
+    if (mode === 'room') {
+        // Video kịch bản PHỦ KÍN (mp4 không trong suốt: Cửa Scifi, Mario, Pickleball) đã sẵn hình → bỏ vẽ phòng sạch + nền Hậu
+        // Cảnh nằm dưới (bị che hết, tốn công vô ích); lớp Hậu Cảnh trong suốt vẫn đặt trên video.
+        if (bg && ready(bg) && opaqueFile(bg.file)) { drawMedia(bg, 'cover', false, margin); hcLayer(p, idleOn, margin, now, true); return; }
+        // Phòng sạch thay camera đã dời đi; nền Hậu Cảnh (nếu có) + video kịch bản (nên webm trong suốt) chồng lên.
+        room.drawPlate(ctx, person.M, margin);
+        hcLayer(p, idleOn, margin, now);
+        if (bg) drawMedia(bg, 'cover', false, margin);
+        return;
+    }
+    // 'effect': video kịch bản phủ kín (+ lớp Hậu Cảnh trong suốt sau lưng); chưa có video thì nền Hậu Cảnh đang chạy,
+    // không có nữa thì phủ tối (che camera gốc).
+    if (bg && ready(bg)) { drawMedia(bg, 'cover', false, margin); hcLayer(p, idleOn, margin, now, true); return; }
+    if (!hcOpaque(p, idleOn)) darkFill(margin);
+    hcLayer(p, idleOn, margin, now);
+}
+// 👁 Vùng sân khấu còn thấy trên OBS (Scene PK / Colab cắt ô khung cam): cổng trần, đáy hố, vũng nước, mây, vòng chạy xa, #alert
+// bám mép vùng này thay mép sân khấu. Không ở Scene PK = cả sân khấu. Video phủ kín (drawMedia cover) giữ nguyên.
+const camView = createCamView({ W, H, overlayId: GAME, getLayout: () => feed.layout });
+const viewRect = () => camView.rect;
+const env = {
+    ctx, W, H, MUTE, view: viewRect,
+    person: () => view,
+    media: mediaFor, backdrop, sfx, sfxOn,
+    playOnce,
+    drawCover: (m, margin) => drawMedia(m, 'cover', false, margin),
+    drawAt,
+    // 🔴 Bắt NPC: mp3 riêng lúc bắt được / xổng - phát từ đầu, trả <audio> để mô-đun biết lúc nào hết
+    audio: (f, vol) => {
+        const a = audioFor(f);
+        a.pause(); a.__run = null; a.volume = Math.max(0, Math.min(1, (Number(vol) || 0) / 100)); a.muted = MUTE;
+        try { a.currentTime = 0; } catch (_) {}
+        a.play().catch(() => {});
+        return a;
+    },
+    // 🥷 CONTINUE: lấy 1 lượt CÙNG game đang chờ trong hàng của trang (combo ×N, ⚡ phát ngay, bấm thử) để hồi sinh thay vì chạy lượt mới;
+    // lượt đó tính là đã chạy xong cho hàng 📋 của nó.
+    takeContinue: sc => {
+        const i = aQueue.findIndex(q => q.kind === 'vidfx' && q.scriptId === sc.id);
+        if (i < 0) return false;
+        const [d] = aQueue.splice(i, 1);
+        rowStarted(d, 0); rowRunEnd(d, true);
+        return true;
+    }
+};
+const mods = {
+    roiho: createRoiHo({ ...env, cfg: () => cfg.roiho }),
+    biduoi: createBiDuoi({ ...env, cfg: () => cfg.biduoi }),
+    vidfx: createVidFx({ ...env, cfg: () => cfg.vidfx }),
+    catch: createCatch({ ...env, cfg: () => cfg.catch }),
+    morph: createMorph({ ...env, cfg: () => cfg.morph, plan: sc => HB.morphPlan(sc), pose: poseNow, hands: { file: HB.SLAP_HAND_FILE, set: HB.SLAP_HAND_SET } }),     // ✨ Biến Hình (vẽ bằng mã; ⚡ xương theo dáng thật)
+    cry: createCry({ ctx, W, H, face: faceNow, view: viewRect, person: () => view }),     // person: bóng NPC phản chiếu trên vũng nước
+    heart: createHeart({ ctx, W, H, view: viewRect, gesture: poses => HB.detectHeart(handsNow(), poses),
+        ready: () => !!(handTrk && handTrk.active), failed: () => handFail, waiting: () => hQueue.length, onShow: () => heartShown(),
+        hands: () => (handTrk && handTrk.active ? { at: handTrk.handsAt, list: handsNow() } : null) })
+};
+function actEnqueue(d) {
+    if (!d || !HB.KINDS.includes(d.kind)) return;
+    if (d.kind === 'cry') { cryEnqueue(d); return; }          // 😭 lớp mặt: hàng chờ riêng, song song
+    if (d.kind === 'heart') { heartEnqueue(d); return; }      // 💗 lớp tay: mỗi người tặng một lượt, song song
+    const n = Math.max(1, Math.min(cfg.comboMax || 5, Number(d.qty) || 1));
+    let pushed = 0;
+    for (let i = 0; i < n && aQueue.length < (cfg.queueMax || 10); i++, pushed++) aQueue.push({ ...d, at: performance.now() });
+    rowAdd(d, pushed);
+}
+function actStart(d, now) {
+    const sc = HB.listOf(cfg, d.kind).find(x => x.id === d.scriptId);
+    if (!sc) { rowRunEnd(d, false, hpT('kịch bản đã xoá')); return; }
+    const mod = mods[d.kind];
+    act = { kind: d.kind, mod, d, sc, perf: perfOpen(d.kind === 'vidfx' ? sc.motion || 'vidfx' : d.kind === 'morph' ? 'morph-' + sc.style : d.kind, sc.name) };
+    mod.start({ ...d, script: sc }, now);
+    runStarted(d.kind);
+    actVidVol(sc);
+    act.mp3 = mp3Start(sc, (mod.playing() || []).find(m => m && m.isVideo)?.el);
+    // Không hiện chữ tên người tặng + tên game (user 2026-10-20: "để mọi thứ tự nhiên, vướng màn hình").
+    // Lượt hành động: app tự ước lượng theo nhịp kịch bản (🎬: theo độ dài video) × số lượt còn lại của hàng (combo ×N) -
+    // báo 1 lượt thì app nhả hàng sớm, cắt ngang lượt cuối.
+    const one = mod.estMs ? mod.estMs() : 0, row = d.rowId ? rows.get(d.rowId) : null;
+    rowStarted(d, one > 0 ? one * Math.max(1, row ? row.left : 1) : 0);
+    syncMedia();
+}
+function actStop(ok = false) { const d = act && act.d; if (act) { act.mod.stop(); mp3Stop(act.mp3); perfClose(act.perf, ok); } act = null; syncMedia(); if (ok && d) rowRunEnd(d, true); }
+// Dọn trang (game tắt / lệnh clear): mọi hàng 📋 đang dở báo bỏ qua để app chạy tiếp ngay.
+function clearAll(reason) {
+    hcQueue.length = 0; aQueue.length = 0; cQueue.length = 0; hQueue.length = 0; if (hc) hcStop(); if (act) actStop(); if (cry) cryStop(); if (heart) heartStop(); camHide.want(false);
+    for (const id of [...rows.keys()]) { rows.delete(id); rowReport(id, 'skip', { reason: reason || hpT('trang Bộ Tách Người dừng') }); }
+}
+// App xoá / bỏ qua hàng (đã nhả hàng bên app) → dừng lượt của hàng đó, không báo lại.
+function cancelRow(rowId) {
+    if (!rowId || !rows.has(rowId)) return;
+    rows.delete(rowId);
+    for (const q of [hcQueue, aQueue, cQueue, hQueue]) for (let i = q.length - 1; i >= 0; i--) if (q[i].rowId === rowId) q.splice(i, 1);
+    if (hc && hc.d.rowId === rowId) hcStop();
+    if (act && act.d.rowId === rowId) actStop();
+    if (cry && cry.d.rowId === rowId) cryStop();
+    if (heart && heart.d.rowId === rowId) heartStop();
+}
+
+// ---------- khung hình ----------
+let lastT = 0, rafAt = 0;
+const drawStat = { ms: 0, max: 0, maxAt: 0, n: 0 };
+function loop(now) {
+    const t = performance.now();
+    runTick(t);
+    if (rafAt) for (const r of perf.open) r.gapMax = Math.max(r.gapMax, t - rafAt);
+    rafAt = t;
+    // try/finally: frame() ném lỗi thì vòng vẽ vẫn xin khung kế (không thì chỉ còn nhịp dự phòng 50 ms của setInterval).
+    try { frame(now); } finally { requestAnimationFrame(loop); }
+}
+setInterval(() => { if (performance.now() - rafAt > 250) frame(performance.now()); }, 50);   // trang ẩn → rAF đứng
+function frame(now) {
+    const t0 = performance.now();
+    try { frameInner(now); }
+    finally {
+        const ms = performance.now() - t0;
+        for (const r of perf.open) r.drawMax = Math.max(r.drawMax, ms);
+        drawStat.ms = drawStat.n ? drawStat.ms * 0.9 + ms * 0.1 : ms; drawStat.n++;
+        if (ms > drawStat.max || t0 - drawStat.maxAt > 2000) { drawStat.max = ms; drawStat.maxAt = t0; }
+    }
+}
+function frameInner(now) {
+    const dt = lastT ? Math.min(0.05, (now - lastT) / 1000) : 0;
+    lastT = now;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, W, H);
+    if (BG) {
+        if (BG === 'checker') { for (let y = 0; y < H; y += 60) for (let x = 0; x < W; x += 60) { ctx.fillStyle = ((x + y) / 60) % 2 ? '#bbb' : '#eee'; ctx.fillRect(x, y, 60, 60); } }
+        else { ctx.fillStyle = BG; ctx.fillRect(0, 0, W, H); }
+    }
+    if (disabled || !(window.HpCamFrame?.active ?? true)) { camHide.want(false); return; }
+    // Chưa tách được người (model chưa nạp / chưa có hình): giữ quà tối đa 8 giây - không phủ nền che mất NPC.
+    while (!act && aQueue.length) {
+        if (person.ready) { actStart(aQueue.shift(), now); if (act) break; continue; }
+        if (now - aQueue[0].at > 8000) { rowRunEnd(aQueue.shift(), false, hpT('chưa tách được người sau 8 giây')); continue; }
+        break;
+    }
+    while (!hc && hcQueue.length) {
+        if (person.ready) { hcStart(hcQueue.shift(), now); if (hc) break; continue; }
+        if (now - hcQueue[0].at > 8000) { rowRunEnd(hcQueue.shift(), false, hpT('chưa tách được người sau 8 giây')); continue; }
+        break;
+    }
+    // 😭 chờ thấy MẶT tối đa 8 giây rồi bỏ qua - đếm từ lúc model mặt ĐÃ NẠP (lệnh tới lúc model chưa có thì nạp mất vài giây,
+    // không tính vào 8 s); trần tổng 30 s; model không nạp được thì bỏ ngay.
+    while (!cry && cQueue.length) {
+        if (faceNow()) { cryStart(cQueue.shift(), now); if (cry) break; continue; }
+        const q0 = cQueue[0], failed = !!(faceTrk && faceTrk.failed && faceTrk.failed.face);
+        const loaded = !!(faceTrk && faceTrk.models && faceTrk.models.face);
+        if (loaded && !q0.faceAt) q0.faceAt = now;
+        const over = failed || now - q0.at > 30000 || (loaded && now - q0.faceAt > 8000);
+        if (over) { const q = cQueue.shift(); for (let i = 0; i < q.units; i++) rowRunEnd(q, false, failed ? hpT('không nạp được model mặt') : hpT('chưa thấy mặt sau 8 giây')); continue; }
+        break;
+    }
+    // 💗 tới lượt người kế ngay khi lượt trước xong / mất hiệu lực (chờ tay + đếm ngược nằm trong lượt).
+    if (!heart && hQueue.length) heartStart(hQueue.shift(), now);
+    const p = hc ? (hc.p || curProfile()) : curProfile();
+    const idle = p && p.idleFile ? media.get(p.idleFile) : null;
+    const idleOn = !!(idle && person.ready);
+    const actCover = !!act && actMode() !== 'none';
+    frameState = { p, idleOn, now };
+    // Tư thế "nghỉ": camera gốc đã bị che (nền thường trực / lượt hành động có nền) = cỡ của hồ sơ; không thì khớp camera gốc.
+    const rest = (idleOn || actCover || isReview) ? poseOf(p, p ? p.scale : 100) : ID_POSE;
+    let ps = rest;
+    if (hc) {
+        const e = now - hc.start, end = hcEnd(hc), fade = fadeOf(hc);
+        const k = ease(fade > 0 ? Math.min(clamp01(e / fade), clamp01((end - e) / fade)) : 1);
+        const tgt = poseOf(p, hc.it.scale || (p ? p.scale : 100));
+        ps = { s: rest.s + (tgt.s - rest.s) * k, dx: rest.dx + (tgt.dx - rest.dx) * k, dy: rest.dy + (tgt.dy - rest.dy) * k };
+        if (e >= end) hcStop(true);
+    }
+    view = makeView(ps);
+    const moved = ps.s !== 1 || ps.dx || ps.dy;
+    // 📷 ẩn cam gốc: lượt hành động ở chế độ 🏠 Phòng thật, hoặc hiệu ứng Hậu Cảnh bật "ẩn cam gốc".
+    camHide.want((!!act && actMode() === 'room') || !!(hc && hc.it.hideCam));
+    syncBoost(now, !!act || !!hc || !!cry || !!heart || aQueue.length > 0 || hcQueue.length > 0 || cQueue.length > 0 || hQueue.length > 0 || idleOn || moved || camHide.covering);
+    const camCover = camHide.covering || (!camHide.allowed && ((act && actMode() === 'room') || (hc && hc.it.hideCam)));
+
+    const drawMain = () => {
+        if (act) {
+            if (act.mod.frame(now, dt, window.__bodyT)) actStop(true);
+            return;
+        }
+        if (idleOn || hc) {
+            // Cam gốc đang dời ra ngoài: vẽ lại phòng - người đổi cỡ / dời chỗ thì phòng SẠCH (không người gốc), không thì khung gốc.
+            if (camCover) { if (!(moved && room.drawPlate(ctx, person.M))) room.drawRaw(ctx, person.M); }
+            hcLayer(p, idleOn, 0, now);
+            drawPerson();
+            return;
+        }
+        // Hết hiệu ứng mà OBS chưa trả cam gốc về → giữ phòng + người như camera để không chớp.
+        if (camHide.covering) { room.drawRaw(ctx, person.M); drawPerson(); return; }
+        if (isReview) drawPerson();
+    };
+    drawMain();
+    // 😭 lớp mặt vẽ TRÊN CÙNG mọi lớp. Lượt hành động đang vẽ lại / dời người (toạ độ mặt không còn đúng) → giữ đồng hồ, vẽ tiếp sau.
+    if (cry) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; if (mods.cry.frame(now, dt, !!act)) cryStop(true); }
+    // 💗 lớp tay cũng trên cùng; lượt hành động đang dời người → giữ đồng hồ (cả đếm ngược chờ tay), vẽ tiếp sau.
+    if (heart) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; if (mods.heart.frame(now, dt, !!act)) heartStop(true); }
+}
+requestAnimationFrame(loop);
+
+// ---------- thông báo / cảnh báo ----------
+function showAlert(text) { const el = $('alert'); el.textContent = text || ''; el.classList.toggle('on', !!text); }
+function feedProblem() {
+    const st = feed.status || {};
+    if (matteErr) return hpT('Bộ Tách Người: {matteErr}', { matteErr });
+    if (st.obsConnected === false) return hpT('App chưa kết nối OBS WebSocket - nối ở mục Hiệu ứng OBS trong app.');
+    if (st.camFound === false) return hpT('Chưa thấy nguồn camera trong Scene đang phát - chọn nguồn ở 🎥 Game Camera.');
+    return hpT('Bộ Tách Người: chưa nhận được hình camera từ OBS.');
+}
+
+// ---------- socket ----------
+const socket = io({ query: { role: 'aux' }, transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+socket.on('connect', () => {
+    socket.emit('subscribe', isReview ? 'preview' : 'overlay');
+    if (feed.on) socket.emit('touchplay:feed', GAME);
+    feedBoost.sent = null;
+    window.HpCamFrame?.setOnline(true);
+    loadMeta();
+});
+socket.on('disconnect', () => window.HpCamFrame?.setOnline(false));
+// Game tắt mà app vẫn gửi lượt của hàng 📋 → báo bỏ qua ngay (không để danh sách chờ phao 12 s).
+socket.on('body:run', d => { if (!disabled) { runRecv(d && d.kind); actEnqueue(d); } else if (d && d.rowId) rowReport(d.rowId, 'skip', { reason: hpT('Bộ Tách Người đang tắt') }); });
+// Khung xem trước của panel chỉ chạy hiệu ứng Hậu Cảnh của hồ sơ đang sửa - quà thật của NPC khác không chen vào.
+socket.on('body:play', d => {
+    if (disabled) { if (d && d.rowId) rowReport(d.rowId, 'skip', { reason: hpT('Bộ Tách Người đang tắt') }); return; }
+    if (d && (!FORCE || d.profileId === FORCE)) { runRecv('haucanh'); hcEnqueue(d); }
+});
+socket.on('body:cancel', d => cancelRow(d && d.rowId));
+// ⏹ Ngưng một kịch bản (panel ▶ Thử ↔ ⏹ Ngưng): dừng lượt đang chạy + bỏ lượt chờ của nó; hàng 📋 dính tới coi như xong để app nhả hàng.
+socket.on('body:stop', d => stopScript(d));
+function stopScript(d) {
+    const kind = String(d && d.kind || ''), id = String(d && d.scriptId || '');
+    const hit = x => !id || x === id;
+    const drain = (q, pick) => { for (let i = q.length - 1; i >= 0; i--) if (pick(q[i])) { const e = q.splice(i, 1)[0]; for (let n = Math.max(1, e.units || 1); n > 0; n--) rowRunEnd(e, true); } };
+    if (kind === 'haucanh') { drain(hcQueue, e => hit(String(e.itemId || ''))); if (hc && hit(hc.it.id)) { const x = hc.d; hcStop(); rowRunEnd(x, true); } return; }
+    if (kind === 'cry') { drain(cQueue, e => hit(String(e.scriptId || ''))); if (cry && hit(cry.sc.id)) cryStop(true); return; }
+    if (kind === 'heart') { drain(hQueue, e => hit(String(e.scriptId || ''))); if (heart && hit(heart.sc.id)) { const x = heart.d, n = heart.units; heartStop(); for (let i = 0; i < n; i++) rowRunEnd(x, true); } return; }
+    drain(aQueue, e => e.kind === kind && hit(String(e.scriptId || '')));
+    if (act && act.kind === kind && hit(act.sc.id)) { const x = act.d; actStop(); rowRunEnd(x, true); }
+}
+socket.on('body:profile', d => { activeId = String(d?.profileId || ''); syncMedia(); });
+socket.on('gameConfig', d => { if (d && d.gameId === GAME) applyConfig(d.config); });
+socket.on('gameDisabled', d => { if (d && d.gameId === GAME && !isReview) setDisabled(true); });
+socket.on('gameEnabled', d => { if (d && d.gameId === GAME) setDisabled(false); });
+socket.on('touchplay:frame', onFrame);
+socket.on('touchplay:layout', l => { feed.layout = l; });
+socket.on('touchplay:feedStatus', st => { feed.status = st; });
+socket.on('gameCmd', d => { if (d && d.gameId === GAME && d.cmd === 'clear') clearAll(hpT('đã dọn trang Bộ Tách Người')); });
+socket.on('overlay:reload', d => { if (!isReview && (!d || !d.gameId || d.gameId === GAME)) location.reload(); });
+async function loadMeta() {
+    try {
+        const r = await fetch('/api/body/meta', { cache: 'no-store' });
+        if (r.ok) { const j = await r.json(); activeId = String(j.activeProfileId || ''); for (const f of j.missingSamples || []) MISSING.add(f); dropMissing(); syncMedia(); }
+    } catch (_) {}
+}
+
+setInterval(() => {
+    if (!feed.on || disabled) return showAlert(matteErr ? hpT('Bộ Tách Người: {matteErr}', { matteErr }) : null);
+    showAlert(performance.now() - feed.lastAt > 4000 ? feedProblem() : null);
+}, 1000);
+setInterval(() => {
+    if (feed.on && socket.connected) socket.emit('touchplay:overlayStat', { fps: person.fps, aiMs: seg.ms + (matte?.ms || 0) + (faceTrk ? faceTrk.aiMs : 0) + (handTrk ? handTrk.aiMs : 0),
+        hands: handTrk ? handTrk.hands.length : 0, pose: seg.found ? 1 : 0, delegate: seg.delegate, softGL: softwareWebGL(), phase: act || hc || cry || heart ? 'fx' : 'play' });
+    { const now = performance.now(), s = (now - fst.at) / 1000; if (s >= 1) { fst.rxR = fst.rx / s; fst.okR = fst.ok / s; fst.rx = fst.ok = 0; fst.at = now; } }
+    if (!$('stats').classList.contains('on')) return;
+    const p = curProfile();
+    $('stats').textContent =
+        hpT("📊 nhận {rx}/s · xử lý {ok}/s · giải mã {dec} ms · tổng {tot} ms · trễ {lag} ms\n", { rx: fst.rxR.toFixed(1), ok: fst.okR.toFixed(1), dec: fst.dec.toFixed(0), tot: fst.tot.toFixed(0), lag: fst.lag.toFixed(0) }) +
+        hpT("📊 phòng {room} ms (max {roomMax}) · matte gọi {mat} ms\n", { room: (fst.room || 0).toFixed(0), roomMax: (fst.roomMax || 0).toFixed(0), mat: (fst.mat || 0).toFixed(0) }) +
+        runT.list.map(c => hpT("⏱ {kind} lần {nth}: lệnh→chạy {start} ms · video {vid} · khựng {stall} ms · tác vụ dài {lt} ms\n", { kind: c.kind, nth: c.nth, start: Math.round(c.start - c.recv), vid: c.vid ? Math.round(c.vid) + ' ms' : '-', stall: Math.round(c.stall), lt: Math.round(c.lt) })).join('') +
+        hpT('model {model}/{tiles} ({v})  {v2} ms  ·  mịn viền {v3} ms\n', { model: cfg.matte.model, tiles: seg.tiles, v: seg.delegate || '…', v2: seg.ms.toFixed(1), v3: (matte?.ms || 0).toFixed(1) }) +
+        hpT('{v} khung/s  ·  vẽ {v2} ms (max {v3}){v4}\n', { v: person.fps.toFixed(0), v2: drawStat.ms.toFixed(1), v3: drawStat.max.toFixed(1), v4: cfg.biduoi.look.lite ? ' ⚡' : '' }) +
+        hpT('người: {v}  ·  hồ sơ: {v2}\n', { v: seg.found ? hpT('có') : hpT('không'), v2: p ? (p.groupId || hpT('mọi người')) + ' ' + p.scale + '%' : '-' }) +
+        hpT('🦊 {v} (chờ {length})  ·  {v2} (chờ {length2})', { v: hc ? '▶ ' + hc.it.name : '-', length: hcQueue.length, v2: act ? ({ roiho: '🕳️ ', biduoi: '🏃 ', vidfx: '🎬 ', catch: '🔴 ', morph: '✨ ' }[act.kind] || '') + act.sc.name : hpT('hành động -'), length2: aQueue.length }) +
+        `${camHide.hidden ? hpT('  ·  📷 cam gốc ẩn') : ''}${camHide.err ? '  ·  ⚠ ' + camHide.err : ''}` +
+        (faceTrk ? `\n👁 ${faceTrk.face ? hpT('mặt: có') : hpT('mặt: không')} · ${faceTrk.aiMs.toFixed(1)} ms · ${faceTrk.delegate}${cry ? `  ·  😭 ${cry.sc.name} ${(mods.cry.fx ? mods.cry.fx.t : 0).toFixed(1)}/${(mods.cry.fx ? mods.cry.fx.total : 0).toFixed(0)} s · ${(mods.cry.power() * 100).toFixed(0)} %` : ''}${cQueue.length ? ` (${hpT('chờ')} ${cQueue.length})` : ''}` : '') +
+        (handTrk ? `\n✋ ${hpT('tay: {n}', { n: handTrk.hands.length })} · ${handTrk.aiMs.toFixed(1)} ms · ${handTrk.delegate}${handFail ? ' · ⚠' : ''}${heart ? `  ·  💗 ${heart.sc.name} ${mods.heart.fx ? mods.heart.fx.phase : ''}` : ''}${hQueue.length ? ` (${hpT('chờ')} ${hQueue.length})` : ''}` : '') +
+        `\n🎞 .pack.mp4 H.264: ${packHw}${softwareWebGL() ? hpT('  ·  🐢 KHÔNG GPU → webm / ghép 2D') : ''}${unpack.stat.n ? `  ·  ${unpack.stat.ms.toFixed(2)} ms · ${unpack.count} video` : ''}${unpack.error ? '  ·  ⚠ ' + unpack.error : ''}`;
+}, 500);
+
+// soi / tự kiểm (window.__bodyT = giữ đồng hồ lượt hành động ở 1 mốc để chụp)
+window.__body = { get person() { return person; }, get view() { return view; }, get act() { return act; }, get hc() { return hc; }, get cry() { return cry; },
+    get heart() { return heart; }, get faceTrk() { return faceTrk; }, face: faceNow, get poseTrk() { return poseTrk; }, pose: poseNow, get handTrk() { return handTrk; }, hands: handsNow,
+    get queues() { return { act: aQueue, hc: hcQueue, cry: cQueue, heart: hQueue }; }, get cfg() { return cfg; }, get activeId() { return activeId; }, get media() { return media; },
+    get stat() { return drawStat; }, unpack, room, camHide, seg, matte, mods, sfx, mp3s,
+    run: d => actEnqueue(d), play: d => hcEnqueue(d), draw: () => frame(performance.now()) };
+
+// ---------- khởi động ----------
+(async () => {
+    try { const r = await fetch('/api/games/body/config', { cache: 'no-store' }); applyConfig(r.ok ? await r.json() : null); }
+    catch (_) { applyConfig(null); }
+    await loadMeta();
+    seg.tiles = cfg.matte.tiles === 2 ? 2 : 1;
+    try { await seg.setModel(cfg.matte.model); await seg.ready(); }
+    catch (e) { matteErr = hpT('không nạp được model tách người: {v}', { v: e?.message || e }); }
+    if (SRC) startVideoSource(); else syncFeed();
+})();
+</script>
+</body>
+</html>

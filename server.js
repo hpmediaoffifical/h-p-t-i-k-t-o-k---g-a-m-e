@@ -299,6 +299,8 @@ const DapMuoi = require('./public/games/dapmuoi/game.js');
 function makeDefaultDapMuoiConfig() { return DapMuoi.defaultConfig(); }
 // 🏸 Đá Cầu — engine thuần UMD (port từ HP LIVE NPC): quà tung cầu, đỡ bằng đầu / đùi qua pose camera.
 const DaCau = require('./public/games/dacau/game.js');
+// 🧍 Bộ Tách Người — module server riêng (port HP LIVE NPC): route /overlay/body, /api/body/*, ẩn cam OBS, quà → body:run.
+const BodyServer = require('./lib/body-server');
 
 const GAMES = {
     thuytinh: {
@@ -465,6 +467,16 @@ const GAMES = {
         overlayPath: '/overlay/dacau',
         defaultConfig: DaCau.defaultConfig()
     },
+    // 🧍 BỘ TÁCH NGƯỜI — khe 'body' (lớp dưới cùng overlay mẹ): tách nền người rồi vẽ lại cho Hậu Cảnh, Rơi Hố, Bị Đuổi,
+    // Video Hành Động, Khóc Lóc, Bắn Tim, Bắt NPC, Biến Hình. Logic ở lib/body-server.js + public/games/body/.
+    body: {
+        id: 'body',
+        name: 'Bộ Tách Người',
+        description: 'Tách nền người trên camera rồi vẽ lại theo quà: hậu cảnh sau lưng, rơi hố, bị đuổi, video hành động, khóc lóc, bắn tim, bắt NPC, biến hình.',
+        icon: '🧍',
+        overlayPath: '/overlay/body',
+        defaultConfig: BodyServer.defaultConfig()
+    },
     // 🎥 GAME CAMERA — menu mẹ của các game camera (CAM_GAME_IDS). Một link OBS /overlay/camgames nạp
     // các game đang chọn (`actives`: tối đa 1 game tay + 1 game trên đầu, lib/camgames.js); chỉ các game
     // đó bật (camGamesApplyActive) để quà không kích hoạt game đang ẩn. `active` = actives[0] cho bản cũ.
@@ -482,7 +494,7 @@ const GAMES = {
 // Game con của Game Camera — thứ tự = thứ tự thẻ trong menu (public/games/camgames/registry.js).
 // Level Quest không vào CAM_STANDALONE_IDS dù còn link riêng: nó không đọc `enabled` (KPI đếm cả khi đang
 // chọn game khác, link riêng luôn hiện) → bật/tắt cờ đó vô hại, thẻ không cần nút ⏻ Tắt.
-const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'bancung', 'level-quest', 'dacau'];
+const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'bancung', 'level-quest', 'dacau', 'body'];
 // Game con có link OBS riêng từ trước khi vào Game Camera (khách cũ dán /overlay/bancung trong scene).
 // Game Camera chỉ bật nó khi streamer CHỌN VÀO và tắt khi chọn sang game khác / tắt Game Camera — không
 // ép tắt lúc khởi động, kẻo khách đang chơi Bắn Cung cập nhật app xong thấy game tự tắt. Thẻ trong Game
@@ -1586,6 +1598,7 @@ async function camAutoRefresh() {
     return camAuto;
 }
 setInterval(() => { try { if (obsBridge.isConnected() && touchplayFeed.subscribers() > 0) camAutoRefresh(); } catch (_) {} }, 2000).unref?.();
+let bodyApi = null;                      // 🧍 Bộ Tách Người (installBody, sau khi tạo touchplayFeed)
 const touchplayFeed = new ObsCameraFeed({
     bridge: obsBridge, io,
     logger: { log: (...a) => console.log(...a), warn: (...a) => console.warn(...a) },
@@ -1600,6 +1613,7 @@ const touchplayFeed = new ObsCameraFeed({
         bancung: (url) => feedUrlIs(url, 'bancung', /\/overlay\/bancung/i) || (camGameInHub('bancung') && feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)),
         dapmuoi: (url) => feedUrlIs(url, 'dapmuoi', /\/overlay\/dapmuoi/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         dacau: (url) => feedUrlIs(url, 'dacau', /\/overlay\/dacau/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
+        body: (url) => feedUrlIs(url, 'body', /\/overlay\/body/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         // Level Quest chỉ bám đầu khi chơi trong Game Camera (link riêng đứng yên, không cần feed).
         'level-quest': (url) => camGameInHub('level-quest') && feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)
     },
@@ -1618,6 +1632,7 @@ const touchplayFeed = new ObsCameraFeed({
             bancung: bc.enabled !== false && (bcd.bodyTrack === true || camGameInHub('bancung')) ? (bcd.trackSource || '') : null,
             dapmuoi: dm.enabled !== false ? '' : null,     // không có nguồn riêng: dùng nguồn chung Game Camera
             dacau: G.dacau?.enabled !== false ? '' : null,  // như trên
+            body: G.body?.enabled !== false ? '' : null,    // như trên
             'level-quest': camGameInHub('level-quest') ? '' : null   // như trên; chỉ khi đang chọn trong Game Camera
         };
         const on = Object.keys(per).filter(k => per[k] !== null);
@@ -1628,14 +1643,27 @@ const touchplayFeed = new ObsCameraFeed({
         // 📷 Chưa chọn nguồn ở đâu → tự lấy thiết bị quay video trong Scene đang phát (camAutoRefresh, port HP LIVE NPC).
         if (!source && on.length && camAuto.source && Date.now() - camAuto.at < 10000) source = camAuto.source;
         if (!source && on.length) source = c.obsSource || '';   // nguồn Touch & Play từng chọn
+        // 🧍 Bộ Tách Người VẼ LẠI người từ ảnh chụp → lúc có hiệu ứng (overlay xin 'touchplay:boost') cần ảnh nét + đủ khung
+        // (1080 px / 30 khung). Lúc RẢNH mà không game camera nào khác nhận hình → 960 px / 8 khung cho OBS đỡ việc.
+        const body = on.includes('body') && activeGames.has('body');
+        const redraw = body && activeGames.has('body:hi');
+        const others = [...activeGames].some(id => !id.endsWith(':hi') && id !== 'body' && id !== 'camgames' && per[id] !== undefined && per[id] !== null);
+        if (body && !redraw && !others) return { enabled: true, source, width: 960, fps: 8, idle: true };
         return {
             enabled: on.length > 0,
             source,
-            width: { low: 640, auto: 960, high: 1280 }[c.quality] || 960,
-            fps: { low: 15, auto: 20, high: 30 }[c.quality] || 20
+            width: Math.max({ low: 640, auto: 960, high: 1280 }[c.quality] || 960, redraw ? 1080 : 0),
+            fps: Math.max({ low: 15, auto: 20, high: 30 }[c.quality] || 20, redraw ? 30 : 0)
         };
     }
 });
+// 🧍 Bộ Tách Người: tự đăng ký route + socket (camgames:camhide, camgames:bodyStat, touchplay:boost).
+try {
+    bodyApi = BodyServer.installBody({ app, io, express, path, dataDir: DATA_DIR,
+        getConfig: () => appConfig.games.body, setConfig: c => { appConfig.games.body = c; }, saveConfig: saveAppConfig,
+        obsBridge, touchplayFeed, gameEnabled: () => (appConfig.games.body || {}).enabled !== false,
+        isTrusted: requestIsTrusted, socketIsTrusted });
+} catch (e) { console.warn('[body] cài module lỗi:', e?.message || e); }
 // URL Browser Source khớp game: theo đường dẫn, hoặc link chia sẻ /overlay/shared/<token> của game đó.
 function feedUrlIs(url, gameId, re) {
     const tok = appConfig.shareTokens?.[gameId];
@@ -4723,6 +4751,14 @@ function emitGift(g) {
             source: g.source || 'tiktok'
         });
     } catch (e) { /* non-fatal */ }
+    // 🧍 Bộ Tách Người — quà gán đích danh từng game/kịch bản → body:run (overlay tự xếp hàng)
+    try {
+        if (bodyApi) bodyApi.handleGift({
+            uniqueId: g.uniqueId, nickname: g.nickname, profilePicture: g.profilePicture || '',
+            giftId: g.giftId, giftName: enriched.giftName || g.giftName, giftImage: enriched.image,
+            coinValue: enriched.coinValue || 0, repeatCount: g.repeatCount || 1, source: g.source || 'tiktok'
+        });
+    } catch (e) { console.warn('[body] quà lỗi:', e?.message || e); }
     // Trồng Cây — quà mọc hoa / bướm avatar / tưới nước / nắng / cắt cây
     try {
         handleTrongCayGift({
@@ -5599,6 +5635,7 @@ app.post('/api/games/:id/config', (req, res) => {
         }
     }
     appConfig.games[g.id] = { ...appConfig.games[g.id], ...incoming };
+    if (g.id === 'body') appConfig.games.body = BodyServer.normalizeConfig(appConfig.games.body);
     if (g.id === 'thuytinh') cleanThuyTinhConfig(appConfig.games.thuytinh);   // app cũ POST config lẫn key game khác
     if (g.id === 'pktiktok') {
         appConfig.games.pktiktok = normalizePkTiktokConfig(appConfig.games.pktiktok);
@@ -12127,11 +12164,14 @@ httpServer.listen(PORT, BIND_HOST, async () => {
 
 // Export cho electron-main.js gọi httpServer.close() khi quit (+ captionListenerStop() để cửa sổ
 // nghe Edge/Chrome tự đóng theo app).
-module.exports = { httpServer, app, io, captionListenerStop };
+// bodyCamRestore: 🧍 Bộ Tách Người đang dời camera ra ngoài khung OBS (nền "phòng sạch") → trả về chỗ cũ trước khi thoát
+// (lần mở sau vẫn tự trả nếu còn file body-camhide.json).
+const bodyCamRestore = (ms = 300) => { try { return bodyApi ? bodyApi.camRestoreBeforeQuit(ms) : Promise.resolve(); } catch (e) { return Promise.resolve(); } };
+module.exports = { httpServer, app, io, captionListenerStop, bodyCamRestore };
 if (!process.versions.electron) {
     // `node server.js` chạy tay: Ctrl+C cũng phải đóng cửa sổ nghe — chờ socket kịp gửi rồi mới thoát.
     process.on('SIGINT', () => {
         try { captionListenerStop(); } catch (e) {}
-        setTimeout(() => process.exit(0), 150);
+        Promise.race([bodyCamRestore(300), new Promise(r => setTimeout(r, 350))]).finally(() => setTimeout(() => process.exit(0), 150));
     });
 }

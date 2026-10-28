@@ -63,6 +63,14 @@
             track: 'Đầu · hông · đầu gối',
             note: 'Camera cần thấy tới đầu gối, thiếu thì chỉ đỡ bằng đầu.',
             overlay: '/overlay/dacau'
+        },
+        {
+            id: 'body', name: 'Bộ Tách Người', icon: '🧍',
+            slot: 'body',
+            desc: 'Tách nền người rồi vẽ lại theo quà: hậu cảnh, rơi hố, bị đuổi, video hành động, khóc lóc, bắn tim, bắt NPC, biến hình.',
+            track: 'Hình người (tách nền) · mặt · tay',
+            note: 'Đặt link Game Camera ngay trên nguồn camera trong OBS.',
+            overlay: '/overlay/body'
         }
     ];
 })();

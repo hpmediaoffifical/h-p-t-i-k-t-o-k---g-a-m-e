@@ -418,6 +418,7 @@ function actualFullQuit() {
     // === Tier 0: Chốt prefs MỌI cửa sổ nổi TRƯỚC khi destroy (destroy không bắn 'close'/'beforeunload') ===
     // Cửa sổ nghe Edge/Chrome (Phụ đề giọng) phải nhận lệnh đóng TRƯỚC khi io.close() — app.exit() không bắn before-quit.
     try { require('./server.js').captionListenerStop(); } catch (e) {}
+    try { require('./server.js').bodyCamRestore(300); } catch (e) {}   // 🧍 trả camera OBS về chỗ cũ (Bộ Tách Người ẩn cam)
     try { flushQuickLaunchPrefs(); } catch (e) {}
     try { flushCaroPreviewPrefs(); } catch (e) {}
     try { flushGiftListPrefs(); } catch (e) {}
@@ -1793,6 +1794,7 @@ app.on('before-quit', () => {
     try { unregisterBancungHotkeys(); unregisterNhatLaHotkeys(); unregisterDapMuoiHotkeys(); unregisterCaptionHotkey(); } catch (_) {}
     // Cửa sổ nghe giọng Creator: đường thoát qua app.quit() (key bị thu hồi…) — đường thoát thường đi qua actualFullQuit Tier 0.
     try { require('./server.js').captionListenerStop(); } catch (_) {}
+    try { require('./server.js').bodyCamRestore(300); } catch (_) {}
 });
 app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch (_) {} });
 app.on('window-all-closed', () => {
