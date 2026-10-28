@@ -2420,6 +2420,18 @@
                 </select>
                 <button id="btn-cc-reset" class="ghost mini" style="white-space:nowrap" title="Xoá quyền micro đã lưu của cửa sổ nghe — dùng khi lỡ bấm Chặn">Đặt lại micro</button>
             </div>
+            <div class="translate-row" title="Card âm thanh livestream hay có 2 kênh: kênh đã trộn nhạc (Mix / Loopback / Stereo Mix) và kênh micro thô — chọn kênh micro thô để nhạc không vào phần dịch. Danh sách có sau khi mở cửa sổ nghe lần đầu.">
+                <label>Micro nghe</label>
+                <select id="cc-mic"><option value="">Mặc định của Windows</option></select>
+            </div>
+            <div class="translate-row" title="Nhạc / âm thanh desktop phát ra loa lọt vào micro → chỉ gửi đi nhận diện khi giọng to hơn hẳn nền. Đeo tai nghe là sạch nhất.">
+                <label>Lọc nhạc nền</label>
+                <select id="cc-filter">
+                    <option value="normal">Thường — chặn nhạc/âm desktop lúc không nói</option>
+                    <option value="strong">Mạnh — nhạc to, loa sát micro</option>
+                    <option value="off">Tắt — nghe micro thô</option>
+                </select>
+            </div>
             <div class="translate-row">
                 <label>Chế độ</label>
                 <select id="cc-mode">

@@ -16,6 +16,13 @@
         #mic { color: #8b93a8; font-size: 12px; min-height: 16px; }
         #mic b { color: #d7dcef; font-weight: 600; }
         #mic-hint { display: none; margin-top: 2px; color: #ffd166; }
+        body > *:not(#interim) { flex-shrink: 0; }
+        #gate { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8b93a8; }
+        #gate[hidden] { display: none; }
+        #gate-meter { position: relative; flex: 0 0 120px; height: 8px; border-radius: 4px; background: #1f2533; overflow: hidden; }
+        #gate-level { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #4f5870; transition: width .1s linear; }
+        #gate-level.open { background: #25F4EE; }
+        #gate-floor { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #ffd166; left: 0; }
         #interim { flex: 1; min-height: 56px; padding: 8px 10px; border: 1px solid rgba(37,244,238,.22); border-radius: 10px;
                    background: rgba(37,244,238,.06); color: #bffefa; font-size: 18px; font-style: italic; overflow: hidden; }
         #interim:empty::before { content: 'Nói đi, chữ sẽ hiện ở đây…'; color: #4f5870; font-style: normal; font-size: 14px; }
@@ -41,6 +48,7 @@
         <div class="meta">Nghe bằng <b id="browser">Edge</b> · <b id="lang">vi-VN</b></div>
     </header>
     <div id="mic">Micro: <b id="mic-label">đang chờ quyền…</b><div id="mic-hint"></div></div>
+    <div id="gate" hidden title="Vạch xanh: mức tiếng micro · vạch vàng: mức nền (nhạc/ồn) — chỉ khi giọng to hơn hẳn nền mới gửi đi nhận diện"><div id="gate-meter"><span id="gate-level"></span><span id="gate-floor"></span></div><span id="gate-text"></span></div>
     <div id="interim"></div>
     <div id="last"></div>
     <footer>
