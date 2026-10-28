@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<script src="/games/camgames/cam-frame-guard.js"></script><!-- 🔇 khung ẩn / mất kết nối app thì câm + ngưng (nạp trước mọi script) -->
+<meta charset="utf-8" />
+<!-- 🌐 Chữ khán giả thấy theo "Ngôn ngữ chữ trên LIVE" (settings.overlayLang) - hpT() + dịch chữ tĩnh; nạp TRƯỚC mọi script. -->
+<script src="/i18n/hp-i18n.js" data-scope="overlay"></script>
+<script src="/lib/hp-icons.js"></script>
+<script src="/lib/hp-game-feed.js"></script>
+<title>HP Đá Cầu - Overlay</title>
+<style>
+    /* 🏸 ĐÁ CẦU - OBS Browser Source 1080×1920 trong suốt. Quà tung cầu từ dưới lên; người thật đỡ bằng ĐẦU / ĐÙI (nhấc lên)
+       qua camera OBS (bộ nhận diện chung của 🎥 Game Camera). Cầu rơi qua vạch sàn = chết → 💥 Rổ PHẠT (tuỳ chọn).
+       ?review=1  khung xem trước trong app (không nhận camera, không báo phạt) · ?mouse=1  thử bằng chuột · ?demo=1  người giả tự chơi */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; color: #fff; user-select: none;
+        font-family: 'Segoe UI', Arial, sans-serif; }
+    body.dc-bg { background: radial-gradient(ellipse at 50% 30%, #2a3350 0%, #12162a 70%); }
+    #dc-stage { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: 0 0; }
+    #dc-canvas { position: absolute; inset: 0; width: 1080px; height: 1920px; display: block; }
+    /* 👁 Khung VÙNG THẤY (Scene PK / Colab cắt ô khung cam - createCamView (obs-scene-map.mjs) đặt left/top/width/height theo px sân khấu):
+       HUD / thông báo / chip / hướng dẫn đặt % trong khung này. Không ở Scene PK = cả sân khấu. */
+    .dc-view { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; pointer-events: none; }
+    .dc-hud { position: absolute; left: 50%; top: 7%; transform: translate(-50%, 0); text-align: center; pointer-events: none; white-space: nowrap;
+        text-shadow: 0 3px 8px rgba(0,0,0,.85), 0 0 22px rgba(0,0,0,.6); transition: opacity .25s; }
+    /* số dùng chữ số đều bề ngang (tabular) → đổi 9 → 10 không xô cả dòng */
+    .dc-hud .combo { font-size: 150px; font-weight: 900; line-height: 1; color: #fff; letter-spacing: 2px; font-variant-numeric: tabular-nums;
+        transition: opacity .45s ease, transform .45s ease; }
+    .dc-hud .combo small { font-size: 54px; font-weight: 800; color: #ffd54a; margin-left: 8px; vertical-align: 30%; }
+    .dc-hud .combo.pop { animation: dcPop .22s ease-out; }
+    .dc-hud .sub { margin-top: 8px; font-size: 36px; font-weight: 700; color: #e6ecff; font-variant-numeric: tabular-nums; min-height: 1.3em; }
+    .dc-hud .sub b { color: #ffd54a; }
+    /* hết cầu: số chạm MỜ DẦN tại chỗ (vẫn giữ chỗ) - dòng kỷ lục / điểm đứng yên, không nhảy lên nhảy xuống */
+    .dc-hud.idle .combo { opacity: 0; transform: scale(.85); }
+    /* né mặt: đầu người lọt vào chỗ số chạm → số chạm thu nhỏ dạt về góc trên xa mặt */
+    .dc-hud.side-l { left: 3%; transform: scale(.7); transform-origin: left top; text-align: left; }
+    .dc-hud.side-r { left: auto; right: 3%; transform: scale(.7); transform-origin: right top; text-align: right; }
+    @keyframes dcPop { from { transform: scale(1.35); } to { transform: scale(1); } }
+    /* 🎁 Danh sách người tặng / thông báo = thư viện chung overlays/lib/hp-game-feed.js (.hpf-*); mặc định DƯỚI (ngang cẳng chân) - không đè mặt.
+       Vị trí / cỡ: display.list* (panel → HIỂN THỊ). */
+    .dc-hud .sub .hpf-ico, .dc-alert .hpf-ico, .dc-chip .hpf-ico { margin-right: .25em; }
+    .dc-alert { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); display: none; max-width: 86%; padding: 20px 28px;
+        border-radius: 18px; background: rgba(10,14,28,.88); border: 2px solid #7fd7ff; font-size: 34px; font-weight: 700; text-align: center; }
+    .dc-alert.warn { background: rgba(120,20,20,.9); border-color: #ff8a80; }
+    .dc-alert small { display: block; margin-top: 8px; font-size: 24px; font-weight: 500; opacity: .85; }
+    .dc-alert.on { display: block; }
+    .dc-chip { position: absolute; left: 50%; bottom: 3.5%; transform: translateX(-50%); padding: 8px 20px; border-radius: 999px; display: none;
+        background: rgba(8,12,20,.8); border: 2px solid rgba(255,214,90,.7); font-size: 26px; font-weight: 700; color: #ffe08a; white-space: nowrap; }
+    .dc-chip.on { display: block; }
+    .dc-hint { position: absolute; left: 50%; bottom: 1%; transform: translateX(-50%); padding: 10px 18px; border-radius: 12px; display: none;
+        background: rgba(8,12,20,.85); border: 1px solid rgba(255,255,255,.2); font-size: 22px; color: #c9d1e3; white-space: nowrap; }
+    body.dc-mouse .dc-hint { display: block; }
+</style>
+</head>
+<body>
+<div id="dc-stage">
+    <!-- số chạm nằm DƯỚI canvas: cầu bay lên đỉnh vẽ đè lên số, không bị che -->
+    <div class="dc-view"><div class="dc-hud idle" id="dc-hud">
+        <div class="combo" id="dc-combo">0<small>chạm</small></div>
+        <div class="sub" id="dc-sub"></div>
+    </div></div>
+    <canvas id="dc-canvas" width="1080" height="1920"></canvas>
+    <div class="dc-view">
+    <div class="dc-notices" id="dc-notices"></div>
+    <div class="dc-alert" id="dc-alert"></div>
+    <div class="dc-chip" id="dc-chip"></div>
+    <div class="dc-hint">Chuột: rê LÊN qua quả cầu đang rơi = đỡ · B = tung cầu · D = bật/tắt người giả tự chơi · Z = hiện vùng chạm</div>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/games/dacau/game.js"></script>
+<script>
+(function () {
+    'use strict';
+    const W = 1080, H = 1920;
+    const Game = window.HpGame.dacau;
+    const qs = new URLSearchParams(location.search);
+    const isReview = qs.get('review') === '1';
+    const mouseMode = isReview || qs.get('mouse') === '1';
+    let demo = qs.get('demo') === '1';
+    // ?mute=1: câm hẳn (khung xem trước trong app mặc định câm - app đang LIVE thì tiếng không lọt lên live)
+    const muted = qs.get('mute') === '1';
+    const token = qs.get('token') || '';
+    const $ = (id) => document.getElementById(id);
+    const canvas = $('dc-canvas');
+    const ctx = canvas.getContext('2d');
+    if (mouseMode && !isReview) document.body.classList.add('dc-mouse');
+    if (qs.get('bg') === '1') document.body.classList.add('dc-bg');
+
+    let cfg = Game.normalizeConfig(null);
+    let personX = W / 2;
+    const engine = Game.createEngine(cfg, { width: W, height: H, centerX: () => personX });
+    // 👁 Vùng sân khấu còn thấy trên OBS (Scene PK / Colab cắt ô khung cam): engine tung cầu / vạch sàn theo vùng, HUD trong .dc-view.
+    let view = { x: 0, y: 0, w: W, h: H };
+    function applyView(v) {
+        view = v; engine.setArea(v);
+        for (const el of document.querySelectorAll('.dc-view')) Object.assign(el.style, { left: v.x + 'px', top: v.y + 'px', width: v.w + 'px', height: v.h + 'px' });
+    }
+    import('/lib/obs-scene-map.mjs').then(m => { const cv = m.createCamView({ W, H, overlayId: 'dacau', getLayout: () => feed.layout, onChange: applyView }); applyView(cv.rect); }).catch(e => console.warn('[dacau] cam-view:', e));
+    let disabled = false;
+    let lastT = performance.now();
+    let zonesKey = false;          // phím Z (chế độ chuột) bật vẽ vùng chạm
+
+    // ---------- bố cục: sân khấu 1080×1920 giữ 9:16 giữa khung ----------
+    let stageScale = 1, stageX = 0, stageY = 0;
+    function fitStage() {
+        const vw = innerWidth, vh = innerHeight;
+        stageScale = Math.min(vw / W, vh / H);
+        stageX = (vw - W * stageScale) / 2; stageY = (vh - H * stageScale) / 2;
+        $('dc-stage').style.transform = `translate(${stageX}px, ${stageY}px) scale(${stageScale})`;
+    }
+    fitStage(); window.addEventListener('resize', fitStage);
+    function toStage(clientX, clientY) { return { x: (clientX - stageX) / stageScale, y: (clientY - stageY) / stageScale }; }
+
+    // ---------- người → vùng chạm (đầu + 2 đùi) + tốc độ nhấc ----------
+    // pose: 33 điểm MediaPipe toạ độ sân khấu { x, y, v }. Đùi = hông → quá gối 20 %; tốc độ nhấc đùi đo theo ĐẦU GỐI.
+    const VIS = 0.5;
+    const motion = new Map();      // khoá phần → { y, t, up }
+    let sw = 280;                  // bề vai gần nhất
+    let seenAt = -Infinity, kneesAt = -Infinity;
+    // Quãng ĐẦU vừa nhấc lên trong 0,22 s gần nhất (px, dương = lên): điểm thấp nhất trong cửa sổ − hiện tại.
+    // Cú đội đầu thật nhấc vài chục px; rung nhận diện / nhịp đi bộ chỉ vài px → engine bỏ qua (headRise).
+    const headHist = [];
+    function headRise(y, t) {
+        headHist.push({ y, t });
+        while (headHist.length && t - headHist[0].t > 220) headHist.shift();
+        let low = y; for (const h of headHist) if (h.y > low) low = h.y;
+        return low - y;
+    }
+    function upSpeed(key, y, t) {
+        const m = motion.get(key);
+        let up = 0;
+        if (m && t > m.t) {
+            const dt = Math.max(20, t - m.t);
+            const raw = -(y - m.y) / dt * 1000;
+            up = t - m.t > 300 ? 0 : raw * 0.7 + m.up * 0.3;
+        }
+        motion.set(key, { y, t, up });
+        return up;
+    }
+    function partsFromPose(P, t) {
+        if (!Array.isArray(P) || P.length < 29) return [];
+        const ok = i => P[i] && P[i].v >= VIS;
+        if (ok(11) && ok(12)) { sw = Math.max(80, Math.hypot(P[12].x - P[11].x, P[12].y - P[11].y)); seenAt = t; personX = (P[11].x + P[12].x) / 2; }
+        const parts = [];
+        let head = null;
+        if (ok(7) && ok(8)) {
+            const d = Math.hypot(P[8].x - P[7].x, P[8].y - P[7].y), r = Math.max(d * 0.75, sw * 0.32);
+            head = { x: (P[7].x + P[8].x) / 2, y: (P[7].y + P[8].y) / 2 - r * 0.2, r };
+        } else if (ok(0)) head = { x: P[0].x, y: P[0].y - sw * 0.12, r: sw * 0.34 };
+        if (head) { seenAt = Math.max(seenAt, t); parts.push({ kind: 'head', ...head, up: upSpeed('head', head.y, t), rise: headRise(head.y, t), sw }); }
+        let knees = 0;
+        for (const [hi, ki] of [[23, 25], [24, 26]]) {
+            if (!ok(hi) || !ok(ki)) { motion.delete('k' + ki); continue; }
+            const a = P[hi], k = P[ki];
+            const b = { x: k.x + (k.x - a.x) * 0.2, y: k.y + (k.y - a.y) * 0.2 };
+            parts.push({ kind: 'thigh', side: '', ax: a.x, ay: a.y, bx: b.x, by: b.y, kx: k.x, ky: k.y, r: Math.max(34, sw * 0.2), up: upSpeed('k' + ki, k.y, t), sw });
+            knees++;
+        }
+        // Bên TRÁI/PHẢI theo màn hình (ảnh có thể đã lật) - để tính thưởng ĐỔI CHÂN.
+        const th = parts.filter(p => p.kind === 'thigh');
+        if (th.length === 2) { const [l, r] = th[0].kx <= th[1].kx ? th : [th[1], th[0]]; l.side = 'L'; r.side = 'R'; }
+        else if (th.length === 1) th[0].side = th[0].kx < personX ? 'L' : 'R';
+        if (knees) kneesAt = t;
+        return parts;
+    }
+    let lastParts = [];
+
+    // ---------- 🤖 người giả tự chơi (demo / thử không cần camera) ----------
+    const bot = { cx: W / 2, lift: { L: -1, R: -1 }, bob: -1, next: 'R', plan: new Map(), poseAt: 0, pose: null };
+    const LIFT_MS = 380, BOB_MS = 260;
+    function botPose(now) {
+        const cx = bot.cx;
+        const p = Array.from({ length: 33 }, () => ({ x: 0, y: 0, v: 0 }));
+        const set = (i, x, y) => { p[i] = { x, y, v: 1 }; };
+        const bk = bot.bob >= 0 && now - bot.bob < BOB_MS ? Math.sin(Math.PI * (now - bot.bob) / BOB_MS) : 0;
+        const hy = 515 - 80 * bk;   // người giả đội đầu rõ ràng (≈ 80 px) - đủ quãng nhấc như người thật
+        set(0, cx, hy + 5); set(2, cx - 25, hy - 20); set(5, cx + 25, hy - 20); set(7, cx - 60, hy); set(8, cx + 60, hy);
+        set(11, cx - 150, 700); set(12, cx + 150, 700); set(13, cx - 205, 900); set(14, cx + 205, 900); set(15, cx - 215, 1075); set(16, cx + 215, 1075);
+        for (const [side, hi, ki, ai, dir] of [['L', 23, 25, 27, -1], ['R', 24, 26, 28, 1]]) {
+            const t0 = bot.lift[side], s = t0 >= 0 && now - t0 < LIFT_MS ? Math.sin(Math.PI * (now - t0) / LIFT_MS) : 0;
+            const hx = cx + dir * 95, kx = cx + dir * (100 - 45 * s), ky = 1460 - 330 * s;
+            set(hi, hx, 1120 - 12 * s); set(ki, kx, ky); set(ai, kx + dir * 6 - dir * 30 * s, ky + 320 - 40 * s);
+        }
+        return p;
+    }
+    function botThink(now, dtMs) {
+        // Nhiều quả cùng lúc: mỗi lượt rơi của từng quả quyết định trước - đỡ bằng đầu (18 %) / đùi, thỉnh thoảng để rơi (6 %)
+        // cho thấy luật phạt. Người giả chạy tới quả sắp chạm vùng đỡ SỚM NHẤT; quả nào lọt vào tầm đầu / đùi nào thì đỡ quả đó.
+        const planOf = (b) => {
+            const k = b.id + ':' + b.touches;
+            if (!bot.plan.has(k)) {
+                const r = Math.random();
+                bot.plan.set(k, r < 0.06 ? 'miss' : cfg.parts === 'head' ? 'head' : cfg.parts === 'thigh' ? 'thigh' : r < 0.24 ? 'head' : 'thigh');
+                if (bot.plan.size > 60) bot.plan.delete(bot.plan.keys().next().value);
+            }
+            return bot.plan.get(k);
+        };
+        let target = W / 2, soonest = Infinity;
+        for (const b of engine.balls) {
+            const plan = planOf(b);
+            if (plan === 'miss' || b.vy < -400) continue;
+            const pr = engine.predict(b, plan === 'head' ? 470 : 1150);
+            if (pr && pr.ms < soonest) { soonest = pr.ms; target = pr.x - (plan === 'head' ? 0 : (bot.next === 'L' ? -80 : 80)); }
+            if (b.vy <= 0) continue;
+            if (plan === 'head') {
+                if (b.y > 515 - 260 && b.y < 515 - 120 && Math.abs(b.x - bot.cx) < 140 && (bot.bob < 0 || now - bot.bob > BOB_MS)) bot.bob = now;
+            } else if (b.y > 960 && b.y < 1120) {
+                const leg = Math.abs(b.x - (bot.cx - 80)) <= Math.abs(b.x - (bot.cx + 80)) ? 'L' : 'R';
+                const t0 = bot.lift[leg];
+                if (Math.abs(b.x - (bot.cx + (leg === 'L' ? -80 : 80))) < 150 && (t0 < 0 || now - t0 > LIFT_MS)) {
+                    bot.lift[leg] = now; bot.next = leg === 'L' ? 'R' : 'L';
+                }
+            }
+        }
+        const maxStep = 1100 * dtMs / 1000;
+        bot.cx += Math.max(-maxStep, Math.min(maxStep, Math.max(260, Math.min(W - 260, target)) - bot.cx));
+        // nhận diện giả ~20 khung/s như camera thật (đi đúng đường partsFromPose → engine.contact)
+        if (now - bot.poseAt >= 50) { bot.poseAt = now; bot.pose = botPose(now); return true; }
+        return false;
+    }
+    function drawBot() {
+        const P = bot.pose; if (!P) return;
+        ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        const line = (...ids) => { ctx.beginPath(); ids.forEach((i, k) => k ? ctx.lineTo(P[i].x, P[i].y) : ctx.moveTo(P[i].x, P[i].y)); ctx.stroke(); };
+        for (const [w, c] of [[34, 'rgba(0,0,0,.35)'], [22, 'rgba(235,240,255,.82)']]) {
+            ctx.lineWidth = w; ctx.strokeStyle = c;
+            line(11, 12); line(11, 23, 24, 12); line(11, 13, 15); line(12, 14, 16); line(23, 25, 27); line(24, 26, 28);
+        }
+        const hx = (P[7].x + P[8].x) / 2, hy = (P[7].y + P[8].y) / 2;
+        ctx.fillStyle = 'rgba(235,240,255,.9)'; ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.arc(hx, hy - 10, 78, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#334'; ctx.beginPath(); ctx.arc(hx - 26, hy - 20, 8, 0, Math.PI * 2); ctx.arc(hx + 26, hy - 20, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+
+    // ---------- chuột (thử): con trỏ là một "đùi" tròn, rê LÊN qua cầu = đỡ ----------
+    let mouse = null;              // { x, y, up, t }
+    if (mouseMode) {
+        window.addEventListener('pointermove', (e) => {
+            const p = toStage(e.clientX, e.clientY), t = performance.now();
+            let up = 0;
+            if (mouse && t > mouse.t) up = -(p.y - mouse.y) / Math.max(8, t - mouse.t) * 1000 * 0.6 + mouse.up * 0.4;
+            mouse = { x: p.x, y: p.y, up, t };
+        });
+        window.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 'b') { audioInit(); audioResume(); engine.enqueue('normal', 1, { nickname: 'Chuột' }); }
+            if (k === 'd') { demo = !demo; if (!demo) bot.pose = null; }
+            if (k === 'z') zonesKey = !zonesKey;
+            if (k === 'c') engine.clear();
+        });
+        window.addEventListener('pointerdown', () => { audioInit(); audioResume(); });
+    }
+
+    // ---------- hiệu ứng ----------
+    const bursts = [];     // { x, y, t0, color }
+    const labels = [];     // { x, y, text, color, t0, size, life }
+    const dusts = [];      // { x, y, t0 }
+    const trails = new Map();
+    let flashBadAt = -Infinity;
+    function addLabel(x, y, text, color, size, life) { const sl = FEED.splitLabel(String(text)); labels.push({ x, y, text: sl.text, ico: sl.ico, color, t0: performance.now(), size: size || 44, life: life || 900 }); if (labels.length > 30) labels.shift(); }
+
+    // Quả CẦU ĐÁ (đá cầu Việt Nam, không phải cầu lông) vẽ bằng canvas, nhìn ngang:
+    //   ĐẾ = mấy lớp đĩa cao su xếp chồng (nặng, luôn đi trước theo hướng bay - cầu rơi thì đế chúc xuống) ·
+    //   ỐNG cắm lông ngắn · 4 LÔNG gà/vịt dài cắm chéo chữ thập (nhìn ngang thấy 2 lông hai bên xoè ra + 2 lông giữa chồng nhau).
+    // Gốc toạ độ = giữa ĐẾ = tâm vùng va chạm (đầu / đùi chạm vào đế). Hướng +x = hướng bay.
+    const LOOK = {
+        normal: { feathers: ['#ff5a5f', '#ffd23f', '#3bceac', '#4d96ff'], disc: ['#2d2f3a', '#f2f2f5', '#2d2f3a', '#e53950'], glow: '' },
+        gold: { feathers: ['#ffd54a', '#ffbf1f', '#ffe9a8', '#f0a500'], disc: ['#8a5a00', '#ffd54a', '#8a5a00', '#fff1c1'], glow: 'rgba(255,214,90,.95)' },
+        big: { feathers: ['#ffffff', '#cfe8ff', '#8fd0ff', '#e6f4ff'], disc: ['#1f4f8a', '#cfe8ff', '#1f4f8a', '#2f8cff'], glow: 'rgba(127,215,255,.6)' },
+        fire: { feathers: ['#ff3b1f', '#ff8c1a', '#ffd23f', '#ff5a1f'], disc: ['#3a0d06', '#ff8c1a', '#3a0d06', '#ff3b1f'], glow: 'rgba(255,90,30,.95)' }
+    };
+    // Một chiếc lông: gốc (0,0) chĩa về −x, dài len, bản rộng w; cuống trắng giữa + vài sợi tơ.
+    function feather(len, w, color, rot) {
+        ctx.save(); ctx.rotate(rot);
+        ctx.beginPath();
+        ctx.moveTo(0, -w * 0.08);
+        ctx.quadraticCurveTo(-len * 0.3, -w * 0.5, -len * 0.82, -w * 0.5);
+        ctx.quadraticCurveTo(-len * 1.04, -w * 0.38, -len, 0);
+        ctx.quadraticCurveTo(-len * 1.04, w * 0.38, -len * 0.82, w * 0.5);
+        ctx.quadraticCurveTo(-len * 0.3, w * 0.5, 0, w * 0.08);
+        ctx.closePath();
+        ctx.fillStyle = color; ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-len * 0.97, 0); ctx.stroke();
+        ctx.strokeStyle = 'rgba(0,0,0,.14)'; ctx.lineWidth = 1.2;
+        for (let i = 1; i <= 4; i++) { const x = -len * (0.25 + i * 0.14); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + len * 0.08, -w * 0.42); ctx.moveTo(x, 0); ctx.lineTo(x + len * 0.08, w * 0.42); ctx.stroke(); }
+        ctx.restore();
+    }
+    function drawCau(b, now) {
+        const L = LOOK[b.type] || LOOK.normal, u = b.r * 1.1;
+        const flut = Math.sin(now / 130 + b.id * 1.7) * 0.03;   // lông rung nhẹ khi bay
+        ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
+        if (L.glow) { ctx.shadowColor = L.glow; ctx.shadowBlur = b.type === 'fire' ? 36 : 26; }
+        const FL = u * 2.35, FW = u * 0.46, root = -u * 0.42;
+        ctx.save(); ctx.translate(root, 0);
+        // 2 lông giữa (trước/sau, chồng nhau) vẽ trước, 2 lông bên xoè ra vẽ sau
+        feather(FL * 0.98, FW * 0.8, L.feathers[2], 0.05 + flut);
+        feather(FL * 0.98, FW * 0.8, L.feathers[3], -0.05 - flut);
+        feather(FL, FW, L.feathers[0], 0.3 + flut);
+        feather(FL, FW, L.feathers[1], -0.3 - flut);
+        ctx.restore();
+        ctx.shadowBlur = 0;
+        // ống cắm lông
+        ctx.fillStyle = 'rgba(240,244,255,.95)'; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 2;
+        roundRect(-u * 0.5, -u * 0.13, u * 0.42, u * 0.26, u * 0.06); ctx.fill(); ctx.stroke();
+        // đế: 4 lớp đĩa cao su xếp chồng, mặt trước hơi bo tròn
+        const t = u * 0.1, x0 = -u * 0.14;
+        for (let i = 0; i < 4; i++) {
+            ctx.fillStyle = L.disc[i];
+            roundRect(x0 + i * t, -u * 0.5, t + 0.5, u, u * 0.04); ctx.fill();
+        }
+        ctx.beginPath(); ctx.ellipse(x0 + 4 * t, 0, u * 0.07, u * 0.5, 0, -Math.PI / 2, Math.PI / 2); ctx.fillStyle = L.disc[3]; ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2;
+        roundRect(x0, -u * 0.5, 4 * t, u, u * 0.04); ctx.stroke();
+        ctx.restore();
+        if (cfg.display.showNames && (b.by || b.touches)) {
+            // nhãn đặt trên đầu lông (cầu rơi thì lông hướng lên)
+            const tipX = b.x - Math.cos(b.angle) * u * 2.8, tipY = b.y - Math.sin(b.angle) * u * 2.8;
+            ctx.save(); ctx.font = '700 28px "Segoe UI", Arial, sans-serif'; ctx.textAlign = 'center';
+            const tx = (b.by ? '@' + b.by : '') + (b.touches ? `${b.by ? ' · ' : ''}${b.touches}` : ''), w = ctx.measureText(tx).width + 26;
+            const lx = (b.x + tipX) / 2, ly = Math.min(b.y, tipY) - 34;
+            if (overFace(lx - w / 2, ly - 22, w, 40)) ctx.globalAlpha = 0.25;   // cầu bay ngang mặt → nhãn mờ đi, không che mặt
+            ctx.fillStyle = 'rgba(8,12,20,.72)'; roundRect(lx - w / 2, ly - 22, w, 40, 20); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.fillText(tx, lx, ly + 8); ctx.restore();
+        }
+    }
+    // ---------- 🙂 NÉ MẶT: mọi chữ không được đè lên mặt người thật ----------
+    // Vùng mặt lấy từ vùng chạm ĐẦU (tai/mũi trong khung AI gần nhất), giữ 1,5 s khi mất dấu cho chữ khỏi nhảy qua lại.
+    let face = null, faceAt = -Infinity;
+    let testFaceBox = null;
+    function updateFace(now) {
+        if (testFaceBox) { face = testFaceBox; faceAt = now; return; }
+        const hd = lastParts.find(p => p.kind === 'head');
+        if (hd) {
+            const f = { x0: hd.x - hd.r * 1.2, x1: hd.x + hd.r * 1.2, y0: hd.y - hd.r * 1.25, y1: hd.y + hd.r * 1.95 };
+            face = face && now - faceAt < 300 ? { x0: face.x0 + (f.x0 - face.x0) * 0.4, x1: face.x1 + (f.x1 - face.x1) * 0.4, y0: face.y0 + (f.y0 - face.y0) * 0.4, y1: face.y1 + (f.y1 - face.y1) * 0.4 } : f;
+            faceAt = now;
+        } else if (now - faceAt > 1500) face = null;
+    }
+    const overFace = (x, y, w, h) => !!face && x < face.x1 && x + w > face.x0 && y < face.y1 && y + h > face.y0;
+    // Chữ (tâm x, chân chữ y, rộng w, cỡ size) đè mặt → dạt sang bên mặt gần nhất; sát mép không đủ chỗ thì lên trên đầu.
+    function dodgeFace(x, y, w, size) {
+        if (!overFace(x - w / 2, y - size, w, size * 1.2)) return [x, y];
+        const cx = (face.x0 + face.x1) / 2, pad = 24;
+        const left = face.x0 - pad - w / 2, right = face.x1 + pad + w / 2;
+        const fitL = left - w / 2 >= 8, fitR = right + w / 2 <= W - 8;
+        if ((x < cx && fitL) || (fitL && !fitR)) return [left, y];
+        if (fitR) return [right, y];
+        return [x, face.y0 - pad];
+    }
+    function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+    function drawTrail(b, now) {
+        let t = trails.get(b.id); if (!t) trails.set(b.id, t = []);
+        t.push({ x: b.x, y: b.y, t: now });
+        while (t.length && now - t[0].t > (b.type === 'fire' ? 320 : 200)) t.shift();
+        if (t.length < 2) return;
+        ctx.save(); ctx.lineCap = 'round';
+        for (let i = 1; i < t.length; i++) {
+            const k = i / t.length;
+            ctx.strokeStyle = b.type === 'fire' ? `rgba(255,${120 + 80 * k | 0},40,${0.55 * k})` : b.type === 'gold' ? `rgba(255,214,90,${0.4 * k})` : `rgba(255,255,255,${0.28 * k})`;
+            ctx.lineWidth = b.r * (b.type === 'fire' ? 0.9 : 0.5) * k;
+            ctx.beginPath(); ctx.moveTo(t[i - 1].x, t[i - 1].y); ctx.lineTo(t[i].x, t[i].y); ctx.stroke();
+        }
+        ctx.restore();
+    }
+    // Vòng báo chỗ rơi: chỗ cầu sẽ đi qua độ cao vùng đỡ (đùi nếu thấy, không thì đầu). Càng gần càng sáng.
+    function guideLevel() {
+        const th = lastParts.filter(p => p.kind === 'thigh'), hd = lastParts.find(p => p.kind === 'head');
+        if (cfg.parts !== 'head' && th.length) return th.reduce((s, p) => s + Math.min(p.ay, p.ky), 0) / th.length - 20;
+        if (hd) return hd.y - hd.r;
+        return cfg.parts === 'head' ? H * 0.25 : H * 0.6;
+    }
+    function drawGuide(s, now) {
+        if (!cfg.display.showGuide) return;
+        const lv = guideLevel();
+        for (const b of s.balls) {
+            if (b.vy < -900) continue;
+            const live = engine.ballById(b.id); if (!live) continue;
+            const pr = engine.predict(live, lv); if (!pr) continue;
+            const k = Math.max(0, Math.min(1, 1 - pr.ms / 1600));
+            const pulse = 1 + Math.sin(now / 110) * 0.06 * k;
+            ctx.save(); ctx.globalAlpha = 0.15 + 0.65 * k; ctx.lineWidth = 6;
+            ctx.strokeStyle = k > 0.75 ? '#ffd54a' : '#7fd7ff'; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 16;
+            ctx.beginPath(); ctx.ellipse(pr.x, lv, 86 * pulse, 26 * pulse, 0, 0, Math.PI * 2); ctx.stroke();
+            ctx.globalAlpha *= 0.5; ctx.beginPath(); ctx.ellipse(pr.x, lv, 40, 12, 0, 0, Math.PI * 2); ctx.stroke();
+            ctx.restore();
+        }
+    }
+    function drawZones(s) {
+        const show = cfg.display.showZones || zonesKey || demo || isReview;
+        if (!show) return;
+        ctx.save();
+        ctx.setLineDash([18, 14]); ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,107,107,.55)';
+        ctx.beginPath(); ctx.moveTo(0, s.floorY); ctx.lineTo(W, s.floorY); ctx.stroke(); ctx.setLineDash([]);
+        ctx.font = '700 26px "Segoe UI", Arial, sans-serif'; ctx.fillStyle = 'rgba(255,140,140,.8)'; ctx.fillText(hpT('SÀN - cầu rơi qua là chết'), 24, s.floorY - 14);
+        if (cfg.display.showZones || zonesKey) {
+            const sc = Game.DIFFICULTY[cfg.difficulty].hit * cfg.hitScale / 100;
+            for (const p of lastParts) {
+                const Dd = Game.DIFFICULTY[cfg.difficulty], hp = cfg.headPower / 100, sws = Math.max(0.4, Math.min(2.5, (p.sw || 300) / 300));
+                const lift = p.kind === 'head' ? (p.up || 0) >= Dd.liftHead * hp * sws && (p.rise == null || p.rise >= Dd.headRise * hp * (p.sw || 300)) : (p.up || 0) >= Dd.liftThigh * sws;
+                ctx.strokeStyle = lift ? 'rgba(255,214,90,.9)' : 'rgba(127,215,255,.55)'; ctx.lineWidth = 4;
+                if (p.kind === 'head') { ctx.beginPath(); ctx.arc(p.x, p.y, p.r * sc, 0, Math.PI * 2); ctx.stroke(); }
+                else { ctx.lineCap = 'round'; ctx.lineWidth = p.r * sc * 2; ctx.globalAlpha = 0.25; ctx.strokeStyle = lift ? '#ffd54a' : '#7fd7ff';
+                    ctx.beginPath(); ctx.moveTo(p.ax, p.ay); ctx.lineTo(p.bx, p.by); ctx.stroke(); ctx.globalAlpha = 1; }
+            }
+        }
+        ctx.restore();
+    }
+    function drawEffects(now, s) {
+        for (const b of bursts) {
+            const k = (now - b.t0) / 380; if (k > 1) continue;
+            ctx.save(); ctx.globalAlpha = 1 - k; ctx.strokeStyle = b.color; ctx.lineWidth = 8 * (1 - k) + 2;
+            ctx.beginPath(); ctx.arc(b.x, b.y, 30 + 110 * k, 0, Math.PI * 2); ctx.stroke();
+            for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + b.t0; ctx.beginPath(); ctx.moveTo(b.x + Math.cos(a) * (50 + 60 * k), b.y + Math.sin(a) * (50 + 60 * k)); ctx.lineTo(b.x + Math.cos(a) * (70 + 100 * k), b.y + Math.sin(a) * (70 + 100 * k)); ctx.stroke(); }
+            ctx.restore();
+        }
+        for (const d of dusts) {
+            const k = (now - d.t0) / 700; if (k > 1) continue;
+            ctx.save(); ctx.globalAlpha = 0.6 * (1 - k); ctx.fillStyle = '#d9c7a8';
+            for (let i = 0; i < 7; i++) { const a = Math.PI + i * Math.PI / 6; ctx.beginPath(); ctx.arc(d.x + Math.cos(a) * 120 * k, d.y + Math.sin(a) * 50 * k, 26 * (1 - k * 0.5), 0, Math.PI * 2); ctx.fill(); }
+            ctx.restore();
+        }
+        const kb = (now - flashBadAt) / 600;
+        if (kb >= 0 && kb < 1) {
+            const vb = view.y + view.h;      // chớp đỏ ở đáy VÙNG THẤY
+            const g = ctx.createLinearGradient(0, vb, 0, vb - view.h * 0.3);
+            g.addColorStop(0, `rgba(255,50,60,${0.45 * (1 - kb)})`); g.addColorStop(1, 'rgba(255,50,60,0)');
+            ctx.fillStyle = g; ctx.fillRect(0, vb - view.h * 0.3, W, view.h * 0.3);
+        }
+        for (const l of labels) {
+            const k = (now - l.t0) / l.life; if (k > 1 || k < 0) continue;
+            ctx.save(); ctx.globalAlpha = k < 0.8 ? 1 : (1 - k) * 5; ctx.font = `900 ${l.size}px "Segoe UI", Arial, sans-serif`; ctx.textAlign = 'center';
+            ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.fillStyle = l.color;
+            let y = l.y - Math.min(1, k * 2) * 70, x = l.x;
+            const sc = k < 0.12 ? 0.6 + k / 0.12 * 0.4 : 1;
+            [x, y] = dodgeFace(x, y, ctx.measureText(l.text).width + (l.ico ? l.size * 1.4 : 0), l.size);
+            ctx.translate(x, y); ctx.scale(sc, sc); FEED.drawLabel(ctx, l, 0, 0, l.size, l.color); ctx.restore();
+        }
+        while (bursts.length && now - bursts[0].t0 > 380) bursts.shift();
+        while (dusts.length && now - dusts[0].t0 > 700) dusts.shift();
+        while (labels.length && now - labels[0].t0 > labels[0].life) labels.shift();
+    }
+
+    // ---------- HUD + thông báo ----------
+    let shownCombo = -1, hudSide = '', hudClashAt = -Infinity;
+    function applyHud(s) {
+        const hud = $('dc-hud');
+        hud.style.display = cfg.display.showHud ? '' : 'none';
+        const hudTop = cfg.display.hudY / 100 * H;
+        if (hud.style.top !== cfg.display.hudY + '%') hud.style.top = cfg.display.hudY + '%';
+        // chỗ mặc định (giữa trên) đè mặt → dạt về góc xa mặt; hết đè 1,2 s mới về giữa (không nháy qua lại)
+        const hw = hud.offsetWidth || 600, hh = hud.offsetHeight || 220, now = performance.now();
+        const clash = overFace(W / 2 - hw / 2, hudTop, hw, hh);
+        if (clash) { hudSide = (face.x0 + face.x1) / 2 > W / 2 ? 'side-l' : 'side-r'; hudClashAt = now; }
+        else if (hudSide && now - hudClashAt > 1200) hudSide = '';
+        hud.classList.toggle('side-l', hudSide === 'side-l'); hud.classList.toggle('side-r', hudSide === 'side-r');
+        const active = s.balls.length > 0;
+        hud.classList.toggle('idle', !active);
+        if (active && s.combo !== shownCombo) {
+            const c = $('dc-combo'); c.innerHTML = `${s.combo}<small>${hpT('chạm')}</small>`;
+            c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
+        }
+        shownCombo = active ? s.combo : -1;
+        const parts = [];
+        if (cfg.display.showStats && s.best) parts.push(`${FEED.icoLabel(hpT('🏆 Kỷ lục'))} <b>${s.best}</b>`);
+        if (cfg.display.showStats && s.score) parts.push(`${FEED.icoHtml('⭐')}<b>${s.score}</b> ${hpT('điểm')}`);
+        if (s.queue) parts.push(`${FEED.icoLabel(hpT('⏳ còn'))} <b>${s.queue}</b> ${hpT('quả')}`);
+        const html = parts.join(' &nbsp;·&nbsp; '), sub = $('dc-sub');
+        if (sub.__html !== html) { sub.__html = html; sub.innerHTML = html; }
+        feedList.place({ x: 0, y: 0, w: view.w, h: view.h }, { x: cfg.display.listXPercent, y: cfg.display.listYPercent, scale: cfg.display.listScale });
+    }
+    const escHtml = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+    // Thẻ gọn [avatar] [icon] Tên · việc (thư viện chung, mẫu Đập Muỗi); kind: 'bad' chữ đỏ / 'good' chữ vàng. Tối đa 2 dòng.
+    const FEED = window.HpGameFeed;
+    const feedList = FEED.createList($('dc-notices'), { max: 2, life: 2800 });
+    // cầu theo loại: icon quả cầu đá tô màu (🏸 thường / 🟡 vàng / 🎈 to), 🔥 lửa giữ icon lửa
+    const BALL_ICON = { normal: ['shuttle', '#ffffff'], gold: ['shuttle', '#ffd54a'], big: ['shuttle', '#7fd7ff'], fire: ['flame', '#ff8a3d'] };
+    function notice(icon, text, image, kind, who) {
+        const ic = Array.isArray(icon) ? icon : [icon];
+        feedList.push({ icon: ic[0], color: kind === 'bad' ? '#ff6b6b' : kind === 'good' ? (ic[1] || '#ffd54a') : ic[1], who: who || '', text, image });
+    }
+    function showAlert(pair, warn) {
+        const el = $('dc-alert');
+        if (!pair) { el.classList.remove('on'); return; }
+        el.className = 'dc-alert on' + (warn ? ' warn' : '');
+        el.innerHTML = `${FEED.icoLabel(pair[0])}${pair[1] ? `<small>${pair[1]}</small>` : ''}`;
+    }
+
+    // ---------- âm thanh ----------
+    // File thu thật (Kenney, CC0 - assets/sfx/NGUON-AM-THANH.txt) nạp sẵn vào WebAudio; đi chung một BUS có nén nhẹ
+    // (DynamicsCompressor) để to nhỏ đều, nhiều quả cùng lúc không vỡ tiếng. File nào chưa nạp / lỗi → tiếng tổng hợp cũ.
+    const SFX_DIR = '/games/dacau/assets/sfx/';
+    const SFX_FILES = {
+        crisp: ['kick-crisp-1', 'kick-crisp-2', 'kick-crisp-3', 'kick-crisp-4', 'kick-crisp-5'],   // lớp GIÒN của cú đỡ (đế cầu chạm)
+        body: ['kick-body-1', 'kick-body-2', 'kick-body-3'],                                      // lớp TRẦM (lực cú đá)
+        head: ['head-1', 'head-2'], floor: ['floor-1', 'floor-2'],
+        launch: ['launch'], gift: ['gift'], milestone: ['milestone'], record: ['record'], fail: ['fail']
+    };
+    const audio = { ctx: null, bus: null, buf: {}, last: {} };
+    function audioInit() {
+        if (audio.ctx || !cfg.sound.enabled || muted) return;
+        try {
+            const ac = audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const comp = ac.createDynamicsCompressor();
+            comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.15;
+            comp.connect(ac.destination); audio.bus = comp;
+            for (const names of Object.values(SFX_FILES)) for (const n of names) {
+                fetch(SFX_DIR + n + '.ogg', { cache: 'force-cache' }).then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status))
+                    .then(a => ac.decodeAudioData(a)).then(b => { audio.buf[n] = b; })
+                    .catch(e => console.warn('[dacau] không nạp được âm', n, e));
+            }
+        } catch (e) {}
+    }
+    // Phát một biến thể ngẫu nhiên của nhóm (không lặp lại đúng file vừa phát). rate: đổi cao độ; delay ms. Trả false nếu chưa có file.
+    function play(group, vol = 1, rate = 1, delay = 0) {
+        if (!audio.ctx || !cfg.sound.enabled) return false;
+        const names = (SFX_FILES[group] || []).filter(n => audio.buf[n]);
+        if (!names.length) return false;
+        let n = names[Math.floor(Math.random() * names.length)];
+        if (names.length > 1 && n === audio.last[group]) n = names[(names.indexOf(n) + 1) % names.length];
+        audio.last[group] = n;
+        const ac = audio.ctx, src = ac.createBufferSource(), g = ac.createGain();
+        src.buffer = audio.buf[n]; src.playbackRate.value = rate;
+        g.gain.value = vol * cfg.sound.volume;
+        src.connect(g); g.connect(audio.bus || ac.destination);
+        src.start(ac.currentTime + delay / 1000);
+        return true;
+    }
+    function audioResume() { if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume().catch(() => {}); }
+    function tone(freq, ms, type, vol, delay) {
+        if (!audio.ctx || !cfg.sound.enabled) return;
+        const ac = audio.ctx, t0 = ac.currentTime + (delay || 0) / 1000, o = ac.createOscillator(), g = ac.createGain();
+        o.type = type; o.frequency.setValueAtTime(freq, t0);
+        g.gain.setValueAtTime(vol * cfg.sound.volume, t0); g.gain.setTargetAtTime(0, t0 + ms / 1000 * 0.4, ms / 1000 * 0.25);
+        o.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0 + ms / 1000 + 0.05);
+    }
+    function thump(vol) {
+        if (!audio.ctx || !cfg.sound.enabled) return;
+        const ac = audio.ctx, len = Math.floor(ac.sampleRate * 0.07), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+        const src = ac.createBufferSource(); src.buffer = buf; const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+        const g = ac.createGain(); g.gain.value = vol * cfg.sound.volume; src.connect(f); f.connect(g); g.connect(ac.destination); src.start();
+    }
+    let failAt = -Infinity;
+    const sfx = {
+        // Cú đỡ = lớp giòn + lớp trầm, cao dần nhẹ theo số chạm (tối đa +35 %) cho cảm giác "lên tay"; đội đầu trầm, đặc hơn.
+        kick: (n, part) => {
+            const up = 1 + Math.min(30, n) * 0.012, jit = 0.96 + Math.random() * 0.08;
+            if (part === 'head') { if (play('head', 0.95, jit)) { play('crisp', 0.45, 0.85 * jit); return; } }
+            else if (play('crisp', 1, up * jit)) { play('body', 0.75, jit); return; }
+            thump(0.9); tone(330 * Math.pow(2, Math.min(24, n) / 24), 140, 'triangle', 0.25);
+        },
+        launch: () => { if (!play('launch', 0.55)) { tone(260, 160, 'sine', 0.2); tone(520, 200, 'sine', 0.15, 80); } },
+        gift: () => { play('gift', 0.45); },
+        // Rơi: tiếng cầu đập sàn; nhạc "hụt" tối đa 1 lần / 1,5 s (3 quả rơi liền không thành 3 đoạn nhạc chồng nhau)
+        drop: () => {
+            const ok = play('floor', 0.9, 0.95 + Math.random() * 0.1);
+            const now = performance.now();
+            if (now - failAt > 1500) { failAt = now; if (!play('fail', 0.5, 1, 120) && !ok) { tone(220, 260, 'sawtooth', 0.22); tone(140, 420, 'sawtooth', 0.22, 160); } }
+        },
+        milestone: () => { if (!play('milestone', 0.75)) [523, 659, 784, 1047].forEach((f, i) => tone(f, 180, 'triangle', 0.25, i * 90)); },
+        record: () => { play('record', 0.7); }
+    };
+
+    // ---------- sự kiện engine ----------
+    function handleEvents(ev) {
+        const now = performance.now();
+        for (const e of ev) {
+            if (e.type === 'launch') { sfx.launch(); }
+            else if (e.type === 'kick') {
+                sfx.kick(e.touches, e.part);
+                bursts.push({ x: e.x, y: e.y, t0: now, color: e.part === 'head' ? '#7fd7ff' : e.alt ? '#ff9f43' : '#ffd54a' });
+                addLabel(e.x, e.y - 90, e.alt ? hpT('ĐỔI CHÂN +{points}', { points: e.points }) : e.part === 'head' ? hpT('ĐẦU +{points}', { points: e.points }) : `+${e.points}`, e.part === 'head' ? '#9be7ff' : e.alt ? '#ff9f43' : '#ffd54a', e.alt ? 46 : 52);
+                if (e.milestone) { sfx.milestone(); addLabel(view.x + view.w / 2, view.y + view.h * 0.24, hpT('🔥 {milestone} CHẠM!', { milestone: e.milestone }), '#ffd54a', 90, 1600); }
+                else if (e.record && e.touches === 5) { sfx.record(); addLabel(view.x + view.w / 2, view.y + view.h * 0.24, hpT('🏆 Kỷ lục mới!'), '#ffd54a', 66, 1300); }
+            } else if (e.type === 'drop') {
+                sfx.drop(); dusts.push({ x: e.x, y: e.y, t0: now }); flashBadAt = now; trails.delete(e.id);
+                addLabel(e.x, e.y - 60, hpT('RƠI!'), '#ff6b6b', 64, 1100);
+                const who = e.by ? hpT('Cầu của @{by}', { by: e.by }) : hpT('Cầu');
+                if (e.safe) notice('🛡', hpT('{who} rơi ở {touches} chạm - đủ {safeAfter} chạm, không phạt', { who, touches: e.touches, safeAfter: cfg.safeAfter }), e.avatar, 'good');
+                else notice('💥', hpT('{who} rơi ở {touches} chạm!', { who, touches: e.touches }), e.avatar, 'bad');
+                // báo server (kèm id vé) để bật hiệu ứng trong 💥 Rổ PHẠT. Khung xem trước trong app không báo (không có người thật đỡ).
+                if (e.fxId && !isReview) socket.emit('camgames:fxhit', { game: 'dacau', id: e.fxId });
+            } else if (e.type === 'queueFull') notice('⏳', hpT('Hàng chờ cầu đã đầy'));
+        }
+    }
+
+    // ---------- feed camera OBS + nhận diện (không chạy trong khung xem trước) ----------
+    const feed = { on: false, tracker: null, layout: null, busy: false, lastAt: 0, status: null, toStage: null, seenPose: 0 };
+    function wantFeed() { return !isReview && !disabled && !demo; }
+    async function syncFeed() {
+        const want = wantFeed();
+        if (want === feed.on) return;
+        feed.on = want;
+        if (!want) { socket.emit('touchplay:feed', false); if (feed.tracker) feed.tracker.stop(); return; }
+        try {
+            if (!feed.tracker) {
+                const [trk, map] = await Promise.all([import('/lib/hp-tracking.mjs'), import('/lib/obs-scene-map.mjs')]);
+                feed.toStage = map.cameraToStage;
+                // Trong 🎥 Game Camera: bộ nhận diện chung của overlay mẹ (chỉ cần model BODY).
+                feed.tracker = trk.sharedTracker('dacau', { width: W, height: H }) || new trk.HpTracker({ width: W, height: H, quality: 'auto' });
+                feed.tracker.want({ hands: false, pose: true, face: false });
+                window.__dc.tracker = feed.tracker;
+            }
+            if (!feed.on) return;
+            await feed.tracker.startExternal();
+            feed.tracker.want({ hands: false, pose: true, face: false });
+            feed.lastAt = performance.now();
+            if (feed.on) socket.emit('touchplay:feed', feedReg());
+        } catch (e) { console.warn('[dacau] không bật được nhận diện:', (e && e.message) || e); }
+    }
+    function feedReg() { return feed.tracker && feed.tracker.shared ? { id: 'dacau', frames: false } : 'dacau'; }
+    async function onFrame(f) {
+        if (!feed.on || feed.busy || !f || !f.img || !feed.tracker || !feed.toStage) return;
+        if (feed.tracker.shared) { feed.lastAt = performance.now(); return; }
+        feed.busy = true;
+        try {
+            const bmp = await createImageBitmap(new Blob([f.img], { type: 'image/jpeg' }));
+            feed.tracker.pushFrame(bmp, feed.toStage(feed.layout, bmp.width, bmp.height, W, H, 'dacau'));
+            feed.lastAt = performance.now();
+        } catch (_) {} finally { feed.busy = false; }
+    }
+    function feedProblem() {
+        const st = feed.status || {};
+        if (st.obsConnected === false) return [hpT('App chưa kết nối OBS WebSocket.'), hpT('OBS: Công cụ → Cài đặt WebSocket Server → bật; rồi kết nối ở Cài đặt → Tạo Overlay OBS trong app.')];
+        if (!st.source) return [hpT('Chưa chọn nguồn camera cho Game Camera.'), hpT('Mở 🎥 Game Camera trong app → chọn Nguồn camera trong OBS.')];
+        const src = escHtml(st.source);
+        if (st.error === 'source-missing') return [hpT('Không tìm thấy nguồn "{src}" trong OBS.', { src }), ''];
+        return [hpT('Chưa nhận được hình từ nguồn "{src}".', { src }), hpT('Kiểm tra camera trong scene OBS đang phát.')];
+    }
+    // Khung AI MỚI → vùng chạm + so chạm với vị trí cầu lúc camera chụp (trừ độ trễ).
+    function pumpTracking(now) {
+        const t = feed.tracker; if (!feed.on || !t) return;
+        if (t.poseAt === feed.seenPose) { if (now - t.poseAt > 400) lastParts = []; return; }
+        feed.seenPose = t.poseAt;
+        const pose = now - t.poseAt < 400 ? t.pose : null;
+        lastParts = pose ? partsFromPose(pose, t.poseAt) : [];
+        if (lastParts.length) engine.contact(lastParts, engine.snapshotClock() - (now - t.poseAt) - cfg.latencyMs);
+    }
+
+    // ---------- vòng vẽ ----------
+    let lastSnap = null, chipText = '';
+    function loop() {
+        requestAnimationFrame(loop);
+        const now = performance.now();
+        const dt = Math.min(50, now - lastT); lastT = now;
+        if (disabled || !window.HpCamFrame.active) return;
+        tick(now, dt);
+        draw(now);
+    }
+    function tick(now, dt) {
+        pumpTracking(now);
+        if (demo && botThink(now, dt)) {
+            lastParts = partsFromPose(bot.pose, now);
+            engine.contact(lastParts, engine.snapshotClock() - cfg.latencyMs * 0.3);
+        }
+        if (mouseMode && mouse && now - mouse.t < 120) {
+            const mp = { kind: 'thigh', side: mouse.x < W / 2 ? 'L' : 'R', ax: mouse.x, ay: mouse.y, bx: mouse.x, by: mouse.y + 1, r: 60, up: mouse.up, sw: 300 };
+            engine.contact([mp], NaN);
+        }
+        const seen = demo || mouseMode || now - seenAt < 1200;
+        engine.setReady(seen);
+        engine.step(dt);
+        const s = engine.snapshot(); lastSnap = s;
+        handleEvents(s.events);
+        updateFace(now);
+        applyHud(s);
+        // nhắc đứng vào khung / chỉ thấy đầu
+        if (!isReview && !mouseMode && !demo && feed.on) {
+            const lost = now - (feed.tracker && feed.tracker.shared ? feed.tracker.lastFrameAt : feed.lastAt) > 4000;
+            if (lost) showAlert(feedProblem(), true);
+            else if (s.waiting || (s.queue && !seen)) showAlert([hpT('🧍 Đứng lùi lại cho camera thấy'), hpT('ĐẦU + HÔNG + ĐẦU GỐI - thấy người là cầu tung lên')], false);
+            else showAlert(null);
+        } else showAlert(null);
+        const headOnly = cfg.parts === 'both' && s.balls.length && now - seenAt < 1200 && now - kneesAt > 2500;
+        const chip = headOnly ? hpT('🙆 Camera chưa thấy đầu gối - đỡ bằng ĐẦU') : '';
+        if (chip !== chipText) { chipText = chip; $('dc-chip').innerHTML = FEED.icoLabel(chip); $('dc-chip').classList.toggle('on', !!chip); }
+        return s;
+    }
+    function draw(now) {
+        const s = lastSnap; if (!s) return;
+        ctx.clearRect(0, 0, W, H);
+        drawZones(s);
+        if (demo) drawBot();
+        drawGuide(s, now);
+        for (const b of s.balls) drawTrail(b, now);
+        for (const id of [...trails.keys()]) if (!s.balls.some(b => b.id === id)) trails.delete(id);
+        for (const b of s.balls) drawCau(b, now);
+        drawEffects(now, s);
+        if (mouseMode && mouse && now - mouse.t < 1500) {
+            ctx.save(); ctx.globalAlpha = 0.6; ctx.strokeStyle = mouse.up > 220 ? '#ffd54a' : '#fff'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 60, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+        }
+    }
+    engine.snapshotClock = () => (lastSnap ? lastSnap.clock : 0);
+    window.__dc = {
+        engine, tracker: null, get cfg() { return cfg; }, get parts() { return lastParts; }, get bot() { return bot; },
+        // trang ẩn (rAF đứng) vẫn chạy được: __dc.step(ms) bước tay
+        step(ms) { const now = performance.now(); const s = tick(now, ms); draw(now); return s; },
+        setDemo(v) { demo = !!v; if (!demo) bot.pose = null; syncFeed(); },
+        // soi / tự kiểm né mặt: đặt cứng vùng mặt (null = theo camera)
+        get face() { return face; }, testFace(f) { testFaceBox = f; },
+        // soi âm thanh: số file đã giải mã + phát thử một nhóm
+        get sfxLoaded() { return Object.keys(audio.buf); }, sfx: (k, ...a) => sfx[k](...a)
+    };
+    requestAnimationFrame(loop);
+
+    // ---------- cấu hình ----------
+    function applyConfig(c) {
+        cfg = Game.normalizeConfig(c);
+        engine.setConfig(cfg);
+        // khung xem trước / tab thử bằng chuột luôn chạy, kể cả khi Đá Cầu chưa được chọn chơi trên OBS
+        setDisabled(cfg.enabled === false && !mouseMode);
+        if (!cfg.sound.enabled && audio.ctx) audio.ctx.suspend().catch(() => {});
+    }
+    function setDisabled(off) {
+        if (off === disabled) return;
+        disabled = off;
+        $('dc-stage').style.display = off ? 'none' : '';
+        if (off) { engine.clear(); ctx.clearRect(0, 0, W, H); showAlert(null); }
+        if (audio.ctx) { if (off) audio.ctx.suspend().catch(() => {}); else audioResume(); }
+        syncFeed();
+    }
+    window.HpCamFrame.onChange((on) => {
+        $('dc-stage').style.display = on && !disabled ? '' : 'none';
+        if (!on) showAlert(null);
+        lastT = performance.now();
+    });
+
+    // ---------- socket ----------
+    const socket = io({ query: { role: 'aux' }, transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+    window.__dc.socket = socket;
+    let offlineTimer = 0;
+    socket.on('disconnect', () => { clearTimeout(offlineTimer); offlineTimer = setTimeout(() => window.HpCamFrame.setOnline(false), 1500); });
+    socket.on('connect', () => {
+        clearTimeout(offlineTimer); window.HpCamFrame.setOnline(true);
+        socket.emit('subscribe', isReview ? 'preview' : 'overlay');
+        if (feed.on) socket.emit('touchplay:feed', feedReg());
+    });
+    socket.on('dacau:gift', (d) => {
+        if (disabled || !d) return;
+        audioInit(); audioResume();
+        const type = Game.TYPE_IDS.includes(d.type) ? d.type : 'normal';
+        const n = engine.enqueue(type, d.count || 1, { nickname: d.nickname || '', avatar: d.profilePicture || '', fxIds: d.fxIds });
+        if (!n) return;
+        const T = Game.BALL_TYPES[type];
+        sfx.gift();
+        notice(BALL_ICON[type] || [T.icon], `tung ${n > 1 ? hpT('{n} quả ', { n }) : ''}${T.name.split(' (')[0].toLowerCase()}`, d.profilePicture, type === 'normal' ? '' : 'good', d.nickname || '');
+    });
+    // 💥 Server đã bốc hiệu ứng phạt cho quả vừa rơi (hoặc bỏ lượt vì hàng chờ đầy / rổ trống).
+    socket.on('camgames:fx', (d) => {
+        if (disabled || !d || d.game !== 'dacau') return;
+        const ok = (d.effects || []).filter(e => e.ok).map(e => e.name);
+        if (d.empty) return;   // rổ trống = không phạt, khỏi báo
+        notice('💥', hpT('Phạt: {v}', { v: ok.length ? ok.join(' + ') : d.dropped ? hpT('hiệu ứng đang chạy - bỏ lượt này') : hpT('chưa bật được hiệu ứng') }), d.profilePicture, 'bad');
+    });
+    socket.on('gameCmd', (d) => {
+        if (!d || d.gameId !== 'dacau') return;
+        if (d.cmd === 'clear' || d.cmd === 'stop') engine.clear();
+        else if (d.cmd === 'reset') engine.reset();
+    });
+    socket.on('gameConfig', (d) => { if (d && d.gameId === 'dacau') applyConfig(d.config); });
+    socket.on('gameDisabled', (d) => { if (d && d.gameId === 'dacau' && !mouseMode) setDisabled(true); });
+    socket.on('gameEnabled', (d) => { if (d && d.gameId === 'dacau') setDisabled(false); });
+    socket.on('touchplay:frame', onFrame);
+    socket.on('touchplay:layout', (l) => { feed.layout = l; });
+    socket.on('touchplay:feedStatus', (st) => { feed.status = st; });
+    socket.on('overlay:reload', (d) => { if (!isReview && (!d || !d.gameId || d.gameId === 'dacau')) location.reload(); });
+
+    if (!isReview) {
+        setInterval(() => {
+            if (!feed.on || !socket.connected || !feed.tracker) return;
+            const t = feed.tracker, now = performance.now();
+            socket.emit('touchplay:overlayStat', { fps: t.fps, aiMs: t.aiMs, hands: 0, pose: now - t.poseAt < 500 ? 1 : 0, knees: now - kneesAt < 1500 ? 1 : 0, delegate: t.delegate, phase: 'play' });
+        }, 2000);
+    }
+
+    // ---------- khởi động ----------
+    (async () => {
+        try {
+            const r = await fetch('/api/games/dacau/config', { cache: 'no-store' });
+            if (r.ok) applyConfig(await r.json()); else applyConfig(null);
+        } catch (e) { applyConfig(null); }
+        syncFeed();
+        // khung thử tự chơi: có sẵn một quả cho thấy cách chơi
+        if (demo && qs.get('autoball') !== '0') engine.enqueue('normal', 1, { nickname: 'Demo' });
+    })();
+})();
+</script>
+</body>
+</html>

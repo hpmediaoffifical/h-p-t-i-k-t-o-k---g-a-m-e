@@ -22,7 +22,7 @@ import { createCamShared } from '/lib/hp-cam-shared.mjs';
 
 const qs = new URLSearchParams(location.search);
 const token = qs.get('token') || '';
-const SLOT_Z = { hands: 1, head: 2 };
+const SLOT_Z = { body: 0, hands: 1, kick: 1, head: 2 };   // body = người tách nền: nằm dưới mọi game
 const frames = new Map();          // id game → iframe đang chạy
 const socket = io({ transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
 // Bộ nhận diện chung — tạo TRƯỚC khi nạp game con để game con tìm thấy (sharedTracker trong hp-tracking.mjs).
@@ -40,6 +40,15 @@ function activesOf(cfg) {
     return list.map(id => (window.HpCamGames || []).find(g => g.id === id)).filter(Boolean);
 }
 
+// 🔇 Báo khung game có đang ĐƯỢC CHƠI không (cam-frame-guard.js trong game con): khung sắp gỡ / mất kết nối app
+// → active:false → game con khoá hết âm thanh và ngưng chạy (không vo ve / sinh vật mãi trong OBS).
+let offline = false;
+function tellFrame(f, active) {
+    if (f.dataset.active === String(active)) return;
+    f.dataset.active = String(active);
+    try { f.contentWindow && f.contentWindow.postMessage({ type: 'hp-cam-frame', active }, location.origin); } catch (_) {}
+}
+
 // Thêm/bớt iframe theo danh sách; game vẫn đang chơi KHÔNG nạp lại (giữ muỗi/điểm giữa live).
 function show(cfg) {
     const want = cfg && cfg.enabled !== false ? activesOf(cfg) : [];
@@ -47,6 +56,7 @@ function show(cfg) {
         if (want.some(g => g.id === id)) continue;
         frames.delete(id);
         shared.drop(id);                   // game rời: thôi nhận diện phần của nó ngay, khỏi đợi iframe gỡ
+        tellFrame(f, false);               // im ngay, không đợi 350 ms gỡ khung
         f.classList.add('out');
         setTimeout(() => f.remove(), 350);
     }
@@ -54,14 +64,15 @@ function show(cfg) {
         if (frames.has(game.id)) continue;
         const f = document.createElement('iframe');
         f.allow = 'autoplay'; f.title = game.name; f.className = 'out'; f.dataset.id = game.id;
-        f.style.zIndex = SLOT_Z[game.slot] || 1;
-        f.onload = () => f.classList.remove('out');
+        f.style.zIndex = SLOT_Z[game.slot] ?? 1;   // ?? chứ không ||: body = 0 phải giữ 0
+        f.onload = () => { f.classList.remove('out'); f.dataset.active = ''; tellFrame(f, !offline); };
         f.src = childUrl(game);
         document.body.appendChild(f);
         frames.set(game.id, f);
     }
     // Lớp trên (game bám đầu) phủ kín màn: có game tay bên dưới thì cho chuột xuyên qua — kẻo tay/vợt/chém
     // bằng chuột của game dưới (thử trong cửa sổ Tương tác của OBS) không nhận được gì.
+    for (const f of frames.values()) if (f.dataset.active !== undefined && f.contentWindow) tellFrame(f, !offline);
     const hasHands = want.some(g => g.slot === 'hands');
     for (const [id, f] of frames) {
         const g = want.find(x => x.id === id);
@@ -73,7 +84,12 @@ function load() {
     fetch('/api/games/camgames/config', { cache: 'no-store' }).then(r => r.json()).then(show).catch(() => {});
 }
 
-socket.on('connect', () => { socket.emit('subscribe', 'overlay'); load(); });
+let offlineTimer = 0;
+socket.on('connect', () => { clearTimeout(offlineTimer); offline = false; socket.emit('subscribe', 'overlay'); load(); });
+socket.on('disconnect', () => {
+    clearTimeout(offlineTimer);
+    offlineTimer = setTimeout(() => { offline = true; for (const f of frames.values()) tellFrame(f, false); }, 1500);
+});
 socket.on('gameConfig', d => { if (d && d.gameId === 'camgames') show(d.config); });
 socket.on('gameDisabled', d => { if (d && d.gameId === 'camgames') show({ enabled: false }); });
 socket.on('gameEnabled', d => { if (d && d.gameId === 'camgames') load(); });

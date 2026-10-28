@@ -296,6 +296,8 @@ const PKTIKTOK_EVENT_DEFS = [
 // không chép lại như Nhặt Lá nên panel/overlay/server không lệch nhau. Nạp TRƯỚC GAMES vì defaultConfig gọi ngay.
 const DapMuoi = require('./public/games/dapmuoi/game.js');
 function makeDefaultDapMuoiConfig() { return DapMuoi.defaultConfig(); }
+// 🏸 Đá Cầu — engine thuần UMD (port từ HP LIVE NPC): quà tung cầu, đỡ bằng đầu / đùi qua pose camera.
+const DaCau = require('./public/games/dacau/game.js');
 
 const GAMES = {
     thuytinh: {
@@ -453,6 +455,15 @@ const GAMES = {
         overlayPath: '/overlay/dapmuoi',
         defaultConfig: makeDefaultDapMuoiConfig()
     },
+    // 🏸 ĐÁ CẦU — game camera khe 'kick': quà tung cầu, đỡ bằng đầu/đùi (pose). Game con của Game Camera.
+    dacau: {
+        id: 'dacau',
+        name: 'Đá Cầu',
+        description: 'Quà tung cầu lên, streamer đỡ bằng đầu hoặc đùi trước camera; rơi sàn là mất chuỗi.',
+        icon: '🏸',
+        overlayPath: '/overlay/dacau',
+        defaultConfig: DaCau.defaultConfig()
+    },
     // 🎥 GAME CAMERA — menu mẹ của các game camera (CAM_GAME_IDS). Một link OBS /overlay/camgames nạp
     // các game đang chọn (`actives`: tối đa 1 game tay + 1 game trên đầu, lib/camgames.js); chỉ các game
     // đó bật (camGamesApplyActive) để quà không kích hoạt game đang ẩn. `active` = actives[0] cho bản cũ.
@@ -470,7 +481,7 @@ const GAMES = {
 // Game con của Game Camera — thứ tự = thứ tự thẻ trong menu (public/games/camgames/registry.js).
 // Level Quest không vào CAM_STANDALONE_IDS dù còn link riêng: nó không đọc `enabled` (KPI đếm cả khi đang
 // chọn game khác, link riêng luôn hiện) → bật/tắt cờ đó vô hại, thẻ không cần nút ⏻ Tắt.
-const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'bancung', 'level-quest'];
+const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'bancung', 'level-quest', 'dacau'];
 // Game con có link OBS riêng từ trước khi vào Game Camera (khách cũ dán /overlay/bancung trong scene).
 // Game Camera chỉ bật nó khi streamer CHỌN VÀO và tắt khi chọn sang game khác / tắt Game Camera — không
 // ép tắt lúc khởi động, kẻo khách đang chơi Bắn Cung cập nhật app xong thấy game tự tắt. Thẻ trong Game
@@ -1399,6 +1410,7 @@ const touchplayFeed = new ObsCameraFeed({
         // Bắn Cung chơi riêng có link riêng; đang chọn trong Game Camera thì nằm trong overlay mẹ.
         bancung: (url) => feedUrlIs(url, 'bancung', /\/overlay\/bancung/i) || (camGameInHub('bancung') && feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)),
         dapmuoi: (url) => feedUrlIs(url, 'dapmuoi', /\/overlay\/dapmuoi/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
+        dacau: (url) => feedUrlIs(url, 'dacau', /\/overlay\/dacau/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         // Level Quest chỉ bám đầu khi chơi trong Game Camera (link riêng đứng yên, không cần feed).
         'level-quest': (url) => camGameInHub('level-quest') && feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)
     },
@@ -1416,6 +1428,7 @@ const touchplayFeed = new ObsCameraFeed({
             chemtraicay: ct.enabled !== false && vs.mode !== 'webcam' ? ((vs.mode === 'obs-scene' ? vs.scene : vs.source) || '') : null,
             bancung: bc.enabled !== false && (bcd.bodyTrack === true || camGameInHub('bancung')) ? (bcd.trackSource || '') : null,
             dapmuoi: dm.enabled !== false ? '' : null,     // không có nguồn riêng: dùng nguồn chung Game Camera
+            dacau: G.dacau?.enabled !== false ? '' : null,  // như trên
             'level-quest': camGameInHub('level-quest') ? '' : null   // như trên; chỉ khi đang chọn trong Game Camera
         };
         const on = Object.keys(per).filter(k => per[k] !== null);
@@ -1877,6 +1890,7 @@ if (appConfig.games.chemtraicay) {
 }
 // Đập Muỗi: chuẩn hoá config cũ (khoá thiếu/rác → mặc định, actions/giftRules đúng dạng).
 if (appConfig.games.dapmuoi) appConfig.games.dapmuoi = DapMuoi.normalizeConfig(appConfig.games.dapmuoi);
+if (appConfig.games.dacau) appConfig.games.dacau = DaCau.normalizeConfig(appConfig.games.dacau);
 if (camGamesApplyActive()) saveAppConfig();
 // Bản 906d73c..4c68a00 lỡ để hub ghi enabled=false cho Level Quest → bật lại lúc khởi động. Level Quest không đọc cờ
 // này (chỉ Khởi động nhanh hiển thị) nên luôn để bật là đúng sự thật.
@@ -4496,6 +4510,18 @@ function emitGift(g) {
             source: g.source || 'tiktok'
         });
     } catch (e) { /* non-fatal */ }
+    // 🏸 Đá Cầu — quà gán đích danh (cfg.gifts, so theo id) → tung cầu; combo ×N = N quả (trần 5)
+    try {
+        handleDaCauGift({
+            nickname: g.nickname,
+            profilePicture: g.profilePicture || '',
+            giftId: g.giftId,
+            giftName: enriched.giftName || g.giftName,
+            giftImage: enriched.image,
+            repeatCount: g.repeatCount || 1,
+            source: g.source || 'tiktok'
+        });
+    } catch (e) { /* non-fatal */ }
     // Trồng Cây — quà mọc hoa / bướm avatar / tưới nước / nắng / cắt cây
     try {
         handleTrongCayGift({
@@ -6257,6 +6283,14 @@ app.post('/api/games/:id/cmd', (req, res) => {
 });
 
 // Touch & Play: danh sách nguồn hình trong OBS để lab chọn camera + trạng thái cấp hình.
+// 📡 Trạng thái nhận hình cho chip các trang game camera (2 s/lần) — KHÔNG hỏi OBS như /api/touchplay/obs-sources
+// (GetSceneList + quét Scene mỗi lần chỉ để lấy `status`). Cùng dạng với HP LIVE NPC để panel chép sang chạy nguyên.
+app.get('/api/camgames/feed-status', (req, res) => {
+    let status = {};
+    try { status = touchplayFeed.status(); } catch (e) {}
+    const cam = appConfig.games?.camgames || {};
+    res.json({ ok: true, obsConnected: status.obsConnected !== false, status, actives: camActives(), source: String(cam.source || '') });
+});
 app.get('/api/touchplay/obs-sources', async (req, res) => {
     try {
         const r = await touchplayFeed.listSources();
@@ -9166,6 +9200,40 @@ app.post('/api/dapmuoi/control', (req, res) => {
     const cmd = String(req.body?.cmd || '');
     if (!['start', 'stop', 'reset', 'clear'].includes(cmd)) return res.status(400).json({ error: 'cmd không hợp lệ' });
     io.emit('gameCmd', { gameId: 'dapmuoi', cmd, payload: {}, seq: Date.now() });
+    res.json({ ok: true });
+});
+
+// ====== 🏸 ĐÁ CẦU (port từ HP LIVE NPC) ======
+// Engine public/games/dacau/game.js; quà gán đích danh trong cfg.gifts [{giftId, giftName, ball}] — chỉ so id.
+// Bản này chưa có 💥 Rổ PHẠT (vé hiệu ứng khi cầu rơi) của NPC: fxIds luôn rỗng, overlay chỉ báo rơi.
+app.get('/overlay/dacau', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'public', 'games', 'dacau', 'overlay.html'));
+});
+function daCauCfg() { return DaCau.normalizeConfig(appConfig.games.dacau || DaCau.defaultConfig()); }
+function emitDaCau(type, count, base) {
+    io.to('overlay').to('preview').emit('dacau:gift', { type, count, fxIds: [], nickname: base.nickname || '', profilePicture: base.profilePicture || '',
+        giftName: base.giftName || '', image: base.giftImage || '', source: base.source || 'tiktok', ts: Date.now() });
+}
+function handleDaCauGift(base) {
+    const cfg = daCauCfg();
+    if (cfg.enabled === false || !base.giftId) return;
+    if (camGiftYields('dacau', { giftId: base.giftId, giftName: base.giftName })) return;
+    const hit = DaCau.ballsForGift(cfg, base.giftId, base.repeatCount);
+    if (!hit) return;
+    console.log(`[dacau] ${base.nickname || '?'} → tung ${hit.count} cầu ${hit.type} (gift ${base.giftId})`);
+    emitDaCau(hit.type, hit.count, base);
+}
+app.post('/api/dacau/test', (req, res) => {
+    const type = DaCau.TYPE_IDS.includes(req.body?.type) ? req.body.type : 'normal';
+    const count = Math.min(DaCau.MAX_PER_GIFT, Math.max(1, Math.floor(Number(req.body?.count) || 1)));
+    emitDaCau(type, count, { nickname: 'Thử nghiệm', profilePicture: '', giftName: 'Tung thử', giftImage: '', source: 'test' });
+    res.json({ ok: true, type, count });
+});
+app.post('/api/dacau/control', (req, res) => {
+    const cmd = String(req.body?.cmd || '');
+    if (!['clear', 'reset'].includes(cmd)) return res.status(400).json({ error: 'cmd không hợp lệ' });
+    io.emit('gameCmd', { gameId: 'dacau', cmd, payload: {}, seq: Date.now() });
     res.json({ ok: true });
 });
 setTimeout(() => camApplyHotkeys('dapmuoi'), 1500);

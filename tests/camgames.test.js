@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const Cam = require('../lib/camgames');
 
-const IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'bancung', 'level-quest'];
+const IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'bancung', 'level-quest', 'dacau', 'body'];
 
 test('normalizeActives: mỗi khe giữ game bấm sau cùng', () => {
     assert.deepStrictEqual(Cam.normalizeActives(['dapmuoi', 'bancung'], IDS), ['dapmuoi', 'bancung']);
@@ -139,4 +139,19 @@ test('registry.js đánh dấu `hotkeys` khớp HOTKEY_GAMES của lib', () => {
     const list = global.window.HpCamGames;
     delete global.window;
     for (const g of list) assert.strictEqual(!!g.hotkeys, Cam.HOTKEY_GAMES.has(g.id), g.id);
+});
+
+test('khe kick / body: chơi tối đa 4 game cùng lúc, mỗi khe 1 game', () => {
+    assert.deepStrictEqual(Cam.normalizeActives(['dapmuoi', 'bancung', 'dacau', 'body'], IDS), ['dapmuoi', 'bancung', 'dacau', 'body']);
+    // thêm game tay khác → chỉ khe tay đổi, 3 khe còn lại giữ
+    assert.deepStrictEqual(Cam.normalizeActives(['dapmuoi', 'bancung', 'dacau', 'body', 'touchplay'], IDS), ['bancung', 'dacau', 'body', 'touchplay']);
+    assert.strictEqual(Cam.slotOf('dacau'), 'kick');
+    assert.strictEqual(Cam.slotOf('body'), 'body');
+});
+
+test('Đá Cầu: quà đích danh chỉ so theo id (như handler)', () => {
+    const cfgs = { dacau: { gifts: [{ giftId: '5658', giftName: 'Perfume', ball: 'gold' }, { giftName: 'Rose' }] }, dapmuoi: {} };
+    assert.deepStrictEqual(Cam.giftClaims({ giftId: '5658', giftName: 'x' }, cfgs, ['dapmuoi', 'dacau']), ['dacau']);
+    // mục không id bị bỏ (Đá Cầu không so tên) → quà Rose không bị giành khỏi Đập Muỗi
+    assert.deepStrictEqual(Cam.giftClaims({ giftId: '1', giftName: 'Rose' }, cfgs, ['dapmuoi', 'dacau']), []);
 });

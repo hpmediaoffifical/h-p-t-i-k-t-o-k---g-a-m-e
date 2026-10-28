@@ -1,4 +1,4 @@
-// public/lib/hp-cam-shared.mjs — MỘT bộ nhận diện cho mọi game con của 🎥 Game Camera.
+// public/lib/hp-cam-shared.mjs - MỘT bộ nhận diện cho mọi game con của 🎥 Game Camera.
 //
 // Overlay mẹ /overlay/camgames gọi createCamShared({ socket }) → window.__hpCamShared. Game con trong
 // iframe (cùng origin) lấy tracker bằng sharedTracker(gameId) (hp-tracking.mjs) thay vì new HpTracker:
@@ -24,6 +24,8 @@ export function createCamShared({ socket, width = 1080, height = 1920 } = {}) {
         W: width, H: height, tracker,
         timeOrigin: performance.timeOrigin,
         lastFrameAt: 0,
+        // bố cục OBS mới nhất ('touchplay:layout') - game con đọc để biết 👁 vùng sân khấu còn thấy (createCamView - obs-scene-map.mjs)
+        get layout() { return layout; },
         ready: tracker.startExternal().catch(e => console.warn('[cam-shared] start:', e?.message || e)),
         // Bản tracker con báo nhu cầu (null = rời). Gộp OR; có ít nhất một bản thì nhận khung.
         need(key, w) {
@@ -31,7 +33,7 @@ export function createCamShared({ socket, width = 1080, height = 1920 } = {}) {
             else { needs.delete(key); quals.delete(key); }
             refresh();
         },
-        // Chất lượng mỗi bản ('auto' nếu game không đặt) — tracker chạy theo mức cao nhất đang mở.
+        // Chất lượng mỗi bản ('auto' nếu game không đặt) - tracker chạy theo mức cao nhất đang mở.
         quality(key, q) {
             if (!needs.has(key)) return;
             quals.set(key, q in Q_RANK ? q : 'auto');
@@ -65,7 +67,7 @@ export function createCamShared({ socket, width = 1080, height = 1920 } = {}) {
     socket.on('connect', () => { if (on) socket.emit(FEED_EVT, 'camgames'); });   // app khởi động lại → đăng ký lại
     socket.on('touchplay:frame', async f => {
         if (!on || busy || !f?.img) return;
-        busy = true;                  // đang giải mã thì bỏ khung mới — luôn dùng hình mới nhất
+        busy = true;                  // đang giải mã thì bỏ khung mới - luôn dùng hình mới nhất
         try {
             const bmp = await createImageBitmap(new Blob([f.img], { type: 'image/jpeg' }));
             tracker.pushFrame(bmp, cameraToStage(layout, bmp.width, bmp.height, width, height, 'camgames'));

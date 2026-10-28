@@ -1,0 +1,5 @@
+Âm thanh 🏸 Đá Cầu - trích từ các gói của Kenney (www.kenney.nl), giấy phép Creative Commons CC0 (miễn phí, không bắt buộc ghi nguồn).
+  Impact Sounds    : kick-crisp-* = impactGeneric_light_000..004 · kick-body-* = impactSoft_medium_001..003
+                     head-1/2 = impactSoft_heavy_000/003 · floor-1/2 = impactPlank_medium_001/002
+  Interface Sounds : launch = maximize_003 · gift = confirmation_002
+  Music Jingles    : milestone = jingles_NES12 · record = jingles_STEEL02 · fail = jingles_SAX01

@@ -6464,6 +6464,7 @@ img.nd-gift-icon { background: #11131a; border-radius: 4px; }
 }
 .nd-gp-head { display: flex; justify-content: space-between; align-items: center; }
 .nd-gp-title { font-weight: 700; color: #ffae8c; }
+.hp-coin-ico { width: 1.15em; height: 1.15em; display: inline-block; vertical-align: -.22em; margin-left: 2px; object-fit: contain; }
 .nd-gp-search {
     background: #11131a; color: #fff; border: 1px solid #2a2e3a;
     border-radius: 8px; padding: 8px 12px; font-size: 14px;
@@ -9333,6 +9334,7 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .cg-game.on { border-color: #25f4ee; box-shadow: 0 0 0 1px rgba(37,244,238,.25), 0 6px 24px rgba(37,244,238,.08); background: linear-gradient(160deg, #10202a 0%, #0f1219 70%); }
 .cg-game-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 15px; color: #e6e8ee; }
 .cg-ico { font-size: 24px; line-height: 1; }
+.cg-ico .cg-ico-svg { width: 1.15em; height: 1.15em; display: block; }
 .cg-badge { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #25f4ee; }
 .cg-badge.solo { color: #ffd54a; }
 .cg-badge.keys { color: #c9a7ff; }

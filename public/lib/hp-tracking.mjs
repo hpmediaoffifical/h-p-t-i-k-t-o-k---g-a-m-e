@@ -1,13 +1,13 @@
-// public/lib/hp-tracking.mjs — lớp nhận diện dùng chung cho game webcam.
+// overlays/lib/hp-tracking.mjs (port nguyên từ HP Action LIVE public/lib/hp-tracking.mjs; phục vụ tại /lib/*) - lớp nhận diện dùng chung cho game webcam.
 //
 // Chạy MediaPipe Tasks (tự host ở /lib/mediapipe, không cần mạng) và trả về tay / miệng /
-// cơ thể theo TOẠ ĐỘ SÂN KHẤU (vd 1080×1920) — game chỉ việc đọc.
+// cơ thể theo TOẠ ĐỘ SÂN KHẤU (vd 1080×1920) - game chỉ việc đọc.
 //
 // Hai nguồn hình:
 //   1. OBS (mặc định): server chụp nguồn camera trong scene OBS → pushFrame(bitmap, M).
 //      M là ma trận ảnh → sân khấu tính từ transform scene item (obs-scene-map.mjs).
 //      Overlay trong suốt, camera thật vẫn do OBS hiển thị bên dưới.
-//   2. Webcam trực tiếp (dự phòng, thử trong app): startWebcam() — tự mở getUserMedia.
+//   2. Webcam trực tiếp (dự phòng, thử trong app): startWebcam() - tự mở getUserMedia.
 //
 //   trk.want({ face:true, pose:false })  // model mặt/body chỉ chạy khi game cần
 //   trk.want({ hands:false })            // game không cần tay (Bắn Cung) → không nạp/không chạy model tay
@@ -19,6 +19,9 @@
 //
 // Tay/mặt chạy trên phần ảnh ĐANG HIỆN trên sân khấu (cắt sát → tay to → bắt tốt hơn).
 // Body chạy trên ảnh nguyên khung: dang tay chữ T là cổ tay đã ra ngoài khung dọc.
+
+// 🌐 hpT(): ngôn ngữ của trang (overlays/lib/hp-i18n.js); trang chưa nạp thì giữ tiếng Việt (chỉ thay {biến}). Log console giữ nguyên.
+var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, v) { return String(s).replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, function (m, k) { return v && v[k] != null ? String(v[k]) : m; }); };
 
 import { inv, apply } from './obs-scene-map.mjs';
 
@@ -33,7 +36,13 @@ async function loadVision() {
 }
 
 export class HpTracker {
-    constructor({ width = 1080, height = 1920, video = null, mirror = true, quality = 'auto', onStatus = null } = {}) {
+    // handWorker: model TAY chạy trong Web Worker (/lib/hp-hand-worker.js) thay vì luồng chính - luồng vẽ không bị chặn ~30-200 ms
+    // mỗi lần nhận diện (💗 Bắn Tim của Bộ Tách Người, đo 2026-10-24). Cắt ảnh + _readHands giữ nguyên → kết quả như bản luồng chính.
+    // handDelegate: 'CPU' | 'GPU' cho model tay trong worker (mặc định theo máy như các model khác).
+    constructor({ width = 1080, height = 1920, video = null, mirror = true, quality = 'auto', onStatus = null, handWorker = false, handDelegate = '' } = {}) {
+        this.handWorker = !!handWorker && typeof Worker === 'function';
+        this.handDelegate = handDelegate === 'CPU' || handDelegate === 'GPU' ? handDelegate : '';
+        this._hw = null; this._hwPend = null; this._hwSeq = 0; this._hwMs = 0;
         this.W = width; this.H = height;
         this.video = video || Object.assign(document.createElement('video'), { muted: true, playsInline: true });
         this.video.muted = true; this.video.playsInline = true;
@@ -41,7 +50,7 @@ export class HpTracker {
         this.onStatus = onStatus || (() => {});
         this.mode = '';                 // '' | 'webcam' | 'external'
         this.stream = null;
-        this.ext = null;                // { bitmap, M, seq } — khung mới nhất từ OBS
+        this.ext = null;                // { bitmap, M, seq } - khung mới nhất từ OBS
         this._doneSeq = -1;
         this.models = { hand: null, face: null, pose: null };
         this.loading = {}; this.failed = {};
@@ -60,6 +69,11 @@ export class HpTracker {
     }
 
     status(text, level = 'info') { this.statusText = text; this.onStatus(text, level); }
+    // "Đang nhận diện (GPU)" - _step so sánh mỗi khung nên đệm theo delegate, không dịch lại 30 lần/giây.
+    _detectingText() {
+        if (this._detectingFor !== this.delegate) { this._detectingFor = this.delegate; this._detectingStr = hpT('Đang nhận diện ({delegate})', { delegate: this.delegate }); }
+        return this._detectingStr;
+    }
     get active() { return this.running; }
 
     async listCameras() {
@@ -71,9 +85,9 @@ export class HpTracker {
     async startExternal() {
         this.stop();
         this.mode = 'external';
-        if (this.wanted.hands) { this.status('Đang nạp mô hình nhận diện tay…'); await this._ensure('hand'); }
+        if (this.wanted.hands) { this.status(hpT('Đang nạp mô hình nhận diện tay…')); await this._ensure('hand'); }
         this.running = true;
-        this.status('Chờ hình camera từ OBS…');
+        this.status(hpT('Chờ hình camera từ OBS…'));
         this._loop();
     }
     // bitmap: ImageBitmap ảnh chụp nguồn camera; M: ma trận pixel ảnh → sân khấu.
@@ -86,10 +100,10 @@ export class HpTracker {
 
     // ---------- nguồn 2: webcam trực tiếp ----------
     async startWebcam(deviceId = '') {
-        if (!navigator.mediaDevices?.getUserMedia) throw new Error('Trang này không được phép mở camera (cần localhost/https).');
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error(hpT('Trang này không được phép mở camera (cần localhost/https).'));
         this.stop();
         this.mode = 'webcam';
-        this.status('Đang mở camera…');
+        this.status(hpT('Đang mở camera…'));
         const video = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } };
         if (deviceId) video.deviceId = { exact: deviceId };
         try {
@@ -100,11 +114,11 @@ export class HpTracker {
         }
         this.video.srcObject = this.stream;
         await this.video.play().catch(() => {});
-        this.stream.getVideoTracks()[0]?.addEventListener('ended', () => { this.hands = []; this.face = null; this.pose = null; this.status('Camera đã ngắt — bấm bật lại.', 'error'); });
-        this.status('Đang nạp mô hình nhận diện tay…');
+        this.stream.getVideoTracks()[0]?.addEventListener('ended', () => { this.hands = []; this.face = null; this.pose = null; this.status(hpT('Camera đã ngắt - bấm bật lại.'), 'error'); });
+        this.status(hpT('Đang nạp mô hình nhận diện tay…'));
         await this._ensure('hand');
         this.running = true;
-        this.status('Đang nhận diện (' + this.delegate + ')', 'ok');
+        this.status(this._detectingText(), 'ok');
         this._loop();
         return this.stream.getVideoTracks()[0]?.getSettings()?.deviceId || '';
     }
@@ -116,6 +130,30 @@ export class HpTracker {
         if (this.video) this.video.srcObject = null;
         this.ext?.bitmap?.close?.(); this.ext = null;
         this.hands = []; this.face = null; this.pose = null; this.seg = null; this._tracks.clear();
+        // worker tay: gỡ hẳn (trả GPU / bộ nhớ); lần chạy sau tạo lại
+        if (this._hw) { try { this._hw.terminate(); } catch (_) {} this._hw = null; this._hwPend = null; this.models.hand = null; this.loading.hand = null; }
+    }
+
+    // Model tay trong worker: chờ 'ready' rồi trả "model" giả { worker:true } - _step gửi ảnh cắt, kết quả về qua _readHands như cũ.
+    _createHandWorker() {
+        const w = new Worker('/lib/hp-hand-worker.js');
+        this._hw = w;
+        return new Promise((resolve, reject) => {
+            w.onmessage = e => {
+                const d = e.data || {};
+                if (d.type === 'ready') { this.delegate = d.delegate || this.delegate; resolve({ worker: true, close: () => { try { w.terminate(); } catch (_) {} } }); return; }
+                if (d.type === 'error') { if (this._hw === w) this._hw = null; try { w.terminate(); } catch (_) {} reject(new Error(d.error || 'hand worker')); return; }
+                if (d.type === 'hands') {
+                    const p = this._hwPend;
+                    if (!p || p.id !== d.id || this._hw !== w) return;
+                    this._hwPend = null;
+                    this._hwMs = this._hwMs ? this._hwMs * 0.85 + d.ms * 0.15 : d.ms;
+                    if (this.running && this.wanted.hands) this._readHands(d, performance.now(), p.to);
+                }
+            };
+            w.onerror = e => { if (this._hw === w) { this._hw = null; this._hwPend = null; this.models.hand = null; this.loading.hand = null; } reject(new Error(e.message || 'hand worker')); };
+            w.postMessage({ type: 'load', delegate: this.handDelegate || this.delegate });
+        });
     }
 
     want(opts) {
@@ -130,6 +168,7 @@ export class HpTracker {
     }
 
     async _create(kind) {
+        if (kind === 'hand' && this.handWorker) return this._createHandWorker();
         const vision = await loadVision();
         const fileset = { wasmLoaderPath: BASE + '/wasm/vision_wasm_internal.js', wasmBinaryPath: BASE + '/wasm/vision_wasm_internal.wasm' };
         const spec = {
@@ -155,7 +194,7 @@ export class HpTracker {
                 if (kind === 'pose' && this.wanted.segment && !this._poseSeg) { try { m.close?.(); } catch (_) {} this.loading.pose = null; return this._ensure('pose'); }
                 this.models[kind] = m; return m;
             })
-                .catch(e => { this.loading[kind] = null; if (kind !== 'hand') this.failed[kind] = true; else this._handFailAt = performance.now(); this.status('Không nạp được mô hình ' + kind + ': ' + (e?.message || e), 'error'); throw e; });
+                .catch(e => { this.loading[kind] = null; if (kind !== 'hand') this.failed[kind] = true; else this._handFailAt = performance.now(); this.status(hpT('Không nạp được mô hình {kind}: {error}', { kind, error: e?.message || e }), 'error'); throw e; });
         }
         return this.loading[kind];
     }
@@ -167,7 +206,7 @@ export class HpTracker {
         let worked = false;
         try { worked = this._step(t0); } catch (e) { console.warn('[hp-tracking] step lỗi:', e); }
         const spent = performance.now() - t0;
-        if (worked) this.aiMs = this.aiMs * 0.85 + spent * 0.15;
+        if (worked) this.aiMs = this.handWorker && this.models.hand?.worker ? this._hwMs + spent : this.aiMs * 0.85 + spent * 0.15;
         // Nguồn OBS: chưa có khung mới thì hỏi lại sớm thay vì chờ trọn nhịp.
         this.timer = setTimeout(() => this._loop(), worked ? Math.max(4, interval - spent) : 8);
     }
@@ -192,11 +231,16 @@ export class HpTracker {
     _step(now) {
         const src = this._source();
         if (!src) return false;
-        if (this.mode === 'external' && this.statusText !== 'Đang nhận diện (' + this.delegate + ')') this.status('Đang nhận diện (' + this.delegate + ')', 'ok');
+        if (this.mode === 'external') { const ok = this._detectingText(); if (this.statusText !== ok) this.status(ok, 'ok'); }
         const ts = Math.max(this.lastTs + 1, Math.round(now));
         this.lastTs = ts;
         this.tick++;
         const { img, w, h, M } = src;
+        // worker tay đang tính khung trước (chỉ cần tay) → bỏ khung này, khung mới nhất sẽ được gửi khi worker rảnh. Worker im > 3 s
+        // (treo / chết) → thôi chờ, gửi lại.
+        const hwOnly = this.handWorker && this.models.hand?.worker && !this.wanted.face && !this.wanted.pose;
+        if (this._hwPend && now - this._hwPend.at > 3000) this._hwPend = null;
+        if (hwOnly && this._hwPend) return false;
         const Minv = inv(M);
 
         // Vùng ảnh đang hiện trên sân khấu (ngược 4 góc sân khấu về ảnh) → cắt cho tay/mặt.
@@ -215,7 +259,16 @@ export class HpTracker {
         // điểm chuẩn hoá trên ảnh cắt → sân khấu
         const cropTo = (nx, ny) => apply(M, x0 + nx * cw, y0 + ny * ch);
 
-        if (this.wanted.hands && this.models.hand) this._readHands(this.models.hand.detectForVideo(this.crop, ts), now, cropTo);
+        if (this.wanted.hands && this.models.hand?.worker) {
+            // ảnh cắt → worker (createImageBitmap chụp canvas NGAY lúc gọi); kết quả về _readHands với đúng phép đổi toạ độ của khung này
+            if (!this._hwPend && this._hw) {
+                const pend = this._hwPend = { id: ++this._hwSeq, to: cropTo, at: now }, hw = this._hw;
+                createImageBitmap(this.crop).then(bmp => {
+                    if (this._hw !== hw || this._hwPend !== pend) { bmp.close(); return; }
+                    hw.postMessage({ type: 'hand', id: pend.id, bmp, ts }, [bmp]);
+                }).catch(() => { if (this._hwPend === pend) this._hwPend = null; });
+            }
+        } else if (this.wanted.hands && this.models.hand) this._readHands(this.models.hand.detectForVideo(this.crop, ts), now, cropTo);
         else if (!this.wanted.hands) this.hands = [];
 
         // Mặt và body chạy xen kẽ để không nhân đôi tải.
@@ -232,7 +285,7 @@ export class HpTracker {
                 this._readPose(r, now, (nx, ny) => apply(M, nx * w, ny * h));
                 // Model body tạo kèm mặt nạ (Bắn Cung từng mở) nhưng giờ không game nào cần → khỏi chép mặt nạ GPU→CPU.
                 if (this.wanted.segment) this._readSeg(r, now, M, w, h); else this.seg = null;
-            } finally { r?.close?.(); }     // mặt nạ nằm trong bộ nhớ WASM/GPU — không đóng là rò
+            } finally { r?.close?.(); }     // mặt nạ nằm trong bộ nhớ WASM/GPU - không đóng là rò
         } else if (!this.wanted.pose) this.pose = null;
 
         const dt = this._lastStep ? now - this._lastStep : 0;
@@ -245,18 +298,28 @@ export class HpTracker {
         const seen = new Set(), out = [];
         const list = r?.landmarks || [];
         for (let i = 0; i < list.length; i++) {
-            const id = r.handedness?.[i]?.[0]?.categoryName || ('h' + i);
-            if (seen.has(id)) continue;
-            seen.add(id);
+            let id = r.handedness?.[i]?.[0]?.categoryName || ('h' + i);
             const raw = list[i].map(p => to(p.x, p.y));
+            // 2 tay bị gán CÙNG nhãn (hay gặp khi 2 tay chụm lại - 🫶 tim 2 tay của Bộ Tách Người): cổ tay cách xa = tay thứ hai thật
+            // → giữ với mã riêng; cổ tay gần nhau = model đếm lặp một tay → bỏ.
+            if (seen.has(id)) {
+                const first = out.find(h => h.id === id);
+                if (first && Math.hypot(first.pts[0].x - raw[0].x, first.pts[0].y - raw[0].y) < first.size * 0.5) continue;
+                id += '#2';
+                if (seen.has(id)) continue;
+            }
+            seen.add(id);
             let tr = this._tracks.get(id);
+            // Nhãn trái / phải đổi chỗ giữa 2 tay (hay gặp khi 2 tay gần nhau) hoặc vết cũ từ lúc nghỉ tính: cổ tay nhảy > 1 cỡ tay
+            // = tay KHÁC → làm lại vết, không trộn điểm 2 tay (trộn là ngón cái 2 tay lệch nhau cả cỡ tay - đo 2026-10-23).
+            if (tr && Math.hypot(tr[0].x - raw[0].x, tr[0].y - raw[0].y) > (Math.hypot(raw[0].x - raw[9].x, raw[0].y - raw[9].y) || 1)) tr = null;
             if (!tr) { tr = raw.map(p => ({ ...p })); this._tracks.set(id, tr); }
             // EMA nhẹ: khử rung mà tay vẫn "dính" ngón, không trễ như lọc nặng.
             for (let j = 0; j < 21; j++) { tr[j].x += (raw[j].x - tr[j].x) * 0.6; tr[j].y += (raw[j].y - tr[j].y) * 0.6; }
             const size = Math.hypot(tr[0].x - tr[9].x, tr[0].y - tr[9].y) || 1;
             const pinchD = Math.hypot(tr[4].x - tr[8].x, tr[4].y - tr[8].y);
             const prev = this.hands.find(h => h.id === id);
-            // Trễ (hysteresis): chụm < 0.35 cỡ bàn tay mới bắt, > 0.55 mới thả — khỏi rơi đồ giữa chừng.
+            // Trễ (hysteresis): chụm < 0.35 cỡ bàn tay mới bắt, > 0.55 mới thả - khỏi rơi đồ giữa chừng.
             const pinching = prev?.pinching ? pinchD < size * 0.55 : pinchD < size * 0.35;
             const palm = [0, 5, 9, 13, 17];
             out.push({
@@ -276,10 +339,21 @@ export class HpTracker {
         const P = i => to(lm[i].x, lm[i].y);
         const up = P(13), lo = P(14), l = P(61), rr = P(291);
         const width = Math.hypot(l.x - rr.x, l.y - rr.y);
-        const jaw = r.faceBlendshapes?.[0]?.categories?.find(c => c.categoryName === 'jawOpen')?.score;
+        const cats = r.faceBlendshapes?.[0]?.categories;
+        const jaw = cats?.find(c => c.categoryName === 'jawOpen')?.score;
         // Có blendshape thì tin jawOpen; không thì đo khe môi so với bề rộng miệng.
         const open = Number.isFinite(jaw) ? jaw : Math.min(1, Math.hypot(up.x - lo.x, up.y - lo.y) / Math.max(1, width) * 2);
-        this.face = { mouth: { x: (up.x + lo.x) / 2, y: (up.y + lo.y) / 2 }, open, width };
+        // 👁 2 mắt + mũi + cằm + má (😭 Khóc Lóc của Bộ Tách Người). R = mắt PHẢI của người (bên trái ảnh không lật), L = mắt trái.
+        // Chỉ số FaceLandmarker 478 điểm: mắt phải 33 khoé ngoài · 133 khoé trong · 159 mí trên · 145 mí dưới; mắt trái 263 · 362 · 386 · 374;
+        // 1 chóp mũi · 152 cằm · 10 trán · 50 / 280 gò má · 61 / 291 khoé miệng. Góc nghiêng đầu roll = trục 2 khoé ngoài (radian).
+        const eye = (o, i, u, d) => { const outer = P(o), inner = P(i), upper = P(u), lower = P(d); const w = Math.hypot(outer.x - inner.x, outer.y - inner.y);
+            return { outer, inner, upper, lower, c: { x: (outer.x + inner.x) / 2, y: (upper.y + lower.y) / 2 }, w, open: Math.hypot(upper.x - lower.x, upper.y - lower.y) / Math.max(1, w) }; };
+        const R = eye(33, 133, 159, 145), L = eye(263, 362, 386, 374);
+        const bs = {};
+        if (cats) for (const c of cats) if (/^(eyeBlink|mouthFrown|mouthSmile|browDown|browInnerUp|mouthPucker)/.test(c.categoryName)) bs[c.categoryName] = c.score;
+        this.face = { mouth: { x: (up.x + lo.x) / 2, y: (up.y + lo.y) / 2 }, open, width, mouthL: l, mouthR: rr,
+            eyes: { L, R }, nose: P(1), chin: P(152), brow: P(10), cheekL: P(280), cheekR: P(50),
+            roll: Math.atan2(L.outer.y - R.outer.y, L.outer.x - R.outer.x), bs };
         this.faceAt = now;
     }
 
@@ -389,7 +463,11 @@ export class HpSharedTracker {
     }
     get face() {
         if (!this.running || !this.wanted.face) return null;
-        return this._map('face', this.t.face, (f, x) => ({ ...f, mouth: this._p(f.mouth, x), width: f.width * x.k }));
+        // Mọi điểm (miệng, 2 mắt, mũi, cằm, má…) đổi sang sân khấu game con; bề rộng / cỡ mắt nhân hệ số.
+        const eye = (e, x) => e && { ...e, outer: this._p(e.outer, x), inner: this._p(e.inner, x), upper: this._p(e.upper, x), lower: this._p(e.lower, x), c: this._p(e.c, x), w: e.w * x.k };
+        return this._map('face', this.t.face, (f, x) => ({ ...f, mouth: this._p(f.mouth, x), width: f.width * x.k,
+            mouthL: this._p(f.mouthL, x), mouthR: this._p(f.mouthR, x), nose: this._p(f.nose, x), chin: this._p(f.chin, x), brow: this._p(f.brow, x),
+            cheekL: this._p(f.cheekL, x), cheekR: this._p(f.cheekR, x), eyes: f.eyes && { L: eye(f.eyes.L, x), R: eye(f.eyes.R, x) } }));
     }
     get pose() {
         if (!this.running || !this.wanted.pose) return null;
@@ -408,13 +486,13 @@ export class HpSharedTracker {
         this.host.quality(this.key, this._quality);
         await this.host.ready;
     }
-    async startWebcam() { throw new Error('Trong 🎥 Game Camera dùng camera trong OBS.'); }
+    async startWebcam() { throw new Error(hpT('Trong 🎥 Game Camera dùng camera trong OBS.')); }
     async listCameras() { return []; }
-    pushFrame(bitmap) { bitmap?.close?.(); }       // mẹ đã nhận khung — game con khỏi giải mã
+    pushFrame(bitmap) { bitmap?.close?.(); }       // mẹ đã nhận khung - game con khỏi giải mã
     stop() { this.running = false; this.mode = ''; this.host.need(this.key, null); }
 }
 
-// WebGL chạy bằng phần mềm (SwiftShader / llvmpipe / Basic Render — OBS tắt "tăng tốc phần cứng",
+// WebGL chạy bằng phần mềm (SwiftShader / llvmpipe / Basic Render - OBS tắt "tăng tốc phần cứng",
 // máy không driver) thì delegate GPU chậm hơn CPU nhiều lần → dùng CPU luôn.
 function softwareGpu() {
     try {
@@ -429,21 +507,21 @@ function softwareGpu() {
 
 function cameraErrorText(e) {
     switch (e?.name) {
-        case 'NotAllowedError': case 'SecurityError': return 'Bị chặn quyền camera.';
+        case 'NotAllowedError': case 'SecurityError': return hpT('Bị chặn quyền camera.');
         case 'NotReadableError': case 'TrackStartError': case 'AbortError':
-            return 'Camera đang bị chương trình khác giữ (OBS, TikTok LIVE Studio…). Dùng nguồn "Camera trong OBS" thay vì webcam trực tiếp.';
-        case 'NotFoundError': case 'DevicesNotFoundError': return 'Không tìm thấy camera nào.';
-        default: return (e?.name ? e.name + ': ' : '') + (e?.message || 'Không mở được camera');
+            return hpT('Camera đang bị chương trình khác giữ (OBS, TikTok LIVE Studio…). Dùng nguồn "Camera trong OBS" thay vì webcam trực tiếp.');
+        case 'NotFoundError': case 'DevicesNotFoundError': return hpT('Không tìm thấy camera nào.');
+        default: return (e?.name ? e.name + ': ' : '') + (e?.message || hpT('Không mở được camera'));
     }
 }
 
-// ---- Tư thế: so GÓC tay thay vì toạ độ — không phụ thuộc người cao/thấp, đứng xa/gần. ----
+// ---- Tư thế: so GÓC tay thay vì toạ độ - không phụ thuộc người cao/thấp, đứng xa/gần. ----
 // 4 góc (độ, hệ màn hình: 0 = sang phải, 90 = xuống, -90 = lên):
 //   [cánh tay trái-màn-hình, cẳng tay trái-màn-hình, cánh tay phải-màn-hình, cẳng tay phải-màn-hình]
 export function poseAngles(pose, minVis = 0.35) {
     if (!pose || pose.length < 17) return null;
     for (const i of [11, 12, 13, 14, 15, 16]) if ((pose[i].v ?? 1) < minVis) return null;
-    // Không tin nhãn trái/phải của model (ảnh có thể đã lật) — xếp theo vai nào nằm bên trái màn hình.
+    // Không tin nhãn trái/phải của model (ảnh có thể đã lật) - xếp theo vai nào nằm bên trái màn hình.
     const leftFirst = pose[11].x <= pose[12].x;
     const A = leftFirst ? [11, 13, 15] : [12, 14, 16];
     const B = leftFirst ? [12, 14, 16] : [11, 13, 15];

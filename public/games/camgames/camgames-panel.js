@@ -84,7 +84,7 @@
             if (locked.has(g.id)) {
                 const paused = lstates[g.id] === 'off';
                 return `<div class="cg-game" data-id="${esc(g.id)}" style="opacity:.55">
-                <div class="cg-game-head"><span class="cg-ico">${g.icon}</span><b>${esc(g.name)}</b>
+                <div class="cg-game-head"><span class="cg-ico">${g.iconSvg || g.icon}</span><b>${esc(g.name)}</b>
                     ${paused ? '<span class="cg-badge" title="HP Media sẽ mở lại sớm">⏸ TẠM BẢO TRÌ</span>'
                         : '<span class="cg-badge" title="Liên hệ HP Media để mở thêm tính năng này cho KEY">🔒 KEY CHƯA MỞ</span>'}</div>
                 <div class="cg-desc">${esc(g.desc)}</div>
@@ -99,7 +99,7 @@
             const replaced = canWith ? cur.filter(x => !withList.includes(x)).map(nameOf).join(', ') : '';
             const withTitle = canWith ? `Chơi cùng lúc với ${partners}${replaced ? ' (thay ' + replaced + ' — cùng khe ' + (g.slot === 'head' ? 'trên đầu' : 'dùng tay') + ')' : ''}` : '';
             return `<div class="cg-game ${on ? 'on' : ''}" data-id="${esc(g.id)}">
-                <div class="cg-game-head"><span class="cg-ico">${g.icon}</span><b>${esc(g.name)}</b>
+                <div class="cg-game-head"><span class="cg-ico">${g.iconSvg || g.icon}</span><b>${esc(g.name)}</b>
                     ${lstates[g.id] === 'admin' ? '<span class="cg-badge" title="Thử nghiệm — mới mở cho một số KEY dùng thử">🧪 THỬ NGHIỆM</span>' : ''}
                     ${on ? '<span class="cg-badge">● ĐANG CHƠI TRÊN OBS</span>' : ''}
                     ${keyOwner === g.id ? '<span class="cg-badge keys" title="Phím tắt toàn cục đang thuộc game này; game chơi cùng tạm nhả phím (quà vẫn chạy bình thường)">⌨ GIỮ PHÍM TẮT</span>' : ''}

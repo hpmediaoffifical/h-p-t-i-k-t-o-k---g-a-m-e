@@ -1,4 +1,4 @@
-// public/lib/obs-scene-map.mjs — quy đổi toạ độ theo transform scene item của OBS.
+// overlays/lib/obs-scene-map.mjs (port nguyên từ HP Action LIVE public/lib/obs-scene-map.mjs) - quy đổi toạ độ theo transform scene item của OBS.
 //
 // Tái hiện update_item_transform() của libobs (obs-scene.c): crop → scale (hoặc bounds) →
 // trừ origin theo alignment → xoay → cộng position. Ma trận affine 2D dạng [a,b,c,d,e,f]:
@@ -72,7 +72,7 @@ export function chainMatrix(chain) {
  * Ma trận ảnh chụp camera (bw×bh pixel) → sân khấu game (stageW×stageH).
  * layout: { canvas:{w,h}, cam:{found, chain}, overlay:{found, chain}, overlays:{<gameId>:{found, chain}} } (từ server).
  * Overlay hiển thị sân khấu kiểu "contain" giữa khung Browser Source (fitOverlay).
- * overlayId: game nào đang hỏi — nhiều overlay cùng nhận hình thì mỗi game lấy đúng Browser Source
+ * overlayId: game nào đang hỏi - nhiều overlay cùng nhận hình thì mỗi game lấy đúng Browser Source
  * của mình trong layout.overlays; không có thì dùng layout.overlay (Touch & Play, bản cũ).
  */
 export function cameraToStage(layout, bw, bh, stageW, stageH, overlayId = '') {
@@ -97,4 +97,117 @@ export function cameraToStage(layout, bw, bh, stageW, stageH, overlayId = '') {
     const s = Math.min(ow / stageW, oh / stageH);
     const toStage = [1 / s, 0, 0, 1 / s, -((ow - stageW * s) / 2) / s, -((oh - stageH * s) / 2) / s];
     return mul(toStage, m);
+}
+
+// Ô chữ nhật cục bộ (pixel nguồn) của một scene item sau crop: [x0, y0, x1, y1].
+const cropBox = t => [t.cropLeft || 0, t.cropTop || 0, (t.sourceWidth || 0) - (t.cropRight || 0), (t.sourceHeight || 0) - (t.cropBottom || 0)];
+// Khung bao (trục thẳng) của ô [x0,y0,x1,y1] sau ma trận m.
+function boxThrough(m, b) {
+    const p = [apply(m, b[0], b[1]), apply(m, b[2], b[1]), apply(m, b[0], b[3]), apply(m, b[2], b[3])];
+    const xs = p.map(q => q.x), ys = p.map(q => q.y);
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+}
+const clipBox = (a, b) => [Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.min(a[2], b[2]), Math.min(a[3], b[3])];
+
+/**
+ * 👁 VÙNG NHÌN THẤY của sân khấu trên OBS: phần sân khấu (stageW×stageH, contain giữa Browser Source như cameraToStage)
+ * thật sự hiện trên canvas - Browser Source bị crop (Scene PK / Colab thu "cover" vào khung cam 540×540, 540×1050…), group /
+ * scene lồng bị crop, hoặc thò ra ngoài canvas thì phần đó không thấy. Trả { x, y, w, h } theo toạ độ sân khấu.
+ * Chưa biết bố cục / không thấy Browser Source / vùng còn lại quá nhỏ (< minFrac mỗi chiều - nghi bố cục sai) → cả sân khấu.
+ * Có xoay thì lấy khung bao trục thẳng (gần đúng - Scene PK không xoay).
+ */
+export function visibleStage(layout, stageW, stageH, overlayId = '', minFrac = 0.2) {
+    const full = { x: 0, y: 0, w: stageW, h: stageH };
+    const overlay = (overlayId && layout?.overlays?.[overlayId]) || layout?.overlay;
+    const oc = overlay?.found && overlay.chain;
+    if (!oc || !oc.length) return full;
+    const ot = oc[oc.length - 1];
+    const ow = ot.sourceWidth, oh = ot.sourceHeight;
+    if (!(ow > 0 && oh > 0)) return full;
+    // Trên canvas: ô sau crop của từng tầng (tầng i = item trong scene cha, toạ độ nguồn → canvas qua chain[0..i]) giao nhau, giao canvas.
+    const canvas = layout?.canvas;
+    let box = canvas?.w > 0 && canvas?.h > 0 ? [0, 0, canvas.w, canvas.h] : [-Infinity, -Infinity, Infinity, Infinity];
+    let m = [1, 0, 0, 1, 0, 0];
+    for (const t of oc) {
+        m = mul(m, itemMatrix(t));
+        if (t.sourceWidth > 0 && t.sourceHeight > 0) box = clipBox(box, boxThrough(m, cropBox(t)));
+    }
+    if (!(box[2] > box[0] && box[3] > box[1])) return full;
+    const im = inv(m);
+    if (!im) return full;
+    // canvas → pixel Browser Source → sân khấu (contain, căn giữa)
+    const b = clipBox(boxThrough(im, box), [0, 0, ow, oh]);
+    const s = Math.min(ow / stageW, oh / stageH), ox = (ow - stageW * s) / 2, oy = (oh - stageH * s) / 2;
+    const r = clipBox([(b[0] - ox) / s, (b[1] - oy) / s, (b[2] - ox) / s, (b[3] - oy) / s], [0, 0, stageW, stageH]);
+    const w = r[2] - r[0], h = r[3] - r[1];
+    if (!(w >= stageW * minFrac && h >= stageH * minFrac)) return full;
+    const k = v => Math.round(v * 100) / 100;
+    return { x: k(r[0]), y: k(r[1]), w: k(w), h: k(h) };
+}
+
+// ---------- 👁 createCamView - VÙNG NHÌN THẤY cho từng game (chỉ chạy trong trình duyệt; Node chỉ import visibleStage) ----------
+//
+// Scene PK / Colab / PK 4 / PK 6 thu Browser Source Game Camera (sân khấu 1080×1920) "cover" vào khung cam của NPC bằng crop:
+// ô không phải 9:16 (540×540, 540×1050…) thì mất phần trên/dưới hoặc hai bên. Người vẽ lại vẫn khớp cam (cameraToStage), nhưng
+// thứ gắn MÉP SÂN KHẤU (HUD điểm, cổng trần, vũng nước, vùng sinh vật thể…) phải lùi vào phần còn thấy → dùng rect của createCamView.
+// Không ở Scene PK (không crop) → rect = cả sân khấu, không đổi gì.
+//
+//   const cv = createCamView({ W, H, overlayId: 'dapmuoi', getLayout: () => feed.layout });
+//   cv.rect            → { x, y, w, h } toạ độ sân khấu (tự tính lại khi bố cục OBS / cỡ cửa sổ đổi)
+//   CSS: :root nhận --cv-t / --cv-r / --cv-b / --cv-l = khoảng lùi (px) của vùng thấy so với mép khung trang, vd
+//        top: calc(var(--cv-t, 0px) + 3vmin)
+//
+// Bố cục lấy theo thứ tự: ?cview=x,y,w,h (thử tay, toạ độ sân khấu) → getLayout() của game (feed riêng) → bố cục overlay mẹ
+// /overlay/camgames (window.parent.__hpCamShared.layout, Browser Source 'camgames').
+
+function forced(W, H) {
+    const q = new URLSearchParams(location.search).get('cview');
+    if (!q) return null;
+    const [x, y, w, h] = q.split(',').map(Number);
+    if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return null;
+    return { x: Math.max(0, x), y: Math.max(0, y), w: Math.min(w, W), h: Math.min(h, H) };
+}
+function parentLayout() {
+    try { return window.parent !== window ? window.parent.__hpCamShared?.layout || null : null; } catch (_) { return null; }
+}
+
+export function createCamView({ W = 1080, H = 1920, overlayId = '', getLayout = null, root = document.documentElement, onChange = null, interval = 500 } = {}) {
+    const fixed = forced(W, H);
+    let rect = { x: 0, y: 0, w: W, h: H }, lastLayout, lastId, lastVw = -1, lastVh = -1, cssKey = '';
+
+    function setCss() {
+        if (!root) return;
+        // sân khấu W×H nằm "contain" giữa khung trang (canvas object-fit: contain / overlay-resolution)
+        const vw = innerWidth || W, vh = innerHeight || H, s = Math.min(vw / W, vh / H);
+        const ox = (vw - W * s) / 2, oy = (vh - H * s) / 2;
+        const t = Math.round(oy + rect.y * s), l = Math.round(ox + rect.x * s);
+        const b = Math.round(vh - (oy + (rect.y + rect.h) * s)), r = Math.round(vw - (ox + (rect.x + rect.w) * s));
+        const key = `${t},${r},${b},${l}`;
+        if (key === cssKey) return;
+        cssKey = key;
+        root.style.setProperty('--cv-t', t + 'px'); root.style.setProperty('--cv-r', r + 'px');
+        root.style.setProperty('--cv-b', b + 'px'); root.style.setProperty('--cv-l', l + 'px');
+    }
+    function refresh() {
+        const own = typeof getLayout === 'function' ? getLayout() : null;
+        const layout = fixed ? null : own || parentLayout();
+        const id = own ? overlayId : 'camgames';
+        if (layout === lastLayout && id === lastId && innerWidth === lastVw && innerHeight === lastVh) return rect;
+        lastLayout = layout; lastId = id; lastVw = innerWidth; lastVh = innerHeight;
+        const next = fixed || visibleStage(layout, W, H, id);
+        const changed = next.x !== rect.x || next.y !== rect.y || next.w !== rect.w || next.h !== rect.h;
+        rect = next;
+        setCss();
+        if (changed && onChange) try { onChange(rect); } catch (e) { console.warn('[cam-view]', e); }
+        return rect;
+    }
+    refresh();
+    setCss();
+    const timer = interval > 0 ? setInterval(refresh, interval) : 0;
+    addEventListener('resize', () => { lastVw = -1; refresh(); });
+    return {
+        get rect() { return refresh(); },
+        refresh,
+        stop() { clearInterval(timer); }
+    };
 }
