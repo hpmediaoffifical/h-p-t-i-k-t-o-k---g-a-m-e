@@ -1,5 +1,6 @@
 (function () {
     const socket = io();
+    window.hpSocket = socket;   // 🛒 cửa sổ mua game (public/shop-modal.js) nghe 'shop:order' trên cùng kết nối
 
     // ★ Overlay resolution helper — append ?res=4k khi user chọn 4K
     // Apply globally cho TẤT CẢ overlay URLs (thuytinh, caro, vipwelcome, translate, ...)
@@ -468,28 +469,11 @@
             virtual: true,
             config: { enabled: localStorage.getItem('hp-live-translate-tool-enabled') !== 'false' }
         });
-        games.push({
-            id: 'obs-effects',
-            name: 'Hiệu ứng OBS',
-            description: 'Bridge WebSocket → OBS Studio. Trigger Lua effects khi nhận gift TikTok.',
-            icon: '🎬',
-            virtual: true,
-            config: { enabled: localStorage.getItem('hp-obs-effects-enabled') !== 'false' }
-        });
-        // ★ Đẩy trạng thái master obs-effects (theo UI/localStorage) lên server NGAY khi khởi động —
-        // server là nơi gate quà. Sửa drift của user đã tắt từ trước (localStorage=false nhưng server
-        // mặc định true → trước đây vẫn nhận quà dù UI hiện tắt).
-        try {
-            const obsOn = localStorage.getItem('hp-obs-effects-enabled') !== 'false';
-            fetch('/api/obs-bridge/config', {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: obsOn })
-            }).catch(() => {});
-        } catch (e) {}
         try {
             const lf = await (await fetch('/api/license/features')).json();
             licenseLocked = new Set(Array.isArray(lf.locked) ? lf.locked : []);
             licenseStates = (lf.states && typeof lf.states === 'object') ? lf.states : {};
+            setShopInfo(lf.shop);
         } catch (e) { licenseLocked = new Set(); licenseStates = {}; }
         for (const g of games) {
             g.locked = licenseLocked.has(g.id);
@@ -498,6 +482,17 @@
         renderGameList();
         syncGiftboardSideButton();
     }
+    // 🛒 Bán game trong app (spec 2026-10-29-mua-game-sepay §6): giá từng mục KEY này mua được + game sở hữu trọn đời (♾).
+    // window.HpShop dùng chung cho Thư viện, Game Camera, Bộ Tách Người, cửa sổ thanh toán (shop-modal.js); đổi → sự kiện 'hp-shop'.
+    function setShopInfo(s) {
+        const items = new Map();
+        for (const i of (s && Array.isArray(s.items) ? s.items : [])) if (i && i.id && i.price > 0) items.set(i.id, i);
+        window.HpShop = { on: !!(s && s.on), items, from: (s && s.from) || {}, owned: new Set((s && s.owned) || []), baseExpiredAt: (s && s.baseExpiredAt) || 0 };
+        try { window.dispatchEvent(new CustomEvent('hp-shop', { detail: window.HpShop })); } catch (_) {}
+    }
+    const shopPrice = (id) => { const i = window.HpShop && window.HpShop.items.get(id); return i ? i.price : 0; };
+    const shopFrom = (id) => (window.HpShop && window.HpShop.from && window.HpShop.from[id]) || 0;
+    const fmtVnd = (n) => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
     // 🔒 Tính năng theo KEY: thông báo khi bấm vào mục KEY chưa mở (mở game / bật ⏻).
     // ⏸ Mục admin HP KEY đang Tạm tắt (bảo trì) / Ẩn (chưa ra mắt) cho mọi KEY: báo đúng lý do, không bảo liên hệ mở KEY.
     function showLicenseLocked(g) {
@@ -512,6 +507,15 @@
         }
         if (g.lstate === 'hidden') {
             hpConfirm({ icon: '🔒', title: 'Chưa mở', body: `<b>${name}</b> chưa mở.`, okLabel: 'Đã hiểu', cancelLabel: false });
+            return;
+        }
+        const price = shopPrice(g.id);
+        if (price > 0 && typeof window.hpBuyGame === 'function') {
+            hpConfirm({
+                icon: '🔒', title: 'Chưa mở game',
+                body: `KEY của bạn chưa có <b>${name}</b>.<br>Mua một lần <b>${fmtVnd(price)}</b> — dùng trọn đời với KEY này, mở ngay khi chuyển khoản xong.`,
+                okLabel: '🛒 Mua ' + fmtVnd(price), cancelLabel: 'Để sau'
+            }).then(ok => { if (ok) window.hpBuyGame(g.id); });
             return;
         }
         hpConfirm({
@@ -529,9 +533,11 @@
     };
     function renderGameList() {
         dom.gameList.innerHTML = '';
+        const forSale = [];   // 🛒 game KEY chưa có mà đang bán → gom vào nhóm "Mở thêm game" ở cuối (UI gọn: thứ đang dùng ở trên)
         for (const g of games) {
             if (LIBRARY_HIDDEN.has(g.id) || CAM_CHILD_GAMES.has(g.id)) continue;
             if (g.lstate === 'hidden') continue;   // HP KEY: mục Ẩn (chưa ra mắt) không hiện
+            if (g.locked && (shopPrice(g.id) > 0 || shopFrom(g.id) > 0)) { forSale.push(g); continue; }
             const paused = g.lstate === 'off';      // HP KEY: mục Tạm tắt (bảo trì) cho mọi KEY
             const div = document.createElement('div');
             div.className = 'game-item' + (g.locked ? ' locked' : '') + (paused ? ' paused' : '');
@@ -568,19 +574,10 @@
                 btn.classList.toggle('off', !next);
                 btn.title = next ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT';
                 if (g.virtual) {
-                    // Mỗi virtual game có localStorage key riêng (tool-level enable/disable)
-                    const lsKey = g.id === 'obs-effects' ? 'hp-obs-effects-enabled' : 'hp-live-translate-tool-enabled';
-                    localStorage.setItem(lsKey, next ? 'true' : 'false');
+                    // Virtual game duy nhất còn lại: 🌐 Dịch Thuật LIVE (tool-level enable/disable trong localStorage)
+                    localStorage.setItem('hp-live-translate-tool-enabled', next ? 'true' : 'false');
                     if (g.config) g.config.enabled = next;
                     syncSideToggle(g.id);
-                    // ★ obs-effects: trạng thái bật/tắt PHẢI lên server vì việc nhận quà/trigger effect
-                    // chạy ở server. Không đẩy lên → tắt UI nhưng server vẫn enqueue (bug cũ).
-                    if (g.id === 'obs-effects') {
-                        fetch('/api/obs-bridge/config', {
-                            method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ enabled: next })
-                        }).catch(() => {});
-                    }
                     // Side effects khi tắt — chỉ áp dụng cho liveTranslate (giữ behavior cũ)
                     if (!next && g.id === 'liveTranslate') {
                         if (ltEnabled) ltEnabled.checked = false;
@@ -611,6 +608,38 @@
             });
             dom.gameList.appendChild(div);
         }
+        renderShopGroup(forSale);
+    }
+    // 🛒 Nhóm "Mở thêm game (N)" cuối Thư viện — thu gọn mặc định, nhớ trạng thái mở/thu. Mỗi dòng: icon + tên + giá
+    // (game mẹ: "từ …" = con rẻ nhất). Bấm → mua (hoặc mở 🎥 Game Camera để chọn game con).
+    function renderShopGroup(list) {
+        if (!list.length) return;
+        let open = false;
+        try { open = localStorage.getItem('hp-shop-group-open') === '1'; } catch (_) {}
+        const wrap = document.createElement('div');
+        wrap.className = 'shop-group' + (open ? ' open' : '');
+        wrap.innerHTML = `<button type="button" class="shop-group-head" aria-expanded="${open}"><span>🛒 Mở thêm game</span><span class="shop-group-n">${list.length}</span><span class="shop-group-car">▾</span></button>
+            <div class="shop-group-list"${open ? '' : ' hidden'}></div>`;
+        const box = wrap.querySelector('.shop-group-list');
+        for (const g of list) {
+            const p = shopPrice(g.id), from = shopFrom(g.id);
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'shop-item';
+            row.title = p > 0 ? 'Mua một lần, dùng trọn đời với KEY này' : 'Chọn game con để mua';
+            row.innerHTML = `<span class="ico">${g.icon}</span><span class="shop-item-name">${escHtml(g.name)}</span>`
+                + `<span class="shop-price">${p > 0 ? fmtVnd(p) : 'từ ' + fmtVnd(from)}</span>`;
+            row.addEventListener('click', () => { if (p > 0 && typeof window.hpBuyGame === 'function') window.hpBuyGame(g.id); else openGame(g.id); });
+            box.appendChild(row);
+        }
+        wrap.querySelector('.shop-group-head').addEventListener('click', () => {
+            const now = !wrap.classList.contains('open');
+            wrap.classList.toggle('open', now);
+            box.hidden = !now;
+            wrap.querySelector('.shop-group-head').setAttribute('aria-expanded', String(now));
+            try { localStorage.setItem('hp-shop-group-open', now ? '1' : '0'); } catch (_) {}
+        });
+        dom.gameList.appendChild(wrap);
     }
     function isGameEnabled(g) {
         const cfg = g.config || {};
@@ -654,6 +683,11 @@
         const d = e.data || {};
         if (d.type === 'hp-ql:height' && Number.isFinite(d.h)) frame.style.height = Math.max(60, Math.ceil(d.h)) + 'px';
         else if (d.type === 'hp-ql:open' && typeof d.gameId === 'string') openGame(d.gameId);
+        // 🛒 thẻ đang bán ở Khởi động nhanh: mục lẻ → cửa sổ mua; game mẹ (giá "từ …") → mở trang để chọn game con
+        else if (d.type === 'hp-ql:buy' && typeof d.gameId === 'string') {
+            if (shopPrice(d.gameId) > 0 && typeof window.hpBuyGame === 'function') window.hpBuyGame(d.gameId);
+            else openGame(d.gameId);
+        }
         else if (d.type === 'hp-ql:modal') frame.style.minHeight = d.open ? 'min(560px, calc(100vh - 140px))' : '';
     });
     document.getElementById('home-ql-sort')?.addEventListener('click', () => {
@@ -910,7 +944,9 @@
     function openGame(gameId) {
         const game = games.find(g => g.id === gameId);
         if (!game) return;
-        if (game.locked) { showLicenseLocked(game); return; }   // 🔒 tính năng theo KEY (cả khi mở từ Khởi động nhanh)
+        // 🔒 tính năng theo KEY (cả khi mở từ Khởi động nhanh). Game mẹ (🎥 Game Camera) chưa có con nào nhưng có con đang bán
+        // → vẫn mở trang để chọn game con mua (lưới hiện 🔒 + giá); mục bán lẻ → hộp có nút 🛒 Mua.
+        if (game.locked && !(shopFrom(game.id) > 0)) { showLicenseLocked(game); return; }
         currentGame = game;
         highlightActiveGame(gameId);
         // Body class: dùng để CSS ẩn/hiện FAB/popup theo game
@@ -947,11 +983,12 @@
         else if (gameId === 'giftboard') showView('view-giftboard');
         else if (gameId === 'touchplay') showView('view-touchplay');
         else if (gameId === 'camgames') { showView('view-camgames'); window.HpCamGamesPanel?.open(socket); }
-        else if (gameId === 'obs-effects') showView('view-obs-effects');
     }
 
     // Màn Game Camera mở màn cài đặt game con; màn con có nút "← Game Camera".
     window.hpOpenGame = openGame;
+    window.hpReloadGames = () => loadGames();   // 🛒 shop-modal.js: mua xong → vẽ lại Thư viện trước khi mở game
+    window.hpGameName = (id) => { const g = games.find(x => x.id === id); return g ? g.name : ''; };
 
     function openVoteComment(game) {
         if (window.HpVoteCommentPanel && typeof window.HpVoteCommentPanel.open === 'function') {
@@ -5280,1677 +5317,96 @@
     fetchVersionInfo();  // điền version hiện tại ngay khi load
 
     // ===================================================================
-    // 🎬 OBS Effects — View riêng trong Game Library
-    //   - Connection management (URL/pass/autoConnect)
-    //   - Mapping Gift → Effect, gom theo NHÓM
-    //   - Gift Picker modal (chọn quà bằng visual grid)
-    //   - Group Name modal (tạo / đổi tên nhóm)
+    // 🔔 Toast chung giữa màn — window.toast(msg, kind = 'info'|'success'|'error'|'warn', ms)
+    //   Trước nằm trong trang 🎬 Hiệu ứng OBS (đã gỡ); Bộ Tách Người, Đá Cầu, Game Camera, Trồng Cây, Cài đặt… đều gọi.
     // ===================================================================
-    (function setupOBSEffectsView() {
-        // Elements (sẽ null nếu view không có trong DOM — guard ngay)
-        const $dot         = document.getElementById('obse-dot');
-        const $statusText  = document.getElementById('obse-status-text');
-        const $statusPill  = document.getElementById('obse-status-pill');
-        const $url         = document.getElementById('obse-url');
-        const $pass        = document.getElementById('obse-password');
-        const $auto        = document.getElementById('obse-autoconnect');
-        const $btnConn     = document.getElementById('btn-obse-connect');
-        const $btnDisc     = document.getElementById('btn-obse-disconnect');
-        const $btnRefresh  = document.getElementById('btn-obse-refresh-hotkeys');
-        const $btnAddGroup = document.getElementById('btn-obse-add-group');
-        const $groupsCt    = document.getElementById('obse-groups-container');
-        const $err         = document.getElementById('obse-error');
-        const $queuePill   = document.getElementById('obse-queue-pill');
-        const $queueCount  = document.getElementById('obse-queue-count');
-        const $btnQueueClr = document.getElementById('btn-obse-queue-clear');
-        // ★ LUA Sync elements
-        const $btnLuaCheck    = document.getElementById('btn-obse-lua-check');
-        const $btnLuaDlAll    = document.getElementById('btn-obse-lua-download-all');
-        const $btnLuaFolder   = document.getElementById('btn-obse-lua-open-folder');
-        const $btnLuaSettings = document.getElementById('btn-obse-lua-settings');
-        const $luaList        = document.getElementById('obse-lua-sync-list');
-        const $luaMeta        = document.getElementById('obse-lua-sync-meta');
-        const $luaSettings    = document.getElementById('obse-lua-sync-settings');
-        const $luaAutoCheck   = document.getElementById('obse-lua-auto-check');
-        const $luaInterval    = document.getElementById('obse-lua-interval');
-        // ★ Background Removal helper elements
-        const $btnCheckBg  = document.getElementById('btn-obse-check-bgremoval');
-        const $btnInstBg   = document.getElementById('btn-obse-install-bgremoval');
-        const $bgStatus    = document.getElementById('obse-bgremoval-status');
-        const $bgModal     = document.getElementById('obse-bgremoval-modal');
-        const $bgClose     = document.getElementById('obse-bgremoval-close');
-        const $bgUrl       = document.getElementById('obse-bgremoval-url');
-        const $btnBgCopy   = document.getElementById('btn-obse-bgremoval-copy');
-        const $btnBgOpen   = document.getElementById('btn-obse-bgremoval-open');
-        if (!$dot) return; // view không có trong DOM (chưa add HTML)
-
-        // ===== Toast (feedback rõ ràng, hiện giữa màn) =====
+    (function setupToast() {
         let toastEl = null;
         function toast(msg, kind = 'info', durationMs = 2500) {
             if (!toastEl) {
                 toastEl = document.createElement('div');
-                toastEl.id = 'obse-toast';
-                toastEl.className = 'obse-toast';
+                toastEl.id = 'hp-toast';
                 document.body.appendChild(toastEl);
             }
-            toastEl.className = 'obse-toast show ' + (kind === 'error' ? 'error' : kind === 'success' ? 'success' : kind === 'warn' ? 'warn' : '');
+            toastEl.className = 'hp-toast show ' + (kind === 'error' ? 'error' : kind === 'success' ? 'success' : (kind === 'warn' || kind === 'warning') ? 'warn' : '');
             toastEl.textContent = msg;
             clearTimeout(toastEl._t);
             toastEl._t = setTimeout(() => { toastEl.classList.remove('show'); }, durationMs);
         }
-        // ★ FIX: export toast ra global. Trước đây toast bị nhốt trong IIFE setupOBSEffectsView
-        // → mọi chỗ gọi `if (typeof toast === 'function')` (đổi 4K, ẩn preview, báo game tắt...)
-        // đều thấy undefined → KHÔNG toast nào hiện. Giờ bare `toast` resolve được toàn app.
         try { window.toast = toast; } catch (e) {}
+    })();
 
-        // Gift picker modal elements
-        const $gpModal  = document.getElementById('obse-gift-modal');
-        const $gpClose  = document.getElementById('obse-gp-close');
-        const $gpSearch = document.getElementById('obse-gp-search');
-        const $gpSort   = document.getElementById('obse-gp-sort');
-        const $gpCount  = document.getElementById('obse-gp-count');
-        const $gpGrid   = document.getElementById('obse-gp-grid');
-
-        // Group name modal elements
-        const $grmModal  = document.getElementById('obse-group-modal');
-        const $grmTitle  = document.getElementById('obse-grm-title');
-        const $grmClose  = document.getElementById('obse-grm-close');
-        const $grmCancel = document.getElementById('obse-grm-cancel');
-        const $grmSave   = document.getElementById('obse-grm-save');
-        const $grmInput  = document.getElementById('obse-grm-input');
-
-        // State
-        let cachedConfig  = { url: '', password: '', autoConnect: false, mapping: [] };
-        let cachedHotkeys = [];
-        let cachedScenes  = [];          // tên Scene trong OBS (dropdown "Scene hiệu ứng")
-        let cachedSceneCurrent = '';
-        let saveTimer = null;
-        let gpTargetMappingId = null;   // mapping id đang chờ chọn quà
-        let grmMode = 'create';          // 'create' | 'rename'
-        let grmRenameOldName = null;     // tên cũ khi rename
-        let collapsedGroups = (() => {
-            try { return new Set(JSON.parse(localStorage.getItem('obse:collapsedGroups') || '[]')); }
-            catch (e) { return new Set(); }
-        })();
-        function persistCollapsed() {
-            try { localStorage.setItem('obse:collapsedGroups', JSON.stringify([...collapsedGroups])); }
-            catch (e) {}
-        }
-
-        // ============== Connection ==============
+    // ===================================================================
+    // 🔌 Kết nối OBS WebSocket — khối trong ⚙ Cài đặt. MỘT kết nối dùng chung: camera 🎥 Game Camera (mọi game camera),
+    //   Bộ Tách Người ẩn/hiện camera, Chém Trái Cây, tự Refresh overlay lúc mở app.
+    //   Server: GET/PUT /api/obs-bridge/config, POST /api/obs-bridge/connect | disconnect.
+    // ===================================================================
+    (function setupObsConnection() {
+        const $ = (id) => document.getElementById(id);
+        const $dot = $('st-obs-dot'), $text = $('st-obs-status'), $url = $('st-obs-url'), $pass = $('st-obs-password');
+        const $auto = $('st-obs-autoconnect'), $conn = $('st-obs-connect'), $disc = $('st-obs-disconnect'), $err = $('st-obs-error');
+        if (!$dot || !$url || !$conn) return;
+        // Máy LAN lạ không được đọc mật khẩu (server trả '' + passwordSet) → ô trống thì KHÔNG gửi mật khẩu, khỏi xoá mất.
+        let passKnown = true;
+        function showError(msg) { $err.hidden = !msg; $err.textContent = msg ? '⚠ ' + msg : ''; }
         function setStatus(s) {
-            $dot.classList.remove('connected', 'connecting');
-            if (s.connecting) {
-                $dot.classList.add('connecting');
-                $statusText.textContent = 'Đang kết nối...';
-            } else if (s.connected) {
-                $dot.classList.add('connected');
-                $statusText.textContent = 'Đã kết nối';
-                $statusPill.title = s.url || '';
-            } else {
-                $statusText.textContent = 'Chưa kết nối';
-            }
-            if (s.lastError && !s.connected) {
-                $err.hidden = false;
-                $err.textContent = '⚠ ' + s.lastError;
-            } else {
-                $err.hidden = true;
-            }
-            $btnConn.disabled = s.connecting || s.connected;
-            $btnDisc.disabled = !s.connected;
+            s = s || {};
+            $dot.classList.toggle('connected', !!s.connected);
+            $dot.classList.toggle('connecting', !!s.connecting && !s.connected);
+            $text.textContent = s.connected ? 'Đã kết nối' + (s.url ? ' · ' + s.url : '') : s.connecting ? 'Đang kết nối…' : 'Chưa kết nối';
+            showError(!s.connected && s.lastError
+                ? 'Không kết nối được OBS (' + s.lastError + ') — OBS đã mở chưa? Tools › WebSocket Server Settings đã bật, đúng cổng/mật khẩu chưa?'
+                : '');
+            $conn.disabled = !!(s.connecting || s.connected);
+            $disc.disabled = !s.connected;
         }
-        function showError(msg) { $err.hidden = false; $err.textContent = '⚠ ' + msg; }
-
-        async function loadConfig() {
+        async function refresh(fill) {
             try {
-                const r = await fetch('/api/obs-bridge/config');
-                const j = await r.json();
-                cachedConfig = {
-                    url: j.url || 'ws://localhost:4455',
-                    password: j.password || '',
-                    autoConnect: !!j.autoConnect,
-                    mapping: Array.isArray(j.mapping) ? j.mapping.map(normMapping) : []
-                };
-                $url.value = cachedConfig.url;
-                $pass.value = cachedConfig.password;
-                $auto.checked = cachedConfig.autoConnect;
-                if (j.status) setStatus(j.status);
-                renderGroups();
-                if (j.status && j.status.connected) { fetchHotkeys(); fetchScenes(); }
-            } catch (e) { showError('Load config lỗi: ' + e.message); }
+                const j = await (await fetch('/api/obs-bridge/config')).json();
+                if (fill) {
+                    $url.value = j.url || 'ws://localhost:4455';
+                    $pass.value = j.password || '';
+                    passKnown = !!j.password || !j.passwordSet;
+                    $pass.placeholder = passKnown ? 'Mật khẩu (trống nếu OBS không bật xác thực)' : 'Đã lưu mật khẩu — gõ để thay';
+                    $auto.checked = !!j.autoConnect;
+                }
+                setStatus(j.status);
+            } catch (e) { /* server chưa sẵn sàng */ }
         }
-        // Normalize mỗi mapping có đầy đủ fields + unique id
-        function normMapping(m) {
-            return {
-                id: m.id || ('m_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
-                giftId: String(m.giftId || ''),
-                giftName: m.giftName || '',
-                giftImage: m.giftImage || '',
-                hotkey: m.hotkey || '',
-                scene: m.scene || '',            // Scene hiệu ứng trong OBS (đường chính)
-                actionName: m.actionName || '',
-                cooldownMs: Math.max(0, Number(m.cooldownMs) || 0),
-                group: m.group || '',
-                enabled: m.enabled !== false   // default true; chỉ false khi explicit set
-            };
+        async function save() {
+            const body = { url: $url.value.trim() || 'ws://localhost:4455', autoConnect: !!$auto.checked };
+            if ($pass.value !== '' || passKnown) body.password = $pass.value;
+            const r = await fetch('/api/obs-bridge/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok || j.ok === false) throw new Error(j.error || ('HTTP ' + r.status));
+            return body;
         }
-        // Track group disabled state (mảng tên nhóm bị TẮT)
-        function getGroupsDisabled() {
-            if (!Array.isArray(cachedConfig.groupsDisabled)) cachedConfig.groupsDisabled = [];
-            return cachedConfig.groupsDisabled;
-        }
-        function isGroupDisabled(name) {
-            return getGroupsDisabled().includes(name);
-        }
-        function setGroupDisabled(name, disabled) {
-            const arr = getGroupsDisabled();
-            const idx = arr.indexOf(name);
-            if (disabled && idx === -1) arr.push(name);
-            if (!disabled && idx !== -1) arr.splice(idx, 1);
-            saveConfig();
-        }
-        // Cache suggested duration để khỏi gọi server nhiều lần cho cùng 1 hotkey
-        const _hotkeyDurationCache = {};
-        async function fetchSuggestedDurationMs(hotkey, scene) {
-            if (!hotkey && !scene) return 0;
-            const key = (hotkey || '') + '|' + (scene || '');
-            if (_hotkeyDurationCache[key] != null) return _hotkeyDurationCache[key];
+        $conn.addEventListener('click', async () => {
+            showError(''); $conn.disabled = true;
             try {
-                const r = await fetch('/api/obs-bridge/lua-duration?hotkey=' + encodeURIComponent(hotkey || '')
-                    + '&scene=' + encodeURIComponent(scene || ''));
-                const j = await r.json();
-                const ms = Number(j?.ms) || 0;
-                _hotkeyDurationCache[key] = ms;
-                return ms;
-            } catch (e) { return 0; }
-        }
-        // ====== 💾 Backup ALL Settings modal ======
-        const $btnBackupAll = document.getElementById('btn-obse-lua-backup-all');
-        const $backupAllModal = document.getElementById('obse-backup-all-modal');
-        const $backupAllClose = document.getElementById('obse-backup-all-close');
-        const $backupCollection = document.getElementById('obse-backup-collection');
-        const $btnBackupDo = document.getElementById('obse-backup-do-btn');
-        const $backupResult = document.getElementById('obse-backup-result');
-        const $backupSummary = document.getElementById('obse-backup-summary');
-        const $backupLuasList = document.getElementById('obse-backup-luas-list');
-        const $btnBackupDownload = document.getElementById('obse-backup-download-btn');
-        const $btnBackupCopy = document.getElementById('obse-backup-copy-btn');
-        const $backupError = document.getElementById('obse-backup-error');
-        let _lastBackupData = null;
-
-        async function openBackupAllModal() {
-            if (!$backupAllModal) return;
-            $backupResult.hidden = true;
-            $backupError.hidden = true;
-            // Reuse loadSceneCollections nhưng populate vào $backupCollection
-            try {
-                const r = await fetch('/api/obs-settings/scene-collections');
-                const j = await r.json();
-                if (!j.ok) throw new Error(j.error || 'Load fail');
-                const opts = j.collections.map(c =>
-                    `<option value="${escapeHtml(c.filename)}">${escapeHtml(c.name)} (${new Date(c.modifiedAt).toLocaleString('vi-VN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})})</option>`
-                ).join('');
-                $backupCollection.innerHTML = opts || '<option value="">(không có)</option>';
-            } catch (e) {
-                toast('✗ Load collections: ' + e.message, 'error');
-            }
-            $backupAllModal.hidden = false;
-        }
-        function closeBackupAllModal() { if ($backupAllModal) $backupAllModal.hidden = true; }
-        $btnBackupAll?.addEventListener('click', openBackupAllModal);
-        $backupAllClose?.addEventListener('click', closeBackupAllModal);
-        $backupAllModal?.addEventListener('click', (e) => { if (e.target === $backupAllModal) closeBackupAllModal(); });
-
-        $btnBackupDo?.addEventListener('click', async () => {
-            const sceneCollection = $backupCollection?.value || '';
-            if (!sceneCollection) {
-                $backupError.hidden = false;
-                $backupError.textContent = '❌ Chọn scene collection trước';
-                return;
-            }
-            $btnBackupDo.disabled = true;
-            $btnBackupDo.textContent = '⏳ Đang backup...';
-            $backupError.hidden = true;
-            $backupResult.hidden = true;
-            try {
-                const r = await fetch('/api/obs-settings/backup-all', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sceneCollection })
-                });
-                const j = await r.json();
-                if (!j.ok) {
-                    $backupError.hidden = false;
-                    $backupError.textContent = '❌ ' + (j.error || 'Backup fail');
-                    return;
-                }
-                _lastBackupData = j.backup;
-                $backupResult.hidden = false;
-                $backupSummary.innerHTML = `<b>${j.matchedCount}/${j.totalLuas}</b> LUA tìm được settings trong "${escapeHtml(sceneCollection)}"`;
-                // Liệt kê các LUA matched
-                const luaIds = Object.keys(j.backup.luas || {});
-                if (luaIds.length === 0) {
-                    // ★ DIAGNOSTIC: show app đang tìm gì vs OBS thực có gì
-                    const searchedFor = j.searchedFor || [];
-                    const allScripts = j.allScripts || [];
-                    let diagnosticHtml = '<div class="obse-backup-empty"><b>❌ Không có LUA nào match.</b></div>';
-                    diagnosticHtml += '<div class="obse-backup-diag">';
-                    diagnosticHtml += '<div class="obse-backup-diag-section"><b>🔍 App đang tìm các file LUA này:</b>';
-                    if (searchedFor.length === 0) {
-                        diagnosticHtml += '<div class="obse-backup-diag-empty">(chưa tải LUA nào về)</div>';
-                    } else {
-                        diagnosticHtml += '<ul>' + searchedFor.map(s =>
-                            `<li><b>${escapeHtml(s.name)}</b>: <code>${escapeHtml(s.file)}</code></li>`
-                        ).join('') + '</ul>';
-                    }
-                    diagnosticHtml += '</div>';
-                    diagnosticHtml += '<div class="obse-backup-diag-section"><b>📋 Scripts thực có trong "' + escapeHtml(sceneCollection) + '":</b>';
-                    if (allScripts.length === 0) {
-                        diagnosticHtml += '<div class="obse-backup-diag-empty">(scene collection không có script nào — OBS Tools → Scripts trống)</div>';
-                    } else {
-                        diagnosticHtml += '<ul>' + allScripts.map(f => `<li><code>${escapeHtml(f)}</code></li>`).join('') + '</ul>';
-                    }
-                    diagnosticHtml += '</div>';
-                    diagnosticHtml += '<div class="obse-backup-hint">';
-                    if (allScripts.length === 0) {
-                        diagnosticHtml += '💡 <b>Nguyên nhân</b>: scene collection này chưa có script nào. Add LUA vào OBS (Tools → Scripts → +) rồi chọn lại scene collection.';
-                    } else if (searchedFor.length > 0) {
-                        diagnosticHtml += '💡 <b>Nguyên nhân thường gặp</b>: bạn add LUA vào collection KHÁC, không phải "' + escapeHtml(sceneCollection) + '". Đổi sang collection chứa LUA → backup lại.';
-                    }
-                    diagnosticHtml += '</div>';
-                    $backupLuasList.innerHTML = diagnosticHtml;
-                } else {
-                    $backupLuasList.innerHTML = luaIds.map(id => {
-                        const lua = j.backup.luas[id];
-                        const settingsCount = Object.keys(lua.settings || {}).length;
-                        const stratLabel = ({obfuscated:'🎭 obfuscated', original:'📄 original', signature:'🔍 signature'})[lua.matchStrategy] || lua.matchStrategy;
-                        const stratBadge = lua.matchStrategy ? ` <span class="obse-backup-strat ${lua.matchStrategy}">${stratLabel}</span>` : '';
-                        const fileBadge = lua.matchedFile ? ` <code>${escapeHtml(lua.matchedFile)}</code>` : '';
-                        return `<div class="obse-backup-lua-row">✓ <b>${escapeHtml(lua.name || id)}</b> <span class="obse-backup-lua-meta">v${escapeHtml(lua.version || '?')} · ${settingsCount} settings${fileBadge}${stratBadge}</span></div>`;
-                    }).join('');
-                }
-                // Errors (nếu có)
-                if (j.errors && j.errors.length > 0) {
-                    $backupLuasList.innerHTML += '<div class="obse-backup-errors">⚠ Errors: ' +
-                        j.errors.map(e => escapeHtml(e.id) + ': ' + escapeHtml(e.error)).join('; ') + '</div>';
-                }
-                if (j.matchedCount > 0) toast(`✓ Backup ${j.matchedCount}/${j.totalLuas} LUAs`, 'success', 3500);
-                else toast(`⚠ 0 LUA match — xem chi tiết trong modal`, 'warning', 4000);
-            } catch (e) {
-                $backupError.hidden = false;
-                $backupError.textContent = '❌ ' + e.message;
-            } finally {
-                $btnBackupDo.disabled = false;
-                $btnBackupDo.textContent = '💾 Backup ngay';
-            }
-        });
-
-        $btnBackupDownload?.addEventListener('click', () => {
-            if (!_lastBackupData) return;
-            const blob = new Blob([JSON.stringify(_lastBackupData, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            const ts = new Date().toISOString().slice(0,19).replace(/[:.]/g, '-');
-            const collectionSafe = ($backupCollection.value || 'backup').replace(/\.json$/i, '').replace(/[^a-z0-9_-]/gi, '_');
-            a.href = url;
-            a.download = `lua-settings-${collectionSafe}-${ts}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            toast('⬇ Đã tải file backup', 'success', 2500);
-        });
-        $btnBackupCopy?.addEventListener('click', () => {
-            if (!_lastBackupData) return;
-            navigator.clipboard?.writeText(JSON.stringify(_lastBackupData, null, 2)).then(
-                () => toast('✓ Đã copy JSON backup', 'success', 2000),
-                () => toast('✗ Copy fail', 'error')
-            );
-        });
-
-        // ====== 🔄 LUA Settings Sync modal ======
-        const $settingsModal = document.getElementById('obse-settings-modal');
-        const $settingsLuaName = document.getElementById('obse-settings-luaname');
-        const $settingsClose = document.getElementById('obse-settings-close');
-        const $colExport = document.getElementById('obse-settings-collection-export');
-        const $colImport = document.getElementById('obse-settings-collection-import');
-        const $btnExtract = document.getElementById('obse-settings-extract-btn');
-        const $btnApply = document.getElementById('obse-settings-apply-btn');
-        const $exportResult = document.getElementById('obse-settings-export-result');
-        const $exportCount = document.getElementById('obse-settings-export-count');
-        const $exportJson = document.getElementById('obse-settings-export-json');
-        const $exportError = document.getElementById('obse-settings-export-error');
-        const $btnExportCopy = document.getElementById('obse-settings-export-copy');
-        const $btnExportSave = document.getElementById('obse-settings-export-save');
-        const $importJson = document.getElementById('obse-settings-import-json');
-        const $importError = document.getElementById('obse-settings-import-error');
-        const $importSuccess = document.getElementById('obse-settings-import-success');
-        const $btnImportFile = document.getElementById('obse-settings-import-file');
-        const $importFileInput = document.getElementById('obse-settings-import-fileinput');
-        let _currentSettingsLuaId = null;
-        let _currentSettingsLuaName = null;
-
-        async function loadSceneCollections() {
-            try {
-                const r = await fetch('/api/obs-settings/scene-collections');
-                const j = await r.json();
-                if (!j.ok) throw new Error(j.error || 'Load collections fail');
-                const opts = j.collections.map(c =>
-                    `<option value="${escapeHtml(c.filename)}">${escapeHtml(c.name)} (${new Date(c.modifiedAt).toLocaleString('vi-VN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})})</option>`
-                ).join('');
-                if ($colExport) $colExport.innerHTML = opts || '<option value="">(không có scene collection)</option>';
-                if ($colImport) $colImport.innerHTML = opts || '<option value="">(không có scene collection)</option>';
-            } catch (e) {
-                toast('✗ Load scene collections: ' + e.message, 'error');
-            }
-        }
-
-        function openSettingsSyncModal(luaId, luaName) {
-            _currentSettingsLuaId = luaId;
-            _currentSettingsLuaName = luaName;
-            if ($settingsLuaName) $settingsLuaName.textContent = luaName;
-            // Reset UI
-            if ($exportResult) $exportResult.hidden = true;
-            if ($exportError) { $exportError.hidden = true; $exportError.textContent = ''; }
-            if ($importJson) $importJson.value = '';
-            if ($importError) { $importError.hidden = true; $importError.textContent = ''; }
-            if ($importSuccess) { $importSuccess.hidden = true; $importSuccess.textContent = ''; }
-            // Default to Export tab
-            document.querySelectorAll('.obse-settings-tab').forEach(t => {
-                t.classList.toggle('active', t.dataset.tab === 'export');
-            });
-            document.querySelectorAll('.obse-settings-tab-content').forEach(c => {
-                c.hidden = c.dataset.content !== 'export';
-            });
-            // Load scene collections
-            loadSceneCollections();
-            $settingsModal.hidden = false;
-        }
-
-        function closeSettingsSyncModal() {
-            if ($settingsModal) $settingsModal.hidden = true;
-            _currentSettingsLuaId = null;
-        }
-        $settingsClose?.addEventListener('click', closeSettingsSyncModal);
-        $settingsModal?.addEventListener('click', (e) => { if (e.target === $settingsModal) closeSettingsSyncModal(); });
-
-        // Tab switching
-        document.querySelectorAll('.obse-settings-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                const target = tab.dataset.tab;
-                document.querySelectorAll('.obse-settings-tab').forEach(t => t.classList.toggle('active', t === tab));
-                document.querySelectorAll('.obse-settings-tab-content').forEach(c => c.hidden = c.dataset.content !== target);
-            });
-        });
-
-        // Extract handler
-        $btnExtract?.addEventListener('click', async () => {
-            if (!_currentSettingsLuaId) return;
-            const sceneCollection = $colExport?.value || '';
-            if (!sceneCollection) {
-                $exportError.hidden = false;
-                $exportError.textContent = '❌ Chọn scene collection trước';
-                return;
-            }
-            $btnExtract.disabled = true;
-            $btnExtract.textContent = '⏳ Đang trích...';
-            $exportError.hidden = true;
-            $exportResult.hidden = true;
-            try {
-                const r = await fetch('/api/obs-settings/extract', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ luaId: _currentSettingsLuaId, sceneCollection })
-                });
-                const j = await r.json();
-                if (!j.ok) {
-                    $exportError.hidden = false;
-                    let errMsg = '❌ ' + (j.error || 'Extract fail');
-                    if (j.availableScripts && j.availableScripts.length > 0) {
-                        errMsg += '\n\nCác script có trong "' + sceneCollection + '":\n' + j.availableScripts.map(s => '  • ' + s).join('\n');
-                    }
-                    $exportError.textContent = errMsg;
-                    return;
-                }
-                $exportResult.hidden = false;
-                $exportCount.textContent = `${j.settingsCount} settings`;
-                $exportJson.value = JSON.stringify(j.settings, null, 2);
-                toast(`✓ Trích được ${j.settingsCount} settings`, 'success', 3000);
-            } catch (e) {
-                $exportError.hidden = false;
-                $exportError.textContent = '❌ ' + e.message;
-            } finally {
-                $btnExtract.disabled = false;
-                $btnExtract.textContent = '🔍 Trích settings';
-            }
-        });
-
-        // Copy + Save handlers
-        $btnExportCopy?.addEventListener('click', () => {
-            navigator.clipboard?.writeText($exportJson.value).then(
-                () => toast('✓ Đã copy JSON', 'success', 2000),
-                () => toast('✗ Copy fail — chọn text + Ctrl+C', 'error')
-            );
-        });
-        $btnExportSave?.addEventListener('click', () => {
-            const blob = new Blob([$exportJson.value], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            const safeName = (_currentSettingsLuaName || 'lua').toLowerCase().replace(/[^a-z0-9]/g, '_');
-            const ts = new Date().toISOString().slice(0,19).replace(/[:.]/g, '-');
-            a.href = url;
-            a.download = `${safeName}-settings-${ts}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            toast('💾 Đã tải file settings', 'success', 2500);
-        });
-
-        // Import file picker
-        $btnImportFile?.addEventListener('click', () => $importFileInput?.click());
-        $importFileInput?.addEventListener('change', async () => {
-            const file = $importFileInput.files?.[0];
-            if (!file) return;
-            try {
-                const text = await file.text();
-                $importJson.value = text;
-                toast('✓ Đã load file', 'success', 1500);
-            } catch (e) { toast('✗ Read file fail: ' + e.message, 'error'); }
-            $importFileInput.value = '';
-        });
-
-        // Apply handler
-        $btnApply?.addEventListener('click', async () => {
-            if (!_currentSettingsLuaId) return;
-            const sceneCollection = $colImport?.value || '';
-            const jsonText = $importJson?.value?.trim() || '';
-            if (!sceneCollection) {
-                $importError.hidden = false;
-                $importError.textContent = '❌ Chọn scene collection đích';
-                return;
-            }
-            if (!jsonText) {
-                $importError.hidden = false;
-                $importError.textContent = '❌ Paste JSON hoặc chọn file';
-                return;
-            }
-            let settings;
-            try { settings = JSON.parse(jsonText); }
-            catch (e) {
-                $importError.hidden = false;
-                $importError.textContent = '❌ JSON không hợp lệ: ' + e.message;
-                return;
-            }
-            if (!confirm('⚠ XÁC NHẬN: Bạn đã ĐÓNG OBS chưa?\n\nApply sẽ ghi đè settings vào scene collection. Nếu OBS đang chạy → corruption.\n\nBấm OK nếu OBS đã đóng.')) {
-                return;
-            }
-            $btnApply.disabled = true;
-            $btnApply.textContent = '⏳ Đang apply...';
-            $importError.hidden = true;
-            $importSuccess.hidden = true;
-            try {
-                const r = await fetch('/api/obs-settings/apply', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ luaId: _currentSettingsLuaId, sceneCollection, settings })
-                });
-                const j = await r.json();
-                if (j.ok) {
-                    $importSuccess.hidden = false;
-                    $importSuccess.textContent = `✓ ${j.message} (${j.settingsCount} settings, action: ${j.action})`;
-                    toast('✓ Đã apply settings. Mở OBS để load.', 'success', 5000);
-                } else {
-                    $importError.hidden = false;
-                    $importError.textContent = '❌ ' + (j.error || 'Apply fail');
-                }
-            } catch (e) {
-                $importError.hidden = false;
-                $importError.textContent = '❌ ' + e.message;
-            } finally {
-                $btnApply.disabled = false;
-                $btnApply.textContent = '💉 Apply settings';
-            }
-        });
-
-        // ====== LUA Sync ======
-        const STATUS_BADGES = {
-            latest:   { icon: '✓', label: 'Đã tải', cls: 'ok' },
-            outdated: { icon: '⬆', label: 'Có update', cls: 'warn' },
-            missing:  { icon: '⬇', label: 'Chưa tải', cls: 'missing' },
-            unknown:  { icon: '?', label: 'Chưa check', cls: '' },
-            orphan:   { icon: '⚠', label: 'Không trong manifest', cls: 'err' }
-        };
-
-        async function fetchLuaSyncStatus() {
-            try {
-                const r = await fetch('/api/lua-sync/status');
-                const j = await r.json();
-                if (j.ok) renderLuaSync(j.config, j.state);
-            } catch (e) { /* silent */ }
-        }
-        async function doLuaCheck() {
-            if (!$btnLuaCheck) return;
-            $btnLuaCheck.disabled = true;
-            $btnLuaCheck.textContent = '⏳ Đang check...';
-            try {
-                const r = await fetch('/api/lua-sync/check', { method: 'POST' });
-                const j = await r.json();
-                if (j.ok) {
-                    renderLuaSync(null, j.state);
-                    const count = j.state.luaCount || 0;
-                    toast(`✓ Manifest loaded — ${count} effects`, 'success', 3000);
-                } else {
-                    toast('✗ Check fail: ' + (j.error || 'unknown'), 'error', 5000);
-                    renderLuaSync(null, j.state);
-                }
-            } catch (e) {
-                toast('✗ ' + e.message, 'error');
-            } finally {
-                $btnLuaCheck.disabled = false;
-                $btnLuaCheck.textContent = '↻ Check';
-            }
-        }
-        async function doLuaDownload(luaId) {
-            try {
-                const r = await fetch('/api/lua-sync/download', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ luaId })
-                });
-                const j = await r.json();
-                if (j.ok) {
-                    toast(`✓ Đã tải ${luaId} v${j.version} (${Math.round(j.size/1024)}KB)`, 'success', 3500);
-                    fetchLuaSyncStatus();
-                } else {
-                    toast('✗ ' + (j.error || 'download fail'), 'error', 5000);
-                }
-            } catch (e) {
-                toast('✗ ' + e.message, 'error');
-            }
-        }
-        async function doLuaDownloadAll() {
-            if (!$btnLuaDlAll) return;
-            $btnLuaDlAll.disabled = true;
-            $btnLuaDlAll.textContent = '⏳ Đang tải...';
-            try {
-                const r = await fetch('/api/lua-sync/download-all', { method: 'POST' });
-                const j = await r.json();
-                if (j.ok) {
-                    toast(`✓ Tải xong: ${j.okCount} thành công, ${j.failCount} fail`, 'success', 4000);
-                    renderLuaSync(null, j.state);
-                } else {
-                    toast('✗ ' + (j.error || 'fail'), 'error');
-                }
-            } catch (e) { toast('✗ ' + e.message, 'error'); }
-            finally {
-                $btnLuaDlAll.disabled = false;
-                $btnLuaDlAll.textContent = '⬇ Tải tất cả';
-            }
-        }
-        // ★ Custom password modal (Electron không support window.prompt)
-        function showPasswordPrompt(message) {
-            return new Promise((resolve) => {
-                const modal = document.getElementById('obse-pwd-modal');
-                const input = document.getElementById('obse-pwd-input');
-                const prompt = document.getElementById('obse-pwd-prompt');
-                const error = document.getElementById('obse-pwd-error');
-                const btnOk = document.getElementById('obse-pwd-ok');
-                const btnCancel = document.getElementById('obse-pwd-cancel');
-                const btnClose = document.getElementById('obse-pwd-close');
-                if (!modal || !input) return resolve(null);
-                if (prompt) prompt.textContent = message || 'Nhập mật khẩu:';
-                input.value = '';
-                if (error) { error.hidden = true; error.textContent = ''; }
-                modal.hidden = false;
-                setTimeout(() => input.focus(), 50);
-
-                const cleanup = () => {
-                    modal.hidden = true;
-                    btnOk.onclick = null;
-                    btnCancel.onclick = null;
-                    btnClose.onclick = null;
-                    input.onkeydown = null;
-                    modal.onclick = null;
-                };
-                const submit = () => {
-                    const val = input.value;
-                    cleanup();
-                    resolve(val);
-                };
-                const cancel = () => { cleanup(); resolve(null); };
-                btnOk.onclick = submit;
-                btnCancel.onclick = cancel;
-                btnClose.onclick = cancel;
-                modal.onclick = (e) => { if (e.target === modal) cancel(); };
-                input.onkeydown = (e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); submit(); }
-                    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
-                };
-            });
-        }
-
-        async function doLuaOpenFolder() {
-            // SECURITY: prompt mật khẩu (101016) chống vô tình expose path khi share screen
-            const pwd = await showPasswordPrompt('Nhập mật khẩu để mở folder cache:');
-            if (pwd === null) return;   // user cancelled
-            try {
-                const r = await fetch('/api/lua-sync/open-folder', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: pwd })
-                });
-                const j = await r.json();
-                if (j.ok) toast('📁 Đã mở folder cache', 'success', 2000);
-                else if (r.status === 403) toast('🔒 Sai mật khẩu — không mở được', 'error', 3500);
-                else toast('✗ ' + (j.error || 'fail'), 'error', 3000);
-            } catch (e) { toast('✗ ' + e.message, 'error'); }
-        }
-        // SECURITY: KHÔNG còn copy path. Dùng "+ Thêm hiệu ứng" để auto-create mapping.
-        async function doLuaAddToMapping(luaId) {
-            try {
-                const r = await fetch('/api/lua-sync/add-to-mapping', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ luaId })
-                });
-                const j = await r.json();
-                if (j.ok) {
-                    if (j.duplicate) {
-                        toast(j.message, 'info', 4000);
-                    } else {
-                        toast(`✓ ${j.message || 'Đã thêm'} — chọn quà ở panel bên phải`, 'success', 4500);
-                    }
-                    // Refresh mapping panel + LUA list (để badge "Đã thêm" cập nhật)
-                    if (typeof loadConfig === 'function') {
-                        await loadConfig();
-                        if (typeof renderGroups === 'function') renderGroups();
-                    }
-                    fetchLuaSyncStatus();   // ★ Re-render LUA list với inMappingCount mới
-                } else {
-                    toast('✗ ' + (j.error || 'Add fail'), 'error', 5000);
-                }
-            } catch (e) {
-                toast('✗ ' + e.message, 'error');
-            }
-        }
-        function renderLuaSync(config, state) {
-            if (config) {
-                if ($luaAutoCheck) $luaAutoCheck.checked = !!config.autoCheckEnabled;
-                if ($luaInterval) $luaInterval.value = String(config.autoCheckIntervalSec || 300);
-            }
-            if (!state) return;
-            // Meta info
-            if ($luaMeta) {
-                const luaCount = state.luaCount || 0;
-                const ts = state.lastCheckAt ? new Date(state.lastCheckAt) : null;
-                const tsStr = ts ? `${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}:${String(ts.getSeconds()).padStart(2,'0')}` : '—';
-                const errPart = state.lastError ? ` · <span class="err">⚠ ${escapeHtml(state.lastError)}</span>` : '';
-                $luaMeta.innerHTML = `<span class="obse-lua-meta-text">📦 ${luaCount} effects · Last check: ${tsStr}${errPart}</span>`;
-            }
-            // List
-            if (!$luaList) return;
-            const luas = state.luas || [];
-            if (luas.length === 0) {
-                $luaList.innerHTML = '<div class="obse-lua-sync-empty">Manifest chưa load — bấm <b>↻ Check</b></div>';
-                if ($btnLuaDlAll) $btnLuaDlAll.disabled = true;
-                return;
-            }
-            $luaList.innerHTML = '';
-            luas.forEach(lua => {
-                const badge = STATUS_BADGES[lua.status] || STATUS_BADGES.unknown;
-                const row = document.createElement('div');
-                row.className = 'obse-lua-row ' + badge.cls;
-                const mapCount = lua.inMappingCount || 0;
-                if (mapCount > 0) row.classList.add('has-mapping');
-                // Action button based on status + mapping count
-                let actionBtn = '';
-                if (lua.status === 'missing') {
-                    actionBtn = `<button class="obse-btn primary mini" data-action="dl" data-id="${escapeHtml(lua.id)}">⬇ Tải</button>`;
-                } else if (lua.status === 'outdated') {
-                    actionBtn = `<button class="obse-btn warn mini" data-action="dl" data-id="${escapeHtml(lua.id)}">⬆ Up</button>`;
-                } else if (lua.status === 'latest') {
-                    // ★ Compact: chỉ icon, gom trong group
-                    const settingsBtn = `<button class="obse-btn ghost mini icon-only" data-action="settings" data-id="${escapeHtml(lua.id)}" data-name="${escapeHtml(lua.name || lua.id)}" title="Đồng bộ thông số (Export/Import)">⚙</button>`;
-                    if (mapCount > 0) {
-                        actionBtn = settingsBtn + `<button class="obse-btn ghost mini icon-only" data-action="add" data-id="${escapeHtml(lua.id)}" title="Đã có ${mapCount} mapping — bấm để thêm cho gift khác">+</button>`;
-                    } else {
-                        actionBtn = settingsBtn + `<button class="obse-btn primary mini" data-action="add" data-id="${escapeHtml(lua.id)}" title="Tự tạo mapping cho gift">+ Thêm</button>`;
-                    }
-                }
-                const obFileHint = lua.obfuscatedName ? ` · 📄 <span class="obse-lua-obfilename">${escapeHtml(lua.obfuscatedName)}</span>` : '';
-                // ★ Mapping count badge
-                const mappingBadge = mapCount > 0
-                    ? `<span class="obse-lua-mapping-badge" title="${mapCount} mapping đã tạo">✅ ${mapCount}</span>`
-                    : '';
-                row.innerHTML = `
-                    <div class="obse-lua-row-icon">${lua.icon || '📜'}</div>
-                    <div class="obse-lua-row-info">
-                        <div class="obse-lua-row-name">${escapeHtml(lua.name || lua.id)} <span class="obse-lua-version">v${escapeHtml(lua.version || '?')}</span>${mappingBadge}</div>
-                        <div class="obse-lua-row-meta">${escapeHtml(lua.hotkey || '')}${obFileHint}${lua.localVersion && lua.localVersion !== lua.version ? ` · local v${escapeHtml(lua.localVersion)}` : ''}</div>
-                    </div>
-                    <span class="obse-lua-status ${badge.cls}" title="${badge.label}">${badge.icon}</span>
-                    <div class="obse-lua-row-actions">${actionBtn}</div>
-                `;
-                $luaList.appendChild(row);
-            });
-            // Wire up dynamic buttons
-            $luaList.querySelectorAll('button[data-action="dl"]').forEach(b => {
-                b.addEventListener('click', () => doLuaDownload(b.dataset.id));
-            });
-            $luaList.querySelectorAll('button[data-action="add"]').forEach(b => {
-                b.addEventListener('click', () => doLuaAddToMapping(b.dataset.id));
-            });
-            $luaList.querySelectorAll('button[data-action="settings"]').forEach(b => {
-                b.addEventListener('click', () => openSettingsSyncModal(b.dataset.id, b.dataset.name));
-            });
-            // Enable "Download all" if có ít nhất 1 missing/outdated
-            const hasMissingOrOutdated = luas.some(l => l.status === 'missing' || l.status === 'outdated');
-            if ($btnLuaDlAll) $btnLuaDlAll.disabled = !hasMissingOrOutdated;
-        }
-        // Wire up handlers
-        if ($btnLuaCheck) $btnLuaCheck.addEventListener('click', doLuaCheck);
-        if ($btnLuaDlAll) $btnLuaDlAll.addEventListener('click', doLuaDownloadAll);
-        if ($btnLuaFolder) $btnLuaFolder.addEventListener('click', doLuaOpenFolder);
-        if ($btnLuaSettings && $luaSettings) {
-            $btnLuaSettings.addEventListener('click', () => { $luaSettings.hidden = !$luaSettings.hidden; });
-        }
-        async function saveLuaConfig() {
-            try {
-                await fetch('/api/lua-sync/config', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        autoCheckEnabled: !!($luaAutoCheck?.checked),
-                        autoCheckIntervalSec: Number($luaInterval?.value) || 300
-                    })
-                });
-                toast('✓ Đã lưu cài đặt auto-sync', 'success', 2000);
-            } catch (e) { toast('✗ ' + e.message, 'error'); }
-        }
-        if ($luaAutoCheck) $luaAutoCheck.addEventListener('change', saveLuaConfig);
-        if ($luaInterval) $luaInterval.addEventListener('change', saveLuaConfig);
-        // Socket events
-        if (typeof socket !== 'undefined' && socket) {
-            socket.on('luaSync:updatesAvailable', (updates) => {
-                const names = updates.map(u => u.id).join(', ');
-                toast(`📢 Có update: ${names}`, 'info', 6000);
-                fetchLuaSyncStatus();
-            });
-            socket.on('luaSync:downloaded', () => fetchLuaSyncStatus());
-        }
-        // Initial fetch khi view active
-        fetchLuaSyncStatus();
-
-        // ===== Persist collapse state (localStorage) =====
-        const persistCollapse = (id, key) => {
-            const el = document.getElementById(id);
-            if (!el) return;
-            const stored = localStorage.getItem(key);
-            if (stored !== null) el.open = stored === 'true';
-            el.addEventListener('toggle', () => {
-                localStorage.setItem(key, String(el.open));
-            });
-        };
-        persistCollapse('obse-lua-sync-details', 'obse-lua-collapse');
-        persistCollapse('obse-bgremoval-details', 'obse-bg-collapse');
-
-        // ====== Background Removal helper ======
-        function setBgStatus(state, text) {
-            // state: 'installed' | 'missing' | 'checking' | 'unknown'
-            if (!$bgStatus) return;
-            const iconEl = $bgStatus.querySelector('.obse-bgremoval-icon');
-            const textEl = $bgStatus.querySelector('.obse-bgremoval-text');
-            const icons = { installed: '✅', missing: '❌', checking: '⏳', unknown: '❓' };
-            const colors = { installed: 'ok', missing: 'err', checking: 'wait', unknown: '' };
-            if (iconEl) iconEl.textContent = icons[state] || '❓';
-            if (textEl) textEl.textContent = text || '';
-            $bgStatus.className = 'obse-bgremoval-status ' + (colors[state] || '');
-            // Also update summary icon (visible even when collapsed)
-            const summaryIcon = document.getElementById('obse-bgremoval-summary-icon');
-            if (summaryIcon) {
-                summaryIcon.textContent = icons[state] || '❓';
-                summaryIcon.className = 'obse-bgremoval-summary-icon ' + (colors[state] || '');
-            }
-        }
-        if ($btnCheckBg) $btnCheckBg.addEventListener('click', async () => {
-            setBgStatus('checking', 'Đang kiểm tra qua OBS WebSocket...');
-            try {
-                const r = await fetch('/api/obs-bridge/check-bg-removal');
-                const j = await r.json();
-                if (!j.ok) {
-                    setBgStatus('unknown', j.message || 'Không kiểm tra được');
-                    toast('⚠ ' + (j.message || 'Check FAIL'), 'error', 4000);
-                    return;
-                }
-                if (j.installed === true) {
-                    setBgStatus('installed', j.message || '✓ Plugin đã cài');
-                    toast('✓ Background Removal đã cài', 'success', 3000);
-                } else {
-                    setBgStatus('missing', j.message || '❌ Plugin chưa cài');
-                    toast('❌ Plugin chưa cài — bấm 📥 Cài đặt để xem hướng dẫn', 'error', 4000);
-                }
-            } catch (e) {
-                setBgStatus('unknown', 'Lỗi: ' + (e.message || e));
-                toast('✗ ' + e.message, 'error');
-            }
-        });
-        if ($btnInstBg && $bgModal) $btnInstBg.addEventListener('click', () => { $bgModal.hidden = false; });
-        if ($bgClose && $bgModal) $bgClose.addEventListener('click', () => { $bgModal.hidden = true; });
-        if ($bgModal) $bgModal.addEventListener('click', (e) => { if (e.target === $bgModal) $bgModal.hidden = true; });
-        if ($btnBgCopy && $bgUrl) $btnBgCopy.addEventListener('click', () => {
-            const url = $bgUrl.textContent.trim();
-            navigator.clipboard?.writeText(url).then(() => toast('✓ Đã copy URL', 'success', 2000))
-                .catch(() => toast('✗ Copy fail — chọn text và Ctrl+C thủ công', 'error'));
-        });
-        if ($btnBgOpen && $bgUrl) $btnBgOpen.addEventListener('click', () => {
-            const url = $bgUrl.textContent.trim();
-            window.open(url, '_blank');
-        });
-
-        // ★ AUTO-INSTALL BG Removal
-        const $btnAutoInst = document.getElementById('btn-obse-bgremoval-autoinstall');
-        const $progressBox = document.getElementById('obse-bgremoval-progress');
-        const $progressFill = document.getElementById('obse-bgremoval-progress-fill');
-        const $progressText = document.getElementById('obse-bgremoval-progress-text');
-        function updateInstallProgress(data) {
-            if (!$progressBox || !$progressFill || !$progressText) return;
-            $progressBox.hidden = false;
-            const pct = Math.max(0, Math.min(100, Number(data.percent) || 0));
-            $progressFill.style.width = pct + '%';
-            $progressText.textContent = data.message || (data.phase + '...');
-            // Color per phase
-            $progressBox.className = 'obse-bgremoval-progress phase-' + data.phase;
-        }
-        if (typeof socket !== 'undefined' && socket) {
-            socket.on('bgInstall:progress', updateInstallProgress);
-        }
-        if ($btnAutoInst) {
-            $btnAutoInst.addEventListener('click', async () => {
-                if (!confirm('Bạn ĐÃ đóng OBS chưa? Plugin DLL không thể replace khi OBS chạy.\n\nNếu OBS WS đang connect → bấm "Disconnect" trên app TRƯỚC khi cài.\n\nBấm OK để bắt đầu cài.')) return;
-                $btnAutoInst.disabled = true;
-                $btnAutoInst.textContent = '⏳ Đang cài...';
-                if ($progressBox) $progressBox.hidden = false;
-                try {
-                    const r = await fetch('/api/obs-bridge/install-bg-removal', { method: 'POST' });
-                    const j = await r.json();
-                    if (j.ok) {
-                        updateInstallProgress({ phase: 'done', percent: 100, message: `✓ Đã cài v${j.version}. MỞ LẠI OBS.` });
-                        toast(`✓ Plugin đã cài v${j.version}. Hãy mở OBS lại!`, 'success', 8000);
-                        setBgStatus('installed', `✓ Plugin v${j.version} (cần khởi động OBS lại)`);
-                    } else {
-                        updateInstallProgress({ phase: 'error', percent: 0, message: '❌ ' + (j.error || 'Install fail') });
-                        toast('✗ ' + (j.error || 'Install fail'), 'error', 6000);
-                    }
-                } catch (e) {
-                    updateInstallProgress({ phase: 'error', percent: 0, message: '❌ ' + e.message });
-                    toast('✗ ' + e.message, 'error');
-                } finally {
-                    $btnAutoInst.disabled = false;
-                    $btnAutoInst.textContent = '🚀 Cài tự động ngay';
-                }
-            });
-        }
-
-        // ★ Auto-save mode toggle (localStorage)
-        // Nếu autoSave OFF → không tự lưu, hiện nút "💾 LƯU" + warning "có thay đổi"
-        function isAutoSaveEnabled() {
-            return localStorage.getItem('obse-autosave') !== 'false';   // default true
-        }
-        function setAutoSaveEnabled(on) {
-            localStorage.setItem('obse-autosave', String(!!on));
-            updateSaveIndicatorMode();
-        }
-        let _hasUnsavedChanges = false;
-        function markUnsaved() {
-            _hasUnsavedChanges = true;
-            const el = document.getElementById('obse-save-indicator');
-            if (!el) return;
-            if (!isAutoSaveEnabled()) {
-                el.textContent = '⚠ Có thay đổi chưa lưu — bấm 💾 LƯU';
-                el.className = 'obse-save-indicator unsaved';
-            }
-        }
-        async function saveConfig(immediate = false) {
-            clearTimeout(saveTimer);
-            const doSave = async () => {
-                try {
-                    await fetch('/api/obs-bridge/config', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(cachedConfig)
-                    });
-                    _hasUnsavedChanges = false;
-                    flashSavedIndicator();
-                } catch (e) { showError('Lưu config lỗi: ' + e.message); }
-            };
-            // ★ Auto-save OFF mode: chỉ mark unsaved, không POST
-            if (!isAutoSaveEnabled() && !immediate) {
-                markUnsaved();
-                return;
-            }
-            if (immediate) return doSave();
-            setSavingIndicator();
-            saveTimer = setTimeout(doSave, 400);
-        }
-        async function manualSave() {
-            await saveConfig(true);
-            toast('💾 Đã lưu', 'success', 1500);
-        }
-        function updateSaveIndicatorMode() {
-            const el = document.getElementById('obse-save-indicator');
-            if (!el) return;
-            const autoOn = isAutoSaveEnabled();
-            if (!autoOn && _hasUnsavedChanges) {
-                el.textContent = '⚠ Có thay đổi chưa lưu — bấm 💾 LƯU';
-                el.className = 'obse-save-indicator unsaved';
-            } else if (!autoOn) {
-                el.textContent = '💾 Auto OFF — chế độ lưu tay';
-                el.className = 'obse-save-indicator manual';
-            } else {
-                el.textContent = '💾 Tự động lưu';
-                el.className = 'obse-save-indicator';
-            }
-        }
-        function setSavingIndicator() {
-            if (!isAutoSaveEnabled()) return;   // skip ở manual mode
-            const el = document.getElementById('obse-save-indicator');
-            if (!el) return;
-            el.textContent = '⏳ Đang lưu...';
-            el.className = 'obse-save-indicator saving';
-        }
-        function flashSavedIndicator() {
-            const el = document.getElementById('obse-save-indicator');
-            if (!el) return;
-            const now = new Date();
-            const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
-            el.textContent = `💾 Đã lưu (${hhmm})`;
-            el.className = 'obse-save-indicator saved';
-            setTimeout(updateSaveIndicatorMode, 2500);   // revert về mode bình thường
-        }
-        // Init save mode indicator
-        setTimeout(updateSaveIndicatorMode, 100);
-        // Wire up auto-save toggle button (added in HTML below)
-        const $btnAutoSaveToggle = document.getElementById('btn-obse-autosave-toggle');
-        const $btnManualSave = document.getElementById('btn-obse-manual-save');
-        if ($btnAutoSaveToggle) {
-            $btnAutoSaveToggle.checked = isAutoSaveEnabled();
-            $btnAutoSaveToggle.addEventListener('change', () => {
-                setAutoSaveEnabled($btnAutoSaveToggle.checked);
-                if ($btnManualSave) $btnManualSave.hidden = $btnAutoSaveToggle.checked;
-                if ($btnAutoSaveToggle.checked && _hasUnsavedChanges) {
-                    saveConfig(true);   // flush ngay khi bật lại auto
-                }
-            });
-            if ($btnManualSave) $btnManualSave.hidden = $btnAutoSaveToggle.checked;
-        }
-        if ($btnManualSave) $btnManualSave.addEventListener('click', manualSave);
-        // Ctrl+S = save khi manual mode
-        document.addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                if (!isAutoSaveEnabled() && _hasUnsavedChanges) {
-                    e.preventDefault();
-                    manualSave();
-                }
-            }
-        });
-        setInterval(async () => {
-            // Poll status + queue mỗi 1s khi view active (1s để queue list update nhanh)
-            if (!document.getElementById('view-obs-effects')?.classList.contains('active')) return;
-            try {
-                const r = await fetch('/api/obs-bridge/config');
-                const j = await r.json();
-                if (j.status) setStatus(j.status);
-                if (j.queue) {
-                    updateQueuePill(j.queue);
-                    renderQueueList(j.queue);
-                }
-                if (j.status && j.status.connected && cachedHotkeys.length === 0) {
-                    fetchHotkeys();
-                }
-                if (j.status && j.status.connected && cachedScenes.length === 0) {
-                    fetchScenes();
-                }
-                // Auto-check BG removal 1 lần sau khi connect (giúp user biết có cần cài plugin không)
-                if (j.status && j.status.connected && !window.__bgRemovalChecked && $btnCheckBg) {
-                    window.__bgRemovalChecked = true;
-                    $btnCheckBg.click();
-                }
-                if (j.status && !j.status.connected) {
-                    window.__bgRemovalChecked = false;  // reset để check lại sau lần connect tiếp
-                }
-            } catch (e) {}
-        }, 1000);
-
-        function updateQueuePill(q) {
-            if (!q || !$queuePill) return;
-            if (q.pending > 0) {
-                $queuePill.hidden = false;
-                $queueCount.textContent = q.pending;
-            } else {
-                $queuePill.hidden = true;
-            }
-        }
-
-        // ============== Queue list panel ==============
-        const $queueCard = document.getElementById('obse-queue-card');
-        const $queueList = document.getElementById('obse-queue-list');
-        const $btnQueueClr2 = document.getElementById('btn-obse-queue-clear2');
-        if ($btnQueueClr2) {
-            $btnQueueClr2.onclick = async () => {
-                if (!confirm('Xóa hết hàng đợi? Hiệu ứng Scene đang chạy (nếu có) sẽ quay về Scene cũ ngay.')) return;
-                try {
-                    const r = await fetch('/api/obs-bridge/queue/clear', { method: 'POST' });
-                    const j = await r.json();
-                    toast(`🗑 Đã xóa ${j.removed || 0} effect`, 'success');
-                } catch (e) { toast('✗ ' + e.message, 'error'); }
-            };
-        }
-        // Cache queue data cho countdown render 5 lần/giây (server poll vẫn 1 lần/giây)
-        let _lastQueueData = null;
-        function renderQueueList(q) {
-            _lastQueueData = q || null;
-            renderQueueListInternal();
-        }
-        function renderQueueListInternal() {
-            if (!$queueCard || !$queueList) return;
-            const q = _lastQueueData;
-            const items = q && q.items ? q.items : [];
-            // Tính số "đang waiting có thật" — items có nowFiring "ảo" còn countdown thì coi như queue chưa rỗng
-            if (items.length === 0) {
-                $queueCard.hidden = true;
-                $queueList.innerHTML = '';
-                return;
-            }
-            $queueCard.hidden = false;
-            // Re-render LẠI toàn bộ list mỗi tick (rẻ vì <10 items)
-            $queueList.innerHTML = '';
-            const now = Date.now();
-            items.forEach((it, idx) => {
-                const row = document.createElement('div');
-                row.className = 'obse-queue-row ' + (it.status === 'running' ? 'running' : 'waiting');
-                // Icon = giftImage
-                const iconHtml = it.giftImage ?
-                    `<img class="obse-queue-icon" src="${escapeHtml(it.giftImage)}" onerror="this.style.display='none'"/>` :
-                    `<span class="obse-queue-icon-noimg">🎁</span>`;
-                const displayName = it.actionName || it.giftName || `Gift ${it.giftId}`;
-                const groupBadge = it.group ? `<span class="obse-queue-group">${escapeHtml(it.group)}</span>` : '';
-
-                // Position badge: #1 (đang chạy), #2, #3, ...
-                const posBadge = `<span class="obse-queue-pos">#${idx + 1}</span>`;
-
-                let statusBadge;
-                if (it.status === 'running' && it.firedAt && it.intervalMs) {
-                    const elapsed = now - it.firedAt;
-                    const remaining = Math.max(0, it.intervalMs - elapsed);
-                    const secLeft = (remaining / 1000).toFixed(1);
-                    // Progress bar bên trong badge
-                    const pct = Math.max(0, Math.min(100, (elapsed / it.intervalMs) * 100));
-                    statusBadge = `<span class="obse-queue-status running">
-                        <span class="obse-queue-progress" style="width:${pct.toFixed(1)}%"></span>
-                        <span class="obse-queue-status-text">▶ Đang chạy · còn ${secLeft}s</span>
-                    </span>`;
-                } else if (it.status === 'running') {
-                    statusBadge = '<span class="obse-queue-status running"><span class="obse-queue-status-text">▶ Đang chạy</span></span>';
-                } else {
-                    statusBadge = '<span class="obse-queue-status waiting">⏳ Chờ</span>';
-                }
-                row.innerHTML = `
-                    ${posBadge}
-                    ${iconHtml}
-                    <div class="obse-queue-info">
-                        <span class="obse-queue-name">${escapeHtml(displayName)}</span>
-                        <span class="obse-queue-meta">${groupBadge}${groupBadge ? ' · ' : ''}${escapeHtml(it.scene ? '🎬 ' + it.scene + (it.hotkey ? ' + ' + it.hotkey : '') : (it.hotkey || ''))}</span>
-                    </div>
-                    ${statusBadge}
-                `;
-                $queueList.appendChild(row);
-            });
-        }
-        // Countdown refresh: 200ms cho UI mượt (server poll vẫn 1s)
-        setInterval(() => {
-            if (!document.getElementById('view-obs-effects')?.classList.contains('active')) return;
-            if (!_lastQueueData) return;
-            // Chỉ re-render nếu có item running (cần update countdown)
-            const hasRunning = (_lastQueueData.items || []).some(it => it.status === 'running' && it.firedAt);
-            if (hasRunning) renderQueueListInternal();
-        }, 200);
-
-        async function doConnect() {
-            cachedConfig.url = $url.value.trim();
-            cachedConfig.password = $pass.value;
-            cachedConfig.autoConnect = $auto.checked;
-            await saveConfig(true);
-            $err.hidden = true;
-            $btnConn.disabled = true;
-            try {
-                const r = await fetch('/api/obs-bridge/connect', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: cachedConfig.url, password: cachedConfig.password })
-                });
-                const j = await r.json();
+                const body = await save();
+                const payload = { url: body.url };
+                if (body.password !== undefined) payload.password = body.password;
+                const j = await (await fetch('/api/obs-bridge/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })).json();
                 if (j.status) setStatus(j.status);
                 if (!j.ok) showError(j.error || 'Kết nối thất bại');
-                else { fetchHotkeys(); fetchScenes(); }
-            } catch (e) { showError(e.message); $btnConn.disabled = false; }
-        }
-        async function doDisconnect() {
-            try {
-                const r = await fetch('/api/obs-bridge/disconnect', { method: 'POST' });
-                const j = await r.json();
-                if (j.status) setStatus(j.status);
-            } catch (e) { showError(e.message); }
-        }
-        async function fetchHotkeys() {
-            try {
-                const r = await fetch('/api/obs-bridge/hotkeys');
-                const j = await r.json();
-                if (j.ok) {
-                    cachedHotkeys = j.effectHotkeys || [];
-                    renderGroups();
-                }
-            } catch (e) {}
-        }
-        async function fetchScenes() {
-            try {
-                const r = await fetch('/api/obs-bridge/scenes');
-                const j = await r.json();
-                if (j.ok) {
-                    cachedScenes = Array.isArray(j.scenes) ? j.scenes : [];
-                    cachedSceneCurrent = j.current || '';
-                    renderGroups();
-                }
-            } catch (e) {}
-        }
-
-        // ============== Groups rendering ==============
-        function getGroupNames() {
-            // Distinct groups từ mappings, sort: nhóm có tên (alphabet) → "" (Chưa nhóm) cuối
-            const names = new Set();
-            cachedConfig.mapping.forEach(m => names.add(m.group || ''));
-            const arr = [...names];
-            arr.sort((a, b) => {
-                if (a === '' && b === '') return 0;
-                if (a === '') return 1;
-                if (b === '') return -1;
-                return a.localeCompare(b, 'vi');
-            });
-            return arr;
-        }
-
-        function renderGroups() {
-            const names = getGroupNames();
-            $groupsCt.innerHTML = '';
-            if (cachedConfig.mapping.length === 0) {
-                const empty = document.createElement('div');
-                empty.className = 'obse-groups-empty';
-                empty.innerHTML = '🎯 Chưa có mapping nào.<br>Bấm <b>+ Tạo nhóm mới</b> bên trên để bắt đầu, hoặc tạo nhóm mặc định:';
-                const btn = document.createElement('button');
-                btn.className = 'obse-btn primary';
-                btn.style.marginTop = '12px';
-                btn.textContent = '+ Tạo mapping đầu tiên (Chưa nhóm)';
-                btn.onclick = () => addMappingToGroup('');
-                empty.appendChild(btn);
-                $groupsCt.appendChild(empty);
-                return;
-            }
-            names.forEach(name => renderOneGroup(name));
-        }
-
-        function renderOneGroup(name) {
-            const displayName = name === '' ? '📁 Chưa nhóm' : '📂 ' + name;
-            const rows = cachedConfig.mapping.filter(m => (m.group || '') === name);
-            const isCollapsed = collapsedGroups.has(name);
-            const groupDisabled = isGroupDisabled(name);
-
-            const wrap = document.createElement('div');
-            wrap.className = 'obse-group';
-            if (isCollapsed) wrap.classList.add('collapsed');
-            if (groupDisabled) wrap.classList.add('group-disabled');
-            wrap.dataset.group = name;
-
-            // Header
-            const head = document.createElement('div');
-            head.className = 'obse-group-head';
-
-            const toggle = document.createElement('button');
-            toggle.className = 'obse-group-toggle';
-            toggle.textContent = isCollapsed ? '▸' : '▾';
-            toggle.onclick = () => {
-                if (collapsedGroups.has(name)) collapsedGroups.delete(name);
-                else collapsedGroups.add(name);
-                persistCollapsed();
-                renderGroups();
-            };
-            head.appendChild(toggle);
-
-            // Group enable toggle (bật/tắt cả nhóm)
-            const grpEnWrap = document.createElement('label');
-            grpEnWrap.className = 'obse-group-toggle-switch';
-            grpEnWrap.title = groupDisabled
-                ? `Nhóm "${displayName}" đang TẮT — tất cả gift trong nhóm bị bỏ qua. Click để bật lại.`
-                : `Nhóm "${displayName}" đang BẬT — click để tắt cả nhóm (mọi gift trong nhóm sẽ bị bỏ qua).`;
-            const grpChk = document.createElement('input');
-            grpChk.type = 'checkbox';
-            grpChk.checked = !groupDisabled;
-            grpChk.onchange = (e) => {
-                e.stopPropagation();
-                setGroupDisabled(name, !grpChk.checked);
-                renderGroups();
-                toast(grpChk.checked
-                    ? `✓ Đã BẬT nhóm "${displayName}"`
-                    : `✗ Đã TẮT nhóm "${displayName}" — gift trong nhóm sẽ bị bỏ qua`,
-                    grpChk.checked ? 'success' : 'warning', 3000);
-            };
-            const grpSlider = document.createElement('span');
-            grpSlider.className = 'obse-toggle-slider';
-            grpEnWrap.appendChild(grpChk);
-            grpEnWrap.appendChild(grpSlider);
-            head.appendChild(grpEnWrap);
-
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'obse-group-name';
-            nameSpan.textContent = displayName;
-            if (groupDisabled) nameSpan.innerHTML += ' <span class="obse-group-disabled-tag">TẮT</span>';
-            head.appendChild(nameSpan);
-
-            const countSpan = document.createElement('span');
-            countSpan.className = 'obse-group-count';
-            const enabledCount = rows.filter(r => r.enabled !== false).length;
-            countSpan.textContent = rows.length === enabledCount
-                ? `(${rows.length})`
-                : `(${enabledCount}/${rows.length})`;
-            head.appendChild(countSpan);
-
-            const actions = document.createElement('div');
-            actions.className = 'obse-group-actions';
-
-            const btnAdd = document.createElement('button');
-            btnAdd.className = 'obse-mini-btn';
-            btnAdd.title = 'Thêm mapping vào nhóm này';
-            btnAdd.textContent = '+';
-            btnAdd.onclick = () => addMappingToGroup(name);
-            actions.appendChild(btnAdd);
-
-            if (name !== '') {
-                const btnRename = document.createElement('button');
-                btnRename.className = 'obse-mini-btn';
-                btnRename.title = 'Đổi tên nhóm';
-                btnRename.textContent = '✎';
-                btnRename.onclick = () => openGroupModal('rename', name);
-                actions.appendChild(btnRename);
-
-                const btnDel = document.createElement('button');
-                btnDel.className = 'obse-mini-btn danger';
-                btnDel.title = 'Xóa cả nhóm (gồm các mapping)';
-                btnDel.textContent = '🗑';
-                btnDel.onclick = () => {
-                    if (!confirm(`Xóa nhóm "${name}" và ${rows.length} mapping trong đó?`)) return;
-                    cachedConfig.mapping = cachedConfig.mapping.filter(m => (m.group || '') !== name);
-                    saveConfig(true);
-                    renderGroups();
-                };
-                actions.appendChild(btnDel);
-            }
-            head.appendChild(actions);
-            wrap.appendChild(head);
-
-            // Body
-            const body = document.createElement('div');
-            body.className = 'obse-group-body';
-            if (rows.length === 0) {
-                const e = document.createElement('div');
-                e.className = 'obse-group-empty';
-                e.textContent = 'Nhóm rỗng — bấm + để thêm mapping';
-                body.appendChild(e);
-            } else {
-                rows.forEach(m => body.appendChild(renderMappingRow(m)));
-            }
-            wrap.appendChild(body);
-
-            $groupsCt.appendChild(wrap);
-        }
-
-        function renderMappingRow(m) {
-            const row = document.createElement('div');
-            row.className = 'obse-row';
-            if (m.enabled === false) row.classList.add('disabled');
-            row.dataset.id = m.id;
-
-            // Enable toggle (switch nhỏ bên trái)
-            const enWrap = document.createElement('label');
-            enWrap.className = 'obse-row-toggle';
-            enWrap.title = m.enabled === false ? 'Đang TẮT — click để bật lại' : 'Đang BẬT — click để tắt mapping này (gift đến vẫn không trigger)';
-            const enChk = document.createElement('input');
-            enChk.type = 'checkbox';
-            enChk.checked = m.enabled !== false;
-            enChk.onchange = () => {
-                m.enabled = enChk.checked;
-                saveConfig();
-                renderGroups();   // re-render để update class disabled
-            };
-            const enSlider = document.createElement('span');
-            enSlider.className = 'obse-toggle-slider';
-            enWrap.appendChild(enChk);
-            enWrap.appendChild(enSlider);
-            row.appendChild(enWrap);
-
-            // Gift picker button
-            const btnGift = document.createElement('button');
-            btnGift.className = 'obse-row-gift';
-            btnGift.title = 'Click để chọn quà / đổi quà';
-            if (m.giftId) {
-                btnGift.innerHTML = `
-                    ${m.giftImage ? `<img src="${m.giftImage}" onerror="this.style.display='none'"/>` : '<span class="obse-row-gift-noimg">🎁</span>'}
-                    <span class="obse-row-gift-info">
-                        <span class="obse-row-gift-name">${escapeHtml(m.giftName || '(chưa rõ tên)')}</span>
-                        <span class="obse-row-gift-id">ID ${m.giftId}</span>
-                    </span>`;
-            } else {
-                btnGift.innerHTML = `<span class="obse-row-gift-noimg">+</span><span class="obse-row-gift-info"><span class="obse-row-gift-name">Chọn quà</span></span>`;
-            }
-            btnGift.onclick = () => openGiftPicker(m.id);
-            row.appendChild(btnGift);
-
-            // ★ Scene hiệu ứng — cột chính. Quà về → app chuyển OBS sang scene này, LUA trong scene
-            //   (đã bật "🎬 Tự chạy khi chuyển sang Scene") tự phát, đủ giây → app tự quay về scene cũ.
-            const selScene = document.createElement('select');
-            selScene.className = 'obse-row-scene';
-            selScene.title = 'Scene hiệu ứng trong OBS.\nQuà về: chuyển sang scene này → LUA tự chạy → hết số giây bên phải → tự quay về scene đang phát trước đó.';
-            const optSceneEmpty = document.createElement('option');
-            optSceneEmpty.value = '';
-            optSceneEmpty.textContent = cachedScenes.length ? '— chọn Scene hiệu ứng —' : '— kết nối OBS để lấy Scene —';
-            selScene.appendChild(optSceneEmpty);
-            const seenScenes = new Set();
-            cachedScenes.forEach(name => {
-                const o = document.createElement('option');
-                o.value = name; o.textContent = '🎬 ' + name;
-                selScene.appendChild(o);
-                seenScenes.add(name);
-            });
-            if (m.scene && !seenScenes.has(m.scene)) {
-                const o = document.createElement('option');
-                o.value = m.scene;
-                o.textContent = '🎬 ' + m.scene + (cachedScenes.length ? ' (không thấy trong OBS)' : ' (offline)');
-                selScene.appendChild(o);
-            }
-            selScene.value = m.scene || '';
-            selScene.onchange = async () => {
-                m.scene = selScene.value;
-                saveConfig();
-                if (m.scene && (!m.cooldownMs || m.cooldownMs === 0)) {
-                    const suggested = await fetchSuggestedDurationMs(m.hotkey, m.scene);
-                    if (suggested > 0) {
-                        m.cooldownMs = suggested;
-                        saveConfig();
-                        renderGroups();
-                        toast(`✓ Đã đề xuất ${(suggested/1000).toFixed(1)}s cho Scene "${m.scene}" — chỉnh lại nếu cần`, 'success', 4000);
-                    } else {
-                        toast(`Nhập số giây hiệu ứng chạy xong cho Scene "${m.scene}" (để trống = 8s)`, 'info', 3500);
-                    }
-                }
-            };
-            row.appendChild(selScene);
-
-            // Hotkey — TÙY CHỌN: chỉ cần khi LUA chưa bật "Tự chạy khi chuyển sang Scene" (app bấm hộ sau khi đổi scene)
-            const sel = document.createElement('select');
-            sel.className = 'obse-row-hotkey';
-            sel.title = 'Tùy chọn. Chỉ chọn khi LUA CHƯA bật "🎬 Tự chạy khi chuyển sang Scene" — app sẽ bấm hotkey hộ ngay sau khi chuyển scene.';
-            const optEmpty = document.createElement('option');
-            optEmpty.value = ''; optEmpty.textContent = '— hotkey (tùy chọn) —';
-            sel.appendChild(optEmpty);
-            const seen = new Set();
-            cachedHotkeys.forEach(hk => {
-                const o = document.createElement('option');
-                o.value = hk; o.textContent = hk;
-                sel.appendChild(o);
-                seen.add(hk);
-            });
-            if (m.hotkey && !seen.has(m.hotkey)) {
-                const o = document.createElement('option');
-                o.value = m.hotkey;
-                o.textContent = m.hotkey + ' (offline)';
-                sel.appendChild(o);
-            }
-            sel.value = m.hotkey || '';
-            sel.onchange = async () => {
-                m.hotkey = sel.value;
-                saveConfig();
-                // Auto-suggest duration nếu mapping chưa có cooldown HOẶC user chưa custom
-                // (chỉ overwrite khi cooldown=0 — tránh đè giá trị user đã chỉnh)
-                if (m.hotkey && (!m.cooldownMs || m.cooldownMs === 0)) {
-                    const suggested = await fetchSuggestedDurationMs(m.hotkey, m.scene);
-                    if (suggested > 0) {
-                        m.cooldownMs = suggested;
-                        saveConfig();
-                        renderGroups();   // re-render để hiện số giây mới trong input
-                        toast(`✓ Đã đề xuất ${(suggested/1000).toFixed(1)}s cho "${m.hotkey}" — chỉnh lại nếu cần`, 'success', 4000);
-                    }
-                }
-            };
-            row.appendChild(sel);
-
-            // Action Name (tên hành động, hiển thị trong queue panel)
-            const nameInp = document.createElement('input');
-            nameInp.type = 'text';
-            nameInp.className = 'obse-row-actionname';
-            nameInp.placeholder = 'Tên hành động';
-            nameInp.value = m.actionName || '';
-            nameInp.title = 'Tên hành động hiển thị trong queue panel (vd "Hoa hồng đập chảo")';
-            nameInp.oninput = () => { m.actionName = nameInp.value.trim().slice(0, 80); saveConfig(); };
-            row.appendChild(nameInp);
-
-            // Effect Duration — nhập SỐ GIÂY (lưu nội bộ vẫn là ms)
-            // PHẢI ≥ duration thực tế của effect trong OBS (xem log dòng "TOTAL DURATION: ...ms")
-            const cdWrap = document.createElement('label');
-            cdWrap.className = 'obse-row-cd';
-            cdWrap.title = 'Thời gian hiệu ứng (giây) — số giây effect chạy xong hoàn toàn.\nQuà tiếp theo trong hàng đợi chỉ phát SAU khi đủ thời gian này.\nXem OBS Script log dòng "TOTAL DURATION: ...ms" để biết số chính xác.';
-            const cd = document.createElement('input');
-            cd.type = 'number'; cd.min = '0'; cd.step = '0.5';
-            cd.value = (Math.max(0, Number(m.cooldownMs) || 0) / 1000).toFixed(1);
-            cd.placeholder = 'Giây';
-            cd.oninput = () => {
-                const sec = Math.max(0, Number(cd.value) || 0);
-                m.cooldownMs = Math.round(sec * 1000);
-                saveConfig();
-            };
-            cdWrap.appendChild(cd);
-            const cdLbl = document.createElement('span');
-            cdLbl.textContent = 'giây';
-            cdWrap.appendChild(cdLbl);
-            row.appendChild(cdWrap);
-
-            // Test
-            const btnTest = document.createElement('button');
-            btnTest.className = 'obse-row-test';
-            btnTest.textContent = '🔥';
-            btnTest.title = 'Chạy thử y như quà thật: chuyển Scene → LUA chạy → giữ đủ giây → quay về scene cũ (đi qua hàng đợi)';
-            btnTest.onclick = async () => {
-                if (!m.scene && !m.hotkey) {
-                    toast('⚠ Hàng này chưa chọn Scene hiệu ứng', 'error');
-                    return;
-                }
-                btnTest.disabled = true;
-                try {
-                    await saveConfig(true);   // server tìm mapping theo id → cần bản mới nhất trước khi chạy thử
-                    const r = await fetch('/api/obs-bridge/test-mapping', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: m.id })
-                    });
-                    const j = await r.json();
-                    if (!j.ok) {
-                        const reasonMap = {
-                            'unlicensed': 'License invalid — kích hoạt license trước',
-                            'disconnected': 'Chưa kết nối OBS — bấm "Kết nối" bên trên',
-                            'not-found': 'Chưa lưu mapping — bấm 💾 LƯU rồi thử lại',
-                            'empty': 'Hàng này chưa chọn Scene hiệu ứng'
-                        };
-                        toast('✗ ' + (reasonMap[j.reason] || j.error || j.reason || 'unknown'), 'error', 4000);
-                    } else {
-                        const what = m.scene ? `Scene "${m.scene}"` : `hotkey "${m.hotkey}"`;
-                        toast(j.pending > 1 ? `✓ Đã xếp ${what} vào hàng đợi (#${j.pending})` : `✓ Đang chạy ${what} — xem OBS`, 'success');
-                    }
-                } catch (e) { toast('✗ ' + e.message, 'error'); }
-                finally { setTimeout(() => btnTest.disabled = false, 300); }
-            };
-            row.appendChild(btnTest);
-
-            // Delete
-            const btnDel = document.createElement('button');
-            btnDel.className = 'obse-row-del';
-            btnDel.textContent = '🗑';
-            btnDel.title = 'Xóa mapping';
-            btnDel.onclick = () => {
-                cachedConfig.mapping = cachedConfig.mapping.filter(x => x.id !== m.id);
-                saveConfig(true);
-                renderGroups();
-            };
-            row.appendChild(btnDel);
-
-            return row;
-        }
-
-        function addMappingToGroup(groupName) {
-            // Default cooldown = 0 → tự được fill khi user chọn hotkey (theo registry server-side)
-            // User có thể chỉnh lại sau khi test
-            const m = normMapping({ group: groupName, cooldownMs: 0 });
-            cachedConfig.mapping.push(m);
-            saveConfig();
-            renderGroups();
-        }
-
-        // ============== Gift Picker Modal ==============
-        let gpFiltered = [];
-        function openGiftPicker(mappingId) {
-            gpTargetMappingId = mappingId;
-            $gpSearch.value = '';
-            $gpSort.value = 'diamond-asc';
-            $gpModal.hidden = false;
-            renderGiftPicker();
-            setTimeout(() => $gpSearch.focus(), 50);
-        }
-        function closeGiftPicker() { $gpModal.hidden = true; gpTargetMappingId = null; }
-        function renderGiftPicker() {
-            const sheet = window.__giftSheet || [];
-            const q = $gpSearch.value.trim().toLowerCase();
-            const sort = $gpSort.value;
-            let list = sheet.filter(g => {
-                if (!q) return true;
-                return String(g.id || '').toLowerCase().includes(q)
-                    || String(g.name || '').toLowerCase().includes(q);
-            });
-            if (sort === 'diamond-asc')  list.sort((a, b) => (a.diamond || 0) - (b.diamond || 0));
-            if (sort === 'diamond-desc') list.sort((a, b) => (b.diamond || 0) - (a.diamond || 0));
-            if (sort === 'name')         list.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-            if (sort === 'id')           list.sort((a, b) => Number(a.id) - Number(b.id));
-            gpFiltered = list;
-            $gpCount.textContent = `${list.length} / ${sheet.length}`;
-            $gpGrid.innerHTML = '';
-            const frag = document.createDocumentFragment();
-            list.slice(0, 500).forEach(g => {
-                const c = document.createElement('div');
-                c.className = 'obse-gp-card';
-                c.innerHTML = `
-                    <img src="${g.image || ''}" onerror="this.style.display='none'"/>
-                    <div class="obse-gp-nm">${escapeHtml(g.name || '')}</div>
-                    <div class="obse-gp-id">ID ${g.id}</div>
-                    <div class="obse-gp-di">${g.diamond || 0}⭐</div>
-                `;
-                c.onclick = () => pickGift(g);
-                frag.appendChild(c);
-            });
-            $gpGrid.appendChild(frag);
-        }
-        function pickGift(g) {
-            const m = cachedConfig.mapping.find(x => x.id === gpTargetMappingId);
-            if (!m) return;
-            m.giftId = String(g.id);
-            m.giftName = g.name || '';
-            m.giftImage = g.image || '';
-            saveConfig(true);
-            closeGiftPicker();
-            renderGroups();
-        }
-
-        // ============== Group Name Modal ==============
-        function openGroupModal(mode, oldName) {
-            grmMode = mode;
-            grmRenameOldName = oldName || null;
-            $grmTitle.textContent = mode === 'rename' ? `Đổi tên nhóm "${oldName}"` : 'Tạo nhóm mới';
-            $grmInput.value = mode === 'rename' ? oldName : '';
-            $grmModal.hidden = false;
-            setTimeout(() => { $grmInput.focus(); $grmInput.select(); }, 50);
-        }
-        function closeGroupModal() { $grmModal.hidden = true; }
-        function saveGroupModal() {
-            const newName = $grmInput.value.trim();
-            if (!newName) { $grmInput.focus(); return; }
-            if (grmMode === 'rename' && grmRenameOldName) {
-                // Rename: update tất cả mapping group == oldName → newName
-                cachedConfig.mapping.forEach(m => {
-                    if ((m.group || '') === grmRenameOldName) m.group = newName;
-                });
-                // Migrate collapsed state
-                if (collapsedGroups.has(grmRenameOldName)) {
-                    collapsedGroups.delete(grmRenameOldName);
-                    collapsedGroups.add(newName);
-                    persistCollapsed();
-                }
-                saveConfig(true);
-                renderGroups();
-            } else {
-                // Create: tạo 1 mapping rỗng trong group này (để group hiển thị)
-                addMappingToGroup(newName);
-            }
-            closeGroupModal();
-        }
-
-        // ============== Wire events ==============
-        $btnConn.onclick = doConnect;
-        $btnDisc.onclick = doDisconnect;
-        $btnRefresh.onclick = async () => {
-            await Promise.all([fetchHotkeys(), fetchScenes()]);
-            toast(`✓ Đã tải ${cachedScenes.length} Scene + ${cachedHotkeys.length} hotkey từ OBS`, 'success');
-        };
-        $btnAddGroup.onclick = () => openGroupModal('create');
-
-        // Queue clear button
-        if ($btnQueueClr) {
-            $btnQueueClr.onclick = async (e) => {
-                e.stopPropagation();
-                try {
-                    const r = await fetch('/api/obs-bridge/queue/clear', { method: 'POST' });
-                    const j = await r.json();
-                    toast(`🗑 Đã xóa ${j.removed || 0} effect khỏi hàng đợi`, 'success');
-                    updateQueuePill(j.queue || { pending: 0 });
-                } catch (e) { toast('✗ ' + e.message, 'error'); }
-            };
-        }
-        $url.oninput  = () => { cachedConfig.url = $url.value.trim(); saveConfig(); };
-        $pass.oninput = () => { cachedConfig.password = $pass.value; saveConfig(); };
-        $auto.onchange = () => { cachedConfig.autoConnect = $auto.checked; saveConfig(true); };
-
-        $gpClose.onclick = closeGiftPicker;
-        $gpSearch.oninput = renderGiftPicker;
-        $gpSort.onchange = renderGiftPicker;
-        $gpModal.addEventListener('click', (e) => { if (e.target === $gpModal) closeGiftPicker(); });
-
-        $grmClose.onclick = closeGroupModal;
-        $grmCancel.onclick = closeGroupModal;
-        $grmSave.onclick = saveGroupModal;
-        $grmInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveGroupModal(); });
-        $grmModal.addEventListener('click', (e) => { if (e.target === $grmModal) closeGroupModal(); });
-
-        // ESC close cho modals
-        document.addEventListener('keydown', (e) => {
-            if (e.key !== 'Escape') return;
-            if (!$gpModal.hidden)  { closeGiftPicker();  return; }
-            if (!$grmModal.hidden) { closeGroupModal();  return; }
+                else if (typeof window.toast === 'function') window.toast('✓ Đã kết nối OBS', 'success');
+            } catch (e) { showError(e.message); $conn.disabled = false; }
         });
-
-        // Helper
-        function escapeHtml(s) {
-            return String(s || '').replace(/[<>&"']/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;' }[c]));
-        }
-
-        // Initial
-        loadConfig();
+        $disc.addEventListener('click', async () => {
+            try { const j = await (await fetch('/api/obs-bridge/disconnect', { method: 'POST' })).json(); if (j.status) setStatus(j.status); }
+            catch (e) { showError(e.message); }
+        });
+        $auto.addEventListener('change', () => { save().catch(e => showError(e.message)); });
+        // Popup Cài đặt vừa mở → nạp lại ô nhập; đang mở → hỏi trạng thái 1,5 s/lần.
+        let wasOpen = false;
+        setInterval(() => {
+            const pop = $('settings-popup');
+            const open = !!(pop && !pop.hidden);
+            if (open) refresh(!wasOpen);
+            wasOpen = open;
+        }, 1500);
+        refresh(true);
     })();
 
     // ===== Police Force popup (FAB) =====

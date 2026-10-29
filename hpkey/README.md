@@ -33,8 +33,10 @@ Danh mục + hàm thuần ở `lib/license-features.js` (test: `tests/license-fe
 `server.js` (`applyLicenseLocks()`), giao diện ở `public/app.js`, `public/quick-launch.html`, bảng Game Camera.
 
 - Key "Tất cả" (mọi key cũ, token không có `ft`) → mở hết như trước.
-- Khoá được: 9 game (kể cả THỜI GIAN) + 5 game camera + Dịch Thuật LIVE + Hiệu ứng OBS. Luôn mở: Bảng Quà Tổng.
-  Khung Game Camera mở khi key có ít nhất 1 game camera.
+- Khoá được (44 mục — bán theo từng game, 29/10/2026): 9 game (kể cả THỜI GIAN) + Dịch Thuật LIVE + 6 game camera
+  (kể cả Đá Cầu) + 28 hiệu ứng của Bộ Tách Người (`body-<loại>`, `body-vf-<kiểu>`, `body-mo-<kiểu>` — khoá theo loại + kiểu
+  kịch bản, `Body.saleIdOf`). Luôn mở: Bảng Quà Tổng. GAME MẸ không bán: 🎥 Game Camera mở khi key có ≥ 1 game con,
+  🧍 Bộ Tách Người mở khi có ≥ 1 hiệu ứng `body-*`. (🎬 Hiệu ứng OBS `obs-effects` đã gỡ — xoá dòng đó ở trang quản trị.)
 - Bị khoá: game tắt (KHÔNG xoá dữ liệu — vườn Trồng Cây còn nguyên), không bật lại được qua API / ⏻ / Khởi động
   nhanh, bị bỏ khỏi lựa chọn Game Camera, overlay OBS hiện 🔒 thay cho game; Thư viện Game hiện mờ + 🔒.
 - Mở khoá: bật lại đúng những gì đã tắt vì key (ghi nhớ ở `appConfig.licenseLocks`); mục người dùng tự tắt thì để nguyên.
@@ -58,13 +60,41 @@ nhietdo|Biểu Cảm Nhiệt
 trongcay|Trồng Cây
 nhatla|Nhặt Lá
 timer|Thời Gian
+liveTranslate|Dịch Thuật LIVE
 touchplay|Touch & Play (Game Camera)
 chemtraicay|Chém Trái Cây (Game Camera)
 dapmuoi|Đập Muỗi (Game Camera)
 bancung|Bắn Cung (Game Camera)
 level-quest|Level Quest (Game Camera)
-liveTranslate|Dịch Thuật LIVE
-obs-effects|Hiệu ứng OBS
+dacau|Đá Cầu (Game Camera)
+body-roiho|Rơi Hố (Bộ Tách Người)
+body-biduoi|Bị Đuổi (Bộ Tách Người)
+body-cry|Khóc Lóc (Bộ Tách Người)
+body-heart|Bắn Tim (Bộ Tách Người)
+body-catch|Bắt NPC (Bộ Tách Người)
+body-vf-portal|Cửa Scifi (Bộ Tách Người)
+body-vf-blast|Thiên Thạch Rơi (Bộ Tách Người)
+body-vf-abduct|UFO (Bộ Tách Người)
+body-vf-knock|Đấm Box (Bộ Tách Người)
+body-vf-crush|Đấm Bẹp Dí (Bộ Tách Người)
+body-vf-mario|Mario ăn nấm (Bộ Tách Người)
+body-vf-pickle|Pickleball (Bộ Tách Người)
+body-vf-ninja|Ninja (Bộ Tách Người)
+body-vf-batu|Ba Tư (Bộ Tách Người)
+body-mo-ice|Đóng băng (Bộ Tách Người)
+body-mo-pixel|Vỡ điểm ảnh (Bộ Tách Người)
+body-mo-zap|Sét đánh (Bộ Tách Người)
+body-mo-vacuum|Ống hút người (Bộ Tách Người)
+body-mo-bees|Ong vỡ tổ (Bộ Tách Người)
+body-mo-slap|Tát bay (Bộ Tách Người)
+body-mo-fly|Son Goku (Bộ Tách Người)
+body-mo-ghost|Hồn lìa khỏi xác (Bộ Tách Người)
+body-mo-clone|Phân thân (Bộ Tách Người)
+body-mo-melt|Tan chảy (Bộ Tách Người)
+body-mo-balloon|Thổi phồng (Bộ Tách Người)
+body-mo-lipo|Hút mỡ (Bộ Tách Người)
+body-mo-phone|Hút vào điện thoại (Bộ Tách Người)
+body-mo-anime|Biến hoạt hình (Bộ Tách Người)
 ```
 
 Thêm game mới vào danh mục bán: thêm vào `CATALOG` trong `lib/license-features.js` (+ test), rồi thêm đúng dòng

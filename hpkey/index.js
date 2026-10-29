@@ -200,9 +200,35 @@ async function fetchData(slug, dir) {
   return { ok: true, format: r.body.format || 'csv', body: r.body.body, ts: r.body.ts };
 }
 
+/* ---------------- 🛒 Bán game trong app (shop.php — docs/api-contract.md §7, server/lib/shop.php) ---------------- */
+/**
+ * Gọi shop.php bằng key + HWID của token đã lưu. → thân trả về của server ({ok:true, …}) | {ok:false, error, message, status?}.
+ * Mọi lỗi ở đây là MỀM: KHÔNG bao giờ xoá token / đóng app.
+ */
+async function shopCall(action, extra, dir) {
+  useDir(dir);
+  if (!core.configured()) return { ok: false, error: 'not_configured', message: core.errVi('not_configured') };
+  const s = getStatus(dir);
+  if (!s.key) return { ok: false, error: 'empty_key', message: core.errVi('empty_key') };
+  const r = await core.apiCall(action, Object.assign({ key: s.key, hwid: s.hwid }, extra || {}), { url: core.shopUrl() });
+  if (!r.net) return { ok: false, error: 'no_network', message: core.errVi('no_network') };
+  if (!r.body || r.body.ok !== true) {
+    const error = (r.body && r.body.error) || (r.status >= 500 ? 'server_error' : 'shop_failed');
+    return { ok: false, error, message: core.errVi(error), status: r.status };
+  }
+  return r.body;
+}
+/** Mục KEY này mua được: {ok, on, items:[{id,name,price}], owned:[id], open:[order]}. */
+const shopItems = (dir) => shopCall('shop_items', {}, dir);
+/** Tạo (hoặc dùng lại) đơn mua mục `feature`: {ok, order, pay}. */
+const orderCreate = (feature, dir) => shopCall('order_create', { feature: String(feature || '') }, dir);
+/** Trạng thái đơn: {ok, order, pay?}. opts.check = đối soát SePay ngay (nút "Tôi đã chuyển khoản · Kiểm tra"). */
+const orderStatus = (code, opts, dir) => shopCall('order_status', Object.assign({ code: String(code || '') }, opts && opts.check ? { check: 1 } : {}), dir);
+
 module.exports = {
   VERSION, configure,
   ensureLicense, activate, verify, getStatus, startWatch, deactivate, fetchData,
+  shopItems, orderCreate, orderStatus,
   getHWID, errVi: core.errVi, HARD_CODES: core.HARD_CODES, normalizeKey: core.normalizeKey,
   fmtDmy, _persist: persist,
 };

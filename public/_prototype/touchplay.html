@@ -142,7 +142,7 @@
 
     <div class="card">
       <h3>🎥 Đưa vào OBS</h3>
-      <p>1. OBS: <b>Công cụ → Cài đặt WebSocket Server</b> → bật. Trong app: kết nối OBS ở mục <b>Hiệu ứng OBS</b>.</p>
+      <p>1. OBS: <b>Công cụ → Cài đặt WebSocket Server</b> → bật. Trong app: kết nối OBS ở <b>⚙ Cài đặt › Kết nối OBS WebSocket</b>.</p>
       <p>2. Chọn nguồn camera ở thẻ trên.</p>
       <p>3. Thêm <b>Browser Source</b> 1080×1920 với link dưới, đặt <b>phía trên</b> nguồn camera và phủ kín khung hình. Nền game trong suốt — camera vẫn hiện bên dưới.</p>
       <div class="row"><button class="btn primary" id="copyLink">📋 Copy link OBS</button></div>
@@ -451,7 +451,7 @@ async function onFrame(f) {
 }
 function feedProblem() {
   const st = feed.status || {};
-  if (st.obsConnected === false) return 'App chưa kết nối OBS WebSocket. OBS: Công cụ → Cài đặt WebSocket Server → bật; rồi kết nối ở mục Hiệu ứng OBS trong app.';
+  if (st.obsConnected === false) return 'App chưa kết nối OBS WebSocket. OBS: Công cụ → Cài đặt WebSocket Server → bật; rồi kết nối ở ⚙ Cài đặt › Kết nối OBS WebSocket trong app.';
   if (!st.source) return 'Chưa chọn nguồn camera cho Touch & Play.';
   if (st.error === 'source-missing') return 'Không tìm thấy nguồn "' + st.source + '" trong OBS.';
   return 'Chưa nhận được hình từ nguồn "' + st.source + '".';
@@ -1179,7 +1179,7 @@ async function bootLab() {
     const el = $('obsState'), st = feed.status || lastSources?.status;
     if (!el || !st) return;
     let txt, cls;
-    if (!st.obsConnected) { txt = '● Chưa kết nối OBS WebSocket (mục Hiệu ứng OBS)'; cls = 'bad'; }
+    if (!st.obsConnected) { txt = '● Chưa kết nối OBS WebSocket (⚙ Cài đặt › Kết nối OBS WebSocket)'; cls = 'bad'; }
     else if (!st.source) { txt = '● Đã nối OBS — chọn nguồn camera'; cls = 'warn'; }
     else if (st.error === 'source-missing') { txt = '● Không thấy nguồn "' + st.source + '"'; cls = 'bad'; }
     else if (feed.on && st.live) { txt = '● Đang nhận hình ' + st.fps + ' hình/giây' + (st.camFound ? ' · thấy camera trong scene "' + st.scene + '"' : ' · camera không có trong scene đang phát'); cls = st.camFound ? 'ok' : 'warn'; }

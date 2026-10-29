@@ -718,7 +718,7 @@
                     Game đọc hình từ <b>nguồn camera đang có trong scene OBS</b> (không mở webcam riêng) và nhận diện cơ thể.
                     Thấy người: tim đi theo đỉnh đầu, cung xoay theo người, mũi tên cắm lại trên thân và để vết đỏ nhạt mờ dần sau 4 giây.
                     Không thấy người: về vị trí cấu hình bên dưới như cũ.
-                    <br>Cần: app đã kết nối <b>OBS WebSocket</b> (mục Hiệu ứng OBS) và Browser Source Bắn Cung nằm <b>trên</b> camera trong scene.
+                    <br>Cần: app đã kết nối <b>OBS WebSocket</b> (⚙ Cài đặt › Kết nối OBS WebSocket) và Browser Source Bắn Cung nằm <b>trên</b> camera trong scene.
                 </div>
                 <label class="nd-inline">Nguồn camera
                     <select id="bc-track-src" style="min-width:220px"><option value="">— chọn nguồn camera —</option></select>
@@ -944,7 +944,7 @@
             }
             const s = r?.status || {};
             let txt, color = '#8b93a8';
-            if (!r || s.obsConnected === false) { txt = '● Chưa kết nối OBS WebSocket — vào mục Hiệu ứng OBS để kết nối.'; color = '#ff6b6b'; }
+            if (!r || s.obsConnected === false) { txt = '● Chưa kết nối OBS WebSocket — vào ⚙ Cài đặt › Kết nối OBS WebSocket.'; color = '#ff6b6b'; }
             else if (!d.bodyTrack && !inHub) { txt = '● Đã nối OBS. Bật ô trên để bắt đầu bám theo người (chơi trong 🎥 Game Camera thì luôn bám người).'; }
             else if (!s.source) { txt = '● Chưa có nguồn camera — chọn ở trên (hoặc ở 🎥 Game Camera).'; color = '#ffb347'; }
             else if (s.error === 'source-missing') { txt = '● Không thấy nguồn "' + s.source + '" trong OBS.'; color = '#ff6b6b'; }

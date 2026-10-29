@@ -21,7 +21,7 @@ test('danh sách: chỉ mở đúng id có trong danh sách (phân biệt hoa th
     assert.equal(LF.can(f, 'caro'), true);
     assert.equal(LF.can(f, 'liveTranslate'), true);
     assert.equal(LF.can(f, 'thuytinh'), false);
-    assert.equal(LF.can(f, 'obs-effects'), false);
+    assert.equal(LF.can(f, 'dacau'), false);
     assert.equal(LF.can(['LiveTranslate'], 'liveTranslate'), false, 'sai hoa thường = không mở');
 });
 
@@ -39,9 +39,10 @@ test('THỜI GIAN (timer) khoá theo key như game thường', () => {
     assert.equal(LF.lockedIds(['thuytinh']).includes('timer'), true);
 });
 
-test('[] = khoá hết các mục khoá được + khung camgames', () => {
+test('[] = khoá hết các mục khoá được + mọi game mẹ (camgames, body)', () => {
     const locked = LF.lockedIds([]);
-    assert.deepEqual(locked, [...LF.LOCKABLE, 'camgames']);
+    assert.deepEqual(LF.HUB_IDS, ['camgames', 'body']);
+    assert.deepEqual(locked, [...LF.LOCKABLE, ...LF.HUB_IDS]);
     assert.equal(LF.can([], 'camgames'), false);
 });
 
@@ -53,6 +54,36 @@ test('Game Camera: khoá từng game con; khung camgames mở khi có ít nhất
     const locked = LF.lockedIds(['dapmuoi', 'caro']);
     assert.equal(locked.includes('camgames'), false);
     assert.equal(locked.includes('touchplay'), true);
+});
+
+test('🧍 Bộ Tách Người: game mẹ cấp 2 — mở khi có 1 hiệu ứng body-*; kéo theo cả Game Camera', () => {
+    assert.equal(LF.parentOf('body'), 'camgames');
+    assert.equal(LF.parentOf('body-mo-ice'), 'body');
+    assert.equal(LF.parentOf('dacau'), 'camgames');
+    assert.equal(LF.parentOf('caro'), null);
+    assert.equal(LF.leavesOf('body').length, 28);
+    assert.equal(LF.can(['body-vf-abduct'], 'body'), true);
+    assert.equal(LF.can(['body-vf-abduct'], 'camgames'), true, 'có 1 hiệu ứng tách người → mở cả khung Game Camera');
+    assert.equal(LF.can(['body-vf-abduct'], 'body-vf-blast'), false, 'hiệu ứng khác vẫn khoá');
+    assert.equal(LF.can(['dacau'], 'body'), false);
+    const locked = LF.lockedIds(['dacau']);
+    assert.equal(locked.includes('body'), true);
+    assert.equal(locked.includes('camgames'), false);
+    assert.equal(LF.fullName('body-mo-fly'), 'Son Goku (Bộ Tách Người)');
+    assert.equal(LF.fullName('camgames'), 'Game Camera');
+});
+
+test('🧍 mã bán của kịch bản (Body.saleIdOf) khớp đúng 28 mục body-* — theo LOẠI + KIỂU, không theo id kịch bản', () => {
+    const Body = require('../public/games/body/core.js');
+    assert.deepEqual(Body.VIDFX_MOTIONS, LF.BODY_VIDFX.map((x) => x[0]), 'thứ tự kiểu video khớp core.js');
+    assert.deepEqual(Body.MORPH_STYLES, LF.BODY_MORPH.map((x) => x[0]), 'thứ tự kiểu biến hình khớp core.js');
+    const cfg = Body.defaultConfig();
+    const ids = new Set();
+    for (const k of Body.KINDS) for (const sc of Body.listOf(cfg, k)) ids.add(Body.saleIdOf(k, sc));
+    assert.deepEqual([...ids].sort(), LF.leavesOf('body').slice().sort(), '28 kịch bản mẫu phủ đúng 28 mục bán');
+    assert.equal(Body.saleIdOf('vidfx', { id: 'ban-sao-cua-toi', motion: 'abduct' }), 'body-vf-abduct', 'nhân bản giữ mục bán');
+    assert.equal(Body.saleIdOf('morph', { style: 'tires' }), 'body-mo-vacuum', 'kiểu cũ chuẩn hoá như normalizeMorph');
+    assert.equal(Body.saleIdOf('haucanh', {}), '', 'Hậu Cảnh theo game mẹ');
 });
 
 test('same(): so tác dụng của 2 danh sách', () => {
@@ -91,7 +122,7 @@ test('stateOf: off / hidden thắng locked; admin chỉ khi mục dùng được
 });
 
 test('stateOf camgames: còn game con dùng được → on; mọi game con ẩn → hidden; không còn mà có tạm tắt → off', () => {
-    const kids = LF.CAM_CHILDREN;
+    const kids = LF.leavesOf('camgames');   // mọi mục bán dưới Game Camera, kể cả 28 hiệu ứng của Bộ Tách Người
     assert.equal(LF.stateOf(minus('touchplay'), { touchplay: 'off' }, 'camgames'), 'on');
     const allHidden = Object.fromEntries(kids.map((k) => [k, 'hidden']));
     assert.equal(LF.stateOf(minus(...kids), allHidden, 'camgames'), 'hidden');
@@ -110,14 +141,17 @@ test('sameState(): so trạng thái (ft giữ nguyên mà gs đổi off → hidd
     assert.equal(LF.sameState({ caro: 'off', x: 'lạ' }, { caro: 'off' }), true, 'giá trị lạ bị bỏ trước khi so');
 });
 
-test('danh mục: id hợp lệ với HP KEY ([A-Za-z0-9_.-]{1,40}), không trùng, đủ 16 mục; catalogText đúng định dạng id|Tên', () => {
+test('danh mục: id hợp lệ với HP KEY ([A-Za-z0-9_.-]{1,40}), không trùng, đủ 44 mục; catalogText đúng định dạng id|Tên', () => {
     const ids = LF.CATALOG.map((c) => c.id);
-    assert.equal(ids.length, 16);
+    assert.equal(ids.length, 44, '9 game đơn + Dịch Thuật + 6 game camera + 28 hiệu ứng tách người');
     assert.equal(new Set(ids).size, ids.length);
     for (const id of ids) assert.match(id, /^[A-Za-z0-9_.-]{1,40}$/);
-    for (const c of LF.CAM_CHILDREN) assert.ok(ids.includes(c), c);
+    for (const c of LF.CAM_CHILDREN) assert.ok(ids.includes(c) || LF.HUBS[c], c);
+    assert.equal(ids.includes('obs-effects'), false, '🎬 Hiệu ứng OBS đã gỡ');
     const lines = LF.catalogText().split('\n');
-    assert.equal(lines.length, 16);
+    assert.equal(lines.length, 44);
+    assert.ok(lines.includes('dacau|Đá Cầu (Game Camera)'));
+    assert.ok(lines.includes('body-vf-abduct|UFO (Bộ Tách Người)'));
     assert.equal(lines[0], 'thuytinh|Hũ Thủy Tinh');
     for (const l of lines) assert.match(l, /^[A-Za-z0-9_.-]+\|.+$/);
 });
@@ -231,7 +265,7 @@ test('mục Ẩn không hiện ở mọi danh sách game; server trả trang kho
     const gb = read('public/_prototype/giftboard.html');
     assert.match(gb, /fetch\('\/api\/license\/features'/, 'Bảng Quà Tổng đọc trạng thái mục');
     assert.match(gb, /socket\.on\('license:features'/, 'Bảng Quà Tổng cập nhật khi admin đổi');
-    assert.match(gb, /SOURCE_ORDER\.filter\(id => \(games\[id\] \|\| id === 'obsEffects'\) && !srcHidden\(id\)\)/, 'nguồn Ẩn không hiện');
+    assert.match(gb, /SOURCE_ORDER\.filter\(id => games\[id\] && !srcHidden\(id\)\)/, 'nguồn Ẩn không hiện');
     assert.match(gb, /if \(srcHidden\(id\)\) return false;/, 'quà của nguồn Ẩn không lên bảng');
     assert.match(gb, /⏸ Tạm bảo trì/, 'nguồn Tạm tắt ghi ⏸');
     assert.match(read('server.js'), /return LicFeat\.lockedPageHtml\(id, licenseStateOf\(id\)\);/);

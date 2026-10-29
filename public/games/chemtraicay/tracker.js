@@ -118,7 +118,7 @@ async function loadScenes() {
         currentScene = (r && r.current) || currentScene;
         scenesCache = list.map(s => { const n = typeof s === 'string' ? s : (s.sceneName || s.name || ''); return { value: n, label: n }; }).filter(s => s.value);
         setStatus('obs', scenesCache.length ? `OBS: <span class="ok">đã kết nối</span> (${scenesCache.length} scene)` : 'OBS: <span class="warn">chưa kết nối hoặc chưa có scene</span>');
-    } catch (e) { scenesCache = []; setStatus('obs', 'OBS: <span class="bad">chưa kết nối</span> — vào mục Hiệu ứng OBS để kết nối'); }
+    } catch (e) { scenesCache = []; setStatus('obs', 'OBS: <span class="bad">chưa kết nối</span> — vào ⚙ Cài đặt › Kết nối OBS WebSocket'); }
     renderSourceUI();
     await loadSources();
 }

@@ -60,6 +60,16 @@ const ERR_VI = {
   no_action: 'App gửi lệnh bản quyền không hợp lệ — cập nhật app hoặc liên hệ HP Media.',
   unknown_action: 'App gửi lệnh bản quyền không hợp lệ — cập nhật app hoặc liên hệ HP Media.',
   sign_failed: 'Hệ thống bản quyền đang lỗi (không ký được license) — thử lại sau.',
+  // 🛒 Bán game trong app (shop.php — docs/api-contract.md §7). Mã MỀM.
+  shop_off: 'Chưa mở bán trong app — liên hệ HP Media để mua.',
+  not_for_sale: 'Mục này hiện không bán trong app.',
+  already_owned: 'KEY đã có mục này rồi.',
+  too_many_orders: 'Bạn đang có nhiều đơn chưa thanh toán — thanh toán hoặc đợi vài phút rồi thử lại.',
+  order_not_found: 'Không tìm thấy đơn hàng.',
+  too_big: 'Yêu cầu quá lớn — cập nhật app hoặc liên hệ HP Media.',
+  shop_not_ready: 'Hệ thống bán hàng đang cập nhật — thử lại sau ít phút.',
+  server_error: 'Hệ thống bán hàng đang lỗi — thử lại sau.',
+  shop_failed: 'Không gọi được hệ thống bán hàng — thử lại sau.',
 };
 function errVi(code) { return ERR_VI[code] || ('Lỗi kích hoạt: ' + code); }
 
@@ -82,8 +92,8 @@ function signBody(body) {
 }
 
 /* ---------------- Transport ---------------- */
-function defaultTransport(data) {
-  const u = new URL(cfg.API_URL);
+function defaultTransport(data, url) {
+  const u = new URL(url || cfg.API_URL);
   return new Promise((resolve, reject) => {
     const req = https.request(
       {
@@ -109,12 +119,17 @@ function defaultTransport(data) {
 let transport = defaultTransport;
 function _setTransport(fn) { transport = fn || defaultTransport; }
 
-/** → { net:false } | { net:true, status, body } (body = {} nếu không phải JSON) */
-async function apiCall(action, extra) {
+/** URL điểm vào bán game (shop.php) — cfg.SHOP_URL nếu app đặt, không thì cạnh API_URL. */
+function shopUrl() {
+  return cfg.SHOP_URL || String(cfg.API_URL).replace(/api\.php(\?.*)?$/, 'shop.php');
+}
+
+/** → { net:false } | { net:true, status, body } (body = {} nếu không phải JSON). opts.url = điểm vào khác (shop.php). */
+async function apiCall(action, extra, opts) {
   const body = Object.assign({ action, p: cfg.PRODUCT, ts: Math.floor(Date.now() / 1000) }, extra || {});
   body.sig = signBody(body);
   let r;
-  try { r = await transport(JSON.stringify(body)); }
+  try { r = await transport(JSON.stringify(body), (opts && opts.url) || undefined); }
   catch (_) { return { net: false }; }
   let parsed = {};
   try { parsed = JSON.parse(r.raw); } catch (_) { parsed = {}; }
@@ -169,6 +184,8 @@ function toLicense(p) {
     allowedIds: Array.isArray(p.ids) ? p.ids.map(String) : [],
     features: Array.isArray(p.ft) ? p.ft.map(String) : null,
     gameState: normGameState(p.gs),
+    owned: Array.isArray(p.own) ? p.own.map(String) : [],    // ♾ game sở hữu trọn đời (đã gộp trong features)
+    baseExpiredAt: Number(p.bx) || 0,                        // >0: gói hết hạn từ lúc này, chỉ còn game đã mua
     expiresAt: Number(p.exp) || 0,
     offlineUntil: Number(p.off) || 0,
     issuedAt: Number(p.iat) || 0,
@@ -203,7 +220,7 @@ const heartbeat = (rawKey) => request('heartbeat', rawKey, 'revoked');
 
 module.exports = {
   HARD_CODES, ERR_VI, errVi,
-  normalizeKey, canonical, signBody, apiCall,
+  normalizeKey, canonical, signBody, apiCall, shopUrl,
   verifyToken, toLicense, normGameState, configured,
   activate, verifyKey, heartbeat,
   _setTransport, _setPublicKeyPem, _publicKeyPem: rsaPubKey,

@@ -80,7 +80,7 @@ export class HeadAnchor {
     problem() {
         if (!this.enabled) return '';
         const st = this.feedStatus || {};
-        if (st.obsConnected === false) return 'App chưa kết nối OBS WebSocket (mục Hiệu ứng OBS trong app).';
+        if (st.obsConnected === false) return 'App chưa kết nối OBS WebSocket (⚙ Cài đặt › Kết nối OBS WebSocket trong app).';
         if (st.source === '') return 'Chưa chọn nguồn camera ở 🎥 Game Camera.';
         if (st.error === 'source-missing') return 'Không tìm thấy nguồn "' + st.source + '" trong OBS.';
         if (performance.now() - (this.tracker.shared ? this.tracker.lastFrameAt : this.lastFrameAt) > 4000) return 'Chưa nhận được hình camera từ OBS.';

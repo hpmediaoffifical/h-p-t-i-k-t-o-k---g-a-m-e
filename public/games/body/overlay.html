@@ -1054,7 +1054,7 @@ function showAlert(text) { const el = $('alert'); el.textContent = text || ''; e
 function feedProblem() {
     const st = feed.status || {};
     if (matteErr) return hpT('Bộ Tách Người: {matteErr}', { matteErr });
-    if (st.obsConnected === false) return hpT('App chưa kết nối OBS WebSocket - nối ở mục Hiệu ứng OBS trong app.');
+    if (st.obsConnected === false) return hpT('App chưa kết nối OBS WebSocket - nối ở ⚙ Cài đặt › Kết nối OBS WebSocket trong app.');
     if (st.camFound === false) return hpT('Chưa thấy nguồn camera trong Scene đang phát - chọn nguồn ở 🎥 Game Camera.');
     return hpT('Bộ Tách Người: chưa nhận được hình camera từ OBS.');
 }

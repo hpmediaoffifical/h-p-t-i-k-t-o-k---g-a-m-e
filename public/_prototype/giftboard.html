@@ -380,9 +380,8 @@
     const obj = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
     const PANEL_ID_RE = /^[\w:-]{1,40}$/;
 
-    // Thứ tự nguồn = thứ tự Thư viện Game. obsEffects là tool ảo (Hiệu ứng OBS) không nằm trong /api/games.
-    const SOURCE_ORDER = ['thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung', 'trongcay', 'nhatla', 'timer', 'obsEffects'];
-    const VIRTUAL_META = { obsEffects: { icon: '🎬', name: 'Hiệu ứng OBS' } };
+    // Thứ tự nguồn = thứ tự Thư viện Game. (Nguồn ảo obsEffects — 🎬 Hiệu ứng OBS — đã gỡ 29/10/2026.)
+    const SOURCE_ORDER = ['thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung', 'trongcay', 'nhatla', 'timer'];
     const HAS_SESSION = new Set(['nhietdo', 'bancung', 'trongcay', 'votecomment']);
 
     // ===== CONFIG =====
@@ -462,7 +461,6 @@
     let games = {};          // id → { id, name, icon, config }
     let catalog = {};        // giftId → { id, name, image, diamond }
     let timerCfg = null;     // relay 'timer:cfg' (RAM server)
-    let obsCfg = null;       // /api/obs-bridge/config
     let licStates = {};      // HP KEY gs (/api/license/features → states): mục 'hidden' (Ẩn) không hiện ở đây
     const running = {};      // gameId → phiên đang chạy?
     let rawEntries = [];     // trước khi gộp (bảng danh sách trong lab)
@@ -502,7 +500,6 @@
       { key: 'birdGifts', label: 'Chim bay khi cây cao', tag: () => '🦅' }
     ];
     const fmtSec = s => { s = Math.round(Number(s) || 0); if (s < 60) return s + 's'; const m = Math.floor(s / 60), r = s % 60; return r ? `${m}p${r}s` : `${m}p`; };
-    const prettyHotkey = h => String(h || '').replace(/^effect_/, '').replace(/_trigger$/, '').replace(/_/g, ' ');
 
     function collectRaw() {
       const out = [];
@@ -575,25 +572,18 @@
           }
           if (t.triggers?.enabled !== false) for (const tr of t.triggers?.list || []) if (tr?.enabled !== false && tr.gift?.giftId) push('timer', 'trg:' + tr.id, tr.gift.giftId, tr.gift, tr.name || 'Kích hoạt đếm ngược', fmtSec(tr.durationSec));
         } }
-      { if (obsCfg && obsCfg.enabled !== false) {
-          const dis = new Set(obsCfg.groupsDisabled || []);
-          for (const m of obsCfg.mapping || []) {
-            if (!m?.giftId || !(m.scene || m.hotkey) || m.enabled === false || dis.has(String(m.group || ''))) continue;
-            push('obsEffects', 'map:' + m.id, m.giftId, m, m.actionName || m.scene || prettyHotkey(m.hotkey), '');
-          } } }
       return out;
     }
 
     // Mục Ẩn (HP KEY gs, chưa ra mắt): không vào danh sách nguồn, không lên bảng. Cài đặt nguồn (cfg.sources) giữ nguyên.
     // Mục Tạm tắt (bảo trì): vẫn hiện trong danh sách nguồn, chip ghi ⏸ Tạm bảo trì thay vì "TẮT ở Thư viện".
-    const srcState = id => licStates[id === 'obsEffects' ? 'obs-effects' : id];
+    const srcState = id => licStates[id];
     function srcHidden(id) { return srcState(id) === 'hidden'; }
     function gameEnabled(id) {
       if (srcHidden(id)) return false;
-      if (id === 'obsEffects') return !!obsCfg && obsCfg.enabled !== false;
       return !!games[id] && games[id].config?.enabled !== false;
     }
-    function gameMeta(id) { return games[id] ? { icon: games[id].icon, name: games[id].name } : (VIRTUAL_META[id] || { icon: '🎁', name: id }); }
+    function gameMeta(id) { return games[id] ? { icon: games[id].icon, name: games[id].name } : { icon: '🎁', name: id }; }
     const gIdx = id => { const i = SOURCE_ORDER.indexOf(id); return i < 0 ? 99 : i; };
     // Tách theo game hoặc nhóm theo game → chỉ gộp quà trùng TRONG một game.
     const mergePerGame = () => cfg.mode === 'perGame' || cfg.rules.groupByGame;
@@ -937,7 +927,7 @@
       $('gb-count').textContent = `${total} thẻ · ${visiblePanels.length} khối · ${new Set(rawEntries.filter(e => cfg.sources[e.gameId] && gameEnabled(e.gameId)).map(e => e.gameId)).size} game`;
       renderPanelChips(); syncPanelInputs();
       const counts = {}; for (const e of rawEntries) counts[e.gameId] = (counts[e.gameId] || 0) + 1;
-      const known = SOURCE_ORDER.filter(id => (games[id] || id === 'obsEffects') && !srcHidden(id));
+      const known = SOURCE_ORDER.filter(id => games[id] && !srcHidden(id));
       $('src-cnt').textContent = known.length + ' nguồn';
       $('src-list').innerHTML = known.map(id => {
         const m = gameMeta(id); const en = gameEnabled(id); const run = HAS_SESSION.has(id) ? running[id] : null;
@@ -960,17 +950,15 @@
     // ===== TẢI DỮ LIỆU =====
     async function loadAll() {
       try {
-        const [gl, gifts, ob, own, lf] = await Promise.all([
+        const [gl, gifts, own, lf] = await Promise.all([
           fetch('/api/games').then(r => r.json()),
           fetch('/api/gifts').then(r => r.json()).catch(() => []),
-          fetch('/api/obs-bridge/config').then(r => r.ok ? r.json() : null).catch(() => null),
           fetch(`/api/games/${GAME_ID}/config`).then(r => r.ok ? r.json() : null).catch(() => null),
           fetch('/api/license/features', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)
         ]);
         games = {}; for (const g of Array.isArray(gl) ? gl : []) games[g.id] = g;
         licStates = obj(lf && lf.states);
         for (const g of Array.isArray(gifts) ? gifts : []) if (g?.id) catalog[String(g.id)] = g;
-        if (ob) obsCfg = { enabled: ob.enabled !== false, mapping: ob.mapping || [], groupsDisabled: ob.groupsDisabled || [] };
         for (const id of HAS_SESSION) if (games[id]?.config && typeof games[id].config.sessionActive === 'boolean') running[id] = games[id].config.sessionActive;
         if (own && typeof own === 'object' && !own.error) { cfg = normalize(own.config || own); lastSavedJson = JSON.stringify(cfg); }
         fillInputs(); fitStage(); paint();
@@ -1000,7 +988,6 @@
       socket.on('giftSheet', list => { if (!Array.isArray(list)) return; for (const g of list) if (g?.id) catalog[String(g.id)] = g; schedulePaint(); });
       socket.on('timer:cfg', data => { timerCfg = data && data.cfg ? data.cfg : data; schedulePaint(); });
       socket.on('license:features', d => { licStates = obj(d && d.states); schedulePaint(); });
-      socket.on('obsBridge:config', data => { if (data) { obsCfg = { enabled: data.enabled !== false, mapping: data.mapping || [], groupsDisabled: data.groupsDisabled || [] }; schedulePaint(); } });
       socket.on('giftboard:transient', data => {
         if (!data?.panels || dragging) return;
         for (const [id, p] of Object.entries(obj(data.panels))) {

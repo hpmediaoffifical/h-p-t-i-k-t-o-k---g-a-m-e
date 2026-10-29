@@ -13,7 +13,7 @@ const B = require('../public/games/body/core.js');
 const apis = [];
 test.after(() => { for (const a of apis) a._test.stop(); });
 
-function harness({ config, enabled = true, trusted = true } = {}) {
+function harness({ config, enabled = true, trusted = true, featureOn } = {}) {
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hpal-body-'));
     const routes = {}, sent = [];
     const app = { get: (p, ...f) => { routes['GET ' + p] = f[f.length - 1]; }, post: (p, ...f) => { routes['POST ' + p] = f; } };
@@ -23,7 +23,7 @@ function harness({ config, enabled = true, trusted = true } = {}) {
         app, io, express: { raw: () => (req, res, next) => next() }, path, dataDir,
         getConfig: () => cfg, setConfig: c => { cfg = c; }, saveConfig: () => { saves++; },
         obsBridge: null, touchplayFeed: null, gameEnabled: () => enabled, logger: { log() {}, warn() {} },
-        isTrusted: () => trusted
+        isTrusted: () => trusted, featureOn
     });
     apis.push(api);
     const call = (key, body = {}, extra = {}) => {
@@ -38,6 +38,23 @@ function harness({ config, enabled = true, trusted = true } = {}) {
     return { api, routes, sent, call, cfg: () => cfg, set: c => { cfg = c; }, saves: () => saves, dataDir };
 }
 const gift = (o = {}) => ({ uniqueId: 'an', nickname: 'An', profilePicture: '', giftId: '5655', giftName: 'Rose', giftImage: '', coinValue: 1, repeatCount: 1, source: 'tiktok', ...o });
+
+// 🔒 Bán theo từng game (spec 2026-10-29-mua-game-sepay §6.0): kịch bản chỉ chạy khi KEY mở mục bán của nó (loại + kiểu).
+test('🔒 quà / ▶ Thử bỏ qua kịch bản KEY chưa mở; Hậu Cảnh theo game mẹ body', () => {
+    const c = BS.normalizeConfig({ haucanh: { items: [{ id: 'h1', name: 'Nền', file: '/media/a.webm', gifts: [{ giftId: '5655' }] }] },
+        roiho: { scripts: [{ id: 'k1', gifts: [{ giftId: '5655' }] }] }, biduoi: { scripts: [{ id: 'b1', videos: [{ file: '/media/x.mp4' }], gifts: [{ giftId: '5655' }] }] } });
+    const owned = new Set(['body', 'body-biduoi']);
+    const h = harness({ config: c, featureOn: id => owned.has(id) });
+    assert.deepEqual(h.api.handleGift(gift()).map(x => x.kind), ['haucanh', 'biduoi'], 'Rơi Hố chưa mua → bỏ');
+    const r = h.call('POST /api/body/test', { kind: 'roiho', id: 'k1' });
+    assert.equal(r._code, 403);
+    assert.equal(r.error, 'feature_locked');
+    assert.equal(r.saleId, 'body-roiho');
+    assert.equal(h.call('POST /api/body/test', { kind: 'biduoi', id: 'b1' }).ok, true);
+    const none = harness({ config: c, featureOn: () => false });
+    assert.deepEqual(none.api.handleGift(gift()), []);
+    assert.equal(none.call('POST /api/body/test', { kind: 'haucanh', id: 'h1' })._code, 403);
+});
 
 test('cấu hình: MỘT hồ sơ "Mọi NPC", kịch bản không gắn hồ sơ, quà mẫu chỉ máy chưa gắn quà; cài là ghi lại bản chuẩn', () => {
     const d = BS.defaultConfig();

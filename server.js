@@ -110,8 +110,6 @@ const CamSession = require('./lib/camgames-session');
 const { createCamObs } = require('./lib/camgames-obs');
 const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
 const MusicGifts = require('./lib/music-gifts');
-const { LuaSync } = require('./lib/lua-sync');
-const { OBSSettings } = require('./lib/obs-settings');
 
 const PORT = process.env.PORT || 3000;
 const CaptionListener = require('./lib/caption-listener');
@@ -1069,7 +1067,7 @@ function makeDefaultGiftBoardConfig() {
         // Mỗi khối nhớ vị trí/cỡ/ẩn-hiện RIÊNG: 'main' | 'col1'.. | 'g:<gameId>'. Client tự điền khi khối xuất hiện.
         panels: {},
         // Game nào được lên bảng (game TẮT ở Thư viện luôn bị loại bất kể cờ này)
-        sources: { thuytinh: true, caro: true, votecomment: true, nhietdo: true, bancung: true, trongcay: true, nhatla: true, timer: true, obsEffects: true },
+        sources: { thuytinh: true, caro: true, votecomment: true, nhietdo: true, bancung: true, trongcay: true, nhatla: true, timer: true },
         rules: { mergeSameGift: true, groupByGame: false, sort: 'game', showGeneric: true, onlyRunning: false, hideBirdGifts: true },
         overrides: {}                // key "<game>|<nguồn>|<giftId>" → { hidden, label } — chỉ tác động lên bảng này
     };
@@ -1495,67 +1493,12 @@ const appConfig = loadAppConfig();
 if (!appConfig.games || typeof appConfig.games !== 'object') appConfig.games = {};   // file cấu hình cũ/tay thiếu 'games' → không sập
 if (!appConfig.license || typeof appConfig.license !== 'object') appConfig.license = { key: '', email: '' };
 
-// ====== OBS Bridge — kết nối OBS Studio qua WebSocket để chạy Lua effects ======
-// Luồng chính (v1.9.8+): quà chỉ định về → nhớ Scene đang phát (nhóm NPC) → chuyển sang Scene hiệu ứng
-// → LUA trong scene đó (bật "🎬 Tự chạy khi chuyển sang Scene") tự phát → đủ số giây → tự quay về Scene cũ.
-// Hotkey chỉ còn là tùy chọn cho LUA chưa có mục tự chạy theo Scene (app bấm hộ sau khi đổi scene).
-// License-gated: chỉ trigger nếu license activated.
+// ====== 🔌 OBS WebSocket — MỘT kết nối dùng chung: camera 🎥 Game Camera (mọi game camera), Bộ Tách Người ẩn/hiện
+// camera, Chém Trái Cây, tự Refresh overlay lúc mở app. Cài ở ⚙ Cài đặt › Kết nối OBS WebSocket (trang 🎬 Hiệu ứng OBS
+// cũ đã gỡ 29/10/2026 — khoá cấu hình giữ tên appConfig.obsBridge; mapping/luaSync cũ còn trong file thì bỏ qua).
 if (!appConfig.shareTokens) appConfig.shareTokens = {};   // { gameId: uuid } — link /overlay/shared/<uuid>
-if (!appConfig.obsBridge) {
-    appConfig.obsBridge = {
-        enabled: true,          // master ON/OFF "Hiệu ứng OBS" (đồng bộ với toggle ở 🎮 Thư viện Game)
-        url: 'ws://localhost:4455',
-        password: '',
-        autoConnect: false,
-        mapping: [],            // Array<{ giftId, scene, hotkey?, cooldownMs, enabled }> — scene = Scene hiệu ứng trong OBS
-        groupsDisabled: []      // Array<string> — group names BẬT CỜ TẮT (skip enqueue)
-    };
-}
-// Backward-compat: thêm groupsDisabled nếu config cũ chưa có
-if (!Array.isArray(appConfig.obsBridge.groupsDisabled)) {
-    appConfig.obsBridge.groupsDisabled = [];
-}
-// Backward-compat: config cũ chưa có cờ master → mặc định BẬT
-if (typeof appConfig.obsBridge.enabled !== 'boolean') {
-    appConfig.obsBridge.enabled = true;
-}
-
-// ====== LUA Duration Registry ======
-// Map hotkey name → suggested duration ms (auto-fill khi user pick effect).
-// Số liệu khớp với compute_total_duration_ms() của từng LUA file.
-// User có thể tinh chỉnh sau khi test (xem dòng "TOTAL DURATION: ..." trong OBS Script log).
-const OBS_LUA_DURATION_REGISTRY = {
-    'effect_chao_dap_trigger': 8000,   // Pan smash (~6-8s tùy config)
-    'effect_chao_fall_trigger': 4000,  // Pan fall đơn giản
-    'effect_chay_trigger': 6000,       // Chạy bộ (visible time)
-    'effect_dap_bua_trigger': 9000,    // Whack-a-mole 4 pops + hit + dizzy
-    'effect_ho_den_trigger': 9000,     // Stand+fall+gone+return+stay
-    'effect_lo_xo_trigger': 10000,     // Spring 9.4s
-    'effect_may_giat_trigger': 7000,   // Washing machine
-    'effect_mario_trigger': 15000,     // Mario v5: 4 keyframes (hold+lerp) + mushroom + final_hold
-};
-// Gợi ý theo TÊN SCENE hiệu ứng (mapping quà → Scene không cần hotkey): so từ khóa sau khi bỏ dấu,
-// bỏ khoảng trắng/ký tự lạ. "Chảo Đập" → "chaodap", "Lò xo NPC" → "loxonpc". Thứ tự: khóa dài trước.
-const OBS_LUA_DURATION_BY_KEYWORD = [
-    ['mario', 15000], ['loxo', 10000], ['dapbua', 9000], ['hoden', 9000],
-    ['chaodap', 8000], ['chao', 8000], ['maygiat', 7000], ['chay', 6000]
-];
-function obsBridgeNormalizeName(s) {
-    return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-function obsBridgeSuggestDurationMs(hotkey, sceneName) {
-    if (hotkey) {
-        if (OBS_LUA_DURATION_REGISTRY[hotkey] != null) return OBS_LUA_DURATION_REGISTRY[hotkey];
-        // Fallback heuristic: hotkey có chứa "effect_" → trả về 8s (an toàn)
-        if (/^effect_/.test(hotkey)) return 8000;
-    }
-    const key = obsBridgeNormalizeName(sceneName);
-    if (key) {
-        const hit = OBS_LUA_DURATION_BY_KEYWORD.find(([kw]) => key.includes(kw));
-        if (hit) return hit[1];
-    }
-    return 0;
+if (!appConfig.obsBridge || typeof appConfig.obsBridge !== 'object') {
+    appConfig.obsBridge = { url: 'ws://localhost:4455', password: '', autoConnect: false };
 }
 const obsBridge = new OBSBridge({
     isLicensed: () => Boolean(appConfig.license && appConfig.license.activated),
@@ -1676,6 +1619,7 @@ try {
     bodyApi = BodyServer.installBody({ app, io, express, path, dataDir: DATA_DIR,
         getConfig: () => appConfig.games.body, setConfig: c => { appConfig.games.body = c; }, saveConfig: saveAppConfig,
         obsBridge, touchplayFeed, gameEnabled: () => (appConfig.games.body || {}).enabled !== false,
+        featureOn: id => featureOn(id),   // 🔒 bán theo từng hiệu ứng tách người (body-*), Hậu Cảnh theo game mẹ 'body'
         isTrusted: requestIsTrusted, socketIsTrusted });
 } catch (e) { console.warn('[body] cài module lỗi:', e?.message || e); }
 // URL Browser Source khớp game: theo đường dẫn, hoặc link chia sẻ /overlay/shared/<token> của game đó.
@@ -1684,279 +1628,6 @@ function feedUrlIs(url, gameId, re) {
     return re.test(url) || (!!tok && url.includes('/overlay/shared/' + tok));
 }
 touchplayFeed.start();
-// ===== Effect Queue — PER-GROUP serialization =====
-// Logic: mỗi mapping có field `group`. Effect cùng group → chạy tuần tự (queue chung).
-//        Effect khác group → chạy parallel (queue riêng).
-// → User đặt effects chung source vào cùng group để chống overlap conflict.
-//
-// "" (group rỗng / "Chưa nhóm") cũng là 1 group hợp lệ, items "" share 1 queue chung.
-const obsBridgeQueues       = new Map();    // groupKey → Array of items
-const obsBridgeDraining     = new Map();    // groupKey → bool (worker đang chạy)
-const obsBridgeLastTriggerAt = new Map();   // groupKey → timestamp last trigger
-const obsBridgeLastIntervalMs = new Map();  // groupKey → intervalMs của effect VỪA CHẠY (để wait đúng duration)
-const obsBridgeNowFiring     = new Map();   // groupKey → item đang fire (status='running')
-let obsBridgeQueueLastResult = null;        // global last result (across all groups)
-const OBS_QUEUE_PER_GROUP_CAP = 100;        // cap PER GROUP để tránh RAM bomb
-
-function obsBridgeGetGroupQueue(groupKey) {
-    if (!obsBridgeQueues.has(groupKey)) obsBridgeQueues.set(groupKey, []);
-    return obsBridgeQueues.get(groupKey);
-}
-
-// ⚠ STRICT GLOBAL SERIAL — tất cả effect xếp 1 hàng FIFO duy nhất
-// Lý do: nếu nhiều effect chạy song song trên cùng idol source/scene → loạn
-// (effect A đang play thì effect B vào, idol bị 2 anim ghi đè nhau)
-// Group trong UI chỉ dùng để PHÂN LOẠI hiển thị, không ảnh hưởng queueing.
-const OBS_QUEUE_KEY = '__global__';
-
-function obsBridgeEnqueueForGift(giftId, repeatCount, opts = {}) {
-    if (!giftId) return { enqueued: 0, reason: 'no-gift-id' };
-    // ⛔ Master OFF: "Hiệu ứng OBS" đã TẮT trong 🎮 Thư viện Game → KHÔNG nhận quà, không trigger
-    // bất kỳ effect nào (kể cả quà test). Đây là cổng chặn chính ở server.
-    if (appConfig.obsBridge && appConfig.obsBridge.enabled === false) {
-        return { enqueued: 0, reason: 'obs-effects-disabled' };
-    }
-    const mapping = (appConfig.obsBridge && appConfig.obsBridge.mapping) || [];
-    const match = mapping.find(m => String(m.giftId) === String(giftId));
-    // Hàng hợp lệ = có Scene hiệu ứng (đường chính) HOẶC hotkey (đường cũ)
-    if (!match || (!match.scene && !match.hotkey)) return { enqueued: 0, reason: 'no-mapping' };
-
-    // ⛔ Skip nếu mapping bị TẮT (enabled === false)
-    if (match.enabled === false) {
-        console.log(`[obs-bridge] SKIP giftId=${giftId} scene='${match.scene || ''}' hotkey='${match.hotkey || ''}': mapping DISABLED`);
-        return { enqueued: 0, reason: 'mapping-disabled' };
-    }
-    // ⛔ Skip nếu CẢ NHÓM bị TẮT
-    const groupName = String(match.group || '');
-    const groupsDisabled = (appConfig.obsBridge && appConfig.obsBridge.groupsDisabled) || [];
-    if (groupsDisabled.includes(groupName)) {
-        console.log(`[obs-bridge] SKIP giftId=${giftId} scene='${match.scene || ''}' hotkey='${match.hotkey || ''}': group '${groupName}' DISABLED`);
-        return { enqueued: 0, reason: 'group-disabled' };
-    }
-    return obsBridgeEnqueueMapping(match, repeatCount, { ...opts, giftId });
-}
-
-// Xếp 1 hàng mapping vào hàng đợi — KHÔNG kiểm tra cờ bật/tắt (caller lo). Dùng chung cho quà thật
-// (obsBridgeEnqueueForGift) và nút 🔥 chạy thử (/api/obs-bridge/test-mapping) để test đi đúng đường thật.
-function obsBridgeEnqueueMapping(match, repeatCount, opts = {}) {
-    const groupKey = OBS_QUEUE_KEY;                       // ★ luôn dùng key global
-    const groupLabel = String(match.group || '');          // label hiển thị UI
-    const queue = obsBridgeGetGroupQueue(groupKey);
-    const giftId = String(opts.giftId != null ? opts.giftId : (match.giftId || ''));
-
-    let n = Math.max(1, Math.min(100, Number(repeatCount) || 1));
-    // Cap TOTAL (max 100 items đợi cho toàn bộ queue)
-    if (queue.length + n > OBS_QUEUE_PER_GROUP_CAP) {
-        n = Math.max(0, OBS_QUEUE_PER_GROUP_CAP - queue.length);
-    }
-    const scene = String(match.scene || '');
-    let intervalMs = Math.max(200, Number(match.cooldownMs) || 1000);
-    // Đường Scene: intervalMs = thời gian GIỮ scene hiệu ứng trước khi quay về. Chưa đặt giây → lấy gợi ý
-    // theo LUA/tên scene, không đoán được thì 8s — để 200ms thì vừa chuyển đã quay về, LUA chưa kịp chạy.
-    if (scene && !(Number(match.cooldownMs) > 0)) intervalMs = obsBridgeSuggestDurationMs(match.hotkey, scene) || 8000;
-    for (let i = 0; i < n; i++) {
-        queue.push({
-            hotkey: match.hotkey || '',
-            scene,
-            intervalMs,
-            giftId,
-            giftName: match.giftName || '',
-            giftImage: match.giftImage || '',
-            actionName: match.actionName || '',   // dùng để hiển thị trong UI queue list
-            group: groupKey,
-            groupLabel,                            // ★ label group cho UI hiển thị (badge)
-            source: opts.source || 'gift',
-            enqueuedAt: Date.now()
-        });
-    }
-    const what = [scene ? `scene='${scene}'` : '', match.hotkey ? `hotkey='${match.hotkey}'` : ''].filter(Boolean).join(' + ');
-    console.log(`[obs-bridge] ENQUEUE ${n}× ${what} giftId=${giftId} groupLabel='${groupLabel}' source='${opts.source || 'gift'}' (queue=${queue.length}, intervalMs=${intervalMs})`);
-    obsBridgeDrainGroup(groupKey);
-    return { enqueued: n, pending: queue.length, group: groupLabel };
-}
-
-// ===== Chạy 1 item — đường Scene (chính) hoặc đường hotkey (cũ) =====
-// Scene "nhà" = scene đang phát lúc quà về (nhóm NPC). Nhớ lại để quay về; nếu lúc quà về OBS đang đứng
-// ở 1 scene hiệu ứng (streamer vừa test tay / effect trước chưa kịp về) thì dùng scene nhà đã nhớ trước đó.
-let obsBridgeHomeScene = '';
-let obsBridgeAbortSeq = 0;             // tăng khi "Xóa hàng đợi" → item Scene đang giữ quay về scene nhà NGAY
-const OBS_SCENE_SETTLE_MS = 150;       // chờ OBS đổi scene xong trước khi bấm hotkey hộ
-const OBS_SCENE_RETURN_GAP_MS = 300;   // nghỉ sau khi về scene nhà → lần chuyển kế vẫn bắn SCENE_CHANGED cho LUA
-const obsSleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-function obsBridgeIsEffectScene(name) {
-    if (!name) return false;
-    const mapping = (appConfig.obsBridge && Array.isArray(appConfig.obsBridge.mapping)) ? appConfig.obsBridge.mapping : [];
-    return mapping.some(m => m && m.scene && String(m.scene) === String(name));
-}
-
-async function obsBridgeFireItem(item) {
-    if (!item.scene) {
-        // Đường cũ: chỉ bấm hotkey, LUA tự lo trong scene hiện tại; spacing do vòng drain xử lý.
-        return obsBridge.triggerHotkey(item.hotkey);
-    }
-    // 1. Nhớ scene đang phát (nhóm NPC) để quay về
-    let home = await obsBridge.getCurrentScene();
-    if (!home || obsBridgeIsEffectScene(home)) home = obsBridgeHomeScene;
-    else obsBridgeHomeScene = home;
-    // 2. Chuyển sang scene hiệu ứng → LUA (đã bật "Tự chạy khi chuyển sang Scene") tự phát
-    const sw = await obsBridge.setCurrentScene(item.scene);
-    if (!sw.ok) return { ...sw, step: 'switch-to-scene', scene: item.scene, home };
-    // 3. Hotkey tùy chọn — cho LUA chưa bật tự chạy theo Scene
-    let hk = { ok: true, skipped: true };
-    if (item.hotkey) {
-        await obsSleep(OBS_SCENE_SETTLE_MS);
-        hk = await obsBridge.triggerHotkey(item.hotkey);
-    }
-    // 4. Giữ scene hiệu ứng đủ thời gian LUA chạy xong — poll 100ms để "Xóa hàng đợi" cắt ngang được
-    const holdMs = Math.max(0, (Number(item.intervalMs) || 0) - (item.hotkey ? OBS_SCENE_SETTLE_MS : 0));
-    const seq = obsBridgeAbortSeq;
-    const holdEnd = Date.now() + holdMs;
-    while (Date.now() < holdEnd && obsBridgeAbortSeq === seq) {
-        await obsSleep(Math.max(10, Math.min(100, holdEnd - Date.now())));
-    }
-    const aborted = obsBridgeAbortSeq !== seq;
-    if (aborted) console.log(`[obs-bridge] scene '${item.scene}': bị xóa hàng đợi → quay về scene nhà ngay`);
-    // 5. Quay về scene nhà — chỉ khi OBS vẫn đang ở scene hiệu ứng (streamer tự đổi tay giữa chừng thì tôn trọng)
-    let back = { ok: true, skipped: true };
-    const nowScene = await obsBridge.getCurrentScene();
-    if (home && nowScene === item.scene) {
-        back = await obsBridge.setCurrentScene(home);
-        await obsSleep(OBS_SCENE_RETURN_GAP_MS);
-    } else if (!home) {
-        console.log(`[obs-bridge] scene '${item.scene}': không biết scene nhà để quay về (lần đầu đã đứng sẵn ở scene hiệu ứng)`);
-    } else if (nowScene !== item.scene) {
-        console.log(`[obs-bridge] scene '${item.scene}': streamer đã tự đổi sang '${nowScene}' → không tự quay về`);
-    }
-    return { ok: !!(sw.ok && hk.ok && back.ok), scene: item.scene, home, returned: !back.skipped, aborted, hotkeyResult: hk, backResult: back };
-}
-
-async function obsBridgeDrainGroup(groupKey) {
-    if (obsBridgeDraining.get(groupKey)) return;
-    const queue = obsBridgeGetGroupQueue(groupKey);
-    if (queue.length === 0) return;
-    obsBridgeDraining.set(groupKey, true);
-    try {
-        // do-while: sau khi drain hết, chờ effect cuối play xong DURATION rồi mới clear nowFiring.
-        // Nếu trong lúc chờ có item mới enqueue → loop quay lại drain tiếp (no stuck).
-        do {
-            while (queue.length > 0) {
-                const item = queue[0];
-                // Spacing — chờ đủ DURATION của effect VỪA CHẠY (không phải effect sắp chạy)
-                // → đảm bảo effect trước hoàn tất rồi mới fire effect sau (no overlap)
-                const lastAt   = obsBridgeLastTriggerAt.get(groupKey)   || 0;
-                const lastDur  = obsBridgeLastIntervalMs.get(groupKey) || 0;
-                if (lastAt > 0 && lastDur > 0) {
-                    const elapsed = Date.now() - lastAt;
-                    if (elapsed < lastDur) {
-                        await new Promise(r => setTimeout(r, lastDur - elapsed));
-                    }
-                }
-                queue.shift();
-                obsBridgeNowFiring.set(groupKey, { ...item, firedAt: Date.now() });
-                console.log(`[obs-bridge] queue fire: ${item.scene ? `scene='${item.scene}' ` : ''}hotkey='${item.hotkey || ''}' giftId='${item.giftId}' source='${item.source}' holdMs=${item.intervalMs} (remaining=${queue.length})`);
-                try {
-                    const result = await obsBridgeFireItem(item);
-                    obsBridgeQueueLastResult = {
-                        ...result, hotkey: item.hotkey, scene: item.scene || '', giftId: item.giftId,
-                        group: item.groupLabel || '', ts: Date.now()
-                    };
-                } catch (e) {
-                    obsBridgeQueueLastResult = {
-                        ok: false, reason: 'exception', error: String(e),
-                        hotkey: item.hotkey, scene: item.scene || '', group: item.groupLabel || '', ts: Date.now()
-                    };
-                }
-                obsBridgeLastTriggerAt.set(groupKey, Date.now());
-                // Đường Scene: obsBridgeFireItem đã giữ đủ intervalMs rồi mới quay về → item kế chạy ngay,
-                // không chờ thêm lần nữa. Chỉ đường hotkey cũ mới cần spacing theo duration.
-                obsBridgeLastIntervalMs.set(groupKey, item.scene ? 0 : item.intervalMs);
-            }
-            // POST-DRAIN: chờ effect CUỐI play xong DURATION trước khi clear nowFiring
-            // → UI countdown đếm tới 0 tự nhiên thay vì biến mất ngay
-            // → nếu trong lúc chờ có item mới enqueue, while-outer sẽ pick lên
-            const finalAt  = obsBridgeLastTriggerAt.get(groupKey)  || 0;
-            const finalDur = obsBridgeLastIntervalMs.get(groupKey) || 0;
-            if (finalAt > 0 && finalDur > 0) {
-                const waitEnd = finalAt + finalDur;
-                while (Date.now() < waitEnd && queue.length === 0) {
-                    const left = waitEnd - Date.now();
-                    await new Promise(r => setTimeout(r, Math.min(100, Math.max(20, left))));
-                }
-            }
-        } while (queue.length > 0);
-        obsBridgeNowFiring.delete(groupKey);   // queue rỗng + effect cuối đã play xong → clear
-    } finally {
-        obsBridgeDraining.set(groupKey, false);
-    }
-}
-
-function obsBridgeQueueClear() {
-    obsBridgeAbortSeq++;   // item Scene đang giữ (nếu có) thấy seq đổi → quay về scene nhà ngay, không chờ hết giây
-    let removed = 0;
-    for (const q of obsBridgeQueues.values()) {
-        removed += q.length;
-        q.length = 0;
-    }
-    return removed;
-}
-
-function obsBridgeQueueStatus() {
-    const groups = {};
-    const items = [];     // mảng tất cả items đang chờ + đang chạy (per UI display)
-    let totalPending = 0;
-    let anyDraining = false;
-    // Now firing items first (running row đầu tiên)
-    for (const [key, fItem] of obsBridgeNowFiring.entries()) {
-        items.push({
-            status: 'running',
-            group: fItem.groupLabel || '',     // ★ label hiển thị (không phải internal key)
-            hotkey: fItem.hotkey,
-            scene: fItem.scene || '',
-            giftId: fItem.giftId,
-            giftName: fItem.giftName || '',
-            giftImage: fItem.giftImage || '',
-            actionName: fItem.actionName || '',
-            intervalMs: fItem.intervalMs,
-            firedAt: fItem.firedAt              // ← UI dùng cái này để countdown
-        });
-    }
-    // Then waiting items (FIFO order — oldest first, newest last)
-    for (const [key, q] of obsBridgeQueues.entries()) {
-        const draining = !!obsBridgeDraining.get(key);
-        if (q.length > 0 || draining) {
-            groups[key === OBS_QUEUE_KEY ? '(global)' : (key || '(Chưa nhóm)')] = { pending: q.length, draining };
-        }
-        for (const it of q) {
-            items.push({
-                status: 'waiting',
-                group: it.groupLabel || '',     // ★ label hiển thị
-                hotkey: it.hotkey,
-                scene: it.scene || '',
-                giftId: it.giftId,
-                giftName: it.giftName || '',
-                giftImage: it.giftImage || '',
-                actionName: it.actionName || '',
-                intervalMs: it.intervalMs,
-                enqueuedAt: it.enqueuedAt
-            });
-        }
-        totalPending += q.length;
-        if (draining) anyDraining = true;
-    }
-    return {
-        pending: totalPending,
-        draining: anyDraining,
-        groups,
-        items,                          // ← chi tiết để UI hiện list
-        lastResult: obsBridgeQueueLastResult
-    };
-}
-
-// BACKCOMPAT alias — code cũ gọi tên này
-function obsBridgeMaybeTriggerForGift(giftId, repeatCount = 1) {
-    return obsBridgeEnqueueForGift(giftId, repeatCount);
-}
 // Auto-connect ở startup nếu user đã enable
 if (appConfig.obsBridge.autoConnect && appConfig.obsBridge.url) {
     setTimeout(() => {
@@ -1965,45 +1636,6 @@ if (appConfig.obsBridge.autoConnect && appConfig.obsBridge.url) {
     }, 2000); // delay 2s để các hệ thống khác init xong
 }
 
-// ====== 📚 LUA Sync — fetch manifest từ hpvn.media/luas/, cache vào %APPDATA% ======
-// Strategy C: thay thế Strategy B (manual copy). User chỉ cần add cached file vào OBS Scripts.
-if (!appConfig.luaSync) {
-    appConfig.luaSync = {
-        manifestUrl: 'https://hpvn.media/luas/manifest.json',
-        autoCheckEnabled: true,
-        autoCheckIntervalSec: 300   // 5 phút
-    };
-}
-const LUA_CACHE_DIR = path.join(
-    process.env.APPDATA || require('os').homedir(),
-    'hp-action-live', 'luas'
-);
-const luaSync = new LuaSync({
-    cacheDir: LUA_CACHE_DIR,
-    defaultManifestUrl: appConfig.luaSync.manifestUrl,
-    isLicensed: () => Boolean(appConfig.license && appConfig.license.activated),
-    logger: { log: (...args) => console.log('[lua-sync]', ...args) }
-});
-luaSync.on('updates_available', (updates) => {
-    console.log(`[lua-sync] 📢 ${updates.length} update(s) available`);
-    io.emit('luaSync:updatesAvailable', updates);
-});
-luaSync.on('downloaded', (data) => {
-    io.emit('luaSync:downloaded', data);
-});
-// ====== OBS Settings sync (đồng bộ thông số LUA giữa các máy) ======
-const obsSettings = new OBSSettings({
-    logger: { log: (...args) => console.log('[obs-settings]', ...args) }
-});
-
-// Auto-check khi license đã activated + autoCheck enabled
-if (appConfig.luaSync.autoCheckEnabled) {
-    // Delay 5s sau startup để license validate xong
-    setTimeout(() => {
-        try { luaSync.startAutoCheck(appConfig.luaSync.autoCheckIntervalSec); }
-        catch (e) { console.log('[lua-sync] autoCheck start FAIL:', e.message); }
-    }, 5000);
-}
 const DEFAULT_LIVE_TRANSLATE_CONFIG = {
     enabled: false,
     sourceLang: 'auto',
@@ -3235,6 +2867,7 @@ function makeTestGiftPayload(body = {}) {
 // Giữ nguyên interface validateLicenseKey() nên gate + role không phải sửa.
 // (gift-sheet & auto-update vẫn dùng LICENSE_WORKER_URL cũ — không đổi)
 const { validateLicenseKey } = require('./hpkey/validate');
+const { createShop } = require('./lib/shop-orders');   // 🛒 bán game trong app (SDK 2.2 shopItems / orderCreate / orderStatus)
 
 // ============================================================
 // TÍNH NĂNG THEO KEY — HP KEY trường ft (license.features); danh mục ở lib/license-features.js
@@ -3252,7 +2885,69 @@ function featureOn(id) { return LicFeat.can(licenseFeatures(), id); }
 // Trạng thái mục theo game (HP KEY gs, SDK 2.1 — appConfig.license.gameState): chỉ đổi cách HIỆN (⏸ Tạm bảo trì / ẩn / 🧪);
 // khoá vẫn theo features vì server đã trừ mục Tạm tắt / Ẩn khỏi ft.
 function licenseGameState() { return LicFeat.normalizeState(appConfig.license && appConfig.license.gameState); }
-function licenseStateOf(id) { return LicFeat.stateOf(licenseFeatures(), licenseGameState(), id); }
+function licenseStateOf(id) { return LicFeat.stateOf(licenseFeatures(), licenseGameState(), id, licenseSellable()); }
+
+// ============================================================
+// 🛒 BÁN GAME TRONG APP (spec docs/superpowers/specs/2026-10-29-mua-game-sepay-design.md §6) — lib/shop-orders.js.
+// Danh sách bán (giá từng game KEY này mua được) cache ở appConfig.license.shop; mục đang bán hiện 🔒 + giá thay vì bị ẩn
+// (LicFeat.stateOf … sellable). Đơn đang theo dõi ở appConfig.shopPending. Trả xong → licenseRecheckNow() → game mở ngay.
+// ============================================================
+const shop = createShop({
+    api: {
+        shopItems: () => require('./hpkey/validate').shopItems(),
+        orderCreate: (f) => require('./hpkey/validate').orderCreate(f),
+        orderStatus: (c, o) => require('./hpkey/validate').orderStatus(c, o),
+    },
+    emit: (ev, d) => io.emit(ev, d),
+    recheck: (reason) => licenseRecheckNow(reason),
+    getCache: () => (appConfig.license && appConfig.license.shop) || null,
+    setCache: (c) => {
+        if (!appConfig.license || !appConfig.license.key) return;
+        const before = JSON.stringify(appConfig.license.shop || null);
+        appConfig.license.shop = c;
+        saveAppConfig();
+        if (before !== JSON.stringify(c)) applyLicenseLocks('shop');   // vẽ lại Thư viện / Game Camera (mục bán mới hiện 🔒 + giá)
+    },
+    getPending: () => (Array.isArray(appConfig.shopPending) ? appConfig.shopPending : []),
+    setPending: (l) => { appConfig.shopPending = l; saveAppConfig(); },
+    log: console,
+});
+/** Id đang bán cho KEY này (rỗng khi chưa bật bán / chưa tải được). */
+function licenseSellable() { return appConfig.license && appConfig.license.activated ? shop.sellableIds() : []; }
+/** Phần công khai cho giao diện: bật bán?, giá từng mục, game sở hữu trọn đời (♾), gói hết hạn (bx). */
+function shopPublic() {
+    const c = shop.cached();
+    const lic = appConfig.license || {};
+    const owned = [...new Set([...(Array.isArray(lic.owned) ? lic.owned : []), ...(c.owned || [])])];
+    const on = !!c.on && !!lic.activated;
+    const items = on ? c.items.map((i) => ({ ...i, parent: LicFeat.parentOf(i.id) })) : [];
+    // Game mẹ: giá thấp nhất trong các con đang bán ("từ 30.000đ") — Thư viện hiện ở nhóm 🛒 khi chưa có con nào.
+    const from = {};
+    for (const h of LicFeat.HUB_IDS) {
+        const leaves = new Set(LicFeat.leavesOf(h));
+        const ps = items.filter((i) => leaves.has(i.id)).map((i) => i.price);
+        if (ps.length) from[h] = Math.min(...ps);
+    }
+    return { on, items, from, owned, baseExpiredAt: Number(lic.baseExpiredAt) || 0 };
+}
+/** Xác thực KEY ngay (không chờ watcher 60 s) — sau khi đơn mua game đã trả. Ghi appConfig.license + áp khoá như /api/license/status. */
+async function licenseRecheckNow(reason) {
+    const stored = appConfig.license || {};
+    if (!stored.key) return { ok: false, error: 'no_key' };
+    const result = await validateLicenseKey(stored.key);
+    if (!result.ok) return result;
+    appConfig.license = {
+        ...stored, activated: true, key: result.key, role: result.role || 'ADMIN', allowedIds: result.allowedIds || [],
+        features: result.features === undefined ? null : result.features,
+        gameState: LicFeat.normalizeState(result.gameState),
+        owned: Array.isArray(result.owned) ? result.owned.map(String) : [],
+        baseExpiredAt: Number(result.baseExpiredAt) || 0,
+        vip: result.vip, expiry: result.expiry, note: result.note, lastValidated: Date.now()
+    };
+    saveAppConfig();
+    applyLicenseLocks(reason || 'recheck');
+    return result;
+}
 function licenseDeniedMessage(id) {
     const st = licenseStateOf(id);
     return st === 'off' ? 'Mục này đang tạm bảo trì — HP Media sẽ mở lại sớm'
@@ -3284,7 +2979,7 @@ function applyGameRuntime(id) {
         else if (id === 'trongcay') { trongCayApplyConfigToState(c); broadcastTrongCayState({ immediate: true }); }
     } catch (e) { console.warn('[license] áp lại game ' + id + ' lỗi:', e && e.message); }
 }
-// Bật/tắt một công cụ (Hiệu ứng OBS, Dịch Thuật LIVE…) theo khoá, nhớ vào licenseLocks[name]. Trả true nếu đổi.
+// Bật/tắt một công cụ (Dịch Thuật LIVE…) theo khoá, nhớ vào licenseLocks[name]. Trả true nếu đổi.
 function licenseToolLock(name, obj, lock) {
     const L = licenseLocks();
     if (!obj) return false;
@@ -3364,15 +3059,7 @@ function applyLicenseLocks(reason) {
         io.emit('gameConfig', { gameId: 'camgames', config: appConfig.games.camgames });
         changed = true;
     }
-    // 3) Công cụ: Hiệu ứng OBS, Dịch Thuật LIVE (+ phụ đề giọng Creator đi cùng gói).
-    if (licenseToolLock('obsBridge', appConfig.obsBridge, locked.has('obs-effects'))) {
-        changed = true;
-        io.emit('obsBridge:config', {
-            enabled: appConfig.obsBridge.enabled !== false,
-            mapping: Array.isArray(appConfig.obsBridge.mapping) ? appConfig.obsBridge.mapping : [],
-            groupsDisabled: Array.isArray(appConfig.obsBridge.groupsDisabled) ? appConfig.obsBridge.groupsDisabled : []
-        });
-    }
+    // 3) Công cụ: Dịch Thuật LIVE (+ phụ đề giọng Creator đi cùng gói).
     if (licenseToolLock('liveTranslate', appConfig.liveTranslate, locked.has('liveTranslate'))) {
         changed = true;
         io.emit('translate:config', appConfig.liveTranslate);
@@ -3387,7 +3074,7 @@ function applyLicenseLocks(reason) {
         saveAppConfig();
         console.log(`[license] tính năng theo key (${reason}): khoá ${[...locked].join(', ') || '—'}`);
     }
-    io.emit('license:features', { features, locked: [...locked], states: LicFeat.states(features, licenseGameState()) });
+    io.emit('license:features', { features, locked: [...locked], states: LicFeat.states(features, licenseGameState(), licenseSellable()), shop: shopPublic() });
     return changed;
 }
 
@@ -3653,18 +3340,7 @@ function attachConnectionEvents(conn, lib) {
             repeatCount: normalizeGiftRepeatCount(data),
             source: 'tiktok'
         }, { isMusic, hasSheetItem: !!giftMap[String(realGiftId)], catalog: musicGiftCatalog, info: musicInfo });
-        const giftId = giftPayload.giftId;
         emitGift(giftPayload);
-
-        // ===== OBS Bridge — enqueue effect cho mỗi gift trong combo =====
-        // Tặng 1x → enqueue 1; tặng 5x → enqueue 5; ... drain tuần tự theo cooldownMs.
-        try {
-            const giftIdStr = giftId;
-            const rc = normalizeGiftRepeatCount(data);
-            obsBridgeEnqueueForGift(giftIdStr, rc);
-        } catch (e) {
-            console.error('[obs-bridge] enqueue from gift event error:', e.message);
-        }
     });
 
     conn.on(WebcastEvent.MEMBER, (data) => {
@@ -5595,11 +5271,44 @@ app.get('/api/games', (req, res) => {
     res.json(list);
 });
 
-// Tính năng theo KEY: danh sách mở (null = tất cả) + các id đang bị khoá (gồm cả công cụ ảo liveTranslate / obs-effects)
+// Tính năng theo KEY: danh sách mở (null = tất cả) + các id đang bị khoá (gồm cả công cụ ảo liveTranslate)
 // + states = trạng thái hiển thị của mục khác 'on' (locked / off / hidden / admin — HP KEY gs).
 app.get('/api/license/features', (req, res) => {
     const features = licenseFeatures();
-    res.json({ features, locked: LicFeat.lockedIds(features), lockable: LicFeat.LOCKABLE, states: LicFeat.states(features, licenseGameState()) });
+    res.json({ features, locked: LicFeat.lockedIds(features), lockable: LicFeat.LOCKABLE, states: LicFeat.states(features, licenseGameState(), licenseSellable()), shop: shopPublic() });
+});
+
+// ====== 🛒 Mua game trong app (spec 2026-10-29-mua-game-sepay §6.2) — chỉ máy chạy app (LAN lạ không mua hộ được) ======
+// Giao diện: public/shop-modal.js. Trạng thái đơn đẩy qua socket 'shop:order' (bộ hỏi duy nhất ở lib/shop-orders.js).
+function shopGuard(req, res) {
+    if (!requestIsTrusted(req)) { res.status(403).json({ ok: false, error: 'forbidden', message: 'Chỉ mua được trên máy đang chạy app.' }); return false; }
+    if (!(appConfig.license && appConfig.license.activated)) { res.json({ ok: false, error: 'not_activated', message: 'Chưa kích hoạt KEY.' }); return false; }
+    return true;
+}
+const shopCodeOk = (c) => /^[A-Z0-9]{6,16}$/.test(String(c || ''));
+app.get('/api/shop/items', async (req, res) => {
+    if (!shopGuard(req, res)) return;
+    if (req.query.refresh === '1' || shop.itemsStale()) { try { await shop.refreshItems('ui', req.query.refresh === '1'); } catch (_) {} }
+    res.json({ ok: true, ...shopPublic(), open: shop.cached().open || [] });
+});
+app.post('/api/shop/orders', async (req, res) => {
+    if (!shopGuard(req, res)) return;
+    const feature = String((req.body && req.body.feature) || '');
+    if (!/^[A-Za-z0-9_.-]{1,40}$/.test(feature)) return res.status(400).json({ ok: false, error: 'bad_params', message: 'Mục không hợp lệ.' });
+    try { res.json(await shop.create(feature)); }
+    catch (e) { res.json({ ok: false, error: 'shop_failed', message: 'Không tạo được đơn — thử lại sau.' }); }
+});
+app.get('/api/shop/orders/:code', async (req, res) => {
+    if (!shopGuard(req, res)) return;
+    if (!shopCodeOk(req.params.code)) return res.status(400).json({ ok: false, error: 'bad_params' });
+    try { res.json(await shop.status(req.params.code)); }
+    catch (e) { res.json({ ok: false, error: 'shop_failed', message: 'Không hỏi được trạng thái đơn — thử lại sau.' }); }
+});
+app.post('/api/shop/orders/:code/check', async (req, res) => {
+    if (!shopGuard(req, res)) return;
+    if (!shopCodeOk(req.params.code)) return res.status(400).json({ ok: false, error: 'bad_params' });
+    try { res.json(await shop.check(req.params.code)); }
+    catch (e) { res.json({ ok: false, error: 'shop_failed', message: 'Không kiểm tra được — thử lại sau.' }); }
 });
 
 app.get('/api/games/:id/config', (req, res) => {
@@ -6302,6 +6011,8 @@ app.get('/api/license/status', async (req, res) => {
                 allowedIds: result.allowedIds || [],
                 features: result.features === undefined ? null : result.features,   // null = toàn bộ tính năng (HP KEY ft)
                 gameState: LicFeat.normalizeState(result.gameState),                // mục Tạm tắt / Ẩn / Dùng thử 🧪 (HP KEY gs)
+                owned: Array.isArray(result.owned) ? result.owned.map(String) : [],  // ♾ game mua trọn đời (SDK 2.2, token own)
+                baseExpiredAt: Number(result.baseExpiredAt) || 0,                   // >0: gói hết hạn, chạy với game đã mua (token bx)
                 vip: result.vip,
                 expiry: result.expiry,
                 note: result.note,
@@ -6309,6 +6020,7 @@ app.get('/api/license/status', async (req, res) => {
             };
             saveAppConfig();
             applyLicenseLocks('status');   // tính năng theo KEY: khoá/mở theo danh sách mới nhất
+            shop.refreshItems('status').catch(() => {});   // 🛒 giá / mục bán mới nhất
             return res.json({
                 activated: true,
                 key: result.key,
@@ -6316,6 +6028,8 @@ app.get('/api/license/status', async (req, res) => {
                 allowedIds: result.allowedIds || [],
                 features: appConfig.license.features,
                 gameState: appConfig.license.gameState,
+                owned: appConfig.license.owned,
+                baseExpiredAt: appConfig.license.baseExpiredAt,
                 vip: result.vip,
                 expiry: result.expiry,
                 note: result.note,
@@ -6366,6 +6080,8 @@ app.post('/api/license/activate', async (req, res) => {
         allowedIds: result.allowedIds || [],
         features: result.features === undefined ? null : result.features,   // null = toàn bộ tính năng (HP KEY ft)
         gameState: LicFeat.normalizeState(result.gameState),                // mục Tạm tắt / Ẩn / Dùng thử 🧪 (HP KEY gs)
+        owned: Array.isArray(result.owned) ? result.owned.map(String) : [],  // ♾ game mua trọn đời (SDK 2.2)
+        baseExpiredAt: Number(result.baseExpiredAt) || 0,                   // >0: gói hết hạn (token bx)
         vip: result.vip,
         expiry: result.expiry,
         note: result.note,
@@ -6374,6 +6090,7 @@ app.post('/api/license/activate', async (req, res) => {
     };
     saveAppConfig();
     applyLicenseLocks('activate');   // tính năng theo KEY
+    shop.refreshItems('activate', true).catch(() => {});
     res.json(result);
 });
 
@@ -6606,7 +6323,7 @@ app.get('/api/camgames/obs/program-check', async (req, res) => {
 // ＋ Thêm nhanh overlay mẹ vào Scene còn thiếu (body.scenes: chỉ các Scene này). Sửa Scene OBS → chỉ máy chạy app.
 app.post('/api/camgames/obs/add-overlay', async (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'Chỉ bấm được trên máy chạy app' });
-    if (!obsBridge.isConnected()) return res.status(409).json({ ok: false, error: 'Chưa kết nối OBS WebSocket — mở mục Hiệu ứng OBS → Kết nối' });
+    if (!obsBridge.isConnected()) return res.status(409).json({ ok: false, error: 'Chưa kết nối OBS WebSocket — mở ⚙ Cài đặt › Kết nối OBS WebSocket' });
     try {
         const only = Array.isArray(req.body?.scenes) ? req.body.scenes.map(String).slice(0, 20) : null;
         const r = await camObs.addHubOverlay(only);
@@ -11090,630 +10807,32 @@ app.get('/api/games/vipwelcome/avatar', async (req, res) => {
 // ====== 🔊 SoundFX — đã chuyển sang app HP SoundEffects.exe (WPF) ======
 // Module soundboard web cũ đã gỡ bỏ; Electron main mở app WPF độc lập qua nút 🎵.
 
-// ====== 🎬 OBS Bridge — REST API ======
-// Tab "Hiệu ứng OBS" trong Cài đặt gọi các endpoint này để config + test.
+// ====== 🔌 OBS WebSocket — REST API (khối "Kết nối OBS WebSocket" trong ⚙ Cài đặt) ======
 
-// GET /api/obs-bridge/config — lấy config + status + queue hiện tại
+// GET /api/obs-bridge/config — URL / tự kết nối / trạng thái
 app.get('/api/obs-bridge/config', (req, res) => {
     const cfg = appConfig.obsBridge || {};
     // Mật khẩu OBS WebSocket chỉ trả cho máy này (hoặc client LAN đã có token) — bind 0.0.0.0 mà
     // trả nguyên văn thì mọi máy trong LAN đọc được.
     const trusted = requestIsTrusted(req);
     res.json({
-        enabled: cfg.enabled !== false,
         url: cfg.url || '',
         password: trusted ? (cfg.password || '') : '',
         passwordSet: !!cfg.password,
         autoConnect: !!cfg.autoConnect,
-        mapping: Array.isArray(cfg.mapping) ? cfg.mapping : [],
-        groupsDisabled: Array.isArray(cfg.groupsDisabled) ? cfg.groupsDisabled : [],
-        status: obsBridge.getStatus(),
-        queue: obsBridgeQueueStatus()
+        status: obsBridge.getStatus()
     });
 });
 
-// GET /api/obs-bridge/lua-duration?hotkey=effect_xxx&scene=... — gợi ý duration (ms) theo hotkey hoặc tên Scene
-app.get('/api/obs-bridge/lua-duration', (req, res) => {
-    const hotkey = String(req.query.hotkey || '').trim();
-    const scene = String(req.query.scene || '').trim();
-    const ms = obsBridgeSuggestDurationMs(hotkey, scene);
-    res.json({ hotkey, scene, ms, suggested: ms > 0 });
-});
-
-// ====== 📚 LUA Sync — REST API ======
-// Helper: augment LUA state với mapping count (cho UI badge "Đã thêm")
-function augmentLuaStateWithMapping(state) {
-    const mappings = (appConfig.obsBridge && Array.isArray(appConfig.obsBridge.mapping))
-        ? appConfig.obsBridge.mapping : [];
-    state.luas = state.luas.map(lua => {
-        const matched = mappings.filter(m => m.hotkey === lua.hotkey);
-        return {
-            ...lua,
-            inMappingCount: matched.length,
-            inMappingFilledCount: matched.filter(m => m.giftId && m.giftId !== '').length
-        };
-    });
-    return state;
-}
-
-// GET /api/lua-sync/status — get full state (luas list, status, cache dir)
-app.get('/api/lua-sync/status', (req, res) => {
-    res.json({
-        ok: true,
-        config: {
-            manifestUrlConfigured: !!(appConfig.luaSync && appConfig.luaSync.manifestUrl),
-            autoCheckEnabled: !!(appConfig.luaSync && appConfig.luaSync.autoCheckEnabled),
-            autoCheckIntervalSec: (appConfig.luaSync && appConfig.luaSync.autoCheckIntervalSec) || 300,
-        },
-        state: augmentLuaStateWithMapping(luaSync.getFullState())
-    });
-});
-
-// POST /api/lua-sync/check — fetch manifest from hpvn.media
-app.post('/api/lua-sync/check', async (req, res) => {
-    try {
-        await luaSync.fetchManifest();
-        res.json({ ok: true, state: augmentLuaStateWithMapping(luaSync.getFullState()) });
-    } catch (e) {
-        res.status(500).json({ ok: false, error: e.message, state: augmentLuaStateWithMapping(luaSync.getFullState()) });
-    }
-});
-
-// POST /api/lua-sync/download — download specific LUA
-// Body: { luaId }
-app.post('/api/lua-sync/download', express.json(), async (req, res) => {
-    const luaId = String(req.body?.luaId || '').trim();
-    if (!luaId) return res.status(400).json({ ok: false, error: 'Thiếu luaId' });
-    try {
-        const r = await luaSync.downloadLua(luaId);
-        res.json({ ok: true, ...r, state: augmentLuaStateWithMapping(luaSync.getFullState()) });
-    } catch (e) {
-        res.status(500).json({ ok: false, error: e.message });
-    }
-});
-
-// POST /api/lua-sync/download-all — download tất cả LUAs trong manifest
-app.post('/api/lua-sync/download-all', async (req, res) => {
-    try {
-        const results = await luaSync.downloadAll();
-        const okCount = results.filter(r => r.ok).length;
-        res.json({ ok: true, results, okCount, failCount: results.length - okCount,
-            state: augmentLuaStateWithMapping(luaSync.getFullState()) });
-    } catch (e) {
-        res.status(500).json({ ok: false, error: e.message });
-    }
-});
-
-// PUT /api/lua-sync/config — update auto-check settings
-app.put('/api/lua-sync/config', express.json(), (req, res) => {
-    const body = req.body || {};
-    if (!appConfig.luaSync) appConfig.luaSync = {};
-    if (typeof body.autoCheckEnabled === 'boolean') {
-        appConfig.luaSync.autoCheckEnabled = body.autoCheckEnabled;
-    }
-    if (typeof body.autoCheckIntervalSec === 'number') {
-        appConfig.luaSync.autoCheckIntervalSec = Math.max(30, Math.min(3600, Math.floor(body.autoCheckIntervalSec)));
-    }
-    saveAppConfig();
-    // Restart auto-check
-    if (appConfig.luaSync.autoCheckEnabled) {
-        luaSync.startAutoCheck(appConfig.luaSync.autoCheckIntervalSec);
-    } else {
-        luaSync.stopAutoCheck();
-    }
-    res.json({ ok: true, config: appConfig.luaSync });
-});
-
-// POST /api/lua-sync/add-to-mapping — tự tạo mapping entry cho LUA đã tải
-// Body: { luaId, group? }
-// SECURITY: KHÔNG expose path, chỉ tạo entry với hotkey + actionName + cooldown
-app.post('/api/lua-sync/add-to-mapping', express.json(), (req, res) => {
-    const luaId = String(req.body?.luaId || '').trim();
-    const group = String(req.body?.group || '📚 LUA Effects').trim().slice(0, 40);
-    if (!luaId) return res.status(400).json({ ok: false, error: 'Thiếu luaId' });
-
-    const state = luaSync.getFullState();
-    const lua = state.luas.find(l => l.id === luaId);
-    if (!lua) return res.status(404).json({ ok: false, error: 'LUA không có trong manifest' });
-    if (lua.status !== 'latest') {
-        return res.status(400).json({ ok: false, error: 'LUA chưa tải về — bấm Tải trước rồi thử lại' });
-    }
-    if (!lua.hotkey) {
-        return res.status(400).json({ ok: false, error: 'LUA thiếu hotkey trong manifest — không thể tạo mapping' });
-    }
-
-    if (!appConfig.obsBridge) appConfig.obsBridge = {};
-    if (!Array.isArray(appConfig.obsBridge.mapping)) appConfig.obsBridge.mapping = [];
-
-    // Check duplicate (cùng hotkey + chưa có giftId)
-    const existingEmpty = appConfig.obsBridge.mapping.find(
-        m => m.hotkey === lua.hotkey && (!m.giftId || m.giftId === '')
-    );
-    if (existingEmpty) {
-        return res.json({
-            ok: true,
-            duplicate: true,
-            mapping: existingEmpty,
-            message: `⚠ Đã có mapping trống cho "${lua.name}" — chọn quà cho nó thay vì tạo mới`
-        });
-    }
-
-    const newMapping = {
-        id: 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-        giftId: '',                       // user picks gift later
-        giftName: '',
-        giftImage: '',
-        actionName: lua.name || lua.id,
-        hotkey: lua.hotkey,
-        cooldownMs: Math.max(0, Number(lua.durationMs) || 0),
-        group: group,
-        enabled: true
-    };
-    appConfig.obsBridge.mapping.push(newMapping);
-    saveAppConfig();
-    res.json({
-        ok: true,
-        mapping: newMapping,
-        message: `✓ Đã thêm "${lua.name}" vào Mapping → giờ chỉ chọn quà`
-    });
-});
-
-// ====== 🔄 OBS Settings Sync API ======
-
-// GET /api/obs-settings/scene-collections — list .json files trong OBS scenes folder
-app.get('/api/obs-settings/scene-collections', (req, res) => {
-    try {
-        const collections = obsSettings.listSceneCollections();
-        res.json({ ok: true, collections, scenesDir: obsSettings.scenesDir });
-    } catch (e) {
-        res.status(500).json({ ok: false, error: e.message });
-    }
-});
-
-// POST /api/obs-settings/extract — extract settings cho 1 LUA từ scene collection
-// Body: { luaId, sceneCollection }
-app.post('/api/obs-settings/extract', express.json(), (req, res) => {
-    const luaId = String(req.body?.luaId || '').trim();
-    const sceneCollection = String(req.body?.sceneCollection || '').trim();
-    if (!luaId || !sceneCollection) {
-        return res.status(400).json({ ok: false, error: 'Thiếu luaId hoặc sceneCollection' });
-    }
-    try {
-        const state = luaSync.getLocalState(luaId);
-        if (!state.exists) {
-            return res.status(400).json({ ok: false, error: 'LUA chưa tải về — bấm Tải trước' });
-        }
-        const obFilename = state.obName + '.lua';
-        const result = obsSettings.extractSettings(sceneCollection, obFilename, luaId);
-        if (!result.found) {
-            return res.status(404).json({
-                ok: false,
-                error: result.message,
-                availableScripts: result.availableScripts,
-                triedStrategies: result.triedStrategies
-            });
-        }
-        res.json({
-            ok: true,
-            settings: result.settings,
-            settingsCount: result.settingsCount,
-            scriptPath: result.scriptPath,
-            strategy: result.strategy,
-            matchedFile: result.matchedFile,
-            signatureMatched: result.signatureMatched
-        });
-    } catch (e) {
-        res.status(500).json({ ok: false, error: e.message });
-    }
-});
-
-// POST /api/obs-settings/apply — inject settings vào scene collection
-// Body: { luaId, sceneCollection, settings }
-// SECURITY: refuse nếu OBS WS đang connect (= OBS đang chạy)
-app.post('/api/obs-settings/apply', express.json(), (req, res) => {
-    const luaId = String(req.body?.luaId || '').trim();
-    const sceneCollection = String(req.body?.sceneCollection || '').trim();
-    const settings = req.body?.settings;
-    if (!luaId || !sceneCollection || !settings || typeof settings !== 'object') {
-        return res.status(400).json({ ok: false, error: 'Thiếu luaId/sceneCollection/settings' });
-    }
-    if (obsBridge.isConnected()) {
-        return res.status(409).json({
-            ok: false,
-            error: '⚠ OBS đang chạy. Đóng OBS trước (Disconnect trên app + đóng OBS) rồi thử lại.',
-            requiresObsClose: true
-        });
-    }
-    try {
-        const state = luaSync.getLocalState(luaId);
-        if (!state.exists) {
-            return res.status(400).json({ ok: false, error: 'LUA chưa tải về — bấm Tải trước' });
-        }
-        const obFilename = state.obName + '.lua';
-        const cachedPath = state.path;
-        const result = obsSettings.applySettings(sceneCollection, obFilename, settings, cachedPath, luaId);
-        res.json({
-            ok: true,
-            action: result.action,
-            matchStrategy: result.matchStrategy,
-            scriptPath: result.scriptPath,
-            settingsCount: result.settingsCount,
-            message: `✓ Đã ${result.action === 'updated' ? 'cập nhật' : 'tạo mới'} script entry (match: ${result.matchStrategy}). Mở OBS để load.`
-        });
-    } catch (e) {
-        res.status(500).json({ ok: false, error: e.message });
-    }
-});
-
-// POST /api/obs-settings/backup-all — extract settings TẤT CẢ LUAs trong cache + save vào file
-// Body: { sceneCollection }
-app.post('/api/obs-settings/backup-all', express.json(), (req, res) => {
-    const sceneCollection = String(req.body?.sceneCollection || '').trim();
-    if (!sceneCollection) {
-        return res.status(400).json({ ok: false, error: 'Thiếu sceneCollection' });
-    }
-    try {
-        const luas = (luaSync.getFullState().luas || []).filter(l => l.cached);
-        const backup = {
-            timestamp: Date.now(),
-            sceneCollection,
-            luas: {}
-        };
-        const errors = [];
-        // ★ Diagnostic info — show user mapping luaId→file đang tìm
-        const searchedFor = [];
-        // ★ List TẤT CẢ scripts thực có trong scene collection (cho user compare)
-        let allScriptsInCollection = [];
-        try {
-            allScriptsInCollection = obsSettings.listScripts(sceneCollection);
-        } catch (e) {
-            errors.push({ id: '_collection', error: 'List scripts fail: ' + e.message });
-        }
-        for (const lua of luas) {
-            try {
-                const state = luaSync.getLocalState(lua.id);
-                if (!state.exists) continue;
-                const lookingFor = state.obName + '.lua';
-                searchedFor.push({ id: lua.id, name: lua.name, file: lookingFor });
-                // ★ Pass luaId để multi-strategy fallback (obfuscated → original → signature)
-                const result = obsSettings.extractSettings(sceneCollection, lookingFor, lua.id);
-                if (result.found) {
-                    backup.luas[lua.id] = {
-                        name: lua.name,
-                        hotkey: lua.hotkey,
-                        version: lua.version,
-                        matchStrategy: result.strategy,   // ★ cho UI biết match bằng cách nào
-                        matchedFile: result.matchedFile,
-                        settings: result.settings
-                    };
-                }
-            } catch (e) {
-                errors.push({ id: lua.id, error: e.message });
-            }
-        }
-        const matchedCount = Object.keys(backup.luas).length;
-        res.json({
-            ok: true,
-            backup,
-            matchedCount,
-            totalLuas: luas.length,
-            errors,
-            searchedFor,            // ★ tên file app đang tìm
-            allScripts: allScriptsInCollection.map(s => s.filename),   // ★ tên file thực có trong OBS
-            message: `${matchedCount}/${luas.length} LUA matched`
-        });
-    } catch (e) {
-        res.status(500).json({ ok: false, error: e.message });
-    }
-});
-
-// POST /api/lua-sync/open-folder — mở folder cache trong Windows Explorer
-// CẦN MẬT KHẨU (101016) — chống vô tình mở khi share screen
-const LUA_FOLDER_PASSWORD = '101016';
-app.post('/api/lua-sync/open-folder', express.json(), (req, res) => {
-    const pwd = String(req.body?.password || '');
-    if (pwd !== LUA_FOLDER_PASSWORD) {
-        return res.status(403).json({ ok: false, error: 'Sai mật khẩu' });
-    }
-    try {
-        const { shell } = require('electron');
-        shell.openPath(luaSync.cacheDir);
-        res.json({ ok: true });
-    } catch (e) {
-        res.json({ ok: false, error: 'Electron shell không available' });
-    }
-});
-
-// ====== 🎭 BG Removal — AUTO-INSTALL (download zip + extract + copy to per-user OBS plugins) ======
-// Strategy: cài per-user (%APPDATA%/obs-studio/plugins/) → KHÔNG cần admin
-async function bgInstallDownloadFile(url, destPath, onProgress, redirectDepth = 0) {
-    return new Promise((resolve, reject) => {
-        if (redirectDepth > 5) return reject(new Error('Quá nhiều redirect'));
-        const https = require('https');
-        const fsmod = require('fs');
-        const req = https.get(url, {
-            headers: { 'User-Agent': 'HP-Action-LIVE/BGInstall' },
-            timeout: 60000
-        }, (res) => {
-            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                res.resume();
-                return bgInstallDownloadFile(res.headers.location, destPath, onProgress, redirectDepth + 1)
-                    .then(resolve, reject);
-            }
-            if (res.statusCode !== 200) {
-                res.resume();
-                return reject(new Error(`HTTP ${res.statusCode}`));
-            }
-            const total = parseInt(res.headers['content-length'] || '0', 10);
-            const stream = fsmod.createWriteStream(destPath);
-            let downloaded = 0;
-            res.on('data', chunk => {
-                downloaded += chunk.length;
-                if (total > 0 && onProgress) {
-                    onProgress(Math.round((downloaded / total) * 100), downloaded, total);
-                }
-            });
-            res.pipe(stream);
-            stream.on('finish', () => { stream.close(() => resolve(destPath)); });
-            stream.on('error', reject);
-        });
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('Download timeout')); });
-    });
-}
-
-async function bgInstallExtractZip(zipPath, destDir) {
-    return new Promise((resolve, reject) => {
-        const { spawn } = require('child_process');
-        const fsmod = require('fs');
-        try { fsmod.mkdirSync(destDir, { recursive: true }); } catch (_) {}
-        // PowerShell Expand-Archive — built-in Windows, no deps
-        const cmd = `Expand-Archive -LiteralPath "${zipPath}" -DestinationPath "${destDir}" -Force`;
-        const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', cmd], { windowsHide: true });
-        let errBuf = '';
-        ps.stderr.on('data', d => errBuf += d.toString());
-        ps.on('exit', code => {
-            if (code === 0) resolve();
-            else reject(new Error(`Expand-Archive fail (code ${code}): ${errBuf.slice(0, 500)}`));
-        });
-        ps.on('error', reject);
-    });
-}
-
-async function bgInstallCopyRecursive(src, dest) {
-    const fsp = require('fs').promises;
-    await fsp.cp(src, dest, { recursive: true, force: true });
-}
-
-async function bgInstallDoInstall() {
-    const fsmod = require('fs');
-    const osmod = require('os');
-    const tmpRoot = path.join(osmod.tmpdir(), 'hp-bg-install-' + Date.now());
-    fsmod.mkdirSync(tmpRoot, { recursive: true });
-
-    try {
-        // 1. Fetch latest release info từ GitHub API
-        io.emit('bgInstall:progress', { phase: 'metadata', percent: 0, message: 'Đang lấy thông tin phiên bản...' });
-        const fetchRel = await fetch('https://api.github.com/repos/locaal-ai/obs-backgroundremoval/releases/latest', {
-            headers: { 'User-Agent': 'HP-Action-LIVE' },
-            timeout: 15000
-        });
-        if (!fetchRel.ok) throw new Error(`GitHub API HTTP ${fetchRel.status}`);
-        const release = await fetchRel.json();
-        // Find Windows x64 zip asset
-        const winAsset = (release.assets || []).find(a => /windows-x64\.zip$/i.test(a.name))
-                      || (release.assets || []).find(a => /windows-x64.*\.zip$/i.test(a.name));
-        if (!winAsset) throw new Error('Không tìm thấy Windows x64 ZIP trong release');
-
-        const versionTag = String(release.tag_name || 'unknown').replace(/^v/i, '');
-        console.log(`[bg-install] Downloading ${winAsset.name} v${versionTag} (${winAsset.size} bytes)`);
-
-        // 2. Download zip với progress
-        io.emit('bgInstall:progress', { phase: 'download', percent: 0, message: `Đang tải ${winAsset.name}...` });
-        const zipPath = path.join(tmpRoot, winAsset.name);
-        await bgInstallDownloadFile(winAsset.browser_download_url, zipPath, (pct, dl, total) => {
-            io.emit('bgInstall:progress', {
-                phase: 'download', percent: pct,
-                message: `Tải: ${Math.round(dl/1024/1024)}MB / ${Math.round(total/1024/1024)}MB`
-            });
-        });
-
-        // 3. Extract
-        io.emit('bgInstall:progress', { phase: 'extract', percent: 50, message: 'Đang giải nén...' });
-        const extractDir = path.join(tmpRoot, 'extract');
-        await bgInstallExtractZip(zipPath, extractDir);
-
-        // 4. Locate source files (zip có folder root "obs-backgroundremoval/")
-        const srcRoot = path.join(extractDir, 'obs-backgroundremoval');
-        if (!fsmod.existsSync(srcRoot)) {
-            throw new Error('Cấu trúc zip lạ — không tìm thấy folder "obs-backgroundremoval/"');
-        }
-
-        // 5. Copy vào %PROGRAMDATA%\obs-studio\plugins\ (OBS official path)
-        // ★ FIX v1.2.1: %APPDATA% KHÔNG ĐÚNG — OBS đọc plugin từ %PROGRAMDATA%
-        const obsPluginDir = path.join(
-            process.env.PROGRAMDATA || 'C:\\ProgramData',
-            'obs-studio', 'plugins', 'obs-backgroundremoval'
-        );
-
-        // ★ Cleanup old WRONG install ở %APPDATA% (do v1.2.0 cài sai)
-        const oldAppDataPath = path.join(
-            process.env.APPDATA || osmod.homedir(),
-            'obs-studio', 'plugins', 'obs-backgroundremoval'
-        );
-        try {
-            if (fsmod.existsSync(oldAppDataPath)) {
-                fsmod.rmSync(oldAppDataPath, { recursive: true, force: true });
-                console.log('[bg-install] Cleaned up wrong install ở %APPDATA% (legacy v1.2.0)');
-            }
-        } catch (e) {
-            console.log('[bg-install] Old %APPDATA% cleanup warn:', e.message);
-        }
-
-        io.emit('bgInstall:progress', { phase: 'copy', percent: 70, message: `Copy vào ${obsPluginDir}...` });
-        // Remove old install nếu có (ở vị trí mới)
-        try {
-            if (fsmod.existsSync(obsPluginDir)) {
-                fsmod.rmSync(obsPluginDir, { recursive: true, force: true });
-                console.log('[bg-install] Removed previous plugin install');
-            }
-        } catch (e) {
-            console.log('[bg-install] Old plugin remove FAIL:', e.message);
-        }
-        // Copy bin + data — có thể cần admin nếu ProgramData lock down
-        try {
-            fsmod.mkdirSync(obsPluginDir, { recursive: true });
-        } catch (e) {
-            throw new Error(`Không tạo được folder ${obsPluginDir}. Có thể cần Admin: ${e.message}`);
-        }
-        try {
-            await bgInstallCopyRecursive(path.join(srcRoot, 'bin'), path.join(obsPluginDir, 'bin'));
-            await bgInstallCopyRecursive(path.join(srcRoot, 'data'), path.join(obsPluginDir, 'data'));
-        } catch (e) {
-            // Quyền ghi vào ProgramData có thể bị deny → báo rõ cho user
-            if (e.code === 'EPERM' || e.code === 'EACCES') {
-                throw new Error(`Không có quyền ghi vào ${obsPluginDir}. Chạy HP Action LIVE bằng Admin rồi thử lại.`);
-            }
-            throw e;
-        }
-
-        // 6. Verify .dll exists
-        const dllPath = path.join(obsPluginDir, 'bin', '64bit', 'obs-backgroundremoval.dll');
-        if (!fsmod.existsSync(dllPath)) {
-            throw new Error('Plugin DLL không tồn tại sau khi copy — install fail');
-        }
-
-        // 7. Cleanup temp
-        try { fsmod.rmSync(tmpRoot, { recursive: true, force: true }); } catch (_) {}
-
-        io.emit('bgInstall:progress', { phase: 'done', percent: 100, message: `✓ Đã cài plugin v${versionTag}` });
-        return { ok: true, version: versionTag, installedTo: obsPluginDir, dll: dllPath };
-    } catch (e) {
-        // Cleanup on error
-        try { fsmod.rmSync(tmpRoot, { recursive: true, force: true }); } catch (_) {}
-        io.emit('bgInstall:progress', { phase: 'error', percent: 0, message: e.message });
-        throw e;
-    }
-}
-
-let bgInstallInProgress = false;
-app.post('/api/obs-bridge/install-bg-removal', async (req, res) => {
-    if (bgInstallInProgress) {
-        return res.status(429).json({ ok: false, error: 'Đang cài — đợi hoàn tất rồi thử lại' });
-    }
-    bgInstallInProgress = true;
-    try {
-        // Cảnh báo nếu OBS đang chạy (WS connected)
-        if (obsBridge.isConnected()) {
-            return res.status(409).json({
-                ok: false,
-                error: 'OBS đang chạy — đóng OBS trước (Ctrl+W trong OBS), sau đó bấm Cài tự động lại',
-                requiresObsClose: true
-            });
-        }
-        const r = await bgInstallDoInstall();
-        res.json({ ok: true, ...r, message: 'Plugin đã cài. MỞ LẠI OBS để load plugin.' });
-    } catch (e) {
-        res.status(500).json({ ok: false, error: e.message });
-    } finally {
-        bgInstallInProgress = false;
-    }
-});
-
-// GET /api/obs-bridge/check-bg-removal — kiểm tra Background Removal plugin có cài chưa
-// Strategy: thử lấy default settings của filter kind "background_removal" qua OBS WS.
-// Nếu OBS trả response OK → plugin installed. Lỗi "not found" → chưa cài.
-app.get('/api/obs-bridge/check-bg-removal', async (req, res) => {
-    if (!obsBridge.isConnected()) {
-        return res.json({ ok: false, reason: 'disconnected', installed: null,
-            message: 'Chưa kết nối OBS — bấm Kết nối trước rồi thử lại' });
-    }
-    try {
-        // Try multiple filter kind names (different plugin versions)
-        const candidateKinds = ['background_removal', 'obs-backgroundremoval', 'background-removal-filter'];
-        let foundKind = null;
-        for (const kind of candidateKinds) {
-            try {
-                await obsBridge.obs.call('GetSourceFilterDefaultSettings', { filterKind: kind });
-                foundKind = kind;
-                break;
-            } catch (e) {
-                // continue to next candidate
-            }
-        }
-        if (foundKind) {
-            return res.json({ ok: true, installed: true, filterKind: foundKind,
-                message: `✓ Plugin đã cài (filter kind: "${foundKind}")` });
-        }
-        return res.json({ ok: true, installed: false,
-            message: '❌ Plugin Background Removal CHƯA cài trên OBS' });
-    } catch (e) {
-        return res.json({ ok: false, reason: 'error', error: e.message || String(e),
-            installed: null, message: 'Lỗi check: ' + (e.message || e) });
-    }
-});
-
-// POST /api/obs-bridge/queue/clear — xóa hàng đợi (hủy effect chưa chạy)
-app.post('/api/obs-bridge/queue/clear', (req, res) => {
-    const removed = obsBridgeQueueClear();
-    res.json({ ok: true, removed, queue: obsBridgeQueueStatus() });
-});
-
-// POST /api/obs-bridge/queue/simulate-gift — TEST queue bằng cách giả lập gift
-// Body: { giftId, repeatCount }
-app.post('/api/obs-bridge/queue/simulate-gift', express.json(), (req, res) => {
-    const giftId = String(req.body?.giftId || '');
-    const repeatCount = Number(req.body?.repeatCount) || 1;
-    if (!giftId) return res.status(400).json({ ok: false, error: 'Thiếu giftId' });
-    const result = obsBridgeEnqueueForGift(giftId, repeatCount, { source: 'simulate' });
-    res.json({ ok: true, ...result, queue: obsBridgeQueueStatus() });
-});
-
-// PUT /api/obs-bridge/config — lưu config (URL/pass/autoConnect/mapping)
+// PUT /api/obs-bridge/config — { url?, password?, autoConnect? }
 app.put('/api/obs-bridge/config', express.json(), (req, res) => {
     const body = req.body || {};
     if (!appConfig.obsBridge) appConfig.obsBridge = {};
-    if (typeof body.enabled === 'boolean') {
-        // Tính năng theo KEY: Hiệu ứng OBS bị khoá thì không bật được (nhớ ý muốn bật để mở khoá thì tự bật).
-        const L = licenseLocks();
-        if (body.enabled && !featureOn('obs-effects')) { appConfig.obsBridge.enabled = false; L.obsBridge = true; }
-        else { appConfig.obsBridge.enabled = body.enabled; delete L.obsBridge; }
-    }
-    if (typeof body.url === 'string') appConfig.obsBridge.url = body.url.trim();
+    if (typeof body.url === 'string') appConfig.obsBridge.url = body.url.trim().slice(0, 300);
     if (typeof body.password === 'string') appConfig.obsBridge.password = body.password;
     if (typeof body.autoConnect === 'boolean') appConfig.obsBridge.autoConnect = body.autoConnect;
-    if (Array.isArray(body.mapping)) {
-        // Validate & sanitize each mapping row — KHÔNG filter để giữ row đang edit (giftId/hotkey rỗng)
-        appConfig.obsBridge.mapping = body.mapping
-            .filter(m => m && typeof m === 'object')
-            .map(m => ({
-                id:         String(m.id || ('m_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8))),
-                giftId:     String(m.giftId || '').trim(),
-                giftName:   String(m.giftName || '').trim().slice(0, 200),
-                giftImage:  String(m.giftImage || '').trim().slice(0, 500),
-                actionName: String(m.actionName || '').trim().slice(0, 80),   // tên hành động hiển thị trong queue
-                hotkey:     String(m.hotkey || '').trim(),                    // tùy chọn — LUA chưa tự chạy theo Scene
-                scene:      String(m.scene || '').trim().slice(0, 120),       // Scene hiệu ứng trong OBS (đường chính)
-                cooldownMs: Math.max(0, Number(m.cooldownMs) || 0),
-                group:      String(m.group || '').trim().slice(0, 40),
-                enabled:    m.enabled !== false   // default true; chỉ false khi explicit set
-            }));
-    }
-    if (Array.isArray(body.groupsDisabled)) {
-        // Sanitize: chỉ giữ string, max 80 group disabled
-        appConfig.obsBridge.groupsDisabled = body.groupsDisabled
-            .filter(g => typeof g === 'string')
-            .map(g => String(g).trim().slice(0, 40))
-            .slice(0, 80);
-    }
     saveAppConfig();
-    // Bảng Quà Tổng vẽ lại ngay khi mapping/nhóm/master đổi (không gửi password).
-    io.emit('obsBridge:config', {
-        enabled: appConfig.obsBridge.enabled !== false,
-        mapping: Array.isArray(appConfig.obsBridge.mapping) ? appConfig.obsBridge.mapping : [],
-        groupsDisabled: Array.isArray(appConfig.obsBridge.groupsDisabled) ? appConfig.obsBridge.groupsDisabled : []
-    });
-    res.json({ ok: true, config: appConfig.obsBridge });
+    res.json({ ok: true, config: { url: appConfig.obsBridge.url || '', autoConnect: !!appConfig.obsBridge.autoConnect, passwordSet: !!appConfig.obsBridge.password } });
 });
 
 // POST /api/obs-bridge/connect — kết nối ngay (dùng URL/pass đã lưu)
@@ -11734,48 +10853,6 @@ app.post('/api/obs-bridge/connect', async (req, res) => {
 app.post('/api/obs-bridge/disconnect', async (req, res) => {
     await obsBridge.disconnect();
     res.json({ ok: true, status: obsBridge.getStatus() });
-});
-
-// GET /api/obs-bridge/hotkeys — list hotkey hiện đang đăng ký trong OBS
-app.get('/api/obs-bridge/hotkeys', async (req, res) => {
-    if (!obsBridge.isConnected()) {
-        return res.json({ ok: false, error: 'Chưa kết nối OBS', hotkeys: [] });
-    }
-    const hotkeys = await obsBridge.listHotkeys();
-    // Lọc chỉ effect_/hp_ để UI gợi ý
-    const effectHotkeys = hotkeys.filter(h => /^(effect_|hp_)/i.test(h));
-    res.json({ ok: true, hotkeys, effectHotkeys });
-});
-
-// GET /api/obs-bridge/scenes — danh sách Scene trong OBS (dropdown "Scene hiệu ứng" của mapping)
-app.get('/api/obs-bridge/scenes', async (req, res) => {
-    if (!obsBridge.isConnected()) {
-        return res.json({ ok: false, error: 'Chưa kết nối OBS', scenes: [], current: '' });
-    }
-    const r = await obsBridge.listScenes();
-    res.json({ ok: !!r.ok, error: r.ok ? undefined : (r.error || r.reason), scenes: r.scenes || [],
-        current: r.current || '', homeScene: obsBridgeHomeScene });
-});
-
-// POST /api/obs-bridge/test-mapping — bấm 🔥 chạy thử 1 hàng y như quà thật (qua hàng đợi):
-// chuyển Scene → LUA chạy → giữ đủ giây → quay về. Bỏ qua cờ tắt hàng/nhóm/master vì là thao tác tay.
-app.post('/api/obs-bridge/test-mapping', express.json(), (req, res) => {
-    const id = String((req.body && req.body.id) || '');
-    const mapping = (appConfig.obsBridge && Array.isArray(appConfig.obsBridge.mapping)) ? appConfig.obsBridge.mapping : [];
-    const m = mapping.find(x => x && String(x.id) === id);
-    if (!m) return res.status(404).json({ ok: false, reason: 'not-found', error: 'Không thấy mapping — lưu rồi thử lại' });
-    if (!m.scene && !m.hotkey) return res.status(400).json({ ok: false, reason: 'empty', error: 'Hàng này chưa chọn Scene hiệu ứng' });
-    if (!obsBridge.isConnected()) return res.json({ ok: false, reason: 'disconnected', error: 'Chưa kết nối OBS' });
-    const r = obsBridgeEnqueueMapping(m, 1, { source: 'test' });
-    res.json({ ok: true, ...r, queue: obsBridgeQueueStatus() });
-});
-
-// POST /api/obs-bridge/trigger — test trigger 1 hotkey (bypass cooldown + mapping)
-app.post('/api/obs-bridge/trigger', express.json(), async (req, res) => {
-    const hotkey = req.body && req.body.hotkey;
-    if (!hotkey) return res.status(400).json({ ok: false, error: 'Thiếu hotkey' });
-    const result = await obsBridge.triggerHotkey(hotkey);
-    res.json(result);
 });
 
 // ====== 🚀 Quick Launch — cửa sổ điều khiển nhanh tách rời, always-on-top ======
@@ -12206,10 +11283,14 @@ httpServer.listen(PORT, BIND_HOST, async () => {
                     const f = license && Array.isArray(license.features) ? license.features.map(String) : null;
                     const gs = LicFeat.normalizeState(license && license.gameState);
                     // ft giữ nguyên mà gs đổi (Tạm tắt → Ẩn) vẫn phải vẽ lại → so cả hai.
-                    if (LicFeat.same(f, appConfig.license.features) && LicFeat.sameState(gs, appConfig.license.gameState)) return;
-                    appConfig.license = { ...appConfig.license, features: f, gameState: gs };
+                    const own = license && Array.isArray(license.owned) ? license.owned.map(String) : [];
+                    const bx = Number(license && license.baseExpiredAt) || 0;
+                    if (LicFeat.same(f, appConfig.license.features) && LicFeat.sameState(gs, appConfig.license.gameState)
+                        && LicFeat.same(own, appConfig.license.owned || []) && bx === (Number(appConfig.license.baseExpiredAt) || 0)) return;
+                    appConfig.license = { ...appConfig.license, features: f, gameState: gs, owned: own, baseExpiredAt: bx };
                     saveAppConfig();
                     applyLicenseLocks('watcher');
+                    shop.refreshItems('watcher').catch(() => {});   // game mới mua / admin đổi gói → danh sách bán đổi
                 } catch (e) { console.warn('[license] cập nhật tính năng lỗi:', e && e.message); }
             },
             onRevoked: (reason) => {
@@ -12230,6 +11311,16 @@ httpServer.listen(PORT, BIND_HOST, async () => {
             },
         });
     } catch (e) { console.warn('[hpkey] watch init failed:', e && e.message); }
+
+    // 🛒 Bán game trong app: hỏi lại đơn còn treo (trả lúc app tắt → mở game ngay), tải giá; làm mới khi danh sách cũ quá 10 phút.
+    setTimeout(() => {
+        if (!(appConfig.license && appConfig.license.activated)) return;
+        shop.resume();
+        shop.refreshItems('startup', true).catch(() => {});
+    }, 6000).unref?.();
+    setInterval(() => {
+        if (appConfig.license && appConfig.license.activated && shop.itemsStale()) shop.refreshItems('interval').catch(() => {});
+    }, 60 * 1000).unref?.();
 });
 
 // Export cho electron-main.js gọi httpServer.close() khi quit (+ captionListenerStop() để cửa sổ

@@ -26,6 +26,9 @@
         window.HpCamLicenseStates = Object.fromEntries(Object.entries(st).filter(([, v]) => v && v !== 'on'));
         try { window.HpCamTrigger?.refreshLicense?.(); } catch (_) {}
     }
+    // 🛒 Bán theo từng game (spec 2026-10-29-mua-game-sepay): giá KEY này mua được — app.js đặt window.HpShop, đổi → 'hp-shop'.
+    const priceOf = (id) => { const i = window.HpShop && window.HpShop.items && window.HpShop.items.get(id); return i ? i.price : 0; };
+    const vnd = (n) => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
     const POSE_GAMES = new Set(['bancung', 'level-quest']);   // overlay báo phase = id game; các game này đếm người, không đếm tay
     let socket = null, pollTimer = 0, built = false;
 
@@ -70,7 +73,7 @@
                 </div>
                 <details class="cg-howto">
                     <summary>ⓘ Cách dùng — 1 link OBS cho mọi game, chơi tối đa 4 game cùng lúc</summary>
-                <div class="hint">Trong OBS chỉ cần <b>một Browser Source</b> 1080×1920 với link <b>📋 Link OBS</b> ở trên, đặt <b>phía trên</b> nguồn camera và phủ kín khung hình. Đổi game ở dưới thì OBS đổi theo, không phải sửa scene. Cần kết nối OBS WebSocket ở mục <b>Hiệu ứng OBS</b>.</div>
+                <div class="hint">Trong OBS chỉ cần <b>một Browser Source</b> 1080×1920 với link <b>📋 Link OBS</b> ở trên, đặt <b>phía trên</b> nguồn camera và phủ kín khung hình. Đổi game ở dưới thì OBS đổi theo, không phải sửa scene. Cần kết nối OBS WebSocket ở <b>⚙ Cài đặt › Kết nối OBS WebSocket</b>.</div>
                 <div class="hint"><b>Chơi cùng lúc:</b> bấm <b>＋ Chơi kèm</b> để ghép <b>1 game dùng tay</b> (Touch &amp; Play / Chém Trái Cây / Đập Muỗi) với <b>1 game trên đầu</b> (Bắn Cung / Level Quest) , <b>Đá Cầu</b> và <b>Bộ Tách Người</b> — tối đa 1 game mỗi loại. Hai game dùng chung một lần nhận diện nên máy không nặng gấp đôi. Quà đã gán riêng cho game nào thì chỉ game đó nhận; quà chưa gán ở đâu mới vào game nhận mọi quà.</div>
                 </details>
                 <div class="cg-status" id="cg-overlap"></div>
@@ -106,12 +109,14 @@
             const on = now.includes(g.id);
             if (locked.has(g.id)) {
                 const paused = lstates[g.id] === 'off';
-                return `<div class="cg-game" data-id="${esc(g.id)}" style="opacity:.55">${artImg(g.id)}
+                const price = paused ? 0 : priceOf(g.id);
+                return `<div class="cg-game" data-id="${esc(g.id)}" style="opacity:${price ? '.8' : '.55'}">${artImg(g.id)}
                 <div class="cg-game-head"><span class="cg-ico">${g.iconSvg || g.icon}</span><b>${esc(g.name)}</b>
                     ${paused ? '<span class="cg-badge" title="HP Media sẽ mở lại sớm">⏸ TẠM BẢO TRÌ</span>'
+                        : price ? '<span class="cg-badge" title="Mua một lần, dùng trọn đời với KEY này">🔒 CHƯA MỞ</span>'
                         : '<span class="cg-badge" title="Liên hệ HP Media để mở thêm tính năng này cho KEY">🔒 KEY CHƯA MỞ</span>'}</div>
                 <div class="cg-desc">${esc(g.desc)}</div>
-                <div class="cg-actions"><button class="ghost small" data-settings="${esc(g.id)}">⚙ Cài đặt</button></div>
+                <div class="cg-actions">${price ? `<button class="shop-buy-btn" data-buy="${esc(g.id)}" title="Mua một lần, dùng trọn đời">🛒 Mua ${vnd(price)}</button>` : ''}<button class="ghost small" data-settings="${esc(g.id)}">⚙ Cài đặt</button></div>
             </div>`;
             }
             const solo = !on && g.standalone && soloOn[g.id];
@@ -143,6 +148,7 @@
         bindArt(grid);
         bindBody();
         grid.querySelectorAll('[data-play]').forEach(b => b.addEventListener('click', () => save({ active: b.dataset.play, enabled: true })));
+        grid.querySelectorAll('.cg-game [data-buy]').forEach(b => b.addEventListener('click', () => window.hpBuyGame?.(b.dataset.buy)));
         // Bấm vào game nào thì game đó giữ phím tắt (chơi kèm / ⚙ Cài đặt / ⌨ Nhận phím tắt).
         grid.querySelectorAll('[data-with]').forEach(b => b.addEventListener('click', () => save({ actives: norm([...actives(), b.dataset.with]), enabled: true, hotkeyGame: b.dataset.with })));
         grid.querySelectorAll('[data-keys]').forEach(b => b.addEventListener('click', () => save({ hotkeyGame: b.dataset.keys })));
@@ -165,7 +171,14 @@
     function bodySection() {
         const B = window.HpBodyPanel?.hub, g = gameOf('body');
         if (!B || !g || lstates.body === 'hidden') return '';
-        if (locked.has('body')) return `<div class="cg-sec"><div class="cg-sec-head"><b>🧍 Game tách người</b><span class="cg-badge">${lstates.body === 'off' ? '⏸ TẠM BẢO TRÌ' : '🔒 KEY CHƯA MỞ'}</span></div></div>`;
+        // Chưa có hiệu ứng tách người nào: có hiệu ứng đang bán → vẫn hiện lưới (ô 🔒 + giá, bấm = mua từng hiệu ứng); không thì chỉ nhãn.
+        const from = (window.HpShop && window.HpShop.from && window.HpShop.from.body) || 0;
+        if (locked.has('body') && !(from > 0)) return `<div class="cg-sec"><div class="cg-sec-head"><b>🧍 Game tách người</b><span class="cg-badge">${lstates.body === 'off' ? '⏸ TẠM BẢO TRÌ' : '🔒 KEY CHƯA MỞ'}</span></div></div>`;
+        if (locked.has('body')) return `<div class="cg-sec">
+                <div class="cg-sec-head"><b>🧍 Game tách người</b><em>${B.count()}</em><span class="cg-badge" title="Mỗi hiệu ứng mua riêng, dùng trọn đời với KEY này">🔒 MUA TỪNG HIỆU ỨNG · TỪ ${vnd(from)}</span></div>
+                <div class="cg-sec-hint">Bấm ô 🔒 để mua hiệu ứng đó — mở ngay khi chuyển khoản xong</div>
+                <div class="bt-vgrid cg-body-grid" id="cg-body-grid">${B.grid()}</div>
+            </div>`;
         const on = playing().includes('body');
         return `<div class="cg-sec">
                 <div class="cg-sec-head"><b>🧍 Game tách người</b><em>${B.count()}</em>
@@ -183,6 +196,7 @@
         const B = window.HpBodyPanel?.hub, bg = $('#cg-body-grid');
         if (!B || !bg) return;
         B.bind(bg);
+        if (!$('#cg-body-add')) return;   // 🔒 chưa có hiệu ứng nào: lưới chỉ để mua
         $('#cg-body-add').addEventListener('click', () => B.add($('#cg-body-new').value));
         $('#cg-body-cfg').addEventListener('click', () => window.hpOpenGame?.('body'));
         $('#cg-body-power').addEventListener('click', () => {
@@ -203,6 +217,7 @@
         B.ready(socket).then(renderGrid).catch(() => { bodyHooked = false; });   // nạp lỗi → lần mở màn sau thử lại
     }
     window.addEventListener('hp-body-panel-ready', () => { if (built) hookBody(); });
+    window.addEventListener('hp-shop', () => { if (built && viewActive()) renderGrid(); });   // 🛒 giá / mục bán đổi → vẽ lại
 
     function renderStatus() {
         const el = $('#cg-status');

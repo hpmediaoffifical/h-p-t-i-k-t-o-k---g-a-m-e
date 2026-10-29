@@ -29,6 +29,8 @@ function okShape(lic, extra) {
     allowedIds: lic.allowedIds || [],      // VIP: chỉ kết nối các ID này (rỗng = không giới hạn)
     features: lic.features === undefined ? null : lic.features, // null = toàn bộ tính năng
     gameState: lic.gameState || {},        // SDK 2.1: { id: 'off'|'hidden'|'admin' } — mục tắt theo game (gs)
+    owned: lic.owned || [],                // SDK 2.2: game sở hữu trọn đời (token own) — đã gộp trong features
+    baseExpiredAt: lic.baseExpiredAt || 0, // SDK 2.2: >0 = gói hết hạn (token bx), app chạy với game đã mua
     vip: lic.role || '',
     expiry: index.fmtDmy(lic.expiresAt),   // '' nếu vĩnh viễn
     expiryISO: lic.expiresAt ? new Date(lic.expiresAt * 1000).toISOString() : null,
@@ -77,4 +79,9 @@ function startWatch(opts) {
   return stop;
 }
 
-module.exports = { validateLicenseKey, verifyKey, startWatch, getHWID };
+// 🛒 Bán game trong app (SDK 2.2): server.js gọi qua /api/shop/* — xem index.shopItems / orderCreate / orderStatus.
+const shopItems = () => index.shopItems();
+const orderCreate = (feature) => index.orderCreate(feature);
+const orderStatus = (code, opts) => index.orderStatus(code, opts);
+
+module.exports = { validateLicenseKey, verifyKey, startWatch, getHWID, shopItems, orderCreate, orderStatus };

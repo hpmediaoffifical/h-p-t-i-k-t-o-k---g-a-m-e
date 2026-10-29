@@ -1599,7 +1599,22 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             : kind === 'biduoi' ? (x.videos.length === 1 ? [x.videos[0].file, x.videos[0].fg] : []) : [];
         return req.filter(f => f && miss.has(f));
     }
+    // 🔒 Bán theo từng hiệu ứng (spec 2026-10-29-mua-game-sepay §6.0): mục bán = LOẠI + KIỂU kịch bản (HB().saleIdOf, không theo id —
+    // nhân bản / đổi kiểu vẫn đúng). Trạng thái từ camgames-panel (window.HpCamLicenseStates), giá từ app.js (window.HpShop).
+    // Ô KEY chưa mở: mờ + 🔒 giá, bấm = 🛒 mua (server cũng chặn chạy thử / quà — lib/body-server.js).
+    function saleLock(kind, x) {
+        const id = kind === 'haucanh' ? '' : (HB().saleIdOf ? HB().saleIdOf(kind, x) : '');
+        if (!id) return null;
+        const st = (window.HpCamLicenseStates || {})[id];
+        if (st !== 'locked' && st !== 'hidden' && st !== 'off') return null;
+        const it = window.HpShop && window.HpShop.items && window.HpShop.items.get(id);
+        return { id, price: it ? it.price : 0, off: st === 'off' };
+    }
+    const saleOfNew = v => v === 'haucanh' ? '' : v.startsWith('vf:') ? 'body-vf-' + v.slice(3) : v.startsWith('mo:') ? 'body-mo-' + v.slice(3) : 'body-' + v.split(':')[0];
+    const vnd = n => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
     function gTile({ kind, x, i }) {
+        const lock = saleLock(kind, x);
+        if (lock) return gTileLocked(kind, x, lock);
         const file = GKINDS[kind].file(x), g = x.gifts[0];
         const ms = HB().estimateMs(kind, x), sec = ms > 0 ? ms / 1000 : 0;
         // 🕳️ Rơi Hố / 🏃 Bị Đuổi chạy được KHÔNG cần video nền (user 2026-10-19) → không báo thiếu, vẫn có ▶ chạy thử.
@@ -1621,6 +1636,15 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             <b>${esc(x.name)}</b>
             <small>${esc(gType(kind, x))}${sec ? ` · ${fmt(+sec.toFixed(1))}s` : ''}${prof ? ` · 🧍 ${esc(prof)}` : ''}</small>
             ${warn ? `<span class="bt-vwarn">⚠ ${esc(warn)}</span>` : ''}
+        </button>`;
+    }
+    function gTileLocked(kind, x, lock) {
+        const art = artUrl(kind, x, ''), tip = lock.off ? hpT('Đang tạm bảo trì') : lock.price ? hpT('Chưa mở — bấm để mua, dùng trọn đời') : hpT('KEY chưa mở hiệu ứng này');
+        return `<button type="button" class="bt-vtile bt-locked" data-g="${esc(gKey(kind, x))}" data-buy="${esc(lock.id)}" data-price="${lock.price}" title="${esc(tip)}">
+            <div class="bt-vthumb"><span class="bt-vnone">${gIcon(kind, x)}</span>${art ? `<img class="bt-vart" src="${esc(art)}" alt="" loading="lazy" decoding="async">` : ''}
+                <span class="bt-vlock">${lock.off ? '⏸' : '🔒'}${lock.price && !lock.off ? ' ' + vnd(lock.price) : ''}</span></div>
+            <b>${esc(x.name)}</b>
+            <small>${esc(gType(kind, x))}</small>
         </button>`;
     }
     function gVisible() {
@@ -1692,6 +1716,11 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
                 t.addEventListener('mouseleave', () => { v.pause(); try { v.currentTime = Number(v.dataset.t) || 1; } catch (_) {} });
             }
             t.addEventListener('click', e => {
+                if (t.dataset.buy) {   // 🔒 ô chưa mở → 🛒 mua (giá 0 = không bán trong app)
+                    if (Number(t.dataset.price) > 0 && typeof window.hpBuyGame === 'function') window.hpBuyGame(t.dataset.buy);
+                    else if (typeof window.toast === 'function') window.toast(hpT('KEY chưa mở hiệu ứng này — liên hệ HP Media'), 'warn');
+                    return;
+                }
                 const g = gFind(t.dataset.g); if (!g) return;
                 if (e.target.closest('[data-run]')) { setRunMode(g.kind, g.x, nextRunMode(g.kind, g.x)); renderSettings(); schedulePersist(); return; }
                 // Hậu Cảnh / 🎬 chưa có video → mở để thêm; 🕳️ Rơi Hố / 🏃 Bị Đuổi chạy được không cần video → bấm là chạy (cài đặt: chuột phải).
@@ -1699,7 +1728,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
                 runTest({ kind: g.kind, id: g.x.id });
                 t.classList.add('firing'); setTimeout(() => t.classList.remove('firing'), 700);
             });
-            t.addEventListener('contextmenu', e => { e.preventDefault(); gMenu(e, t.dataset.g); });
+            t.addEventListener('contextmenu', e => { e.preventDefault(); if (t.dataset.buy) return; gMenu(e, t.dataset.g); });
         });
     }
     // Tạo game mới theo loại chọn ở ô "＋ Thêm" → mở popup ngay để chọn video / ảnh nền.
@@ -2188,7 +2217,8 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         grid: () => (cfg ? gAll().map(gTile).join('') : ''),
         count: () => (cfg ? gAll().length : 0),
         bind: el => bindGGridEl(el),
-        types: () => GNEW(),
+        // Loại chưa mở gắn 🔒 (vẫn thêm / cài đặt được; chạy thì cần mua — server chặn).
+        types: () => GNEW().map(([v, n]) => { const id = saleOfNew(v), st = id ? (window.HpCamLicenseStates || {})[id] : ''; return [v, st === 'locked' || st === 'hidden' ? n + ' 🔒' : n]; }),
         add: v => { if (cfg) gCreate(v); },
         onChange: fn => { hubListeners.add(fn); return () => hubListeners.delete(fn); },
         menu: (e, items) => showCtx(e, items)

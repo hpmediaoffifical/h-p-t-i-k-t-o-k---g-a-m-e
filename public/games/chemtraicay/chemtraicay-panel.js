@@ -263,7 +263,7 @@
         host.innerHTML = `
             <div class="ctc-card">
                 <h3>NGUỒN HÌNH & NHẬN DIỆN TAY</h3>
-                <div class="hint">Nguồn hình là <b>Source/Scene OBS</b>: overlay trong OBS <b>tự nhận diện tay</b> từ hình camera trong OBS (cần OBS đã kết nối ở mục Hiệu ứng OBS) và tự khớp vị trí/lật/cỡ camera trong scene — <b>không cần bật tracker bên dưới</b>. Chọn nguồn camera chung ở màn <b>🎥 Game Camera</b>.<br>Tracker bên dưới chỉ dùng khi chọn <b>Webcam</b> (dự phòng, chạy trong app/Chrome).</div>
+                <div class="hint">Nguồn hình là <b>Source/Scene OBS</b>: overlay trong OBS <b>tự nhận diện tay</b> từ hình camera trong OBS (cần OBS đã kết nối ở ⚙ Cài đặt › Kết nối OBS WebSocket) và tự khớp vị trí/lật/cỡ camera trong scene — <b>không cần bật tracker bên dưới</b>. Chọn nguồn camera chung ở màn <b>🎥 Game Camera</b>.<br>Tracker bên dưới chỉ dùng khi chọn <b>Webcam</b> (dự phòng, chạy trong app/Chrome).</div>
                 <div class="ctc-cam-frame"><iframe id="ctc-tracker-frame" src="/tracker/chemtraicay?embed=1" allow="camera; autoplay" loading="lazy"></iframe></div>
                 <div class="ctc-actions">
                     <button class="ghost small" id="ctc-btn-chrome">🌐 Mở tracker trong Chrome</button>
@@ -326,7 +326,7 @@
                 <label class="ctc-toggle"><input type="checkbox" id="ctc-scene-on" ${sc.enabled ? 'checked' : ''}> Tự chuyển Scene khi ván bắt đầu / kết thúc</label>
                 <div class="ctc-row"><label>Scene khi chơi</label><select id="ctc-scene-play">${sceneOptions(sc.playScene)}</select></div>
                 <div class="ctc-row"><label>Scene khi kết thúc</label><select id="ctc-scene-back">${sceneOptions(sc.backScene)}</select></div>
-                <div class="hint">${scenesCache.length ? `${scenesCache.length} scene từ OBS.` : 'Chưa lấy được danh sách scene — kết nối OBS ở mục Hiệu ứng OBS rồi mở lại tab này.'}</div>
+                <div class="hint">${scenesCache.length ? `${scenesCache.length} scene từ OBS.` : 'Chưa lấy được danh sách scene — kết nối OBS ở ⚙ Cài đặt › Kết nối OBS WebSocket rồi mở lại tab này.'}</div>
             </div>
             <div class="ctc-card">
                 <h3>VÙNG CAMERA</h3>

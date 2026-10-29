@@ -883,7 +883,17 @@
         return Number.isFinite(run) ? run : 15000;
     }
 
-    return { MATTE, ROIHO_TIMING, BG_MODES, KINDS, ACTION_KINDS, FACE_KINDS, LAYER_KINDS, MAX_PROFILES, MAX_SCRIPTS, MAX_ITEMS, isVideo, defaultConfig, normalizeConfig, normalizeProfile, makeProfile,
+    // 🔒 Mục BÁN của kịch bản (bán theo từng game — lib/license-features.js, spec 2026-10-29-mua-game-sepay §6.0): theo LOẠI
+    // + KIỂU, KHÔNG theo id kịch bản (người dùng nhân bản / đổi kiểu được). Kiểu lạ chuẩn hoá như normalizeVidFx / normalizeMorph.
+    // '' = không thuộc mục bán nào (Hậu Cảnh 'haucanh': mở theo game mẹ 'body').
+    function saleIdOf(kind, sc) {
+        const s = obj(sc);
+        if (kind === 'vidfx') return 'body-vf-' + (VIDFX_MOTIONS.includes(s.motion) ? s.motion : 'blast');
+        if (kind === 'morph') return 'body-mo-' + morphStyle(s.style);
+        return KINDS.includes(kind) ? 'body-' + kind : '';
+    }
+
+    return { MATTE, ROIHO_TIMING, BG_MODES, KINDS, saleIdOf, ACTION_KINDS, FACE_KINDS, LAYER_KINDS, MAX_PROFILES, MAX_SCRIPTS, MAX_ITEMS, isVideo, defaultConfig, normalizeConfig, normalizeProfile, makeProfile,
         makeRoiHo, normalizeRoiHo, makeBiDuoi, normalizeBiDuoi, makeItem, normalizeItem,
         CRY_MOODS, CRY_STYLES, CRY_COLOR, CRY_FADE_MS, makeCry, normalizeCry,
         HEART_POSES, HEART_COLOR, HEART_GIFT, HEART_FADE_MS, HEART_HOLD_MS, makeHeart, normalizeHeart, fingerHeart,
