@@ -54,12 +54,12 @@ function actionByCoins(c) {
   if (c >= 500) return 'hand';
   if (c >= 200) return pick(['boulder', 'meteor']);
   if (c >= 150) return 'lightning';
-  if (c >= 99) return pick(['balloon', 'lightning']);
+  if (c >= 99) return 'lightning';                       // bóng bay giờ là quà CỨU zombie → không tự quy vào phe chặn
   if (c >= 25) return pick(['bomb', 'crows']);
   if (c >= 15) return pick(['fox', 'crows']);
   if (c >= 10) return pick(['flower', 'bees']);
   if (c >= 5) return pick(['repair', 'net']);
-  return pick(['rose', 'xbarrel', 'trap', 'tire', 'slime', 'banana']);
+  return pick(['rose', 'barrel', 'xbarrel', 'trap', 'tire', 'slime', 'banana']);
 }
 
 // =====================================================================
@@ -1788,13 +1788,13 @@ function groundY(x, z) {
 }
 function updateLift(dt) {
   const L = mon.lift; L.t += dt;
-  if (L.phase === 'rise') { mon.y += (5.5 - mon.y) * Math.min(1, dt * 2.5); if (L.t > 1.2) L.phase = 'drift'; }
-  else if (L.phase === 'drift') {
-    mon.y = 5.5 + Math.sin(time * 2) * 0.3; mon.z += 7 * dt; mon.x += (0 - mon.x) * dt;
-    if (mon.z >= L.toZ || L.t > 6) { L.phase = 'fall'; mon.vy = 0; popBalloons(L.item); }
-  } else {
-    mon.vy -= 26 * dt; mon.y += mon.vy * dt;
-    if (mon.y <= 0) { mon.y = 0; mon.lift = null; puff(new V3(mon.x, 0.3, mon.z), { color: 0xd8c6a0, n: 10, size: 1.2, speed: 4, life: 0.8 }); sfx('thud'); hitMonster(60, 0, L.item.owner, { stun: 1.2, text: 'RẦM!', unblockable: true }); }
+  if (L.phase === 'rise') { mon.y += (4.5 - mon.y) * Math.min(1, dt * 3); if (L.t > 0.8) { L.phase = 'drift'; L.t = 0; } }
+  else if (L.phase === 'drift') {                                                  // bay về phía nhà 3 giây (vượt qua bẫy bên dưới)
+    mon.y = 4.5 + Math.sin(time * 2) * 0.3; mon.z -= 5.5 * dt; mon.x += (0 - mon.x) * dt; mon.yawT = 0;
+    if (L.t > 3 || mon.z <= HOUSE_FRONT + 4) { L.phase = 'fall'; mon.vy = 0; L.t = 0; }
+  } else {                                                                            // hạ xuống nhẹ nhàng, bóng nổ khi chạm đất
+    mon.y = Math.max(0, mon.y - dt * 4.5); mon.z = Math.max(HOUSE_FRONT + 2, mon.z - 1.5 * dt);
+    if (mon.y <= 0) { mon.y = 0; mon.lift = null; popBalloons(L.item); puff(new V3(mon.x, 0.3, mon.z), { color: 0xd8c6a0, n: 8, size: 1, speed: 3, life: 0.7 }); sfx('thud'); }
   }
 }
 function applyMon() {
@@ -2229,7 +2229,7 @@ function spawnFromGround(kind, owner, mk, o) {
   return it;
 }
 const SPAWN = {
-  rose: u => (Math.random() < 0.6 ? SPAWN.potato(u) : SPAWN.barrel(u)),
+  rose: u => SPAWN.potato(u),                                                   // quà khoai (id cũ 'rose' giữ để quà đã gán không mất)
   plant: u => spawnFromGround('plant', u, mkShooter, { blocker: true, hp: 80, maxHp: 80, halfW: 0.45, halfD: 0.45, labelY: 2.0, debrisColor: 0x5ccf3e, minA: 6, maxA: 14, onPath: 0.35, spin: 0 }),
   potato: (u, mega) => {
     const it = newItem('potato', u, mkPotato(), { labelY: mega ? 2.6 : 1.1 });
@@ -2237,7 +2237,7 @@ const SPAWN = {
     launch(it, DOOR_POS(), new V3(rand(-1.2, 1.2), mega ? 1.2 : 0.4, HOUSE_FRONT + 3), 0.6, 5); openDoor(); sfx('whoosh');
   },
   xbarrel: u => spawnObstacleFromDoor('xbarrel', u, mkXBarrel, { labelY: 1.6, minA: 2.5, maxA: 6, onPath: 0.9, spin: 6 }),
-  barrel: u => Math.random() < CONFIG.xbarrelChance ? SPAWN.xbarrel(u) : spawnObstacleFromDoor('barrel', u, mkBarrel, { blocker: true, hp: 80, maxHp: 80, halfW: 0.6, halfD: 0.6, labelY: 1.6, debrisColor: 0x9a5f2c }),
+  barrel: u => spawnObstacleFromDoor('barrel', u, mkBarrel, { blocker: true, hp: 80, maxHp: 80, halfW: 0.6, halfD: 0.6, labelY: 1.6, debrisColor: 0x9a5f2c }),
   fence: u => spawnObstacleFromDoor('fence', u, mkFence, { blocker: true, hp: 160, maxHp: 160, halfW: 6.4, halfD: 0.3, labelY: 1.9, debrisColor: 0xf4efe4, minA: 5, maxA: 9, spin: 0, onPath: 0 }),
   trap: u => spawnFromGround('trap', u, mkTrap, { labelY: 0.6, minA: 3.5, maxA: 9, onPath: 0.85, spin: 4 }),
   slime: u => spawnFromGround('slime', u, mkSlimeBlob, { labelY: 0.8, minA: 3, maxA: 8, onPath: 0.8, spin: 3 }),
@@ -2259,10 +2259,10 @@ const SPAWN = {
     banner('🪨 TẢNG ĐÁ KHỔNG LỒ!', esc(u.name) + ' lăn đá khổng lồ');
   },
   balloon: u => {
-    if (mon.lift || items.some(i => !i.dead && i.kind === 'balloon')) { queueAction('bomb', u); return; }
+    if (mon.lift || mon.carry || items.some(i => !i.dead && i.kind === 'balloon')) { runAction('shoes', u); return; }
     const it = newItem('balloon', u, mkBalloons(), { labelY: 1.4 });
-    const from = DOOR_POS(); it.g.position.copy(from); it.state = 'seek'; openDoor(); sfx('whoosh');
-    banner('🎈 BÓNG BAY!', esc(u.name) + ' kéo quái bay về');
+    it.g.position.set(mon.x + rand(-1, 1), 8, mon.z + 5); it.state = 'seek'; sfx('whoosh');      // bóng bay từ phía sau tới cứu
+    banner('🎈 BÓNG BAY CỨU!', esc(u.name) + ' đưa zombie bay tới');
   },
   fox: u => {
     const f = mkFox(); const it = newItem('fox', u, f.g, { labelY: 1.5, mixer: f.mixer, life: 12, hits: 0 });
@@ -2819,7 +2819,7 @@ function updateItems(dt) {
         const tgt = new V3(mon.x, mon.y + mon.gy + MON_H + 1.2, mon.z);
         const d = tgt.clone().sub(p), dist = d.length();
         p.addScaledVector(d.normalize(), Math.min(dist, 22 * dt));
-        if (dist < 0.4) { it.state = 'lift'; mon.lift = { item: it, t: 0, phase: 'rise', toZ: Math.min(mon.z + 24, restZ()) }; mon.kv = 0; mon.stun = 0; sfx('power'); popText(new V3(mon.x, mon.y + 3.5, mon.z), 'BAY VỀ!', 'big', 1.2); }
+        if (dist < 0.4) { it.state = 'lift'; mon.lift = { item: it, t: 0, phase: 'rise', toZ: 0 }; mon.kv = 0; mon.stun = 0; sfx('power'); popText(new V3(mon.x, mon.y + 3.5, mon.z), 'BAY LÊN!', 'big', 1.2); }
       } else if (it.state === 'lift') {
         p.set(mon.x, mon.y + mon.gy + MON_H + 1.2 + Math.sin(time * 3) * 0.1, mon.z);
         if (!mon.lift || mon.lift.item !== it) removeItem(it);

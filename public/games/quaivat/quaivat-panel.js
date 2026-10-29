@@ -15,6 +15,7 @@
     // Phải khớp action trong public/games/quaivat/game.js (VILLAINS / HEROES)
     const ACTIONS = [
         { id: 'rose',      emoji: '🌹', label: 'Khoai lăn',  def: 'Hoa hồng', side: 'viewer' },
+        { id: 'barrel',    emoji: '🪵', label: 'Thùng gỗ', def: '', side: 'viewer' },
         { id: 'xbarrel',   emoji: '🛢️', label: 'Thùng phình',        def: 'Kẹo mút',  side: 'viewer' },
         { id: 'trap',      emoji: '🪤', label: 'Bẫy kẹp',               def: 'TikTok',   side: 'viewer' },
         { id: 'plant',     emoji: '🌱', label: 'Cây bắn đậu',           def: 'GG',       side: 'viewer' },
@@ -25,7 +26,6 @@
         { id: 'mine',      emoji: '💥', label: 'Bẫy bật',        def: 'Bánh vòng', side: 'viewer' },
         { id: 'flower',    emoji: '🌸', label: 'Hoa gió',      def: 'Tiny Diny', side: 'viewer' },
         { id: 'lightning', emoji: '⚡', label: 'Sấm sét',     def: 'Hạc giấy', side: 'viewer' },
-        { id: 'balloon',   emoji: '🎈', label: 'Bóng bay',       def: 'Tay trái tim', side: 'viewer' },
         { id: 'boulder',   emoji: '🪨', label: 'Đá lăn',      def: 'Corgi, Galaxy…', side: 'viewer' },
         { id: 'bomb',      emoji: '💣', label: 'Pháo hẹn giờ',           def: '(Chia sẻ)', side: 'viewer' },
         { id: 'banana',    emoji: '🍌', label: 'Vỏ chuối', def: '', side: 'viewer' },
@@ -37,6 +37,7 @@
         { id: 'quake',     emoji: '🌋', label: 'Động đất',     def: '(quà ≥1000 xu)', side: 'viewer' },
         { id: 'lose',      emoji: '💀', label: 'THUA NGAY', def: '', side: 'viewer' },
         { id: 'win',       emoji: '🏆', label: 'WIN NGAY', def: '', side: 'hero' },
+        { id: 'balloon',   emoji: '🎈', label: 'Bóng bay cứu', def: 'Tay trái tim', side: 'hero' },
         { id: 'shoes',     emoji: '👟', label: 'Tăng tốc',           def: 'Heart Me', side: 'hero' },
         { id: 'shield',    emoji: '🚪', label: 'Khiên chắn', def: 'Vòng cổ', side: 'hero' },
         { id: 'time',      emoji: '⏳', label: '+20 giây', def: 'Rosa', side: 'hero' },

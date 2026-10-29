@@ -12,9 +12,9 @@ export const VILLAINS = [
   { names: ['doughnut', 'donut', 'bánh vòng'],     action: 'mine',    emoji: '💥', gift: 'Bánh vòng', label: 'Bẫy bật',      coins: 30 },
   { names: ['tiny diny', 'khủng long nhỏ'],        action: 'flower',  emoji: '🌸', gift: 'Tiny Diny', label: 'Hoa gió',   coins: 10 },
   { names: ['paper crane', 'hạc giấy', 'confetti', 'sunglasses', 'kính râm', 'hat and mustache'], action: 'lightning', emoji: '⚡', gift: 'Hạc giấy', label: 'Sấm sét', coins: 99 },
-  { names: ['hand hearts', 'tay trái tim'],        action: 'balloon', emoji: '🎈', gift: 'Tay trái tim', label: 'Bóng bay',  coins: 100 },
   { names: ['corgi', 'money gun', 'galaxy', 'lion', 'universe', 'tiktok universe'], action: 'boulder', emoji: '🪨', gift: 'Corgi+', label: 'Đá lăn', coins: 299 },
   // bẫy mới: chưa gắn sẵn quà nào → gán trong app (hoặc quà lạ rơi vào theo giá xu)
+  { names: [], opt: true, action: 'barrel', emoji: '🪵', gift: 'Thùng gỗ', label: 'Thùng gỗ', coins: 1 },
   { names: [], opt: true, action: 'banana', emoji: '🍌', gift: 'Vỏ chuối',     label: 'Vỏ chuối', coins: 1 },
   { names: [], opt: true, action: 'net',    emoji: '🕸️', gift: 'Lưới',         label: 'Ném lưới',       coins: 5 },
   { names: [], opt: true, action: 'bees',   emoji: '🐝', gift: 'Đàn ong',      label: 'Đàn ong',    coins: 10 },
@@ -26,6 +26,7 @@ export const VILLAINS = [
 ];
 // Quà hỗ trợ quái (streamer) — đổi tên quà tùy ý
 export const HEROES = [
+  { names: ['hand hearts', 'tay trái tim'], action: 'balloon', emoji: '🎈', gift: 'Tay trái tim', label: 'Bóng bay cứu', coins: 100 },
   { names: [], opt: true, action: 'win', emoji: '🏆', gift: 'WIN ngay', label: 'WIN NGAY', coins: 0 },
   { names: ['heart me'],                             action: 'shoes', emoji: '👟', gift: 'Heart Me',  label: 'Tăng tốc',  coins: 1 },
   { names: ['friendship necklace', 'vòng cổ'],       action: 'shield', emoji: '🚪', gift: 'Vòng cổ',  label: 'Khiên chắn', coins: 10 },
