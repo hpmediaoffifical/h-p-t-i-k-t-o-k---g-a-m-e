@@ -9723,3 +9723,8 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 /* Zombie Phá Nhà: ô nhập trong dòng tương tác (số tim / từ khoá bình luận) */
 .qv-inl { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; opacity: .9; white-space: nowrap; }
 .qv-inl input { width: 90px; background: #1c1f2b; color: #fff; border: 1px solid #3a3f55; border-radius: 6px; padding: 4px 6px; font: inherit; }
+
+/* Zombie Phá Nhà: cảnh báo quà trùng / bị chiếm */
+.qv-grow.qv-warn { outline: 1px solid #ff4d5e; background: rgba(255,77,94,.08); border-radius: 8px; }
+.qv-warnmsg { display: block; color: #ff6b78 !important; font-weight: 600; }
+.qv-warnbox { background: rgba(255,77,94,.15); border: 1px solid #ff4d5e; color: #ff8a94; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-weight: 700; font-size: 13px; }

@@ -15,6 +15,7 @@ export const VILLAINS = [
   { names: ['corgi', 'money gun', 'galaxy', 'lion', 'universe', 'tiktok universe'], action: 'boulder', emoji: '🪨', gift: 'Corgi+', label: 'Đá lăn', coins: 299 },
   // bẫy mới: chưa gắn sẵn quà nào → gán trong app (hoặc quà lạ rơi vào theo giá xu)
   { names: [], opt: true, action: 'barrel', emoji: '🪵', gift: 'Thùng gỗ', label: 'Thùng gỗ', coins: 1 },
+  { names: [], opt: true, action: 'mystery', emoji: '🎁', gift: 'Túi mù', label: 'Túi mù', coins: 10 },
   { names: [], opt: true, action: 'banana', emoji: '🍌', gift: 'Vỏ chuối',     label: 'Vỏ chuối', coins: 1 },
   { names: [], opt: true, action: 'net',    emoji: '🕸️', gift: 'Lưới',         label: 'Ném lưới',       coins: 5 },
   { names: [], opt: true, action: 'bees',   emoji: '🐝', gift: 'Đàn ong',      label: 'Đàn ong',    coins: 10 },

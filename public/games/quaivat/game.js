@@ -758,6 +758,7 @@ function buildCastle() {
     sph(0.16, MS(0xffd070, 0.3, 0, { emissive: 0xff7a10, emissiveIntensity: 3 }), sx * 1.95, 3.7, F + 0.5, H).scale.set(0.14, 0.24, 0.14);
     const L = new THREE.PointLight(0xff8a30, 8, 7, 1.6); L.position.set(sx * 1.95, 3.9, F + 0.8); H.add(L); houseFx.lights.push(L);
   }
+  hpLogo(1.5, 0, 8.75, F + 0.06, 0, H);                                                   // logo HP trên cổng lâu đài
   // cửa sổ vòm: cái sáng vàng, cái xanh ma quái, cái tối om (vỡ)
   const winM = [MS(0x2a1a08, 0.4, 0, { emissive: 0xffa030, emissiveIntensity: 1.8 }), MS(0x0a2a14, 0.4, 0, { emissive: 0x5aff9a, emissiveIntensity: 1.6 }), MS(0x0c0a10, 0.9)];
   const archWin = (x, y, z, m, s = 1) => { box(0.9 * s, 1.3 * s, 0.12, m, x, y, z, H); const c = cyl(0.45 * s, 0.45 * s, 0.12, m, x, y + 0.65 * s, z, H, 14); c.rotation.x = Math.PI / 2; box(1.1 * s, 0.14, 0.3, stone, x, y - 0.68 * s, z + 0.05, H); };
@@ -810,8 +811,24 @@ function updateHouseFx(dt) {
   }
 }
 // trang trí riêng cho ngôi nhà theo phong cách map
+// ---- logo HP (public/hp-logo-pink.svg) ----
+let _hpLogoMat = null;
+function hpLogoMat() {
+  if (_hpLogoMat) return _hpLogoMat;
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  const im = new Image(); im.onload = () => { c.getContext('2d').drawImage(im, 0, 0, 512, 512); t.needsUpdate = true; }; im.src = '/hp-logo-pink.svg';
+  _hpLogoMat = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 });   // giữ đúng màu logo
+  return _hpLogoMat;
+}
+function hpLogo(size, x, y, z, rx, parent) {
+  const m = new THREE.Mesh(geo('hplogo', () => new THREE.PlaneGeometry(1, 1)), hpLogoMat());
+  m.scale.setScalar(size); m.rotation.x = rx || 0; put(m, x, y, z, parent, false); return m;
+}
 function houseDeco(H, F) {
   const st = T.style;
+  if (st === 'adobe') hpLogo(1.5, 0, 6.75, F + 0.22, 0, H);                              // nhà mái bằng: logo trên tường chắn mái
+  else { const a = Math.atan2(4.6, 6); hpLogo(2.6, 0, 8.0 + 0.06, 3.2 + 0.05, -(Math.PI / 2 - a), H); }   // logo lớn trên mái trước
   if (st === 'snow') {                                            // băng nhũ dưới mái, tuyết đọng
     const snowM = MS(0xf8fbff, 0.6), ice = MS(0xd8f2ff, 0.15, 0.1, { transparent: true, opacity: 0.85 });
     for (let x = -8.8; x <= 8.8; x += 0.32) { if (Math.random() < 0.25) continue; const L = rand(0.25, 0.8); const c = new THREE.Mesh(geo('icicle', () => new THREE.ConeGeometry(0.06, 1, 6)), ice); c.scale.y = L; c.rotation.x = Math.PI; put(c, x, 5.58 - L / 2, 6.22, H, false); }
@@ -1368,7 +1385,7 @@ function skinnedOutline(root, thickWorld) {
   }
 }
 // "Zombie lộ sườn": hốc ngực tối + 4 xương sườn cong + xương ức, gắn vào xương Torso (đi theo động tác), da tái hơn
-function addRibcage(model, wrap, mats) {
+function addRibcage(model, wrap, mats, ribs) {
   const torso = model.getObjectByName('Torso'), hips = model.getObjectByName('Hips'); let mesh = null;
   model.traverse(o => { if (o.isSkinnedMesh && !mesh && o.geometry.attributes.position.count > 1000) mesh = o; });
   if (!torso || !hips || !mesh) return;
@@ -1403,10 +1420,10 @@ function addRibcage(model, wrap, mats) {
     return g;
   };
   const front = surface([hips], hy + 0.03, ny, 1);                                                  // bụng trên thắt lưng (đầu to che ngực)
-  if (front) { const g = patch(1, false); g.position.set(0, front.cy, front.z - 0.005); wrap.add(g); wrap.updateMatrixWorld(true); hips.attach(g); }
+  if (ribs && front) { const g = patch(1, false); g.position.set(0, front.cy, front.z - 0.005); wrap.add(g); wrap.updateMatrixWorld(true); hips.attach(g); }
   const back = surface([torso, hips, model.getObjectByName('Abdomen')].filter(Boolean), hy + 0.08, ny + 0.05, -1);   // lưng: camera luôn ở sau → thấy rõ nhất
-  if (back) { const g = patch(1.35, true); g.rotation.y = Math.PI; g.position.set(0, back.cy, back.z + 0.005); wrap.add(g); wrap.updateMatrixWorld(true); torso.attach(g); }
-  for (const m of mats) m.color.multiply(new THREE.Color(0xc4d2bc));                                  // da tái xám
+  if (back) { const lg = hpLogo(0.24, 0, back.cy, back.z - 0.025, 0, wrap); lg.rotation.y = Math.PI; wrap.updateMatrixWorld(true); torso.attach(lg); }   // logo HP sau lưng (camera luôn ở sau)
+  if (ribs) for (const m of mats) m.color.multiply(new THREE.Color(0xc4d2bc));                                  // da tái xám
 }
 function setupZombieGLB(gltf) {
   const model = gltf.scene, wrap = new THREE.Group(); wrap.add(model);
@@ -1420,7 +1437,7 @@ function setupZombieGLB(gltf) {
   if (!(h > 0.05 && h < 1e5)) { h = boneTop(model) * 1.1; box.min.y = 0; }
   const k = MON_H / h; model.scale.multiplyScalar(k); model.position.y = -box.min.y * k;
   wrap.updateMatrixWorld(true);
-  if (CONFIG.zombieModel === 'ribcage') addRibcage(model, wrap, mats);
+  addRibcage(model, wrap, mats, CONFIG.zombieModel === 'ribcage');                     // logo HP sau lưng (+ sườn hở nếu là zombie lộ sườn)
   const feet = []; model.traverse(o => { if (o.isBone && /foot/i.test(o.name) && !/end|toe/i.test(o.name)) feet.push(o); });
   const fv = new V3(); let footRest = Infinity; for (const f of feet) { f.getWorldPosition(fv); footRest = Math.min(footRest, fv.y); }
   const mixer = new THREE.AnimationMixer(model), actions = {};
@@ -1875,6 +1892,7 @@ function mkBarrel() {
   const pts = []; for (let i = 0; i <= 12; i++) { const y = 1.25 * i / 12; pts.push(new THREE.Vector2(0.5 + 0.09 * Math.sin(Math.PI * y / 1.25), y)); }
   put(new THREE.Mesh(geo('barrel', () => new THREE.LatheGeometry(pts, 22)), new THREE.MeshStandardMaterial({ map: woodStave, roughness: 0.8 })), 0, 0, 0, g);
   const top = new THREE.Mesh(geo('bcap', () => new THREE.CircleGeometry(0.5, 22)), MS(0x7a4a22, 0.9)); top.rotation.x = -Math.PI / 2; put(top, 0, 1.25, 0, g);
+  const bot = new THREE.Mesh(geo('bcap', () => new THREE.CircleGeometry(0.5, 22)), MS(0x7a4a22, 0.9)); bot.rotation.x = Math.PI / 2; put(bot, 0, 0.002, 0, g);   // nắp đáy (thùng lăn không bị rỗng)
   for (const y of [0.2, 1.05]) { const t = new THREE.Mesh(geo('band', () => new THREE.TorusGeometry(0.56, 0.035, 6, 26)), MS(0x3a3a3a, 0.4, 0.8)); t.rotation.x = Math.PI / 2; put(t, 0, y, 0, g); }
   return g;
 }
@@ -1995,22 +2013,39 @@ function updatePeas(dt) {
 }
 // ----- khoai tây lăn -----
 const potatoTex = ctex(256, 128, (g, w, h) => {
-  const gr = g.createLinearGradient(0, 0, 0, h);
-  gr.addColorStop(0, '#dcaa6c'); gr.addColorStop(0.5, '#c78f52'); gr.addColorStop(1, '#ad7740');
-  g.fillStyle = gr; g.fillRect(0, 0, w, h);
-  speckle(g, w, h, ['#b07a42', '#e6bb82', '#9c6a36'], 700, 1, 2.5);
-  for (let i = 0; i < 7; i++) { g.fillStyle = 'rgba(120,76,36,.35)'; g.beginPath(); g.ellipse(Math.random() * w, Math.random() * h, rand(2, 4), rand(1.5, 3), rand(0, 3), 0, 7); g.fill(); }
+  g.fillStyle = '#c99a5e'; g.fillRect(0, 0, w, h);
+  speckle(g, w, h, ['#b5844a', '#d9b077', '#a8763e', '#8f6435'], 2600, 1, 2.2);                               // vỏ sần lấm tấm
+  for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(110,70,30,${rand(0.08, 0.2)})`; g.beginPath(); g.ellipse(rand(0, w), rand(0, h), rand(6, 18), rand(3, 9), rand(0, 3), 0, 7); g.fill(); }   // mảng đất
+  for (let i = 0; i < 14; i++) {                                                                               // mắt khoai: chấm lõm tối + viền sáng
+    const x = rand(0, w), y = rand(8, h - 8);
+    g.fillStyle = 'rgba(70,40,15,.8)'; g.beginPath(); g.ellipse(x, y, rand(2, 3.5), rand(1.2, 2.2), rand(0, 3), 0, 7); g.fill();
+    g.strokeStyle = 'rgba(235,200,140,.55)'; g.lineWidth = 1; g.beginPath(); g.arc(x, y - 1, 4, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+  }
 });
+// khối khoai sần sùi, méo, một đầu to (+x) — thay dáng quả trứng trơn
+function potatoGeo() {
+  const g = new THREE.SphereGeometry(1, 48, 32), pa = g.attributes.position, v = new V3(), n = new V3();
+  const lumps = []; for (let i = 0; i < 10; i++) lumps.push({ d: new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(), a: rand(-0.1, 0.12), w: rand(0.25, 0.55) });
+  for (let i = 0; i < pa.count; i++) {
+    n.fromBufferAttribute(pa, i).normalize(); let r = 1;
+    for (const L of lumps) { const d = n.distanceTo(L.d); r += L.a * Math.exp(-(d * d) / (L.w * L.w)); }
+    r += 0.025 * Math.sin(n.x * 9 + n.y * 5) * Math.cos(n.z * 7);
+    const big = 1 + 0.14 * n.x;
+    v.set(n.x * r * 0.64, n.y * r * 0.41 * big, n.z * r * 0.45 * big); pa.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals(); return g;
+}
+function mkRollBarrel() {
+  const g = new THREE.Group(), yaw = new THREE.Group(), roll = new THREE.Group(); g.add(yaw); yaw.add(roll);
+  const b = mkBarrel(); b.rotation.z = Math.PI / 2; b.position.x = 0.625; roll.add(b);                  // trục thùng nằm ngang theo x
+  g.userData.yaw = yaw; g.userData.roll = roll; return g;
+}
 // khoai tây: thuôn tròn, một đầu nhỏ hơn (lăn lệch lung tung), mặt to: mắt tròn lồi + lông mày chau
 function mkPotato() {
   const g = new THREE.Group(), yaw = new THREE.Group(), roll = new THREE.Group(); g.add(yaw); yaw.add(roll);
-  const body = new THREE.Mesh(geo('potato3', () => {
-    const pts = [];
-    for (let i = 0; i <= 28; i++) { const t = i / 28; pts.push(new THREE.Vector2(Math.max(0.001, 0.42 * Math.pow(Math.sin(Math.PI * t), 0.55) * (1 - 0.18 * t)), -0.56 + 1.12 * t)); }
-    return new THREE.LatheGeometry(pts, 32);
-  }), new THREE.MeshStandardMaterial({ map: potatoTex, roughness: 0.42, envMapIntensity: 0.75 }));
-  body.rotation.z = Math.PI / 2; body.castShadow = true; roll.add(body);   // trục dài nằm ngang, đầu to về +x
-  const face = new THREE.Group(); face.position.x = 0.08; roll.add(face);
+  const body = new THREE.Mesh(geo('potato4', potatoGeo), new THREE.MeshStandardMaterial({ map: potatoTex, bumpMap: potatoTex, bumpScale: 2.5, roughness: 0.85, envMapIntensity: 0.35 }));
+  body.castShadow = true; roll.add(body);   // trục dài nằm ngang, đầu to về +x
+  const face = new THREE.Group(); face.position.set(0.08, 0, 0.03); roll.add(face);
   const white = MS(0xfbf8f0, 0.25), pupil = MS(0x141010, 0.15), browM = MS(0x3b2210, 0.7), mouthM = MS(0x5a2a14, 0.7);
   for (const sx of [-1, 1]) {
     const e = sph(0.13, white, sx * 0.135, 0.12, 0.33, face); e.scale.set(0.12, 0.14, 0.08);     // mắt tròn lồi
@@ -2237,7 +2272,8 @@ const SPAWN = {
     launch(it, DOOR_POS(), new V3(rand(-1.2, 1.2), mega ? 1.2 : 0.4, HOUSE_FRONT + 3), 0.6, 5); openDoor(); sfx('whoosh');
   },
   xbarrel: u => spawnObstacleFromDoor('xbarrel', u, mkXBarrel, { labelY: 1.6, minA: 2.5, maxA: 6, onPath: 0.9, spin: 6 }),
-  barrel: u => spawnObstacleFromDoor('barrel', u, mkBarrel, { blocker: true, hp: 80, maxHp: 80, halfW: 0.6, halfD: 0.6, labelY: 1.6, debrisColor: 0x9a5f2c }),
+  barrel: u => { const it = newItem('rbarrel', u, mkRollBarrel(), { labelY: 1.5, debrisColor: 0x9a5f2c }); launch(it, DOOR_POS(), new V3(rand(-1.2, 1.2), 0.58, HOUSE_FRONT + 3), 0.6, 4); openDoor(); sfx('whoosh'); },
+  barrelStatic: u => spawnObstacleFromDoor('barrel', u, mkBarrel, { blocker: true, hp: 80, maxHp: 80, halfW: 0.6, halfD: 0.6, labelY: 1.6, debrisColor: 0x9a5f2c }),
   fence: u => spawnObstacleFromDoor('fence', u, mkFence, { blocker: true, hp: 160, maxHp: 160, halfW: 6.4, halfD: 0.3, labelY: 1.9, debrisColor: 0xf4efe4, minA: 5, maxA: 9, spin: 0, onPath: 0 }),
   trap: u => spawnFromGround('trap', u, mkTrap, { labelY: 0.6, minA: 3.5, maxA: 9, onPath: 0.85, spin: 4 }),
   slime: u => spawnFromGround('slime', u, mkSlimeBlob, { labelY: 0.8, minA: 3, maxA: 8, onPath: 0.8, spin: 3 }),
@@ -2259,7 +2295,7 @@ const SPAWN = {
     banner('🪨 TẢNG ĐÁ KHỔNG LỒ!', esc(u.name) + ' lăn đá khổng lồ');
   },
   balloon: u => {
-    if (mon.lift || mon.carry || items.some(i => !i.dead && i.kind === 'balloon')) { runAction('shoes', u); return; }
+    if (mon.lift || mon.carry || items.some(i => !i.dead && i.kind === 'balloon')) { queueAction('balloon', u); return; }   // đang bay → chờ lượt sau
     const it = newItem('balloon', u, mkBalloons(), { labelY: 1.4 });
     it.g.position.set(mon.x + rand(-1, 1), 8, mon.z + 5); it.state = 'seek'; sfx('whoosh');      // bóng bay từ phía sau tới cứu
     banner('🎈 BÓNG BAY CỨU!', esc(u.name) + ' đưa zombie bay tới');
@@ -2298,7 +2334,7 @@ const SPAWN = {
     it.g.position.copy(spot); it.state = 'fall'; sfx('rumble');
   },
   hand: u => {
-    if (items.some(i => !i.dead && i.kind === 'hand') || mon.lift || mon.carry) { queueAction('meteor', u); return; }
+    if (items.some(i => !i.dead && i.kind === 'hand') || mon.lift || mon.carry) { queueAction('hand', u); return; }   // đang bận → chờ lượt sau
     const it = newItem('hand', u, mkHand(), { labelY: 2.2, noRescale: true });
     it.spot = new V3(mon.x, 0, mon.z); it.g.position.set(mon.x, 26, mon.z); it.state = 'aim'; it.t = 0;
     it.shadow = new THREE.Mesh(geo('handsh', () => new THREE.CircleGeometry(1.5, 28)), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthWrite: false }));
@@ -2754,7 +2790,7 @@ function updateItems(dt) {
       if (it.kind === 'fence') it.g.scale.setScalar(Math.min(1, 0.15 + it.ft / it.T));
       if (it.ft >= it.T) { p.copy(it.to); it.g.rotation.set(0, it.kind === 'fence' ? 0 : rand(-0.3, 0.3), 0); it.g.scale.setScalar(1);
         if (it.kind === 'tire') { it.state = 'roll'; it.vz = 11; it.vx = 0; puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
-        else if (it.kind === 'potato') { it.endZ = rand(-1.6, 0.6); it.state = 'roll'; it.head = rand(-0.35, 0.35); it.speed = rand(7.5, 9); it.bumpT = 0; it.curv = 0; it.hop = 0; it.g.rotation.set(0, 0, 0); puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
+        else if (it.kind === 'potato' || it.kind === 'rbarrel') { it.endZ = rand(-1.6, 0.6); it.state = 'roll'; it.head = rand(-0.35, 0.35); it.speed = rand(7.5, 9); it.bumpT = 0; it.curv = 0; it.hop = 0; it.g.rotation.set(0, 0, 0); puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
         else onLand(it);
       }
     }
@@ -2774,18 +2810,19 @@ function updateItems(dt) {
       for (const o of items) if (o !== it && !o.dead && o.blocker && o.state === 'set' && o.kind !== 'fence' && Math.abs(o.g.position.z - p.z) < 0.8 && Math.abs(o.g.position.x - p.x) < 1) { it.vx = -it.vx + rand(-2, 2); }
       if (p.z > START_Z + 10) removeItem(it);
     }
-    else if (it.kind === 'potato' && it.state === 'roll') {
+    else if ((it.kind === 'potato' || it.kind === 'rbarrel') && it.state === 'roll') {
+      const isB = it.kind === 'rbarrel';                                                // thùng tròn đều: lăn thẳng, không lắc
       // khoai tây một đầu nhọn: lăn cong theo vòng quanh đầu nhọn, đổi hướng lung tung, vẫn nhắm về phía quái
       const ud = it.g.userData;
       it.bumpT -= dt;
-      if (it.bumpT <= 0) { it.bumpT = rand(0.25, 0.8); it.curv = rand(-0.6, 0.6); it.hop = Math.random() < 0.35 ? rand(0.15, 0.4) : 0; }
+      if (it.bumpT <= 0) { it.bumpT = rand(0.25, 0.8); it.curv = rand(-0.6, 0.6) * (isB ? 0.12 : 1); it.hop = Math.random() < (isB ? 0.15 : 0.35) ? rand(0.15, 0.4) : 0; }
       it.head += it.curv * it.speed * 0.35 * dt;                                       // không đuổi người: chỉ cong lung tung do đầu nhọn
       it.head = clamp(Math.atan2(Math.sin(it.head), Math.cos(it.head)), -1.1, 1.1);   // luôn hướng về đầu đường (+z)
       p.x += Math.sin(it.head) * it.speed * dt; p.z += Math.cos(it.head) * it.speed * dt;
       if (Math.abs(p.x) > LANE + 0.4) { p.x = Math.sign(p.x) * (LANE + 0.4); it.head = -it.head; sfx('bonk'); }
       p.y = (it.R || 0.58) + Math.abs(Math.sin(it.t * 9)) * it.hop * Math.min(1, it.speed / 6);
       ud.yaw.rotation.y = it.head;
-      ud.yaw.rotation.z = Math.sin(it.t * 11) * 0.28;
+      ud.yaw.rotation.z = isB ? 0 : Math.sin(it.t * 11) * 0.28;
       ud.roll.rotation.x += it.speed * dt / (it.R || 0.58);
       it.speed = Math.max(3.2, it.speed - dt * (it.hit ? 1.2 : 0.3));
       if (Math.random() < dt * 8) puff(new V3(p.x, 0.1, p.z), { color: 0xd8c6a0, n: 1, size: 0.45, speed: 0.6, life: 0.5 });
@@ -2793,7 +2830,7 @@ function updateItems(dt) {
       if (!it.aiSeen && dz < 6 && dz > 0) { it.aiSeen = true; if (!manual && autoDodge && Math.random() < 0.3) it.aiJump = true; }
       if (it.aiJump && dz < 1.6 && dz > 0) { it.aiJump = false; monJump(); }
       if (!it.hit && Math.hypot(p.x - mon.x, p.z - mon.z) < (it.mega ? 2.3 : 1.2) && mon.y < (it.mega ? 1.8 : 0.85) && !mon.lift && !mon.carry) {
-        it.hit = true; if (it.mega) { hitMonster(80, 7, it.owner, { text: 'KHOAI KHỔNG LỒ!', unblockable: true, stun: 0.8 }); camShake = 0.5; } else hitMonster(18, 2.5, it.owner, { text: 'BỐP!' }); sfx('bonk');
+        it.hit = true; if (it.mega) { hitMonster(80, 7, it.owner, { text: 'KHOAI KHỔNG LỒ!', unblockable: true, stun: 0.8 }); camShake = 0.5; } else if (isB) hitMonster(28, 3.5, it.owner, { text: 'RẦM!' }); else hitMonster(18, 2.5, it.owner, { text: 'BỐP!' }); sfx('bonk');
         it.head = (Math.random() < 0.5 ? -1 : 1) * rand(0.5, 1.0); it.speed *= 0.6;   // bật lệch sang bên, vẫn lăn tiếp về đầu đường
         puff(p.clone(), { color: 0xd8c6a0, n: 5, size: 0.8, speed: 3 });
       }
@@ -2928,10 +2965,29 @@ function updateItems(dt) {
 // =====================================================================
 // Hàng đợi hành động từ quà
 // =====================================================================
+// HÀNG CHỜ QUÀ — luật công bằng: tặng bao nhiêu chạy bấy nhiêu (x1 = 1 lần, x12 = đủ 12 lần, combo x1000 = chạy tới khi đủ).
+// Không giới hạn, không bỏ, không đổi sang quà khác; quà tặng lúc chuyển ván vẫn giữ sang ván sau; combo lớn chạy nhanh dần.
 const actionQueue = []; let actionT = 0;
-function queueAction(a, user) { if (actionQueue.length < 400) actionQueue.push([a, user]); }
+function queueAction(a, user, n = 1) {
+  n = Math.max(1, Math.floor(n) || 1);
+  const last = actionQueue[actionQueue.length - 1];
+  if (last && last.a === a && last.u && user && last.u.id === user.id) last.n += n; else actionQueue.push({ a, u: user, n });
+}
+function queuePending() { let t = 0; for (const e of actionQueue) t += e.n; return t; }
+// món chỉ chạy được 1 cái 1 lúc → đợi tới lượt (không đổi quà, không bỏ)
+function canRunNow(a) {
+  if (!mon.ready || state.phase !== 'play') return false;
+  if (a === 'hand') return !mon.lift && !mon.carry && !items.some(i => !i.dead && i.kind === 'hand');
+  if (a === 'balloon') return !mon.lift && !mon.carry && !items.some(i => !i.dead && i.kind === 'balloon');
+  return true;
+}
 function runAction(a, u) {
   if (!mon.ready) return;
+  if (a === 'mystery') {                                                           // TÚI MÙ: ngẫu nhiên 1 quà hành hoặc cứu (trừ WIN/THUA ngay)
+    const pool = [...VILLAINS, ...HEROES].filter(g => !['win', 'lose', 'mystery'].includes(g.action));
+    const g = pick(pool); popText(new V3(mon.x, mon.y + 3.4, mon.z - 1), `🎁 ${g.emoji} ${g.label}`, 'info', 1.4); sfx('pop');
+    return runAction(g.action, u);
+  }
   if (a === 'repair') {
     if (door.hp >= door.maxHp - 1 && door.tier < 2 && !door.broken) { door.over += 150; if (door.over >= 600) { door.over = 0; return upgradeDoor(u); } }
     door.hp = Math.min(door.maxHp, door.hp + 150); openDoor(0.4); sfx('heal'); addPoints(u, 30);
@@ -2939,7 +2995,7 @@ function runAction(a, u) {
     puff(dp, { color: 0x7dff6a, n: 10, size: 0.7, speed: 3, add: true, life: 0.8, tex: starTex }); popText(dp.clone().setY(4.4), '+150 🔧', 'heal');
     return;
   }
-  if (a === 'shoes') { mon.speedUntil = time + 5; sfx('power'); popText(new V3(mon.x, mon.y + 3.6, mon.z), '👟 TĂNG TỐC!', 'info', 1.2); return; }
+  if (a === 'shoes') { mon.speedUntil = time + 5; sfx('power'); return; }          // tăng tốc: chỉ vệt sáng dưới chân, không chú thích
   if (a === 'shield') {                                                        // khiên cộng dồn: đang có khiên thì cất vào kho, vỡ cái này dùng cái kia
     if (mon.shieldHp > 0) { mon.shieldStock = (mon.shieldStock || 0) + 1; popText(new V3(mon.x, mon.y + 2.6, mon.z), `🚪 +1 khiên (kho ${mon.shieldStock})`, 'info', 1.1); sfx('heal'); }
     else { equipShield(); popText(new V3(mon.x, mon.y + 2.6, mon.z), '🚪 KHIÊN!', 'info', 1.2); }
@@ -2954,9 +3010,12 @@ function runAction(a, u) {
 }
 function updateQueue(dt) {
   actionT -= dt;
-  while (actionT <= 0 && actionQueue.length) {
-    const [a, u] = actionQueue.shift(); runAction(a, u);
-    actionT += a === 'pebble' ? 0.06 : a === 'slipper' ? 0.12 : 0.28;
+  let guard = 0;
+  while (actionT <= 0 && actionQueue.length && guard++ < 40) {
+    const i = actionQueue.findIndex(e => canRunNow(e.a)); if (i < 0) break;      // món đang bận thì chạy món sau trước, món bận vẫn giữ chỗ
+    const e = actionQueue[i]; runAction(e.a, e.u); if (--e.n <= 0) actionQueue.splice(i, 1);
+    const base = e.a === 'pebble' ? 0.06 : e.a === 'slipper' ? 0.12 : 0.28;
+    actionT += Math.max(0.03, base / (1 + queuePending() / 15));                  // càng dồn nhiều càng ra nhanh (đồng loạt)
   }
   if (!actionQueue.length) actionT = Math.max(actionT, 0);
 }
@@ -2975,8 +3034,7 @@ function onGift(user, giftName, count, coins, forced) {
   addPoints(user, total * 10);
   showFeed(user, `đã gửi ${giftName || g?.gift || 'quà'}`, count, g ? g.emoji : '🎁');
   if (total >= 99) gBanner(user, giftName || g?.gift || 'quà', g ? g.label : '');
-  const n = Math.min(count, LIMIT[action] || 40);
-  for (let i = 0; i < n; i++) queueAction(action, user);
+  queueAction(action, user, count);                                              // đủ số lượng đã tặng
   trackCombo(action, user, count);
 }
 // COMBO: cùng 1 loại bẫy được tặng ≥5 lần trong 10 giây → bản SIÊU (khoai khổng lồ / thêm 3 cái)
@@ -2997,8 +3055,7 @@ function onLike(user, count) {   // tim cộng dồn cả phòng: đủ CONFIG.l
   addPoints(user, count);
   likeAcc += count;
   let n = 0;
-  while (likeAcc >= CONFIG.likePer && n < 5) { likeAcc -= CONFIG.likePer; n++; queueAction('pebble', user); }
-  if (likeAcc >= CONFIG.likePer) likeAcc = likeAcc % CONFIG.likePer;
+  n = Math.floor(likeAcc / CONFIG.likePer); likeAcc -= n * CONFIG.likePer; if (n) queueAction('pebble', user, n);   // đủ bao nhiêu mốc tim ném bấy nhiêu đá
   if (n) showFeed(user, `đủ ${CONFIG.likePer} tim → ném đá`, n, '❤️');
 }
 function onComment(user, text) {
@@ -3054,7 +3111,7 @@ function resetRound() {
   Object.assign(mon, { charT: 0, flip: null, windLean: 0, x: 0, y: 0, gy: 0, z: START_Z, vy: 0, kv: 0, stun: 0, lift: null, carry: null, avoid: null, speedUntil: 0, armorUntil: 0, stamina: 1, yaw: 0, yawT: 0, jerk: 0, shieldHp: 0 });
   if (mon.shieldMesh) mon.shieldMesh.visible = false; mon.shieldStock = 0;
   door.broken = false; door.pivot.visible = true;
-  roundPts.clear(); actionQueue.length = 0;
+  roundPts.clear();                                                              // KHÔNG xoá hàng chờ quà: quà chưa chạy giữ sang ván mới
   for (const L of bolts) { scene.remove(L.cloud); if (L.bolt) scene.remove(L.bolt); } bolts.length = 0;
   camPos.set(0, 5, START_Z + 10); camLook.set(0, 2, START_Z - 12);
   startIntro();
@@ -3237,7 +3294,8 @@ let boardT = 0;
 const doorLabel = makeLabel('dlab'); doorLabel.innerHTML = '<div class="dt">🚪 CỬA NHÀ</div><div class="dhp"><i></i></div>';
 const doorBarEl = doorLabel.querySelector('i');
 function updateHud(dt) {
-  $('winN').textContent = state.win; $('winT').textContent = CONFIG.winTarget;
+  $('winN').textContent = state.win;
+  { const q = queuePending(), el = $('qPend'); el.textContent = q > 1 ? `🎁 còn ${q} lượt quà đang chạy` : ''; el.style.display = q > 1 ? '' : 'none'; } $('winT').textContent = CONFIG.winTarget;
   const dk = door.hp / door.maxHp, rt = Math.max(0, Math.ceil(state.roundT));
   $('timerN').textContent = `${Math.floor(rt / 60)}:${String(rt % 60).padStart(2, '0')}`;
   $('tmrW').classList.toggle('low', rt <= 20 && state.phase === 'play'); $('tmrW').style.display = CONFIG.timerOn ? '' : 'none';
@@ -3246,7 +3304,7 @@ function updateHud(dt) {
     $('rtCp').style.left = f(cpZ) + '%'; $('rtCp').style.display = CONFIG.checkpoint ? '' : 'none'; $('rtCp').textContent = state.cp ? '✅' : '🚩'; }
   $('distN').textContent = Math.max(0, Math.round(mon.z - HOUSE_FRONT - 1.3));
   if (mon.ready) {
-    mon.bf.textContent = (time < mon.speedUntil ? '👟' : '') + (mon.shieldHp > 0 ? '🚪' + mon.shieldHp + (mon.shieldStock ? ` +${mon.shieldStock}` : '') : '') + (mon.stun > 0 && state.phase === 'play' ? '💫' : '');
+    mon.bf.textContent = (mon.shieldHp > 0 ? '🚪' + mon.shieldHp + (mon.shieldStock ? ` +${mon.shieldStock}` : '') : '') + (mon.stun > 0 && state.phase === 'play' ? '💫' : '');
     placeEl(mon.label, mon.x, mon.y + mon.gy + MON_H + 0.45, mon.z, 12, 0.6, 1.2);
   }
   doorBarEl.style.width = (dk * 100) + '%'; doorLabel.classList.toggle('regen', !!door.regen);

@@ -15,6 +15,7 @@
     // Phải khớp action trong public/games/quaivat/game.js (VILLAINS / HEROES)
     const ACTIONS = [
         { id: 'rose',      emoji: '🌹', label: 'Khoai lăn',  def: 'Hoa hồng', side: 'viewer' },
+        { id: 'mystery',   emoji: '🎁', label: 'Túi mù (ngẫu nhiên)', def: '', side: 'viewer' },
         { id: 'barrel',    emoji: '🪵', label: 'Thùng gỗ', def: '', side: 'viewer' },
         { id: 'xbarrel',   emoji: '🛢️', label: 'Thùng phình',        def: 'Kẹo mút',  side: 'viewer' },
         { id: 'trap',      emoji: '🪤', label: 'Bẫy kẹp',               def: 'TikTok',   side: 'viewer' },
@@ -164,19 +165,39 @@
         });
     }
 
+    // tên quà mặc định của từng hành động (dùng chung gift-data.js với game) → phát hiện quà bị trùng / bị chiếm
+    let DEF = null;
+    import('/games/quaivat/gift-data.js').then(m => { DEF = {}; for (const g of [...m.VILLAINS, ...m.HEROES]) DEF[g.action] = g.names || []; if (cfg) renderGifts(); }).catch(() => {});
+    const actLabel = id => (ACTIONS.find(a => a.id === id) || {}).label || id;
+    function giftConflicts() {
+        const warn = {}, add = (a, m) => { (warn[a] = warn[a] || []).includes(m) || warn[a].push(m); };
+        const map = cfg.qvGiftMap || {}, byGift = new Map();
+        for (const [aid, list] of Object.entries(map)) for (const g of list || []) { const k = String(g.giftId != null ? g.giftId : g.giftName); if (!byGift.has(k)) byGift.set(k, { name: g.giftName, acts: [] }); byGift.get(k).acts.push(aid); }
+        for (const { name, acts } of byGift.values()) if (acts.length > 1) for (const a of acts) add(a, `"${name}" bị gán trùng với: ${acts.filter(x => x !== a).map(actLabel).join(', ')}`);
+        if (DEF) for (const [aid, list] of Object.entries(map)) for (const g of list || []) {
+            const nm = String(g.giftName || '').toLowerCase().trim(); if (!nm) continue;
+            for (const [other, names] of Object.entries(DEF)) if (other !== aid && names.includes(nm) && !(map[other] || []).length) {
+                add(other, `Quà mặc định "${g.giftName}" đã gán cho ${actLabel(aid)} → dòng này chưa có quà`);
+                add(aid, `"${g.giftName}" vốn là quà mặc định của ${actLabel(other)}`);
+            }
+        }
+        return warn;
+    }
     function renderGifts() {
         const host = $('#qv-gifts');
         if (!host) return;
+        const warn = giftConflicts(), nWarn = Object.keys(warn).length;
         const row = a => {
             const list = cfg.qvGiftMap[a.id] || [];
             const chips = list.map((g, i) => `<span class="qv-chip">${g.giftImage ? `<img src="${esc(g.giftImage)}">` : '🎁'}${esc(g.giftName || ('#' + g.giftId))}<button class="qv-x" data-a="${a.id}" data-i="${i}" title="Bỏ">✕</button></span>`).join('');
-            return `<div class="qv-grow ${a.side === 'hero' ? 'qv-hero' : ''}">
-                <div class="qv-act"><span class="qv-emo">${a.emoji}</span><div><b>${esc(a.label)}</b><small>${list.length ? 'Đã gán quà riêng' : (a.def ? 'Mặc định: ' + esc(a.def) : 'Chưa gán quà')}</small></div></div>
+            return `<div class="qv-grow ${a.side === 'hero' ? 'qv-hero' : ''} ${warn[a.id] ? 'qv-warn' : ''}">
+                <div class="qv-act"><span class="qv-emo">${a.emoji}</span><div><b>${esc(a.label)}</b><small>${list.length ? 'Đã gán quà riêng' : (a.def ? 'Mặc định: ' + esc(a.def) : 'Chưa gán quà')}</small>${(warn[a.id] || []).map(m => `<small class="qv-warnmsg">⚠️ ${esc(m)}</small>`).join('')}</div></div>
                 <div class="qv-chips">${chips}<button class="ghost small qv-add" data-a="${a.id}">＋ Chọn quà</button></div>
                 <button class="ghost small qv-test" data-t="${a.id}" title="Thả thử trên overlay">🧪 Thử</button>
             </div>`;
         };
         host.innerHTML = `
+            ${nWarn ? `<div class="qv-warnbox">⚠️ Có ${nWarn} hành động bị trùng / mất quà — xem các dòng tô đỏ bên dưới</div>` : ''}
             <div class="nd-card-title">🎁 Quà người xem → bẫy & vật cản</div>
             ${ACTIONS.filter(a => a.side === 'viewer').map(row).join('')}
             <div class="nd-card-title" style="margin-top:8px">⚡ Quà hỗ trợ zombie (streamer)</div>

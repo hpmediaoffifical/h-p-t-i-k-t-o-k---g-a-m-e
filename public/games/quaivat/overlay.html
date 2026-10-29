@@ -63,6 +63,7 @@
   #route .rt b { position: absolute; top: 50%; left: 0; transform: translate(-50%, -55%); font-size: 1.5em; line-height: 1; filter: drop-shadow(0 .08em 0 #000); }
   #route .rt #rtCp { font-size: 1.15em; }
   .chip em img { width: 1.15em; height: 1.15em; object-fit: contain; vertical-align: middle; }
+  #qPend { font-size: .55em; font-weight: 800; background: rgba(255,61,127,.75); border-radius: 1em; padding: 0 .7em; }
   #dist { font-size: .65em; font-weight: 800; background: rgba(0,0,0,.4); border-radius: 1em; padding: 0 .8em; }
 
   .colL, .colR { position: absolute; top: 24%; display: flex; flex-direction: column; gap: .2em; pointer-events: none; max-width: 30%; }
@@ -134,6 +135,7 @@
   <div id="top">
     <div id="winRow"><div class="pill" id="pillL"></div><div id="win">WIN <b id="winN">0</b>/<span id="winT">20</span> 🏆</div><div class="pill" id="pillR"></div></div>
     <div id="dist"><span id="mapN"></span> • còn <b id="distN">0</b>m tới cửa<span id="tmrW"> • ⏱ <b id="timerN">3:00</b></span></div>
+    <div id="qPend" style="display:none"></div>
     <div id="route"><span class="re">🛣️</span><div class="rt"><i id="rtFill"></i><b id="rtCp">🚩</b><b id="rtZ">🧟</b></div><span class="re">🏠</span></div>
   </div>
   <div class="colL"><h4 class="lg">⚡ HỖ TRỢ QUÁI</h4><div id="heroList" style="display:flex;flex-direction:column;gap:.2em"></div><h4>🛡️ TOP BẢO VỆ</h4><div id="board" style="display:flex;flex-direction:column;gap:.2em"></div></div>
