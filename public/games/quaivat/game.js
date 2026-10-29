@@ -1440,7 +1440,7 @@ const GLB_MAP = {
   Dance: ['Yes', 'Wave'], Eat: ['Idle_Attack', 'Punch', 'Yes', 'Idle'], Cheer: ['Wave', 'Yes', 'Jump_Idle'],
 };
 function glbAnimate(dt) {
-  const z = mon.z3; z.mixer.update(dt);
+  const z = mon.z3; z.mixer.update(dt); holdShieldIK(z, dt);
   mon.hitAnimT = Math.max(0, (mon.hitAnimT || 0) - dt);
   let target = 'Idle';
   for (const n of (GLB_MAP[mon.cur] || ['Idle'])) if (z.actions[n]) { target = n; break; }
@@ -1464,7 +1464,7 @@ async function setupMonster() {
   mon.animT = 0; mon.ts = 1; mon.groanT = 3;
   // khiên giáp (khi được tặng) + sao choáng
   const sh = new THREE.Group(); sh.position.set(0, 0.12, 0.46); sh.visible = false; z.torso.add(sh);
-  mon.shieldPanel = box(0.9, 1.72, 0.07, new THREE.MeshStandardMaterial({ map: makeShieldTex(), roughness: 0.75 }), 0, 0, 0, sh);
+  mon.shieldPanel = box(0.9, 1.72, 0.07, new THREE.MeshStandardMaterial({ map: makeShieldTex(), roughness: 0.75, alphaTest: 0.5 }), 0, 0, 0, sh);   // alphaTest: chỗ mẻ thành lỗ thủng
   sph(0.05, MS(0xffd36a, 0.3, 0.9), 0.36, -0.05, 0.05, sh);
   for (const x of [-0.42, 0.42]) box(0.06, 0.12, 0.08, MS(0x3a2a1a, 0.6, 0.4), x, 0.05, -0.07, sh);   // chỗ tay nắm
   mon.shieldMesh = sh; mon.shieldHp = 0;
@@ -1505,9 +1505,8 @@ function hitMonster(dmg, knock, owner, opts = {}) {
   const hp = new V3(mon.x, mon.y + mon.gy + MON_H + 0.3, mon.z);
   // khiên cửa chặn đòn trực diện (đồ lăn/ném/đạn cây); mìn, sét, vụ nổ, bóng bay, đá tảng thì không chặn được
   if (mon.shieldHp > 0 && !opts.unblockable) {
-    mon.shieldHp--; mon.shieldHit = 0.35; sfx('thud');
-    if (knock) mon.kv = Math.min(mon.kv + knock * 4 * 0.35, 36);
-    debris(new V3(mon.x, mon.gy + 1.0, mon.z - 0.5), 0x7a4423, 2, 0.1, 3);
+    mon.shieldHp--; mon.shieldHit = 0.35; sfx('thud');                          // có khiên: đỡ trọn, KHÔNG bị đẩy lùi
+    debris(new V3(mon.x, mon.gy + 1.0, mon.z - 0.5), 0x7a4423, 3, 0.1, 3); chipShield();
     if (mon.shieldHp <= 0) breakShield(); else popText(hp.clone().setY(hp.y + 0.4), `🚪 ${mon.shieldHp}`, 'info', 0.7);
     camShake = Math.max(camShake, 0.12);
     return true;
@@ -1522,9 +1521,74 @@ function hitMonster(dmg, knock, owner, opts = {}) {
 function breakShield() {
   mon.shieldHp = 0; mon.shieldMesh.visible = false;
   const p = new V3(mon.x, mon.gy + 1.0, mon.z - 0.5);
-  debris(p, 0x7a4423, 14, 0.2, 7); debris(p, 0x9fd2f0, 4, 0.1, 5); puff(p, { color: 0xd8c6a0, n: 8, size: 1, speed: 3, life: 0.7 });
-  popText(new V3(mon.x, mon.y + mon.gy + MON_H + 0.9, mon.z), '💥 VỠ KHIÊN!', 'big', 1.3); sfx('crack');
+  debris(p, 0x7a4423, 18, 0.24, 8); debris(p, 0x5a3014, 8, 0.4, 6); debris(p, 0x9fd2f0, 5, 0.1, 5);   // ván gỗ, nẹp, kính vỡ tung
+  puff(p, { color: 0xd8c6a0, n: 10, size: 1.2, speed: 3.5, life: 0.8 });
+  popText(new V3(mon.x, mon.y + mon.gy + MON_H + 0.9, mon.z), mon.shieldStock > 0 ? `💥 VỠ KHIÊN! (còn ${mon.shieldStock})` : '💥 VỠ KHIÊN!', 'big', 1.3); sfx('crack');
+  if (mon.shieldStock > 0) { mon.shieldStock--; later(0.45, () => { if (state.phase === 'play') equipShield(); }); }
 }
+// đeo khiên mới (cửa nguyên vẹn, bật ra to dần)
+function equipShield() {
+  const tex = mon.shieldPanel.material.map, c = tex.image, g = c.getContext('2d');
+  if (!mon.shieldPristine) { mon.shieldPristine = document.createElement('canvas'); mon.shieldPristine.width = c.width; mon.shieldPristine.height = c.height; mon.shieldPristine.getContext('2d').drawImage(c, 0, 0); }
+  else { g.clearRect(0, 0, c.width, c.height); g.drawImage(mon.shieldPristine, 0, 0); tex.needsUpdate = true; }
+  mon.shieldHp = CONFIG.shieldHits; mon.shieldMesh.visible = true; mon.shieldPop = 0; sfx('power');
+  puff(new V3(mon.x, mon.gy + 1.1, mon.z - 0.5), { color: 0xffe08a, n: 8, size: 0.5, speed: 3, add: true, life: 0.6, tex: starTex });
+}
+// mỗi đòn: thêm vết nứt + mẻ một miếng ở mép cửa (đục trong suốt)
+function chipShield() {
+  const tex = mon.shieldPanel.material.map, c = tex.image, g = c.getContext('2d'), W = c.width, H = c.height;
+  g.strokeStyle = 'rgba(20,10,4,.85)'; g.lineWidth = 2.5; g.beginPath(); let x = rand(10, W - 10), y = rand(10, H - 10); g.moveTo(x, y);
+  for (let k = 0; k < 5; k++) { x += rand(-20, 20); y += rand(-24, 24); g.lineTo(x, y); } g.stroke();
+  g.save(); g.globalCompositeOperation = 'destination-out';
+  const ex = Math.random() < 0.5 ? rand(-4, 12) : rand(W - 12, W + 4), ey = rand(0, H), r = rand(8, 16);
+  g.beginPath(); for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2; g.lineTo(ex + Math.cos(a) * r * rand(0.5, 1.2), ey + Math.sin(a) * r * rand(0.5, 1.2)); } g.fill(); g.restore();
+  tex.needsUpdate = true;
+}
+// khiên: bật ra khi đeo, giật khi trúng đòn, húc tới khi đấm
+function updateShield(dt) {
+  const sh = mon.shieldMesh; if (!sh) return;
+  mon.shieldHit = Math.max(0, (mon.shieldHit || 0) - dt * 3);
+  mon.shieldPop = Math.min(1, (mon.shieldPop ?? 1) + dt * 4);
+  const q = mon.shieldPop; sh.scale.setScalar(q < 1 ? 0.3 + 0.7 * (1 - (1 - q) ** 3) + 0.12 * Math.sin(q * Math.PI) : 1);
+  const shove = mon.cur === 'Punch' ? 0.14 * Math.max(0, Math.sin(time * 9)) : 0;
+  sh.rotation.x = -mon.shieldHit * 0.7; sh.position.z = 0.46 - mon.shieldHit * 0.25 + shove;
+}
+// zombie mô hình có xương: 2 tay đưa ra nắm 2 tay nắm của khiên (IK 2 khớp: vai → khuỷu → cổ tay)
+const _ikA = new V3(), _ikB = new V3(), _ikC = new V3(), _ikQ = new THREE.Quaternion(), _ikQ2 = new THREE.Quaternion(), _ikQ3 = new THREE.Quaternion();
+function aimBone(bone, child, target, w) {
+  bone.updateMatrixWorld(true);
+  bone.getWorldPosition(_ikA); child.getWorldPosition(_ikB);
+  const cur = _ikB.sub(_ikA).normalize(), want = _ikC.copy(target).sub(_ikA).normalize();
+  _ikQ.setFromUnitVectors(cur, want);
+  bone.getWorldQuaternion(_ikQ2); _ikQ2.premultiply(_ikQ);
+  bone.parent.getWorldQuaternion(_ikQ3).invert(); _ikQ3.multiply(_ikQ2);
+  bone.quaternion.slerp(_ikQ3, w);
+}
+function holdShieldIK(z, dt) {
+  const hold = mon.shieldHp > 0 && mon.shieldMesh && mon.shieldMesh.visible && !mon.carry && !mon.lift && !['Eat', 'Cheer', 'Death', 'Wave', 'Dance'].includes(mon.cur);
+  mon.holdW = clamp((mon.holdW || 0) + (hold ? dt * 6 : -dt * 6), 0, 1);
+  if (mon.holdW <= 0.001) return;
+  if (!z.arms) {
+    const get = n => z.model.getObjectByName(n);
+    z.arms = ['L', 'R'].map(sd => { const up = get('UpperArm' + sd), lo = get('LowerArm' + sd); const hand = lo && lo.children.find(c => c.isBone); return up && lo && hand ? { up, lo, hand, sd } : null; }).filter(Boolean);
+    z.chest = get('Torso');
+  }
+  if (z.arms.length < 2) return;
+  z.root.updateMatrixWorld(true);
+  const sh = mon.shieldMesh, cen = z.chest ? z.chest.getWorldPosition(new V3()) : sh.getWorldPosition(new V3());
+  for (const a of z.arms) {
+    const S = a.up.getWorldPosition(new V3());
+    const grip = new V3(a.sd === 'L' ? 0.42 : -0.42, 0.05, 0.02);                // tay nắm 2 bên mép khiên
+    sh.localToWorld(grip);
+    const tryL = new V3(0.42, 0.05, 0.02); sh.localToWorld(tryL); const tryR = new V3(-0.42, 0.05, 0.02); sh.localToWorld(tryR);
+    const H = S.distanceTo(tryL) < S.distanceTo(tryR) ? tryL : tryR;           // tay nào nắm mép gần vai đó
+    const out = S.clone().sub(cen).setY(0).normalize();
+    const E = S.clone().lerp(H, 0.5).addScaledVector(out, 0.12).add(new V3(0, -0.12, 0));   // khuỷu hơi bè ra + chùng xuống
+    aimBone(a.up, a.lo, E, mon.holdW); a.lo.updateMatrixWorld(true);
+    aimBone(a.lo, a.hand, H, mon.holdW);
+  }
+}
+
 // mặt khiên = cánh cửa gỗ có ô kính in avatar streamer (như clip gốc)
 function makeShieldTex() {
   const c = document.createElement('canvas'); c.width = 128; c.height = 256; const g = c.getContext('2d');
@@ -1572,7 +1636,7 @@ function keyUp(code) { keys[code] = false; }
 addEventListener('blur', () => CTRL_KEYS.forEach(k => { keys[k] = false; }));
 function updateMonster(dt) {
   if (!mon.ready) return;
-  zombieAnimate(dt);
+  zombieAnimate(dt); updateShield(dt);
   mon.flash -= dt;
   const fl = mon.flash > 0 ? 0.7 : 0;
   for (const m of mon.mats) m.emissive.setRGB(fl, fl * 0.12, fl * 0.08);
@@ -2876,7 +2940,11 @@ function runAction(a, u) {
     return;
   }
   if (a === 'shoes') { mon.speedUntil = time + 5; sfx('power'); popText(new V3(mon.x, mon.y + 3.6, mon.z), '👟 TĂNG TỐC!', 'info', 1.2); return; }
-  if (a === 'shield') { mon.shieldHp = CONFIG.shieldHits; mon.shieldMesh.visible = true; sfx('power'); popText(new V3(mon.x, mon.y + 2.6, mon.z), '🚪 KHIÊN CỬA!', 'info', 1.2); return; }
+  if (a === 'shield') {                                                        // khiên cộng dồn: đang có khiên thì cất vào kho, vỡ cái này dùng cái kia
+    if (mon.shieldHp > 0) { mon.shieldStock = (mon.shieldStock || 0) + 1; popText(new V3(mon.x, mon.y + 2.6, mon.z), `🚪 +1 khiên (kho ${mon.shieldStock})`, 'info', 1.1); sfx('heal'); }
+    else { equipShield(); popText(new V3(mon.x, mon.y + 2.6, mon.z), '🚪 KHIÊN!', 'info', 1.2); }
+    return;
+  }
   if (a === 'time' && !CONFIG.timerOn) return runAction('shoes', u);
   if (a === 'time') { state.roundT += 20; sfx('heal'); popText(new V3(mon.x, mon.y + 3.6, mon.z), '⏳ +20 giây', 'heal'); puff(new V3(mon.x, mon.y + 1.6, mon.z), { color: 0x7dff6a, n: 8, tex: starTex, add: true, size: 0.5, speed: 3 }); return; }
   if (state.phase !== 'play') return;
@@ -2899,7 +2967,7 @@ function actionForGiftId(id) {
   return null;
 }
 function findGift(name) { const n = String(name || '').toLowerCase().trim(); return ALL_GIFTS.find(g => g.names.includes(n)); }
-const LIMIT = { win: 1, lose: 1, banana: 20, net: 5, bees: 4, crows: 4, meteor: 2, hand: 1, quake: 1, mine: 5, xbarrel: 20, flower: 4, lightning: 3, boulder: 2, balloon: 2, fox: 5, bomb: 8, repair: 20, shoes: 1, shield: 1, time: 5, plant: 6 };
+const LIMIT = { shield: 60, win: 1, lose: 1, banana: 20, net: 5, bees: 4, crows: 4, meteor: 2, hand: 1, quake: 1, mine: 5, xbarrel: 20, flower: 4, lightning: 3, boulder: 2, balloon: 2, fox: 5, bomb: 8, repair: 20, shoes: 1, shield: 1, time: 5, plant: 6 };
 function onGift(user, giftName, count, coins, forced) {
   const g = forced ? ALL_GIFTS.find(a => a.action === forced) : findGift(giftName);
   const action = forced || (g ? g.action : actionByCoins(coins || 1));
@@ -2984,7 +3052,7 @@ function resetRound() {
   state.nextMap = null;
   for (const it of items) removeItem(it); items.length = 0; comboLog.clear();
   Object.assign(mon, { charT: 0, flip: null, windLean: 0, x: 0, y: 0, gy: 0, z: START_Z, vy: 0, kv: 0, stun: 0, lift: null, carry: null, avoid: null, speedUntil: 0, armorUntil: 0, stamina: 1, yaw: 0, yawT: 0, jerk: 0, shieldHp: 0 });
-  if (mon.shieldMesh) mon.shieldMesh.visible = false;
+  if (mon.shieldMesh) mon.shieldMesh.visible = false; mon.shieldStock = 0;
   door.broken = false; door.pivot.visible = true;
   roundPts.clear(); actionQueue.length = 0;
   for (const L of bolts) { scene.remove(L.cloud); if (L.bolt) scene.remove(L.bolt); } bolts.length = 0;
@@ -3178,7 +3246,7 @@ function updateHud(dt) {
     $('rtCp').style.left = f(cpZ) + '%'; $('rtCp').style.display = CONFIG.checkpoint ? '' : 'none'; $('rtCp').textContent = state.cp ? '✅' : '🚩'; }
   $('distN').textContent = Math.max(0, Math.round(mon.z - HOUSE_FRONT - 1.3));
   if (mon.ready) {
-    mon.bf.textContent = (time < mon.speedUntil ? '👟' : '') + (mon.shieldHp > 0 ? '🚪' + mon.shieldHp : '') + (mon.stun > 0 && state.phase === 'play' ? '💫' : '');
+    mon.bf.textContent = (time < mon.speedUntil ? '👟' : '') + (mon.shieldHp > 0 ? '🚪' + mon.shieldHp + (mon.shieldStock ? ` +${mon.shieldStock}` : '') : '') + (mon.stun > 0 && state.phase === 'play' ? '💫' : '');
     placeEl(mon.label, mon.x, mon.y + mon.gy + MON_H + 0.45, mon.z, 12, 0.6, 1.2);
   }
   doorBarEl.style.width = (dk * 100) + '%'; doorLabel.classList.toggle('regen', !!door.regen);
@@ -3249,12 +3317,15 @@ function onAppCmd(d) {
 }
 function connectApp() {
   const socket = window.io({ reconnection: true, reconnectionDelay: 600, reconnectionDelayMax: 5000 });
+  // cửa sổ game (Edge/Chrome --app): app tắt / mất kết nối quá 4 giây → tự đóng cửa sổ game theo
+  const WIN = Q.get('win') === '1'; let winCloseT = WIN ? setTimeout(() => window.close(), 9000) : 0;
   socket.on('connect', async () => {
+    clearTimeout(winCloseT);
     setConn(true, '● Đã nối app HP Action LIVE');
     try { const r = await fetch('/api/games/quaivat/config'); if (r.ok) applyServerConfig(await r.json()); } catch {}
     socket.emit('subscribe', 'overlay');
   });
-  socket.on('disconnect', () => setConn(false, '● Mất kết nối app (đang thử lại...)'));
+  socket.on('disconnect', () => { setConn(false, '● Mất kết nối app (đang thử lại...)'); if (WIN) { clearTimeout(winCloseT); winCloseT = setTimeout(() => window.close(), 4000); } });
   socket.on('gameConfig', d => { if (d && d.gameId === 'quaivat') applyServerConfig(d.config); });
   socket.on('overlay:reload', d => { if (!d || !d.gameId || d.gameId === 'quaivat') location.reload(); });
   socket.on('gameDisabled', d => { if (d && d.gameId === 'quaivat') document.body.style.visibility = 'hidden'; });
