@@ -1,0 +1,5 @@
+Zombie models (zombie_basic.glb, zombie_chubby.glb, zombie_arm.glb, zombie_ribcage.glb)
+Source: "Zombie Apocalypse Kit" by Quaternius — https://quaternius.com/packs/zombieapocalypsekit.html
+Downloaded via the GDevelop public asset store (asset-resources.gdevelop.io), listed as CC0.
+License: CC0 1.0 Universal (public domain) — https://creativecommons.org/publicdomain/zero/1.0/
+Free for personal and commercial use; attribution not required.

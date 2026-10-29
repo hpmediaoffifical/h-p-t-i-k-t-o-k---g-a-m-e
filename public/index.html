@@ -1750,6 +1750,39 @@
                 </div>
             </section>
 
+            <!-- ============ GAME VIEW: Zombie Phá Nhà ============ -->
+            <section id="view-quaivat" class="view game-view quaivat-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🧟 Zombie Phá Nhà</h2>
+                    </div>
+                    <div class="overlay-bar">
+                        <button id="qv-btn-copy" class="obs-link small" title="Copy link overlay OBS">📋 Link OBS</button>
+                        <button id="qv-btn-open" class="ghost small" title="Mở overlay trong cửa sổ xem thử (có bảng ⚙)">🖥 Xem thử</button>
+                        <button id="qv-btn-reload" class="ghost small" title="Buộc overlay tải lại">🔄 Reload</button>
+                        <button id="qv-btn-demo" class="ghost small" title="Bật/tắt người xem ảo tặng quà ngẫu nhiên">▶ Demo</button>
+                        <button id="qv-btn-reset" class="danger small" title="Chơi lại ván hiện tại">↺ Chơi lại ván</button>
+                    </div>
+                </header>
+                <div class="game-body quaivat-body">
+                    <div class="qv-top">
+                        <div class="nd-card" id="qv-settings"></div>
+                        <div class="nd-card qv-pad-card">
+                            <div class="nd-card-title">🎮 Điều khiển zombie (streamer)</div>
+                            <div id="qv-pad" class="qv-pad" tabindex="0">
+                                <div class="qv-pad-tip">Bấm vào ô này rồi dùng <b>W A S D</b> / <b>↑ ← ↓ →</b> · <b>Space</b> nhảy · <b>F</b> đấm nhanh · <b>Shift</b> chạy. Zombie chỉ đi khi bấm phím — không bấm thì đứng yên.</div>
+                                <div class="qv-keys">
+                                    <span></span><button class="ghost" data-qv-key="KeyW">▲<small>Tới</small></button><span></span>
+                                    <button class="ghost" data-qv-key="KeyA">◀<small>Trái</small></button><button class="ghost" data-qv-key="KeyS">▼<small>Lùi</small></button><button class="ghost" data-qv-key="KeyD">▶<small>Phải</small></button>
+                                </div>
+                                <div class="qv-keys2"><button class="ghost" data-qv-key="Space">⤒ Nhảy</button><button class="ghost" data-qv-key="KeyF">👊 Đấm</button><button class="ghost" data-qv-key="ShiftLeft">💨 Chạy</button></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nd-card" id="qv-gifts"></div>
+                </div>
+            </section>
+
             <!-- ============ GAME VIEW: Biểu Cảm Nhiệt Độ ============ -->
             <section id="view-nhietdo" class="view game-view nhietdo-view">
                 <header class="game-header">
@@ -2952,6 +2985,7 @@
     <script src="/games/votecomment/votecomment-panel.js"></script>
     <script src="/games/nhietdo/game.js"></script>
     <script src="/games/nhietdo/nhietdo-panel.js"></script>
+    <script src="/games/quaivat/quaivat-panel.js"></script>
     <script src="/games/bancung/game.js"></script>
     <script src="/games/bancung/bancung-panel.js"></script>
     <script src="/games/chemtraicay/game.js"></script>

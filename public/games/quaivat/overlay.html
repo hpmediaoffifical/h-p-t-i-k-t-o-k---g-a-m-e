@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zombie Phá Nhà – HP Action LIVE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: 'Baloo 2', system-ui, sans-serif; }
+  #game { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); overflow: hidden; color: #fff; }
+  #c { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .lab { position: absolute; left: 0; top: 0; transform-origin: 50% 100%; display: flex; flex-direction: column; align-items: center; will-change: transform; white-space: nowrap; }
+  .av { width: 1.4em; height: 1.4em; border-radius: 50%; display: grid; place-items: center; font-weight: 800; overflow: hidden; flex: none; border: .1em solid #fff; color: #fff; box-shadow: 0 .05em .25em rgba(0,0,0,.5); }
+  .av img { width: 100%; height: 100%; object-fit: cover; }
+  .itag .av { width: 1.7em; height: 1.7em; font-size: 1em; }
+  .itag span { font-size: .55em; font-weight: 800; text-shadow: 0 .1em 0 #000, 0 0 .3em #000; max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
+  .ihp { width: 2.8em; height: .35em; background: rgba(0,0,0,.6); border-radius: .2em; overflow: hidden; margin-top: .1em; border: .05em solid #000; }
+  .ihp i { display: block; height: 100%; width: 100%; background: linear-gradient(#ffe066, #e0a400); }
+  .mlab .mt { display: flex; align-items: center; gap: .25em; background: rgba(0,0,0,.55); padding: .1em .55em .1em .1em; border-radius: 1em; }
+  .mlab .mt .av { width: 1.7em; height: 1.7em; }
+  .mlab .mt span { font-weight: 800; font-size: .8em; }
+  .mlab .mhp { width: 6.5em; height: .6em; background: rgba(0,0,0,.7); border: .08em solid #000; border-radius: .4em; overflow: hidden; margin-top: .15em; }
+  .mlab .mhp i { display: block; height: 100%; background: linear-gradient(#ff7a6b, #d42020); }
+  .mlab .bf { font-size: .9em; height: 1.2em; line-height: 1.2em; }
+  .dlab .dt { font-size: .7em; font-weight: 800; text-shadow: 0 .1em 0 #000; }
+  .dlab .dhp { width: 7em; height: .6em; background: rgba(0,0,0,.7); border: .08em solid #000; border-radius: .4em; overflow: hidden; }
+  .dlab .dhp i { display: block; height: 100%; background: linear-gradient(#8dff6a, #22a51b); }
+  .pt { position: absolute; left: 0; top: 0; font-weight: 800; color: #fff; pointer-events: none; will-change: transform; text-shadow: 0 .08em 0 #000, .06em 0 0 #000, -.06em 0 0 #000, 0 -.06em 0 #000, 0 0 .3em rgba(0,0,0,.7); }
+  .pt.dmg { font-size: 1em; color: #ff6a5a; }
+  .pt.big { font-size: 1.8em; color: #ffd84a; letter-spacing: .02em; }
+  .pt.heal { font-size: 1.1em; color: #7dff6a; }
+  .pt.info { font-size: 1.1em; color: #8fe3ff; }
+
+  #top { position: absolute; top: .45em; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: .3em; pointer-events: none; }
+  #winRow { display: flex; align-items: center; gap: .4em; }
+  #win { font-weight: 800; font-size: 1.6em; line-height: 1.2; color: #fff; text-shadow: 0 .08em 0 #3a2a00, .05em 0 0 #3a2a00, -.05em 0 0 #3a2a00, 0 -.05em 0 #3a2a00; }
+  #win b { color: #ff3b3b; }
+  #win.bump { animation: winbump .9s cubic-bezier(.3,1.8,.5,1); }
+  @keyframes winbump { 0% { transform: scale(1); } 30% { transform: scale(1.6); color: #ffe04a; } 100% { transform: scale(1); } }
+  .pill { display: flex; align-items: center; gap: .2em; background: linear-gradient(#a0522d, #6b3416); border: .08em solid #3b1a08; border-radius: 1em; padding: .05em .45em .05em .05em; font-size: .6em; font-weight: 800; min-width: 0; }
+  .pill:empty { display: none; }
+  .pill .av { width: 1.5em; height: 1.5em; }
+  #vs { display: flex; align-items: center; gap: .35em; width: 92%; background: rgba(0,0,0,.45); border-radius: .8em; padding: .25em .45em; border: .06em solid rgba(255,255,255,.25); }
+  #vs .side { flex: 1; display: flex; align-items: center; gap: .3em; min-width: 0; }
+  #vs .col { flex: 1; min-width: 0; }
+  #vs .nm { font-size: .62em; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; justify-content: space-between; gap: .4em; }
+  #vs .bar { height: .7em; background: #2a0c0c; border-radius: .4em; overflow: hidden; border: .06em solid #000; }
+  #vs .bar i { display: block; height: 100%; width: 100%; background: linear-gradient(#ff7a6b, #d42020); transition: width .15s; }
+  #vs .bar.g i { background: linear-gradient(#8dff6a, #22a51b); }
+  #vs .tmr { font-size: .95em; font-weight: 800; line-height: 1; }
+  #dist.low #timerN { color: #ff5a4a; animation: tblink .5s infinite alternate; }
+  #vs .tmr.low b { color: #ff5a4a; animation: tblink .5s infinite alternate; }
+  @keyframes tblink { to { opacity: .4; } }
+  #vs .vsx { font-weight: 800; font-size: 1em; color: #ffd84a; text-shadow: 0 .08em 0 #000; }
+  #vs .av { width: 1.8em; height: 1.8em; }
+  #dist { font-size: .65em; font-weight: 800; background: rgba(0,0,0,.4); border-radius: 1em; padding: 0 .8em; }
+
+  .colL, .colR { position: absolute; top: 24%; display: flex; flex-direction: column; gap: .2em; pointer-events: none; max-width: 30%; }
+  .colL { left: .3em; } .colR { right: .3em; align-items: flex-end; }
+  .colL h4, .colR h4 { margin: .2em 0 0; font-size: .55em; color: #ffd84a; text-shadow: 0 .08em 0 #000, 0 0 .3em #000; letter-spacing: .03em; }
+  .chip { display: flex; align-items: center; gap: .25em; background: rgba(0,0,0,.45); border-radius: .6em; padding: .05em .45em .05em .15em; font-size: .52em; font-weight: 800; line-height: 1.1; }
+  .colR .chip { flex-direction: row-reverse; padding: .05em .15em .05em .45em; text-align: right; }
+  .chip em { font-style: normal; font-size: 1.7em; width: 1.25em; text-align: center; }
+  .chip small { display: block; font-weight: 600; opacity: .8; font-size: .85em; }
+  .chip.hero { background: rgba(20,60,140,.55); }
+  .br { display: flex; align-items: center; gap: .25em; background: rgba(0,0,0,.45); border-radius: 1em; padding: .08em .45em .08em .08em; font-size: .55em; font-weight: 800; }
+  .br .nm { max-width: 6.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .br .p { color: #ffd84a; margin-left: auto; padding-left: .3em; }
+
+  #feed { position: absolute; left: .4em; bottom: 1.2em; display: flex; flex-direction: column-reverse; gap: .3em; pointer-events: none; }
+  .fc { display: flex; align-items: center; gap: .35em; background: linear-gradient(90deg, rgba(0,0,0,.72), rgba(0,0,0,.1)); border-radius: 2em; padding: .15em 1.2em .15em .15em; animation: fin .3s ease-out; }
+  .fc .av { width: 2em; height: 2em; font-size: 1em; }
+  .fc .tx { font-size: .62em; line-height: 1.15; font-weight: 800; }
+  .fc .tx small { display: block; font-weight: 600; opacity: .85; }
+  .fc .gi { font-size: 1.5em; }
+  .fc .x { font-size: 1.5em; font-weight: 800; font-style: italic; text-shadow: 0 .08em 0 #e8336a, 0 0 .2em #000; }
+  .fc.out { transition: opacity .5s, transform .5s; opacity: 0; transform: translateX(-30%); }
+  @keyframes fin { from { transform: translateX(-60%); opacity: 0; } }
+
+  #gbanner { position: absolute; top: .4em; left: .4em; right: .4em; display: flex; align-items: center; gap: .4em; background: linear-gradient(90deg, #ff3d7f, #ff7aa8); border-radius: 1em; padding: .15em .6em; font-size: .7em; font-weight: 800; transform: translateY(-160%); transition: transform .35s; pointer-events: none; box-shadow: 0 .2em .6em rgba(0,0,0,.35); }
+  #gbanner.show { transform: none; }
+  #flashScr { position: absolute; inset: 0; background: #eaf4ff; opacity: 0; pointer-events: none; }
+  #banner { position: absolute; left: 0; right: 0; top: 36%; text-align: center; pointer-events: none; font-weight: 800; font-size: 2.3em; line-height: 1.1; text-shadow: 0 .08em 0 #000, .05em 0 0 #000, -.05em 0 0 #000, 0 0 .5em rgba(0,0,0,.8); opacity: 0; transform: scale(.6); transition: opacity .25s, transform .25s cubic-bezier(.3,1.6,.6,1); }
+  #banner.show { opacity: 1; transform: scale(1); }
+  #banner small { display: block; font-size: .42em; color: #ffe27a; margin-top: .2em; }
+  #hint { position: absolute; right: .5em; bottom: .5em; max-width: 60%; font-size: .5em; font-weight: 700; pointer-events: none; opacity: .75; text-shadow: 0 .08em 0 #000; text-align: right; }
+  #conn { position: absolute; right: .5em; top: .5em; font-size: .5em; font-weight: 800; background: rgba(0,0,0,.45); border-radius: 1em; padding: 0 .6em; pointer-events: none; }
+  #conn.on { color: #7dff6a; }
+  #loading { position: absolute; inset: 0; display: grid; place-items: center; background: #1b2a12; font-size: 1.2em; font-weight: 800; z-index: 5; text-align: center; padding: 1em; }
+
+  #gear { position: fixed; right: 8px; bottom: 8px; z-index: 20; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(255,255,255,.15); color: #fff; font-size: 18px; cursor: pointer; }
+  #panel { position: fixed; right: 8px; bottom: 52px; z-index: 20; width: 330px; max-height: calc(100vh - 70px); overflow: auto; background: rgba(20,22,30,.96); color: #eee; border-radius: 12px; padding: 10px 12px; font: 13px system-ui, sans-serif; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+  #panel.hidden { display: none; }
+  #panel h3 { margin: 10px 0 6px; font-size: 13px; color: #ffd84a; }
+  #panel .row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+  #panel label { white-space: nowrap; min-width: 82px; opacity: .85; }
+  #panel input[type=checkbox] { flex: none; width: 16px; height: 16px; margin: 0 6px 0 0; vertical-align: middle; }
+  #panel .chk { display: flex; align-items: center; cursor: pointer; min-width: 0; }
+  #panel input, #panel select { flex: 1; background: #2a2d3a; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 5px 6px; font: inherit; min-width: 0; }
+  #panel button { background: #33384a; color: #fff; border: 1px solid #4a5068; border-radius: 6px; padding: 6px 4px; font: inherit; cursor: pointer; }
+  #panel button:hover { background: #454c66; }
+  #panel button.on { background: #2f7d32; border-color: #4caf50; }
+  #panel button.hero { background: #1f3f78; border-color: #3a67b8; }
+  #panel .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 6px; }
+  #panel .hintp { opacity: .65; font-size: 11px; margin: 6px 0 0; line-height: 1.45; }
+  body.clean #gear { display: none; }
+  body.inapp #hint, body.inapp #conn { display: none; }
+</style>
+<script type="importmap">{ "imports": {
+  "three": "/games/quaivat/vendor/three.module.min.js",
+  "three/addons/": "/games/quaivat/vendor/addons/"
+} }</script>
+</head>
+<body>
+<div id="game">
+  <canvas id="c"></canvas>
+  <div id="labels"></div>
+  <div id="top">
+    <div id="winRow"><div class="pill" id="pillL"></div><div id="win">WIN <b id="winN">0</b>/<span id="winT">20</span> 🏆</div><div class="pill" id="pillR"></div></div>
+    <div id="dist"><span id="mapN"></span> • còn <b id="distN">0</b>m tới cửa • ⏱ <b id="timerN">3:00</b></div>
+  </div>
+  <div class="colL"><h4>⚡ HỖ TRỢ QUÁI</h4><div id="heroList" style="display:flex;flex-direction:column;gap:.2em"></div><h4>🛡️ TOP BẢO VỆ</h4><div id="board" style="display:flex;flex-direction:column;gap:.2em"></div></div>
+  <div class="colR"><h4>🪤 BẪY & VẬT CẢN</h4><div id="villList" style="display:flex;flex-direction:column;gap:.2em;align-items:flex-end"></div></div>
+  <div id="feed"></div>
+  <div id="gbanner"></div>
+  <div id="flashScr"></div>
+  <div id="banner"></div>
+  <div id="hint">🎮 Streamer: ← → né • Space nhảy • F đấm • Shift chạy • 🖱️ chuột phải kéo: độ cao camera</div>
+  <div id="conn">● Chưa kết nối LIVE</div>
+  <div id="loading">⏳ Đang tải mô hình 3D...</div>
+</div>
+
+<button id="gear" title="Bảng điều khiển (P)">⚙</button>
+<div id="panel" class="hidden">
+  <h3>Streamer (con quái)</h3>
+  <div class="row"><label>Tên</label><input id="inName"></div>
+  <div class="row"><label>Link avatar</label><input id="inAvatar" placeholder="https://... (không bắt buộc)"></div>
+  <div class="row"><label>Giờ mỗi ván (giây)</label><input id="inRound" type="number" min="30" step="10"></div>
+  <div class="row"><label>Máu cửa nhà</label><input id="inDoorHp" type="number" min="100" step="100"></div>
+  <div class="row"><label>Map</label><select id="inMap"></select></div>
+  <div class="row"><button id="btnSave" style="flex:1">💾 Lưu & chơi lại</button></div>
+  <h3>Kết nối TikTok LIVE (TikFinity)</h3>
+  <div class="row"><input id="wsUrl"><button id="btnConn">Kết nối</button></div>
+  <div class="row" id="connState">● Chưa kết nối</div>
+  <h3>Giả lập quà</h3>
+  <div class="row"><label>Người xem</label><input id="simName" placeholder="(ngẫu nhiên)"></div>
+  <div class="row"><label>Số lượng</label><select id="simCnt"><option>1</option><option>3</option><option>5</option><option>10</option><option>30</option></select></div>
+  <div class="grid" id="giftBtns"></div>
+  <div class="grid">
+    <button data-ev="like">❤️ Thả tim x15</button>
+    <button data-ev="comment">💬 Bình luận</button>
+    <button data-ev="follow">➕ Follow</button>
+    <button data-ev="share">↗️ Chia sẻ</button>
+  </div>
+  <h3>Trò chơi</h3>
+  <div class="grid">
+    <button id="btnDemo">▶ Demo tự động</button>
+    <button id="btnSound" class="on">🔊 Âm thanh</button>
+    <button id="btnReset">↺ Chơi lại ván</button>
+    <button id="btnAuto" class="on">🤖 Quái tự né</button>
+  </div>
+  <div class="row"><label class="chk"><input type="checkbox" id="lockJump">🔒 Khóa nhảy (Space)</label></div>
+  <div class="row"><label class="chk"><input type="checkbox" id="lockFwd">🔒 Khóa tiến tới (chỉ đi ngang)</label></div>
+  <p class="hintp">Phím P: ẩn/hiện bảng • 1–9: thả quà thử • ← → né • Space nhảy • F đấm • Shift chạy.<br>Camera: giữ chuột phải kéo lên/xuống = độ cao • cuộn chuột = gần/xa • phím C = mặc định.<br>
+  URL: <b>?ratio=9:16</b> hoặc <b>1:1</b> khóa khung • <b>?clean=1</b> ẩn nút ⚙ • <b>?demo=1</b> • <b>?name=Tên</b> • <b>?ws=ws://...</b><br>
+  Mô hình: Fox – PixelMannen & tomkranis (CC-BY 4.0).</p>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/games/quaivat/models.js"></script>
+<script type="module" src="/games/quaivat/game.js"></script>
+
+</body>
+</html>

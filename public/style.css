@@ -9652,3 +9652,32 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .cg-game.has-art { padding-left: 104px; min-height: 160px; }
 .cg-game.has-art .cg-art { display: block; position: absolute; left: 12px; top: 12px; width: 80px; height: 142px; object-fit: cover; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
 .cg-game.has-art .cg-ico { display: none; }
+
+/* ============ 🧟 Zombie Phá Nhà (quaivat) — dùng lại .nd-card / .nd-gp-* ============ */
+.quaivat-body { display: flex; flex-direction: column; gap: 12px; padding: 12px; overflow: auto; }
+.qv-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 1000px) { .qv-top { grid-template-columns: 1fr; } }
+.qv-row { display: grid; grid-template-columns: 150px 1fr; align-items: center; gap: 10px; font-size: 13px; color: #cfd3dc; }
+.qv-row input, .qv-row select { background: #11131a; color: #fff; border: 1px solid #2a2e3a; border-radius: 8px; padding: 7px 10px; font-size: 13px; min-width: 0; }
+.qv-checks { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #cfd3dc; margin-top: 4px; }
+.qv-checks label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.qv-hint { font-size: 12px; color: #8a90a0; line-height: 1.5; margin-top: 4px; }
+.qv-pad { outline: none; border: 2px dashed #2a2e3a; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; align-items: center; transition: border-color 150ms, background 150ms; }
+.qv-pad:focus { border-color: #7dff6a; background: rgba(125, 255, 106, 0.05); }
+.qv-pad-tip { font-size: 12px; color: #aab0bd; text-align: center; line-height: 1.5; }
+.qv-keys { display: grid; grid-template-columns: repeat(3, 64px); gap: 6px; }
+.qv-keys button, .qv-keys2 button { height: 52px; font-size: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; touch-action: none; }
+.qv-keys button small { font-size: 10px; color: #8a90a0; }
+.qv-keys2 { display: flex; gap: 6px; }
+.qv-keys2 button { height: 40px; font-size: 13px; padding: 0 14px; }
+.qv-grow { display: grid; grid-template-columns: 230px 1fr auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 8px; border-bottom: 1px solid #1f2330; }
+.qv-grow.qv-hero { background: rgba(60, 110, 220, 0.08); }
+.qv-act { display: flex; align-items: center; gap: 8px; }
+.qv-act b { display: block; font-size: 13px; color: #e8ebf2; }
+.qv-act small { display: block; font-size: 11px; color: #8a90a0; }
+.qv-emo { font-size: 22px; width: 30px; text-align: center; }
+.qv-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.qv-chip { display: inline-flex; align-items: center; gap: 4px; background: #1c2030; border: 1px solid #2a2e3a; border-radius: 999px; padding: 2px 4px 2px 6px; font-size: 12px; color: #e8ebf2; }
+.qv-chip img { width: 20px; height: 20px; object-fit: contain; }
+.qv-x { background: none; border: none; color: #ff8a8a; cursor: pointer; font-size: 12px; padding: 0 4px; }
+.qv-on { background: #2f7d32 !important; border-color: #4caf50 !important; color: #fff !important; }

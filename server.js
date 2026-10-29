@@ -115,6 +115,7 @@ const { OBSSettings } = require('./lib/obs-settings');
 
 const PORT = process.env.PORT || 3000;
 const CaptionListener = require('./lib/caption-listener');
+const { createRankLog } = require('./lib/rank-log');
 
 // Domain giả trỏ về loopback (127.0.0.1) qua hosts file — cố định "hpaction.obs" cho mọi máy
 // (không suy từ tên máy, để URL giống nhau trên mọi cài đặt HP Action LIVE). Lý do đầy đủ +
@@ -367,6 +368,22 @@ const GAMES = {
         icon: '🗳',
         overlayPath: '/overlay/votecomment',
         defaultConfig: makeDefaultVoteCommentConfig()
+    },
+    quaivat: {
+        id: 'quaivat',
+        name: 'Zombie Phá Nhà',
+        description: 'Zombie (streamer) đi dọc đường tới phá cửa nhà; người xem tặng quà gài bẫy, ném đồ, gọi đồng minh để chặn. Phá được cửa → vào nhà ăn não, +1 WIN.',
+        icon: '🧟',
+        overlayPath: '/overlay/quaivat',
+        // Khoá riêng tiền tố qv* (tránh đụng cleanThuyTinhConfig xoá khoá trùng tên game khác).
+        defaultConfig: {
+            enabled: true,
+            qvStreamerName: '', qvStreamerAvatar: '',
+            qvDoorHp: 1200, qvRoundSeconds: 180, qvStartMap: 1,
+            qvLockJump: false, qvLockForward: false, qvAutoDodge: true, qvSound: true,
+            qvZombieModel: 'basic',   // basic | chubby | arm | ribcage | classic — mô hình Quaternius CC0 trong public/games/quaivat/models/zombie
+            qvGiftMap: {}   // { [action]: [{ giftId, giftName, giftImage }] } — trống = khớp theo tên quà mặc định
+        }
     },
     nhietdo: {
         id: 'nhietdo',
@@ -3544,10 +3561,18 @@ function emitLiveStatsImmediate() {
 function broadcast(type, payload) { io.emit(type, payload); }
 function isTikTokLiveConnected() { return !!(connection && liveConnected); }
 
+// Bước 0 Thẻ Giải Đấu: ghi thô gói xếp hạng/giải đấu (rankUpdate, rankText, hourlyRank, điểm giải đấu trong PK)
+// ra <DATA_DIR>/tiktok-rank-log/<ngày>.jsonl để biết TikTok thật sự gửi gì. Xem: GET /api/rank-log.
+const rankLog = createRankLog({ dir: path.join(DATA_DIR, 'tiktok-rank-log') });
+
 // Chống spam toast: lib bắn ERROR cho cả lỗi decode message WebSocket lặp lại giữa buổi live.
 let lastTikTokErrorToast = { message: '', ts: 0 };
 function attachConnectionEvents(conn, lib) {
     const { WebcastEvent, ControlEvent } = lib;   // từ loadTikTokConnector() — không có biến toàn cục để tránh dùng trước khi nạp
+    conn.on(ControlEvent.DECODED_DATA || 'decodedData', (method, data) => {
+        if (conn !== connection) return;
+        try { rankLog.record(method, data, { roomId: currentRoomId }); } catch (e) {}
+    });
     conn.on(ControlEvent.CONNECTED, (state) => {
         liveConnected = true;
         currentRoomId = state?.roomId;
@@ -4207,6 +4232,12 @@ function attachConnectionEvents(conn, lib) {
         } catch (e) { console.error('[pktiktok] linkMicMethod parse error:', e); }
     });
 }
+
+// Log gói xếp hạng (bước 0 Thẻ Giải Đấu): đếm mọi method TikTok gửi + các dòng rank mới nhất.
+app.get('/api/rank-log', (req, res) => {
+    const n = Math.min(200, Math.max(0, parseInt(req.query.n, 10) || 50));
+    res.json({ ok: true, ...rankLog.stats(), recent: rankLog.recent(n) });
+});
 
 // ====== Unknown gifts detector ======
 // Khi TikTok đẩy gift event với giftId KHÔNG có trong Google Sheet → ghi nhận để user
@@ -7309,6 +7340,9 @@ try {
 // Overlay route
 app.get('/overlay/nhietdo', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'nhietdo', 'overlay.html'));
+});
+app.get('/overlay/quaivat', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'quaivat', 'overlay.html'));
 });
 
 // Live state (custom path to avoid generic /api/games/:id/state route)
@@ -11898,6 +11932,12 @@ io.on('connection', (socket) => {
     // LEVEL QUEST sync — lab broadcasts cfg/state; cache + relay tới mọi overlay
     onTrusted('levelquest:cfg',   (data) => { relayCache.levelquest.cfg   = data; socket.broadcast.emit('levelquest:cfg',   data); });
     onTrusted('levelquest:state', (data) => { relayCache.levelquest.state = data; socket.broadcast.emit('levelquest:state', data); });
+
+    // ZOMBIE PHÁ NHÀ — streamer bấm phím trong app (OBS không nhận bàn phím) → relay tới overlay
+    onTrusted('quaivat:key', (data) => {
+        if (!data || typeof data.code !== 'string' || data.code.length > 24) return;
+        socket.broadcast.emit('quaivat:key', { code: data.code, down: data.down === true });
+    });
 
     // TIMER (THỜI GIAN) sync — lab broadcasts cfg/state; cache + relay tới overlay/preview
     onTrusted('timer:cfg',     (data) => { relayCache.timer.cfg   = data; socket.broadcast.emit('timer:cfg',   data); });

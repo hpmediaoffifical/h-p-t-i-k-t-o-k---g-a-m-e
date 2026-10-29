@@ -443,7 +443,7 @@
     const STABLE_GAMES = new Set([
         'thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung',
         'pktiktok', 'vipwelcome', 'trongcay', 'nhatla',
-        'level-quest', 'timer', 'liveTranslate', 'camgames', 'giftboard'
+        'level-quest', 'timer', 'liveTranslate', 'camgames', 'giftboard', 'quaivat'
     ]);
     // Game camera (Touch & Play, Chém Trái Cây, Đập Muỗi, Bắn Cung) không hiện riêng trong danh sách — vào qua 🎥 Game Camera.
     const CAM_CHILD_GAMES = new Set((window.HpCamGames || []).map(g => g.id));
@@ -934,6 +934,7 @@
         else if (gameId === 'vipwelcome') openVipWelcome(game);
         else if (gameId === 'votecomment') openVoteComment(game);
         else if (gameId === 'nhietdo') openNhietDo(game);
+        else if (gameId === 'quaivat') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpQuaiVatPanel?.open(socket); }
         else if (gameId === 'bancung') openBanCung(game);
         else if (gameId === 'chemtraicay') openChemTraiCay(game);
         else if (gameId === 'dapmuoi') openDapMuoi(game);
