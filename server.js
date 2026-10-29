@@ -385,7 +385,8 @@ const GAMES = {
             qvZombieModel: 'basic',   // basic | chubby | arm | ribcage | classic — mô hình Quaternius CC0 trong public/games/quaivat/models/zombie
             qvTimerOn: false,         // đồng hồ mỗi ván: mặc định tắt (chơi tới khi phá được cửa)
             qvCheckpoint: true,       // cột mốc giữa đường
-            qvShowLegend: true,       // hiện bảng quà ngay trong game (tắt nếu dùng bảng quà OBS riêng)
+            qvShowLegend: true,
+            qvWinShape: '9:16',       // khung cửa sổ game (OBS bắt cửa sổ): 9:16 | 1:1 | 16:9       // hiện bảng quà ngay trong game (tắt nếu dùng bảng quà OBS riêng)
             qvGiftMap: {}   // { [action]: [{ giftId, giftName, giftImage }] } — trống = khớp theo tên quà mặc định
         }
     },
@@ -7450,6 +7451,26 @@ try {
 // Overlay route
 app.get('/overlay/nhietdo', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'nhietdo', 'overlay.html'));
+});
+// Zombie Phá Nhà chơi dạng CỬA SỔ (OBS bắt cửa sổ, không cần link overlay): game 3D cần GPU/WebGL mà
+// Electron của app đã tắt GPU (xem đầu electron-main.js) → mở trong Edge/Chrome --app, profile riêng của HP.
+app.post('/api/quaivat/window/open', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    const shape = ['9:16', '1:1', '16:9'].includes(req.body && req.body.shape) ? req.body.shape : '9:16';
+    const [w, h] = { '9:16': [540, 960], '1:1': [820, 860], '16:9': [1280, 760] }[shape];
+    const found = CaptionListener.resolveBrowserExe('edge', { exists: (p) => { try { return fs.existsSync(p); } catch (e) { return false; } } });
+    if (!found) return res.json({ ok: false, error: 'Không tìm thấy Microsoft Edge hoặc Google Chrome trên máy' });
+    const profileDir = path.join(DATA_DIR, 'quaivat-window', found.browser);
+    try { fs.mkdirSync(profileDir, { recursive: true }); } catch (e) {}
+    const url = `http://127.0.0.1:${PORT}/overlay/quaivat?ratio=full`;
+    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat(`--window-size=${w},${h}`);
+    try {
+        const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
+        child.on('error', (e) => console.warn('[quaivat] mở cửa sổ game lỗi:', e.message));
+        child.unref();
+    } catch (e) { return res.json({ ok: false, error: e.message }); }
+    console.log(`[quaivat] mở cửa sổ game bằng ${found.browser}: ${found.exe}`);
+    res.json({ ok: true, browser: found.browser });
 });
 app.get('/overlay/quaivat-gifts', (req, res) => {   // bảng quà Zombie Phá Nhà: nguồn OBS riêng
     res.sendFile(path.join(__dirname, 'public', 'games', 'quaivat', 'gifts.html'));

@@ -68,7 +68,7 @@
     async function load() {
         try { const r = await fetch('/api/games/quaivat/config'); cfg = r.ok ? await r.json() : {}; } catch (e) { cfg = {}; }
         cfg = Object.assign({ enabled: true, qvStreamerName: '', qvStreamerAvatar: '', qvDoorHp: 600, qvRoundSeconds: 180, qvStartMap: 1,
-            qvLockJump: false, qvLockForward: false, qvAutoDodge: true, qvSound: true, qvZombieModel: 'basic', qvTimerOn: false, qvCheckpoint: true, qvShowLegend: true, qvGiftMap: {} }, cfg || {});
+            qvLockJump: false, qvLockForward: false, qvAutoDodge: true, qvSound: true, qvZombieModel: 'basic', qvTimerOn: false, qvCheckpoint: true, qvShowLegend: true, qvWinShape: '9:16', qvGiftMap: {} }, cfg || {});
         if (Number(cfg.qvDoorHp) === 1200 && !cfg.qvHpV2) { cfg.qvDoorHp = 600; cfg.qvHpV2 = true; schedulePersist(); }   // cửa giờ tự hồi máu → hạ máu mặc định cũ một lần
         if (!cfg.qvGiftMap || typeof cfg.qvGiftMap !== 'object') cfg.qvGiftMap = {};
     }
@@ -91,7 +91,14 @@
             const url = window.buildOverlayURL ? window.buildOverlayURL('/overlay/quaivat') : location.origin + '/overlay/quaivat';
             try { await navigator.clipboard.writeText(url); toast('Đã copy link OBS (1080×1920 hoặc 1080×1080)'); } catch (e) { prompt('Link OBS:', url); }
         });
-        $('#qv-btn-open')?.addEventListener('click', () => window.open('/overlay/quaivat?panel=1', 'qv-preview', 'width=760,height=820'));
+        $('#qv-btn-open')?.addEventListener('click', async () => {      // Edge/Chrome --app (app tắt GPU nên game 3D không chạy trong cửa sổ Electron)
+            try {
+                const r = await fetch('/api/quaivat/window/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shape: cfg.qvWinShape || '9:16' }) });
+                const j = await r.json().catch(() => ({}));
+                if (j.ok) toast('Đã mở cửa sổ game — OBS: thêm nguồn "Window Capture" (Chụp cửa sổ) chọn "Zombie Phá Nhà"');
+                else toast(j.error || 'Không mở được cửa sổ game', 'error');
+            } catch (e) { toast('Không mở được cửa sổ game', 'error'); }
+        });
         $('#qv-btn-reload')?.addEventListener('click', () => { socket && socket.emit('overlay:reload', { gameId: GAME_ID }); toast('Đã gửi lệnh tải lại overlay'); });
         $('#qv-btn-reset')?.addEventListener('click', () => cmd('reset'));
         $('#qv-btn-demo')?.addEventListener('click', e => { demoOn = !demoOn; e.currentTarget.classList.toggle('qv-on', demoOn); cmd('demo', { on: demoOn }); });
@@ -127,6 +134,7 @@
         if (!host) return;
         host.innerHTML = `
             <div class="nd-card-title">⚙ Cài đặt ván</div>
+            <label class="qv-row"><span>Khung cửa sổ game (OBS bắt cửa sổ)</span><select data-k="qvWinShape">${[['9:16', '📱 Dọc 9:16 (TikTok)'], ['1:1', '⬛ Vuông 1:1'], ['16:9', '🖥 Ngang 16:9']].map(([v, n]) => `<option value="${v}"${(cfg.qvWinShape || '9:16') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
             <label class="qv-row"><span>Nhân vật zombie</span><select data-k="qvZombieModel">${ZOMBIES.map(([v, n]) => `<option value="${v}"${cfg.qvZombieModel === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
             <label class="qv-row"><span>Tên streamer (zombie)</span><input type="text" data-k="qvStreamerName" placeholder="Streamer" value="${esc(cfg.qvStreamerName)}"></label>
             <label class="qv-row"><span>Link avatar</span><input type="text" data-k="qvStreamerAvatar" placeholder="https://… (không bắt buộc)" value="${esc(cfg.qvStreamerAvatar)}"></label>

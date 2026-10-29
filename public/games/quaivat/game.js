@@ -1391,7 +1391,7 @@ function setupZombieGLB(gltf) {
   return { glb: true, root: wrap, model, mats, torso, mixer, actions, cur: '', feet, footRest: isFinite(footRest) ? footRest : 0 };
 }
 const GLB_MAP = {
-  Walking: ['Walk'], Running: ['Run_Arms', 'Run'], Idle: ['Idle'], Punch: ['Punch', 'Idle_Attack', 'Run_Attack', 'Idle'],
+  Walking: ['Walk'], Running: ['Run', 'Run_Arms'], Idle: ['Idle'], Punch: ['Punch', 'Idle_Attack', 'Run_Attack', 'Idle'],
   Hurt: ['HitReact', 'Idle'], Dizzy: ['No', 'Idle'], Jump: ['Jump_Idle', 'Jump'], Wave: ['Wave', 'Jump_Idle'], Death: ['Death'],
   Dance: ['Yes', 'Wave'], Eat: ['Idle_Attack', 'Punch', 'Yes', 'Idle'], Cheer: ['Wave', 'Yes', 'Jump_Idle'],
 };
@@ -1522,7 +1522,7 @@ function keyDown(code) {
   if (!CTRL_KEYS.includes(code)) return;
   const was = keys[code]; keys[code] = true; lastInput = time;
   if (!was && code === 'Space') monJump();
-  if (code === 'KeyF' || code === 'KeyJ') mon.punchBoost = 0.5;
+  if (code === 'KeyF' || code === 'KeyJ') { mon.punchBoost = 0.5; if (!was) mon.wantPunch = true; }
 }
 function keyUp(code) { keys[code] = false; }
 addEventListener('blur', () => CTRL_KEYS.forEach(k => { keys[k] = false; }));
@@ -1581,8 +1581,9 @@ function updateMonster(dt) {
         const gap = mon.aiX - mon.x; side = Math.abs(gap) < 0.06 ? 0 : clamp(gap * 1.6, -1, 1);
         fwd = 1;
       }
-      const sprint = manual && !CONFIG.lockForward && fwd > 0 && (keys.ShiftLeft || keys.ShiftRight) && mon.stamina > 0.05;
+      const sprint = manual && !CONFIG.lockForward && fwd > 0 && (keys.ShiftLeft || keys.ShiftRight) && !mon.tired;
       if (sprint) mon.stamina = Math.max(0, mon.stamina - dt * 0.35); else mon.stamina = Math.min(1, mon.stamina + dt * 0.15);
+      if (mon.stamina <= 0.02) mon.tired = true; else if (mon.stamina >= 0.35) mon.tired = false;
       const base = CONFIG.monsterSpeed * slimeFactor() * terrainFactor() * (1 - 0.6 * wind) * (time < mon.speedUntil ? 1.7 : 1);
       let vF = fwd > 0 ? base * (sprint ? 1.6 : 1) : fwd < 0 ? -base * 0.85 : 0;   // + = tiến về nhà, − = quay lại đi về đầu đường
       let vX = side * base * 1.1;
@@ -1594,6 +1595,12 @@ function updateMonster(dt) {
       else if (vF > 0 && atWall) { vF = 0; vX = clamp(-mon.x * 3, -2, 2); mon.aiX = 0; }
       if (mon.avoid && mon.avoid === b && !manual) vF = Math.min(vF, base * 0.3);
       if (!b) mon.avoid = null;
+      if ((keys.KeyF || keys.KeyJ) && !(mon.airPunchT > 0)) mon.wantPunch = true;
+      if (!punching && (mon.wantPunch || mon.airPunchT > 0)) {                 // đấm chủ động bằng phím F
+        if (mon.wantPunch) { mon.airPunchT = CONFIG.punchEvery * 0.6; airPunch(); }
+        punching = true; vF *= 0.25; vX *= 0.25;
+      }
+      mon.wantPunch = false; mon.airPunchT = Math.max(0, (mon.airPunchT || 0) - dt);
       const lurch = 0.3 + 1.4 * Math.cos(mon.walkPh || 0) ** 2;               // dồn tới lúc 2 chân khép, khựng lúc chân dang
       mon.z -= vF * lurch * dt; mon.x += vX * lurch * dt;
       const speed = Math.hypot(vF, vX), running = vF > CONFIG.monsterSpeed * 1.4;
@@ -1617,11 +1624,27 @@ function updateMonster(dt) {
   if (state.phase === 'play') playAnim(anim, 0.18, ts); // ván vừa kết thúc trong khung hình này thì giữ hoạt ảnh nhảy múa/ngã
   applyMon();
 }
+// đấm khi bấm F: trúng vật cản / cáo / cửa ngay trước mặt, không có gì thì đấm gió
+function airPunch() {
+  let best = null, bd = 99;
+  for (const it of items) {
+    if (it.dead || it.state !== 'set' || !(it.blocker || it.kind === 'fox')) continue;
+    const dz = mon.z - it.g.position.z, dx = Math.abs(mon.x - it.g.position.x);
+    if (dz > -0.5 && dz < (it.halfD || 0.5) + 1.3 && dx < (it.halfW || 0.5) + 0.8 && dz < bd) { best = it; bd = dz; }
+  }
+  for (const f of items) if (!f.dead && f.kind === 'fox' && f.state === 'bite' && Math.hypot(f.g.position.x - mon.x, f.g.position.z - mon.z) < 1.8) best = f;
+  if (best) return punchHit(best);
+  if (mon.z <= HOUSE_FRONT + 1.2 && Math.abs(mon.x) < 0.9) return punchHit(null);
+  sfx('whoosh');
+}
 function punchAt(target, dt) {
   if (mon.cur !== 'Punch') mon.attackT = 0.35;
   mon.attackT -= dt;
   if (mon.attackT > 0) return;
   mon.attackT = CONFIG.punchEvery * (mon.punchBoost > 0 ? 0.5 : 1);
+  punchHit(target);
+}
+function punchHit(target) {
   const hitPos = new V3(mon.x, mon.gy + 1.4, mon.z - 0.8);
   sfx('punch'); camShake = Math.max(camShake, 0.12);
   if (target && target.kind === 'fox') { foxPunched(target); return; }
@@ -1647,7 +1670,7 @@ function punchAt(target, dt) {
 function groundY(x, z) {
   if (sandAt(x, z)) return -0.42;
   if (Math.abs(x) > 50) return 0;
-  if (z > 1 && z < 4.6) return 0.14;
+  if (z > 1 - 0.5 && z < 4.83 + 0.5) return z > 4.3 ? 0.2 : 0.14;   // vỉa hè 0.14 + bó vỉa 0.2 (chừa mép bàn chân)
   const ax = Math.abs(x), dz = z - HOUSE_FRONT, F = 0.5;    // bước chân vươn tới ~0.4m: chân trước chạm bậc là cả người lên bậc
   if (ax < 1.6 + F && dz < 0.95 + F) return 0.74 * HS;          // bậc trên (+ viền)
   if (ax < 1.75 + F && dz < 1.45 + F) return 0.39 * HS;         // bậc dưới (+ viền)
@@ -3001,7 +3024,8 @@ let rDrag = null, camHintT = 0;
 function camHint() {
   const h = document.getElementById('hint');
   h.textContent = `📷 Độ cao ${camAdj.up >= 0 ? '+' : ''}${camAdj.up.toFixed(1)}m • Khoảng cách ${camAdj.back >= 0 ? '+' : ''}${camAdj.back.toFixed(1)}m • Phím C: mặc định`;
-  clearTimeout(camHintT); camHintT = setTimeout(() => { h.textContent = hintText(); }, 2500);
+  h.classList.add('show');                                       // dòng chữ dưới game chỉ hiện chốc lát khi chỉnh camera
+  clearTimeout(camHintT); camHintT = setTimeout(() => { h.textContent = hintText(); h.classList.remove('show'); }, 2500);
 }
 function saveCam() { lsSet('qv_camUp', camAdj.up.toFixed(2)); lsSet('qv_camBack', camAdj.back.toFixed(2)); }
 {
@@ -3120,8 +3144,9 @@ function applyServerConfig(c) {
   CONFIG.timerOn = !!c.qvTimerOn; CONFIG.checkpoint = c.qvCheckpoint !== false; if (cp.g) cp.g.visible = CONFIG.checkpoint;
   autoDodge = c.qvAutoDodge !== false; soundOn = c.qvSound !== false;
   CONFIG.giftMap = c.qvGiftMap && typeof c.qvGiftMap === 'object' ? c.qvGiftMap : {};
-  if (typeof c.qvZombieModel === 'string' && c.qvZombieModel && c.qvZombieModel !== CONFIG.zombieModel && !Q.get('zm')) {
-    lsSet('qv_zm', c.qvZombieModel); location.reload(); return;   // đổi nhân vật → nạp lại overlay với mô hình mới
+  if (typeof c.qvZombieModel === 'string' && /^[a-z]+$/.test(c.qvZombieModel) && c.qvZombieModel !== CONFIG.zombieModel) {
+    lsSet('qv_zm', c.qvZombieModel);                               // đổi nhân vật → nạp lại với ?zm=<mới> (không lặp kể cả khi localStorage hỏng)
+    const u = new URL(location.href); u.searchParams.set('zm', c.qvZombieModel); location.replace(u.href); return;
   }
   document.body.style.visibility = c.enabled === false ? 'hidden' : '';
   if (!appCfgSeen) {
