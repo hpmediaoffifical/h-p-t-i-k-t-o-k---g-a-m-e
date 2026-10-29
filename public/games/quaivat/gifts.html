@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zombie Phá Nhà – Bảng quà</title>
+<!-- Nguồn OBS riêng cho bảng quà: /overlay/quaivat-gifts
+     Tham số: ?side=all|viewer|hero  ?cols=1|2|3  ?scale=1.2  ?title=0 (ẩn tiêu đề)  ?bg=1 (nền tối thay vì trong suốt) -->
+<style>
+  :root { --s: 1; }
+  html, body { margin: 0; background: transparent; color: #fff; font-family: 'Baloo 2', 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+  body.bg { background: #141820; }
+  #wrap { font-size: calc(22px * var(--s)); padding: .5em; display: flex; flex-direction: column; gap: .45em; }
+  h1 { margin: 0; font-size: 1.25em; font-weight: 800; text-align: center; letter-spacing: .02em; text-shadow: 0 .08em 0 #000, 0 0 .4em rgba(0,0,0,.7); }
+  h1 b { color: #ffd84a; }
+  h2 { margin: .2em 0 0; font-size: .82em; font-weight: 800; color: #ffd84a; text-shadow: 0 .08em 0 #000; }
+  .grid { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: .32em; }
+  .card { display: flex; align-items: center; gap: .45em; background: linear-gradient(90deg, rgba(10,12,18,.82), rgba(10,12,18,.55)); border-left: .22em solid #ff4d5e; border-radius: .6em; padding: .25em .55em .25em .3em; min-width: 0; box-shadow: 0 .12em .4em rgba(0,0,0,.35); }
+  .card.hero { border-left-color: #4da3ff; background: linear-gradient(90deg, rgba(14,32,70,.85), rgba(14,32,70,.55)); }
+  .card.social { border-left-color: #b46bff; }
+  .ic { flex: none; width: 2.1em; height: 2.1em; display: grid; place-items: center; font-size: 1.2em; }
+  .ic img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 .06em .1em rgba(0,0,0,.6)); }
+  .ic span { font-size: 1.5em; line-height: 1; }
+  .tx { min-width: 0; line-height: 1.12; }
+  .nm { font-weight: 800; font-size: .8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lb { font-weight: 600; font-size: .66em; opacity: .85; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1 id="ttl">🧟 <b>ZOMBIE PHÁ NHÀ</b> — TẶNG QUÀ ĐỂ…</h1>
+  <h2 id="hV">🪤 CHẶN ZOMBIE, BẢO VỆ NHÀ</h2>
+  <div class="grid" id="gV"></div>
+  <h2 id="hH">⚡ GIÚP ZOMBIE PHÁ NHÀ</h2>
+  <div class="grid" id="gH"></div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script type="module">
+import { VILLAINS, HEROES, SOCIAL } from '/games/quaivat/gift-data.js';
+const Q = new URLSearchParams(location.search), $ = id => document.getElementById(id);
+const side = Q.get('side') || 'all';
+document.documentElement.style.setProperty('--s', Number(Q.get('scale')) || 1);
+document.documentElement.style.setProperty('--cols', Math.max(1, Math.min(4, Number(Q.get('cols')) || 2)));
+if (Q.get('title') === '0') $('ttl').classList.add('hidden');
+if (Q.get('bg') === '1') document.body.classList.add('bg');
+if (side === 'hero') { $('hV').classList.add('hidden'); $('gV').classList.add('hidden'); }
+if (side === 'viewer') { $('hH').classList.add('hidden'); $('gH').classList.add('hidden'); }
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let cfg = {};
+function render() {
+  const gm = cfg.qvGiftMap && typeof cfg.qvGiftMap === 'object' ? cfg.qvGiftMap : {};
+  const mapped = g => (gm[g.action] || []).filter(x => x && (x.giftName || x.giftId != null));
+  const card = (g, cls) => {
+    const m = mapped(g), names = m.map(x => x.giftName).filter(Boolean), img = (m.find(x => x.giftImage) || {}).giftImage;
+    const name = names.length ? names.slice(0, 2).join(', ') : g.gift;
+    return `<div class="card ${cls || ''}"><div class="ic">${img ? `<img src="${esc(img)}" alt="">` : `<span>${g.emoji}</span>`}</div><div class="tx"><div class="nm">${esc(name)}</div><div class="lb">${esc(g.label)}</div></div></div>`;
+  };
+  const timerOn = !!cfg.qvTimerOn;
+  $('gV').innerHTML = VILLAINS.filter(g => !g.opt || mapped(g).length).map(g => card(g)).join('') + SOCIAL.map(g => card(g, 'social')).join('');
+  $('gH').innerHTML = HEROES.filter(g => (g.action !== 'time' || timerOn) && (!g.opt || mapped(g).length)).map(g => card(g, 'hero')).join('');
+}
+async function load() { try { const r = await fetch('/api/games/quaivat/config'); if (r.ok) cfg = await r.json(); } catch {} render(); }
+render(); load();
+if (typeof window.io === 'function') {
+  const socket = window.io({ reconnection: true });
+  socket.on('connect', () => { socket.emit('subscribe', 'overlay'); load(); });
+  socket.on('gameConfig', d => { if (d && d.gameId === 'quaivat' && d.config) { cfg = d.config; render(); } });
+  socket.on('overlay:reload', d => { if (!d || !d.gameId || d.gameId === 'quaivat') location.reload(); });
+}
+</script>
+</body>
+</html>

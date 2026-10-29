@@ -379,9 +379,12 @@ const GAMES = {
         defaultConfig: {
             enabled: true,
             qvStreamerName: '', qvStreamerAvatar: '',
-            qvDoorHp: 1200, qvRoundSeconds: 180, qvStartMap: 1,
+            qvDoorHp: 600, qvRoundSeconds: 180, qvStartMap: 1,
             qvLockJump: false, qvLockForward: false, qvAutoDodge: true, qvSound: true,
             qvZombieModel: 'basic',   // basic | chubby | arm | ribcage | classic — mô hình Quaternius CC0 trong public/games/quaivat/models/zombie
+            qvTimerOn: false,         // đồng hồ mỗi ván: mặc định tắt (chơi tới khi phá được cửa)
+            qvCheckpoint: true,       // cột mốc giữa đường
+            qvShowLegend: true,       // hiện bảng quà ngay trong game (tắt nếu dùng bảng quà OBS riêng)
             qvGiftMap: {}   // { [action]: [{ giftId, giftName, giftImage }] } — trống = khớp theo tên quà mặc định
         }
     },
@@ -7340,6 +7343,9 @@ try {
 // Overlay route
 app.get('/overlay/nhietdo', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'nhietdo', 'overlay.html'));
+});
+app.get('/overlay/quaivat-gifts', (req, res) => {   // bảng quà Zombie Phá Nhà: nguồn OBS riêng
+    res.sendFile(path.join(__dirname, 'public', 'games', 'quaivat', 'gifts.html'));
 });
 app.get('/overlay/quaivat', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'quaivat', 'overlay.html'));

@@ -28,9 +28,18 @@
         { id: 'balloon',   emoji: '🎈', label: 'Bóng bay kéo về',       def: 'Tay trái tim', side: 'viewer' },
         { id: 'boulder',   emoji: '🪨', label: 'Tảng đá khổng lồ',      def: 'Corgi, Galaxy…', side: 'viewer' },
         { id: 'bomb',      emoji: '💣', label: 'Bom hẹn giờ',           def: '(Chia sẻ)', side: 'viewer' },
+        { id: 'banana',    emoji: '🍌', label: 'Vỏ chuối — trượt ngã lộn ngược', def: '', side: 'viewer' },
+        { id: 'net',       emoji: '🕸️', label: 'Ném lưới — trói 2.5 giây', def: '', side: 'viewer' },
+        { id: 'bees',      emoji: '🐝', label: 'Đàn ong bay ra chích',  def: '', side: 'viewer' },
+        { id: 'crows',     emoji: '🐦', label: 'Đàn quạ lao xuống mổ',  def: '', side: 'viewer' },
+        { id: 'meteor',    emoji: '☄️', label: 'Mưa 5 thiên thạch',     def: '(quà ≥200 xu)', side: 'viewer' },
+        { id: 'hand',      emoji: '🫳', label: 'Bàn tay khổng lồ — tóm ném về mốc', def: '(quà ≥500 xu)', side: 'viewer' },
+        { id: 'quake',     emoji: '🌋', label: 'THẢM HỌA động đất',     def: '(quà ≥1000 xu)', side: 'viewer' },
+        { id: 'lose',      emoji: '💀', label: 'THUA NGAY — zombie chết tại chỗ, về xuất phát (−1 WIN)', def: '', side: 'viewer' },
+        { id: 'win',       emoji: '🏆', label: 'WIN NGAY — zombie vào nhà ăn não (+1 WIN)', def: '', side: 'hero' },
         { id: 'shoes',     emoji: '👟', label: 'Giày tốc độ',           def: 'Heart Me', side: 'hero' },
         { id: 'shield',    emoji: '🚪', label: 'Khiên cửa (chặn 8 đòn)', def: 'Vòng cổ', side: 'hero' },
-        { id: 'time',      emoji: '⏳', label: '+20 giây cho quái',     def: 'Rosa',     side: 'hero' },
+        { id: 'time',      emoji: '⏳', label: '+20 giây (chỉ khi bật đồng hồ; tắt → thành giày tốc độ)', def: 'Rosa', side: 'hero' },
     ];
     const SOCIAL = [
         { id: 'like', emoji: '❤️', label: 'Thả tim → ném sỏi' },
@@ -38,7 +47,7 @@
         { id: 'follow', emoji: '➕', label: 'Follow → hàng rào gỗ' },
         { id: 'share', emoji: '↗️', label: 'Chia sẻ → bom hẹn giờ' },
     ];
-    const MAPS = ['Vườn Xanh (90m)', 'Mùa Thu (110m)', 'Xứ Tuyết (130m)'];
+    const MAPS = ['Vườn Xanh (90m)', 'Mùa Thu (110m) — đống lá giấu bẫy', 'Xứ Tuyết (130m) — băng trơn', 'Nghĩa Trang Đêm (140m) — tay ma, quạ', 'Sa Mạc (150m) — cát lún, xương rồng, lốc xoáy', 'Núi Lửa (165m) — khe dung nham, đá lửa rơi'];
     const ZOMBIES = [['basic', '🧟 Zombie thường'], ['chubby', '🧟 Zombie béo'], ['arm', '🧟 Zombie cụt tay'], ['ribcage', '💀 Zombie lộ sườn'], ['classic', '🧩 Zombie tự dựng (bản cũ)']];
     const KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyF', 'KeyJ', 'ShiftLeft', 'ShiftRight'];
 
@@ -58,8 +67,9 @@
 
     async function load() {
         try { const r = await fetch('/api/games/quaivat/config'); cfg = r.ok ? await r.json() : {}; } catch (e) { cfg = {}; }
-        cfg = Object.assign({ enabled: true, qvStreamerName: '', qvStreamerAvatar: '', qvDoorHp: 1200, qvRoundSeconds: 180, qvStartMap: 1,
-            qvLockJump: false, qvLockForward: false, qvAutoDodge: true, qvSound: true, qvZombieModel: 'basic', qvGiftMap: {} }, cfg || {});
+        cfg = Object.assign({ enabled: true, qvStreamerName: '', qvStreamerAvatar: '', qvDoorHp: 600, qvRoundSeconds: 180, qvStartMap: 1,
+            qvLockJump: false, qvLockForward: false, qvAutoDodge: true, qvSound: true, qvZombieModel: 'basic', qvTimerOn: false, qvCheckpoint: true, qvShowLegend: true, qvGiftMap: {} }, cfg || {});
+        if (Number(cfg.qvDoorHp) === 1200 && !cfg.qvHpV2) { cfg.qvDoorHp = 600; cfg.qvHpV2 = true; schedulePersist(); }   // cửa giờ tự hồi máu → hạ máu mặc định cũ một lần
         if (!cfg.qvGiftMap || typeof cfg.qvGiftMap !== 'object') cfg.qvGiftMap = {};
     }
     function schedulePersist() { clearTimeout(pendingSave); pendingSave = setTimeout(() => persist().catch(() => toast('Lưu thất bại', 'error')), 350); }
@@ -120,15 +130,24 @@
             <label class="qv-row"><span>Nhân vật zombie</span><select data-k="qvZombieModel">${ZOMBIES.map(([v, n]) => `<option value="${v}"${cfg.qvZombieModel === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
             <label class="qv-row"><span>Tên streamer (zombie)</span><input type="text" data-k="qvStreamerName" placeholder="Streamer" value="${esc(cfg.qvStreamerName)}"></label>
             <label class="qv-row"><span>Link avatar</span><input type="text" data-k="qvStreamerAvatar" placeholder="https://… (không bắt buộc)" value="${esc(cfg.qvStreamerAvatar)}"></label>
-            <label class="qv-row"><span>Máu cửa nhà</span><input type="number" min="100" step="100" data-k="qvDoorHp" data-num="1" value="${esc(cfg.qvDoorHp)}"></label>
-            <label class="qv-row"><span>Giờ mỗi ván (giây)</span><input type="number" min="30" step="10" data-k="qvRoundSeconds" data-num="1" value="${esc(cfg.qvRoundSeconds)}"></label>
+            <label class="qv-row"><span>Máu cửa nhà (tự hồi sau 3 giây không bị đấm)</span><input type="number" min="100" step="100" data-k="qvDoorHp" data-num="1" value="${esc(cfg.qvDoorHp)}"></label>
+            <label class="qv-row"><span>Giờ mỗi ván (giây) — khi bật đồng hồ</span><input type="number" min="30" step="10" data-k="qvRoundSeconds" data-num="1" value="${esc(cfg.qvRoundSeconds)}"></label>
             <label class="qv-row"><span>Map bắt đầu</span><select data-k="qvStartMap" data-num="1">${MAPS.map((m, i) => `<option value="${i + 1}"${Number(cfg.qvStartMap) === i + 1 ? ' selected' : ''}>Map ${i + 1}: ${m}</option>`).join('')}</select></label>
             <div class="qv-checks">
+                <label><input type="checkbox" data-k="qvTimerOn"${cfg.qvTimerOn ? ' checked' : ''}> ⏱ Bật đồng hồ — hết giờ thì người xem thắng (mặc định tắt: chơi tới khi phá được cửa)</label>
+                <label><input type="checkbox" data-k="qvCheckpoint"${cfg.qvCheckpoint !== false ? ' checked' : ''}> 🚩 Cột mốc giữa đường — qua mốc rồi không bị đẩy lùi quá mốc</label>
+                <label><input type="checkbox" data-k="qvShowLegend"${cfg.qvShowLegend !== false ? ' checked' : ''}> 🎁 Hiện bảng quà trong game (tắt nếu dùng bảng quà OBS riêng)</label>
                 <label><input type="checkbox" data-k="qvLockJump"${cfg.qvLockJump ? ' checked' : ''}> 🔒 Khóa nhảy (Space)</label>
                 <label><input type="checkbox" data-k="qvLockForward"${cfg.qvLockForward ? ' checked' : ''}> 🔒 Khóa tiến/lùi — zombie tự đi tới, streamer chỉ lái ngang (khó hơn)</label>
                 <label><input type="checkbox" data-k="qvSound"${cfg.qvSound ? ' checked' : ''}> 🔊 Âm thanh trong overlay</label>
             </div>
-            <div class="qv-hint">Luật: zombie (streamer) KHÔNG có máu — người xem tặng quà để chặn, đẩy lùi. Phá được cửa trước khi hết giờ → zombie vào nhà ăn não, <b>+1 WIN</b>, sang map dài hơn. Hết giờ → người xem thắng, <b>−1 WIN</b>.</div>`;
+            <div class="qv-row"><span>Bảng quà OBS riêng (to, rõ)</span><button type="button" class="nd-btn" id="qv-copy-gifts">📋 Copy link bảng quà</button></div>
+            <div class="qv-hint">Thêm vào OBS làm nguồn Browser riêng (vd 600×900). Tuỳ chọn thêm vào cuối link: <code>?cols=1</code> 1 cột · <code>&amp;scale=1.3</code> chữ to hơn · <code>&amp;side=viewer</code> chỉ bẫy · <code>&amp;side=hero</code> chỉ quà giúp zombie.</div>
+            <div class="qv-hint">Luật: zombie (streamer) KHÔNG có máu — người xem tặng quà để chặn, đẩy lùi. Phá được cửa → zombie vào nhà ăn não, <b>+1 WIN</b>, sang map dài hơn (cửa trâu hơn, mỗi map có bẫy riêng). Bật đồng hồ thì hết giờ → người xem thắng, <b>−1 WIN</b>. Cùng 1 loại bẫy được tặng ≥5 lần trong 10 giây → <b>COMBO</b> bản siêu. Sửa cửa khi cửa đã đầy máu → tích điểm nâng cấp <b>cửa sắt → cửa thép</b>.</div>`;
+        host.querySelector('#qv-copy-gifts')?.addEventListener('click', async () => {
+            const url = window.buildOverlayURL ? window.buildOverlayURL('/overlay/quaivat-gifts') : location.origin + '/overlay/quaivat-gifts';
+            try { await navigator.clipboard.writeText(url); toast('Đã copy link bảng quà OBS'); } catch (e) { prompt('Link bảng quà OBS:', url); }
+        });
         host.querySelectorAll('[data-k]').forEach(el => {
             el.addEventListener(el.type === 'checkbox' || el.tagName === 'SELECT' ? 'change' : 'input', () => {
                 const k = el.dataset.k;

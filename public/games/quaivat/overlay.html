@@ -51,11 +51,18 @@
   #vs .bar i { display: block; height: 100%; width: 100%; background: linear-gradient(#ff7a6b, #d42020); transition: width .15s; }
   #vs .bar.g i { background: linear-gradient(#8dff6a, #22a51b); }
   #vs .tmr { font-size: .95em; font-weight: 800; line-height: 1; }
-  #dist.low #timerN { color: #ff5a4a; animation: tblink .5s infinite alternate; }
+  #tmrW.low #timerN { color: #ff5a4a; animation: tblink .5s infinite alternate; }
   #vs .tmr.low b { color: #ff5a4a; animation: tblink .5s infinite alternate; }
   @keyframes tblink { to { opacity: .4; } }
   #vs .vsx { font-weight: 800; font-size: 1em; color: #ffd84a; text-shadow: 0 .08em 0 #000; }
   #vs .av { width: 1.8em; height: 1.8em; }
+  #route { display: flex; align-items: center; gap: .3em; width: 64%; font-size: .62em; }
+  #route .re { font-size: 1.3em; filter: drop-shadow(0 .08em 0 #000); }
+  #route .rt { position: relative; flex: 1; height: .6em; background: rgba(0,0,0,.45); border: .08em solid rgba(255,255,255,.4); border-radius: .4em; }
+  #route .rt i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #6a3cff, #ff3b6b); border-radius: .4em; }
+  #route .rt b { position: absolute; top: 50%; left: 0; transform: translate(-50%, -55%); font-size: 1.5em; line-height: 1; filter: drop-shadow(0 .08em 0 #000); }
+  #route .rt #rtCp { font-size: 1.15em; }
+  .chip em img { width: 1.25em; height: 1.25em; object-fit: contain; vertical-align: middle; }
   #dist { font-size: .65em; font-weight: 800; background: rgba(0,0,0,.4); border-radius: 1em; padding: 0 .8em; }
 
   .colL, .colR { position: absolute; top: 24%; display: flex; flex-direction: column; gap: .2em; pointer-events: none; max-width: 30%; }
@@ -107,6 +114,10 @@
   #panel .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 6px; }
   #panel .hintp { opacity: .65; font-size: 11px; margin: 6px 0 0; line-height: 1.45; }
   body.clean #gear { display: none; }
+  body.nolegend #heroList, body.nolegend #villList, body.nolegend h4.lg { display: none; }
+  .dlab.regen .dhp i { background: linear-gradient(#c8ffaa, #3ad12a); animation: rg .5s infinite alternate; }
+  .dlab.regen .dt::after { content: ' ⟳ tự hồi'; color: #9dff7a; }
+  @keyframes rg { to { filter: brightness(1.35); } }
   body.inapp #hint, body.inapp #conn { display: none; }
 </style>
 <script type="importmap">{ "imports": {
@@ -120,10 +131,11 @@
   <div id="labels"></div>
   <div id="top">
     <div id="winRow"><div class="pill" id="pillL"></div><div id="win">WIN <b id="winN">0</b>/<span id="winT">20</span> 🏆</div><div class="pill" id="pillR"></div></div>
-    <div id="dist"><span id="mapN"></span> • còn <b id="distN">0</b>m tới cửa • ⏱ <b id="timerN">3:00</b></div>
+    <div id="dist"><span id="mapN"></span> • còn <b id="distN">0</b>m tới cửa<span id="tmrW"> • ⏱ <b id="timerN">3:00</b></span></div>
+    <div id="route"><span class="re">🛣️</span><div class="rt"><i id="rtFill"></i><b id="rtCp">🚩</b><b id="rtZ">🧟</b></div><span class="re">🏠</span></div>
   </div>
-  <div class="colL"><h4>⚡ HỖ TRỢ QUÁI</h4><div id="heroList" style="display:flex;flex-direction:column;gap:.2em"></div><h4>🛡️ TOP BẢO VỆ</h4><div id="board" style="display:flex;flex-direction:column;gap:.2em"></div></div>
-  <div class="colR"><h4>🪤 BẪY & VẬT CẢN</h4><div id="villList" style="display:flex;flex-direction:column;gap:.2em;align-items:flex-end"></div></div>
+  <div class="colL"><h4 class="lg">⚡ HỖ TRỢ QUÁI</h4><div id="heroList" style="display:flex;flex-direction:column;gap:.2em"></div><h4>🛡️ TOP BẢO VỆ</h4><div id="board" style="display:flex;flex-direction:column;gap:.2em"></div></div>
+  <div class="colR"><h4 class="lg">🪤 BẪY & VẬT CẢN</h4><div id="villList" style="display:flex;flex-direction:column;gap:.2em;align-items:flex-end"></div></div>
   <div id="feed"></div>
   <div id="gbanner"></div>
   <div id="flashScr"></div>
@@ -164,6 +176,7 @@
   </div>
   <div class="row"><label class="chk"><input type="checkbox" id="lockJump">🔒 Khóa nhảy (Space)</label></div>
   <div class="row"><label class="chk"><input type="checkbox" id="lockFwd">🔒 Khóa tiến tới (chỉ đi ngang)</label></div>
+  <div class="row"><label class="chk"><input type="checkbox" id="timerOn">⏱ Bật đồng hồ (hết giờ = người xem thắng)</label></div>
   <p class="hintp">Phím P: ẩn/hiện bảng • 1–9: thả quà thử • ← → né • Space nhảy • F đấm • Shift chạy.<br>Camera: giữ chuột phải kéo lên/xuống = độ cao • cuộn chuột = gần/xa • phím C = mặc định.<br>
   URL: <b>?ratio=9:16</b> hoặc <b>1:1</b> khóa khung • <b>?clean=1</b> ẩn nút ⚙ • <b>?demo=1</b> • <b>?name=Tên</b> • <b>?ws=ws://...</b><br>
   Mô hình: Fox – PixelMannen & tomkranis (CC-BY 4.0).</p>
