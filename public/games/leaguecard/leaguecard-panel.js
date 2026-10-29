@@ -7,6 +7,7 @@
     const GAME_ID = 'leaguecard';
     const OVERLAY_PATH = '/overlay/leaguecard';
     const LC = () => window.HpLeagueCard;
+    const DIVISIONS = ['S', 'A1', 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3', 'B4', 'B5', 'C1', 'C2', 'C3', 'C4', 'C5', 'D1', 'D2', 'D3', 'D4', 'D5'];
     let cfg = null, gifts = [], built = false, saveT = null, socketRef = null;
 
     const $ = (sel) => document.querySelector('#leaguecard-panel ' + sel);
@@ -24,7 +25,7 @@
         pushPreview();
         clearTimeout(saveT);
         saveT = setTimeout(() => {
-            fetch('/api/games/' + GAME_ID + '/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) }).catch(() => {});
+            fetch('/api/games/' + GAME_ID + '/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(Object.entries(cfg).filter(([k]) => k !== 'manual' && k !== 'manualOn'))) }).catch(() => {});   // số nhập tay đi route riêng (quà trừ dần, đừng đè)
         }, 400);
     }
 
@@ -43,6 +44,18 @@
     <div class="lcp-card">
       <label class="lcp-switch"><input type="checkbox" id="lcp-enabled"> <b>Hiện thẻ trên OBS</b></label>
       <div class="lcp-status" id="lcp-status">Chưa nhận dữ liệu giải đấu từ TikTok — kết nối LIVE rồi chờ TikTok gửi bảng xếp hạng.</div>
+    </div>
+    <div class="lcp-card">
+      <label class="lcp-switch"><input type="checkbox" id="lcp-man-on"> <b>Nhập tay số giải đấu</b> <small>— TikTok không gửi số giải đấu cho kết nối của app, hãy đọc trong app TikTok rồi nhập vào đây</small></label>
+      <div class="lcp-man" id="lcp-man">
+        <label>Bậc <select id="lcp-m-div">${DIVISIONS.map((d) => `<option>${d}</option>`).join('')}</select></label>
+        <label>Mảnh <input type="number" id="lcp-m-stars" min="0" max="20"></label>
+        <label>Hạng BXH <input type="number" id="lcp-m-rank" min="0" placeholder="bỏ trống"></label>
+        <label>Còn thiếu <input type="number" id="lcp-m-need" min="0" placeholder="điểm"></label>
+        <label>Giờ chốt <input type="time" id="lcp-m-dl"></label>
+        <button id="lcp-m-apply" class="lcp-apply">Cập nhật lên OBS</button>
+      </div>
+      <p class="lcp-note">Quà trong phòng tự trừ dần số "còn thiếu" (1 xu ≈ 1 điểm). Về 0 là thẻ báo đã giữ hạng và vinh danh người tặng nhiều nhất lúc sắp rớt.</p>
     </div>
     <div class="lcp-card">
       <h4>Kiểu</h4>
@@ -118,6 +131,14 @@
         $('#lcp-collapse').checked = !!cfg.autoCollapse; $('#lcp-collapse-s').value = cfg.collapseAfterSec;
         $('#lcp-max').value = cfg.maxStars;
         $('#lcp-golden').checked = !!cfg.golden;
+        const m = cfg.manual || {};
+        $('#lcp-man-on').checked = !!cfg.manualOn;
+        $('#lcp-man').classList.toggle('off', !cfg.manualOn);
+        $('#lcp-m-div').value = m.division || 'B2';
+        $('#lcp-m-stars').value = m.stars ?? 0;
+        $('#lcp-m-rank').value = m.rank ?? '';
+        $('#lcp-m-need').value = m.need ?? '';
+        $('#lcp-m-dl').value = m.deadline || '';
     }
 
     function onClick(e) {
@@ -129,12 +150,14 @@
             if (key) { save({ [key]: b.dataset.v }); fill(); }
             return;
         }
+        if (b.id === 'lcp-m-apply') { sendManual({ on: true }); return; }
         if (b.dataset.k) {
             fetch('/api/leaguecard/simulate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: b.dataset.k }) }).catch(() => {});
         }
     }
     function onInput(e) {
         const t = e.target, id = t.id;
+        if (id === 'lcp-man-on') { sendManual({ on: t.checked }); return; }
         if (id === 'lcp-enabled') save({ enabled: t.checked });
         else if (id === 'lcp-x') { save({ xPercent: +t.value }); $('#lcp-x-v').textContent = t.value + '%'; }
         else if (id === 'lcp-y') { save({ yPercent: +t.value }); $('#lcp-y-v').textContent = t.value + '%'; }
@@ -146,6 +169,21 @@
         else if (id === 'lcp-collapse-s' && e.type === 'change') save({ collapseAfterSec: +t.value || 20 });
         else if (id === 'lcp-max' && e.type === 'change') save({ maxStars: +t.value || 5 });
         else if (id === 'lcp-golden') save({ golden: t.checked });
+    }
+
+    function sendManual(extra) {
+        const body = Object.assign({
+            division: $('#lcp-m-div').value, stars: $('#lcp-m-stars').value, rank: $('#lcp-m-rank').value,
+            need: $('#lcp-m-need').value, deadline: $('#lcp-m-dl').value,
+        }, extra);
+        fetch('/api/leaguecard/manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+            .then((r) => r.json()).then((d) => {
+                if (!d || !d.ok) return;
+                cfg.manualOn = d.manualOn; cfg.manual = d.manual;
+                $('#lcp-man').classList.toggle('off', !cfg.manualOn);
+                showStatus(d.state);
+                const btn = $('#lcp-m-apply'); if (btn && extra.on) { btn.textContent = '✓ Đã cập nhật'; setTimeout(() => { btn.textContent = 'Cập nhật lên OBS'; }, 1400); }
+            }).catch(() => {});
     }
 
     function copyLink() {
@@ -163,7 +201,9 @@
         if (l.rank != null) parts.push(`hạng <b>#${l.rank}</b>`);
         if (l.need != null) parts.push(l.need > 0 ? `thiếu <b>${fmt(l.need)}</b> điểm` : 'đã giữ hạng');
         if (s.danger) parts.push('<b class="lcp-bad">⚠ sắp rớt</b>');
-        el.innerHTML = '● ' + parts.join(' · ');
+        el.innerHTML = '● ' + parts.join(' · ') + (l.source === 'manual' ? ' <small>(nhập tay)</small>' : ' <small>(từ TikTok)</small>');
+        const needEl = $('#lcp-m-need');   // quà trừ dần → cập nhật ô "còn thiếu" (trừ khi đang gõ)
+        if (l.source === 'manual' && needEl && document.activeElement !== needEl && l.need != null) needEl.value = l.need;
         el.classList.add('live');
     }
 

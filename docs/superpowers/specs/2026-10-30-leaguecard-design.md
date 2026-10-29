@@ -29,6 +29,20 @@ Số mảnh tối đa mỗi bậc chưa biết → cấu hình `maxStars` (mặc
 (enum dạng số hoặc chuỗi, int64 dạng chuỗi, thiếu trường thì ẩn phần đó). Sau buổi LIVE thật sẽ chỉnh
 bộ đọc theo log.
 
+## Phát hiện từ LIVE thật (30/10/2026) → chế độ nhập tay
+
+Bắt gói ẩn danh (cách app vẫn kết nối) ở 9 phòng Việt Nam đang LIVE, tổng ~25 phút, kể cả phòng 3,6 nghìn
+người xem có 11–26 lượt tặng quà: **không có gói `rankUpdate`/`rankText`/`hourlyRank` nào**, dữ liệu phòng lúc
+kết nối (`roomInfo`) cũng không có bậc/mảnh (`room_auth.Rank = 0`), `/webcast/room/in_room_banner/` trả
+`get_banner_success:false` khi chưa đăng nhập. Kết luận: TikTok không gửi số giải đấu cho kết nối ẩn danh.
+Kết nối kèm phiên đăng nhập phải gửi cookie TikTok qua máy chủ ký bên thứ ba → không làm.
+
+→ Thêm **nhập tay** (`manualOn`, `manual {division, stars, rank, need, deadline HH:MM}`, route
+`POST /api/leaguecard/manual`): streamer đọc số trong app TikTok rồi nhập 1 lần; mỗi quà trong phòng trừ dần
+"còn thiếu" (`tracker.consumeGiftForManual`, 1 xu ≈ 1 điểm), về 0 → `kept` + vinh danh người giữ hạng; số đã trừ
+lưu lại cấu hình. Gói TikTok thật (nếu có) vẫn được ưu tiên, khi đó quà không trừ tay.
+Panel KHÔNG gửi `manual`/`manualOn` qua `/config` (tránh đè số quà đã trừ).
+
 ## Phạm vi bản đầu
 
 1. **3 kiểu** — A Khiên + bảng · B Thanh gọn · C Vòng tiến độ; **20 skin** dùng chung (lấy từ mockup).

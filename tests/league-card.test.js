@@ -148,3 +148,42 @@ test('tracker: snapshot keepPct + reset', () => {
     tr.reset();
     assert.strictEqual(tr.snapshot().league, null);
 });
+
+// ===== Nhập tay (TikTok không gửi rankUpdate cho kết nối ẩn danh) =====
+test('nextDeadlineTs: giờ chốt HH:MM hôm nay, đã qua thì sang ngày mai, sai định dạng → null', () => {
+    const base = new Date(2026, 9, 30, 20, 0, 0).getTime();
+    assert.strictEqual(L.nextDeadlineTs('23:30', base), new Date(2026, 9, 30, 23, 30, 0).getTime());
+    assert.strictEqual(L.nextDeadlineTs('07:00', base), new Date(2026, 9, 31, 7, 0, 0).getTime());
+    assert.strictEqual(L.nextDeadlineTs('', base), null);
+    assert.strictEqual(L.nextDeadlineTs('25:99', base), null);
+});
+
+test('manualToParsed: chuẩn hoá số nhập tay thành dạng như gói TikTok', () => {
+    const base = new Date(2026, 9, 30, 20, 0, 0).getTime();
+    const p = L.manualToParsed({ division: 'b2', stars: '3', rank: '12', need: '1250', deadline: '23:30' }, base);
+    assert.deepStrictEqual(p, { division: 'B2', stars: 3, rank: 12, score: null, gapText: '', need: 1250, deadlineTs: new Date(2026, 9, 30, 23, 30, 0).getTime(), settle: null, bonus: null, source: 'manual' });
+    assert.strictEqual(L.manualToParsed({ division: 'XX' }), null);
+    assert.strictEqual(L.manualToParsed({ division: 'S', stars: '', need: '' }).need, null);
+    assert.strictEqual(L.manualToParsed({ division: 'S', rank: '0' }).rank, null);
+});
+
+test('tracker nhập tay: quà trừ dần số thiếu, về 0 thì giữ hạng + vinh danh', () => {
+    const t = { t: new Date(2026, 9, 30, 23, 20, 0).getTime() };
+    const tr = L.createLeagueTracker({ now: () => t.t, dangerMinutes: 30 });
+    const ev0 = tr.applyRankUpdate(L.manualToParsed({ division: 'B2', stars: 3, need: 1000, deadline: '23:30' }, t.t));
+    assert.deepStrictEqual(ev0.map((e) => e.type), ['danger']);
+    assert.deepStrictEqual(tr.consumeGiftForManual(400), []);
+    assert.strictEqual(tr.snapshot().league.need, 600);
+    tr.applyGift({ uniqueId: 'a', nickname: 'An', coins: 400 });
+    const ev = tr.consumeGiftForManual(700);
+    assert.deepStrictEqual(ev.map((e) => e.type), ['safe', 'kept']);
+    assert.strictEqual(tr.snapshot().league.need, 0);
+    assert.strictEqual(ev[1].rescuer.uniqueId, 'a');
+});
+
+test('tracker: số từ TikTok thì quà KHÔNG trừ số thiếu (TikTok tự cập nhật)', () => {
+    const tr = L.createLeagueTracker({ now: () => 0, dangerMinutes: 30 });
+    tr.applyRankUpdate(L.parseRankUpdate(pkt({ countdown: '600' }), 0));
+    assert.strictEqual(tr.consumeGiftForManual(500), null);
+    assert.strictEqual(tr.snapshot().league.need, 1250);
+});

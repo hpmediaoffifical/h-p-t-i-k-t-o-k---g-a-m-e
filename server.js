@@ -1095,7 +1095,11 @@ function makeDefaultLeagueCardConfig() {
         convertMode: 'auto',      // auto | manual | off — quy "thiếu X điểm" ra số quà
         convertGifts: [],         // manual: tối đa 2 id quà
         rescuer: true,            // vinh danh người giữ hạng
-        dangerMinutes: 30         // còn ≤ N phút tới giờ chốt mà vẫn thiếu điểm → sắp rớt
+        dangerMinutes: 30,        // còn ≤ N phút tới giờ chốt mà vẫn thiếu điểm → sắp rớt
+        // NHẬP TAY: kết nối ẩn danh không nhận rankUpdate (thử 9 phòng thật 30/10) → streamer nhập số từ app TikTok,
+        // quà trừ dần "thiếu X". Ghi qua POST /api/leaguecard/manual (KHÔNG qua /config để panel khỏi đè số đã trừ).
+        manualOn: false,
+        manual: { division: 'B2', stars: 0, rank: '', need: '', deadline: '' }
     };
 }
 
@@ -3614,7 +3618,26 @@ function leagueStartRoom() {
     if (currentRoomId && currentRoomId === leagueRoomId) return;
     leagueRoomId = currentRoomId || null;
     leagueTracker.reset();
-    leagueEmit([]);
+    if (!leagueApplyManual()) leagueEmit([]);
+}
+function leagueApplyManual() {
+    const c = leagueCfg();
+    if (!c.manualOn) return false;
+    const parsed = LeagueCard.manualToParsed(c.manual);
+    if (!parsed) return false;
+    leagueTracker.setDangerMinutes(c.dangerMinutes);
+    leagueEmit(leagueTracker.applyRankUpdate(parsed));
+    return true;
+}
+// Quà trừ dần "thiếu X" của số nhập tay → lưu lại để mở lại app không mất (ghi đĩa gom 3s).
+let leagueManualSaveT = null;
+function leagueRememberManualNeed() {
+    const l = leagueTracker.snapshot().league;
+    const g = appConfig.games && appConfig.games.leaguecard;
+    if (!l || l.source !== 'manual' || !g || !g.manual) return;
+    g.manual = { ...g.manual, need: l.need };
+    clearTimeout(leagueManualSaveT);
+    leagueManualSaveT = setTimeout(() => { try { saveAppConfig(); } catch (e) {} }, 3000);
 }
 function leagueOnRankUpdate(data) {
     const parsed = LeagueCard.parseRankUpdate(data);
@@ -3623,11 +3646,15 @@ function leagueOnRankUpdate(data) {
     leagueEmit(leagueTracker.applyRankUpdate(parsed));
 }
 function leagueOnGift(g) {
-    if (leagueCfg().rescuer === false) return;
     const coins = (Number(g.coinValue) || 0) * Math.max(1, parseInt(g.repeatCount, 10) || 1);
-    const ev = leagueTracker.applyGift({ uniqueId: g.uniqueId || g.userId, nickname: g.nickname, profilePicture: g.profilePicture, coins });
-    if (ev) leagueEmit([ev]);
+    const ev = leagueCfg().rescuer === false ? null : leagueTracker.applyGift({ uniqueId: g.uniqueId || g.userId, nickname: g.nickname, profilePicture: g.profilePicture, coins });
+    const manualEv = leagueTracker.consumeGiftForManual(coins);   // chỉ khi số đang là nhập tay
+    if (ev || manualEv) leagueEmit([...(ev ? [ev] : []), ...(manualEv || [])]);
+    if (manualEv) leagueRememberManualNeed();
 }
+
+// Mở app chưa LIVE: hiện ngay số nhập tay (nếu bật) để streamer canh vị trí thẻ trên OBS.
+try { leagueApplyManual(); } catch (e) {}
 
 // Chống spam toast: lib bắn ERROR cho cả lỗi decode message WebSocket lặp lại giữa buổi live.
 let lastTikTokErrorToast = { message: '', ts: 0 };
@@ -4343,6 +4370,21 @@ app.post('/api/leaguecard/simulate', (req, res) => {
     leagueTracker.setDangerMinutes(leagueCfg().dangerMinutes);
     leagueEmit(leagueTracker.applyRankUpdate(LeagueCard.parseRankUpdate(leagueSimPacket(s))));
     res.json({ ok: true, state: leagueTracker.snapshot() });
+});
+
+// 🏆 Nhập tay số giải đấu (bậc, mảnh, hạng, thiếu, giờ chốt HH:MM). on:false = tắt nhập tay và xoá số đang hiện.
+app.post('/api/leaguecard/manual', (req, res) => {
+    const b = req.body || {};
+    const g = appConfig.games.leaguecard = { ...makeDefaultLeagueCardConfig(), ...(appConfig.games.leaguecard || {}) };
+    if (typeof b.on === 'boolean') g.manualOn = b.on;
+    const m = { division: b.division, stars: b.stars, rank: b.rank, need: b.need, deadline: b.deadline };
+    if (m.division !== undefined && !LeagueCard.manualToParsed({ ...g.manual, ...m })) return res.status(400).json({ ok: false, error: 'Bậc không hợp lệ (D5…A1 hoặc S)' });
+    for (const k of Object.keys(m)) if (m[k] !== undefined) g.manual = { ...g.manual, [k]: m[k] };
+    saveAppConfig();
+    io.emit('gameConfig', { gameId: 'leaguecard', config: g });
+    if (g.manualOn) leagueApplyManual();
+    else if (leagueTracker.snapshot().league?.source === 'manual') { leagueTracker.reset(); leagueEmit([]); }
+    res.json({ ok: true, manualOn: g.manualOn, manual: g.manual, state: leagueTracker.snapshot() });
 });
 
 // ====== Unknown gifts detector ======

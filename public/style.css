@@ -9712,3 +9712,10 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .lcp-bad { color: #ff6b78; }
 .lcp-preview { position: relative; width: 540px; height: 300px; border-radius: 10px; overflow: hidden; border: 1px solid #1f2533; }
 .lcp-preview iframe { width: 100%; height: 100%; border: 0; display: block; }
+.lcp-man { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin-top: 8px; }
+.lcp-man.off { opacity: .45; }
+.lcp-man label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #8e97ab; }
+.lcp-man input, .lcp-man select { width: 92px; }
+.lcp-man input[type=time] { width: 110px; }
+.lcp-apply { padding: 7px 14px; border-radius: 8px; border: 0; background: #ffd36b; color: #2a1c00; font: 700 12.5px inherit; cursor: pointer; }
+.lcp-apply:hover { background: #ffe08f; }
