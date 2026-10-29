@@ -47,7 +47,7 @@
         { id: 'follow', emoji: '➕', label: 'Follow → hàng rào gỗ' },
         { id: 'share', emoji: '↗️', label: 'Chia sẻ → bom hẹn giờ' },
     ];
-    const MAPS = ['Vườn Xanh (90m)', 'Mùa Thu (110m) — đống lá giấu bẫy', 'Xứ Tuyết (130m) — băng trơn', 'Nghĩa Trang Đêm (140m) — tay ma, quạ', 'Sa Mạc (150m) — cát lún, xương rồng, lốc xoáy', 'Núi Lửa (165m) — khe dung nham, đá lửa rơi'];
+    const MAPS = ['Vườn Xanh (90m)', 'Mùa Thu (110m) — đống lá giấu bẫy', 'Xứ Tuyết (130m) — băng trơn', 'Nghĩa Trang Đêm (140m) — tay ma, quạ', 'Sa Mạc (150m) — cát lún, xương rồng, lốc xoáy', 'Núi Lửa (165m) — khe dung nham, đá lửa rơi', 'Lâu Đài Hoang (180m) — MAP BOSS, cổng sắt x2, thắng +3 WIN'];
     const ZOMBIES = [['basic', '🧟 Zombie thường'], ['chubby', '🧟 Zombie béo'], ['arm', '🧟 Zombie cụt tay'], ['ribcage', '💀 Zombie lộ sườn'], ['classic', '🧩 Zombie tự dựng (bản cũ)']];
     const KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyF', 'KeyJ', 'ShiftLeft', 'ShiftRight'];
 
