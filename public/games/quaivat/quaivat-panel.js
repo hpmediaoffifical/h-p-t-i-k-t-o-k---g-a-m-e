@@ -14,40 +14,40 @@
     const GAME_ID = 'quaivat';
     // Phải khớp action trong public/games/quaivat/game.js (VILLAINS / HEROES)
     const ACTIONS = [
-        { id: 'rose',      emoji: '🌹', label: 'Khoai lăn / thùng gỗ',  def: 'Hoa hồng', side: 'viewer' },
-        { id: 'xbarrel',   emoji: '🛢️', label: 'Thùng thuốc nổ',        def: 'Kẹo mút',  side: 'viewer' },
+        { id: 'rose',      emoji: '🌹', label: 'Khoai lăn',  def: 'Hoa hồng', side: 'viewer' },
+        { id: 'xbarrel',   emoji: '🛢️', label: 'Thùng phình',        def: 'Kẹo mút',  side: 'viewer' },
         { id: 'trap',      emoji: '🪤', label: 'Bẫy kẹp',               def: 'TikTok',   side: 'viewer' },
         { id: 'plant',     emoji: '🌱', label: 'Cây bắn đậu',           def: 'GG',       side: 'viewer' },
         { id: 'tire',      emoji: '🛞', label: 'Lốp xe lăn',            def: '',         side: 'viewer' },
-        { id: 'slime',     emoji: '🍦', label: 'Vũng keo dính',         def: 'Kem',      side: 'viewer' },
-        { id: 'repair',    emoji: '🔧', label: 'Sửa cửa +150',          def: 'Bắn tim',  side: 'viewer' },
-        { id: 'fox',       emoji: '🦊', label: 'Cáo cắn quái',          def: 'Nước hoa', side: 'viewer' },
-        { id: 'mine',      emoji: '💥', label: 'Chôn 3 mìn đất',        def: 'Bánh vòng', side: 'viewer' },
-        { id: 'flower',    emoji: '🌸', label: 'Hoa gió thổi lùi',      def: 'Tiny Diny', side: 'viewer' },
-        { id: 'lightning', emoji: '⚡', label: 'Sét đánh cháy đen',     def: 'Hạc giấy', side: 'viewer' },
-        { id: 'balloon',   emoji: '🎈', label: 'Bóng bay kéo về',       def: 'Tay trái tim', side: 'viewer' },
-        { id: 'boulder',   emoji: '🪨', label: 'Tảng đá khổng lồ',      def: 'Corgi, Galaxy…', side: 'viewer' },
-        { id: 'bomb',      emoji: '💣', label: 'Bom hẹn giờ',           def: '(Chia sẻ)', side: 'viewer' },
-        { id: 'banana',    emoji: '🍌', label: 'Vỏ chuối — trượt ngã lộn ngược', def: '', side: 'viewer' },
-        { id: 'net',       emoji: '🕸️', label: 'Ném lưới — trói 2.5 giây', def: '', side: 'viewer' },
-        { id: 'bees',      emoji: '🐝', label: 'Đàn ong bay ra chích',  def: '', side: 'viewer' },
-        { id: 'crows',     emoji: '🐦', label: 'Đàn quạ lao xuống mổ',  def: '', side: 'viewer' },
-        { id: 'meteor',    emoji: '☄️', label: 'Mưa 5 thiên thạch',     def: '(quà ≥200 xu)', side: 'viewer' },
-        { id: 'hand',      emoji: '🫳', label: 'Bàn tay khổng lồ — tóm ném về mốc', def: '(quà ≥500 xu)', side: 'viewer' },
-        { id: 'quake',     emoji: '🌋', label: 'THẢM HỌA động đất',     def: '(quà ≥1000 xu)', side: 'viewer' },
-        { id: 'lose',      emoji: '💀', label: 'THUA NGAY — zombie chết tại chỗ, về xuất phát (−1 WIN)', def: '', side: 'viewer' },
-        { id: 'win',       emoji: '🏆', label: 'WIN NGAY — zombie vào nhà ăn não (+1 WIN)', def: '', side: 'hero' },
-        { id: 'shoes',     emoji: '👟', label: 'Giày tốc độ',           def: 'Heart Me', side: 'hero' },
-        { id: 'shield',    emoji: '🚪', label: 'Khiên cửa (chặn 8 đòn)', def: 'Vòng cổ', side: 'hero' },
-        { id: 'time',      emoji: '⏳', label: '+20 giây (chỉ khi bật đồng hồ; tắt → thành giày tốc độ)', def: 'Rosa', side: 'hero' },
+        { id: 'slime',     emoji: '🍦', label: 'Keo dính',         def: 'Kem',      side: 'viewer' },
+        { id: 'repair',    emoji: '🔧', label: 'Sửa cửa',          def: 'Bắn tim',  side: 'viewer' },
+        { id: 'fox',       emoji: '🦊', label: 'Cáo đuổi',          def: 'Nước hoa', side: 'viewer' },
+        { id: 'mine',      emoji: '💥', label: 'Bẫy bật',        def: 'Bánh vòng', side: 'viewer' },
+        { id: 'flower',    emoji: '🌸', label: 'Hoa gió',      def: 'Tiny Diny', side: 'viewer' },
+        { id: 'lightning', emoji: '⚡', label: 'Sấm sét',     def: 'Hạc giấy', side: 'viewer' },
+        { id: 'balloon',   emoji: '🎈', label: 'Bóng bay',       def: 'Tay trái tim', side: 'viewer' },
+        { id: 'boulder',   emoji: '🪨', label: 'Đá lăn',      def: 'Corgi, Galaxy…', side: 'viewer' },
+        { id: 'bomb',      emoji: '💣', label: 'Pháo hẹn giờ',           def: '(Chia sẻ)', side: 'viewer' },
+        { id: 'banana',    emoji: '🍌', label: 'Vỏ chuối', def: '', side: 'viewer' },
+        { id: 'net',       emoji: '🕸️', label: 'Ném lưới', def: '', side: 'viewer' },
+        { id: 'bees',      emoji: '🐝', label: 'Đàn ong',  def: '', side: 'viewer' },
+        { id: 'crows',     emoji: '🐦', label: 'Đàn quạ',  def: '', side: 'viewer' },
+        { id: 'meteor',    emoji: '☄️', label: 'Mưa thiên thạch',     def: '(quà ≥200 xu)', side: 'viewer' },
+        { id: 'hand',      emoji: '🫳', label: 'Bàn tay khổng lồ', def: '(quà ≥500 xu)', side: 'viewer' },
+        { id: 'quake',     emoji: '🌋', label: 'Động đất',     def: '(quà ≥1000 xu)', side: 'viewer' },
+        { id: 'lose',      emoji: '💀', label: 'THUA NGAY', def: '', side: 'viewer' },
+        { id: 'win',       emoji: '🏆', label: 'WIN NGAY', def: '', side: 'hero' },
+        { id: 'shoes',     emoji: '👟', label: 'Tăng tốc',           def: 'Heart Me', side: 'hero' },
+        { id: 'shield',    emoji: '🚪', label: 'Khiên chắn', def: 'Vòng cổ', side: 'hero' },
+        { id: 'time',      emoji: '⏳', label: '+20 giây', def: 'Rosa', side: 'hero' },
     ];
     const SOCIAL = [
-        { id: 'like', emoji: '❤️', label: 'Thả tim → ném sỏi' },
+        { id: 'like', emoji: '❤️', label: 'Thả tim → ném đá' },
         { id: 'comment', emoji: '💬', label: 'Bình luận → ném dép' },
-        { id: 'follow', emoji: '➕', label: 'Follow → hàng rào gỗ' },
-        { id: 'share', emoji: '↗️', label: 'Chia sẻ → bom hẹn giờ' },
+        { id: 'follow', emoji: '➕', label: 'Follow → hàng rào' },
+        { id: 'share', emoji: '↗️', label: 'Chia sẻ → pháo hẹn giờ' },
     ];
-    const MAPS = ['Vườn Xanh (90m)', 'Mùa Thu (110m) — đống lá giấu bẫy', 'Xứ Tuyết (130m) — băng trơn', 'Nghĩa Trang Đêm (140m) — tay ma, quạ', 'Sa Mạc (150m) — cát lún, xương rồng, lốc xoáy', 'Núi Lửa (165m) — khe dung nham, đá lửa rơi', 'Lâu Đài Hoang (180m) — MAP BOSS, cổng sắt x2, thắng +3 WIN'];
+    const MAPS = ['Vườn Xanh (90m)', 'Mùa Thu (110m)', 'Xứ Tuyết (130m)', 'Nghĩa Trang Đêm (140m)', 'Sa Mạc (150m)', 'Núi Lửa (165m)', 'Lâu Đài Hoang (180m) 🏰 BOSS'];
     const ZOMBIES = [['basic', '🧟 Zombie thường'], ['chubby', '🧟 Zombie béo'], ['arm', '🧟 Zombie cụt tay'], ['ribcage', '💀 Zombie lộ sườn'], ['classic', '🧩 Zombie tự dựng (bản cũ)']];
     const KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyF', 'KeyJ', 'ShiftLeft', 'ShiftRight'];
 
@@ -68,7 +68,7 @@
     async function load() {
         try { const r = await fetch('/api/games/quaivat/config'); cfg = r.ok ? await r.json() : {}; } catch (e) { cfg = {}; }
         cfg = Object.assign({ enabled: true, qvStreamerName: '', qvStreamerAvatar: '', qvDoorHp: 600, qvRoundSeconds: 180, qvStartMap: 1,
-            qvLockJump: false, qvLockForward: false, qvAutoDodge: true, qvSound: true, qvZombieModel: 'basic', qvTimerOn: false, qvCheckpoint: true, qvShowLegend: true, qvWinShape: '9:16', qvGiftMap: {} }, cfg || {});
+            qvLockJump: false, qvLockForward: false, qvAutoDodge: true, qvSound: true, qvZombieModel: 'basic', qvTimerOn: false, qvCheckpoint: true, qvShowLegend: true, qvWinShape: '9:16', qvLikePer: 100, qvCommentKey: '111', qvGiftMap: {} }, cfg || {});
         if (Number(cfg.qvDoorHp) === 1200 && !cfg.qvHpV2) { cfg.qvDoorHp = 600; cfg.qvHpV2 = true; schedulePersist(); }   // cửa giờ tự hồi máu → hạ máu mặc định cũ một lần
         if (!cfg.qvGiftMap || typeof cfg.qvGiftMap !== 'object') cfg.qvGiftMap = {};
     }
@@ -95,7 +95,7 @@
             try {
                 const r = await fetch('/api/quaivat/window/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shape: cfg.qvWinShape || '9:16' }) });
                 const j = await r.json().catch(() => ({}));
-                if (j.ok) toast('Đã mở cửa sổ game — OBS: thêm nguồn "Window Capture" (Chụp cửa sổ) chọn "Zombie Phá Nhà"');
+                if (j.ok) toast('Đã mở cửa sổ game');
                 else toast(j.error || 'Không mở được cửa sổ game', 'error');
             } catch (e) { toast('Không mở được cửa sổ game', 'error'); }
         });
@@ -134,24 +134,22 @@
         if (!host) return;
         host.innerHTML = `
             <div class="nd-card-title">⚙ Cài đặt ván</div>
-            <label class="qv-row"><span>Khung cửa sổ game (OBS bắt cửa sổ)</span><select data-k="qvWinShape">${[['9:16', '📱 Dọc 9:16 (TikTok)'], ['1:1', '⬛ Vuông 1:1'], ['16:9', '🖥 Ngang 16:9']].map(([v, n]) => `<option value="${v}"${(cfg.qvWinShape || '9:16') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+            <label class="qv-row"><span title="OBS: nguồn Window Capture bắt cửa sổ game">Khung cửa sổ game</span><select data-k="qvWinShape">${[['9:16', '📱 Dọc 9:16 (TikTok)'], ['1:1', '⬛ Vuông 1:1'], ['16:9', '🖥 Ngang 16:9']].map(([v, n]) => `<option value="${v}"${(cfg.qvWinShape || '9:16') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
             <label class="qv-row"><span>Nhân vật zombie</span><select data-k="qvZombieModel">${ZOMBIES.map(([v, n]) => `<option value="${v}"${cfg.qvZombieModel === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
             <label class="qv-row"><span>Tên streamer (zombie)</span><input type="text" data-k="qvStreamerName" placeholder="Streamer" value="${esc(cfg.qvStreamerName)}"></label>
             <label class="qv-row"><span>Link avatar</span><input type="text" data-k="qvStreamerAvatar" placeholder="https://… (không bắt buộc)" value="${esc(cfg.qvStreamerAvatar)}"></label>
-            <label class="qv-row"><span>Máu cửa nhà (tự hồi sau 3 giây không bị đấm)</span><input type="number" min="100" step="100" data-k="qvDoorHp" data-num="1" value="${esc(cfg.qvDoorHp)}"></label>
-            <label class="qv-row"><span>Giờ mỗi ván (giây) — khi bật đồng hồ</span><input type="number" min="30" step="10" data-k="qvRoundSeconds" data-num="1" value="${esc(cfg.qvRoundSeconds)}"></label>
+            <label class="qv-row"><span title="Cửa tự hồi máu sau 3 giây không bị đấm">Máu cửa nhà</span><input type="number" min="100" step="100" data-k="qvDoorHp" data-num="1" value="${esc(cfg.qvDoorHp)}"></label>
+            <label class="qv-row"><span title="Chỉ dùng khi bật đồng hồ">Giờ mỗi ván (giây)</span><input type="number" min="30" step="10" data-k="qvRoundSeconds" data-num="1" value="${esc(cfg.qvRoundSeconds)}"></label>
             <label class="qv-row"><span>Map bắt đầu</span><select data-k="qvStartMap" data-num="1">${MAPS.map((m, i) => `<option value="${i + 1}"${Number(cfg.qvStartMap) === i + 1 ? ' selected' : ''}>Map ${i + 1}: ${m}</option>`).join('')}</select></label>
             <div class="qv-checks">
-                <label><input type="checkbox" data-k="qvTimerOn"${cfg.qvTimerOn ? ' checked' : ''}> ⏱ Bật đồng hồ — hết giờ thì người xem thắng (mặc định tắt: chơi tới khi phá được cửa)</label>
-                <label><input type="checkbox" data-k="qvCheckpoint"${cfg.qvCheckpoint !== false ? ' checked' : ''}> 🚩 Cột mốc giữa đường — qua mốc rồi không bị đẩy lùi quá mốc</label>
-                <label><input type="checkbox" data-k="qvShowLegend"${cfg.qvShowLegend !== false ? ' checked' : ''}> 🎁 Hiện bảng quà trong game (tắt nếu dùng bảng quà OBS riêng)</label>
+                <label><input type="checkbox" data-k="qvTimerOn"${cfg.qvTimerOn ? ' checked' : ''}> ⏱ Đồng hồ ván</label>
+                <label><input type="checkbox" data-k="qvCheckpoint"${cfg.qvCheckpoint !== false ? ' checked' : ''}> 🚩 Cột mốc giữa đường</label>
+                <label><input type="checkbox" data-k="qvShowLegend"${cfg.qvShowLegend !== false ? ' checked' : ''}> 🎁 Hiện 2 cột quà hai bên (bỏ tick = chỉ còn game)</label>
                 <label><input type="checkbox" data-k="qvLockJump"${cfg.qvLockJump ? ' checked' : ''}> 🔒 Khóa nhảy (Space)</label>
-                <label><input type="checkbox" data-k="qvLockForward"${cfg.qvLockForward ? ' checked' : ''}> 🔒 Khóa tiến/lùi — zombie tự đi tới, streamer chỉ lái ngang (khó hơn)</label>
-                <label><input type="checkbox" data-k="qvSound"${cfg.qvSound ? ' checked' : ''}> 🔊 Âm thanh trong overlay</label>
+                <label><input type="checkbox" data-k="qvLockForward"${cfg.qvLockForward ? ' checked' : ''}> 🔒 Khóa tiến/lùi</label>
+                <label><input type="checkbox" data-k="qvSound"${cfg.qvSound ? ' checked' : ''}> 🔊 Âm thanh</label>
             </div>
-            <div class="qv-row"><span>Bảng quà OBS riêng (to, rõ)</span><button type="button" class="nd-btn" id="qv-copy-gifts">📋 Copy link bảng quà</button></div>
-            <div class="qv-hint">Thêm vào OBS làm nguồn Browser riêng (vd 600×900). Tuỳ chọn thêm vào cuối link: <code>?cols=1</code> 1 cột · <code>&amp;scale=1.3</code> chữ to hơn · <code>&amp;side=viewer</code> chỉ bẫy · <code>&amp;side=hero</code> chỉ quà giúp zombie.</div>
-            <div class="qv-hint">Luật: zombie (streamer) KHÔNG có máu — người xem tặng quà để chặn, đẩy lùi. Phá được cửa → zombie vào nhà ăn não, <b>+1 WIN</b>, sang map dài hơn (cửa trâu hơn, mỗi map có bẫy riêng). Bật đồng hồ thì hết giờ → người xem thắng, <b>−1 WIN</b>. Cùng 1 loại bẫy được tặng ≥5 lần trong 10 giây → <b>COMBO</b> bản siêu. Sửa cửa khi cửa đã đầy máu → tích điểm nâng cấp <b>cửa sắt → cửa thép</b>.</div>`;
+            <div class="qv-row"><span title="Nguồn Browser riêng. Thêm ?cols=1 · &amp;scale=1.3 · &amp;side=viewer · &amp;side=hero">Bảng quà OBS</span><button type="button" class="nd-btn" id="qv-copy-gifts">📋 Copy link bảng quà</button></div>`;
         host.querySelector('#qv-copy-gifts')?.addEventListener('click', async () => {
             const url = window.buildOverlayURL ? window.buildOverlayURL('/overlay/quaivat-gifts') : location.origin + '/overlay/quaivat-gifts';
             try { await navigator.clipboard.writeText(url); toast('Đã copy link bảng quà OBS'); } catch (e) { prompt('Link bảng quà OBS:', url); }
@@ -183,8 +181,9 @@
             <div class="nd-card-title" style="margin-top:8px">⚡ Quà hỗ trợ zombie (streamer)</div>
             ${ACTIONS.filter(a => a.side === 'hero').map(row).join('')}
             <div class="nd-card-title" style="margin-top:8px">💬 Tương tác (không cần quà)</div>
-            ${SOCIAL.map(s => `<div class="qv-grow"><div class="qv-act"><span class="qv-emo">${s.emoji}</span><div><b>${esc(s.label)}</b></div></div><div class="qv-chips"></div><button class="ghost small qv-test" data-t="${s.id}">🧪 Thử</button></div>`).join('')}
+            ${SOCIAL.map(s => `<div class="qv-grow"><div class="qv-act"><span class="qv-emo">${s.emoji}</span><div><b>${esc(s.label)}</b></div></div><div class="qv-chips">${s.id === 'like' ? `<label class="qv-inl">Mỗi <input type="number" min="1" step="10" data-k2="qvLikePer" value="${esc(cfg.qvLikePer)}"> tim cả phòng = 1 cục đá</label>` : s.id === 'comment' ? `<label class="qv-inl">Từ khóa <input type="text" maxlength="40" data-k2="qvCommentKey" placeholder="trống = mọi bình luận" value="${esc(cfg.qvCommentKey)}"></label>` : ''}</div><button class="ghost small qv-test" data-t="${s.id}">🧪 Thử</button></div>`).join('')}
             <div class="qv-hint">Quà chưa gán vẫn chạy: khớp theo tên quà mặc định, quà lạ thì quy theo số xu (≥200 đá tảng, ≥150 sét, ≥99 bóng bay/sét, ≥25 bom, ≥15 cáo, ≥10 hoa gió, ≥5 sửa cửa, còn lại đồ rẻ).</div>`;
+        host.querySelectorAll('[data-k2]').forEach(el => el.addEventListener('input', () => { cfg[el.dataset.k2] = el.type === 'number' ? Math.max(1, Number(el.value) || 1) : el.value.trim(); schedulePersist(); }));
         host.querySelectorAll('.qv-add').forEach(b => b.addEventListener('click', () => openPicker(b.dataset.a)));
         host.querySelectorAll('.qv-x').forEach(b => b.addEventListener('click', () => {
             const arr = cfg.qvGiftMap[b.dataset.a] || [];
@@ -210,7 +209,7 @@
                 <div class="nd-gp-head"><div class="nd-gp-title"></div><button class="nd-gp-close ghost small">✕</button></div>
                 <input class="nd-gp-search" type="text" placeholder="🔍 Tìm tên quà hoặc ID..." />
                 <div class="nd-gp-list"></div>
-                <div class="nd-gp-hint">Một quà chỉ gán cho một hành động — chọn ở đây sẽ gỡ khỏi hành động cũ.</div></div>`;
+                <div class="nd-gp-hint">Mỗi quà chỉ gán cho 1 hành động.</div></div>`;
             document.body.appendChild(pickerEl);
             pickerEl.addEventListener('click', e => { if (e.target === pickerEl) pickerEl.hidden = true; });
             pickerEl.querySelector('.nd-gp-close').addEventListener('click', () => { pickerEl.hidden = true; });
@@ -235,7 +234,7 @@
                 <span class="nd-gp-name">${esc(g.name || ('Quà #' + g.id))}</span>
                 <span class="nd-gp-dia">${g.diamond || 0}💎</span>
                 ${used.has(String(g.id)) ? '<span class="nd-gp-tick">✓</span>' : ''}
-            </div>`).join('') || '<div class="nd-empty">Không tìm thấy quà — kết nối LIVE để tải danh sách quà.</div>';
+            </div>`).join('') || '<div class="nd-empty">Chưa có danh sách quà (kết nối LIVE để tải).</div>';
         list.querySelectorAll('.nd-gp-row').forEach(r => r.addEventListener('click', () => {
             const id = r.dataset.gid;
             Object.keys(cfg.qvGiftMap).forEach(k => {   // 1 quà ↔ 1 hành động

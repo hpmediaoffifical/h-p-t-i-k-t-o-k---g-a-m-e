@@ -9719,3 +9719,7 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .lcp-man input[type=time] { width: 110px; }
 .lcp-apply { padding: 7px 14px; border-radius: 8px; border: 0; background: #ffd36b; color: #2a1c00; font: 700 12.5px inherit; cursor: pointer; }
 .lcp-apply:hover { background: #ffe08f; }
+
+/* Zombie Phá Nhà: ô nhập trong dòng tương tác (số tim / từ khoá bình luận) */
+.qv-inl { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; opacity: .9; white-space: nowrap; }
+.qv-inl input { width: 90px; background: #1c1f2b; color: #fff; border: 1px solid #3a3f55; border-radius: 6px; padding: 4px 6px; font: inherit; }

@@ -386,6 +386,8 @@ const GAMES = {
             qvTimerOn: false,         // đồng hồ mỗi ván: mặc định tắt (chơi tới khi phá được cửa)
             qvCheckpoint: true,       // cột mốc giữa đường
             qvShowLegend: true,
+            qvLikePer: 100,           // thả tim: đủ bấy nhiêu tim cả phòng → 1 cục đá
+            qvCommentKey: '111',      // bình luận có từ khóa này mới ném dép ('' = mọi bình luận)
             qvWinShape: '9:16',       // khung cửa sổ game (OBS bắt cửa sổ): 9:16 | 1:1 | 16:9       // hiện bảng quà ngay trong game (tắt nếu dùng bảng quà OBS riêng)
             qvGiftMap: {}   // { [action]: [{ giftId, giftName, giftImage }] } — trống = khớp theo tên quà mặc định
         }
@@ -7499,13 +7501,15 @@ app.get('/overlay/nhietdo', (req, res) => {
 app.post('/api/quaivat/window/open', (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
     const shape = ['9:16', '1:1', '16:9'].includes(req.body && req.body.shape) ? req.body.shape : '9:16';
-    const [w, h] = { '9:16': [540, 960], '1:1': [820, 860], '16:9': [1280, 760] }[shape];
+    let [w, h] = { '9:16': [540, 960], '1:1': [820, 860], '16:9': [1280, 760] }[shape], pos = null;
+    const saved = quaivatWinBounds();                                // cửa sổ nhớ vị trí + kích thước lần trước (cùng khung)
+    if (saved && saved.shape === shape) { w = saved.w; h = saved.h; pos = [saved.x, saved.y]; }
     const found = CaptionListener.resolveBrowserExe('edge', { exists: (p) => { try { return fs.existsSync(p); } catch (e) { return false; } } });
     if (!found) return res.json({ ok: false, error: 'Không tìm thấy Microsoft Edge hoặc Google Chrome trên máy' });
     const profileDir = path.join(DATA_DIR, 'quaivat-window', found.browser);
     try { fs.mkdirSync(profileDir, { recursive: true }); } catch (e) {}
-    const url = `http://127.0.0.1:${PORT}/overlay/quaivat?ratio=full`;
-    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat(`--window-size=${w},${h}`);
+    const url = `http://127.0.0.1:${PORT}/overlay/quaivat?ratio=full&win=1&shape=${encodeURIComponent(shape)}`;
+    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat(`--window-size=${w},${h}`, ...(pos ? [`--window-position=${pos[0]},${pos[1]}`] : []));
     try {
         const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
         child.on('error', (e) => console.warn('[quaivat] mở cửa sổ game lỗi:', e.message));
@@ -7513,6 +7517,16 @@ app.post('/api/quaivat/window/open', (req, res) => {
     } catch (e) { return res.json({ ok: false, error: e.message }); }
     console.log(`[quaivat] mở cửa sổ game bằng ${found.browser}: ${found.exe}`);
     res.json({ ok: true, browser: found.browser });
+});
+function quaivatWinFile() { return path.join(DATA_DIR, 'quaivat-window', 'bounds.json'); }
+function quaivatWinBounds() { try { return JSON.parse(fs.readFileSync(quaivatWinFile(), 'utf8')); } catch (e) { return null; } }
+app.post('/api/quaivat/window/bounds', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    const b = req.body || {}, n = k => Math.round(Number(b[k]));
+    const v = { x: n('x'), y: n('y'), w: n('w'), h: n('h'), shape: ['9:16', '1:1', '16:9'].includes(b.shape) ? b.shape : '' };
+    if (![v.x, v.y, v.w, v.h].every(Number.isFinite) || v.w < 200 || v.h < 200 || v.w > 8000 || v.h > 8000 || Math.abs(v.x) > 20000 || Math.abs(v.y) > 20000) return res.status(400).json({ ok: false });
+    try { fs.mkdirSync(path.dirname(quaivatWinFile()), { recursive: true }); fs.writeFileSync(quaivatWinFile(), JSON.stringify(v)); } catch (e) { return res.status(500).json({ ok: false }); }
+    res.json({ ok: true });
 });
 app.get('/overlay/quaivat-gifts', (req, res) => {   // bảng quà Zombie Phá Nhà: nguồn OBS riêng
     res.sendFile(path.join(__dirname, 'public', 'games', 'quaivat', 'gifts.html'));
