@@ -1,5 +1,7 @@
 # 🫙 Hũ Thủy Tinh — 46 kiểu hũ (30 kiểu thường + 16 kiểu theo mùa, 2 lớp ảnh)
 
+> ⛔ **ĐÃ HUỶ 29/10/2026, ĐỪNG VẼ THEO FILE NÀY.** Hướng mới là giữ hũ thủy tinh mặc định và chỉ trang trí bên ngoài vùng kính: xem `trang-tri/BRIEF-TRANG-TRI.md`.
+
 > Đây là file đặt hàng vẽ cho ChatGPT. Đọc kỹ **Quy tắc chung** ở `../README.md` trước.
 > Mỗi kiểu hũ có 1 **ảnh khung mẫu** trong `khung-mau/NN-<id>.png`. Hãy **đính kèm ảnh khung mẫu khi yêu cầu vẽ**, vì hình dáng hũ đã được tính sẵn để quà rơi lọt và nằm gọn trong hũ.
 
