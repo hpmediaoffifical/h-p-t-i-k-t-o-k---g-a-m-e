@@ -1,4 +1,4 @@
-# 🏆 Thẻ Giải Đấu (leaguecard) — thiết kế bản đầu
+# 🏆 Thứ Hạng LIVE (leaguecard) — thiết kế bản đầu
 
 Ngày: 30/10/2026 · Nhánh: `feature/league-card` · Mockup: `public/_prototype/league-card.html`
 

@@ -1,4 +1,4 @@
-/* 🏆 Thẻ Giải Đấu — trang cài đặt trong app (view-leaguecard).
+/* 🏆 Thứ Hạng LIVE — trang cài đặt trong app (view-leaguecard).
    Panel là nguồn cấu hình duy nhất: chỉ GỬI POST /api/games/leaguecard/config (debounce), KHÔNG nghe
    gameConfig để ghi đè ô đang sửa (bài học relay-cfg). Xem trước = iframe overlay.html?demo=1 nhận cfg qua postMessage.
    Nút "Thử trên OBS" gọi POST /api/leaguecard/simulate — gói giả đi qua đúng bộ đọc như gói TikTok thật. */
@@ -92,7 +92,7 @@
   <div class="lcp-col lcp-side">
     <div class="lcp-card">
       <h4>Xem trước <small>(số giả lập, tự chạy)</small></h4>
-      <div class="lcp-preview"><iframe src="/overlay/leaguecard?demo=1" title="Xem trước Thẻ Giải Đấu"></iframe></div>
+      <div class="lcp-preview"><iframe src="/overlay/leaguecard?demo=1" title="Xem trước Thứ Hạng LIVE"></iframe></div>
     </div>
     <div class="lcp-card">
       <h4>Thử trên OBS <small>(gói giả → overlay thật)</small></h4>

@@ -457,7 +457,7 @@ const GAMES = {
     // Spec: docs/superpowers/specs/2026-10-30-leaguecard-design.md
     'leaguecard': {
         id: 'leaguecard',
-        name: 'Thẻ Giải Đấu',
+        name: 'Thứ Hạng LIVE',
         description: 'Góc màn OBS: bậc giải đấu, mảnh, hạng BXH, thiếu bao nhiêu điểm để giữ hạng (quy ra quà), vinh danh người giữ hạng. 3 kiểu × 20 skin.',
         icon: '🏆',
         overlayPath: '/overlay/leaguecard',
@@ -1081,7 +1081,7 @@ function makeDefaultNhatLaConfig() {
     };
 }
 
-// ====== 🏆 Thẻ Giải Đấu — defaults (phải khớp DEFAULTS trong public/games/leaguecard/league-card.js) ======
+// ====== 🏆 Thứ Hạng LIVE — defaults (phải khớp DEFAULTS trong public/games/leaguecard/league-card.js) ======
 function makeDefaultLeagueCardConfig() {
     return {
         enabled: true,
@@ -3603,11 +3603,11 @@ function emitLiveStatsImmediate() {
 function broadcast(type, payload) { io.emit(type, payload); }
 function isTikTokLiveConnected() { return !!(connection && liveConnected); }
 
-// Bước 0 Thẻ Giải Đấu: ghi thô gói xếp hạng/giải đấu (rankUpdate, rankText, hourlyRank, điểm giải đấu trong PK)
+// Bước 0 Thứ Hạng LIVE: ghi thô gói xếp hạng/giải đấu (rankUpdate, rankText, hourlyRank, điểm giải đấu trong PK)
 // ra <DATA_DIR>/tiktok-rank-log/<ngày>.jsonl để biết TikTok thật sự gửi gì. Xem: GET /api/rank-log.
 const rankLog = createRankLog({ dir: path.join(DATA_DIR, 'tiktok-rank-log') });
 
-// ====== 🏆 Thẻ Giải Đấu: rankUpdate → tracker → 'league:state' + 'league:event' cho overlay ======
+// ====== 🏆 Thứ Hạng LIVE: rankUpdate → tracker → 'league:state' + 'league:event' cho overlay ======
 const leagueTracker = LeagueCard.createLeagueTracker({ dangerMinutes: 30 });
 let leagueRoomId = null;
 function leagueCfg() { return { ...makeDefaultLeagueCardConfig(), ...(appConfig.games?.leaguecard || {}) }; }
@@ -4331,13 +4331,13 @@ function attachConnectionEvents(conn, lib) {
     });
 }
 
-// Log gói xếp hạng (bước 0 Thẻ Giải Đấu): đếm mọi method TikTok gửi + các dòng rank mới nhất.
+// Log gói xếp hạng (bước 0 Thứ Hạng LIVE): đếm mọi method TikTok gửi + các dòng rank mới nhất.
 app.get('/api/rank-log', (req, res) => {
     const n = Math.min(200, Math.max(0, parseInt(req.query.n, 10) || 50));
     res.json({ ok: true, ...rankLog.stats(), recent: rankLog.recent(n) });
 });
 
-// 🏆 Thẻ Giải Đấu — trạng thái hiện tại (overlay/panel lấy lúc mở) + mô phỏng gói rankUpdate để thử OBS
+// 🏆 Thứ Hạng LIVE — trạng thái hiện tại (overlay/panel lấy lúc mở) + mô phỏng gói rankUpdate để thử OBS
 // khi chưa LIVE. Mô phỏng đi QUA ĐÚNG bộ đọc parseRankUpdate như gói thật.
 app.get('/api/leaguecard/state', (req, res) => res.json({ ok: true, state: leagueTracker.snapshot() }));
 let leagueSim = null;
@@ -5238,7 +5238,7 @@ async function connectToUser(username, opts = {}) {
         streamEnded = false;
         currentRoomId = state?.roomId;
         vipStartRoom();   // sổ ghé phòng: 1 roomId = 1 buổi (nối lại giữa buổi giữ roomId → không mở buổi mới)
-        leagueStartRoom();   // 🏆 Thẻ Giải Đấu: phòng mới → xoá số cũ
+        leagueStartRoom();   // 🏆 Thứ Hạng LIVE: phòng mới → xoá số cũ
         captionAutoStartOnLive({ newSession: !preserveSession });   // phụ đề giọng: tự mở cửa sổ nghe Edge/Chrome nếu bật
         // Synthetic "host vào phòng" event — TikTok không fire MEMBER cho HOST tự kết nối live của mình.
         // roomInfo là envelope JSON của TikTok {data:{owner:{id_str, display_id, nickname, avatar_thumb, follow_info...}}, extra,

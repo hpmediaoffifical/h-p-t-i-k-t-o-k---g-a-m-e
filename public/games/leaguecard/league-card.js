@@ -1,4 +1,4 @@
-/* 🏆 Thẻ Giải Đấu — bộ vẽ dùng chung cho overlay OBS và khung xem trước trong app.
+/* 🏆 Thứ Hạng LIVE — bộ vẽ dùng chung cho overlay OBS và khung xem trước trong app.
    window.HpLeagueCard = { DEFAULTS, SKINS, STYLES, normalizeCfg, createRenderer(root) }
    createRenderer(root, {baseScale?}) · renderer.setCfg(cfg) · renderer.setGifts(list) · renderer.update(snapshot, events)
    snapshot = lib/league-card.js tracker.snapshot() (gửi qua socket 'league:state').
