@@ -31,7 +31,7 @@ const CONFIG = {
   streamerAvatar: Q.get('avatar') || lsGet('qv_avatar') || '',
   roundSeconds: Number(lsGet('qv_round')) || 180, // thời gian mỗi ván: hết giờ quái chưa phá được cửa → người xem thắng
   doorHp: Number(lsGet('qv_dhp')) || 600,      // máu cửa nhà
-  monsterSpeed: 1.15,     // m/giây (zombie lê chậm)
+  monsterSpeed: 1.35,     // m/giây (zombie lê chậm — nhanh hơn chút cho đỡ sốt ruột)
   punchDmg: 40,           // sát thương mỗi cú đấm (vào vật cản / cửa)
   punchEvery: 0.75,       // giây giữa 2 cú đấm
   winTarget: 20,
@@ -268,41 +268,41 @@ const MAPS = [
     hedge: [0x3f8a2a, 0x4a9a32, 0x3a7f26, 0x52a538], hedgeCore: 0x2f6e22, tree: [0x4f9e2f, 0x5bb337, 0x3f8a28, 0x6cc040, 0x4a9a35], trunk: 0x6b4527,
     hill: [0x78c060, 0x6db455, 0x84c86a], mtn: 0x86a6cf, flowers: [0xffffff, 0xfff27a, 0xff9ec4, 0xc9a7ff],
     wall: '#efe3c6', roof: ['#8e2a1a', '#d9573a', '#c84a30', '#7c2214'], sunflowers: true },
-  { name: 'Mùa Thu', length: 110, mines: 9, prop: 'pumpkin', props: 7, haz: 'leafpile', hazN: 6, warn: '🍂 Đống lá giấu bẫy',
+  { name: 'Mùa Thu', style: 'autumn', length: 110, mines: 9, prop: 'pumpkin', props: 7, haz: 'leafpile', hazN: 6,
     sky: ['#4a7fc4', '#8fb9e0', '#f2d7b0', '#f8e6c8'], fog: 0xf0dcc0, sun: 0xffd9a0, sunI: 2.6, hemi: [0xffe6c4, 0x7a5a2a, 0.5],
     lawn: '#a39a3e', lawnSp: ['#8a7f2a', '#c4b45a', '#9a6a2a'], laneA: '#cdc56c', laneB: '#b0a54e', blade: ['110,90,25', '255,240,190'],
     hedge: [0x8a7a2a, 0x9a6a20, 0x7a8a2a, 0xa0782a], hedgeCore: 0x5e5a1e, tree: [0xe07a2a, 0xd4a020, 0xc0502a, 0xe8b040, 0xb83a1e], trunk: 0x5a3a20,
     hill: [0xb0a050, 0xc09040, 0xa08a40], mtn: 0x9a8fb0, flowers: [0xffb040, 0xff7a3a, 0xffe07a, 0xc0502a],
     wall: '#f3dcc0', roof: ['#5a2e1a', '#a0603a', '#8a4e2a', '#4a2412'], sunflowers: true },
-  { name: 'Xứ Tuyết', length: 130, mines: 11, prop: 'snowman', props: 8, dust: 0xf4f8ff, haz: 'ice', hazN: 7, warn: '🧊 Vũng băng trơn trượt',
+  { name: 'Xứ Tuyết', style: 'snow', length: 130, mines: 11, prop: 'snowman', props: 8, dust: 0xf4f8ff, haz: 'ice', hazN: 7,
     sky: ['#6a88b0', '#a9bfd8', '#dfe8f2', '#f2f6fa'], fog: 0xe6eef6, sun: 0xeef4ff, sunI: 2.2, hemi: [0xeef4ff, 0x9aa8b8, 0.7],
     lawn: '#eef3f8', lawnSp: ['#d6e0ea', '#ffffff', '#c8d4e2'], laneA: '#f4f8fc', laneB: '#dbe6f1', blade: ['150,170,200', '255,255,255'],
     hedge: [0x2f5a40, 0x3a6a4a, 0xe8eef5, 0xdfe7f0], hedgeCore: 0x2a4a38, tree: [0x2e6b4a, 0x3a7a55, 0xeef3f8, 0xffffff], trunk: 0x4a3426,
     hill: [0xf2f6fa, 0xe4ecf4, 0xdde6f0], mtn: 0xb8c8de, flowers: [0xffffff, 0xd8ecff, 0xbfe0ff],
     wall: '#e9e4dc', roof: ['#aab8c8', '#ffffff', '#eef3f8', '#9aa8b8'], sunflowers: false },
-  { name: 'Nghĩa Trang Đêm', length: 140, prop: 'grave', props: 9, side: true, haz: 'ghosthand', hazN: 7, dyn: ['crows'], dynEvery: 11, night: true, dust: 0x9a9aa8,
-    warn: '🖐️ Tay ma trồi lên • 🐦 Đàn quạ', fogNear: 55, fogFar: 230, tint: [0.95, 0.98, 1.12], glow: [0.7, 0.8, 1.0], clouds: 0.18,
+  { name: 'Nghĩa Trang Đêm', style: 'haunted', length: 140, prop: 'grave', props: 9, side: true, haz: 'ghosthand', hazN: 7, dyn: ['crows'], dynEvery: 26, night: true, dust: 0x9a9aa8,
+    fogNear: 55, fogFar: 230, tint: [0.95, 0.98, 1.12], glow: [0.7, 0.8, 1.0], clouds: 0.18,
     sky: ['#070a1e', '#141a3c', '#2c2a52', '#3e3560'], fog: 0x262a44, sun: 0xa8bcff, sunI: 1.5, hemi: [0x7a88d0, 0x1c1c2c, 0.75],
     lawn: '#33422a', lawnSp: ['#28361f', '#46563a', '#3a3a2a'], laneA: '#55663f', laneB: '#465533', blade: ['25,35,18', '150,170,130'],
     hedge: [0x24321f, 0x2c3a26, 0x1f2a1c, 0x34402a], hedgeCore: 0x161f14, tree: [0x2a3424, 0x343a2a, 0x22301f, 0x3a3226], trunk: 0x2e2219,
     hill: [0x252e24, 0x2c3329, 0x20281f], mtn: 0x323a58, flowers: [0xb080ff, 0x80ffc0, 0xe8e8ff],
     wall: '#b9b2c6', roof: ['#221c30', '#4a3a60', '#3a2e4c', '#1a1426'], sunflowers: false },
-  { name: 'Sa Mạc', length: 150, prop: 'cactus', props: 9, side: true, haz: 'quicksand', hazN: 6, dyn: ['tornado'], dynEvery: 14, dust: 0xe0c48a,
-    warn: '🏜️ Cát lún • 🌵 Xương rồng gai • 🌪️ Lốc xoáy', tint: [1.04, 1.0, 0.94],
+  { name: 'Sa Mạc', style: 'adobe', length: 150, prop: 'cactus', props: 9, side: true, haz: 'quicksand', hazN: 6, dyn: ['tornado'], dynEvery: 14, dust: 0xe0c48a,
+    tint: [1.04, 1.0, 0.94],
     sky: ['#3a7bd5', '#7fb3e8', '#f0d9a8', '#f6e3b8'], fog: 0xf0dcb0, sun: 0xfff0c8, sunI: 3.0, hemi: [0xfff0d0, 0xa08050, 0.5],
     lawn: '#d9b878', lawnSp: ['#c9a462', '#e8cc90', '#b8935a'], laneA: '#e6c88a', laneB: '#d4b274', blade: ['150,110,50', '255,240,200'],
     hedge: [0x8a9a40, 0x7a8a38, 0x9aa84a, 0x6a7a30], hedgeCore: 0x5a6a28, tree: [0x6a8a30, 0x7a9a3a, 0x5a7a2a, 0x8aa040], trunk: 0x8a6a40,
     hill: [0xe0c080, 0xd4b070, 0xc8a060], mtn: 0xc89a68, flowers: [0xff6a3a, 0xffd040, 0xff9ac0],
     wall: '#f0dcb4', roof: ['#8a4a1a', '#d08040', '#c07030', '#7a3a12'], sunflowers: false },
-  { name: 'Núi Lửa', length: 165, prop: 'lavarock', props: 9, side: true, haz: 'lavacrack', hazN: 7, dyn: ['meteor1'], dynEvery: 6, dust: 0x5a4a44,
-    warn: '🔥 Khe dung nham phun lửa • ☄️ Đá lửa rơi', fogNear: 70, fogFar: 260, tint: [1.08, 0.97, 0.92], glow: [1.0, 0.55, 0.3], clouds: 0.3,
+  { name: 'Núi Lửa', style: 'volcano', length: 165, prop: 'lavarock', props: 9, side: true, haz: 'lavacrack', hazN: 7, dyn: ['meteor1'], dynEvery: 6, dust: 0x5a4a44,
+    fogNear: 70, fogFar: 260, tint: [1.08, 0.97, 0.92], glow: [1.0, 0.55, 0.3], clouds: 0.3,
     sky: ['#2a0e0a', '#5a1e10', '#a8401a', '#c86a30'], fog: 0x6a2a18, sun: 0xffa060, sunI: 2.3, hemi: [0xffa070, 0x3a1a10, 0.6],
     lawn: '#3a2a26', lawnSp: ['#2a1e1a', '#4a3630', '#5a2a1a'], laneA: '#54443c', laneB: '#433630', blade: ['40,20,15', '255,140,60'],
     hedge: [0x3a2a24, 0x4a3028, 0x2e2420, 0x553326], hedgeCore: 0x221814, tree: [0x2a2220, 0x3a2a24, 0x4a2a1a], trunk: 0x1e1612,
     hill: [0x3a2a26, 0x4a3028, 0x2e2220], mtn: 0x4a2418, flowers: [0xff6a20, 0xffb040, 0xff3a10],
     wall: '#cbb8a8', roof: ['#2a1a14', '#5a3022', '#4a281c', '#1e120e'], sunflowers: false },
-  { name: 'Lâu Đài Hoang', length: 180, house: 'castle', doorMul: 2, winBonus: 3, prop: 'grave', props: 10, side: true, haz: ['ghosthand', 'lavacrack'], hazN: 9, dyn: ['crows', 'meteor1'], dynEvery: 7,
-    night: true, dust: 0x8a8494, warn: '🏰 MAP BOSS: cổng sắt trâu gấp đôi • tay ma • khe lửa • quạ • đá lửa — hạ được lâu đài +3 WIN',
+  { name: 'Lâu Đài Hoang', length: 180, house: 'castle', doorMul: 2, winBonus: 3, warn: '🏰 MAP BOSS', prop: 'grave', props: 10, side: true, haz: ['ghosthand', 'lavacrack'], hazN: 9, dyn: ['meteor1', 'meteor1', 'meteor1', 'crows'], dynEvery: 10,
+    night: true, dust: 0x8a8494,
     fogNear: 60, fogFar: 250, tint: [1.0, 0.95, 1.1], glow: [0.85, 0.8, 1.0], clouds: 0.25,
     sky: ['#120a24', '#2e1a46', '#5e3458', '#7e4458'], fog: 0x3a2a44, sun: 0xd0b0ff, sunI: 1.7, hemi: [0x9a88d0, 0x2a1a2a, 0.75],
     lawn: '#45452e', lawnSp: ['#383824', '#55553a', '#4a3a2a'], laneA: '#5e5c3e', laneB: '#4e4c32', blade: ['40,38,20', '170,160,120'],
@@ -434,6 +434,7 @@ function buildWorld() {
   const canopy = new THREE.InstancedMesh(canopyGeo, windify(new THREE.MeshStandardMaterial({ roughness: 0.8, vertexColors: true, envMapIntensity: 0.5 }), 0.05, false), blobs.length);
   blobs.forEach((b, i) => { qq.setFromEuler(new THREE.Euler(rand(0, 6), rand(0, 6), rand(0, 6))); m4.compose(new V3(b[0], b[1], b[2]), qq, new V3(b[3], b[3] * 0.85, b[3])); canopy.setMatrixAt(i, m4); canopy.setColorAt(i, col.setHex(pick(T.tree))); });
   canopy.castShadow = true; canopy.receiveShadow = true; world.add(canopy);
+  world.userData.treeSpots = trees; world.userData.procTrees = [trunkMesh, canopy];   // có mô hình cây tải về thì thay ở đúng các chỗ này
 
   // cột đèn
   for (const sx of [-1, 1]) {   // cột mốc đầu đường — khoai tây lăn về đây
@@ -503,6 +504,124 @@ function windify(mat, amp, tip) {
   };
   return mat;
 }
+// ===== Đồ họa tải về (CC0 — Quaternius / Kenney / KayKit, xem models/env/CREDITS.txt): cây, đá, đồ trang trí, nhà hàng xóm theo map =====
+// Nạp sau khi dựng map (cây tự vẽ hiện trước, có mô hình thì thay) → mạng chậm / thiếu file vẫn chơi được.
+const ENV_DIR = '/games/quaivat/models/env/';
+// trees: [file, cao min, cao max] · decor: [file, cao min, cao max, tỉ lệ] · bld: [file, x, z (tính từ mặt nhà), cao, xoay]
+const ENV = {
+  'Vườn Xanh': {
+    trees: [['rocks-and-trees__common-tree-1', 6, 8], ['rocks-and-trees__common-tree-3', 7, 9], ['rocks-and-trees__birch-tree-1', 7, 9], ['rocks-and-trees__willow-1', 6, 8]],
+    decor: [['rocks-and-trees__bush-1', 1.2, 1.8, 4], ['rocks-and-trees__bush-berries-1', 1.2, 1.8, 3], ['rocks-and-trees__flowers', 0.6, 0.9, 4], ['rocks-and-trees__rock-1', 0.8, 1.4, 2], ['rocks-and-trees__rock-moss-1', 0.8, 1.3, 2], ['rocks-and-trees__tree-stump', 0.5, 0.7, 1], ['rocks-and-trees__wood-log', 0.5, 0.7, 1], ['nature__mushroom-red-group', 0.4, 0.6, 2], ['medieval-village__well', 2.2, 2.6, 0.3], ['medieval-village__cart', 1.8, 2.2, 0.3]],
+    bld: [['city-kit-suburban__building-type-a', -21, -3, 7, 0.25], ['city-kit-suburban__building-type-f', 21, -3, 7.5, -0.25], ['city-kit-suburban__building-type-c', -33, -9, 7, 0.4], ['farm-buildings__barn', 33, -10, 8, -0.4]],
+  },
+  'Mùa Thu': {
+    trees: [['rocks-and-trees__common-tree-autumn-1', 6, 8], ['rocks-and-trees__common-tree-autumn-3', 7, 9], ['rocks-and-trees__birch-tree-autumn-2', 7, 9], ['rocks-and-trees__pine-tree-autumn-1', 6, 8], ['rocks-and-trees__willow-autumn-1', 6, 8], ['halloween-pack__tree-pine-orange-large', 7, 9], ['halloween-pack__tree-pine-yellow-medium', 6, 8]],
+    decor: [['rocks-and-trees__bush-1', 1.2, 1.7, 2], ['rocks-and-trees__rock-3', 0.7, 1.2, 2], ['rocks-and-trees__tree-stump', 0.5, 0.7, 2], ['rocks-and-trees__wood-log', 0.5, 0.7, 2], ['nature__stump-old', 0.6, 0.9, 1], ['nature__crop-pumpkin', 0.6, 0.9, 3], ['halloween-pack__pumpkin-orange', 0.6, 0.9, 3], ['halloween-pack__pumpkin-yellow', 0.5, 0.8, 2], ['medieval-village__cart', 1.8, 2.2, 0.4]],
+    bld: [['medieval-village__house-1', -22, -4, 8, 0.25], ['farm-buildings__barn', 23, -6, 8, -0.3], ['city-kit-suburban__building-type-f', -34, -10, 7, 0.4]],
+  },
+  'Xứ Tuyết': {
+    trees: [['rocks-and-trees__common-tree-snow-1', 6, 8], ['rocks-and-trees__pine-tree-snow-1', 6, 8.5], ['rocks-and-trees__pine-tree-snow-3', 7, 9.5], ['rocks-and-trees__birch-tree-snow-1', 7, 9], ['rocks-and-trees__common-tree-dead-snow-1', 5, 7]],
+    decor: [['rocks-and-trees__bush-snow-1', 1.2, 1.7, 3], ['rocks-and-trees__rock-snow-1', 0.8, 1.3, 2], ['rocks-and-trees__rock-snow-3', 0.7, 1.1, 2], ['rocks-and-trees__tree-stump-snow', 0.5, 0.7, 1], ['rocks-and-trees__wood-log-snow', 0.5, 0.7, 1], ['holiday-kit__snowman-hat', 1.6, 2.0, 1], ['holiday-kit__snow-pile', 0.4, 0.6, 3], ['holiday-kit__sled', 0.7, 0.9, 0.5], ['holiday-kit__rocks-small', 0.6, 0.9, 1], ['holiday-kit__lantern', 2.2, 2.6, 0.6]],
+    bld: [['city-kit-suburban__building-type-a', -21, -3, 7, 0.25], ['classical-buildings__house-2', 22, -5, 8, -0.3], ['city-kit-suburban__building-type-c', -33, -9, 7, 0.4]],
+  },
+  'Nghĩa Trang Đêm': {
+    trees: [['halloween-pack__tree-dead-large', 6, 8.5], ['halloween-pack__tree-dead-large-decorated', 6, 8], ['halloween-pack__tree-dead-medium', 5, 7], ['rocks-and-trees__willow-dead-1', 6, 8], ['rocks-and-trees__common-tree-dead-1', 5, 7]],
+    decor: [['graveyard-kit__gravestone-cross', 1.1, 1.5, 3], ['graveyard-kit__gravestone-round', 1.0, 1.3, 3], ['graveyard-kit__gravestone-decorative', 1.1, 1.5, 2], ['graveyard-kit__gravestone-broken', 0.8, 1.1, 2], ['graveyard-kit__gravestone-wide', 1.0, 1.3, 2], ['graveyard-kit__cross-wood', 1.2, 1.6, 2], ['graveyard-kit__coffin-old', 0.5, 0.7, 1], ['graveyard-kit__lightpost-single', 2.6, 3.2, 1], ['graveyard-kit__fire-basket', 1.0, 1.3, 0.6], ['graveyard-kit__urn-round', 0.5, 0.7, 1], ['halloween-pack__skull', 0.35, 0.5, 1], ['halloween-pack__ribcage', 0.5, 0.7, 0.6], ['halloween-pack__pumpkin-orange-jackolantern', 0.7, 0.9, 1], ['rocks-and-trees__rock-moss-1', 0.8, 1.2, 1]],
+    bld: [['classical-buildings__house-2', -22, -4, 8.5, 0.3], ['halloween-pack__crypt', 21, -3, 6, -0.3], ['graveyard-kit__crypt-large', -32, -9, 5, 0.4], ['halloween-pack__crypt', 32, -10, 6, -0.4]],
+  },
+  'Sa Mạc': {
+    trees: [['rocks-and-trees__palm-tree-1', 7, 9], ['rocks-and-trees__palm-tree-3', 6, 8], ['rocks-and-trees__cactus-1', 2.5, 3.5], ['rocks-and-trees__cactus-3', 3, 4.5], ['rocks-and-trees__cactus-flowers-2', 3, 4], ['rocks-and-trees__willow-dead-1', 5, 7]],
+    decor: [['survival__rock-sand-a', 0.6, 1.0, 3], ['survival__rock-sand-b', 0.7, 1.2, 3], ['survival__rock-sand-c', 0.7, 1.1, 3], ['rocks-and-trees__rock-5', 0.8, 1.3, 2], ['halloween-pack__skull', 0.35, 0.5, 1], ['halloween-pack__bone-a', 0.25, 0.35, 2], ['halloween-pack__ribcage', 0.5, 0.7, 0.8], ['survival__campfire', 0.5, 0.7, 0.5], ['survival__signpost', 1.4, 1.8, 0.5], ['survival__box', 0.6, 0.8, 0.6], ['rocks-and-trees__cactus-1', 1.2, 1.8, 2]],
+    bld: [['polypizza-quaternius__houses-flatroof', -22, -4, 7, 0.25], ['medieval-builder-pack__house', 22, -4, 6.5, -0.25], ['polypizza-quaternius__houses-flatroof', 33, -10, 7, -0.4]],
+  },
+  'Núi Lửa': {
+    trees: [['polypizza-quaternius__tree-lava-1', 5, 7], ['polypizza-quaternius__tree-lava-2', 5, 7], ['rocks-and-trees__common-tree-dead-1', 5, 7], ['halloween-pack__tree-dead-medium', 5, 7]],
+    decor: [['nature__rock-large-a', 1.2, 2.2, 3, 0x5a3a30], ['nature__stone-large-a', 1.0, 1.8, 3, 0x4a302a], ['nature__stone-large-c', 1.0, 1.8, 3, 0x5a3a30], ['nature__stone-tall-a', 2.0, 3.2, 2, 0x4a302a], ['halloween-pack__skull', 0.35, 0.5, 1], ['halloween-pack__bone-a', 0.25, 0.35, 2], ['graveyard-kit__fire-basket', 1.0, 1.3, 1], ['survival__campfire', 0.5, 0.7, 1]],
+    bld: [['medieval-village__house-3', -22, -4, 9, 0.25], ['medieval-builder-pack__watchtower', 22, -5, 10, -0.25]],
+  },
+  'Lâu Đài Hoang': {
+    trees: [['halloween-pack__tree-dead-large', 7, 9], ['halloween-pack__tree-dead-large-decorated', 7, 9], ['rocks-and-trees__willow-dead-1', 6, 8]],
+    decor: [['graveyard-kit__gravestone-cross', 1.1, 1.5, 2], ['graveyard-kit__gravestone-broken', 0.8, 1.1, 2], ['graveyard-kit__cross-wood', 1.2, 1.6, 2], ['halloween-pack__skull', 0.35, 0.5, 1.5], ['halloween-pack__ribcage', 0.5, 0.7, 1], ['halloween-pack__post-lantern', 3.0, 3.6, 1], ['graveyard-kit__fire-basket', 1.0, 1.3, 1], ['rocks-and-trees__rock-moss-1', 0.8, 1.3, 2], ['castle-kit__siege-catapult-demolished', 2.5, 3.2, 0.3], ['zombie-apocalypse__barrel', 1.0, 1.2, 1]],
+    bld: [['fantasy-rts__wall-towers-second-age', -24, -3, 11, 0], ['fantasy-rts__wall-towers-second-age', 24, -3, 11, 0], ['fantasy-rts__watch-tower-second-age-level-3', -38, -8, 15, 0.3], ['fantasy-rts__watch-tower-second-age-level-3', 38, -8, 15, -0.3]],
+  },
+};
+const envCache = new Map();
+function loadEnv(name) {
+  if (!envCache.has(name)) envCache.set(name, new GLTFLoader().loadAsync(ENV_DIR + name + '.glb').then(g => {
+    const root = g.scene; root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(root), c = box.getCenter(new V3()), sz = box.getSize(new V3());
+    const parts = []; root.traverse(o => { if (o.isMesh) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => { m.envMapIntensity = 0.45; }); parts.push({ geo: o.geometry, mat: o.material, m: o.matrixWorld.clone() }); } });
+    return { parts, c, minY: box.min.y, h: Math.max(1e-4, sz.y), w: Math.max(sz.x, sz.z) };
+  }).catch(e => { console.warn('Không tải được mô hình', name, e); return null; }));
+  return envCache.get(name);
+}
+// gom các bản sao của 1 mô hình thành InstancedMesh (ít lệnh vẽ) — spots: [{x, y, z, h, ry}]
+const tintCache = new Map();
+function tintMat(mat, hex) {
+  const k = mat.uuid + hex; if (!tintCache.has(k)) { const m = mat.clone(); m.color.multiply(new THREE.Color(hex)).multiplyScalar(1.6); m.emissive = new THREE.Color(0x3a0800); tintCache.set(k, m); }
+  return tintCache.get(k);
+}
+function plantEnv(info, spots, parent, tint) {
+  if (!info || !spots.length) return;
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), base = new THREE.Matrix4(), sc = new V3(), pos = new V3();
+  for (const pt of info.parts) {
+    const im = new THREE.InstancedMesh(pt.geo, tint && !Array.isArray(pt.mat) ? tintMat(pt.mat, tint) : pt.mat, spots.length);
+    spots.forEach((s, i) => {
+      const k = s.h / info.h; q.setFromEuler(e.set(0, s.ry || 0, 0));
+      base.makeTranslation(-info.c.x, -info.minY, -info.c.z).premultiply(new THREE.Matrix4().makeScale(k, k, k));
+      m4.compose(pos.set(s.x, s.y || 0, s.z), q, sc.set(1, 1, 1)).multiply(base).multiply(pt.m); im.setMatrixAt(i, m4);
+    });
+    im.castShadow = true; im.receiveShadow = true; im.computeBoundingSphere(); parent.add(im);
+  }
+}
+let mapToken = 0;
+async function decorateMap() {
+  const E = ENV[T.name]; if (!E) return;
+  const token = ++mapToken, W = world, ud = W.userData;
+  const COMMON = ['zombie-apocalypse__street-lights', 'zombie-apocalypse__town-sign', 'zombie-apocalypse__trash-bag-1', 'zombie-apocalypse__barrel', 'zombie-apocalypse__pallet'];
+  const names = [...new Set([...E.trees, ...E.decor, ...(E.bld || [])].map(x => x[0]).concat(COMMON))];
+  const info = {}; await Promise.all(names.map(async n => { info[n] = await loadEnv(n); }));
+  if (token !== mapToken || !ud.treeSpots) return;                 // đã đổi map trong lúc tải
+  const g = new THREE.Group(); W.add(g);
+  // nhà hàng xóm / tường thành hai bên
+  const blds = (E.bld || []).map(([n, x, dz, h, ry]) => ({ n, x, z: HOUSE_FRONT + dz, h, ry }));
+  for (const b of blds) plantEnv(info[b.n], [b], g);
+  // cột đèn hai bên đường (cần đèn chĩa vào lòng đường), so le mỗi 13m, chừa cột mốc
+  const lamps = [];
+  for (let z = START_Z - 3, k = 0; z > HOUSE_FRONT + 9; z -= 13, k++) { if (Math.abs(z - cpZ) < 3) continue; const sx = k % 2 ? 1 : -1; lamps.push({ x: sx * (6.2 - 1.25), z, h: 6, ry: -sx * Math.PI / 2 }); }
+  plantEnv(info['zombie-apocalypse__street-lights'], lamps, g);
+  // đầu đường: biển thị trấn + đống rác, thùng phuy, pallet trên vỉa hè (đúng chất phim zombie)
+  plantEnv(info['zombie-apocalypse__town-sign'], [{ x: -11, z: START_Z + 1.5, h: 4.2, ry: 0.35 }], g);
+  plantEnv(info['zombie-apocalypse__trash-bag-1'], [{ x: 7.6, z: START_Z + 0.6, h: 0.75, ry: 1 }, { x: 8.2, z: START_Z + 1.2, h: 0.6, ry: 2 }, { x: 7.9, z: START_Z + 1.6, h: 0.7, ry: 0.3 }, { x: -7.8, z: START_Z + 0.4, h: 0.65, ry: 2.5 }], g);
+  plantEnv(info['zombie-apocalypse__barrel'], [{ x: 9.2, z: START_Z + 0.8, h: 1.15, ry: 0.4 }, { x: -9.4, z: START_Z - 1.5, h: 1.15, ry: 1.2 }], g);
+  plantEnv(info['zombie-apocalypse__pallet'], [{ x: 10.2, z: START_Z + 1.4, h: 0.16, ry: 0.5 }], g);
+  const nearBld = (x, z, r) => blds.some(b => Math.hypot(b.x - x, b.z - z) < r);
+  // cây: thay cây tự vẽ ở đúng các chỗ cũ
+  const okTrees = E.trees.filter(t => info[t[0]]);
+  if (okTrees.length) {
+    const byKind = new Map();
+    for (const [x, z, s] of ud.treeSpots) {
+      if (nearBld(x, z, 9)) continue;
+      const t = pick(okTrees), arr = byKind.get(t) || []; arr.push({ x: x + rand(-0.6, 0.6), z, h: rand(t[1], t[2]) * s, ry: rand(0, 6.28) }); byKind.set(t, arr);
+    }
+    for (const [t, arr] of byKind) plantEnv(info[t[0]], arr, g);
+    for (const m of ud.procTrees || []) m.visible = false;
+  }
+  // đồ trang trí rải hai bên đường (ngoài hàng rào cây xanh) + quanh nhà
+  const dec = E.decor.filter(d => info[d[0]]), tot = dec.reduce((a, d) => a + d[3], 0);
+  if (dec.length) {
+    const byKind = new Map(), n = Math.round(90 + T.length * 0.5);
+    for (let i = 0; i < n; i++) {
+      const sx = Math.random() < 0.5 ? -1 : 1, x = sx * (Math.random() < 0.55 ? rand(8.3, 13) : rand(13, 42)), z = rand(HOUSE_FRONT - 14, START_Z + 6);
+      if (z > HOUSE_FRONT - 12 && z < HOUSE_FRONT + 4 && Math.abs(x) < 15) continue;   // chừa chỗ ngôi nhà + hàng rào
+      if (nearBld(x, z, 7)) continue;
+      if (z > 0.2 && z < 5 && Math.abs(x) < 42) continue;                              // chừa lòng đường nhựa
+      let r = Math.random() * tot, k = 0; while (r > dec[k][3]) { r -= dec[k][3]; k++; }
+      const d = dec[k], arr = byKind.get(d) || []; arr.push({ x, z, h: rand(d[1], d[2]), ry: rand(0, 6.28) }); byKind.set(d, arr);
+    }
+    for (const [d, arr] of byKind) plantEnv(info[d[0]], arr, g, d[4]);
+  }
+}
 function buildMap(i) {
   state.map = i; T = MAPS[i]; HOUSE_FRONT = 2 - T.length;
   world.clear();
@@ -516,7 +635,7 @@ function buildMap(i) {
   hemi.color.setHex(T.hemi[0]); hemi.groundColor.setHex(T.hemi[1]); hemi.intensity = T.hemi[2];
   sun.color.setHex(T.sun); sun.intensity = T.sunI;
   buildWorld(); houseFx.lights = []; houseFx.bats = null;
-  (T.house === 'castle' ? buildCastle : buildHouse)(); buildCheckpoint();
+  (T.house === 'castle' ? buildCastle : buildHouse)(); buildCheckpoint(); decorateMap();
   document.getElementById('mapN').textContent = `🗺️ Map ${i + 1}: ${T.name}`;
 }
 // ---------------- Ngôi nhà ----------------
@@ -688,6 +807,43 @@ function updateHouseFx(dt) {
     u.wl.rotation.z = Math.sin(time * 18 + u.ph) * 0.9; u.wr.rotation.z = -u.wl.rotation.z;
   }
 }
+// trang trí riêng cho ngôi nhà theo phong cách map
+function houseDeco(H, F) {
+  const st = T.style;
+  if (st === 'snow') {                                            // băng nhũ dưới mái, tuyết đọng
+    const snowM = MS(0xf8fbff, 0.6), ice = MS(0xd8f2ff, 0.15, 0.1, { transparent: true, opacity: 0.85 });
+    for (let x = -8.8; x <= 8.8; x += 0.32) { if (Math.random() < 0.25) continue; const L = rand(0.25, 0.8); const c = new THREE.Mesh(geo('icicle', () => new THREE.ConeGeometry(0.06, 1, 6)), ice); c.scale.y = L; c.rotation.x = Math.PI; put(c, x, 5.58 - L / 2, 6.22, H, false); }
+    box(1.95, 0.32, 1.95, snowM, 4.5, 11.45, -1.8, H); box(3.3, 0.2, 1.35, snowM, 0, 5.32, F + 0.55, H);
+    for (const x of [-4.9, 4.9]) box(2.9, 0.16, 0.5, snowM, x, 2.62, F + 0.42, H);
+    for (let i = 0; i < 14; i++) { const x = pick([-1, 1]) * rand(2.6, 8.2); sph(1, snowM, x, 0.1, F + rand(0.2, 0.9), H).scale.set(rand(0.5, 1.0), rand(0.2, 0.35), rand(0.35, 0.6)); }
+  } else if (st === 'autumn') {                                   // lá rụng trên mái + chân tường, bí ngô trên bậc
+    const cols = [0xe07a2a, 0xd4a020, 0xc0502a, 0xb83a1e];
+    for (let i = 0; i < 70; i++) { const l = sph(1, MS(pick(cols), 0.9), rand(-8.6, 8.6), 5.95 + rand(0, 0.35), 5.9 + rand(0, 0.5), H); l.scale.set(0.22, 0.05, 0.15); l.rotation.set(rand(-0.5, 0.5), rand(0, 6), rand(-0.5, 0.5)); }
+    for (let i = 0; i < 60; i++) { const l = sph(1, MS(pick(cols), 0.9), pick([-1, 1]) * rand(2.7, 8.5), 0.06 + rand(0, 0.12), F + rand(1.2, 2.2), H); l.scale.set(0.22, 0.05, 0.15); l.rotation.y = rand(0, 6); }
+    for (const [x, y, z, r] of [[1.75, 0.74, F + 0.55, 0.3], [-1.8, 0.74, F + 0.5, 0.24], [2.05, 0.39, F + 1.5, 0.26]]) {
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const s = sph(1, MS(0xe8761e, 0.6), x + Math.cos(a) * r * 0.45, y + r * 0.8, z + Math.sin(a) * r * 0.45, H); s.scale.set(r * 0.6, r * 0.8, r * 0.6); }
+      cyl(0.04, 0.06, 0.2, MS(0x4a6a20, 0.8), x, y + r * 1.7, z, H, 6);
+    }
+  } else if (st === 'haunted') {                                  // nhà ma: ván đóng chéo cửa sổ, biển "CẤM VÀO"
+    const wood = MS(0x5a4030, 0.95);
+    for (const x of [-4.9, 4.9]) for (const r of [0.55, -0.6]) { const b = box(2.7, 0.24, 0.07, wood, x, 3.6, F + 0.24, H); b.rotation.z = r; }
+    const signTex = ctex(256, 96, (g, w, h) => { g.fillStyle = '#6a4a2a'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 3; for (let y = 24; y < h; y += 24) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); } g.font = 'bold 54px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#c81e1e'; g.fillText('CẤM VÀO!', w / 2, h / 2 + 2); });
+    cyl(0.07, 0.08, 2.2, wood, 4.2, 1.1, F + 3.4, H, 6);
+    const sg = box(2.0, 0.75, 0.08, new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.9 }), 4.2, 1.9, F + 3.45, H); sg.rotation.z = 0.12;
+  } else if (st === 'volcano') {                                  // vết nứt dung nham phát sáng trên tường + tro trên mái
+    const lava = MS(0x2a0a00, 0.6, 0, { emissive: 0xff5a10, emissiveIntensity: 2.4 });
+    for (let k = 0; k < 9; k++) {
+      let x = pick([-1, 1]) * rand(1.6, 7.6), y = rand(1.0, 5.4);
+      for (let i = 0; i < 5; i++) { const nx = x + rand(-0.4, 0.4), ny = y - rand(0.2, 0.45); const L = Math.hypot(nx - x, ny - y); const c = box(0.07, L, 0.03, lava, (x + nx) / 2, (y + ny) / 2, F + 0.03, H, false); c.rotation.z = Math.atan2(x - nx, ny - y); x = nx; y = ny; if (y < 0.8) break; }
+    }
+    for (let i = 0; i < 40; i++) sph(1, MS(0x3a3432, 0.95), rand(-8.5, 8.5), 6.0 + rand(0, 0.2), 5.9 + rand(0, 0.4), H).scale.set(rand(0.3, 0.6), 0.1, rand(0.2, 0.4));
+  } else if (st === 'adobe') {                                    // mái hiên sọc, chuỗi ớt đỏ, chum đất
+    const stripe = ctex(64, 64, (g, w, h) => { for (let x = 0; x < w; x += 16) { g.fillStyle = (x / 16) % 2 ? '#f2e6c8' : '#c8502a'; g.fillRect(x, 0, 16, h); } });
+    for (const x of [-4.9, 4.9]) { const a = box(2.9, 0.06, 1.1, new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.9 }), x, 4.85, F + 0.5, H); a.rotation.x = 0.35; }
+    for (let i = 0; i < 8; i++) { const c = new THREE.Mesh(geo('chili', () => new THREE.ConeGeometry(0.07, 0.3, 6)), MS(0xc81e1e, 0.5)); c.rotation.x = Math.PI; put(c, 1.75 + (i % 2) * 0.08, 3.9 - i * 0.22, F + 0.22, H, false); }
+    for (const [x, z, r] of [[2.4, F + 1.9, 0.38], [-2.6, F + 2.0, 0.32], [-3.1, F + 1.6, 0.26]]) { const j = sph(1, MS(0xb5653a, 0.85), x, r, z, H); j.scale.set(r, r * 1.1, r); cyl(r * 0.45, r * 0.5, r * 0.4, MS(0xa0552e, 0.85), x, r * 2.1, z, H, 10); }
+  }
+}
 function buildHouse() {
   const H = new THREE.Group(); H.scale.setScalar(HS); H.position.set(0, 0, HOUSE_FRONT - 5 * HS); world.add(H);
   const F = 5.0;                                   // mặt trước (toạ độ cục bộ)
@@ -704,6 +860,15 @@ function buildHouse() {
   }, [8, 1]);
   box(16.5, 0.7, 10.5, new THREE.MeshStandardMaterial({ map: stoneTex, roughness: 0.95 }), 0, 0.35, 0, H);
   const plaster = ctex(256, 512, (g, w, h) => {
+    if (T.style === 'haunted') {                                   // nhà ma: ván gỗ mục xám
+      for (let x = 0; x < w; x += 32) { g.fillStyle = `hsl(${rand(220, 260)}, ${rand(6, 12)}%, ${rand(30, 40)}%)`; g.fillRect(x, 0, 32, h); g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(x, 0, 2, h); for (let k = 0; k < 6; k++) { g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x + rand(4, 28), rand(0, h), 1.5, rand(20, 80)); } }
+      speckle(g, w, h, ['#2a2a34', '#5a5a66'], 1500, 1, 2); return;
+    }
+    if (T.style === 'volcano') {                                   // nhà đá đen
+      g.fillStyle = '#2e2622'; g.fillRect(0, 0, w, h);
+      for (let y = 0; y < h; y += 40) for (let x = (y / 40) % 2 ? -32 : 0; x < w; x += 64) { g.fillStyle = `hsl(${rand(10, 25)}, ${rand(8, 16)}%, ${rand(22, 32)}%)`; g.beginPath(); g.roundRect(x + 2, y + 2, 60, 36, 5); g.fill(); }
+      speckle(g, w, h, ['#1a1412', '#4a3a34'], 1500, 1, 2.5); return;
+    }
     const gr = g.createLinearGradient(0, 0, 0, h);
     const c = new THREE.Color(T.wall); gr.addColorStop(0, '#' + c.clone().offsetHSL(0, 0, 0.04).getHexString()); gr.addColorStop(1, '#' + c.clone().offsetHSL(0, 0.02, -0.08).getHexString());
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
@@ -739,6 +904,7 @@ function buildHouse() {
     }
     for (let r = 0; r < rows; r++) { g.fillStyle = 'rgba(0,0,0,.32)'; g.fillRect(0, r * rh, w, 4); }
   }, [0.62, 0.62]);
+  if (T.style !== 'adobe') {
   put(new THREE.Mesh(hipRoof(16, 10, 4.6, 1.0), new THREE.MeshStandardMaterial({ map: roofTex, bumpMap: roofTex, bumpScale: 1.2, roughness: 0.6, envMapIntensity: 0.6, side: THREE.DoubleSide })), 0, 5.9, 0, H);
   box(18.2, 0.34, 0.22, white, 0, 5.82, 6.02, H); box(18.2, 0.34, 0.22, white, 0, 5.82, -6.02, H);
   box(0.22, 0.34, 12.2, white, 9.02, 5.82, 0, H); box(0.22, 0.34, 12.2, white, -9.02, 5.82, 0, H);
@@ -754,6 +920,15 @@ function buildHouse() {
   box(1.4, 3.4, 1.4, new THREE.MeshStandardMaterial({ map: brick, roughness: 0.9 }), 4.5, 9.4, -1.8, H);
   box(1.75, 0.28, 1.75, MS(0x9a948a, 0.8), 4.5, 11.15, -1.8, H); box(0.9, 0.2, 0.9, darkM, 4.5, 11.35, -1.8, H);
   cyl(0.04, 0.04, 2.6, metal, -3.5, 11.6, -1, H, 6); const ant = cyl(0.03, 0.03, 2.2, metal, -3.5, 12.6, -1, H, 6); ant.rotation.z = Math.PI / 2;
+  } else {                                                        // nhà đất sa mạc: mái bằng, tường chắn mái, đầu xà gỗ nhô ra, gác nhỏ
+    const adobeD = MS(new THREE.Color(T.wall).offsetHSL(0, 0, -0.1).getHex(), 0.95);
+    box(16.4, 0.5, 10.4, adobeD, 0, 6.1, 0, H);
+    for (const [w, d, x, z] of [[16.4, 0.35, 0, 5.03], [16.4, 0.35, 0, -5.03], [0.35, 10.4, 8.03, 0], [0.35, 10.4, -8.03, 0]]) box(w, 0.8, d, adobeD, x, 6.75, z, H);
+    for (let x = -7.2; x <= 7.3; x += 1.2) { const b = cyl(0.14, 0.14, 1.0, MS(0x6a4422, 0.9), x, 5.5, F + 0.3, H, 8); b.rotation.x = Math.PI / 2; }
+    box(4.2, 2.2, 3.2, adobeD, -3.5, 7.4, -1.5, H); box(1.0, 1.3, 0.1, MS(0x3a2a1a, 0.9), -3.5, 7.3, 0.12, H);
+    for (const x of [-5.2, -1.8]) { const b = cyl(0.11, 0.11, 0.7, MS(0x6a4422, 0.9), x, 8.3, 0.2, H, 8); b.rotation.x = Math.PI / 2; }
+    for (const x of [3.2, 4.4, 5.6]) cyl(0.32, 0.25, 0.55, MS(0xb5653a, 0.85), x, 6.62, 3.6, H, 12);
+  }
 
   // ---- cửa sổ: khung sâu, kính phản chiếu + rèm, lá chống, bậu, hộp hoa ----
   const glassTex = ctex(128, 128, (g, w, h) => {
@@ -764,6 +939,8 @@ function buildHouse() {
     g.fillStyle = 'rgba(0,0,0,.12)'; for (let x = 3; x < 18; x += 5) { g.fillRect(x, 0, 2, h); g.fillRect(w - 18 + x, 0, 2, h); }
   });
   const glassMat = new THREE.MeshStandardMaterial({ map: glassTex, roughness: 0.12, metalness: 0.25, envMapIntensity: 1.1 });
+  if (T.style === 'haunted') { glassMat.emissive = new THREE.Color(0x3aff8a); glassMat.emissiveIntensity = 0.4; }      // ánh xanh ma quái trong nhà
+  else if (T.night || T.style === 'volcano') { glassMat.emissive = new THREE.Color(0xffa040); glassMat.emissiveIntensity = 0.35; }
   const shutterTex = ctex(64, 128, (g, w, h) => {
     g.fillStyle = '#' + new THREE.Color(shutterCol).getHexString(); g.fillRect(0, 0, w, h);
     for (let y = 8; y < h - 6; y += 7) { g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(6, y, w - 12, 2); g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(6, y + 2, w - 12, 1); }
@@ -849,6 +1026,7 @@ function buildHouse() {
     for (let x = 8.8; x < 15; x += 0.4) { box(0.16, 1.0, 0.07, white, s2 * x, 0.55, F + 0.6, H); const tp = new THREE.Mesh(geo('picktip', () => new THREE.ConeGeometry(0.115, 0.2, 4)), white); tp.rotation.y = Math.PI / 4; tp.scale.z = 0.4; put(tp, s2 * x, 1.15, F + 0.6, H); }
     box(6.4, 0.1, 0.06, white, s2 * 11.9, 0.85, F + 0.55, H); box(6.4, 0.1, 0.06, white, s2 * 11.9, 0.35, F + 0.55, H);
   }
+  houseDeco(H, F);
   H.updateMatrixWorld(true);
   door.house = H;
 }
@@ -1470,7 +1648,7 @@ function groundY(x, z) {
   if (sandAt(x, z)) return -0.42;
   if (Math.abs(x) > 50) return 0;
   if (z > 1 && z < 4.6) return 0.14;
-  const ax = Math.abs(x), dz = z - HOUSE_FRONT, F = 0.24;
+  const ax = Math.abs(x), dz = z - HOUSE_FRONT, F = 0.5;    // bước chân vươn tới ~0.4m: chân trước chạm bậc là cả người lên bậc
   if (ax < 1.6 + F && dz < 0.95 + F) return 0.74 * HS;          // bậc trên (+ viền)
   if (ax < 1.75 + F && dz < 1.45 + F) return 0.39 * HS;         // bậc dưới (+ viền)
   if (ax > 1.85 && ax < 5.7 && dz < 0.9) return 0.18 * HS;      // bồn hoa sát tường
@@ -1962,7 +2140,7 @@ const SPAWN = {
     const it = newItem('bees', u, mkBees(), { labelY: 1.0, life: 6.5, cd: 0 });
     it.g.position.copy(DOOR_POS()); it.state = 'chase'; openDoor(0.6); sfx('hiss');
   },
-  crows: u => { for (let i = 0; i < 5; i++) later(i * 0.3, () => { if (state.phase === 'play') SPAWN.crow1(u); }); if (u !== MAP_OWNER) banner('🐦 ĐÀN QUẠ!', esc(u.name) + ' thả quạ'); else popText(new V3(mon.x, mon.y + 3.6, mon.z), '🐦 QUẠ!', 'info', 1); },
+  crows: u => { for (let i = 0, n = u === MAP_OWNER ? 3 : 5; i < n; i++) later(i * 0.3, () => { if (state.phase === 'play') SPAWN.crow1(u); }); if (u !== MAP_OWNER) banner('🐦 ĐÀN QUẠ!', esc(u.name) + ' thả quạ'); else popText(new V3(mon.x, mon.y + 3.6, mon.z), '🐦 QUẠ!', 'info', 1); },
   crow1: u => {
     const it = newItem('crow', u, mkCrow(), { noLabel: true, noRescale: true });
     const from = new V3(mon.x + rand(-7, 7), rand(8, 11), mon.z - rand(8, 15)), T = rand(1.0, 1.35), to = predictMon(T, 1.5);
@@ -2678,7 +2856,7 @@ function mapRoundT() { return CONFIG.roundSeconds + 20 * (state.map || 0); }    
 function startIntro() {
   setPhase('intro', 3.6); state.count = 4;
   door.tier = 0; door.over = 0; door.maxHp = door.hp = mapDoorHp(); state.roundT = mapRoundT();
-  doorLabel.querySelector('.dt').textContent = DOOR_NAME[0];
+  doorLabel.querySelector('.dt').textContent = T.house === 'castle' ? '🏰 CỔNG LÂU ĐÀI' : DOOR_NAME[0];
   state.cp = false; drawCp(false); state.dynT = T.dynEvery || 0; state.quakeT = 0;
   for (let i = 0; i < (T.props || 0); i++) placeProp(T.prop);
   for (let i = 0; i < (T.hazN || 0); i++) placeHazard(Array.isArray(T.haz) ? pick(T.haz) : T.haz);
@@ -2722,15 +2900,15 @@ function resetRound() {
 let smokeT = 0;
 function updatePhase(dt) {
   smokeT -= dt;
-  if (smokeT <= 0 && state.phase !== 'loading' && T.house !== 'castle') {                               // khói ống khói
+  if (smokeT <= 0 && state.phase !== 'loading' && T.house !== 'castle' && T.style !== 'adobe') {                               // khói ống khói
     smokeT = 0.35;
-    puff(new V3(4.5 * HS, 11.4 * HS, HOUSE_FRONT - 5 * HS - 1.8 * HS), { color: 0xe6e6e6, n: 1, size: 0.9, speed: 0.25, up: 1.5, grav: -0.5, life: 3.2, grow: 3, opacity: 0.32 });
+    puff(new V3(4.5 * HS, 11.4 * HS, HOUSE_FRONT - 5 * HS - 1.8 * HS), { color: T.style === 'volcano' ? 0x3a302c : 0xe6e6e6, n: 1, size: 0.9, speed: 0.25, up: 1.5, grav: -0.5, life: 3.2, grow: 3, opacity: T.style === 'volcano' ? 0.55 : 0.32 });
   }
   for (let i = timers.length - 1; i >= 0; i--) if (time >= timers[i].t) { const f = timers[i].fn; timers.splice(i, 1); f(); }
   if (state.phase === 'intro') {
     state.t -= dt;
     const c = Math.ceil(state.t - 0.6);
-    if (c !== state.count) { state.count = c; if (c > 0) { banner(String(c), `Ván ${state.round || 1} • 🗺️ Map ${state.map + 1}: ${T.name} • ${T.length}m`); sfx('beep'); } else { banner('PHÁ NHÀ!', T.warn ? '⚠️ ' + T.warn : ''); sfx('go'); } }
+    if (c !== state.count) { state.count = c; if (c > 0) { banner(String(c), `Ván ${state.round || 1} • 🗺️ Map ${state.map + 1}: ${T.name} • ${T.length}m`); sfx('beep'); } else { banner('PHÁ NHÀ!', T.warn || ''); sfx('go'); } }
     if (state.t <= 0) setPhase('play', 0);
   } else if (state.phase === 'play') {
     if (CONFIG.timerOn) { state.roundT -= dt; if (state.roundT <= 0) { state.roundT = 0; endRound('viewers'); } }
