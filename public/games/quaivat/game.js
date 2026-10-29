@@ -821,6 +821,26 @@ function hpLogoMat() {
   _hpLogoMat = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 });   // giữ đúng màu logo
   return _hpLogoMat;
 }
+// hình xăm: chỉ giữ nét chữ trắng của logo + khung bo góc, tô mực xanh sẫm, hơi trong để hoà vào da
+let _hpTattooMat = null;
+function hpTattooMat() {
+  if (_hpTattooMat) return _hpTattooMat;
+  const c = document.createElement('canvas'); c.width = 256; c.height = 160;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  const im = new Image();
+  im.onload = () => {
+    const g = c.getContext('2d'), S = 150, ox = (256 - S) / 2, oy = 5;
+    g.drawImage(im, ox, oy, S, S * 410 / 415);
+    const d = g.getImageData(0, 0, 256, 160), a = d.data;
+    for (let i = 0; i < a.length; i += 4) { const white = a[i + 3] > 40 && a[i] > 225 && a[i + 1] > 225 && a[i + 2] > 225; a[i] = 18; a[i + 1] = 36; a[i + 2] = 16; a[i + 3] = white ? 215 : 0; }
+    g.putImageData(d, 0, 0);
+    g.strokeStyle = 'rgba(18,36,16,.8)'; g.lineWidth = 8; g.beginPath(); g.roundRect(ox + 4, oy + 4, S - 8, S * 410 / 415 - 8, 34); g.stroke();
+    t.needsUpdate = true;
+  };
+  im.src = '/hp-logo-pink.svg';
+  _hpTattooMat = new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.85, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 });
+  return _hpTattooMat;
+}
 function hpLogo(size, x, y, z, rx, parent) {
   const m = new THREE.Mesh(geo('hplogo', () => new THREE.PlaneGeometry(1, 1)), hpLogoMat());
   m.scale.setScalar(size); m.rotation.x = rx || 0; put(m, x, y, z, parent, false); return m;
@@ -1421,8 +1441,16 @@ function addRibcage(model, wrap, mats, ribs) {
   };
   const front = surface([hips], hy + 0.03, ny, 1);                                                  // bụng trên thắt lưng (đầu to che ngực)
   if (ribs && front) { const g = patch(1, false); g.position.set(0, front.cy, front.z - 0.005); wrap.add(g); wrap.updateMatrixWorld(true); hips.attach(g); }
-  const back = surface([torso, hips, model.getObjectByName('Abdomen')].filter(Boolean), hy + 0.08, ny + 0.05, -1);   // lưng: camera luôn ở sau → thấy rõ nhất
-  if (back) { const lg = hpLogo(0.24, 0, back.cy, back.z - 0.025, 0, wrap); lg.rotation.y = Math.PI; wrap.updateMatrixWorld(true); torso.attach(lg); }   // logo HP sau lưng (camera luôn ở sau)
+  // hình xăm logo HP giữa lưng (camera luôn ở sau): nét mực sẫm, uốn theo lưng, nằm cao trên thắt lưng
+  const bones = [torso, hips, model.getObjectByName('Abdomen')].filter(Boolean), ty = hy + 0.55 * (ny - hy);
+  const backZ = y => { let z = 9; for (let i = 0; i < p.count; i++) { w.fromBufferAttribute(p, i).applyMatrix4(mesh.matrixWorld); if (Math.abs(w.x) < 0.12 && Math.abs(w.y - y) < 0.03) z = Math.min(z, w.z); } return z; };   // mặt lưng thật
+  const bz = backZ(ty), bzU = backZ(ty + 0.06), bzD = backZ(ty - 0.06);
+  const back = bz < 9 ? { cy: ty, z: bz, tilt: bzU < 9 && bzD < 9 ? Math.atan2(bzU - bzD, 0.12) : 0 } : surface(bones, hy + 0.08, ny + 0.05, -1);
+  if (back) {
+    const r = 0.34, th = 0.56, m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.12, 12, 1, true, Math.PI - th / 2, th), hpTattooMat());   // cung 0.19m × cao 0.12m (đúng tỉ lệ ảnh 256×160)
+    m.geometry.translate(0, 0, r);                                                   // cung xăm nằm ở gốc toạ độ → nghiêng quanh đúng điểm áp lưng
+    m.rotation.x = back.tilt || 0; m.position.set(0, back.cy, back.z - 0.012); wrap.add(m); wrap.updateMatrixWorld(true); torso.attach(m);
+  }
   if (ribs) for (const m of mats) m.color.multiply(new THREE.Color(0xc4d2bc));                                  // da tái xám
 }
 function setupZombieGLB(gltf) {
