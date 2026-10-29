@@ -116,6 +116,7 @@ const { OBSSettings } = require('./lib/obs-settings');
 const PORT = process.env.PORT || 3000;
 const CaptionListener = require('./lib/caption-listener');
 const { createRankLog } = require('./lib/rank-log');
+const LeagueCard = require('./lib/league-card');
 
 // Domain giả trỏ về loopback (127.0.0.1) qua hosts file — cố định "hpaction.obs" cho mọi máy
 // (không suy từ tên máy, để URL giống nhau trên mọi cài đặt HP Action LIVE). Lý do đầy đủ +
@@ -447,6 +448,17 @@ const GAMES = {
         icon: '📋',
         overlayPath: '/_prototype/giftboard.html?mode=overlay',
         defaultConfig: makeDefaultGiftBoardConfig()
+    },
+    // 🏆 THẺ GIẢI ĐẤU: bậc D5→S + mảnh + hạng BXH + thiếu bao nhiêu điểm để giữ hạng (gói rankUpdate của TikTok).
+    // Logic thuần lib/league-card.js; overlay public/games/leaguecard/. Config phẳng (route /config merge nông).
+    // Spec: docs/superpowers/specs/2026-10-30-leaguecard-design.md
+    'leaguecard': {
+        id: 'leaguecard',
+        name: 'Thẻ Giải Đấu',
+        description: 'Góc màn OBS: bậc giải đấu, mảnh, hạng BXH, thiếu bao nhiêu điểm để giữ hạng (quy ra quà), vinh danh người giữ hạng. 3 kiểu × 20 skin.',
+        icon: '🏆',
+        overlayPath: '/overlay/leaguecard',
+        defaultConfig: makeDefaultLeagueCardConfig()
     },
     // TOUCH & PLAY (prototype): game webcam — overlay nhận hình nguồn camera trong scene OBS
     // (lib/touchplay-obs-feed.js) + MediaPipe (public/lib/mediapipe), chạm bóng / gắp đồ ăn đưa lên
@@ -1063,6 +1075,26 @@ function makeDefaultNhatLaConfig() {
         giftRules: [],            // [{ id, giftId, giftName, count }] — quà chỉ định rơi N lá
         coinsPerLeaf: 1,          // quà không có rule: N coin = 1 lá (0 = bỏ qua)
         defaultLeavesPerGift: 0   // legacy fallback, giữ để config cũ không lỗi
+    };
+}
+
+// ====== 🏆 Thẻ Giải Đấu — defaults (phải khớp DEFAULTS trong public/games/leaguecard/league-card.js) ======
+function makeDefaultLeagueCardConfig() {
+    return {
+        enabled: true,
+        style: 'A',               // A Khiên + bảng | B Thanh gọn | C Vòng tiến độ
+        skin: 'royal',            // 20 skin — danh sách SKINS trong league-card.js
+        xPercent: 97,             // mép PHẢI của thẻ (thẻ mọc sang trái từ khiên), % chiều ngang 1080
+        yPercent: 4,              // mép trên, % chiều dọc 1920
+        scale: 100,
+        maxStars: 5,              // số mảnh tối đa mỗi bậc — chưa biết chắc, chờ log thật
+        golden: false,            // "Giờ vàng" (teamRankBonusTime) — suy đoán, mặc định tắt
+        autoCollapse: true,
+        collapseAfterSec: 20,
+        convertMode: 'auto',      // auto | manual | off — quy "thiếu X điểm" ra số quà
+        convertGifts: [],         // manual: tối đa 2 id quà
+        rescuer: true,            // vinh danh người giữ hạng
+        dangerMinutes: 30         // còn ≤ N phút tới giờ chốt mà vẫn thiếu điểm → sắp rớt
     };
 }
 
@@ -3568,6 +3600,34 @@ function isTikTokLiveConnected() { return !!(connection && liveConnected); }
 // ra <DATA_DIR>/tiktok-rank-log/<ngày>.jsonl để biết TikTok thật sự gửi gì. Xem: GET /api/rank-log.
 const rankLog = createRankLog({ dir: path.join(DATA_DIR, 'tiktok-rank-log') });
 
+// ====== 🏆 Thẻ Giải Đấu: rankUpdate → tracker → 'league:state' + 'league:event' cho overlay ======
+const leagueTracker = LeagueCard.createLeagueTracker({ dangerMinutes: 30 });
+let leagueRoomId = null;
+function leagueCfg() { return { ...makeDefaultLeagueCardConfig(), ...(appConfig.games?.leaguecard || {}) }; }
+function leagueEmit(events) {
+    io.emit('league:state', leagueTracker.snapshot());
+    for (const ev of events || []) io.emit('league:event', ev);
+}
+// Kết nối phòng MỚI → xoá số cũ; tự nối lại cùng phòng thì giữ nguyên.
+function leagueStartRoom() {
+    if (currentRoomId && currentRoomId === leagueRoomId) return;
+    leagueRoomId = currentRoomId || null;
+    leagueTracker.reset();
+    leagueEmit([]);
+}
+function leagueOnRankUpdate(data) {
+    const parsed = LeagueCard.parseRankUpdate(data);
+    if (!parsed) return;
+    leagueTracker.setDangerMinutes(leagueCfg().dangerMinutes);
+    leagueEmit(leagueTracker.applyRankUpdate(parsed));
+}
+function leagueOnGift(g) {
+    if (leagueCfg().rescuer === false) return;
+    const coins = (Number(g.coinValue) || 0) * Math.max(1, parseInt(g.repeatCount, 10) || 1);
+    const ev = leagueTracker.applyGift({ uniqueId: g.uniqueId || g.userId, nickname: g.nickname, profilePicture: g.profilePicture, coins });
+    if (ev) leagueEmit([ev]);
+}
+
 // Chống spam toast: lib bắn ERROR cho cả lỗi decode message WebSocket lặp lại giữa buổi live.
 let lastTikTokErrorToast = { message: '', ts: 0 };
 function attachConnectionEvents(conn, lib) {
@@ -3576,10 +3636,15 @@ function attachConnectionEvents(conn, lib) {
         if (conn !== connection) return;
         try { rankLog.record(method, data, { roomId: currentRoomId }); } catch (e) {}
     });
+    conn.on(WebcastEvent.RANK_UPDATE || 'rankUpdate', (data) => {
+        if (conn !== connection) return;
+        try { leagueOnRankUpdate(data); } catch (e) { console.warn('[leaguecard] rankUpdate lỗi:', e?.message || e); }
+    });
     conn.on(ControlEvent.CONNECTED, (state) => {
         liveConnected = true;
         currentRoomId = state?.roomId;
         vipStartRoom();
+        leagueStartRoom();
         captionAutoStartOnLive();
         broadcast('status', { connected: true, username: currentUsername, roomId: currentRoomId });
         setLiveDashboardStatus(true, { username: currentUsername, roomId: currentRoomId });
@@ -4242,6 +4307,43 @@ app.get('/api/rank-log', (req, res) => {
     res.json({ ok: true, ...rankLog.stats(), recent: rankLog.recent(n) });
 });
 
+// 🏆 Thẻ Giải Đấu — trạng thái hiện tại (overlay/panel lấy lúc mở) + mô phỏng gói rankUpdate để thử OBS
+// khi chưa LIVE. Mô phỏng đi QUA ĐÚNG bộ đọc parseRankUpdate như gói thật.
+app.get('/api/leaguecard/state', (req, res) => res.json({ ok: true, state: leagueTracker.snapshot() }));
+let leagueSim = null;
+function leagueSimPacket(s) {
+    return { updates: [{ rankType: 13, ownRank: String(s.rank), currentScore: String(s.score), countdown: String(s.countdown),
+        classInfo: { classType: s.classType, starCount: String(s.stars) },
+        affiliatedInfo: { realTimeRank: String(s.rank),
+            gapDesc: s.need > 0 ? { defaultPattern: 'Còn thiếu {0:string} điểm để giữ hạng', pieces: [{ stringValue: s.need.toLocaleString('en-US') }] } : { defaultPattern: 'Đã giữ hạng', pieces: [] },
+            teamRankBonusTime: s.bonus ? { switch: true, startTimestamp: String(Math.floor(Date.now() / 1000) - 60), endTimestamp: String(Math.floor(Date.now() / 1000) + 900), bonusRate: '2', bonusTimeGiftId: s.bonusGiftId || '' } : undefined } }] };
+}
+const LEAGUE_SIM_NAMES = [['lan.anh', 'Lan Anh 🌸'], ['tuan_kiet', 'Tuấn Kiệt'], ['mai.mai', 'Mai Mai'], ['hoang.long99', 'Hoàng Long']];
+app.post('/api/leaguecard/simulate', (req, res) => {
+    const kind = String(req.body?.kind || '');
+    const fresh = () => ({ classType: 1400, stars: 3, rank: 12, score: 8000, need: 1250, countdown: 7200, bonus: false });
+    if (!leagueSim || kind === 'reset') { leagueSim = fresh(); if (kind === 'reset') leagueTracker.reset(); }
+    const s = leagueSim;
+    if (kind === 'clear') { leagueSim = null; leagueTracker.reset(); leagueEmit([]); return res.json({ ok: true }); }
+    if (kind === 'gift') {
+        const [uniqueId, nickname] = LEAGUE_SIM_NAMES[Math.floor(Math.random() * LEAGUE_SIM_NAMES.length)];
+        const ev = leagueTracker.applyGift({ uniqueId, nickname, profilePicture: '', coins: [99, 299, 500, 1000][Math.floor(Math.random() * 4)] });
+        leagueEmit(ev ? [ev] : []);
+        return res.json({ ok: true, state: leagueTracker.snapshot() });
+    }
+    if (kind === 'rankUp') { s.rank = Math.max(1, s.rank - 3); s.score += 600; s.need = Math.max(0, s.need - 600); }
+    else if (kind === 'rankDown') { s.rank += 4; s.need += 800; }
+    else if (kind === 'star') s.stars = Math.min(9, s.stars + 1);
+    else if (kind === 'danger') { s.rank = 58; s.need = 4870; s.score = 3000; s.countdown = 520; }
+    else if (kind === 'kept') { s.need = 0; s.rank = Math.min(s.rank, 20); }
+    else if (kind === 'promo') { s.classType = Math.min(2100, s.classType + 100); s.stars = 0; s.rank = 4; s.need = 0; s.countdown = 25200; }
+    else if (kind === 'demote') { s.classType = Math.max(100, s.classType - 100); s.stars = Math.max(0, s.stars - 1); s.rank = 61; s.need = 2300; s.countdown = 25200; }
+    else if (kind === 'bonus') s.bonus = !s.bonus;
+    leagueTracker.setDangerMinutes(leagueCfg().dangerMinutes);
+    leagueEmit(leagueTracker.applyRankUpdate(LeagueCard.parseRankUpdate(leagueSimPacket(s))));
+    res.json({ ok: true, state: leagueTracker.snapshot() });
+});
+
 // ====== Unknown gifts detector ======
 // Khi TikTok đẩy gift event với giftId KHÔNG có trong Google Sheet → ghi nhận để user
 // biết và bổ sung sau. Persist sang đĩa để không mất qua restart.
@@ -4684,6 +4786,7 @@ function emitGift(g) {
     console.log(`[gift] emit → ${enriched.nickname || enriched.uniqueId} sent "${enriched.giftName || '?'}" (id=${enriched.giftId}, x${enriched.repeatCount || 1}, ${enriched.coinValue || 0}💎)`);
     io.emit('gift', enriched);
     setLiveDashboardGift(enriched);
+    try { leagueOnGift(enriched); } catch (e) { console.warn('[leaguecard] gift lỗi:', e?.message || e); }
     // Push to all game overlays
     io.to('overlay').emit('gameGift', enriched);
     io.to('preview').emit('gameGift', enriched);
@@ -5090,6 +5193,7 @@ async function connectToUser(username, opts = {}) {
         streamEnded = false;
         currentRoomId = state?.roomId;
         vipStartRoom();   // sổ ghé phòng: 1 roomId = 1 buổi (nối lại giữa buổi giữ roomId → không mở buổi mới)
+        leagueStartRoom();   // 🏆 Thẻ Giải Đấu: phòng mới → xoá số cũ
         captionAutoStartOnLive({ newSession: !preserveSession });   // phụ đề giọng: tự mở cửa sổ nghe Edge/Chrome nếu bật
         // Synthetic "host vào phòng" event — TikTok không fire MEMBER cho HOST tự kết nối live của mình.
         // roomInfo là envelope JSON của TikTok {data:{owner:{id_str, display_id, nickname, avatar_thumb, follow_info...}}, extra,
@@ -6698,6 +6802,9 @@ app.get('/overlay/caro', (req, res) => {
 });
 app.get('/overlay/pktiktok', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'pktiktok', 'overlay.html'));
+});
+app.get('/overlay/leaguecard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'leaguecard', 'overlay.html'));
 });
 app.get('/overlay/vipwelcome', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'vipwelcome', 'overlay.html'));

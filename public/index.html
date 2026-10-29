@@ -282,6 +282,21 @@
                 </div>
             </section>
 
+            <!-- GAME VIEW: 🏆 THẺ GIẢI ĐẤU — nội dung do public/games/leaguecard/leaguecard-panel.js dựng -->
+            <section id="view-leaguecard" class="view game-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🏆 Thẻ Giải Đấu</h2>
+                        <div class="game-sub">Bậc giải đấu · mảnh · hạng BXH · thiếu bao nhiêu để giữ hạng — góc màn OBS</div>
+                    </div>
+                    <div class="overlay-bar">
+                        <button class="obs-link small" id="btn-leaguecard-copy" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
+                        <button class="ghost small" id="btn-leaguecard-pop" title="Mở overlay thật trong cửa sổ riêng">🪟 Xem overlay</button>
+                    </div>
+                </header>
+                <div id="leaguecard-panel" class="leaguecard-panel"></div>
+            </section>
+
             <!-- GAME VIEW: Hủ Thủy Tinh -->
             <section id="view-thuytinh" class="view game-view">
                 <header class="game-header">
@@ -2976,6 +2991,8 @@
     <script src="/games/thuytinh/jar-text.js"></script>
     <script src="/games/thuytinh/game.js"></script>
     <script src="/games/caro/game.js"></script>
+    <script src="/games/leaguecard/league-card.js"></script>
+    <script src="/games/leaguecard/leaguecard-panel.js"></script>
     <script src="/games/caro/caro-panel.js"></script>
     <script src="/games/pktiktok/game.js"></script>
     <script src="/games/pktiktok/pktiktok-panel.js"></script>

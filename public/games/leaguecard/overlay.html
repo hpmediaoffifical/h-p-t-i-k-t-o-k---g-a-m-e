@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>🏆 Thẻ Giải Đấu — overlay</title>
+<!-- OBS Browser Source 1080×1920, nền trong suốt. Link: /overlay/leaguecard
+     ?demo=1 → tự chạy kịch bản giả (khung xem trước trong app), nhận cfg từ trang cha qua postMessage {type:'leaguecard:cfg'}.
+     Dữ liệu thật: socket 'league:state' + 'league:event' (server.js leagueEmit). -->
+<link rel="stylesheet" href="/games/leaguecard/league-card.css">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body.demo { background: repeating-conic-gradient(#ffffff0d 0 25%, #0000 0 50%) 0 0/24px 24px, linear-gradient(160deg, #1d2733, #3a2a3e 55%, #1b1f2a); }
+</style>
+</head>
+<body>
+<div id="lc-root" class="lg hidden"></div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/games/leaguecard/league-card.js"></script>
+<script>
+(function () {
+  'use strict';
+  const qs = new URLSearchParams(location.search);
+  const DEMO = qs.get('demo') === '1';
+  const R = window.HpLeagueCard.createRenderer(document.getElementById('lc-root'), DEMO ? { baseScale: 0.7 } : null);
+  if (DEMO) document.body.classList.add('demo');
+
+  fetch('/api/gifts').then((r) => r.json()).then((list) => R.setGifts(list)).catch(() => {});
+
+  if (DEMO) {
+    // ===== Kịch bản giả cho khung xem trước (không cần LIVE) =====
+    const now = () => Date.now();
+    let L = { division: 'B2', stars: 3, rank: 12, score: 8000, need: 1250, deadlineTs: now() + 2 * 3600e3, bonus: { on: true, startTs: now() - 6e4, endTs: now() + 9e5, rate: 2, giftId: null } };
+    let danger = false, rescue = { active: false, top: [] };
+    const keep = () => (L.need <= 0 ? 100 : Math.round(L.score / (L.score + L.need) * 100));
+    const push = (events) => R.update({ league: { ...L }, danger, keepPct: keep(), rescue, lastRescue: null }, events || []);
+    const STEPS = [
+      () => push([]),
+      () => { const f = L.rank; L.rank = 9; L.need = 650; L.score = 8600; push([{ type: 'rank', from: f, to: 9 }]); },
+      () => { L.stars = 4; push([{ type: 'star', delta: 1, from: 3, to: 4 }]); },
+      () => { L.rank = 58; L.need = 4870; L.score = 3000; L.deadlineTs = now() + 8 * 60e3; danger = true; rescue = { active: true, top: [] }; push([{ type: 'rank', from: 9, to: 58 }, { type: 'danger' }]); },
+      () => { rescue = { active: true, top: [{ uniqueId: 'lan.anh', nickname: 'Lan Anh 🌸', coins: 1500 }] }; L.need = 3370; push([{ type: 'rescuer' }]); },
+      () => { rescue = { active: true, top: [{ uniqueId: 'lan.anh', nickname: 'Lan Anh 🌸', coins: 4900 }] }; L.need = 0; L.rank = 20; danger = false;
+              const r = rescue.top[0]; rescue = { active: false, top: [] }; push([{ type: 'safe' }, { type: 'kept', rescuer: r }]); },
+      () => { L.division = 'B1'; L.stars = 0; L.rank = 4; L.deadlineTs = now() + 7 * 3600e3; push([{ type: 'promo', from: 'B2', to: 'B1' }]); },
+      () => { L.division = 'B2'; L.stars = 3; L.rank = 12; L.need = 1250; L.score = 8000; L.deadlineTs = now() + 2 * 3600e3; R.replay(); push([]); },
+    ];
+    let k = 0;
+    STEPS[0]();
+    setInterval(() => { k = (k + 1) % STEPS.length; STEPS[k](); }, 3800);
+    window.addEventListener('message', (e) => {
+      if (e.origin !== location.origin) return;
+      if (e.data && e.data.type === 'leaguecard:cfg') R.setCfg(Object.assign({}, e.data.cfg, { enabled: true }));
+    });
+    window.parent && window.parent !== window && window.parent.postMessage({ type: 'leaguecard:ready' }, location.origin);
+    return;
+  }
+
+  // ===== Dữ liệu thật =====
+  function loadCfg() {
+    return fetch('/api/games').then((r) => r.json()).then((list) => {
+      const g = (list || []).find((x) => x.id === 'leaguecard');
+      R.setCfg(g && g.config);
+    }).catch(() => {});
+  }
+  loadCfg();
+  fetch('/api/leaguecard/state').then((r) => r.json()).then((d) => d && d.state && R.update(d.state, [])).catch(() => {});
+
+  const socket = io({ transports: ['websocket', 'polling'] });
+  socket.on('connect', () => { socket.emit('subscribe', 'overlay'); loadCfg(); });
+  socket.on('gameConfig', (d) => { if (d && d.gameId === 'leaguecard') R.setCfg(d.config); });
+  socket.on('gameEnabled', (d) => { if (d && d.gameId === 'leaguecard') loadCfg(); });
+  socket.on('gameDisabled', (d) => { if (d && d.gameId === 'leaguecard') loadCfg(); });
+  socket.on('giftSheet', (list) => Array.isArray(list) && R.setGifts(list));
+  socket.on('league:state', (s) => R.update(s, []));
+  socket.on('league:event', (ev) => ev && R.update(null, [ev]));
+  socket.on('overlay:reload', (d) => { if (!d || !d.gameId || d.gameId === 'leaguecard') location.reload(); });
+})();
+</script>
+</body>
+</html>
