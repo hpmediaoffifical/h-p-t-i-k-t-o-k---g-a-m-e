@@ -1,0 +1,499 @@
+{
+ "_note": "⛓️ Nhà Tù Online — dữ liệu game (tên NPC, câu chat, lịch trại, hành động). Cài đặt theo LIVE nằm trong config nt* của server.",
+ "tuning": {
+  "walkSpeed": 3.4,
+  "runSpeed": 6.0,
+  "npcWalkSpeed": 2.3,
+  "jumpVelocity": 6.2,
+  "gravity": 18,
+  "seed": 1809,
+  "chatIntervalSec": [
+   4,
+   9
+  ],
+  "dirtSpawnSec": 16,
+  "dirtMax": 8,
+  "cleanHoldSec": 1.4
+ },
+ "schedule": [
+  {
+   "start": "00:00",
+   "key": "sleep",
+   "label": "Giờ ngủ"
+  },
+  {
+   "start": "05:30",
+   "key": "rollcall",
+   "label": "Điểm danh"
+  },
+  {
+   "start": "06:30",
+   "key": "exercise",
+   "label": "Thể dục"
+  },
+  {
+   "start": "07:30",
+   "key": "meal",
+   "label": "Ăn sáng"
+  },
+  {
+   "start": "08:30",
+   "key": "work",
+   "label": "Lao động"
+  },
+  {
+   "start": "10:00",
+   "key": "free",
+   "label": "Giờ tự do"
+  },
+  {
+   "start": "11:30",
+   "key": "meal",
+   "label": "Ăn trưa"
+  },
+  {
+   "start": "12:30",
+   "key": "rest",
+   "label": "Nghỉ trưa"
+  },
+  {
+   "start": "14:00",
+   "key": "work",
+   "label": "Lao động"
+  },
+  {
+   "start": "16:00",
+   "key": "free",
+   "label": "Giờ tự do"
+  },
+  {
+   "start": "17:30",
+   "key": "meal",
+   "label": "Ăn tối"
+  },
+  {
+   "start": "18:30",
+   "key": "free",
+   "label": "Giờ tự do"
+  },
+  {
+   "start": "21:00",
+   "key": "sleep",
+   "label": "Giờ ngủ"
+  }
+ ],
+ "hints": {
+  "sleep": "Về phòng của bạn và nhấn E để đi ngủ.",
+  "rollcall": "Ra sân bóng, tới gần cán bộ và nhấn E để báo cáo có mặt.",
+  "exercise": "Ra sân bóng và nhấn E để tập thể dục cùng mọi người.",
+  "meal": "Ngồi vào bàn ăn và nhấn E để ăn cơm.",
+  "work": "Tìm vết bẩn trên sàn, giữ E để lau sạch và nhận xu.",
+  "free": "Tự do! Ném bóng rổ, ngồi chơi hoặc bắt chuyện với bạn tù.",
+  "rest": "Về phòng nghỉ trưa (nhấn E trong phòng)."
+ },
+ "names": [
+  "Lu Bu",
+  "Sửu Ẩu",
+  "Gấu Xám",
+  "Chin Mập",
+  "Thần Khí",
+  "Bin Béo",
+  "Sáo Sậu",
+  "Thìn Rồng",
+  "Mùi Mít",
+  "Nấm Nhót",
+  "Đậu Phộng",
+  "Tôm Hùm",
+  "Mít Ướt",
+  "Tuất Lùn",
+  "Mắc Ke",
+  "Ngo Ngố",
+  "Bé Na",
+  "Hội Lình",
+  "Đậu Gỡ",
+  "Huấn Hoa Hệu",
+  "Cò Ma",
+  "Tí Nị",
+  "Bờm Xờm",
+  "Khoai Lang",
+  "Cu Đen",
+  "Sún Răng",
+  "Bắp Rang",
+  "Mướp Đắng",
+  "Su Hào",
+  "Ốc Bươu",
+  "Cá Rô",
+  "Ếch Ộp",
+  "Tèo Còi",
+  "Lạc Rang",
+  "Bí Đỏ",
+  "Dưa Leo",
+  "Chuột Nhắt",
+  "Sóc Nâu",
+  "Gà Mờ",
+  "Vịt Bầu",
+  "Rùa Già",
+  "Mèo Mướp",
+  "Cún Con",
+  "Tũn Mũn",
+  "Xoăn Tít",
+  "Lùn Tịt",
+  "Hói Đầu",
+  "Kẹo Kéo",
+  "Bánh Bao",
+  "Xôi Gấc",
+  "Chè Đậu",
+  "Mận Hậu",
+  "Bơ Sáp",
+  "Sầu Riêng",
+  "Me Chua",
+  "Thỏ Ngọc",
+  "Khỉ Gió"
+ ],
+ "guards": [
+  "Cán bộ Lan",
+  "Cán bộ Hùng",
+  "Cán bộ Tuấn"
+ ],
+ "chat": {
+  "free": [
+   "Ae tập thể dục chưa?",
+   "Chiều có mỡ thêm muối!",
+   "Ra trại là mở quán phở!",
+   "Ai chơi bóng rổ không?",
+   "Hôm nay trời đẹp ghê.",
+   "Nhớ nhà quá ae ơi...",
+   "Phòng A-07 ngày to quá!",
+   "Ai mượn tui cuộn giấy chưa trả?",
+   "Mai có người thăm nuôi nè!",
+   "Ném trúng 3 quả liền nha!",
+   "Cải tạo tốt, về sớm!",
+   "Đánh cờ tướng không ông?",
+   "Tui gạch được 300 ngày rồi đó.",
+   "Viết thư cho mẹ chưa?",
+   "Bữa nay ăn gì vậy ta?",
+   "Ông nào hát karaoke hay nhất?",
+   "Đội bóng phòng A-03 vô địch!"
+  ],
+  "meal": [
+   "Cơm hôm nay có trứng!",
+   "Cho xin miếng canh.",
+   "Ngon hơn hôm qua đó.",
+   "Ai không ăn rau cho tui.",
+   "Chiều có mỡ thêm muối!",
+   "No căng bụng rồi."
+  ],
+  "work": [
+   "Lau sàn sạch bóng nè!",
+   "Lao động là vinh quang!",
+   "Ai cầm cây chổi của tui?",
+   "Mệt mà vui.",
+   "Chỗ kia còn dơ kìa!",
+   "Làm xong được nghỉ sớm."
+  ],
+  "exercise": [
+   "Một, hai, ba, bốn!",
+   "Hít vào... thở ra...",
+   "Mỏi tay quá!",
+   "Nhảy cao lên ae!"
+  ],
+  "rollcall": [
+   "Có mặt!",
+   "Đứng thẳng hàng vào!",
+   "Báo cáo đủ quân số!",
+   "Ai chưa tới vậy?"
+  ],
+  "rest": [
+   "Trưa rồi, chợp mắt tí.",
+   "Nóng quá ae.",
+   "Ai mở quạt giùm."
+  ],
+  "sleep": [
+   "Ngủ ngon ae.",
+   "Ai ngáy to vậy trời...",
+   "Tắt đèn rồi kìa.",
+   "Mai dậy sớm điểm danh đó."
+  ],
+  "guard": [
+   "Ăn nhẹ nói khẽ nhé!",
+   "Giữ trật tự!",
+   "Đúng giờ điểm danh nha!",
+   "Ai xả rác đó?",
+   "Cải tạo tốt sẽ được giảm án.",
+   "Xếp hàng ngay ngắn!"
+  ],
+  "talk": [
+   "Chào bạn mới!",
+   "Ông ở phòng nào?",
+   "Rảnh không, đánh cờ?",
+   "Đừng để cán bộ thấy nha.",
+   "Nghe nói chiều có mỡ thêm muối.",
+   "Ra trại nhớ ghé quán phở tui.",
+   "Ném bóng với tui không?",
+   "Ở đây lâu rồi, quen hết rồi.",
+   "Cố lên, điểm cao là được khen!"
+  ],
+  "joined": [
+   "Chào cả trại!",
+   "Tui mới nhập trại nè!",
+   "Phòng tui ở đâu vậy?",
+   "Xin chào mọi người!"
+  ],
+  "turn": [
+   "Tới lượt tui!",
+   "Xem tui nè!",
+   "Lên sóng rồi!"
+  ],
+  "boss": [
+   "Đại ca uống nước ạ!",
+   "Để em đấm lưng cho đại ca!",
+   "Đại ca đỉnh nhất trại!",
+   "Mì tôm nóng đây đại ca!",
+   "Chân đại ca thơm quá!",
+   "Đại ca cần gì cứ sai em!",
+   "Em quạt cho đại ca mát nha!",
+   "Đại ca nói gì cũng đúng!"
+  ],
+  "bossSelf": [
+   "Tốt lắm mấy chú!",
+   "Mạnh tay chút coi!",
+   "Trại này ai làm chủ?",
+   "Đại ca đây!",
+   "Ừ, ngoan lắm."
+  ],
+  "salute": [
+   "Chào cán bộ!",
+   "Dạ cán bộ!",
+   "Báo cáo cán bộ, em cải tạo tốt!"
+  ],
+  "party": [
+   "Mì ngon quá!",
+   "Húp sì sụp!",
+   "Khao nữa đi!",
+   "Cảm ơn chủ tiệc!"
+  ],
+  "karaoke": [
+   "🎵 Đêm nay trong trại vui ghê...",
+   "🎵 La la la ~",
+   "🎵 Ngày mai ra trại em về...",
+   "🎵 Hát cho cả trại cùng nghe!"
+  ],
+  "cheer": [
+   "Hay quá!",
+   "Hát nữa đi!",
+   "Đỉnh!",
+   "👏👏👏",
+   "Quá dữ!"
+  ],
+  "jailed": [
+   "Ơ sao tui bị nhốt?",
+   "Zzz...",
+   "Thả tui ra!"
+  ],
+  "freed": [
+   "Được thả rồi!",
+   "Tự do rồi!",
+   "Tui về rồi nè!"
+  ],
+  "visit": [
+   "Mẹ mang đồ ăn cho con nè!",
+   "Con cải tạo tốt nha!",
+   "Cả nhà nhớ con lắm!"
+  ],
+  "dogNear": [
+   "Á chó!",
+   "Đừng cắn tui!",
+   "Ngoan nha cún..."
+  ],
+  "pardon": [
+   "Tôi là tù nhân gương mẫu!",
+   "Cảm ơn cả trại!"
+  ]
+ },
+ "actions": [
+  {
+   "id": "ball",
+   "emoji": "🏀",
+   "label": "Ném bóng",
+   "keys": [
+    "1",
+    "b",
+    "bong",
+    "nem bong"
+   ],
+   "points": 3
+  },
+  {
+   "id": "mop",
+   "emoji": "🧽",
+   "label": "Lau sàn",
+   "keys": [
+    "2",
+    "l",
+    "lau",
+    "lau san"
+   ],
+   "points": 2
+  },
+  {
+   "id": "eat",
+   "emoji": "🍚",
+   "label": "Ăn cơm",
+   "keys": [
+    "3",
+    "a",
+    "an",
+    "an com"
+   ],
+   "points": 1
+  },
+  {
+   "id": "gym",
+   "emoji": "💪",
+   "label": "Tập thể dục",
+   "keys": [
+    "4",
+    "t",
+    "tap",
+    "the duc"
+   ],
+   "points": 1
+  },
+  {
+   "id": "dance",
+   "emoji": "💃",
+   "label": "Nhảy múa",
+   "keys": [
+    "5",
+    "n",
+    "nhay",
+    "nhay mua"
+   ],
+   "points": 1
+  },
+  {
+   "id": "sleep",
+   "emoji": "😴",
+   "label": "Đi ngủ",
+   "keys": [
+    "6",
+    "g",
+    "ngu",
+    "di ngu"
+   ],
+   "points": 1
+  },
+  {
+   "id": "salute",
+   "emoji": "👮",
+   "label": "Chào cán bộ",
+   "keys": [
+    "7",
+    "c",
+    "chao",
+    "chao can bo"
+   ],
+   "points": 1
+  }
+ ],
+ "demoNames": [
+  "Bé Mèo",
+  "Anh Ba Khía",
+  "Cô Út",
+  "Tèo Em",
+  "Bin Bin",
+  "Mập Ú",
+  "Chị Hai",
+  "Bé Bông",
+  "Ông Tư",
+  "Su Su",
+  "Nhóc Kun",
+  "Bà Năm"
+ ],
+ "giftActions": [
+  {
+   "id": "boss",
+   "emoji": "👑",
+   "label": "Lên làm Đại Ca",
+   "group": "role",
+   "desc": "Đội vương miện, đeo kính đen, ngồi ghế đại ca. Đàn em bu lại massa vai, lau chân, quạt mát, che ô, bưng mì. Người khác tặng quà này = cướp ngôi."
+  },
+  {
+   "id": "guard",
+   "emoji": "👮",
+   "label": "Làm Cán Bộ",
+   "group": "role",
+   "desc": "Khoác đồng phục cán bộ đi tuần, tù nhân gặp phải cúi chào."
+  },
+  {
+   "id": "party",
+   "emoji": "🍜",
+   "label": "Tiệc mì tôm",
+   "group": "event",
+   "desc": "Cả trại kéo ra bàn ăn mì tôm, người tặng là chủ tiệc."
+  },
+  {
+   "id": "karaoke",
+   "emoji": "🎤",
+   "label": "Hát karaoke",
+   "group": "event",
+   "desc": "Người tặng cầm micro ra sân hát, cả trại vây quanh cổ vũ."
+  },
+  {
+   "id": "armwrestle",
+   "emoji": "💪",
+   "label": "Vật tay",
+   "group": "event",
+   "desc": "Người tặng vật tay với một bạn tù, thắng được cộng điểm."
+  },
+  {
+   "id": "dog",
+   "emoji": "🐕",
+   "label": "Chó nghiệp vụ",
+   "group": "event",
+   "desc": "Chó cảnh sát đi theo người tặng 90 giây, sủa ai lại gần."
+  },
+  {
+   "id": "cat",
+   "emoji": "🐈",
+   "label": "Mèo trại",
+   "group": "event",
+   "desc": "Mèo cưng đi theo người tặng 2 phút."
+  },
+  {
+   "id": "visit",
+   "emoji": "🧺",
+   "label": "Thăm nuôi",
+   "group": "event",
+   "desc": "Người thân tới cổng mang giỏ quà cho người tặng."
+  },
+  {
+   "id": "inspect",
+   "emoji": "🚨",
+   "label": "Khám phòng",
+   "group": "event",
+   "desc": "Còi báo động: cả trại xếp hàng, cán bộ đi khám từng phòng."
+  },
+  {
+   "id": "flashmob",
+   "emoji": "🕺",
+   "label": "Flashmob",
+   "group": "event",
+   "desc": "Cả trại nhảy múa tập thể."
+  },
+  {
+   "id": "lightsout",
+   "emoji": "🌙",
+   "label": "Tắt đèn",
+   "group": "event",
+   "desc": "Tắt đèn 15 giây, cả trại ngủ gật."
+  },
+  {
+   "id": "pardon",
+   "emoji": "🎆",
+   "label": "Ân xá",
+   "group": "event",
+   "desc": "Người tặng được tuyên dương ra cổng, bắn pháo hoa, nhận danh hiệu ⭐ Gương mẫu."
+  }
+ ]
+}

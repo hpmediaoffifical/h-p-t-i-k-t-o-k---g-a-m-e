@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nhà Tù Online – HP Action LIVE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+<script type="importmap">
+  {
+    "imports": {
+      "three": "/games/quaivat/vendor/three.module.min.js",
+      "three/addons/": "/games/quaivat/vendor/addons/"
+    }
+  }
+</script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #dfe6ee; color: #fff;
+    font-family: 'Baloo 2', system-ui, sans-serif; font-size: calc(min(100vw, 56.25vh) / 24); }
+  #c { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  .hidden { display: none !important; }
+
+  /* ---------- bảng tên + bong bóng ---------- */
+  .nt-lab { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; transform-origin: 50% 100%; will-change: transform; white-space: nowrap; }
+  .nt-tag { display: flex; align-items: center; gap: .25em; background: rgba(30, 30, 34, .86); color: #fff; font-weight: 800; font-size: .62em;
+    line-height: 1; padding: .22em .55em .26em; border-radius: .45em; box-shadow: 0 .08em .2em rgba(0,0,0,.25); }
+  .nt-tag img { width: 1.25em; height: 1.25em; border-radius: 50%; object-fit: cover; border: .08em solid #fff; margin-left: -.3em; }
+  .nt-tag.guard { background: rgba(36, 52, 88, .92); font-size: .5em; }
+  .nt-tag.viewer { color: #8fe3ff; }
+  .nt-tag.player { color: #ffcf3f; }
+  .nt-tag.spot { color: #ffcf3f; background: rgba(120, 60, 0, .92); box-shadow: 0 0 0 .1em #ffcf3f, 0 0 .6em rgba(255,207,63,.8); }
+  .nt-bubble { display: none; max-width: 12em; width: max-content; white-space: normal; text-align: center; background: #fff; color: #222;
+    font-weight: 700; font-size: .52em; line-height: 1.15; padding: .3em .6em; border-radius: .7em; margin-bottom: .4em; position: relative; box-shadow: 0 .1em .3em rgba(0,0,0,.2); }
+  .nt-bubble::after { content: ''; position: absolute; left: 50%; bottom: -.35em; margin-left: -.35em; border: .35em solid transparent; border-top-color: #fff; border-bottom: 0; }
+  .nt-bubble.show { display: block; animation: pop .25s ease-out; }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  /* ---------- góc trên ---------- */
+  .panel { background: rgba(28, 31, 38, .82); border-radius: .5em; }
+  #tl { position: absolute; top: .5em; left: .5em; display: flex; flex-direction: column; gap: .25em; align-items: flex-start; max-width: 58%; }
+  .nt-brand { display: flex; align-items: center; gap: .3em; background: #fff; color: #1d8f4e; font-weight: 800; font-size: .8em; padding: .1em .6em .1em .35em; border-radius: 1em; box-shadow: 0 .08em .3em rgba(0,0,0,.2); }
+  .nt-brand .dot { width: .45em; height: .45em; border-radius: 50%; background: #3bc26a; box-shadow: 0 0 .3em #3bc26a; }
+  .nt-brand small { color: #555; font-weight: 700; }
+  .nt-info { padding: .3em .55em; font-size: .56em; font-weight: 700; line-height: 1.45; }
+  .nt-info b { color: #ffcf3f; }
+  .nt-info .muted { color: #c9ced8; }
+  #tr { position: absolute; top: .5em; right: .5em; max-width: 42%; display: flex; flex-direction: column; align-items: flex-end; gap: .25em; }
+  #tr .panel { width: max-content; max-width: 100%; }
+  #board-wrap { padding: .3em .4em; }
+  #legend { padding: .3em .4em; }
+  #legend h4 { margin: 0 0 .15em; font-size: .5em; color: #d9f27a; }
+  .nt-lg { display: flex; align-items: center; gap: .25em; font-size: .44em; font-weight: 700; padding: .05em 0; white-space: nowrap; overflow: hidden; }
+  .nt-lg img { width: 1.5em; height: 1.5em; object-fit: contain; flex: none; }
+  .nt-lg .gn { color: #ffcf3f; max-width: 6em; overflow: hidden; text-overflow: ellipsis; }
+  .roles { color: #ffcf3f; font-size: .95em; }
+  .nt-tag.jailed { color: #b9bec8; background: rgba(60, 60, 66, .85); }
+  .nt-tag.jailed::before { content: '🔒'; }
+  #board-wrap h4 { margin: 0 0 .15em; font-size: .52em; color: #ffcf3f; }
+  .nt-br { display: flex; align-items: center; gap: .3em; font-size: .5em; font-weight: 800; padding: .08em 0; }
+  .nt-br .rk { width: 1.3em; text-align: center; }
+  .nt-br .nm { max-width: 7.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nt-br .pt { color: #ffcf3f; margin-left: auto; padding-left: .5em; }
+  .nt-av { position: relative; width: 1.5em; height: 1.5em; border-radius: 50%; flex: none; display: inline-grid; place-items: center; overflow: hidden;
+    background: #f6a21e; color: #fff; font-weight: 800; border: .08em solid #fff; font-size: 1em; }
+  .nt-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .nt-av.big { width: 2.2em; height: 2.2em; font-size: 1.1em; border-width: .1em; border-color: #ffcf3f; }
+
+  #banner { position: absolute; top: 30%; left: 50%; transform: translateX(-50%); font-size: 1.15em; font-weight: 800; white-space: nowrap; opacity: 0;
+    text-shadow: 0 .08em 0 #1e2128, 0 0 .4em rgba(0,0,0,.5); }
+  #banner.show { animation: banner 3.2s ease-out; }
+  @keyframes banner {
+    0% { opacity: 0; transform: translate(-50%, .5em) scale(.8); }
+    12% { opacity: 1; transform: translate(-50%, 0) scale(1.05); }
+    80% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -.3em); }
+  }
+
+  /* ---------- đáy: chat + thẻ lượt chơi ---------- */
+  #bottom { position: absolute; left: .5em; right: .5em; bottom: .5em; display: flex; flex-direction: column; gap: .3em; }
+  #chat { display: flex; flex-direction: column; gap: .15em; align-items: flex-start; max-width: 75%; }
+  .nt-chat { background: rgba(28, 31, 38, .78); border-radius: .4em; padding: .1em .45em; font-size: .5em; font-weight: 700; animation: pop .2s ease-out; max-width: 100%; overflow-wrap: anywhere; }
+  .nt-chat b { color: #ffc83d; }
+  .nt-chat.viewer b { color: #8fe3ff; }
+  .nt-chat.spot b { color: #ffcf3f; }
+  .nt-chat.guard b { color: #8fb8ff; }
+  .nt-chat.system b, .nt-chat.gift b { color: #d9f27a; }
+  #spot { padding: .4em .5em .45em; border: .08em solid rgba(255,255,255,.15); }
+  #spot.live { border-color: #ffcf3f; box-shadow: 0 0 .5em rgba(255,207,63,.45); }
+  #spot-who { display: flex; align-items: center; gap: .4em; }
+  .nt-spot-name { font-size: .8em; font-weight: 800; line-height: 1.1; color: #ffcf3f; }
+  .nt-spot-sub { font-size: .48em; font-weight: 700; color: #e4e8ef; line-height: 1.25; }
+  .nt-track { height: .3em; border-radius: 1em; background: rgba(255,255,255,.15); overflow: hidden; margin: .3em 0 .25em; }
+  #spot-bar { height: 100%; width: 0; background: linear-gradient(90deg, #ffcf3f, #ff7a3c); transition: width .2s linear; }
+  #spot-tip { font-size: .46em; font-weight: 700; color: #d9f27a; margin-bottom: .15em; }
+  #menu { display: grid; grid-template-columns: repeat(4, 1fr); gap: .2em; }
+  .nt-act { display: flex; align-items: center; gap: .3em; background: rgba(255,255,255,.1); border-radius: .35em; padding: .12em .3em; font-size: .46em; font-weight: 800; white-space: nowrap; overflow: hidden; }
+  .nt-act b { background: #fff; color: #1e2128; border-radius: .3em; padding: 0 .3em; font-size: .9em; }
+  #queue { display: flex; align-items: center; gap: .2em; margin-top: .25em; font-size: .5em; font-weight: 800; color: #c9ced8; }
+  #queue:empty { display: none; }
+  #queue .nt-av { width: 1.6em; height: 1.6em; font-size: .9em; }
+</style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="labels"></div>
+  <div id="hud">
+    <div id="tl">
+      <div class="nt-brand"><span>⛓️ Nhà Tù Online</span><span class="dot"></span><small id="online">0</small></div>
+      <div class="nt-info panel">
+        <div>🕙 <b id="clock">10:00</b> - <span id="phase">Giờ tự do</span></div>
+        <div class="muted">Tiếp theo: <span id="next"></span></div>
+        <div>📅 Toàn trại đã gạch: <b id="camp">0</b> ngày</div>
+        <div>👥 Người xem trong trại: <b id="viewers">0</b></div>
+        <div id="roles" class="roles hidden"></div>
+      </div>
+    </div>
+    <div id="tr">
+      <div id="board-wrap" class="panel hidden"><h4>🏆 Phạm nhân gương mẫu</h4><div id="board"></div></div>
+      <div id="legend" class="panel hidden"></div>
+    </div>
+    <div id="banner"></div>
+    <div id="bottom">
+      <div id="chat"></div>
+      <div id="spot" class="panel">
+        <div id="spot-who"></div>
+        <div class="nt-track"><div id="spot-bar"></div></div>
+        <div id="spot-tip"></div>
+        <div id="menu"></div>
+        <div id="queue"></div>
+      </div>
+    </div>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/games/nhatu/js/game.js"></script>
+</body>
+</html>

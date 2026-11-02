@@ -392,6 +392,43 @@ const GAMES = {
             qvGiftMap: {}   // { [action]: [{ giftId, giftName, giftImage }] } — trống = khớp theo tên quà mặc định
         }
     },
+    nhatu: {
+        id: 'nhatu',
+        name: 'Nhà Tù Online',
+        description: 'Trại giam 3D chibi: người xem bình luận là vào trại, tặng quà được camera bám theo và bình luận số/chữ để ném bóng, lau sàn, ăn cơm… Chế độ Tự chơi treo máy cả buổi.',
+        icon: '⛓️',
+        overlayPath: '/overlay/nhatu',
+        // Khoá riêng tiền tố nt* (giống qv* của Zombie Phá Nhà). Đọc trong public/games/nhatu/js/game.js → applyServerConfig.
+        defaultConfig: {
+            enabled: true,
+            ntMode: 'auto',           // auto (tự chơi: quà → lượt lên sóng) | streamer (streamer tự đi lại bằng phím)
+            ntStreamerName: '',
+            ntTurnBase: 25,           // giây một lượt cho quà 1 xu
+            ntTurnPerCoin: 1,         // + giây cho mỗi xu thêm
+            ntTurnMax: 90,            // trần giây một lượt
+            ntMinTurn: 15,            // có người chờ thì người đang chơi giữ tối thiểu bấy nhiêu giây rồi nhường
+            ntPreempt: true,          // quà mới của người khác → nhường lượt sau ntMinTurn (tắt = chơi hết giờ mới tới người kế)
+            ntQueueMax: 20,
+            ntIdleAuto: 6,            // người đang có lượt im lặng bấy nhiêu giây → nhân vật tự làm nhiệm vụ (0 = tắt)
+            ntAnyoneAct: false,       // mọi người xem đều ra lệnh được (mỗi người 8 giây/lần), không chỉ người đang có lượt
+            ntJoinOnComment: true,    // bình luận / thả tim là vào trại
+            ntMaxViewers: 40,
+            ntNpcCount: 28,           // dân số NPC lúc trại vắng (người xem vào thì NPC bớt dần)
+            ntMinuteMs: 1000,         // 1 phút trong trại = bấy nhiêu ms ngoài đời
+            ntLikePerDay: 300,        // đủ bấy nhiêu tim cả phòng → cả trại gạch thêm 1 ngày
+            ntShowMenu: true,
+            ntSound: true, ntMusic: false,
+            ntBossSec: 180,           // 👑 Đại Ca giữ ghế bấy nhiêu giây (tặng thêm = cộng giờ, người khác tặng = cướp ngôi)
+            ntGuardSec: 180,          // 👮 Cán Bộ trực bấy nhiêu giây
+            ntBossFollowers: 6,       // số đàn em bu quanh đại ca (massa vai, lau chân, quạt, che ô…)
+            ntJailIdleSec: 180,       // luật ngầm: người xem im lặng bấy nhiêu giây → nhốt biệt giam trên lầu (0 = tắt)
+            ntJoinOnLike: true,       // thả tim là vào trại (và được thả khỏi biệt giam)
+            ntBossCoins: 0,           // quà chưa gán ≥ bấy nhiêu xu → lên Đại Ca (0 = chỉ quà đã gán)
+            ntGuardCoins: 0,          // quà chưa gán ≥ bấy nhiêu xu → làm Cán Bộ (0 = chỉ quà đã gán)
+            ntShowGiftLegend: true,   // hiện bảng "🎁 Tặng quà để…" trên overlay
+            ntGiftMap: {}             // { [action]: [{ giftId, giftName, giftImage }] } — quà gán thẳng 1 nhiệm vụ
+        }
+    },
     nhietdo: {
         id: 'nhietdo',
         name: 'Biểu Cảm Nhiệt',
@@ -524,6 +561,16 @@ const GAMES = {
         icon: '🎥',
         overlayPath: '/overlay/camgames',
         defaultConfig: { ...CamRules.DEFAULT_CONFIG }   // KHÔNG có actives — config cũ chỉ có `active` phải giữ nguyên game
+    }
+,
+    pokemon: {
+        id: 'pokemon',
+        name: 'Săn Pokemon LIVE',
+        description: 'Người xem táp tim / gõ 111 vào ghế, tặng quà nhận bóng, gõ 1-9 chọn Pokemon để ném. Bảng xếp hạng tuần, nhiệm vụ ngày, MC AI. Bảng quà có link OBS riêng.',
+        icon: '🔴',
+        overlayPath: '/overlay/pokemon',
+        // Cấu hình quà & thưởng mặc định (public/games/pokemon/default-config.json, do bản build của game sinh ra)
+        defaultConfig: { enabled: true, ...(() => { try { return require('./public/games/pokemon/default-config.json'); } catch (_) { return {}; } })() }
     }
 };
 
@@ -6839,6 +6886,13 @@ app.post('/api/test-gift', (req, res) => {
 });
 
 // OBS overlay (transparent fullpage)
+// 🔴 Săn Pokemon LIVE — overlay game + bảng quà (nguồn OBS riêng). Game nhận sự kiện qua socket, không có route API riêng.
+app.get('/overlay/pokemon', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'pokemon', 'overlay.html'));
+});
+app.get('/overlay/pokemon-gifts', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'pokemon', 'gifts.html'));
+});
 app.get('/overlay/thuytinh', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'thuytinh', 'overlay.html'));
 });
@@ -7533,6 +7587,26 @@ app.get('/overlay/quaivat-gifts', (req, res) => {   // bảng quà Zombie Phá N
 });
 app.get('/overlay/quaivat', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'quaivat', 'overlay.html'));
+});
+// ⛓️ Nhà Tù Online — overlay OBS (Browser Source 1080×1920) hoặc cửa sổ game Edge/Chrome --app (cần GPU/WebGL như Zombie Phá Nhà).
+app.get('/overlay/nhatu', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'nhatu', 'overlay.html'));
+});
+app.post('/api/nhatu/window/open', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    const found = CaptionListener.resolveBrowserExe('edge', { exists: (p) => { try { return fs.existsSync(p); } catch (e) { return false; } } });
+    if (!found) return res.json({ ok: false, error: 'Không tìm thấy Microsoft Edge hoặc Google Chrome trên máy' });
+    const profileDir = path.join(DATA_DIR, 'nhatu-window', found.browser);
+    try { fs.mkdirSync(profileDir, { recursive: true }); } catch (e) {}
+    const url = `http://127.0.0.1:${PORT}/overlay/nhatu?win=1`;
+    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat('--window-size=540,960');
+    try {
+        const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
+        child.on('error', (e) => console.warn('[nhatu] mở cửa sổ game lỗi:', e.message));
+        child.unref();
+    } catch (e) { return res.json({ ok: false, error: e.message }); }
+    console.log(`[nhatu] mở cửa sổ game bằng ${found.browser}: ${found.exe}`);
+    res.json({ ok: true, browser: found.browser });
 });
 
 // Live state (custom path to avoid generic /api/games/:id/state route)
@@ -12127,6 +12201,11 @@ io.on('connection', (socket) => {
     onTrusted('quaivat:key', (data) => {
         if (!data || typeof data.code !== 'string' || data.code.length > 24) return;
         socket.broadcast.emit('quaivat:key', { code: data.code, down: data.down === true });
+    });
+    // NHÀ TÙ ONLINE — chế độ Streamer: phím trong app → overlay (OBS không nhận bàn phím)
+    onTrusted('nhatu:key', (data) => {
+        if (!data || typeof data.code !== 'string' || data.code.length > 24) return;
+        socket.broadcast.emit('nhatu:key', { code: data.code, down: data.down === true });
     });
 
     // TIMER (THỜI GIAN) sync — lab broadcasts cfg/state; cache + relay tới overlay/preview

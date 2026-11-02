@@ -935,6 +935,7 @@
         else if (gameId === 'votecomment') openVoteComment(game);
         else if (gameId === 'nhietdo') openNhietDo(game);
         else if (gameId === 'quaivat') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpQuaiVatPanel?.open(socket); }
+        else if (gameId === 'nhatu') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpNhaTuPanel?.open(socket); }
         else if (gameId === 'bancung') openBanCung(game);
         else if (gameId === 'chemtraicay') openChemTraiCay(game);
         else if (gameId === 'dapmuoi') openDapMuoi(game);
@@ -946,6 +947,7 @@
         else if (gameId === 'level-quest') showView('view-level-quest');
         else if (gameId === 'timer') showView('view-timer');
         else if (gameId === 'giftboard') showView('view-giftboard');
+        else if (gameId === 'pokemon') { if (!window.__giftSheet) window.__giftSheet = giftSheet; showView('view-pokemon'); window.HpPokemonPanel?.open(socket, game); }
         else if (gameId === 'leaguecard') { if (!window.__giftSheet) window.__giftSheet = giftSheet; showView('view-leaguecard'); window.HpLeagueCardPanel?.open(socket); }
         else if (gameId === 'touchplay') showView('view-touchplay');
         else if (gameId === 'camgames') { showView('view-camgames'); window.HpCamGamesPanel?.open(socket); }

@@ -9728,3 +9728,32 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .qv-grow.qv-warn { outline: 1px solid #ff4d5e; background: rgba(255,77,94,.08); border-radius: 8px; }
 .qv-warnmsg { display: block; color: #ff6b78 !important; font-weight: 600; }
 .qv-warnbox { background: rgba(255,77,94,.15); border: 1px solid #ff4d5e; color: #ff8a94; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-weight: 700; font-size: 13px; }
+
+/* ============ ⛓️ Nhà Tù Online (panel) ============ */
+.nhatu-body { display: flex; flex-direction: column; gap: 12px; padding: 12px; overflow: auto; }
+.nt-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 1100px) { .nt-top { grid-template-columns: 1fr; } }
+.nt-row { display: grid; grid-template-columns: 230px 1fr; align-items: center; gap: 10px; font-size: 13px; color: #cfd3dc; margin-bottom: 6px; }
+.nt-row input, .nt-row select { background: #11131a; color: #fff; border: 1px solid #2a2e3a; border-radius: 8px; padding: 7px 10px; font-size: 13px; min-width: 0; }
+.nt-checks { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #cfd3dc; margin-top: 4px; }
+.nt-checks label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.nt-hint { font-size: 12px; color: #8a90a0; line-height: 1.5; margin: 4px 0 8px; }
+.nt-hint b { color: #e8ebf2; }
+.nt-cmds { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; margin-bottom: 8px; }
+.nt-cmds button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
+.nt-cmds button small { font-size: 11px; color: #8a90a0; }
+.nt-pad { outline: none; border: 2px dashed #2a2e3a; border-radius: 10px; padding: 12px; transition: border-color 150ms, background 150ms; }
+.nt-pad:focus { border-color: #7dff6a; background: rgba(125, 255, 106, 0.05); }
+.nt-pad-tip { font-size: 12px; color: #aab0bd; text-align: center; line-height: 1.5; }
+.nt-grow { display: grid; grid-template-columns: 260px 1fr; gap: 10px; align-items: center; padding: 6px 8px; border-bottom: 1px solid #1f2330; }
+.nt-actname { display: flex; align-items: center; gap: 8px; }
+.nt-actname b { display: block; font-size: 13px; color: #e8ebf2; }
+.nt-actname small { display: block; font-size: 11px; color: #8a90a0; }
+.nt-emo { font-size: 22px; width: 30px; text-align: center; }
+.nt-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.nt-chip { display: inline-flex; align-items: center; gap: 4px; background: #1c2030; border: 1px solid #2a2e3a; border-radius: 999px; padding: 2px 4px 2px 6px; font-size: 12px; color: #e8ebf2; }
+.nt-chip img { width: 20px; height: 20px; object-fit: contain; }
+.nt-x { background: none; border: 0; color: #8a90a0; cursor: pointer; font-size: 11px; padding: 0 2px; }
+.nt-x:hover { color: #ff4d5e; }
+#nt-btn-demo.nt-on { border-color: #7dff6a; color: #7dff6a; }
+.nt-grow.nt-grow3 { grid-template-columns: 300px 1fr auto; }
