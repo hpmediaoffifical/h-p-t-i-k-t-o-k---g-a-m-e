@@ -1,6 +1,6 @@
 # 🏢 Creator Online (`creatoronline`) — thiết kế bản LIVE
 
-Ngày: 03/11/2026 · Nhánh: `tuongtac/creator-online` · Trạng thái: spec đã chốt, chờ làm GĐ1.
+Ngày: 03/11/2026 · Nhánh: `tuongtac/creator-online` · Trạng thái: **GĐ1 đã làm** (03/11/2026, các commit từ 1b31541, chưa release) — còn thử OBS thật + một buổi LIVE thử (mục 18). Những chỗ làm khác bản spec gốc ghi ở mục 20.
 
 Đã qua 2 vòng soát của agent Game Studios: `systems-designer` (luật chơi, con số) và `lead-programmer` (đối chiếu code app). Các lỗi chặn đã sửa vào spec.
 
@@ -279,7 +279,7 @@ Lưu ở server thay vì localStorage. Lý do: nguồn OBS và cửa sổ game l
   - Chỉ bỏ mục **dưới 100 xu** không gặp quá 180 ngày. Fan đã có cấp (từ Fan cứng trở lên) giữ vĩnh viễn, đúng quyết định 3.
   - Có `parseClubCode` riêng, nhỏ. Test `import()` `public/games/creatoronline/js/logic/codes.js` theo file URL rồi so 2 bộ phân tích trên cùng bộ mẫu. Không `require()` file ESM lúc chạy.
 - **Khi nào ghi:** chỉ khi game bật **và đang có overlay Creator Online kết nối**, để không lưu dữ liệu người xem của streamer chưa từng dùng game.
-  - Overlay gửi `creatoronline:hello` khi kết nối; server cho socket đó vào phòng `co-overlay`.
+  - Overlay `socket.emit('subscribe', 'co-overlay')` khi kết nối (dùng handler `subscribe` có sẵn của server, không cần sự kiện mới).
   - Ghi khi phòng `co-overlay` có ít nhất 1 socket và `appConfig.games.creatoronline.enabled !== false`.
 - **Dữ liệu vào** (chạy đúng 1 lần mỗi sự kiện, không lặp theo số overlay):
   - **Quà:** móc trong `emitGift` ngay trước `io.emit('gift')` (server.js:4889) → cộng `xu`. Bỏ qua quà thử (`g.source === 'test'`) và người xem giả (khoá bắt đầu bằng `sim`/`test_`).
@@ -454,17 +454,23 @@ Gỡ ô chat bên trái (vùng đó là bình luận của TikTok) và mọi dò
 ### 17.1 Thư mục `public/games/creatoronline/`
 
 ```
-overlay.html            import map /games/quaivat/vendor/ (r160), font Nunito tự host (fonts/, OFL)
-data.json               từ game-config.json: bỏ ví/shop/giá; thêm suggestedGiftMap, actions, hud.joinLines
+overlay.html            bản LIVE: import map /games/quaivat/vendor/ (r160); ?demo=1 → demo.html
+live.css                HUD + bảng tên khung 1080×1920 (đơn vị --u)
+fonts.css               Baloo 2 tự host, dùng chung file có sẵn trong app (games/body/fonts, lib/fonts)
+demo.html demo.css      bản đi dạo (index.html / style.css cũ)
+data.json               game-config.json cũ (giữ ví/shop cho bản đi dạo) + live (thông số phụ), giftActions,
+                        suggestedGiftMap, audioFiles
 creatoronline-panel.js
-fonts/
+audio/DANH-SACH-NHAC.md thả mp3 vào đây rồi khai báo trong data.json → audioFiles
 js/
-  game.js               vào chính: socket.io, chế độ LIVE / demo, vòng lặp
-  world.js screens.js character.js npc.js effects.js audio.js   (chuyển từ bản riêng)
-  labels.js             LabelLayer chép từ Nhà Tù
+  game.js               bản LIVE: socket.io, người xem, quà, PK, đạo diễn, HUD, lưu buổi LIVE
+  world.js screens.js character.js npc.js effects.js audio.js   (chuyển từ bản riêng, dùng chung 2 bản)
+  label-layer.js        LabelLayer (chép/chỉnh từ Nhà Tù) — bản LIVE
+  labels.js             nhãn CSS2D — bản đi dạo
   director-cam.js       đặt camera theo cảnh của director.js
-  hud.js                HUD 9:16 (mục 13)
-  demo.js               vòng chơi cũ (WASD, ví trong bộ nhớ) — chỉ nạp khi ?demo=1
+  live-hud.js           HUD 9:16 (mục 13) — bản LIVE; hud.js là HUD bản đi dạo
+  demo.js               vòng chơi cũ (WASD, ví trong bộ nhớ) — demo.html
+  net.js                bản ngoại tuyến (giữ giao diện Net cho demo.js), LAN đã gỡ
   logic/                thuần, có test
     rooms.js seats.js physics.js rng.js format.js     (có sẵn)
     population.js       chép từ Nhà Tù
@@ -503,7 +509,7 @@ Ghi chú:
   - `creatorFans.onGift` trong `emitGift`, `creatorFans.onChat` sau `broadcast('chat')`.
   - Gắn `coFan` vào `gift` / `chat` khi ghi đang bật.
   - Phát `io.emit('creatoronline:fan', …)`.
-  - Phòng socket `co-overlay` nhận `creatoronline:hello`.
+  - Phòng socket `co-overlay` (overlay tự subscribe).
 - **Lệnh panel** qua route chung có sẵn `POST /api/games/creatoronline/cmd` (server.js:6761, phát `gameCmd {gameId, cmd, payload, seq}`). Body dạng `{ cmd, payload }` như Nhà Tù:
   - `{cmd:'test', payload:{kind: gift|comment|like|follow, coins?, giftId?, text?, name?}}`
   - `{cmd:'pk', payload:{a, b}}`, `{cmd:'skip'}` (bỏ cảnh hiện tại), `{cmd:'cut', payload:{target}}`, `{cmd:'reset'}`
@@ -643,3 +649,29 @@ Cỡ việc: S nhỏ · M vừa · L lớn · XL rất lớn.
 - **Quá tải cơ chế:** bảng chú giải chỉ 6 dòng. Vai, phòng và PK được giải thích bằng cảnh quay chứ không bằng chữ.
 - **Dữ liệu cá nhân:** bộ đếm fan lưu TikTok ID + tên + xu trên máy streamer; có nút làm mới trong panel.
 - **Quy định TikTok:** không có quà nào đổi lấy giải ngẫu nhiên.
+
+## 20. Khi làm GĐ1 (03/11/2026): chỗ khác spec + việc còn lại
+
+Làm trong worktree `.claude/worktrees/creator-online` (checkout chính đang có code chưa commit của phiên Nhà Tù). 8 module logic thuần (bước 4) do 3 agent `gameplay-programmer` viết song song theo hợp đồng API; overlay soát bởi agent `lead-programmer`.
+
+**Làm khác spec gốc, có lý do:**
+- **Font:** Baloo 2 (app có sẵn file, Nhà Tù cũng dùng) thay Nunito — không phải tải font mới.
+- **Phòng socket:** overlay `subscribe` vào `co-overlay` bằng handler có sẵn, không có sự kiện `creatoronline:hello`.
+- **Tên file:** `label-layer.js` / `live-hud.js` cho bản LIVE vì `labels.js` / `hud.js` vẫn là của bản đi dạo.
+- **`data.json`** giữ cả ví/cửa hàng/giá vì bản đi dạo còn dùng; bản LIVE không đọc các khoá đó.
+- **`CSS2DRenderer.js`** chép từ three r169 (máy dev không có gói r160); file chỉ dùng Matrix4/Object3D/Vector2/Vector3.
+- **Mã lệnh có dấu:** gõ có dấu phải đúng chính tả (pháo, khói, đèn, chớp, thêm, bớt, đồ) để "đó", "đỏ", "khỏi", "thèm" không thành lệnh; gõ không dấu luôn khớp.
+- **Đạo diễn** (3 chỗ spec mâu thuẫn do agent nêu, đã chốt): cảnh vé/vai chờ vì PK thì đồng hồ hạn 45 giây đứng yên; Gala không bị bỏ vì quá hạn; cảnh rảnh bị cảnh sự kiện cắt ngay (không chờ 8 giây).
+- **Ô chú giải HUD** xoay từng hành động một (kèm ảnh quà của nó) vì ô 260 px không chứa nổi dòng gộp; `legendRows` (≤ 6 dòng) vẫn có trong `logic/events.js`.
+- **Quà mở PK** được tính điểm cho phe người tặng.
+- **Bộ lọc chữ** là danh sách riêng của game: danh sách "1025 từ cấm" của app (`/api/comment-rules/list`) là từ TikTok cấm streamer nói (có cả "chó", "bóp", "người tốt"…) nên không dùng để che chữ người xem.
+- **Điểm đặt camera** đo trong khung 1080×1920 (đầu nhân vật ~y 590–630): sân nhóm đặt TRONG phòng (ngoài hành lang thì biển neon che nửa khung), bảng xếp hạng lùi 18 m mới vừa bề ngang khung dọc.
+
+**Đã thử trong trình duyệt** (server worktree, dữ liệu riêng): mọi kiểu cảnh; PK + Gala chạy cùng lúc (PK dừng đồng hồ); 120 người xem giả dồn dập (bình luận/tim/quà mỗi phút 240/300/90) → đúng 60 nhân vật (40 + 20 người tặng), 8 nhãn, geometry/texture đứng yên, không lỗi; đường panel → `/api/games/creatoronline/cmd` → overlay; bản đi dạo vẫn chạy.
+
+**Còn lại (cần máy thật / người):**
+- Thử OBS Browser Source 1080×1920 + cửa sổ `?win=1`: âm thanh tự phát, FPS thật trên máy stream (Browser pane là render phần mềm, chỉ so tương đối).
+- Một buổi LIVE thử: chụp ảnh điện thoại để chỉnh vùng an toàn HUD; kiểm cấp fan được ghi (`/api/creatoronline/fans/top`).
+- Soak test 1 giờ trên máy thật (`?debug=1` + `__creator.sim()`): `renderer.info.memory` phải đứng yên.
+- Sau khi phiên Nhà Tù commit: ghi mã commit nguồn vào đầu `logic/population.js` và `label-layer.js`.
+- GĐ2 (mục 18): PK chia đôi màn hình, mini show A/B/C, phím tắt đạo diễn, nhân vật SkinnedMesh gộp, giành quà giữa các game.
