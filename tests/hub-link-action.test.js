@@ -143,6 +143,8 @@ test('hubCardModel: bảng điều kiện', () => {
     assert.deepEqual([off.tone, off.text, off.action], ['off', 'Đã tắt liên kết HP Game Hub', null]);
     const ok = M({ ...base, connected: true, version: '0.3.0' });
     assert.deepEqual([ok.tone, ok.text, ok.action], ['ok', 'Đã nối · 0.3.0', 'open']);
+    assert.equal(M({ ...base, connected: true }).text, 'Đã nối');
+    assert.equal(M({ ...base, connected: true, slow: true }).text, 'Đã nối · phản hồi chậm');
     const game = M({ ...base, connected: true, version: '0.3.0', games: [{ name: 'Đập Muỗi' }] });
     assert.equal(game.text, 'Đã nối · 0.3.0 · Đập Muỗi đang chạy');
     const slow = M({ ...base, connected: true, version: '0.3.0', slow: true });
