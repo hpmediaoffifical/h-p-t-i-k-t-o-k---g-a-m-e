@@ -93,6 +93,8 @@
   #flashScr { position: absolute; inset: 0; background: #eaf4ff; opacity: 0; pointer-events: none; }
   #banner { position: absolute; left: 0; right: 0; top: 36%; text-align: center; pointer-events: none; font-weight: 800; font-size: 2.3em; line-height: 1.1; text-shadow: 0 .08em 0 #000, .05em 0 0 #000, -.05em 0 0 #000, 0 0 .5em rgba(0,0,0,.8); opacity: 0; transform: scale(.6); transition: opacity .25s, transform .25s cubic-bezier(.3,1.6,.6,1); }
   #banner.show { opacity: 1; transform: scale(1); }
+  #banner::before { content: ""; position: absolute; left: -10%; right: -10%; top: -.5em; bottom: -.6em; z-index: -1; background: radial-gradient(ellipse at center, rgba(8,4,16,.62) 0%, rgba(8,4,16,.35) 45%, rgba(8,4,16,0) 72%); }   /* nền mờ sau chữ: đọc rõ dù sau lưng là băng rôn / chữ nổi */
+  #banner { z-index: 2; }
   #banner small { display: block; font-size: .42em; color: #ffe27a; margin-top: .2em; }
   #hint { display: none; }
   #hint.show { display: block; }
