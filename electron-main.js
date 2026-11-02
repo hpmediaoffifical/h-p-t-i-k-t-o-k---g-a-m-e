@@ -74,6 +74,8 @@ function startServer() {
         const writableDataDir = path.join(userDataDir, 'data');
         if (!fs.existsSync(writableDataDir)) fs.mkdirSync(writableDataDir, { recursive: true });
         process.env.HP_DATA_DIR = writableDataDir;
+        // Liên kết HP Game Hub chỉ bật khi vỏ Electron khai báo mã app (chạy `node server.js` tay thì không nối).
+        if (!process.env.HP_ACTION_HUB_APP_ID) process.env.HP_ACTION_HUB_APP_ID = app.isPackaged ? 'hp-action-live' : 'hp-action-live-dev';
         require('./server.js');
     } catch (err) {
         dialog.showErrorBox('Lỗi khởi động server', String(err && err.stack || err));
@@ -419,6 +421,7 @@ function actualFullQuit() {
     // Cửa sổ nghe Edge/Chrome (Phụ đề giọng) phải nhận lệnh đóng TRƯỚC khi io.close() — app.exit() không bắn before-quit.
     try { require('./server.js').captionListenerStop(); } catch (e) {}
     try { require('./server.js').bodyCamRestore(300); } catch (e) {}   // 🧍 trả camera OBS về chỗ cũ (Bộ Tách Người ẩn cam)
+    try { require('./server.js').hubStop?.(); } catch (_) {}   // ngắt liên kết HP Game Hub
     try { flushQuickLaunchPrefs(); } catch (e) {}
     try { flushCaroPreviewPrefs(); } catch (e) {}
     try { flushGiftListPrefs(); } catch (e) {}
@@ -1795,6 +1798,7 @@ app.on('before-quit', () => {
     // Cửa sổ nghe giọng Creator: đường thoát qua app.quit() (key bị thu hồi…) — đường thoát thường đi qua actualFullQuit Tier 0.
     try { require('./server.js').captionListenerStop(); } catch (_) {}
     try { require('./server.js').bodyCamRestore(300); } catch (_) {}
+    try { require('./server.js').hubStop?.(); } catch (_) {}
 });
 app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch (_) {} });
 app.on('window-all-closed', () => {

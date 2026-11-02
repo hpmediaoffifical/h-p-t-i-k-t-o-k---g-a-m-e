@@ -277,3 +277,43 @@ test('(onPublic) chỉ báo khi giao diện thực sự đổi', async () => {
     assert.ok(await until(() => calls.pub.length > afterSame));
     assert.ok(calls.pub[calls.pub.length - 1].ownsCamera);
 });
+
+test('(throw) getStatus / getCatalog ném lỗi: bỏ qua nhịp, không gửi gói rỗng', async () => {
+    let failStatus = true;
+    let failCat = true;
+    const { fake, hub } = await setup({
+        hubOpts: {
+            getStatus: () => { if (failStatus) throw new Error('status hỏng'); return { connected: true, uniqueId: 'kenh_thu', roomId: 'r1', viewers: 9, since: 1 }; },
+            getCatalog: () => { if (failCat) throw new Error('catalog hỏng'); return CATALOG; }
+        }
+    });
+    assert.ok(await until(() => hub.publicState().connected));
+    await sleep(500);
+    assert.equal(find(fake, 'live.status').length, 0, 'không gửi live.status khi getStatus ném');
+    assert.equal(find(fake, 'catalog.gifts').length, 0, 'không gửi catalog rỗng khi getCatalog ném');
+    failStatus = false; failCat = false;
+    assert.ok(await until(() => find(fake, 'live.status').length >= 1 && find(fake, 'catalog.gifts').length >= 1));
+    assert.ok(find(fake, 'catalog.gifts')[0].data.gifts.length > 0);
+    assert.equal(find(fake, 'live.status')[0].data.connected, true);
+});
+
+test('(catalog-new) mảng danh mục mới => gửi lại gói mới', async () => {
+    let cat = CATALOG;
+    const { fake, hub } = await setup({ hubOpts: { getCatalog: () => cat } });
+    assert.ok(await until(() => find(fake, 'catalog.gifts').length >= 1));
+    cat = CATALOG.concat([{ id: '7777', name: 'Heart', image: '', diamond: 5 }]);
+    assert.ok(await until(() => find(fake, 'catalog.gifts').length >= 2));
+    assert.ok(find(fake, 'catalog.gifts')[1].data.gifts.some((g) => g.giftId === '7777'));
+    assert.ok(hub.publicState());
+});
+
+test('(download-cache) đường nóng publicState / ownsCamera không đọc links.json mỗi lần', async () => {
+    let reads = 0;
+    const spy = (o) => {
+        const l = createHubLink(o);
+        return new Proxy(l, { get(t, k) { if (k === 'links') reads++; return t[k]; } });
+    };
+    const { hub } = await setup({ hubOpts: { createHubLink: spy } });
+    for (let i = 0; i < 50; i++) { hub.publicState(); hub.ownsCamera(); }
+    assert.ok(reads <= 1, `links đọc ${reads} lần, mong tối đa 1`);
+});

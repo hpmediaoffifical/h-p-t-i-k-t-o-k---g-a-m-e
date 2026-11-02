@@ -108,6 +108,7 @@ const { ObsCameraFeed } = require('./lib/touchplay-obs-feed');
 const CamRules = require('./lib/camgames');
 const CamSession = require('./lib/camgames-session');
 const { createCamObs } = require('./lib/camgames-obs');
+const { createActionHub, camRouteForGift, HUB_PAGES } = require('./lib/hub-link-action');   // 🧩 nối HP Game Hub (biến môi trường HP_ACTION_HUB_* chỉ lib này đọc)
 const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
 const MusicGifts = require('./lib/music-gifts');
 const { LuaSync } = require('./lib/lua-sync');
@@ -1553,6 +1554,7 @@ const APP_CONFIG_EXISTED_AT_LOAD = fs.existsSync(CONFIG_FILE);
 const appConfig = loadAppConfig();
 if (!appConfig.games || typeof appConfig.games !== 'object') appConfig.games = {};   // file cấu hình cũ/tay thiếu 'games' → không sập
 if (!appConfig.license || typeof appConfig.license !== 'object') appConfig.license = { key: '', email: '' };
+if (!appConfig.hubLink || typeof appConfig.hubLink !== 'object') appConfig.hubLink = { enabled: true };   // 🧩 Liên kết HP Game Hub: công tắc (mặc định bật)
 
 // ====== OBS Bridge — kết nối OBS Studio qua WebSocket để chạy Lua effects ======
 // Luồng chính (v1.9.8+): quà chỉ định về → nhớ Scene đang phát (nhóm NPC) → chuyển sang Scene hiệu ứng
@@ -3679,6 +3681,8 @@ function attachConnectionEvents(conn, lib) {
         broadcast('status', { connected: true, username: currentUsername, roomId: currentRoomId });
         setLiveDashboardStatus(true, { username: currentUsername, roomId: currentRoomId });
         console.log(`[tiktok] Connected to roomId=${currentRoomId}`);
+        hubLiveSince = Date.now();
+        try { actionHub.syncNow(); } catch (_) {}
     });
     conn.on(ControlEvent.DISCONNECTED, (info) => {
         // Các connection thử-nghiệm bị loại trong vòng retry cũng bắn DISCONNECTED → chỉ xử lý connection đang dùng.
@@ -3688,6 +3692,8 @@ function attachConnectionEvents(conn, lib) {
         const willRetry = scheduleAutoReconnect();
         broadcast('status', { connected: false, username: currentUsername, reason: 'disconnected', reconnecting: willRetry, attempt: reconnectAttempt, nextInMs: willRetry ? reconnectDelayMs : 0 });
         setLiveDashboardStatus(false, { username: currentUsername });
+        hubLiveSince = null;
+        try { actionHub.syncNow(); } catch (_) {}
         console.log(`[tiktok] Disconnected (code=${info?.code ?? '?'})${willRetry ? ` — tự kết nối lại sau ${Math.round(reconnectDelayMs / 1000)}s` : ''}`);
     });
     conn.on(WebcastEvent.STREAM_END, () => {
@@ -3698,6 +3704,8 @@ function attachConnectionEvents(conn, lib) {
         resetPkState(); clearPkAutoQueue();
         broadcast('status', { connected: false, username: currentUsername, reason: 'streamEnd' });
         setLiveDashboardStatus(false, { username: currentUsername });
+        hubLiveSince = null;
+        try { actionHub.syncNow(); } catch (_) {}
         console.log('[tiktok] LIVE đã kết thúc (streamEnd)');
     });
     conn.on(ControlEvent.ERROR, (err) => {
@@ -3734,6 +3742,7 @@ function attachConnectionEvents(conn, lib) {
         try { handleVipWelcomeEvent('comment', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified, comment }); } catch (e) {}
         try { handleVoteCommentChat({ uniqueId, comment }); } catch (e) {}
         try { handleTrongCayChat({ uniqueId, nickname, profilePicture, comment }); } catch (e) {}
+        try { actionHub.sendLive('comment', { user: { uniqueId, nickname, avatar: profilePicture }, text: comment }); } catch (_) {}
     });
 
     conn.on(WebcastEvent.GIFT, (data) => {
@@ -3813,6 +3822,7 @@ function attachConnectionEvents(conn, lib) {
             broadcast('subscribe', { uniqueId, nickname, level, verified });
             try { handleVipWelcomeEvent('subscribe', { uniqueId: uniqueId || tkUser.uniqueId, nickname, level, profilePicture, verified, extra: tkUser }); } catch (e) {}
         }
+        if (Number(action) !== 3) { try { actionHub.sendLive('member', { user: { uniqueId, nickname, avatar: profilePicture } }); } catch (_) {} }
     });
     conn.on(WebcastEvent.LIKE, (data) => {
         const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
@@ -3823,6 +3833,7 @@ function attachConnectionEvents(conn, lib) {
         // Chào muộn + trigger 'like' riêng
         vipHandleActivity(data?.user);
         try { handleVipWelcomeEvent('like', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified, likeCount }); } catch (e) {}
+        try { actionHub.sendLive('like', { user: { uniqueId, nickname, avatar: profilePicture }, count: likeCount, total: liveStats.totalLikes }); } catch (_) {}
     });
     conn.on(WebcastEvent.SOCIAL, (data) => {
         const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
@@ -3842,6 +3853,7 @@ function attachConnectionEvents(conn, lib) {
         liveStats.totalFollows += 1; emitLiveStatsThrottled();
         console.log(`[vipwelcome] FOLLOW: @${uniqueId} "${nickname || ''}"`);
         try { handleVipWelcomeEvent('follow', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified }); } catch (e) {}
+        try { actionHub.sendLive('follow', { user: { uniqueId, nickname, avatar: profilePicture } }); } catch (_) {}
         vipHandleActivity(data?.user);
     });
     // SHARE event
@@ -3851,6 +3863,7 @@ function attachConnectionEvents(conn, lib) {
         liveStats.totalShares += 1; emitLiveStatsThrottled();
         console.log(`[vipwelcome] SHARE: @${uniqueId} "${nickname || ''}"`);
         try { handleVipWelcomeEvent('share', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified }); } catch (e) {}
+        try { actionHub.sendLive('share', { user: { uniqueId, nickname, avatar: profilePicture } }); } catch (_) {}
         vipHandleActivity(data?.user);
     });
     // ENVELOPE event — TikTok bao lì xì
@@ -4809,10 +4822,16 @@ function nhatLaResetDonors() {
 }
 
 function emitGift(g) {
+    // 🧩 HP Game Hub giữ Game Camera: gửi quà sang Hub (không chờ) và BỎ QUA nhánh camera cục bộ bên dưới.
+    // Không có Hub / chưa ghép / tắt công tắc / Hub chưa nhận camera → hubCam = false → đúng đường cũ.
+    const hubCam = actionHub.onGift(g, { coins: giftMap[String(g.giftId)]?.diamond ?? g.diamondCount ?? 1 });
+    const camRoute = camRouteForGift(hubCam, hubCam ? [] : camGiftClaims(g));
     rememberLiveTranslateUser(liveTranslateRecentGifts, g);
     // 🎮 Phiên game theo quà: quà kích hoạt mở / gia hạn / xếp hàng phiên TRƯỚC khi đưa quà cho các game
     // (để game của phiên nhận luôn quà này nếu nó cũng là quà chơi game).
-    try { camSessionGift(g); } catch (e) { console.warn('[camgames] phiên game lỗi:', e?.message || e); }
+    if (camRoute.runLocalCam) {
+        try { camSessionGift(g); } catch (e) { console.warn('[camgames] phiên game lỗi:', e?.message || e); }
+    }
     let sheetItem = giftMap[String(g.giftId)] || null;
     // 🎵 Quà Ca khúc gom về quà ảo: giữ ẢNH ĐĨA + tên bài riêng (client ưu tiên sheetItem.image) — mỗi bài 1 màu đĩa.
     if (sheetItem && sheetItem.virtual && g.musicGift && g.giftPicture) {
@@ -4825,7 +4844,7 @@ function emitGift(g) {
         sheetItem,
         image: sheetItem?.image || g.giftPicture,
         coinValue: sheetItem?.diamond ?? g.diamondCount ?? 1,
-        camClaims: camGiftClaims(g),
+        camClaims: camRoute.camClaims,
         ts: Date.now()
     };
     console.log(`[gift] emit → ${enriched.nickname || enriched.uniqueId} sent "${enriched.giftName || '?'}" (id=${enriched.giftId}, x${enriched.repeatCount || 1}, ${enriched.coinValue || 0}💎)`);
@@ -4915,64 +4934,67 @@ function emitGift(g) {
             repeatCount: g.repeatCount || 1
         });
     } catch (e) { /* non-fatal */ }
-    // Bắn Cung — quà bắn cung / hồi máu / hồi sinh / giáp theo gán
-    try {
-        handleBanCungGift({
-            uniqueId: g.uniqueId,
-            nickname: g.nickname,
-            profilePicture: g.profilePicture || enriched.image,
-            giftId: g.giftId,
-            giftName: enriched.giftName || g.giftName,
-            giftImage: enriched.image,
-            coinValue: enriched.coinValue || 0,
-            repeatCount: g.repeatCount || 1
-        });
-    } catch (e) { /* non-fatal */ }
-    // Chém Trái Cây — quà → quả / bom / buff theo giftRules
-    try {
-        handleChemTraiCayGift({
-            nickname: g.nickname,
-            profilePicture: g.profilePicture || '',
-            giftId: g.giftId,
-            giftName: enriched.giftName || g.giftName,
-            giftImage: enriched.image,
-            repeatCount: g.repeatCount || 1,
-            source: g.source || 'tiktok'
-        });
-    } catch (e) { /* non-fatal */ }
-    // Đập Muỗi — quà → thả muỗi / hành động (xịt / vợt / màn)
-    try {
-        handleDapMuoiGift({
-            nickname: g.nickname,
-            profilePicture: g.profilePicture || '',
-            giftId: g.giftId,
-            giftName: enriched.giftName || g.giftName,
-            giftImage: enriched.image,
-            coinValue: enriched.coinValue || 0,
-            repeatCount: g.repeatCount || 1,
-            source: g.source || 'tiktok'
-        });
-    } catch (e) { /* non-fatal */ }
-    // 🏸 Đá Cầu — quà gán đích danh (cfg.gifts, so theo id) → tung cầu; combo ×N = N quả (trần 5)
-    try {
-        handleDaCauGift({
-            nickname: g.nickname,
-            profilePicture: g.profilePicture || '',
-            giftId: g.giftId,
-            giftName: enriched.giftName || g.giftName,
-            giftImage: enriched.image,
-            repeatCount: g.repeatCount || 1,
-            source: g.source || 'tiktok'
-        });
-    } catch (e) { /* non-fatal */ }
-    // 🧍 Bộ Tách Người — quà gán đích danh từng game/kịch bản → body:run (overlay tự xếp hàng)
-    try {
-        if (bodyApi) bodyApi.handleGift({
-            uniqueId: g.uniqueId, nickname: g.nickname, profilePicture: g.profilePicture || '',
-            giftId: g.giftId, giftName: enriched.giftName || g.giftName, giftImage: enriched.image,
-            coinValue: enriched.coinValue || 0, repeatCount: g.repeatCount || 1, source: g.source || 'tiktok'
-        });
-    } catch (e) { console.warn('[body] quà lỗi:', e?.message || e); }
+    // 🎥 Nhóm game dùng camera: Hub giữ camera thì không chạy cục bộ (tránh chạy hai nơi).
+    if (camRoute.runLocalCam) {
+        // Bắn Cung — quà bắn cung / hồi máu / hồi sinh / giáp theo gán
+        try {
+            handleBanCungGift({
+                uniqueId: g.uniqueId,
+                nickname: g.nickname,
+                profilePicture: g.profilePicture || enriched.image,
+                giftId: g.giftId,
+                giftName: enriched.giftName || g.giftName,
+                giftImage: enriched.image,
+                coinValue: enriched.coinValue || 0,
+                repeatCount: g.repeatCount || 1
+            });
+        } catch (e) { /* non-fatal */ }
+        // Chém Trái Cây — quà → quả / bom / buff theo giftRules
+        try {
+            handleChemTraiCayGift({
+                nickname: g.nickname,
+                profilePicture: g.profilePicture || '',
+                giftId: g.giftId,
+                giftName: enriched.giftName || g.giftName,
+                giftImage: enriched.image,
+                repeatCount: g.repeatCount || 1,
+                source: g.source || 'tiktok'
+            });
+        } catch (e) { /* non-fatal */ }
+        // Đập Muỗi — quà → thả muỗi / hành động (xịt / vợt / màn)
+        try {
+            handleDapMuoiGift({
+                nickname: g.nickname,
+                profilePicture: g.profilePicture || '',
+                giftId: g.giftId,
+                giftName: enriched.giftName || g.giftName,
+                giftImage: enriched.image,
+                coinValue: enriched.coinValue || 0,
+                repeatCount: g.repeatCount || 1,
+                source: g.source || 'tiktok'
+            });
+        } catch (e) { /* non-fatal */ }
+        // 🏸 Đá Cầu — quà gán đích danh (cfg.gifts, so theo id) → tung cầu; combo ×N = N quả (trần 5)
+        try {
+            handleDaCauGift({
+                nickname: g.nickname,
+                profilePicture: g.profilePicture || '',
+                giftId: g.giftId,
+                giftName: enriched.giftName || g.giftName,
+                giftImage: enriched.image,
+                repeatCount: g.repeatCount || 1,
+                source: g.source || 'tiktok'
+            });
+        } catch (e) { /* non-fatal */ }
+        // 🧍 Bộ Tách Người — quà gán đích danh từng game/kịch bản → body:run (overlay tự xếp hàng)
+        try {
+            if (bodyApi) bodyApi.handleGift({
+                uniqueId: g.uniqueId, nickname: g.nickname, profilePicture: g.profilePicture || '',
+                giftId: g.giftId, giftName: enriched.giftName || g.giftName, giftImage: enriched.image,
+                coinValue: enriched.coinValue || 0, repeatCount: g.repeatCount || 1, source: g.source || 'tiktok'
+            });
+        } catch (e) { console.warn('[body] quà lỗi:', e?.message || e); }
+    }
     // Trồng Cây — quà mọc hoa / bướm avatar / tưới nước / nắng / cắt cây
     try {
         handleTrongCayGift({
@@ -5773,7 +5795,8 @@ app.get('/api/games', (req, res) => {
         overlayPath: g.overlayPath,
         config: appConfig.games[g.id],
         locked: !featureOn(g.id),     // tính năng theo KEY: giao diện hiện 🔒, không cho bật
-        lstate: licenseStateOf(g.id)  // on | locked | off (⏸ Tạm bảo trì) | hidden (không hiện) | admin (🧪)
+        lstate: licenseStateOf(g.id), // on | locked | off (⏸ Tạm bảo trì) | hidden (không hiện) | admin (🧪)
+        hubOwned: g.id === 'camgames' && hubCamOwned()   // 🧩 HP Game Hub đang giữ Game Camera
     }));
     res.json(list);
 });
@@ -6600,6 +6623,7 @@ app.post('/api/reload-gifts', async (req, res) => {
                 }
             }
             if (iconsRefreshed > 0) {
+                giftList = giftList.slice();   // mảng MỚI: 🧩 HP Game Hub nhận ra danh mục đổi (ảnh quà) và nhận bản mới
                 saveGiftCacheToDisk(giftList);
                 io.emit('giftSheet', giftList);
             }
@@ -6747,6 +6771,7 @@ app.post('/api/camgames/session/test', (req, res) => {
     const gameId = CamSession.TRIGGER_GAMES.includes(b.gameId) && GAMES[b.gameId] ? b.gameId : '';
     if (gameId && !featureOn(gameId)) return res.status(403).json({ ok: false, locked: true, error: 'KEY chưa mở game này' });
     if (!gameId) return res.status(400).json({ ok: false, error: 'gameId phải là ' + CamSession.TRIGGER_GAMES.join('|') });
+    if (hubCamOwned()) return res.status(409).json({ ok: false, error: 'Game Camera đang chạy trên HP Game Hub' });
     const force = b.force === true && requestIsTrusted(req);
     if (!force && !camHubOverlayOnline()) return res.status(409).json({ ok: false, error: 'Chưa thấy overlay Game Camera mở trên OBS — dán 📋 Link OBS vào Browser Source trước.' });
     const seconds = Math.max(5, Math.min(600, parseInt(b.seconds, 10) || 30));
@@ -6789,6 +6814,7 @@ app.get('/api/camgames/obs/program-check', async (req, res) => {
 // ＋ Thêm nhanh overlay mẹ vào Scene còn thiếu (body.scenes: chỉ các Scene này). Sửa Scene OBS → chỉ máy chạy app.
 app.post('/api/camgames/obs/add-overlay', async (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'Chỉ bấm được trên máy chạy app' });
+    if (hubCamOwned()) return res.status(409).json({ ok: false, error: 'Game Camera đang chạy trên HP Game Hub' });
     if (!obsBridge.isConnected()) return res.status(409).json({ ok: false, error: 'Chưa kết nối OBS WebSocket — mở mục Hiệu ứng OBS → Kết nối' });
     try {
         const only = Array.isArray(req.body?.scenes) ? req.body.scenes.map(String).slice(0, 20) : null;
@@ -6836,6 +6862,61 @@ app.post('/api/games/:id/test-gift', (req, res) => {
 // phát chung cho mọi game như quà thật — game bị khoá tự bỏ qua; route này không bật/điều khiển game nào.
 app.post('/api/test-gift', (req, res) => {
     res.json({ ok: true, gift: emitTestGift(req.body || {}) });
+});
+
+// ====== 🧩 HP GAME HUB — liên kết (Hub nhận quà để chạy Game Camera; mọi thứ khác của Action giữ nguyên) ======
+// Chỉ nối khi vỏ Electron đặt HP_ACTION_HUB_APP_ID (lib/hub-link-action.js là nơi DUY NHẤT đọc biến môi trường).
+let hubLiveSince = null;   // mốc bắt đầu LIVE (CONNECTED); null khi ngắt / hết LIVE
+function onHubOwnsChange(owns) {
+    if (owns) {
+        // Hub nhận Game Camera: dừng phiên game cục bộ + bỏ hàng chờ, tránh chạy hai nơi.
+        if (camSession) camEndSession('hub', { next: false });
+        camSessionQueue = [];
+        camEmitSession();
+    }
+    io.emit('hub:owns', { camera: owns });
+    console.log('[hub-link] ' + (owns ? 'HP Game Hub đang giữ Game Camera' : 'Game Camera chạy lại trên Action'));
+}
+const actionHub = createActionHub({
+    dataDir: DATA_DIR,
+    version: (() => { try { return require('./package.json').version; } catch (_) { return ''; } })(),
+    getEnabled: () => appConfig.hubLink?.enabled !== false,
+    getStatus: () => ({ connected: isTikTokLiveConnected(), uniqueId: currentUsername || '', roomId: currentRoomId || '', viewers: liveStats.viewerCount || 0, since: hubLiveSince }),
+    // giftList được GÁN LẠI (mảng mới) mỗi khi danh mục đổi → lib so tham chiếu rồi gửi lại.
+    getCatalog: () => giftList,
+    getLocalCamOverlayOnline: camHubOverlayOnline,
+    onOwnsChange: onHubOwnsChange,
+    onTestGift: (g) => emitGift(g),
+    onPublic: (pub) => io.emit('hub:state', pub),
+    logger: { info: (...a) => console.log('[hub-link]', ...a), warn: (...a) => console.warn('[hub-link]', ...a) }
+});
+const hubCamOwned = () => actionHub.ownsCamera();
+app.get('/api/hub/state', (req, res) => res.json({ ok: true, hub: actionHub.publicState() }));
+app.post('/api/hub/pair', async (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'Chỉ bấm được trên máy chạy app' });
+    const result = await actionHub.pair();
+    res.json({ ok: true, result, hub: actionHub.publicState() });
+});
+app.post('/api/hub/open', async (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'Chỉ bấm được trên máy chạy app' });
+    const page = String(req.body?.page || '');
+    if (!HUB_PAGES.includes(page)) return res.status(400).json({ ok: false, error: 'Trang không hợp lệ' });
+    const result = await actionHub.open(page);
+    res.json({ ok: result !== 'failed', result, hub: actionHub.publicState() });
+});
+app.post('/api/hub/launch', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'Chỉ bấm được trên máy chạy app' });
+    const result = actionHub.launch();
+    res.json({ ok: !!result, result, hub: actionHub.publicState() });
+});
+app.post('/api/hub/enabled', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'Chỉ bấm được trên máy chạy app' });
+    const enabled = req.body?.enabled;
+    if (typeof enabled !== 'boolean') return res.status(400).json({ ok: false, error: 'enabled phải là true / false' });
+    appConfig.hubLink = { ...(appConfig.hubLink || {}), enabled };
+    try { saveAppConfig(); } catch (e) { console.warn('[hub-link] lưu cấu hình lỗi:', e?.message || e); }
+    actionHub.setEnabled(enabled);
+    res.json({ ok: true, hub: actionHub.publicState() });
 });
 
 // OBS overlay (transparent fullpage)
@@ -12406,6 +12487,7 @@ httpServer.on('error', (e) => {
     throw e;   // giữ hành vi cũ (crash) nhưng đã có dòng log giải thích
 });
 httpServer.listen(PORT, BIND_HOST, async () => {
+    try { actionHub.start(); } catch (e) { console.warn('[hub-link] khởi động lỗi:', e && e.message); }   // chỉ chạy khi Electron đặt HP_ACTION_HUB_APP_ID
     // Tính năng theo KEY: áp theo danh sách đã lưu NGAY khi lên — trước mọi await (tải Google Sheet có thể mất vài
     // giây khi mạng chậm; trong lúc đó game bị khoá không được chạy).
     try { applyLicenseLocks('startup'); } catch (e) { console.warn('[license] áp khoá lúc khởi động lỗi:', e && e.message); }
@@ -12467,7 +12549,7 @@ httpServer.listen(PORT, BIND_HOST, async () => {
 // bodyCamRestore: 🧍 Bộ Tách Người đang dời camera ra ngoài khung OBS (nền "phòng sạch") → trả về chỗ cũ trước khi thoát
 // (lần mở sau vẫn tự trả nếu còn file body-camhide.json).
 const bodyCamRestore = (ms = 300) => { try { return bodyApi ? bodyApi.camRestoreBeforeQuit(ms) : Promise.resolve(); } catch (e) { return Promise.resolve(); } };
-module.exports = { httpServer, app, io, captionListenerStop, bodyCamRestore };
+module.exports = { httpServer, app, io, captionListenerStop, bodyCamRestore, hubStop: () => actionHub.stop() };
 if (!process.versions.electron) {
     // `node server.js` chạy tay: Ctrl+C cũng phải đóng cửa sổ nghe — chờ socket kịp gửi rồi mới thoát.
     process.on('SIGINT', () => {
