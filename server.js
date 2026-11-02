@@ -127,6 +127,7 @@ const vwSignals = require('./lib/vipwelcome/join-signals');
 const vwTiers = require('./lib/vipwelcome/tier-match');
 const { createPresence: createVipPresence, createPendingCards: createVipPendingCards } = require('./lib/vipwelcome/presence');
 const { createGiftLedger: createVipGiftLedger } = require('./lib/vipwelcome/gift-ledger');
+const { createFanLedger: createCoFanLedger, fanKey: coFanKey } = require('./lib/creatoronline-fans');
 const { createMediaQueue: createVipMediaQueue } = require('./lib/vipwelcome/media-queue');
 // Giai đoạn 3: sổ ghé phòng theo buổi, gộp thẻ khi đông, câu đọc tên
 const { createVisits: createVipVisits } = require('./lib/vipwelcome/visits');
@@ -312,6 +313,26 @@ function nhatuSuggestedGiftMap() {
 // 🏢 Creator Online — bộ quà gợi ý (vé, vai MC/Kỹ thuật/Quản lý, đổi nhạc, pháo giấy, PK, tâm điểm, Gala) trong data.json
 function creatorOnlineSuggestedGiftMap() {
     try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'games', 'creatoronline', 'data.json'), 'utf8')).suggestedGiftMap || {}; } catch (e) { return {}; }
+}
+// 🏢 Creator Online — cấp fan trọn đời + club đã chọn (spec §11). Chỉ ghi khi game bật VÀ có overlay đang kết nối
+// (phòng socket 'co-overlay', overlay tự subscribe) → không lưu dữ liệu người xem của streamer chưa từng dùng game.
+const coFans = createCoFanLedger({
+    file: path.join(DATA_DIR, 'creatoronline-fans.json'),
+    ranks: (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'games', 'creatoronline', 'data.json'), 'utf8')).fanRanks; } catch (e) { return undefined; } })()
+});
+process.on('exit', () => { try { coFans.flushSync(); } catch (e) {} });
+function coFansActive() {
+    try { return appConfig.games.creatoronline?.enabled !== false && (io.sockets.adapter.rooms.get('co-overlay')?.size || 0) > 0; } catch (e) { return false; }
+}
+/** Gắn coFan (cấp + club đã lưu, giá trị TRƯỚC sự kiện này) vào payload; trả về bản cập nhật cần phát 'creatoronline:fan' hoặc null. */
+function coFansTouch(payload, kind) {
+    if (!coFansActive()) return null;
+    try {
+        payload.coFan = coFans.get(coFanKey(payload));
+        if (kind === 'gift') return coFans.onGift(payload);
+        if (kind === 'chat') return coFans.onChat(payload, { switchSec: Number(appConfig.games.creatoronline?.coClubSwitchSec ?? 60) });
+    } catch (e) { console.warn('[creatoronline] bộ đếm fan lỗi:', e?.message || e); }
+    return null;
 }
 
 const GAMES = {
@@ -3816,7 +3837,9 @@ function attachConnectionEvents(conn, lib) {
             comment,
             createTime: Date.now()
         };
+        const coFanChange = coFansTouch(chatPayload, 'chat');   // 🏢 Creator Online: mã club 1–5
         broadcast('chat', chatPayload);
+        if (coFanChange) io.emit('creatoronline:fan', coFanChange);
         processLiveTranslateChat(chatPayload);
         // Chào muộn (TikTok không gửi tín hiệu vào phòng cho người này) + trigger 'comment' riêng
         vipHandleActivity(data?.user);
@@ -3907,7 +3930,10 @@ function attachConnectionEvents(conn, lib) {
         const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
         const likeCount = Number(data?.likeCount ?? data?.count) || 1;   // v3 (2.4.4): count
         rememberUserMapping(userId, uniqueId);
-        broadcast('like', { uniqueId, nickname, likeCount });
+        // userId + profilePicture: 🏢 Creator Online khoá fan theo userId và cần avatar khi người xem vào bằng thả tim
+        const likePayload = { uniqueId, userId, nickname, profilePicture, likeCount };
+        coFansTouch(likePayload, 'like');
+        broadcast('like', likePayload);
         liveStats.totalLikes += likeCount; emitLiveStatsThrottled();
         // Chào muộn + trigger 'like' riêng
         vipHandleActivity(data?.user);
@@ -3921,7 +3947,9 @@ function attachConnectionEvents(conn, lib) {
         const dtKey = String(data?.common?.displayText?.key || '').toLowerCase();
         const dtPattern = String(data?.common?.displayText?.defaultPattern || '').replace(/{d+:[a-z_]+}/gi, '').trim();
         const label = dtKey.includes('follow') ? 'đã theo dõi' : (dtKey.includes('share') || dtKey.includes('mt_msg')) ? 'đã chia sẻ LIVE' : dtPattern;
-        broadcast('social', { uniqueId, nickname, label });
+        const socialPayload = { uniqueId, userId, nickname, profilePicture, label };
+        coFansTouch(socialPayload, 'social');
+        broadcast('social', socialPayload);
         vipHandleActivity(data?.user);
     });
     // FOLLOW event
@@ -4918,7 +4946,9 @@ function emitGift(g) {
         ts: Date.now()
     };
     console.log(`[gift] emit → ${enriched.nickname || enriched.uniqueId} sent "${enriched.giftName || '?'}" (id=${enriched.giftId}, x${enriched.repeatCount || 1}, ${enriched.coinValue || 0}💎)`);
+    const coFanChange = coFansTouch(enriched, 'gift');   // 🏢 Creator Online: cộng xu trọn đời (bỏ quà thử)
     io.emit('gift', enriched);
+    if (coFanChange) io.emit('creatoronline:fan', coFanChange);
     setLiveDashboardGift(enriched);
     try { leagueOnGift(enriched); } catch (e) { console.warn('[leaguecard] gift lỗi:', e?.message || e); }
     // Push to all game overlays
@@ -7637,6 +7667,19 @@ app.get('/overlay/nhatu', (req, res) => {
 // 🏢 Creator Online — overlay OBS (Browser Source 1080×1920) hoặc cửa sổ game Edge/Chrome --app.
 app.get('/overlay/creatoronline', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'creatoronline', 'overlay.html'));
+});
+// Cấp fan trọn đời: overlay hỏi gộp theo id khi fan mới vào; panel xem top + làm mới.
+app.get('/api/creatoronline/fans', (req, res) => {
+    const ids = String(req.query.ids || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 200);
+    res.json({ fans: coFans.getMany(ids) });
+});
+app.get('/api/creatoronline/fans/top', (req, res) => {
+    res.json({ top: coFans.top(Math.max(1, Math.min(200, Number(req.query.n) || 20))) });
+});
+app.post('/api/creatoronline/fans/reset', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    coFans.reset();
+    res.json({ ok: true });
 });
 // body { demo: true } → mở Bản đi dạo (WASD, ví trong bộ nhớ) để streamer xem thử; mặc định mở overlay LIVE ?win=1.
 app.post('/api/creatoronline/window/open', (req, res) => {
