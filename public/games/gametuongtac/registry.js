@@ -33,10 +33,10 @@
             note: 'Bảng quà có link OBS riêng (trong ⚙ Cài đặt).'
         },
         {
-            id: 'creatoronline', name: 'Creator Online', icon: '🏢', soon: true,
-            desc: 'Tòa nhà LIVE chibi 3D 25 phòng: sân khấu nhóm, phòng LIVE đứng, phòng hát, phòng game — phát triển từ Nhà Tù Online.',
-            play: 'Thả tim · quà chọn thể loại · nhận vai · PK',
-            note: 'Đang phát triển riêng (thư mục CREATOR ONLINE/), chưa vào app.'
+            id: 'creatoronline', name: 'Creator Online', icon: '🏢',
+            desc: 'Tòa nhà LIVE chibi 3D 25 phòng: người xem là fan của 5 nhóm nhảy, quà bất kỳ được lên sân khấu, vé có phòng mang tên, vai MC/Kỹ thuật/Quản lý, PK giữa các nhóm.',
+            play: 'Gõ 1–5 chọn nhóm · quà = lên sân khấu / phòng / vai · PK',
+            note: 'Camera tự đạo diễn; chỉ dùng Browser Source HOẶC cửa sổ game, không dùng cả hai.'
         }
     ];
 })();

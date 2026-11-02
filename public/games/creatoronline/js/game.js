@@ -423,6 +423,7 @@ function spawnActor(v) {
   v.actor = a;
   v.place = null;
   liveActors = null;
+  reconcile(v); // vào khu khán giả nhóm mình ngay (thả tim / bình luận thường không qua reconcile ở chỗ khác)
   if (v.autoChip) {
     v.autoChip = false;
     setTimeout(() => v.actor?.label.flash(`→ ${CLUB_NO[v.club]} ${clubRoom(v.club).def.name} · gõ 1–5 để đổi`, 4), 300);
@@ -1343,6 +1344,7 @@ function tickSystems(now) {
       removeViewer(v, now);
       continue;
     }
+    if (v.actor && !v.place) reconcile(v); // lưới an toàn: nhân vật chưa có chỗ đứng
     if (v.likeBatch > 0 && now - v.likeChipAt >= 2000) {
       chipFor(v, `+${v.likeBatch} ❤${v.x2 ? ' ×2' : ''}`);
       v.likeBatch = 0;
