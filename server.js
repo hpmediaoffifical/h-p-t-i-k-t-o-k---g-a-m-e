@@ -309,6 +309,10 @@ const BodyServer = require('./lib/body-server');
 function nhatuSuggestedGiftMap() {
     try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'games', 'nhatu', 'data.json'), 'utf8')).suggestedGiftMap || {}; } catch (e) { return {}; }
 }
+// 🏢 Creator Online — bộ quà gợi ý (vé, vai MC/Kỹ thuật/Quản lý, đổi nhạc, pháo giấy, PK, tâm điểm, Gala) trong data.json
+function creatorOnlineSuggestedGiftMap() {
+    try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'games', 'creatoronline', 'data.json'), 'utf8')).suggestedGiftMap || {}; } catch (e) { return {}; }
+}
 
 const GAMES = {
     thuytinh: {
@@ -433,6 +437,38 @@ const GAMES = {
             ntGuardCoins: 0,          // quà chưa gán ≥ bấy nhiêu xu → làm Cán Bộ (0 = chỉ quà đã gán)
             ntShowGiftLegend: true,   // hiện bảng "🎁 Tặng quà để…" trên overlay
             ntGiftMap: nhatuSuggestedGiftMap()   // { [action]: [{ giftId, giftName, giftImage, coins }] } — mặc định = bộ quà gợi ý trong data.json
+        }
+    },
+    creatoronline: {
+        id: 'creatoronline',
+        name: 'Creator Online',
+        description: 'Tòa nhà LIVE chibi 3D 25 phòng: người xem là fan của 5 nhóm nhảy, quà bất kỳ được lên sân khấu, vé có phòng mang tên, vai MC/Kỹ thuật/Quản lý, PK giữa các nhóm.',
+        icon: '🏢',
+        overlayPath: '/overlay/creatoronline',
+        // Khoá riêng tiền tố co*. Spec docs/superpowers/specs/2026-11-03-creatoronline-design.md §17.3;
+        // thông số phụ (không hiện trong panel) ở public/games/creatoronline/data.json → live.
+        defaultConfig: {
+            enabled: true,
+            coQuality: 'high',        // high | low (overlay tự tải lại ?q=low)
+            coMaxViewers: 40,         // 5–120 (chất lượng thấp tối đa 80); người tặng quà được vượt tạm +20
+            coNpcCount: 20,           // đám đông NPC vô danh khi tòa nhà vắng
+            coViewerIdleMin: 30,      // im lặng bấy nhiêu phút thì rời tòa nhà
+            coClubSwitchSec: 60,      // đổi club (bình luận 1–5) tối đa 1 lần mỗi bấy nhiêu giây
+            coStageBaseSec: 12, coStagePerCoinSec: 3, coStageMaxSec: 120,   // giây trên sân khấu = 12 + 3·(xu−1), trần 120
+            coStageSlots: 12,         // chỗ khách mỗi sân (6 idol + 6 hàng trước)
+            coRoomHoldSec: 60, coRoomQueueMax: 6,                         // 🎟️ phòng mang tên
+            coRoleSec: 180, coRoleLockSec: 45, coRoleMaxSec: 300,          // 🎙️🎛️📋 vai trong nhóm
+            coPkEveryMin: 5,          // PK tự động mỗi bấy nhiêu phút (2–15, 0 = tắt)
+            coPkSec: 90, coPkFinalSec: 30,                                 // trận PK / nước rút (tim bên thua ×2)
+            coMvpMin: 10,             // MVP PK: tên trên LED bấy nhiêu phút
+            coCamMaxPer5Min: 90,      // giây cảnh quay tối đa mỗi người tặng trong 5 phút
+            coTierFallback: true,     // quà chưa gán chạy hành động theo bậc xu
+            coLikeMilestone: 300,     // mỗi bấy nhiêu tim cả tòa nhà → sóng tim
+            coSound: true, coMusic: true, coMusicVol: 0.35,
+            coLiveTv: true,           // TV trực tiếp trong sân khấu nhóm (vẽ cảnh lần 2)
+            coShowGiftLegend: true, coShowJoinHint: true,
+            coBadWords: '',           // từ cấm thêm, cách nhau bằng dấu phẩy
+            coGiftMap: creatorOnlineSuggestedGiftMap()   // { [action]: [{ giftId, giftName, giftImage, coins }] }
         }
     },
     nhietdo: {
@@ -7597,6 +7633,30 @@ app.get('/overlay/quaivat', (req, res) => {
 // ⛓️ Nhà Tù Online — overlay OBS (Browser Source 1080×1920) hoặc cửa sổ game Edge/Chrome --app (cần GPU/WebGL như Zombie Phá Nhà).
 app.get('/overlay/nhatu', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'nhatu', 'overlay.html'));
+});
+// 🏢 Creator Online — overlay OBS (Browser Source 1080×1920) hoặc cửa sổ game Edge/Chrome --app.
+app.get('/overlay/creatoronline', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'creatoronline', 'overlay.html'));
+});
+// body { demo: true } → mở Bản đi dạo (WASD, ví trong bộ nhớ) để streamer xem thử; mặc định mở overlay LIVE ?win=1.
+app.post('/api/creatoronline/window/open', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    const found = CaptionListener.resolveBrowserExe('edge', { exists: (p) => { try { return fs.existsSync(p); } catch (e) { return false; } } });
+    if (!found) return res.json({ ok: false, error: 'Không tìm thấy Microsoft Edge hoặc Google Chrome trên máy' });
+    const demo = !!(req.body && req.body.demo);
+    const profileDir = path.join(DATA_DIR, 'creatoronline-window', found.browser);
+    try { fs.mkdirSync(profileDir, { recursive: true }); } catch (e) {}
+    const url = demo ? `http://127.0.0.1:${PORT}/games/creatoronline/demo.html` : `http://127.0.0.1:${PORT}/overlay/creatoronline?win=1`;
+    // OBS bắt cửa sổ: Chromium mặc định ngừng vẽ / hãm nhịp khi cửa sổ bị che hoặc thu nhỏ → hình trong OBS đứng
+    const keepDrawing = ['--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling'];
+    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat(demo ? '--window-size=1280,800' : '--window-size=540,960', ...keepDrawing);
+    try {
+        const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
+        child.on('error', (e) => console.warn('[creatoronline] mở cửa sổ game lỗi:', e.message));
+        child.unref();
+    } catch (e) { return res.json({ ok: false, error: e.message }); }
+    console.log(`[creatoronline] mở ${demo ? 'bản đi dạo' : 'cửa sổ game'} bằng ${found.browser}: ${found.exe}`);
+    res.json({ ok: true, browser: found.browser });
 });
 app.post('/api/nhatu/window/open', (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });

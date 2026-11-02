@@ -9768,3 +9768,39 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .nt-grow.nt-grow3 { grid-template-columns: 300px 1fr auto; }
 .nt-giftbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .nt-coin { color: #8fd3ff; font-size: 11px; margin-left: 2px; }
+
+/* ============ 🏢 Creator Online (panel) ============ */
+.creatoronline-body { display: flex; flex-direction: column; gap: 12px; padding: 12px; overflow: auto; }
+.co-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 1100px) { .co-top { grid-template-columns: 1fr; } }
+.co-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.co-row { display: grid; grid-template-columns: 260px 1fr; align-items: center; gap: 10px; font-size: 13px; color: #cfd3dc; margin-bottom: 6px; }
+.co-row input, .co-row select { background: #11131a; color: #fff; border: 1px solid #2a2e3a; border-radius: 8px; padding: 7px 10px; font-size: 13px; min-width: 0; }
+.co-row input[type="range"] { padding: 0; }
+.co-checks { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #cfd3dc; margin-top: 4px; }
+.co-checks label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.co-hint { font-size: 12px; color: #8a90a0; line-height: 1.5; margin: 4px 0 8px; }
+.co-hint b { color: #e8ebf2; }
+.co-warn { color: #e6c27a; }
+.co-cmds { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; margin-bottom: 8px; }
+.co-cmds button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
+.co-cmds button small { font-size: 11px; color: #8a90a0; }
+.co-pin { display: flex; align-items: center; gap: 8px; background: #11131a; border: 1px dashed #2a2e3a; border-radius: 8px; padding: 8px 10px; font-size: 13px; color: #e8ebf2; }
+.co-pin span { flex: 1; min-width: 0; }
+.co-fans { margin: 0; padding-left: 22px; display: grid; gap: 4px; font-size: 13px; color: #e8ebf2; max-height: 260px; overflow: auto; }
+.co-fans li span { margin-right: 6px; }
+.co-fans li small { color: #8a90a0; }
+.co-grow { display: grid; grid-template-columns: 320px 1fr auto; gap: 10px; align-items: center; padding: 6px 8px; border-bottom: 1px solid #1f2330; }
+.co-actname { display: flex; align-items: center; gap: 8px; }
+.co-actname b { display: block; font-size: 13px; color: #e8ebf2; }
+.co-actname small { display: block; font-size: 11px; color: #8a90a0; }
+.co-emo { font-size: 22px; width: 30px; text-align: center; }
+.co-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.co-chip { display: inline-flex; align-items: center; gap: 4px; background: #1c2030; border: 1px solid #2a2e3a; border-radius: 999px; padding: 2px 4px 2px 6px; font-size: 12px; color: #e8ebf2; }
+.co-chip img { width: 20px; height: 20px; object-fit: contain; }
+.co-chip.co-dup { border-color: #b8862c; }
+.co-dupmark { color: #e6c27a; font-size: 11px; }
+.co-x { background: none; border: 0; color: #8a90a0; cursor: pointer; font-size: 11px; padding: 0 2px; }
+.co-x:hover { color: #ff4d5e; }
+.co-giftbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.co-coin { color: #8fd3ff; font-size: 11px; margin-left: 2px; }

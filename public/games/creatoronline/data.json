@@ -1,6 +1,191 @@
 {
   "_ghi_chu": "🏢 Creator Online — dữ liệu game (chép từ CREATOR ONLINE/assets/data/game-config.json). Bản LIVE dùng thêm suggestedGiftMap/actions/live; bản đi dạo (?demo=1) dùng cả ví/cửa hàng.",
   "audioFiles": [],
+  "live": {
+    "_ghi_chu": "Thông số phụ bản LIVE (spec 2026-11-03-creatoronline-design.md §17.3). Khoá co* chỉnh trong panel nằm ở GAMES.creatoronline.defaultConfig.",
+    "stageQueueMax": 10,
+    "stageMinStandSec": 8,
+    "stageReGiftGapSec": 1.5,
+    "roleQueueMax": 1,
+    "roleExtendSec": 90,
+    "roleYieldSec": 60,
+    "pkCooldownSec": 60,
+    "pkRetrySec": 60,
+    "activeWindowSec": 180,
+    "gifterProtectSec": 300,
+    "overflowViewers": 20,
+    "hardCapHigh": 160,
+    "hardCapLow": 100,
+    "maxViewersLow": 80,
+    "galaSec": 60,
+    "galaShortSec": 30,
+    "galaMergeMaxSec": 90,
+    "shotMinSec": 8,
+    "shotQueueMax": 6,
+    "shotStaleSec": 45,
+    "holdMaxSec": 300,
+    "roomFxGapSec": 1.5,
+    "roomFxQueueMax": 6,
+    "mcReadEverySec": 20,
+    "techIdleSec": 10,
+    "techAutoEverySec": 8,
+    "cmdGapSec": 3,
+    "fanKeepDays": 180,
+    "fanKeepMinXu": 100,
+    "sessionSaveSec": 2,
+    "sessionRestoreMaxSec": 300,
+    "shotSec": {
+      "gala": 60,
+      "spotlight": 30,
+      "big": 15,
+      "room": 30,
+      "role": 20
+    },
+    "joinLines": [
+      "💬 Gõ 1–5 chọn nhóm",
+      "🌹 Quà bất kỳ → lên sân khấu",
+      "🎟️ {ticket} → phòng mang tên bạn"
+    ]
+  },
+  "giftActions": [
+    {
+      "id": "ticket",
+      "group": "place",
+      "emoji": "🎟️",
+      "label": "Phòng mang tên",
+      "desc": "Phòng LIVE đơn đổi thành \"Phòng <tên>\", chibi người tặng làm streamer, giữ chắc 60 giây"
+    },
+    {
+      "id": "mc",
+      "group": "role",
+      "emoji": "🎙️",
+      "label": "MC",
+      "desc": "Bình luận của người giữ vai được MC nói và chạy trên màn LED"
+    },
+    {
+      "id": "tech",
+      "group": "role",
+      "emoji": "🎛️",
+      "label": "Kỹ thuật",
+      "desc": "Bình luận phao / khoi / laser / den / chop để bắn hiệu ứng"
+    },
+    {
+      "id": "manager",
+      "group": "role",
+      "emoji": "📋",
+      "label": "Quản lý",
+      "desc": "Bình luận pk 3 gọi PK, them / bot thêm bớt idol, do đổi trang phục"
+    },
+    {
+      "id": "genre",
+      "group": "stage",
+      "emoji": "🎵",
+      "label": "Đổi nhạc",
+      "desc": "Đổi thể loại nhạc của sân / phòng người tặng"
+    },
+    {
+      "id": "confetti",
+      "group": "stage",
+      "emoji": "🎉",
+      "label": "Mưa pháo giấy",
+      "desc": "Pháo giấy cả sân nhóm người tặng"
+    },
+    {
+      "id": "pkStart",
+      "group": "event",
+      "emoji": "⚔️",
+      "label": "PK ngay",
+      "desc": "Quà lớn + mở PK cho nhóm người tặng"
+    },
+    {
+      "id": "spotlight",
+      "group": "event",
+      "emoji": "🌌",
+      "label": "Tâm điểm",
+      "desc": "Cả tòa nhà đổi màu đèn nhóm người tặng, fan kéo về sân đó"
+    },
+    {
+      "id": "gala",
+      "group": "event",
+      "emoji": "👑",
+      "label": "Gala",
+      "desc": "Biển tòa nhà hiện tên, 5 nhóm nhảy chung (quà ≥ 10.000 xu chưa gán cũng ra Gala)"
+    }
+  ],
+  "suggestedGiftMap": {
+    "genre": [
+      {
+        "giftId": "51281",
+        "giftName": "DJ Vinyl",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/0b666a386478756d9988cfa73ab20a71.png~tplv-obj.webp",
+        "coins": 10
+      }
+    ],
+    "ticket": [
+      {
+        "giftId": "15063",
+        "giftName": "Vé hành trình",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/551ecaf639c5e02354f9e7c1a763ec72.png~tplv-obj.webp",
+        "coins": 10
+      }
+    ],
+    "mc": [
+      {
+        "giftId": "170507",
+        "giftName": "Giai điệu nở hoa",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/96bde97172e9ad387dac78b7e2bd0354.png~tplv-obj.webp",
+        "coins": 99
+      }
+    ],
+    "tech": [
+      {
+        "giftId": "985644",
+        "giftName": "Bom kẹo",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/4586efda80f010da8563955095aa6271.png~tplv-obj.webp",
+        "coins": 99
+      }
+    ],
+    "manager": [
+      {
+        "giftId": "14046",
+        "giftName": "Đũa thần PK",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/d1ba80bb94f93ac973bc4f30794c6d28.png~tplv-obj.webp",
+        "coins": 100
+      }
+    ],
+    "confetti": [
+      {
+        "giftId": "7121",
+        "giftName": "Pháo giấy tuyệt đẹp",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/6a053553310ed19c20adac7d7561e11d.png~tplv-obj.webp",
+        "coins": 100
+      }
+    ],
+    "pkStart": [
+      {
+        "giftId": "130787",
+        "giftName": "Tiến lên!",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/1bc7335bffaba2703a5ce4caf22afe61.png~tplv-obj.webp",
+        "coins": 299
+      }
+    ],
+    "spotlight": [
+      {
+        "giftId": "11046",
+        "giftName": "Thiên hà",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/79a02148079526539f7599150da9fd28.png~tplv-obj.webp",
+        "coins": 1000
+      }
+    ],
+    "gala": [
+      {
+        "giftId": "6369",
+        "giftName": "Sư tử",
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4fb89af2082a290b37d704e20f4fe729~tplv-obj.webp",
+        "coins": 29999
+      }
+    ]
+  },
   "tuning": {
     "walkSpeed": 3.6,
     "runSpeed": 6.6,

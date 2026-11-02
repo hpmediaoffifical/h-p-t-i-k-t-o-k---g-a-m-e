@@ -962,6 +962,7 @@
         else if (gameId === 'nhietdo') openNhietDo(game);
         else if (gameId === 'quaivat') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpQuaiVatPanel?.open(socket); }
         else if (gameId === 'nhatu') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpNhaTuPanel?.open(socket); }
+        else if (gameId === 'creatoronline') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpCreatorOnlinePanel?.open(socket); }
         else if (gameId === 'bancung') openBanCung(game);
         else if (gameId === 'chemtraicay') openChemTraiCay(game);
         else if (gameId === 'dapmuoi') openDapMuoi(game);
