@@ -3244,7 +3244,7 @@ function updateNewItem(it, p, dt) {
     ud.rock.position.set(7 * (1 - f), 24 * (1 - f) + 0.4, -12 * (1 - f)); ud.rock.rotation.x += dt * 6;
     if (Math.random() < dt * 45) puff(ud.rock.getWorldPosition(new V3()), { color: pick([0xff7a20, 0xffc040, 0xff3a10]), n: 1, size: 1, speed: 0.5, life: 0.5, add: true });
     if (f >= 1) {
-      explosion(p.clone(), 1.0);
+      explosion(p.clone(), 1.0); crackDecal(p, 2.6, 5);
       const d = Math.hypot(p.x - mon.x, p.z - mon.z);
       if (d < 2.4 && mon.y < 2.5 && live) { hitMonster(Math.round(90 * (1 - d / 3.2)), 6, it.owner, { text: 'THIÊN THẠCH!', unblockable: true }); mon.charT = 1.6; }
       for (const o of items) if (o !== it && !o.dead && o.state === 'set' && o.blocker && o.kind !== 'fence' && o.g.position.distanceTo(p) < 2.2) breakItem(o);
@@ -3261,7 +3261,7 @@ function updateNewItem(it, p, dt) {
     } else if (it.state === 'slam') {
       p.y = Math.max(2.5, p.y - 42 * dt);
       if (p.y <= 2.5) {
-        it.shadow.visible = false; camShake = Math.max(camShake, 0.4); sfx('thud');
+        it.shadow.visible = false; camShake = Math.max(camShake, 0.4); sfx('thud'); crackDecal(it.spot, 2.4, 4);
         puff(it.spot.clone().setY(0.2), { color: T.dust || 0xcdb98e, n: 12, size: 1.5, speed: 4, life: 0.9 });
         if (Math.hypot(mon.x - it.spot.x, mon.z - it.spot.z) < 1.5 && live && mon.y < 1.5) {
           it.state = 'carry'; it.t = 0; mon.carry = it; mon.kv = 0; mon.stun = 0; if (mon.shieldHp > 0) breakShield();
@@ -3614,6 +3614,7 @@ function queueAction(a, user, n = 1) {
   const last = actionQueue[actionQueue.length - 1];
   if (last && last.a === a && last.u && user && last.u.id === user.id) last.n += n; else actionQueue.push({ a, u: user, n });
 }
+function liveItems() { let n = 0; for (const it of items) if (!it.dead) n++; return n; }
 function queuePending() { let t = 0; for (const e of actionQueue) t += e.n; return t; }
 // món chỉ chạy được 1 cái 1 lúc → đợi tới lượt (không đổi quà, không bỏ)
 // Đá lăn / Bàn tay / Động đất: đẩy zombie về cột mốc/đầu đường → chờ tới khi zombie đi xa khỏi đó (bằng không là phí quà người tặng)
@@ -3663,6 +3664,7 @@ function updateQueue(dt) {
   actionT -= dt;
   let guard = 0;
   while (actionT <= 0 && actionQueue.length && guard++ < 40) {
+    if (items.length > 90 && liveItems() > 90) break;                            // đường quá nhiều đồ: quà chờ lượt (không bỏ) cho khung hình khỏi giật
     const i = actionQueue.findIndex(e => canRunNow(e.a)); if (i < 0) break;      // món đang bận thì chạy món sau trước, món bận vẫn giữ chỗ
     const e = actionQueue[i]; runAction(e.a, e.u); if (--e.n <= 0) actionQueue.splice(i, 1);
     const base = e.a === 'pebble' ? 0.06 : e.a === 'slipper' ? 0.12 : 0.28;
@@ -3690,7 +3692,8 @@ function giftImgFor(g) {                                   // ảnh quà TikTok 
 function giftRuns(action, g, coins) { return runsFor(action, (g && g.action === action ? g.coins : ALL_GIFTS.find(x => x.action === action)?.coins) || 0, coins); }
 function onGift(user, giftName, count, coins, forced, img) {
   const g = forced ? ALL_GIFTS.find(a => a.action === forced) : findGift(giftName);
-  img = img || giftImgFor(g); if (img) user = { ...user, gi: img };   // ảnh quà thật hiện cạnh tên người tặng trên đồ vật
+  img = img || giftImgFor(g); if (img) user = { ...user, gi: img };
+  if (weekTop.length && weekTop[0].id === user.id && !greetedTop.has(user.id)) { greetedTop.add(user.id); banner('🏆 TOP 1 TUẦN VÀO TRẬN!', `Chào ${esc(user.name)}`, 3, 2.4); }   // ảnh quà thật hiện cạnh tên người tặng trên đồ vật
   const action = forced || (g ? g.action : actionByCoins(coins || 1));
   const total = (coins || g?.coins || 1) * count;
   const runs = count * giftRuns(action, g, coins);
@@ -4198,6 +4201,7 @@ function updateHud(dt) {
 // =====================================================================
 const IN_APP = typeof window.io === 'function';
 let appSocket = null;
+const greetedTop = new Set();
 let sessionMap = false, sessT = 0, sessSig = '', weekTop = [], fameT = 0, boardMode = 0;
 async function restoreSession() {
   try {

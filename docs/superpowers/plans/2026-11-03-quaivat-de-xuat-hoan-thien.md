@@ -186,3 +186,28 @@ Code đọc trên nhánh `feature/quaivat-dep-dot1`. Phần `public/games/quaiva
 6. **Lưu dữ liệu (4.3/4.5)**: server ghi (khuyến nghị) hay overlay ghi? Điểm danh tiếng chỉ tính xu, hay cả tim/bình luận?
 7. **Vị trí Đầm Sen (3.11)**: giữ ở map 8 hay chèn trước Lâu Đài?
 8. **Giờ vàng (4.7)**: chỉ giảm ngưỡng tim, hay có nhân đôi điểm? Nhân đôi điểm sẽ kích người xem tặng.
+
+---
+
+## ✅ Đã làm (03/11/2026, nhánh `tuongtac/zombie`, worktree `.claude/worktrees/zombie-dep`)
+
+User chốt: làm hết đề xuất, **quà đắt chạy theo xu thật**, chip quà **chỉ ghi tên trò** (bỏ tên quà + số xu),
+**gắn quà TikTok thật** cho mọi hành động, Demo cho **zombie tự chạy**. Câu còn lại tự quyết: Giữ nhà + Cơn đói bật
+mặc định (có công tắc), bỏ hẳn bẫy đặt sẵn (`placeMine`), chặn WIN ở 0, server ghi dữ liệu, Đầm Sen giữ map 8,
+giờ vàng chỉ giảm ngưỡng tim.
+
+| Commit | Nội dung |
+|---|---|
+| `fdc1c99` | Gói 1: giải phóng GPU khi đổi map (đo: trước +20 texture/+27 khối mỗi lần, sau đứng yên), tăng tốc/khiên cộng dồn + giữ sang ván, quà đắt theo xu, Đá lăn/Bàn tay/Động đất chờ lượt, món ở cửa không phí, nhảy 0,9m, ném đón đầu theo vận tốc thật, WIN ≥ 0, dọn code chết, cờ chống ngừng vẽ |
+| `b5b6cbe` | Gói 2: camera dọc (zombie 58%), HUD chữ to, máu cửa, chip quà phân trang + sáng khi tặng, khe thông báo có hàng đợi (`logic.js` NoteQueue), hướng dẫn xoay vòng, ghi tên người tặng khi trúng, vòng sáng dưới bẫy, panel "Bắt đầu 3 bước" |
+| `9035035` | Gói 3+4: Giữ nhà, Cơn đói, tim co giãn + mưa đá, cân lại quà, quà giúp mới (Zombie con / Giáp vàng / Nắm đấm vàng / Xe ủi), quà TikTok thật theo giftId, biến thể ván, giờ vàng, MVP mỗi ván, mốc WIN + chặng, lưu phiên + TOP tuần (`lib/quaivat-store.js`), nhắc lời dẫn, Demo zombie tự chạy, test |
+| `ffdd6a0` | Gói 5: đồ vật đẹp hơn (bẫy kẹp, thùng phình, bó pháo, bẫy bật, lưới…), khựng hình / quay chậm / rung sin, cửa nứt + văng ván, núi gồ ghề, trăng sao, hạt bay theo map, trang trí Noel / Tết, chất lượng hình, số đèn cố định |
+| (cuối) | Trần đồ vật sống (quà chờ lượt), chào TOP 1 tuần, vết nứt thiên thạch/tay, ảnh quà thật trên bảng quà OBS |
+
+**Test:** `tests/quaivat-logic.test.mjs` (19) + `tests/quaivat-store.test.js` (4), đã thử đột biến (đổi về hành vi cũ → test đỏ).
+`npm test` 554/554. Thử trong trình duyệt (render phần mềm): không lỗi console; bộ nhớ đứng yên ~350 khối / ~97 texture sau nhiều vòng đổi map.
+
+**Còn lại / chưa làm:**
+- Thử trên OBS + GPU thật của máy stream (FPS, `renderer.info.render.calls` ở map 1/6/7/8) và 1 buổi LIVE thật (vị trí khung bình luận TikTok).
+- Nút "Link OBS" vào menu phụ (nằm trong `public/index.html` dùng chung — chưa đụng để tránh xung đột nhánh khác).
+- Huy hiệu danh hiệu cạnh tên (Thần Giữ Cửa, Thợ Bẫy…); đặc sản riêng cho Đầm Sen (lục bình trôi); SSAO bỏ hẳn (không đáng).
