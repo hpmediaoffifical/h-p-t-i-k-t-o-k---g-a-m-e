@@ -10,6 +10,13 @@
 import { stepBody } from './logic/physics.js';
 import { createCharacter, animateCharacter, setProps, setLook } from './character.js';
 import { attachLabel } from './labels.js';
+
+// Bản đi dạo dùng nhãn CSS2D (labels.js); bản LIVE cắm LabelLayer (label-layer.js) trước khi dựng nhân vật.
+let makeLabel = attachLabel;
+/** @param {(char, name:string, kind:string) => object} fn */
+export function setLabelFactory(fn) {
+  makeLabel = fn;
+}
 import { pick, range, shuffled } from './logic/rng.js';
 import { MAX_IDOLS } from './logic/rooms.js';
 
@@ -25,7 +32,7 @@ export function angleDelta(a, b) {
 export function makeActor(scene, { name, look, kind, x, z, y = 0 }) {
   const char = createCharacter(look);
   scene.add(char.root);
-  const label = attachLabel(char, name, kind);
+  const label = makeLabel(char, name, kind);
   const actor = {
     name,
     kind,
@@ -145,10 +152,12 @@ export class NpcManager {
     this.fans = [];
     this.queuers = []; // people waiting in line beside a solo room
     this.byRoom = new Map(); // roomId -> {main, members:{mc,tech,manager,idols[]}}
+    this._all = null; // mảng gộp dựng lại khi danh sách đổi (trước đây concat mỗi khung)
   }
 
   get all() {
-    return this.streamers.concat(this.fans, this.queuers);
+    this._all ??= this.streamers.concat(this.fans, this.queuers);
+    return this._all;
   }
 
   /** Same name, same look: a gifter keeps their appearance from the queue into the room. */
@@ -188,6 +197,7 @@ export class NpcManager {
     setProps(a.char, { stick: true, stickColor: pick(this.rng, STICK_COLORS) });
     Object.assign(a, { role: 'queue', baseName: name, room, spot, path: [{ x: spot.x, z: spot.z }], walkT: 0 });
     this.queuers.push(a);
+    this._all = null;
     return a;
   }
 
@@ -203,11 +213,13 @@ export class NpcManager {
     this.scene.remove(a.char.root);
     a.label.dispose();
     this.queuers = this.queuers.filter((q) => q !== a);
+    this._all = null;
   }
 
   /** Spawn streamers for every room and the wandering fans. */
   spawn() {
     const { rng, world, cfg } = this;
+    this._all = null;
     const names = shuffled(rng, cfg.creatorNames);
     let ni = 0;
     const nextName = () => names[ni++ % names.length];
@@ -385,6 +397,7 @@ export class NpcManager {
       } else if (room.type === 'stand') mode = a.talkT > 0 ? 'present' : Math.floor(beat / 8) % 3 === 2 ? 'talk' : 'present';
       else if (room.type === 'sing') mode = 'singSit';
       else mode = 'game';
+      if (a.forceMode) mode = a.forceMode; // bản LIVE: idol nhóm thua PK nhảy phạt, Gala…
       a.mode = mode;
       if (!a.far) animateCharacter(a.char, dt, { mode, speed: 0, beat });
     }

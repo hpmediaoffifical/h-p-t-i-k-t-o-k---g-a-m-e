@@ -95,13 +95,27 @@ function mesh(geometry, material, x = 0, y = 0, z = 0) {
  * Create a character.
  * @param {{outfit:string, hair:string, hat:string}} look
  */
+// vòng bóng dưới chân dùng chung 1 material (trước đây mỗi nhân vật 1 cái, gỡ nhân vật không giải phóng → rò GPU)
+let blobMat = null;
+
+/**
+ * Giải phóng phần riêng của 1 nhân vật khi gỡ hẳn (người xem rời tòa nhà): chỉ material lightstick là riêng,
+ * geometry + material còn lại dùng chung (cache) nên KHÔNG được dispose.
+ */
+export function disposeCharacter(char) {
+  char.root.parent?.remove(char.root);
+  char.stickMat?.dispose();
+  char.stickMat = null;
+}
+
 export function createCharacter(look) {
   const G = g();
   const root = new THREE.Group();
   const body = new THREE.Group(); // bob / sway / spin offset
   root.add(body);
 
-  const blob = new THREE.Mesh(G.shadow, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }));
+  blobMat ??= new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false });
+  const blob = new THREE.Mesh(G.shadow, blobMat);
   blob.rotation.x = -Math.PI / 2;
   blob.position.y = 0.012;
   root.add(blob);

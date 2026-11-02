@@ -99,11 +99,12 @@ export function drawLed(scr, room, state, genre, cols, beat, t, pk, rooms) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#fff';
-  ctx.shadowColor = cols[0];
-  ctx.shadowBlur = 18;
+  // viền chữ thay shadowBlur (blur canvas rất đắt khi vẽ lại 4–10 lần/giây)
   ctx.font = `900 ${54 + pulse * 6}px ${FONT}`;
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = cols[0];
+  ctx.strokeText(state.title, w / 2, 78);
   ctx.fillText(state.title, w / 2, 78);
-  ctx.shadowBlur = 0;
   ctx.font = `800 20px ${FONT}`;
   ctx.fillText(`${genre} · ${memberCount(state)} thành viên · 👁 ${short(state.viewers)}`, w / 2, 118);
   // ticker
@@ -112,7 +113,9 @@ export function drawLed(scr, room, state, genre, cols, beat, t, pk, rooms) {
   ctx.fillStyle = '#ffd23f';
   ctx.font = `800 16px ${FONT}`;
   const lg = state.lastGift;
-  const tick = lg ? `🎁 ${lg.from} tặng ${lg.icon ?? ''} ${lg.name ?? ''} x${lg.count}   ❤ ${formatThousands(state.hearts)} tim   💰 ${formatThousands(state.giftTotal)} xu` : `❤ ${formatThousands(state.hearts)} tim · Tặng quà để chọn MC, Kỹ thuật, Quản lý!`;
+  // bản LIVE: state.ticker (người giữ vai MC nói / câu hướng dẫn) ưu tiên hơn dòng quà
+  const mvp = state.mvp ? `👑 MVP ${state.mvp} · ` : '';
+  const tick = state.ticker ? state.ticker : mvp + (lg ? `🎁 ${lg.from} tặng ${lg.icon ?? ''} ${lg.name ?? ''} x${lg.count}   ❤ ${formatThousands(state.hearts)} tim   💰 ${formatThousands(state.giftTotal)} xu` : state.hint ? state.hint : `❤ ${formatThousands(state.hearts)} tim · Tặng quà để chọn MC, Kỹ thuật, Quản lý!`);
   ctx.fillText(tick, w / 2, h - 14);
 
   if (pk) drawPkBar(ctx, w, pk, rooms, 8);
@@ -610,6 +613,76 @@ export function drawLeaderboard(scr, states, pk, profile, fanRank) {
   ctx.textAlign = 'center';
   ctx.font = `800 14px ${FONT}`;
   ctx.fillText('Tặng quà để đưa phòng yêu thích lên top! Vòng quay may mắn ở sảnh Tây.', w / 2, h - 22);
+  done(scr);
+}
+
+/**
+ * Bảng xếp hạng bản LIVE (tường Đông): 5 nhóm theo xu buổi này + số trận PK thắng, top 5 fan buổi LIVE.
+ * @param {{no:number, title:string, accent:string, xu:number, wins:number, fans:number}[]} clubs
+ * @param {{name:string, xu:number}[]} fans
+ * @param {string} footer dòng hướng dẫn cuối bảng
+ */
+export function drawLiveBoard(scr, clubs, fans, footer) {
+  const { ctx, w, h } = scr;
+  const g = ctx.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0, '#1d1340');
+  g.addColorStop(1, '#0b0b16');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `900 34px ${FONT}`;
+  ctx.fillText('🏆 BẢNG XẾP HẠNG LIVE', w / 2, 34);
+  const list = clubs.slice().sort((a, b) => b.xu - a.xu || b.wins - a.wins || a.no - b.no);
+  ctx.textAlign = 'left';
+  list.forEach((c, i) => {
+    const y = 84 + i * 44;
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    rr(ctx, 16, y - 18, 440, 36, 10);
+    ctx.fill();
+    ctx.fillStyle = c.accent;
+    ctx.font = `900 22px ${FONT}`;
+    ctx.fillText(`${'①②③④⑤'[c.no - 1]}`, 26, y);
+    ctx.fillStyle = '#fff';
+    fitText(ctx, c.title, 58, y, 190);
+    ctx.font = `800 17px ${FONT}`;
+    ctx.fillStyle = '#ffd23f';
+    ctx.fillText(`⚔ ${c.wins}`, 254, y);
+    ctx.fillStyle = '#8fe3ff';
+    ctx.fillText(`👥 ${c.fans}`, 308, y);
+    ctx.fillStyle = '#ff6fb5';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${formatThousands(c.xu)} xu`, 448, y);
+    ctx.textAlign = 'left';
+  });
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  rr(ctx, 472, 64, w - 486, 228, 14);
+  ctx.fill();
+  ctx.fillStyle = '#ffd23f';
+  ctx.font = `900 18px ${FONT}`;
+  ctx.fillText('⭐ TOP FAN BUỔI NÀY', 486, 88);
+  ctx.font = `800 16px ${FONT}`;
+  fans.slice(0, 5).forEach((f, i) => {
+    const y = 122 + i * 34;
+    ctx.fillStyle = i < 3 ? '#ffd23f' : '#c9cfe6';
+    ctx.fillText(`${i + 1}.`, 486, y);
+    ctx.fillStyle = '#fff';
+    fitText(ctx, f.name, 512, y, w - 610);
+    ctx.fillStyle = '#ff6fb5';
+    ctx.textAlign = 'right';
+    ctx.fillText(formatThousands(f.xu), w - 24, y);
+    ctx.textAlign = 'left';
+  });
+  if (!fans.length) {
+    ctx.fillStyle = '#c9cfe6';
+    ctx.fillText('Chưa có ai tặng quà.', 486, 122);
+  }
+  ctx.fillStyle = '#c9cfe6';
+  ctx.textAlign = 'center';
+  ctx.font = `800 15px ${FONT}`;
+  fitText(ctx, footer, w / 2, h - 24, w - 30);
+  ctx.textAlign = 'left';
   done(scr);
 }
 

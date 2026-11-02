@@ -45,14 +45,20 @@ const COLORS = {
 };
 
 /** A canvas + texture pair; screens.js draws on the canvas. */
-export function makeScreen(w, h) {
+export function makeScreen(w, h, scale = 1) {
+  // scale > 1: canvas nét hơn (bản LIVE quay khung dọc 1080×1920) — screens.js vẫn vẽ theo kích thước logic w×h
   const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
-  return { canvas, ctx: canvas.getContext('2d'), tex, w, h };
+  // màn hình vẽ lại liên tục: không tạo mipmap mỗi lần tải lên GPU (đắt), lọc tuyến tính là đủ
+  tex.generateMipmaps = false;
+  tex.minFilter = THREE.LinearFilter;
+  const ctx = canvas.getContext('2d');
+  if (scale !== 1) ctx.scale(scale, scale);
+  return { canvas, ctx, tex, w, h };
 }
 
 /** Collects transformed geometries per material and merges them into a few meshes. */
@@ -65,11 +71,12 @@ class StaticBatch {
     if (!this.groups.has(key)) this.groups.set(key, { material, cast, receive, blocker, list: [] });
     this.groups.get(key).list.push(geometry);
   }
-  build(scene, blockers) {
+  build(scene, blockers, { staticShadows = true } = {}) {
     for (const g of this.groups.values()) {
       const merged = mergeGeometries(g.list, false);
       const m = new THREE.Mesh(merged, g.material);
-      m.castShadow = g.cast;
+      // khối gộp trải cả tòa nhà → đổ bóng thì pass bóng vẽ lại cả tòa mỗi khung; bản LIVE tắt (cfg.staticShadows = false)
+      m.castShadow = g.cast && staticShadows;
       m.receiveShadow = g.receive;
       m.matrixAutoUpdate = false;
       m.updateMatrix();
@@ -179,6 +186,7 @@ function logoTexture() {
  * @returns world description used by gameplay systems
  */
 export function buildWorld(scene, cfg) {
+  const hiRes = cfg.screenScale ?? 1; // bản LIVE: 2 → LED, biển phòng, bảng xếp hạng nét gấp đôi
   const collision = new CollisionWorld(4);
   const batch = new StaticBatch();
   const cameraBlockers = [];
@@ -274,7 +282,7 @@ export function buildWorld(scene, cfg) {
 
   /** Neon sign above a door, facing `out` (+1 = +z, -1 = -z). */
   function sign(cx, z, out, y, w, h) {
-    const scr = makeScreen(512, Math.round((512 * h) / w));
+    const scr = makeScreen(512, Math.round((512 * h) / w), hiRes);
     const mesh = screenPlane(scr, w, h, cx, y, z + out * 0.14, out > 0 ? 0 : Math.PI);
     return { ...scr, mesh };
   }
@@ -324,7 +332,7 @@ export function buildWorld(scene, cfg) {
     }
 
     // LED wall
-    const led = makeScreen(512, 220);
+    const led = makeScreen(512, 220, hiRes);
     const ledMesh = screenPlane(led, 13, 5.6, cx, sy + 3.3, zb + 0.32, 0);
     box(cx - 6.8, cx + 6.8, sy + 0.3, sy + 6.3, zb + 0.12, zb + 0.28, M.black, { collide: false });
 
@@ -747,7 +755,7 @@ export function buildWorld(scene, cfg) {
   screenPlane(wardrobeSign, 3, 0.75, HALL.minX + 0.4, 3.2, -6, Math.PI / 2);
 
   // Leaderboard (east wall)
-  const boardScr = makeScreen(640, 360);
+  const boardScr = makeScreen(640, 360, hiRes);
   screenPlane(boardScr, 10, 5.6, HALL.maxX - 0.4, 4.0, 0, -Math.PI / 2);
   box(HALL.maxX - 0.35, HALL.maxX, 0.9, 7.1, -5.4, 5.4, M.black, { collide: false });
 
@@ -775,7 +783,7 @@ export function buildWorld(scene, cfg) {
     for (const dz of [-1.1, 0, 1.1]) seats.push({ x: x + (ry > 0 ? 0.1 : -0.1), z: z + dz, y: 0.45, ry, approach: { x: x + (ry > 0 ? 1.2 : -1.2), z: z + dz } });
   }
 
-  batch.build(scene, cameraBlockers);
+  batch.build(scene, cameraBlockers, { staticShadows: cfg.staticShadows !== false });
 
   // ------------------------------------------------------------------ lights
   const hemi = new THREE.HemisphereLight(0xc8cfff, 0x2a2238, 1.25);
@@ -785,7 +793,8 @@ export function buildWorld(scene, cfg) {
   const sun = new THREE.DirectionalLight(0xffffff, 1.35);
   sun.position.set(10, 30, 12);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  const shadowSize = cfg.shadowMapSize ?? 2048; // bản LIVE ?q=low: 1024
+  sun.shadow.mapSize.set(shadowSize, shadowSize);
   sun.shadow.camera.left = -24;
   sun.shadow.camera.right = 24;
   sun.shadow.camera.top = 24;

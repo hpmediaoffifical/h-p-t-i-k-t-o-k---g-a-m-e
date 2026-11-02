@@ -62,6 +62,7 @@ export class Effects {
     if (this.sprites.length > 160) return;
     const s = this._sprite();
     s.material.map = emojiTexture(emoji);
+    s.material.color.set(0xffffff); // sprite tái dùng từ khói còn giữ màu xanh khói
     s.material.opacity = 1;
     s.material.needsUpdate = true;
     s.position.set(x, y, z);
@@ -71,6 +72,7 @@ export class Effects {
 
   /** Confetti burst from a point. */
   confetti(x, y, z, count = 160, spread = 5) {
+    if (this.bursts.length >= 6) return; // mưa quà lớn: trần 6 đợt cùng lúc (mỗi đợt 1 geometry + material)
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
     const vel = new Float32Array(count * 3);
@@ -100,10 +102,11 @@ export class Effects {
 
   /** Low smoke over a stage area. */
   smoke(x, y, z, w = 12, d = 6) {
+    if (this.smokes.length > 42) return; // trần 3 đợt khói cùng lúc
     for (let i = 0; i < 14; i++) {
       const s = this._sprite();
       s.material.map = this.dot;
-      s.material.color = new THREE.Color(0xd8dcff);
+      s.material.color.set(0xd8dcff); // không tạo Color mới mỗi hạt
       s.material.opacity = 0;
       s.material.needsUpdate = true;
       s.position.set(x + (Math.random() - 0.5) * w, y + 0.4 + Math.random() * 0.6, z + (Math.random() - 0.5) * d);
@@ -115,6 +118,7 @@ export class Effects {
 
   /** Laser fan from (x,y,z) sweeping toward +z for `life` seconds. */
   laser(x, y, z, colors, life = 6) {
+    if (this.lasers.length >= 4) return;
     const n = 8;
     const pos = new Float32Array(n * 6);
     const geo = new THREE.BufferGeometry();
