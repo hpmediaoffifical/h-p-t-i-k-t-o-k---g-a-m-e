@@ -15,11 +15,13 @@
     const KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight',
         'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9'];
     const DEFAULTS = {
-        enabled: true, ntMode: 'auto', ntStreamerName: '', ntTurnBase: 25, ntTurnPerCoin: 1, ntTurnMax: 90, ntMinTurn: 15, ntPreempt: true,
+        enabled: true, ntMode: 'auto', ntStreamerName: '', ntTurnBase: 6, ntTurnPerCoin: 0.5, ntTurnMax: 30, ntMinTurn: 4, ntPreempt: true,
         ntQueueMax: 20, ntIdleAuto: 6, ntAnyoneAct: false, ntJoinOnComment: true, ntMaxViewers: 40, ntNpcCount: 28, ntMinuteMs: 1000,
         ntLikePerDay: 300, ntShowMenu: true, ntSound: true, ntMusic: false, ntGiftMap: {},
         ntBossSec: 180, ntGuardSec: 180, ntJobSec: 180, ntBossFollowers: 6, ntJailIdleSec: 180, ntJoinOnLike: true,
-        ntBossCoins: 0, ntGuardCoins: 0, ntShowGiftLegend: true
+        ntBossCoins: 0, ntGuardCoins: 0, ntShowGiftLegend: true,
+        ntCommentPlay: false, ntOffenseJailSec: 180, ntTrashSec: 60, ntQuality: 'high',
+        ntPrankSec: 120, ntLikeEvent: 1000, ntAutoEvents: true, ntPkTug: true
     };
 
     let socket = null, cfg = null, actions = [], giftActions = [], suggested = {}, initialized = false, pendingSave = null, demoOn = false;
@@ -94,10 +96,15 @@
             <label class="nt-row"><span>Chế độ</span><select data-k="ntMode">
                 <option value="auto"${cfg.ntMode === 'auto' ? ' selected' : ''}>🤖 Tự chơi — treo máy, quà → lượt lên sóng</option>
                 <option value="streamer"${cfg.ntMode === 'streamer' ? ' selected' : ''}>🎮 Streamer điều khiển nhân vật</option>
+                <option value="off"${cfg.ntMode === 'off' ? ' selected' : ''}>👀 Chỉ xem trại — không có lượt lên sóng</option>
+            </select></label>
+            <label class="nt-row"><span title="Máy yếu: bớt khử răng cưa, bóng đổ và điểm ảnh — overlay tự tải lại">Chất lượng hình</span><select data-k="ntQuality">
+                <option value="high"${cfg.ntQuality !== 'low' ? ' selected' : ''}>Đẹp (mặc định)</option>
+                <option value="low"${cfg.ntQuality === 'low' ? ' selected' : ''}>Máy yếu — mượt hơn</option>
             </select></label>
             <label class="nt-row"><span>Tên nhân vật streamer</span><input type="text" maxlength="24" data-k="ntStreamerName" placeholder="Streamer" value="${esc(cfg.ntStreamerName)}"></label>
             ${num('ntTurnBase', 'Giây mỗi lượt (quà 1 xu)', 5, 5)}
-            ${num('ntTurnPerCoin', '+ Giây cho mỗi xu thêm', 0, 1)}
+            ${num('ntTurnPerCoin', '+ Giây cho mỗi xu thêm', 0, 0.5)}
             ${num('ntTurnMax', 'Tối đa giây một lượt', 10, 10)}
             ${num('ntMinTurn', 'Có người chờ: giữ lượt tối thiểu (giây)', 3, 1, 'Quà mới của người khác → người đang chơi giữ ít nhất bấy nhiêu giây rồi nhường lượt')}
             ${num('ntIdleAuto', 'Im lặng bao lâu thì tự chơi (giây, 0 = tắt)', 0, 1)}
@@ -111,6 +118,10 @@
             ${num('ntBossCoins', '👑 Quà chưa gán ≥ xu → Đại Ca (0 = tắt)', 0, 10)}
             ${num('ntGuardCoins', '👮 Quà chưa gán ≥ xu → Cán Bộ (0 = tắt)', 0, 10)}
             ${num('ntJailIdleSec', '🔒 Im lặng bao lâu thì nhốt biệt giam (giây, 0 = tắt)', 0, 30, 'Luật ngầm: người xem không bình luận / thả tim / tặng quà quá lâu → tự bị nhốt vào phòng trên lầu, thả tim lại là được thả')}
+            ${num('ntOffenseJailSec', '💩 Đi bậy bị bắt → giam (giây)', 10, 30, 'Bị cán bộ bắt quả tang hoặc bị tố cáo → giam bấy nhiêu giây. Bình luận không được thả; hết hạn hoặc quà 🔓 Bảo lãnh mới ra, ra tù phải tự dọn bãi của mình')}
+            ${num('ntTrashSec', '🗑️ Kẹt trong thùng rác (giây)', 5, 10)}
+            ${num('ntPrankSec', '💇👗 Trò đùa cạo đầu / váy hồng giữ (giây)', 10, 30)}
+            ${num('ntLikeEvent', '❤️ Cả phòng đủ bấy nhiêu tim → 1 sự kiện vui (0 = tắt)', 0, 100)}
             <label class="nt-row"><span>1 phút trong trại =</span><select data-k="ntMinuteMs" data-num="1">${speeds.map(([v, n]) => `<option value="${v}"${Number(cfg.ntMinuteMs) === v ? ' selected' : ''}>${n} ngoài đời</option>`).join('')}</select></label>
             <div class="nt-checks">
                 <label><input type="checkbox" data-k="ntPreempt"${cfg.ntPreempt !== false ? ' checked' : ''}> ⏭ Quà mới → nhường lượt (bỏ tick = chơi hết giờ mới tới người kế)</label>
@@ -118,7 +129,10 @@
                 <label><input type="checkbox" data-k="ntJoinOnComment"${cfg.ntJoinOnComment !== false ? ' checked' : ''}> 🚪 Bình luận là vào trại</label>
                 <label><input type="checkbox" data-k="ntJoinOnLike"${cfg.ntJoinOnLike !== false ? ' checked' : ''}> ❤️ Thả tim là vào trại (và được thả khỏi biệt giam)</label>
                 <label><input type="checkbox" data-k="ntShowGiftLegend"${cfg.ntShowGiftLegend !== false ? ' checked' : ''}> 🎁 Hiện bảng "Tặng quà để…" trên overlay</label>
-                <label><input type="checkbox" data-k="ntShowMenu"${cfg.ntShowMenu !== false ? ' checked' : ''}> 📋 Hiện bảng lệnh trên overlay</label>
+                <label><input type="checkbox" data-k="ntCommentPlay"${cfg.ntCommentPlay ? ' checked' : ''}> 💬 Chơi bằng bình luận (gõ 1/B… ra lệnh). Tắt = chỉ tặng quà để chơi, bảng dưới gọn hơn</label>
+                <label><input type="checkbox" data-k="ntShowMenu"${cfg.ntShowMenu !== false ? ' checked' : ''}> 📋 Hiện bảng lệnh trên overlay (khi bật chơi bằng bình luận)</label>
+                <label><input type="checkbox" data-k="ntPkTug"${cfg.ntPkTug !== false ? ' checked' : ''}> 🪢 PK → kéo co giữa sân (theo điểm PK thật), đội thua bị ném vào thùng rác</label>
+                <label><input type="checkbox" data-k="ntAutoEvents"${cfg.ntAutoEvents !== false ? ' checked' : ''}> ☔ Trại vắng quà hơn 3 phút → thỉnh thoảng tự mưa / chuột chạy qua</label>
                 <label><input type="checkbox" data-k="ntSound"${cfg.ntSound !== false ? ' checked' : ''}> 🔊 Âm thanh</label>
                 <label><input type="checkbox" data-k="ntMusic"${cfg.ntMusic ? ' checked' : ''}> 🎵 Nhạc nền lo-fi</label>
             </div>`;
@@ -152,13 +166,31 @@
                 <button class="ghost small" data-test="comment">💬 Bình luận</button>
                 <button class="ghost small" data-test="like">❤️ Thả tim</button>
                 <button class="ghost small" data-test="follow">➕ Follow</button>
+                <button class="ghost small" data-test="combo">🔥 Combo ×10 (thùng rác)</button>
+            </div>
+            <div class="nd-card-title" style="margin-top:8px">🪢 Thử kéo co PK</div>
+            <div class="nt-cmds">
+                <button class="ghost small" data-pk="start">▶ PK bắt đầu</button>
+                <button class="ghost small" data-pk="lead">📈 Đội mình dẫn</button>
+                <button class="ghost small" data-pk="behind">📉 Đội bạn dẫn</button>
+                <button class="ghost small" data-pk="win">🏆 Thắng PK</button>
+                <button class="ghost small" data-pk="lose">😭 Thua PK</button>
             </div>`;
         host.querySelectorAll('.nt-cmd').forEach(b => b.addEventListener('click', () => cmd('act', { action: b.dataset.act })));
         host.querySelectorAll('[data-test]').forEach(b => b.addEventListener('click', () => {
             const t = b.dataset.test;
             if (t === 'gift') cmd('test', { kind: 'gift', coins: 1 });
             else if (t === 'gift10') cmd('test', { kind: 'gift', coins: 10, giftName: 'Kem' });
+            else if (t === 'combo') cmd('test', { kind: 'action', action: 'trash', power: 3 });
             else cmd('test', { kind: t });
+        }));
+        const pkSim = { host: 0, opp: 0 };
+        host.querySelectorAll('[data-pk]').forEach(b => b.addEventListener('click', () => {
+            const k = b.dataset.pk;
+            if (k === 'start') { pkSim.host = 0; pkSim.opp = 0; cmd('pk', { phase: 'start', host: 0, opp: 0 }); }
+            else if (k === 'lead') { pkSim.host += 300; cmd('pk', { phase: 'score', ...pkSim }); }
+            else if (k === 'behind') { pkSim.opp += 300; cmd('pk', { phase: 'score', ...pkSim }); }
+            else cmd('pk', { phase: 'end', ...pkSim, result: k });
         }));
         if (streamerMode) bindPad();
     }
@@ -194,12 +226,18 @@
         };
         const roles = giftActions.filter(a => a.group === 'role');
         const evts = giftActions.filter(a => a.group === 'event');
+        const mischief = giftActions.filter(a => a.group === 'mischief');
+        const pranks = giftActions.filter(a => a.group === 'prank');
         host.innerHTML = `
             <div class="nt-giftbar"><div class="nd-card-title">🎁 Gán quà → chức vụ, sự kiện, nhiệm vụ</div><button class="ghost small" id="nt-suggest" title="Gán lại toàn bộ theo bộ quà gợi ý (nhiệm vụ 1–10 xu, chức vụ 99 xu, sự kiện 88–299 xu)">🎁 Dùng bộ quà gợi ý</button></div>
-            <div class="nt-hint">Mọi món quà đều cho người tặng 1 lượt lên sóng. Gán thêm quà để món đó kích hoạt ngay một vai trò / sự kiện bên dưới. Quà đã gán hiện trên overlay trong bảng "🎁 Tặng quà để…".</div>
+            <div class="nt-hint">Quà làm hành động ngay. Quà cá nhân (chức vụ, nghịch ngợm, nhiệm vụ, quà chưa gán) → người tặng lên sóng vài giây rồi camera chuyển người kế. Quà sự kiện cả trại chạy đồng loạt ngay, không xếp hàng chờ. Quà đã gán hiện trên overlay trong bảng "🎁 Tặng quà để…".</div>
             <div class="nd-card-title" style="margin-top:6px">👑 Chức vụ</div>
             ${roles.map(row).join('')}
-            <div class="nd-card-title" style="margin-top:8px">🎉 Sự kiện cả trại</div>
+            <div class="nd-card-title" style="margin-top:8px">😈 Nghịch ngợm (đi bậy bị bắt giam → ra tù phải dọn · dọn giúp người khác = điểm cống hiến)</div>
+            ${mischief.map(row).join('')}
+            <div class="nd-card-title" style="margin-top:8px">😂 Trò đùa ngắn (2–3 giây, cả trại cười · combo ×5/×10 → 2/3 người)</div>
+            ${pranks.map(row).join('')}
+            <div class="nd-card-title" style="margin-top:8px">🎉 Sự kiện cả trại (chạy đồng loạt)</div>
             ${evts.map(row).join('')}
             <div class="nd-card-title" style="margin-top:8px">🎯 Nhiệm vụ cá nhân</div>
             ${actions.map(row).join('')}`;

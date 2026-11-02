@@ -23,7 +23,9 @@ export class LabelLayer {
         if (it.bubbleTime <= 0) it.bubble.classList.remove('show');
       }
       const root = it.char.root;
-      tmp.set(root.position.x, root.position.y + it.height, root.position.z);
+      const a = it.char.anchor; // đang nằm ngủ: treo trên đầu
+      if (a) tmp.set(a.x, a.y + 0.55, a.z);
+      else tmp.set(root.position.x, root.position.y + it.height, root.position.z);
       const dist = camera.position.distanceTo(tmp);
       tmp.project(camera);
       const visible = it.hidden !== true && tmp.z < 1 && tmp.z > -1 && dist < it.maxDist && Math.abs(tmp.x) < 1.3 && Math.abs(tmp.y) < 1.3;
@@ -42,7 +44,11 @@ export class LabelLayer {
       const y = (-tmp.y * 0.5 + 0.5) * height;
       const s = Math.max(0.38, Math.min(1.5, (it.boost * 9.5) / Math.max(dist, 0.1)));
       it.wrap.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%) scale(${s.toFixed(3)})`;
-      it.wrap.style.zIndex = String(100000 - Math.round(dist * 100));
+      const z = 100000 - Math.round(dist * 20); // bậc 5 cm: đủ xếp trước/sau, ít ghi DOM hơn
+      if (z !== it.z) {
+        it.z = z;
+        it.wrap.style.zIndex = String(z);
+      }
     }
   }
 }
@@ -78,8 +84,12 @@ export function attachLabel(char, name, kind = 'npc', avatar = '') {
     img.onerror = () => img && img.remove();
     tag.prepend(img);
   };
-  tag.append(nameEl);
+  const badgeEl = document.createElement('b');
+  badgeEl.className = 'nt-badge';
+  badgeEl.hidden = true;
+  tag.append(nameEl, badgeEl);
   wrap.append(bubble, tag);
+  let badgeText = '';
   const item = {
     char,
     wrap,
@@ -89,12 +99,15 @@ export function attachLabel(char, name, kind = 'npc', avatar = '') {
     boost: 1,
     maxDist: 60,
     bubbleTime: 0,
+    z: 0,
     shown: true,
     hidden: false,
   };
   const setKind = (k) => {
     tag.className = `nt-tag ${k}`;
     item.boost = k === 'spot' ? 1.35 : k === 'viewer' ? 1.1 : 1;
+    // tên NPC chỉ hiện khi camera ở gần (góc toàn cảnh 130 bảng tên che kín trại); tên người xem luôn hiện
+    item.maxDist = k === 'npc' ? 24 : k === 'guard' ? 32 : 60;
   };
   setKind(kind);
   setAvatar(avatar);
@@ -110,6 +123,13 @@ export function attachLabel(char, name, kind = 'npc', avatar = '') {
     },
     setName(n) {
       nameEl.textContent = n;
+    },
+    /** Huy hiệu nhỏ sau tên ('🔒 2:31', '⏳2', '🧹'…); '' = ẩn. Chỉ ghi DOM khi đổi. */
+    setBadge(text = '') {
+      if (text === badgeText) return;
+      badgeText = text;
+      badgeEl.textContent = text;
+      badgeEl.hidden = !text;
     },
     setKind,
     setAvatar,

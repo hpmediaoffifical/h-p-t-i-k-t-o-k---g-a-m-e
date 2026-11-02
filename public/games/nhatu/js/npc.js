@@ -5,11 +5,13 @@
  * doors) with simple stuck recovery on top of the shared character physics.
  */
 import { stepBody } from './logic/physics.js';
-import { createCharacter, animateCharacter } from './character.js';
+import { createCharacter, animateCharacter, disposeCharacter, NUMBER_POOL } from './character.js';
 import { attachLabel } from './labels.js';
 import { pick, range, shuffled } from './logic/rng.js';
 
 const UPPER_THRESHOLD = 2;
+/** Trong 4 bức tường bao của trại (tường ngoài dày 0,4 m: x ±20, z −16…14). */
+const insideCamp = (x, z) => x > -19.7 && x < 19.7 && z > -15.7 && z < 13.7;
 
 /** Shortest signed angle difference. */
 export function angleDelta(a, b) {
@@ -39,10 +41,26 @@ export function makeActor(scene, { name, look, kind, x, z, y = 0, avatar = '' })
   return actor;
 }
 
-/** Copy the physics position/rotation to the render object. */
+/** Copy the physics position/rotation to the render object. Đang ngủ trên giường → nằm ngửa theo chỗ nằm của giường. */
 export function syncActor(a) {
-  a.char.root.position.set(a.body.pos.x, a.body.pos.y, a.body.pos.z);
-  a.char.root.rotation.y = a.ry;
+  const root = a.char.root;
+  const lie = a.mode === 'sleep' ? a.seat?.lie : null;
+  if (lie) {
+    root.position.copy(lie.pos);
+    root.quaternion.copy(lie.q);
+    a.char.anchor = lie.head; // bảng tên treo trên đầu thay vì trên gót chân
+    if (a.char.blob) a.char.blob.visible = false;
+    a.lying = true;
+    return;
+  }
+  if (a.lying) {
+    a.lying = false;
+    root.quaternion.identity();
+    a.char.anchor = null;
+    if (a.char.blob) a.char.blob.visible = true;
+  }
+  root.position.set(a.body.pos.x, a.body.pos.y, a.body.pos.z);
+  root.rotation.y = a.ry;
 }
 
 /** Turn an actor smoothly toward `target` yaw. */
@@ -66,8 +84,10 @@ export class NpcManager {
     this.phaseKey = null;
   }
 
+  /** Phạm nhân + cán bộ. Mảng dựng lại chỉ khi danh sách đổi (không tạo mảng mới mỗi bước mô phỏng) — đừng sửa trực tiếp. */
   get all() {
-    return this.inmates.concat(this.guards);
+    if (!this._all) this._all = this.inmates.concat(this.guards);
+    return this._all;
   }
 
   /** Ngẫu nhiên một bộ đồ phạm nhân. */
@@ -78,7 +98,7 @@ export class NpcManager {
       outfit: rng() < 0.6 ? 'orange' : 'stripe',
       hair: hairRoll < 0.5 ? 'brown' : hairRoll < 0.72 ? 'black' : hairRoll < 0.84 ? 'bald' : hairRoll < 0.92 ? 'gray' : 'blonde',
       hat: rng() < 0.2 ? pick(rng, ['red', 'white']) : 'none',
-      number: 1000 + Math.floor(rng() * 8999),
+      number: NUMBER_POOL[Math.floor(rng() * NUMBER_POOL.length)], // số có sẵn trong atlas số áo
     };
   }
 
@@ -100,6 +120,7 @@ export class NpcManager {
       Object.assign(g, { role: 'guard', index: i, path: [], wait: 1 + i, onArrive: null, stuckT: 0, stuckRef: { ...p }, stuckCount: 0, stay: 0, days: 0 });
       this.guards.push(g);
     });
+    this._all = null;
   }
 
   /**
@@ -130,6 +151,7 @@ export class NpcManager {
     });
     npc.ry = o.z === undefined ? Math.PI : range(rng, -Math.PI, Math.PI);
     this.inmates.push(npc);
+    this._all = null;
     return npc;
   }
 
@@ -139,7 +161,8 @@ export class NpcManager {
     for (const s of this.world.seats.concat(...this.world.cells.map((c) => c.beds))) if (s.occupant === n) s.occupant = null;
     const i = this.inmates.indexOf(n);
     if (i >= 0) this.inmates.splice(i, 1);
-    this.scene.remove(n.char.root);
+    this._all = null;
+    disposeCharacter(n.char);
     n.label.dispose();
   }
 
@@ -184,6 +207,7 @@ export class NpcManager {
   /** Huỷ lệnh đang làm, trả nhân vật về lịch trại. */
   release(n) {
     n.locked = false;
+    n.animMode = null;
     n.path = [];
     n.onArrive = null;
     n.stay = 0;
@@ -371,13 +395,18 @@ export class NpcManager {
   update(dt, ctx) {
     const coll = this.world.collision;
     for (const n of this.all) {
+      if (n.carried) {
+        // đang bị vác / kẹt trong thùng rác: vị trí + hướng do events.js đặt mỗi khung, chỉ chạy hoạt ảnh
+        animateCharacter(n.char, dt, { mode: n.animMode ?? n.mode, speed: 0 });
+        continue;
+      }
       if (n.puppet) {
         const v = n.puppetVel ?? { x: 0, z: 0 };
         if (!n.seat) stepBody(n.body, v.x, v.z, dt, coll, this.gravity);
         n.speed = Math.hypot(v.x, v.z);
         if (n.speed > 0.1) turnToward(n, Math.atan2(v.x, v.z), dt, 10);
         else if (n.puppetFace !== undefined) turnToward(n, n.puppetFace, dt, 6);
-        animateCharacter(n.char, dt, { mode: n.speed > 0.1 ? 'walk' : n.mode, speed: n.speed, airborne: !n.body.grounded && !n.seat });
+        animateCharacter(n.char, dt, { mode: n.animMode ?? (n.speed > 0.1 ? 'walk' : n.mode), speed: n.speed, airborne: !n.body.grounded && !n.seat });
         syncActor(n);
         continue;
       }
@@ -395,7 +424,7 @@ export class NpcManager {
           if (!n.path.length) this.arrive(n, ctx);
         } else {
           // đang làm lệnh của người xem → chạy cho kịp lượt lên sóng
-          const sp = (n.role === 'guard' ? this.speed * 0.85 : this.speed) * (n.locked ? 2.1 : 1);
+          const sp = (n.role === 'guard' ? this.speed * 0.85 : this.speed) * (n.locked ? 2.1 : 1) * (n.speedMul ?? 1); // speedMul: thi chạy
           vx = (dx / d) * sp;
           vz = (dz / d) * sp;
           turnToward(n, Math.atan2(vx, vz), dt, 8);
@@ -437,8 +466,9 @@ export class NpcManager {
       }
 
       if (!n.seat) stepBody(n.body, vx, vz, dt, coll, this.gravity);
+      if (!insideCamp(n.body.pos.x, n.body.pos.z)) Object.assign(n.body.pos, { x: 0, y: 0, z: 12 }); // lưới an toàn: lọt ra ngoài tường → về cổng
       n.speed = Math.hypot(vx, vz);
-      animateCharacter(n.char, dt, { mode: n.mode, speed: n.speed, airborne: !n.body.grounded && !n.seat });
+      animateCharacter(n.char, dt, { mode: n.animMode ?? n.mode, speed: n.speed, airborne: !n.body.grounded && !n.seat });
       syncActor(n);
     }
   }
@@ -476,8 +506,16 @@ export class NpcManager {
     const dx = wp.x - n.body.pos.x;
     const dz = wp.z - n.body.pos.z;
     const d = Math.hypot(dx, dz) || 1;
-    const side = this.rng() < 0.5 ? -1 : 1;
-    n.path.unshift({ x: n.body.pos.x + (-dz / d) * side * 1.3 + (dx / d) * 0.3, z: n.body.pos.z + (dx / d) * side * 1.3 + (dz / d) * 0.3 });
+    const first = this.rng() < 0.5 ? -1 : 1;
+    // né sang bên: chỉ chọn điểm trống nằm trong trại (trước đây có thể là bên kia tường → kẹt lâu thì "nhảy" ra ngoài)
+    for (const side of [first, -first]) {
+      const x = n.body.pos.x + (-dz / d) * side * 1.3 + (dx / d) * 0.3;
+      const z = n.body.pos.z + (dx / d) * side * 1.3 + (dz / d) * 0.3;
+      if (insideCamp(x, z) && this.world.collision.isFree(x, n.body.pos.y, z, n.body.radius, n.body.height)) {
+        n.path.unshift({ x, z });
+        return;
+      }
+    }
   }
 }
 
@@ -485,10 +523,10 @@ export class NpcManager {
 export function separateActors(actors) {
   for (let i = 0; i < actors.length; i++) {
     const a = actors[i];
-    if (a.seat) continue;
+    if (a.seat || a.carried) continue;
     for (let j = i + 1; j < actors.length; j++) {
       const b = actors[j];
-      if (b.seat) continue;
+      if (b.seat || b.carried) continue;
       if (Math.abs(a.body.pos.y - b.body.pos.y) > 1.2) continue;
       const dx = b.body.pos.x - a.body.pos.x;
       const dz = b.body.pos.z - a.body.pos.z;

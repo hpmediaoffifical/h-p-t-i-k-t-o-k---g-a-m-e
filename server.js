@@ -406,12 +406,13 @@ const GAMES = {
         // Khoá riêng tiền tố nt* (giống qv* của Zombie Phá Nhà). Đọc trong public/games/nhatu/js/game.js → applyServerConfig.
         defaultConfig: {
             enabled: true,
-            ntMode: 'auto',           // auto (tự chơi: quà → lượt lên sóng) | streamer (streamer tự đi lại bằng phím)
+            ntMode: 'auto',           // auto (tự chơi: quà → lượt lên sóng) | streamer (streamer tự đi lại bằng phím) | off (chỉ xem trại, không lượt)
+            ntQuality: 'high',        // high | low (máy yếu: overlay tự tải lại với ?q=low — bớt khử răng cưa, bóng, điểm ảnh)
             ntStreamerName: '',
-            ntTurnBase: 25,           // giây một lượt cho quà 1 xu
-            ntTurnPerCoin: 1,         // + giây cho mỗi xu thêm
-            ntTurnMax: 90,            // trần giây một lượt
-            ntMinTurn: 15,            // có người chờ thì người đang chơi giữ tối thiểu bấy nhiêu giây rồi nhường
+            ntTurnBase: 6,            // giây một lượt cho quà 1 xu (lượt ngắn: camera bám vài giây rồi chuyển người kế)
+            ntTurnPerCoin: 0.5,       // + giây cho mỗi xu thêm
+            ntTurnMax: 30,            // trần giây một lượt
+            ntMinTurn: 4,             // có người chờ thì người đang chơi giữ tối thiểu bấy nhiêu giây rồi nhường
             ntPreempt: true,          // quà mới của người khác → nhường lượt sau ntMinTurn (tắt = chơi hết giờ mới tới người kế)
             ntQueueMax: 20,
             ntIdleAuto: 6,            // người đang có lượt im lặng bấy nhiêu giây → nhân vật tự làm nhiệm vụ (0 = tắt)
@@ -432,6 +433,13 @@ const GAMES = {
             ntBossCoins: 0,           // quà chưa gán ≥ bấy nhiêu xu → lên Đại Ca (0 = chỉ quà đã gán)
             ntGuardCoins: 0,          // quà chưa gán ≥ bấy nhiêu xu → làm Cán Bộ (0 = chỉ quà đã gán)
             ntShowGiftLegend: true,   // hiện bảng "🎁 Tặng quà để…" trên overlay
+            ntCommentPlay: false,     // bình luận 1/B… ra lệnh cho người đang lên sóng (tắt = chỉ chơi bằng quà, bảng dưới gọn)
+            ntOffenseJailSec: 180,    // 💩 💦 đi bậy bị cán bộ bắt / bị tố cáo → giam bấy nhiêu giây (ra tù phải tự dọn)
+            ntTrashSec: 60,           // 🗑️ bị ném vào thùng rác → kẹt bấy nhiêu giây
+            ntPrankSec: 120,          // 💇 👗 trò đùa cạo đầu / váy hồng giữ bấy nhiêu giây
+            ntLikeEvent: 1000,        // ❤️ cả phòng đủ bấy nhiêu tim → 1 sự kiện vui (0 = tắt)
+            ntAutoEvents: true,       // trại vắng quà > 3 phút → thỉnh thoảng tự mưa / chuột chạy qua
+            ntPkTug: true,            // 🪢 PK (tín hiệu thật pk:state) → kéo co giữa sân, đội thua bị ném vào thùng rác
             ntGiftMap: nhatuSuggestedGiftMap()   // { [action]: [{ giftId, giftName, giftImage, coins }] } — mặc định = bộ quà gợi ý trong data.json
         }
     },
@@ -4046,6 +4054,13 @@ function attachConnectionEvents(conn, lib) {
         if (g.level) cur.level = g.level;
         pkGiftDuringMatch.set(k, cur);
     };
+    // Tín hiệu PK chung cho game khác (⛓️ Nhà Tù: kéo co theo PK) — chỉ dữ liệu thật: mở trận, điểm 2 bên, kết thúc.
+    function emitPkState(phase, extra = {}) {
+        const snap = (pkLastScoreSnap || []).map(Number).map(v => (Number.isFinite(v) ? v : 0));
+        const hi = pkHostTeamIndex >= 0 ? pkHostTeamIndex : 0;
+        const others = snap.filter((_, i) => i !== hi);
+        io.emit('pk:state', { phase, active: pkActive, host: snap[hi] || 0, opp: others.length ? Math.max(...others) : 0, ts: Date.now(), ...extra });
+    }
     function resetPkState() {
         pkActive = false;
         pkHostTeamIndex = -1;
@@ -4250,6 +4265,7 @@ function attachConnectionEvents(conn, lib) {
                 if (pkHostTeamIndex < 0 && teams.length > 0) pkHostTeamIndex = 0;
                 console.log(`[pktiktok] PK OPEN: hostTeamIndex=${pkHostTeamIndex}, teams=${teams.length}, ownerId=${ownerId}`);
             } catch (e) {}
+            emitPkState('start');
             scheduleWarn10s(data, 'battle_open');
             if (!pkWarn10sScheduled) console.log(`[pktiktok] PK duration/endTime chưa có trong LINK_MIC_BATTLE — sẽ thử lại ở ARMIES`);
             // Periodic lead/behind check (mỗi 30s)
@@ -4323,6 +4339,7 @@ function attachConnectionEvents(conn, lib) {
                 console.log(`[pktiktok] PK FINISH: không có gift nào trong trận → không TOP 1`);
             }
             pkAutoEnqueue(resultKey, `battle_finish (action=${action})`);
+            emitPkState('end', { active: false, result: resultKey });
             // Delay reset state để khi emit còn dùng được pkLastTopContributor. Queue auto drain 3.5s/item,
             // trước đây 10s là hết hạn khi có ≥3 item xếp trước win/lose → rule TOP 1 im lặng rớt về media mặc định.
             setTimeout(() => { pkLastTopContributor = null; }, 90_000);
@@ -4367,6 +4384,7 @@ function attachConnectionEvents(conn, lib) {
             if (teams.length > 0) {
                 pkLastScoreSnap = teams.map(t => t.score);
                 console.log(`[pktiktok] LINK_MIC_ARMIES scores=[${pkLastScoreSnap.join(', ')}] hostIdx=${pkHostTeamIndex}`);
+                if (pkActive) emitPkState('score');
             }
             scheduleWarn10s(data, 'armies');
             if (data?.triggerCriticalStrike) {
@@ -7605,7 +7623,9 @@ app.post('/api/nhatu/window/open', (req, res) => {
     const profileDir = path.join(DATA_DIR, 'nhatu-window', found.browser);
     try { fs.mkdirSync(profileDir, { recursive: true }); } catch (e) {}
     const url = `http://127.0.0.1:${PORT}/overlay/nhatu?win=1`;
-    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat('--window-size=540,960');
+    // OBS bắt cửa sổ: Chromium mặc định ngừng vẽ / hãm nhịp khi cửa sổ bị che hoặc thu nhỏ → hình trong OBS đứng
+    const keepDrawing = ['--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling'];
+    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat('--window-size=540,960', ...keepDrawing);
     try {
         const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
         child.on('error', (e) => console.warn('[nhatu] mở cửa sổ game lỗi:', e.message));

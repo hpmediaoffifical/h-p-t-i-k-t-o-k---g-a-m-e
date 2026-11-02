@@ -1,6 +1,6 @@
 # ⛓️ Nhà Tù Online (`nhatu`) — thiết kế
 
-Ngày: 2026-11-02 · Branch: `feature/nhatu-online`
+Ngày: 2026-11-02 · Branch: `feature/creator-online` (code) → làm tiếp trên `tuongtac/nhatu` (03/11/2026)
 
 ## Ý tưởng
 
@@ -60,3 +60,30 @@ Máy mới cài nhận sẵn bộ này (`GAMES.nhatu.defaultConfig.ntGiftMap`); 
 ## Tham khảo
 
 Rà soát GitHub: `docs/nhatu-tham-khao-github.md` — chưa có repo mã nguồn mở nào làm đúng ý tưởng này.
+
+## GĐ3 — Nghịch ngợm + nhịp nhanh (03/11/2026, nhánh `tuongtac/nhatu`)
+
+**Nhịp:** mỗi quà = người tặng lên sóng vài giây (`ntTurnBase 6`, `ntMinTurn 4`, `ntTurnMax 30`) rồi camera chuyển người kế; nhiệm vụ nhỏ 2–5 giây. Quà sự kiện cả trại (`crowd: true` trong `data.json`: tiệc, flashmob, tắt đèn, khám phòng, chụp ảnh, tổng vệ sinh) chạy đồng loạt ngay, KHÔNG chiếm lượt; sự kiện tập thể sau giành người ngay (`crowdUntil`), không chờ sự kiện trước xong. `ntCommentPlay` (mặc định tắt): tắt = chỉ chơi bằng quà, ẩn menu lệnh + dòng hướng dẫn.
+
+**😈 Nghịch ngợm** (`group: 'mischief'`, logic thuần `js/logic/mischief.js`, test `tests/nhatu-mischief.test.mjs`):
+- 💩 Đi bậy / 💦 Tè bậy: ra góc tường (`world.mischiefSpots`) để lại bãi (`MessSystem` trong `effects.js`, ruồi = 1 InstancedMesh). Cán bộ (NPC hoặc người xem làm cán bộ) trong `CATCH_RADIUS` 7 m → bắt quả tang. Nhãn trên màn hình dùng "Đi bậy/Tè bậy" (tránh từ thô dễ bị TikTok bóp).
+- 📢 Tố cáo: bắt lần đi bậy mới nhất chưa bị bắt (≤ 5 phút) → cán bộ NPC gần nhất tới bắt.
+- Bị bắt → giam `ntOffenseJailSec` (180) giây, đồng hồ ⏱ trên đầu. Bình luận/tim KHÔNG thả (khác luật ngầm im lặng). Ra tù khi hết hạn, quà 🔓 Bảo lãnh (tự bảo lãnh, hoặc bảo lãnh bạn tù bị giam lâu nhất) hoặc quà cần ra ngoài làm (chức vụ, karaoke, vật tay, ân xá, nhiệm vụ) — **ra tù vẫn phải tự dọn bãi của mình** (`mustClean`, huy hiệu 🧹).
+- Điểm cống hiến khi dọn bãi: dọn giúp người khác +20, dọn bãi của mình +5 (`CLEAN_POINTS`). Lệnh/quà "Lau sàn" ưu tiên bãi đi bậy.
+- 🗑️ Ném vào thùng rác: người tặng (bị giam / đang làm đại ca → đàn em làm hộ) chạy tới 1 bạn tù (ưu tiên người xem thật), vác qua đầu, ném cắm đầu vào 1 trong 2 thùng cạnh cổng (`world.bins`, 3 chỗ/thùng), kẹt `ntTrashSec` (60) giây, người xung quanh cười. **Camera bám cảnh này** (`events.focusActor()`), trên cả lượt lên sóng.
+- Sự kiện mới: 📸 Chụp ảnh tập thể, 🧼 Tổng vệ sinh, 🧧 Lì xì bạn tù (+5 cho 3 người xem ngẫu nhiên).
+
+**HUD:** người đang lên sóng: tên 🎥 viền vàng nhấp nháy; hàng "⏳ Tiếp theo" có tên + số thứ tự, huy hiệu ⏳N trên đầu người chờ (`label.setBadge`).
+
+## GĐ4 — Trò đùa ngắn, sự kiện tập thể mới, gắn với LIVE (03/11/2026)
+
+**Luật chung mọi trò thi đấu: người THUA bị người THẮNG vác ném vào thùng rác** (`startTrash(carrier, victim)` trong `events.js`) — vật tay, thi chạy, kéo co PK; trò đối kháng sau này cũng vậy.
+
+- **😂 Trò đùa ngắn** (`group: 'prank'`): 💇 Cạo đầu trọc, 👗 Mặc váy hồng (+ nơ), 🎂 Úp bánh kem (mặt dính kem 30 s) — người tặng chạy tới 1 bạn tù (ưu tiên người xem), làm trò ~2 s, cả trại cười; đổi đầu/đồ giữ `ntPrankSec` (120) rồi tự trả lại (chờ xong chức vụ nếu đang làm). 🍌 Vỏ chuối (ném trước mặt người đang đi → trượt ngã ngửa), 🏋️ Phạt hít đất (5 cái, đếm trên đầu). Tư thế đặc biệt do `holdPose()` giữ (xoay cả người quanh gót chân).
+- **🎉 Sự kiện tập thể mới** (`crowd: true`): 🎂 Sinh nhật, 🏃 Thi chạy (5 làn `world.raceLanes`, về nhất +10, về chót vào thùng rác, camera bám người dẫn đầu), 🚒 Diễn tập thoát hiểm (ôm đầu ra sân), ☔ Mưa rào (`RainSystem`, trú hành lang `world.shelterSpots`, trời tối bớt), 🐀 Thả chuột (người gần hét, nhảy dựng).
+- **Quà cá nhân được kéo người ra khỏi sự kiện tập thể** (`freeInmates({crowd:true})`) — quà của từng người luôn ưu tiên hơn hoạt động nền.
+- **🔥 Combo** (`js/logic/live.js comboPower`): chuỗi TikTok gộp (server chờ repeatEnd) + quà rời cùng loại trong 10 s cộng dồn; ×5 → power 2, ×10 → 3: trò đùa / thùng rác / hít đất / vỏ chuối / chuột trúng 2–3 người, lì xì 6–9 người, pháo hoa. Banner 🔥 COMBO.
+- **❤️ Mốc tim** `ntLikeEvent` (1000): đủ tim → 1 sự kiện cả trại ngẫu nhiên (flashmob / chụp ảnh / mưa / chuột). **Trại vắng quà > 3 phút** (`ntAutoEvents`): mỗi 4–7 phút tự mưa / chuột chạy qua.
+- **🪢 Kéo co theo PK** (`ntPkTug`): server phát `io.emit('pk:state', {phase: start|score|end, host, opp, result})` từ dữ liệu PK thật (LINK_MIC_BATTLE action 4/5, LINK_MIC_ARMIES điểm). Đội mình = người xem trong trại (tối đa 6), đội bạn = NPC; dây dịch theo điểm (`tugShift`), thanh điểm trên HUD; hết PK đội thắng vác tối đa 3 người đội thua vào thùng rác. Thử không cần LIVE: panel 🪢 Thử kéo co PK (lệnh `gameCmd` `pk`).
+- **Banner xếp hàng** (~1,6 s/cái, tối đa 3) — 1 quà thường bật 2–3 banner cùng lúc.
+- **💤 Đi ngủ = nằm ngửa trên giường tầng** (`bed.lie` trong world.js; người thứ nhất giường dưới, thứ hai giường trên; `syncActor` xoay cả người, bảng tên treo trên đầu qua `char.anchor`).
