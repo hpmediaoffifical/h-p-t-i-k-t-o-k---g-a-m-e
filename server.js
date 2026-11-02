@@ -386,7 +386,9 @@ const GAMES = {
             enabled: true,
             qvStreamerName: '', qvStreamerAvatar: '',
             qvDoorHp: 600, qvRoundSeconds: 180, qvStartMap: 1,
-            qvLockJump: false, qvLockForward: false, qvAutoDodge: true, qvSound: true,
+            qvLockJump: false, qvLockForward: false, qvSound: true,
+            qvHold: true, qvHunger: true, qvTips: true, qvGolden: true, qvMods: true, qvCues: true,   // giữ nhà · cơn đói · hướng dẫn · giờ vàng · biến thể ván · nhắc lời dẫn
+            qvWinTarget: 20, qvLikeGoal: 20,   // mục tiêu WIN mỗi chặng · thanh tim cả phòng (× ngưỡng tim) → mưa đá
             qvZombieModel: 'basic',   // basic | chubby | arm | ribcage | classic — mô hình Quaternius CC0 trong public/games/quaivat/models/zombie
             qvTimerOn: false,         // đồng hồ mỗi ván: mặc định tắt (chơi tới khi phá được cửa)
             qvCheckpoint: true,       // cột mốc giữa đường
@@ -4885,6 +4887,7 @@ function emitGift(g) {
     io.emit('gift', enriched);
     setLiveDashboardGift(enriched);
     try { leagueOnGift(enriched); } catch (e) { console.warn('[leaguecard] gift lỗi:', e?.message || e); }
+    try { if (qvStore && qvStore.alive()) qvStore.addGift({ uid: String(enriched.uniqueId || enriched.userId || ''), name: enriched.nickname || enriched.uniqueId, avatar: enriched.profilePictureUrl || enriched.profilePicture || '', coins: (Number(enriched.coinValue) || 0) * Math.max(1, parseInt(enriched.repeatCount, 10) || 1) }); } catch (e) { console.warn('[quaivat] sổ tuần lỗi:', e?.message || e); }
     // Push to all game overlays
     io.to('overlay').emit('gameGift', enriched);
     io.to('preview').emit('gameGift', enriched);
@@ -7590,6 +7593,19 @@ app.post('/api/quaivat/window/bounds', (req, res) => {
     try { fs.mkdirSync(path.dirname(quaivatWinFile()), { recursive: true }); fs.writeFileSync(quaivatWinFile(), JSON.stringify(v)); } catch (e) { return res.status(500).json({ ok: false }); }
     res.json({ ok: true });
 });
+// 🧟 phiên chơi (WIN/chặng/map) + sổ TOP tuần — lib/quaivat-store.js (game gửi nhịp tim → server mới ghi quà vào sổ)
+let qvStore = null;
+const qvStoreGet = () => qvStore || (qvStore = require('./lib/quaivat-store').createStore(DATA_DIR));
+app.get('/api/quaivat/session', (req, res) => {
+    const st = qvStoreGet();
+    res.json({ ok: true, session: st.loadSession(), week: st.week(), top: st.top(5) });
+});
+app.post('/api/quaivat/session', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    const s = qvStoreGet().saveSession(req.body || {});
+    res.json({ ok: !!s });
+});
+app.get('/api/quaivat/fame', (req, res) => { const st = qvStoreGet(); res.json({ ok: true, week: st.week(), top: st.top(Number(req.query.n) || 5) }); });
 app.get('/overlay/quaivat-gifts', (req, res) => {   // bảng quà Zombie Phá Nhà: nguồn OBS riêng
     res.sendFile(path.join(__dirname, 'public', 'games', 'quaivat', 'gifts.html'));
 });
@@ -12209,6 +12225,11 @@ io.on('connection', (socket) => {
     onTrusted('quaivat:key', (data) => {
         if (!data || typeof data.code !== 'string' || data.code.length > 24) return;
         socket.broadcast.emit('quaivat:key', { code: data.code, down: data.down === true });
+    });
+    // ZOMBIE PHÁ NHÀ — game nhắc lời dẫn cho streamer → panel trong app (không lên hình)
+    onTrusted('quaivat:cue', (data) => {
+        if (!data || typeof data.text !== 'string') return;
+        socket.broadcast.emit('quaivat:cue', { text: data.text.slice(0, 160), ts: Date.now() });
     });
     // NHÀ TÙ ONLINE — chế độ Streamer: phím trong app → overlay (OBS không nhận bàn phím)
     onTrusted('nhatu:key', (data) => {
