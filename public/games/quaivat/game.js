@@ -330,11 +330,80 @@ const MAPS = [
     hedge: [0x2e3324, 0x262c1e, 0x343a28, 0x2a2420], hedgeCore: 0x1a1e14, tree: [0x3a3428, 0x2e2a22, 0x46402e, 0x2a3020], trunk: 0x2a2018,
     hill: [0x2e2a30, 0x26222a, 0x34303a], mtn: 0x3a2a4a, flowers: [0x9a6aff, 0xff6a6a, 0xd0d0ff],
     wall: '#8a8494', roof: ['#2a1e30', '#4a3658', '#3a2a48', '#1e1424'], sunflowers: false },
+  { name: 'Đầm Sen', water: true, length: 125, mines: 9, prop: 'rock', props: 5,
+    path: { kind: 'stripe', a: '#66b040', b: '#529a34', base: '#529a34', blade: ['30,75,20', '205,245,160'] }, grade: { sh: [0.9, 0.98, 1.12], hi: [1.06, 1.02, 0.93] },
+    sky: ['#2584d6', '#68bdf0', '#c2e9f8', '#e4f6ff'], fog: 0xd2ecf4, sun: 0xfff2d8, sunI: 2.8, hemi: [0xd8f0ff, 0x4a7a3a, 0.5],
+    lawn: '#5fa83c', lawnSp: ['#4a9430', '#86cc58', '#5aa236'], laneA: '#a5d96a', laneB: '#86c550', blade: ['50,110,25', '230,255,190'],
+    hedge: [0x3f8a2a, 0x4a9a32, 0x3a7f26, 0x52a538], hedgeCore: 0x2f6e22, tree: [0x4f9e2f, 0x5bb337, 0x3f8a28, 0x6cc040, 0x3f9a4a], trunk: 0x6b4527,
+    hill: [0x78c060, 0x6db455, 0x84c86a], mtn: 0x7fa8c8, flowers: [0xff9ec4, 0xffffff, 0xffc2dc, 0xfff27a],
+    wall: '#f4ead2', roof: ['#7a2a1a', '#c8553a', '#b04a30', '#6a2214'], sunflowers: false },
 ];
 let T = MAPS[0];
 const LANE = 5.3;         // giới hạn ngang của quái
 const G = 22;             // trọng lực đồ vật bay
 const greens = [0x4f9e2f, 0x5bb337, 0x3f8a28, 0x6cc040, 0x4a9a35];
+
+// ---- map nước (T.water): các đoạn nước xen đất liền. Lội nước: lún tới hông, phao vịt, đi chậm ----
+const WATER_W = 7.7, WATER_DEPTH = 0.55, WATER_SLOW = 0.55;
+let WATER = [];                                         // [{ a, b }] với a > b (z gần đầu đường → z gần nhà)
+function waterAt(x, z, pad = 0) {
+  if (!WATER.length || Math.abs(x) > WATER_W) return null;
+  for (const w of WATER) if (z < w.a + pad && z > w.b - pad) return w;
+  return null;
+}
+function planWater() {
+  WATER = []; if (!T.water) return;
+  const cz = Math.round((START_Z + HOUSE_FRONT) / 2);   // = cpZ (cột mốc) — chừa đất liền quanh cột mốc
+  for (let z = START_Z - 13; ;) {
+    const len = rand(7, 9.5), a = z, b = z - len;
+    if (b < HOUSE_FRONT + 12) break;
+    if (a > cz - 3 && b < cz + 3) { z = cz - 3.5; continue; }
+    WATER.push({ a, b }); z = b - rand(9, 12);
+  }
+}
+let lotusTex = null, lotusMat = null, waterTex = null;
+function mkLotusPad(r = 0.85) {                         // lá sen tròn có khía, gân toả từ tâm
+  if (!lotusTex) lotusTex = ctex(256, 256, (q, w, h) => {
+    const gr = q.createRadialGradient(128, 128, 10, 128, 128, 128); gr.addColorStop(0, '#7fcf4a'); gr.addColorStop(0.75, '#4fa83a'); gr.addColorStop(1, '#2f7a2a');
+    q.fillStyle = gr; q.fillRect(0, 0, w, h); q.strokeStyle = 'rgba(210,255,170,.45)'; q.lineWidth = 2;
+    for (let k = 0; k < 16; k++) { const a = k / 16 * 6.283; q.beginPath(); q.moveTo(128, 128); q.lineTo(128 + Math.cos(a) * 124, 128 + Math.sin(a) * 124); q.stroke(); }
+    speckle(q, w, h, ['#2f7a2a', '#9ae070'], 400, 1, 3);
+  });
+  const m = new THREE.Mesh(geo('lotuspad', () => new THREE.CircleGeometry(1, 30, 0.22, Math.PI * 2 - 0.44)), (lotusMat ||= new THREE.MeshStandardMaterial({ map: lotusTex, roughness: 0.55, envMapIntensity: 0.4, side: THREE.DoubleSide })));
+  m.rotation.x = -Math.PI / 2; m.rotation.z = rand(0, 6.28); m.scale.setScalar(r); m.receiveShadow = true;
+  return m;
+}
+function mkLotusFlower() {                              // bông sen hồng
+  const g = new THREE.Group(), pk = MS(0xff8fbf, 0.5), pk2 = MS(0xffc2dc, 0.5);
+  for (let ring = 0; ring < 2; ring++) for (let i = 0; i < 6; i++) {
+    const a = (i + ring * 0.5) / 6 * Math.PI * 2, p = sph(1, ring ? pk2 : pk, Math.cos(a) * 0.13, 0.12 + ring * 0.05, Math.sin(a) * 0.13, g);
+    p.scale.set(0.09, 0.2, 0.06); p.rotation.set(Math.sin(a) * (0.7 - ring * 0.3), 0, -Math.cos(a) * (0.7 - ring * 0.3));
+  }
+  sph(0.07, MS(0xffd84a, 0.6), 0, 0.2, 0, g);
+  return g;
+}
+// bẫy gài / pháo / cây rơi xuống nước thì nằm trên lá sen
+const LOTUS_KINDS = new Set(['mine', 'bomb', 'trap', 'plant']);
+function lotusIfWater(it) {
+  if (!it || it.lotus || !LOTUS_KINDS.has(it.kind)) return;
+  const p = it.g.position; if (!waterAt(p.x, p.z)) return;
+  it.lotus = true;
+  for (const m of it.g.userData.dirt || []) m.visible = false;    // mìn: bỏ ụ đất
+  const pad = mkLotusPad(it.kind === 'bomb' ? 1.1 : it.kind === 'plant' ? 0.75 : 0.85); pad.position.y = 0.05; it.g.add(pad);
+}
+function mkDuckRing() {                                 // phao bơi vịt vàng nhỏ ôm quanh lưng zombie (đầu vịt phía trước)
+  const g = new THREE.Group(), yel = MS(0xffd21f, 0.4), org = MS(0xff8a1a, 0.5), blk = MS(0x1a1a1a, 0.3);
+  const tor = new THREE.Mesh(geo('duckring', () => new THREE.TorusGeometry(0.42, 0.13, 12, 32)), yel); tor.rotation.x = Math.PI / 2; g.add(tor);
+  const hd = new THREE.Group(); hd.position.set(0, 0.06, 0.5); g.add(hd);
+  sph(0.09, yel, 0, 0.05, 0, hd).scale.multiply(new V3(1, 1.4, 1));            // cổ
+  sph(0.13, yel, 0, 0.2, 0.02, hd);                                              // đầu
+  sph(0.075, org, 0, 0.18, 0.13, hd).scale.multiply(new V3(1.1, 0.42, 1.25));   // mỏ
+  for (const sx of [-1, 1]) sph(0.026, blk, sx * 0.06, 0.25, 0.1, hd);
+  const tl = new THREE.Mesh(geo('ducktail', () => new THREE.ConeGeometry(0.08, 0.18, 10)), yel); tl.position.set(0, 0.07, -0.5); tl.rotation.x = -2.2; g.add(tl);
+  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
+  addOutline(g, 0.015, 0.03);
+  g.visible = false; return g;
+}
 
 // ---- mặt đường: 1 ảnh = ngang 12m × dọc PATH_M m (64px/m), lặp theo chiều dài map ----
 const PATH_M = 16, PPM = 64;
@@ -412,6 +481,7 @@ function pathTex() {
 }
 
 function buildWorld() {
+  planWater();
   // bãi cỏ nền
   const lawnTex = ctex(256, 256, (g, w, h) => {
     g.fillStyle = T.lawn; g.fillRect(0, 0, w, h);
@@ -451,12 +521,12 @@ function buildWorld() {
   }, [2, 1.2]);
   const hedgeMat = new THREE.MeshStandardMaterial({ map: leafTex, bumpMap: leafTex, bumpScale: 2.5, roughness: 0.92, envMapIntensity: 0.3 });
   const hedgeGeo = geo('hedgebox', () => new RoundedBoxGeometry(1.3, 1.35, 3.02, 3, 0.22));
-  const segs = []; for (const sx of [-1, 1]) for (let z = HOUSE_FRONT + 3.5; z < 0.2; z += 3) segs.push([sx * 7, z]);
+  const segs = []; for (const sx of [-1, 1]) for (let z = HOUSE_FRONT + 3.5; z < 0.2; z += 3) if (!waterAt(0, z, 1.6)) segs.push([sx * 7, z]);
   const hedge = new THREE.InstancedMesh(hedgeGeo, hedgeMat, segs.length);
   const m4 = new THREE.Matrix4(), qq = new THREE.Quaternion(), col = new THREE.Color();
   segs.forEach(([x, z], i) => { m4.compose(new V3(x, 0.675, z), qq.identity(), new V3(1, rand(0.97, 1.04), 1)); hedge.setMatrixAt(i, m4); hedge.setColorAt(i, col.setRGB(rand(0.92, 1.05), 1, rand(0.92, 1.02))); });
   hedge.castShadow = true; hedge.receiveShadow = true; world.add(hedge);
-  const tufts = []; for (const sx of [-1, 1]) for (let z = HOUSE_FRONT + 2.2; z < 0.4; z += rand(1.2, 2.6)) tufts.push([sx * 7 + rand(-0.35, 0.35), rand(1.25, 1.38), z]);
+  const tufts = []; for (const sx of [-1, 1]) for (let z = HOUSE_FRONT + 2.2; z < 0.4; z += rand(1.2, 2.6)) if (!waterAt(0, z, 1)) tufts.push([sx * 7 + rand(-0.35, 0.35), rand(1.25, 1.38), z]);
   const tuft = new THREE.InstancedMesh(geo('tuft', () => blobGeo(1, 0.18, 3.3)), new THREE.MeshStandardMaterial({ map: leafTex, roughness: 0.92, envMapIntensity: 0.3 }), tufts.length);
   tufts.forEach((p, i) => { const r = rand(0.22, 0.38); m4.compose(new V3(...p), qq.setFromEuler(new THREE.Euler(rand(0, 6), rand(0, 6), 0)), new V3(r, r * 0.7, r)); tuft.setMatrixAt(i, m4); });
   tuft.castShadow = true; world.add(tuft);
@@ -472,7 +542,7 @@ function buildWorld() {
     const spots = [];
     const zA = HOUSE_FRONT - 12, zB = 1;
     for (const sx of [-1, 1]) {
-      for (let i = 0; i < 2600; i++) spots.push([sx * rand(6.02, 6.42), rand(zA + 12, zB)]);                       // dải cỏ ven đường
+      for (let i = 0; i < 2600; i++) { const z = rand(zA + 12, zB); if (!waterAt(0, z, 0.3)) spots.push([sx * rand(6.02, 6.42), z]); }                       // dải cỏ ven đường
       for (let i = 0; i < 14000; i++) { const t = Math.pow(Math.random(), 1.8); spots.push([sx * (7.75 + t * 22), rand(zA, 22)]); }   // bãi cỏ ngoài, dày gần hàng rào
     }
     const grass = new THREE.InstancedMesh(bladeGeo, windify(new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.85, envMapIntensity: 0.25 }), 0.12, true), spots.length);
@@ -491,7 +561,7 @@ function buildWorld() {
   }
 
   // hoa nhỏ dưới chân hàng rào
-  const fl = []; for (let i = 0; i < 320; i++) { const sx = Math.random() < 0.5 ? -1 : 1; fl.push([sx * rand(6.25, 6.45), rand(0.05, 0.25), rand(HOUSE_FRONT + 2, 0)]); }
+  const fl = []; for (let i = 0; i < 320; i++) { const sx = Math.random() < 0.5 ? -1 : 1; const z = rand(HOUSE_FRONT + 2, 0); if (!waterAt(0, z, 0.3)) fl.push([sx * rand(6.25, 6.45), rand(0.05, 0.25), z]); }
   const flowers = new THREE.InstancedMesh(geo('flw', () => new THREE.IcosahedronGeometry(1, 0)), new THREE.MeshStandardMaterial({ roughness: 0.8 }), fl.length);
   fl.forEach((p, i) => { m4.compose(new V3(...p), qq.identity(), new V3(0.11, 0.08, 0.11)); flowers.setMatrixAt(i, m4); flowers.setColorAt(i, col.setHex(pick(T.flowers))); });
   world.add(flowers);
@@ -563,6 +633,46 @@ function buildWorld() {
     const d = mkProp(T.prop); d.position.set(sx * rand(8.2, 9.6), 0, z); d.rotation.y = rand(-0.7, 0.7); d.scale.setScalar(rand(0.8, 1.25));
     d.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } }); world.add(d);
   }
+  if (WATER.length) buildWater();
+}
+// đoạn nước: mặt nước gợn sóng (đục, che phần chân zombie lún xuống) + bờ cát + đá viền + lá sen, bông sen, lau sậy
+function buildWater() {
+  if (!waterTex) waterTex = ctex(256, 256, (q, w, h) => {
+    q.fillStyle = '#2f8f9e'; q.fillRect(0, 0, w, h);
+    for (let k = 0; k < 40; k++) { const x = Math.random() * w, y = Math.random() * h, r = rand(20, 60), gr = q.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, Math.random() < 0.5 ? 'rgba(20,90,110,.5)' : 'rgba(90,190,190,.35)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); q.fillStyle = gr; q.fillRect(x - r, y - r, 2 * r, 2 * r); }
+    q.strokeStyle = 'rgba(210,250,255,.35)'; q.lineCap = 'round';
+    for (let k = 0; k < 90; k++) { const x = Math.random() * w, y = Math.random() * h, l = rand(8, 26); q.lineWidth = rand(1, 2.5); q.beginPath(); q.moveTo(x, y); q.quadraticCurveTo(x + l / 2, y - rand(2, 5), x + l, y); q.stroke(); }
+  }, [3, 1.6]);
+  const wMat = new THREE.MeshStandardMaterial({ color: 0xbfeff5, map: waterTex, bumpMap: waterTex, bumpScale: 0.6, roughness: 0.1, metalness: 0.05, envMapIntensity: 1.3 });
+  const sandMat = MS(0xc9b07a, 0.95), stoneMat = MS(0x8a8f86, 0.9), reedMat = MS(0x5f8a2e, 0.85), catMat = MS(0x6a3e1e, 0.9);
+  const m4 = new THREE.Matrix4(), qq = new THREE.Quaternion(), reeds = [], stones = [];
+  for (const w of WATER) {
+    const len = w.a - w.b, zc = (w.a + w.b) / 2;
+    const pl = new THREE.Mesh(new THREE.PlaneGeometry(WATER_W * 2, len), wMat);
+    pl.rotation.x = -Math.PI / 2; pl.position.set(0, 0.03, zc); pl.receiveShadow = true; world.add(pl);
+    for (const [ez, sd] of [[w.a, 1], [w.b, -1]]) {                                // bờ cát ướt + đá viền ở 2 mép
+      const sb = new THREE.Mesh(geo('sandband', () => new THREE.PlaneGeometry(1, 1)), sandMat);
+      sb.rotation.x = -Math.PI / 2; sb.scale.set(WATER_W * 2, 1.1, 1); sb.position.set(0, 0.014, ez + sd * 0.55); sb.receiveShadow = true; world.add(sb);
+      for (let x = -WATER_W + 0.2; x < WATER_W; x += rand(0.45, 0.8)) stones.push([x, ez + sd * rand(0.02, 0.2), rand(0.13, 0.24)]);
+    }
+    for (const sx of [-1, 1]) for (let z = w.b + 0.3; z < w.a - 0.3; z += rand(0.25, 0.6)) reeds.push([sx * rand(6.9, 7.8), z]);   // lau sậy thay hàng rào
+    for (let k = 0; k < Math.round(len * 1.3); k++) {                                // lá sen + bông sen trang trí sát hai mép
+      const x = (Math.random() < 0.5 ? -1 : 1) * rand(4.4, 7.3), z = rand(w.b + 0.6, w.a - 0.6);
+      const p = mkLotusPad(rand(0.45, 0.9)); p.position.set(x, 0.045, z); world.add(p);
+      if (Math.random() < 0.3) { const f = mkLotusFlower(); f.position.set(x + rand(-0.2, 0.2), 0.05, z + rand(-0.2, 0.2)); f.scale.setScalar(rand(0.9, 1.4)); world.add(f); }
+    }
+  }
+  const st = new THREE.InstancedMesh(geo('wstone', () => blobGeo(1, 0.25, 7.7)), stoneMat, stones.length);
+  stones.forEach(([x, z, r], i) => { m4.compose(new V3(x, r * 0.25, z), qq.setFromEuler(new THREE.Euler(0, rand(0, 6), 0)), new V3(r, r * 0.6, r)); st.setMatrixAt(i, m4); });
+  st.castShadow = st.receiveShadow = true; world.add(st);
+  const rd = new THREE.InstancedMesh(geo('reed', () => new THREE.CylinderGeometry(0.015, 0.03, 1, 5)), windify(reedMat.clone(), 0.08, true), reeds.length * 3);
+  const ct = new THREE.InstancedMesh(geo('cattail', () => new THREE.CapsuleGeometry(0.045, 0.16, 3, 6)), catMat, reeds.length);
+  reeds.forEach(([x, z], i) => {
+    for (let k = 0; k < 3; k++) { const h = rand(0.9, 1.7); m4.compose(new V3(x + rand(-0.12, 0.12), h / 2, z + rand(-0.12, 0.12)), qq.setFromEuler(new THREE.Euler(rand(-0.15, 0.15), 0, rand(-0.15, 0.15))), new V3(1, h, 1)); rd.setMatrixAt(i * 3 + k, m4); }
+    m4.compose(new V3(x, rand(1.3, 1.75), z), qq.identity(), new V3(1, 1, 1)); ct.setMatrixAt(i, m4);
+  });
+  rd.castShadow = true; ct.castShadow = true; world.add(rd, ct);
 }
 
 const world = new THREE.Group(); scene.add(world);
@@ -1855,7 +1965,7 @@ function updateMonster(dt) {
       else if (speed > 0.05) mon.yawT = Math.atan2(vX, vF);                      // quay mặt theo hướng đi (lùi = quay hẳn lại); dừng thì GIỮ hướng
       anim = punching ? 'Punch' : speed > 0.05 ? (running ? 'Running' : 'Walking') : 'Idle'; ts = 1;
       const stepI = Math.floor(mon.walkPh / Math.PI);                         // mỗi lần đặt chân: bụi + tiếng bước
-      if (stepI !== mon.lastStep) { mon.lastStep = stepI; if (speed > 0.05 && mon.y <= 0) { const sd = stepI % 2 ? 1 : -1; puff(new V3(mon.x + sd * 0.13, mon.gy + 0.06, mon.z + 0.1), { color: T.dust || 0xcdb98e, n: 3, size: 0.32, speed: 0.6, up: 0.35, life: 0.65, opacity: 0.5 }); sfx('step'); } }
+      if (stepI !== mon.lastStep) { mon.lastStep = stepI; if (speed > 0.05 && mon.y <= 0) { const sd = stepI % 2 ? 1 : -1; puff(new V3(mon.x + sd * 0.13, Math.max(mon.gy, 0) + 0.06, mon.z + 0.1), { color: mon.gy < -0.3 ? 0xe8f8ff : T.dust || 0xcdb98e, n: 3, size: 0.32, speed: 0.6, up: 0.35, life: 0.65, opacity: 0.5 }); sfx('step'); } }
       if (time < mon.speedUntil && speed > 0.05 && Math.random() < dt * 15) puff(new V3(mon.x, 0.3, mon.z + 0.4), { color: 0x6fd0ff, n: 1, size: 0.6, add: true, life: 0.5 });
     }
     if (wind > 0) mon.z += CONFIG.windPush * wind * dt; // gió hoa thổi lùi
@@ -1912,6 +2022,7 @@ function punchHit(target) {
 // độ cao mặt đất dưới chân (khớp đúng hình bậc thềm/sân/bồn hoa trong buildHouse, tính theo mặt trên của viền đá)
 // F = nửa bàn chân: mũi chân chạm mép bậc là bước lên luôn → chân không bao giờ lọt vào trong bậc
 function groundY(x, z) {
+  if (waterAt(x, z)) return -WATER_DEPTH;                         // lội nước: lún tới hông
   if (sandAt(x, z)) return -0.42;
   if (Math.abs(x) > 50) return 0;
   if (z > 1 - 0.5 && z < 4.83 + 0.5) return z > 4.3 ? 0.2 : 0.14;   // vỉa hè 0.14 + bó vỉa 0.2 (chừa mép bàn chân)
@@ -2210,8 +2321,8 @@ const CHAR_COL = new THREE.Color(0x141414);
 const MINE_OWNER = { id: '', name: 'Mìn' };
 function mkMine() {
   const g = new THREE.Group();
-  const mound = sph(0.62, MS(0x7a5530, 1), 0, 0, 0, g); mound.scale.set(1, 0.3, 1);
-  for (let i = 0; i < 6; i++) sph(0.1, MS(0x5e3f22, 1), rand(-0.55, 0.55), 0.04, rand(-0.55, 0.55), g);
+  const mound = sph(0.62, MS(0x7a5530, 1), 0, 0, 0, g); mound.scale.set(1, 0.3, 1); g.userData.dirt = [mound];
+  for (let i = 0; i < 6; i++) g.userData.dirt.push(sph(0.1, MS(0x5e3f22, 1), rand(-0.55, 0.55), 0.04, rand(-0.55, 0.55), g));
   cyl(0.24, 0.28, 0.12, MS(0x3c4248, 0.4, 0.8), 0, 0.19, 0, g, 14);
   const led = sph(0.07, new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff0000, emissiveIntensity: 2 }), 0, 0.28, 0, g);
   g.userData.led = led; return g;
@@ -2222,7 +2333,7 @@ function placeMine(minDist = 7) {
     if (Math.hypot(x - mon.x, z - mon.z) < minDist) continue;
     if (items.some(i => !i.dead && i.kind === 'mine' && Math.hypot(i.g.position.x - x, i.g.position.z - z) < 4)) continue;
     const it = newItem('mine', MINE_OWNER, mkMine(), { noLabel: true });
-    it.g.position.set(x, 0, z); it.state = 'set'; return it;
+    it.g.position.set(x, 0, z); it.state = 'set'; lotusIfWater(it); return it;
   }
 }
 // ----- chướng ngại riêng của từng map (đá / bí ngô / người tuyết), quái phải đấm vỡ -----
@@ -2378,7 +2489,7 @@ function spawnFromGround(kind, owner, mk, o) {
     if (!items.some(i => !i.dead && i.state === 'set' && Math.hypot(i.g.position.x - x, i.g.position.z - z) < 1.3)) break;
   }
   const it = newItem(kind, owner, mk(), o);
-  it.g.position.set(x, -1.2, z); it.g.rotation.y = rand(-0.4, 0.4); it.g.scale.setScalar(0.4); it.state = 'rise'; it.t = 0; it.noRescale0 = it.noRescale; it.noRescale = true;
+  it.g.position.set(x, -1.2, z); it.g.rotation.y = rand(-0.4, 0.4); it.g.scale.setScalar(0.4); it.state = 'rise'; it.t = 0; it.noRescale0 = it.noRescale; it.noRescale = true; lotusIfWater(it);
   puff(new V3(x, 0.15, z), { color: T.dust || 0x8a6a40, n: 8, size: 0.8, speed: 2.5, up: 2, life: 0.7 }); debris(new V3(x, 0.2, z), 0x6a4a2a, 4, 0.1, 4); sfx('pop');
   return it;
 }
@@ -2682,7 +2793,7 @@ function terrainAt(x, z) {
   return null;
 }
 function sandAt(x, z) { const t = terrainAt(x, z); return !!t && t.kind === 'quicksand'; }
-function terrainFactor() { const t = terrainAt(mon.x, mon.z); return !t ? 1 : t.kind === 'quicksand' ? 0.3 : 0.6; }
+function terrainFactor() { const t = terrainAt(mon.x, mon.z), w = waterAt(mon.x, mon.z) ? WATER_SLOW : 1; return w * (!t ? 1 : t.kind === 'quicksand' ? 0.3 : 0.6); }
 function terrainPush(dt) {
   if (mon.y > 0.05) return;
   const t = terrainAt(mon.x, mon.z); if (!t) { mon.inTer = null; return; }
@@ -2890,6 +3001,7 @@ function onLand(it) {
   it.state = 'set'; it.t = 0;
   if (it.kind === 'slime') { const pd = mkPuddle(); pd.position.copy(p).setY(0); scene.remove(it.g); it.g = pd; scene.add(pd); it.life = 14; }
   if (it.kind === 'bomb') it.fuse = 6;
+  lotusIfWater(it);
   if (it.kind === 'plant') { it.life = 18; it.cd = 0.8; }
   if (it.kind === 'mine') puff(p.clone().setY(0.2), { color: 0x7a5530, n: 8, size: 0.6, speed: 3, life: 0.7 });
   if (it.kind === 'flower') { it.blowT = CONFIG.windSeconds; sfx('power'); popText(p.clone().setY(3.4), '🌬️ GIÓ!', 'info', 1); }
@@ -3643,11 +3755,39 @@ function frame(now) {
   tick(dt);
   requestAnimationFrame(frame);
 }
+// lội nước: phao vịt nổi quanh hông, bắn nước lúc xuống, gợn sóng theo bước
+let duck = null;
+function updateWade(dt) {
+  if (waterTex) { waterTex.offset.x = time * 0.012; waterTex.offset.y = -time * 0.03; }
+  if (!mon.ready || !WATER.length) { if (duck) duck.visible = false; return; }
+  const inW = !state.cut && !!waterAt(mon.x, mon.z) && mon.gy < -0.3;
+  if (!duck) { duck = mkDuckRing(); duck.userData.k = 0; mon.root.add(duck); }
+  const d = duck.userData; d.k += ((inW ? 1 : 0) - d.k) * Math.min(1, dt * 7);
+  duck.visible = d.k > 0.02;
+  if (duck.visible) {
+    duck.scale.setScalar(d.k * (1 + 0.3 * Math.sin(d.k * Math.PI)));      // bật nảy lúc hiện
+    duck.position.y = -mon.gy + 0.16 + Math.sin(time * 3) * 0.03;          // nằm trên mặt nước (nhảy thì bay theo người)
+    duck.rotation.z = Math.sin(time * 2.1) * 0.07; duck.rotation.x = Math.sin(time * 1.7) * 0.05;
+  }
+  if (inW && !mon.wet) {
+    mon.wet = true; sfx('splat');
+    popText(new V3(mon.x, 2.8, mon.z), '🦆 LỘI NƯỚC!', 'info', 1);
+    puff(new V3(mon.x, 0.2, mon.z), { color: 0xe8f8ff, n: 12, size: 0.5, speed: 3.2, up: 3, grav: 6, life: 0.8 });
+  } else if (!inW && !waterAt(mon.x, mon.z)) mon.wet = false;
+  mon.ripT = (mon.ripT || 0) - dt;
+  if (inW && mon.y <= 0.05 && mon.ripT <= 0) {
+    const moving = (mon.moveSpeed || 0) > 0.05; mon.ripT = moving ? 0.32 : 0.9;
+    const ring = new THREE.Mesh(geo('ring', () => new THREE.RingGeometry(0.85, 1, 40)), new THREE.MeshBasicMaterial({ color: 0xeafcff, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(mon.x, 0.06, mon.z); scene.add(ring);
+    parts.push({ ring, t: 0, life: moving ? 0.9 : 1.4, r: moving ? 1.6 : 1.1 });
+    if (moving) puff(new V3(mon.x, 0.15, mon.z - 0.4), { color: 0xe8f8ff, n: 2, size: 0.35, speed: 1.2, up: 1.6, grav: 5, life: 0.5 });
+  }
+}
 function tick(dt) {
   time += dt;
   if (state.phase !== 'loading') {
     let gdt = dt; if (hitStop > 0) { hitStop -= dt; gdt = 0; }               // khựng hình khi trúng đòn mạnh
-    updateDemo(gdt); updateQueue(gdt); updatePhase(gdt); updateMonster(gdt); updateItems(gdt); updatePeas(gdt); updateBolts(gdt); updateCamera(dt);
+    updateDemo(gdt); updateQueue(gdt); updatePhase(gdt); updateMonster(gdt); updateWade(gdt); updateItems(gdt); updatePeas(gdt); updateBolts(gdt); updateCamera(dt);
   }
   updateFx(dt); updateHouseFx(dt); updatePops(dt); updateHud(dt);
   WIND.value = time;
