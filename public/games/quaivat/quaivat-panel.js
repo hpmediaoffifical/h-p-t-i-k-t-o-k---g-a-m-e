@@ -24,7 +24,7 @@
         { id: 'slime',     emoji: '🍦', label: 'Keo dính',         def: 'Kem',      side: 'viewer' },
         { id: 'repair',    emoji: '🔧', label: 'Sửa cửa',          def: 'Bắn tim',  side: 'viewer' },
         { id: 'fox',       emoji: '🦊', label: 'Cáo đuổi',          def: 'Nước hoa', side: 'viewer' },
-        { id: 'mine',      emoji: '💥', label: 'Bẫy bật',        def: 'Bánh vòng', side: 'viewer' },
+        { id: 'mine',      emoji: '🍩', label: 'Bẫy bật',        def: 'Bánh vòng', side: 'viewer' },
         { id: 'flower',    emoji: '🌸', label: 'Hoa gió',      def: 'Tiny Diny', side: 'viewer' },
         { id: 'lightning', emoji: '⚡', label: 'Sấm sét',     def: 'Hạc giấy', side: 'viewer' },
         { id: 'boulder',   emoji: '🪨', label: 'Đá lăn',      def: 'Corgi, Galaxy…', side: 'viewer' },
@@ -135,13 +135,15 @@
         const host = $('#qv-settings');
         if (!host) return;
         host.innerHTML = `
+            <div style="background:rgba(255,216,74,.12);border:1px solid rgba(255,216,74,.35);border-radius:8px;padding:6px 8px;margin-bottom:6px;font-size:12px;line-height:1.5">
+                <b>Bắt đầu 3 bước:</b> ① <b>🎮 Mở cửa sổ game</b> ② OBS thêm nguồn <b>Window Capture</b> bắt cửa sổ đó ③ Gán quà bên dưới rồi bấm <b>🧪 Thử</b></div>
             <div class="nd-card-title">⚙ Cài đặt ván</div>
             <label class="qv-row"><span title="OBS: nguồn Window Capture bắt cửa sổ game">Khung cửa sổ game</span><select data-k="qvWinShape">${[['9:16', '📱 Dọc 9:16 (TikTok)'], ['1:1', '⬛ Vuông 1:1'], ['16:9', '🖥 Ngang 16:9']].map(([v, n]) => `<option value="${v}"${(cfg.qvWinShape || '9:16') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
             <label class="qv-row"><span>Nhân vật zombie</span><select data-k="qvZombieModel">${ZOMBIES.map(([v, n]) => `<option value="${v}"${cfg.qvZombieModel === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
             <label class="qv-row"><span>Tên streamer (zombie)</span><input type="text" data-k="qvStreamerName" placeholder="Streamer" value="${esc(cfg.qvStreamerName)}"></label>
             <label class="qv-row"><span>Link avatar</span><input type="text" data-k="qvStreamerAvatar" placeholder="https://… (không bắt buộc)" value="${esc(cfg.qvStreamerAvatar)}"></label>
             <label class="qv-row"><span title="Cửa tự hồi máu sau 3 giây không bị đấm">Máu cửa nhà</span><input type="number" min="100" step="100" data-k="qvDoorHp" data-num="1" value="${esc(cfg.qvDoorHp)}"></label>
-            <label class="qv-row"><span title="Chỉ dùng khi bật đồng hồ">Giờ mỗi ván (giây)</span><input type="number" min="30" step="10" data-k="qvRoundSeconds" data-num="1" value="${esc(cfg.qvRoundSeconds)}"></label>
+            ${cfg.qvTimerOn ? `<label class="qv-row"><span title="Chỉ dùng khi bật đồng hồ">Giờ mỗi ván (giây)</span><input type="number" min="30" step="10" data-k="qvRoundSeconds" data-num="1" value="${esc(cfg.qvRoundSeconds)}"></label>` : ''}
             <label class="qv-row"><span>Map bắt đầu</span><select data-k="qvStartMap" data-num="1">${MAPS.map((m, i) => `<option value="${i + 1}"${Number(cfg.qvStartMap) === i + 1 ? ' selected' : ''}>Map ${i + 1}: ${m}</option>`).join('')}</select></label>
             <div class="qv-checks">
                 <label><input type="checkbox" data-k="qvTimerOn"${cfg.qvTimerOn ? ' checked' : ''}> ⏱ Đồng hồ ván</label>
@@ -161,6 +163,7 @@
                 const k = el.dataset.k;
                 cfg[k] = el.type === 'checkbox' ? el.checked : el.dataset.num ? Number(el.value) || 0 : el.value;
                 schedulePersist();
+                if (k === 'qvTimerOn') renderSettings();                     // hiện/ẩn ô "Giờ mỗi ván"
             });
         });
     }
@@ -200,11 +203,11 @@
             ${nWarn ? `<div class="qv-warnbox">⚠️ Có ${nWarn} hành động bị trùng / mất quà — xem các dòng tô đỏ bên dưới</div>` : ''}
             <div class="nd-card-title">🎁 Quà người xem → bẫy & vật cản</div>
             ${ACTIONS.filter(a => a.side === 'viewer').map(row).join('')}
-            <div class="nd-card-title" style="margin-top:8px">⚡ Quà hỗ trợ zombie (streamer)</div>
+            <div class="nd-card-title" style="margin-top:8px">⚡ Quà giúp zombie (fan streamer)</div>
             ${ACTIONS.filter(a => a.side === 'hero').map(row).join('')}
             <div class="nd-card-title" style="margin-top:8px">💬 Tương tác (không cần quà)</div>
             ${SOCIAL.map(s => `<div class="qv-grow"><div class="qv-act"><span class="qv-emo">${s.emoji}</span><div><b>${esc(s.label)}</b></div></div><div class="qv-chips">${s.id === 'like' ? `<label class="qv-inl">Mỗi <input type="number" min="1" step="10" data-k2="qvLikePer" value="${esc(cfg.qvLikePer)}"> tim cả phòng = 1 cục đá</label>` : s.id === 'comment' ? `<label class="qv-inl">Từ khóa <input type="text" maxlength="40" data-k2="qvCommentKey" placeholder="trống = mọi bình luận" value="${esc(cfg.qvCommentKey)}"></label>` : ''}</div><button class="ghost small qv-test" data-t="${s.id}">🧪 Thử</button></div>`).join('')}
-            <div class="qv-hint">Quà chưa gán vẫn chạy: khớp theo tên quà mặc định, quà lạ thì quy theo số xu (≥200 đá tảng, ≥150 sét, ≥99 bóng bay/sét, ≥25 bom, ≥15 cáo, ≥10 hoa gió, ≥5 sửa cửa, còn lại đồ rẻ).</div>`;
+            <div class="qv-hint">Quà chưa gán: khớp theo tên quà mặc định, quà lạ quy theo số xu. Quà đắt hơn giá món thì chạy đủ theo xu (Lion = 100 Đá lăn).</div>`;
         host.querySelectorAll('[data-k2]').forEach(el => el.addEventListener('input', () => { cfg[el.dataset.k2] = el.type === 'number' ? Math.max(1, Number(el.value) || 1) : el.value.trim(); schedulePersist(); }));
         host.querySelectorAll('.qv-add').forEach(b => b.addEventListener('click', () => openPicker(b.dataset.a)));
         host.querySelectorAll('.qv-x').forEach(b => b.addEventListener('click', () => {

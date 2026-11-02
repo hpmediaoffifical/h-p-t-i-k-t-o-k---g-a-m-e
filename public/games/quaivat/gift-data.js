@@ -9,7 +9,7 @@ export const VILLAINS = [
   { names: ['ice cream cone', 'ice cream', 'kem'], action: 'slime',   emoji: '🍦', gift: 'Kem',       label: 'Keo dính',      coins: 1 },
   { names: ['finger heart', 'bắn tim'],            action: 'repair',  emoji: '🫰', gift: 'Bắn tim',   label: 'Sửa cửa',       coins: 5 },
   { names: ['perfume', 'nước hoa'],                action: 'fox',     emoji: '🦊', gift: 'Nước hoa',  label: 'Cáo đuổi',       coins: 20 },
-  { names: ['doughnut', 'donut', 'bánh vòng'],     action: 'mine',    emoji: '💥', gift: 'Bánh vòng', label: 'Bẫy bật',      coins: 30 },
+  { names: ['doughnut', 'donut', 'bánh vòng'],     action: 'mine',    emoji: '🍩', gift: 'Bánh vòng', label: 'Bẫy bật',      coins: 30 },
   { names: ['tiny diny', 'khủng long nhỏ'],        action: 'flower',  emoji: '🌸', gift: 'Tiny Diny', label: 'Hoa gió',   coins: 10 },
   { names: ['paper crane', 'hạc giấy', 'confetti', 'sunglasses', 'kính râm', 'hat and mustache'], action: 'lightning', emoji: '⚡', gift: 'Hạc giấy', label: 'Sấm sét', coins: 99 },
   { names: ['corgi', 'money gun', 'galaxy', 'lion', 'universe', 'tiktok universe'], action: 'boulder', emoji: '🪨', gift: 'Corgi+', label: 'Đá lăn', coins: 299 },

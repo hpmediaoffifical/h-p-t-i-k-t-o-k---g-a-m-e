@@ -16,6 +16,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { VILLAINS, HEROES, SOCIAL } from './gift-data.js';
+import { actionByCoins as coinAction, giftRuns as runsFor, NoteQueue, pageCount, pageOf, mysteryPick } from './logic.js';
 
 const V3 = THREE.Vector3;
 const Q = new URLSearchParams(location.search);
@@ -35,6 +36,7 @@ const CONFIG = {
   punchDmg: 40,           // sát thương mỗi cú đấm (vào vật cản / cửa)
   punchEvery: 0.75,       // giây giữa 2 cú đấm
   winTarget: 20,
+  tips: true,             // khe thông báo rảnh → xoay vòng 1 dòng "tặng gì → ra gì" cho người mới vào
   likePer: 100,           // thả tim: cộng dồn cả phòng, đủ bấy nhiêu tim → 1 cục đá
   commentKey: '111',      // bình luận có chứa từ khóa này mới ném dép ('' = mọi bình luận)
   timerOn: Q.get('timer') === '1' || lsGet('qv_timer') === '1',   // đồng hồ mỗi ván — mặc định TẮT: chơi tới khi zombie phá được cửa
@@ -47,18 +49,7 @@ const CONFIG = {
   windSeconds: 6,         // hoa gió thổi trong N giây
   windPush: 1.8,          // sức gió đẩy lùi (m/giây)
 };
-function actionByCoins(c) {
-  if (c >= 1000) return 'quake';
-  if (c >= 500) return 'hand';
-  if (c >= 200) return pick(['boulder', 'meteor']);
-  if (c >= 150) return 'lightning';
-  if (c >= 99) return 'lightning';                       // bóng bay giờ là quà CỨU zombie → không tự quy vào phe chặn
-  if (c >= 25) return pick(['bomb', 'crows']);
-  if (c >= 15) return pick(['fox', 'crows']);
-  if (c >= 10) return pick(['flower', 'bees']);
-  if (c >= 5) return pick(['repair', 'net']);
-  return pick(['rose', 'barrel', 'xbarrel', 'trap', 'tire', 'slime', 'banana']);
-}
+const actionByCoins = c => coinAction(c);
 
 // =====================================================================
 // Tiện ích
@@ -283,7 +274,7 @@ function resize() {
   gameEl.style.width = w + 'px'; gameEl.style.height = h + 'px';
   gameEl.style.fontSize = (Math.min(w, h * 0.75) / 28) + 'px';
   renderer.setSize(w, h, false); camera.aspect = w / h; if (composer) composer.setSize(w, h);
-  camBaseFov = camera.aspect < 0.85 ? 60 : 52; camera.fov = camBaseFov; camera.updateProjectionMatrix(); GW = w; GH = h;
+  camBaseFov = camera.aspect < 0.85 ? 50 : 52; camera.fov = camBaseFov; camera.updateProjectionMatrix(); GW = w; GH = h;
 }
 addEventListener('resize', resize);
 
@@ -1785,7 +1776,7 @@ function hitMonster(dmg, knock, owner, opts = {}) {
   }
   if (knock) mon.kv = Math.min(mon.kv + knock * 4, 36);
   if (opts.stun) mon.stun = Math.max(mon.stun, opts.stun);
-  if (opts.text) popText(hp.clone().setY(hp.y + 0.6), opts.text, 'big', 1.1);
+  if (opts.text) popText(hp.clone().setY(hp.y + 0.6), opts.text + (owner && owner.name && owner.id ? ' · ' + owner.name : ''), 'big', 1.1);   // ghi công: bẫy của AI
   if (dmg >= 60 || (knock || 0) >= 4) { hitStop = Math.max(hitStop, 0.08); fovKick = Math.min(7, fovKick + 4); }   // khựng hình + giật ống kính
   camShake = Math.max(camShake, Math.min(0.5, 0.08 + dmg / 300));
   return true;
@@ -2173,11 +2164,11 @@ function mkTrap() {
   }
   g.userData.jaws = jaws; return g;
 }
-function mkSlimeBlob() { return sph(0.55, MS(0x6be04a, 0.15, 0, { emissive: 0x1a5a10 }), 0, 0, 0, new THREE.Group()).parent; }
+function mkSlimeBlob() { return sph(0.55, MS(0xe455d8, 0.15, 0, { emissive: 0x4a0f44 }), 0, 0, 0, new THREE.Group()).parent; }   // hồng tím: nổi trên cỏ xanh / đường tối
 function mkPuddle() {
   const g = new THREE.Group();
-  const p = cyl(1.9, 2.0, 0.08, MS(0x5fd63e, 0.12, 0, { emissive: 0x174f0c, transparent: true, opacity: 0.92 }), 0, 0.05, 0, g, 28); p.castShadow = false;
-  for (let i = 0; i < 7; i++) sph(rand(0.12, 0.3), MS(0x8af06a, 0.1), rand(-1.3, 1.3), 0.1, rand(-1.3, 1.3), g);
+  const p = cyl(1.9, 2.0, 0.08, MS(0xd94bd0, 0.12, 0, { emissive: 0x3e0c3a, transparent: true, opacity: 0.92 }), 0, 0.05, 0, g, 28); p.castShadow = false;
+  for (let i = 0; i < 7; i++) sph(rand(0.12, 0.3), MS(0xff8cf2, 0.1), rand(-1.3, 1.3), 0.1, rand(-1.3, 1.3), g);
   return g;
 }
 function mkFence() {
@@ -2551,13 +2542,13 @@ const SPAWN = {
     const it = newItem('boulder', u, mkBoulder(), { labelY: 4.8 });
     it.g.position.set(0, 2.2, HOUSE_FRONT + 0.5); it.g.scale.setScalar(0.2); it.state = 'grow';
     door.openUntil = time + 1.5; sfx('creak'); camShake = 0.4;
-    banner('🪨 TẢNG ĐÁ KHỔNG LỒ!', esc(u.name) + ' lăn đá khổng lồ');
+    banner('🪨 TẢNG ĐÁ KHỔNG LỒ!', esc(u.name) + ' lăn đá khổng lồ', 2);
   },
   balloon: u => {
     if (mon.lift || mon.carry || items.some(i => !i.dead && i.kind === 'balloon')) { queueAction('balloon', u); return; }   // đang bay → chờ lượt sau
     const it = newItem('balloon', u, mkBalloons(), { labelY: 1.4 });
     it.g.position.set(mon.x + rand(-1, 1), 8, mon.z + 5); it.state = 'seek'; sfx('whoosh');      // bóng bay từ phía sau tới cứu
-    banner('🎈 BÓNG BAY CỨU!', esc(u.name) + ' đưa zombie bay tới');
+    banner('🎈 BÓNG BAY CỨU!', esc(u.name) + ' đưa zombie bay tới', 2);
   },
   fox: u => {
     const f = mkFox(); const it = newItem('fox', u, f.g, { labelY: 1.5, mixer: f.mixer, life: 12, hits: 0 });
@@ -2586,7 +2577,7 @@ const SPAWN = {
     const from = new V3(mon.x + rand(-7, 7), rand(8, 11), mon.z - rand(8, 15)), T = rand(1.0, 1.35), to = predictMon(T, 1.5);
     it.g.position.copy(from); it.vel.copy(to).sub(from).divideScalar(T); it.state = 'dive'; sfx('whoosh');   // bay thẳng tới chỗ quái SẼ đứng — không đổi hướng đuổi theo
   },
-  meteor: u => { banner('☄️ MƯA THIÊN THẠCH!', esc(u.name) + ' gọi thiên thạch'); for (let i = 0; i < 5; i++) later(i * 0.55, () => { if (state.phase === 'play') SPAWN.meteor1(u); }); },
+  meteor: u => { banner('☄️ MƯA THIÊN THẠCH!', esc(u.name) + ' gọi thiên thạch', 2); for (let i = 0; i < 5; i++) later(i * 0.55, () => { if (state.phase === 'play') SPAWN.meteor1(u); }); },
   meteor1: u => {
     const spot = new V3(clamp(mon.x + rand(-1.6, 1.6), -LANE, LANE), 0, Math.max(HOUSE_FRONT + 3, mon.z - rand(-0.5, 3.5)));
     const it = newItem('meteor', u, mkMeteor(), { noLabel: true, fall: 1.4, noRescale: true });
@@ -2598,10 +2589,10 @@ const SPAWN = {
     it.spot = new V3(mon.x, 0, mon.z); it.g.position.set(mon.x, 26, mon.z); it.state = 'aim'; it.t = 0;
     it.shadow = new THREE.Mesh(geo('handsh', () => new THREE.CircleGeometry(1.5, 28)), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthWrite: false }));
     it.shadow.rotation.x = -Math.PI / 2; it.shadow.position.copy(it.spot).setY(0.04); scene.add(it.shadow);
-    banner('🫳 BÀN TAY KHỔNG LỒ!', esc(u.name) + ' — streamer né mau!'); sfx('rumble');
+    banner('🫳 BÀN TAY KHỔNG LỒ!', esc(u.name) + ' • né mau!', 2); sfx('rumble');
   },
   quake: u => {
-    banner('🌋 ĐỘNG ĐẤT!!!', esc(u.name) + ' làm rung chuyển mặt đất'); screenFlash(); sfx('boom'); sfx('rumble');
+    banner('🌋 ĐỘNG ĐẤT!!!', esc(u.name) + ' làm rung chuyển mặt đất', 3); screenFlash(); sfx('boom'); sfx('rumble');
     state.quakeT = 3; hitMonster(150, 9, u, { stun: 1.6, text: 'RUNG CHUYỂN!', unblockable: true });
     door.hp = Math.min(door.maxHp, door.hp + 300); popText(new V3(0, 4.4, HOUSE_FRONT + 0.45), '+300 🔧', 'heal');
     for (let i = 0; i < 6; i++) later(0.4 + i * 0.25, () => { if (state.phase === 'play') placePropAhead(T.prop); });
@@ -2650,14 +2641,14 @@ function buildCheckpoint() {
 function reachCp() {
   state.cp = true; drawCp(true); sfx('power');
   later(1.5, () => { if (cp.ban) cp.ban.visible = false; });   // camera sẽ ở sau mốc → ẩn băng rôn cho khỏi che màn hình
-  banner('🚩 QUA CỘT MỐC!', 'Từ giờ không bị đẩy lùi quá mốc này nữa');
+  banner('🚩 QUA CỘT MỐC!', 'Từ giờ không bị đẩy lùi quá mốc này nữa', 2);
   for (let i = 0; i < 8; i++) puff(new V3(rand(-6, 6), rand(2, 4), cpZ), { color: pick([0xffd84a, 0x7dff6a, 0x7fc8ff, 0xff5a7a]), n: 4, size: 0.4, speed: 5, add: true, tex: starTex, grav: 4 });
 }
 // ----- cửa nâng cấp: sửa cửa khi đã đầy máu → tích điểm → gỗ → sắt → thép -----
 function upgradeDoor(u) {
   door.tier++; door.maxHp = Math.round(door.maxHp * 1.4); door.hp = door.maxHp; door.shake = 0.4;
   doorLabel.querySelector('.dt').textContent = DOOR_NAME[door.tier];
-  banner(`🛡️ NÂNG CẤP ${['', 'CỬA SẮT', 'CỬA THÉP'][door.tier]}!`, esc(u.name) + ' gia cố cửa nhà'); sfx('power'); addPoints(u, 60);
+  banner(`🛡️ NÂNG CẤP ${['', 'CỬA SẮT', 'CỬA THÉP'][door.tier]}!`, esc(u.name) + ' gia cố cửa nhà', 2); sfx('power'); addPoints(u, 60);
   puff(new V3(0, 1.8, HOUSE_FRONT + 0.6), { color: 0xcfe0ff, n: 16, size: 0.7, speed: 4, add: true, life: 1, tex: starTex });
 }
 // ----- mô hình bẫy mới -----
@@ -2757,7 +2748,7 @@ function mkIce() {
 function mkGhostHand() {
   const g = new THREE.Group();
   sph(1, MS(0x2e261e, 1), 0, 0, 0, g).scale.set(0.75, 0.13, 0.75);
-  const ring = new THREE.Mesh(geo('ghring', () => new THREE.RingGeometry(0.55, 0.8, 28)), new THREE.MeshBasicMaterial({ color: 0x7dffb0, transparent: true, opacity: 0.35, depthWrite: false }));
+  const ring = new THREE.Mesh(geo('ghring', () => new THREE.RingGeometry(0.55, 0.8, 28)), new THREE.MeshBasicMaterial({ color: 0x7dffb0, transparent: true, opacity: 0.7, depthWrite: false, toneMapped: false }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; g.add(ring);
   const hand = new THREE.Group(); hand.position.y = -1.9; g.add(hand);
   const sk = MS(0x8fae8a, 0.8, 0, { emissive: 0x0a2a14 });
@@ -3014,6 +3005,19 @@ function foxPunched(f) {
   popText(f.g.position.clone().setY(1.6), 'ÁI!', 'info', 0.6);
   if (f.hits >= 3) { f.state = 'flee'; f.vel.set(rand(-2, 2), 7, -6); }
 }
+// ----- vòng sáng dưới bẫy: trên điện thoại vẫn thấy rõ chỗ có bẫy (đỏ = gây choáng/đẩy, tím = làm chậm, xanh = gió, vàng = vật cản) -----
+const GLOW_COL = { red: 0xff4a3a, purple: 0xe455ff, cyan: 0x6fe8ff, yellow: 0xffc23a };
+const GLOW_KIND = { trap: ['red', 0.75], mine: ['red', 0.85], plant: ['red', 0.9], banana: ['yellow', 0.65], bomb: ['red', 0.95], xbarrel: ['red', 1.05],
+  slime: ['purple', 2.15], flower: ['cyan', 1.0], barrel: ['yellow', 0.95] };
+const glowMats = {};
+function glowMat(c) { return glowMats[c] || (glowMats[c] = keep(new THREE.MeshBasicMaterial({ color: GLOW_COL[c], transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }))); }
+function addGlow(it) {
+  const k = GLOW_KIND[it.kind]; if (!k || it.g.userData.glow) return;
+  const r = new THREE.Mesh(geo('glowring', () => new THREE.RingGeometry(0.72, 1, 36)), glowMat(k[0]));
+  r.rotation.x = -Math.PI / 2; r.position.y = it.lotus ? 0.09 : 0.035; r.scale.setScalar(k[1]); r.castShadow = r.receiveShadow = false; r.renderOrder = 2;
+  it.g.add(r); it.g.userData.glow = r;
+}
+function pulseGlow() { const o = 0.38 + 0.26 * Math.sin(time * 5.5); for (const m of Object.values(glowMats)) m.opacity = o; }
 function onLand(it) {
   const p = it.g.position;
   puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: it.kind === 'fence' ? 12 : 5, size: 1, speed: 2.5, life: 0.7 });
@@ -3032,7 +3036,7 @@ function onLand(it) {
   it.state = 'set'; it.t = 0;
   if (it.kind === 'slime') { const pd = mkPuddle(); pd.position.copy(p).setY(0); scene.remove(it.g); disposeTree(it.g); it.g = pd; scene.add(pd); it.life = 14; }
   if (it.kind === 'bomb') it.fuse = 6;
-  lotusIfWater(it);
+  lotusIfWater(it); addGlow(it);
   if (it.kind === 'plant') { it.life = 18; it.cd = 0.8; }
   if (it.kind === 'mine') puff(p.clone().setY(0.2), { color: 0x7a5530, n: 8, size: 0.6, speed: 3, life: 0.7 });
   if (it.kind === 'flower') { it.blowT = CONFIG.windSeconds; sfx('power'); popText(p.clone().setY(3.4), '🌬️ GIÓ!', 'info', 1); }
@@ -3215,7 +3219,7 @@ function updateItems(dt) {
         }
       }
     }
-    if (!it.dead) placeEl(it.label, p.x, p.y + it.labelY, p.z, 8, 0.28, 0.85);
+    if (!it.dead) placeEl(it.label, p.x, p.y + it.labelY, p.z, 9, 0.5, 0.95);
   }
 }
 
@@ -3246,7 +3250,7 @@ function runAction(a, u) {
   if (!mon.ready) return;
   if (a === 'mystery') {                                                           // TÚI MÙ: ngẫu nhiên 1 quà hành hoặc cứu (trừ WIN/THUA ngay)
     const pool = [...VILLAINS, ...HEROES].filter(g => !['win', 'lose', 'mystery'].includes(g.action));
-    const g = pick(pool); popText(new V3(mon.x, mon.y + 3.4, mon.z - 1), `🎁 ${g.emoji} ${g.label}`, 'info', 1.4); sfx('pop');
+    const g = mysteryPick(pool); popText(new V3(mon.x, mon.y + 3.4, mon.z - 1), `🎁 ${g.emoji} ${g.label}`, 'info', 1.4); sfx('pop');
     return runAction(g.action, u);
   }
   if (a === 'repair') {
@@ -3289,19 +3293,14 @@ function actionForGiftId(id) {
 function findGift(name) { const n = String(name || '').toLowerCase().trim(); return ALL_GIFTS.find(g => g.names.includes(n)); }
 // Quà đắt hơn giá món trong bảng (Lion 29.999 xu khớp tên "Đá lăn" 299 xu, quà to gán vào món rẻ…) → chạy ĐỦ theo xu thật
 // (Lion = 100 Đá lăn). WIN/THUA ngay luôn chỉ 1 lần mỗi quà.
-function giftRuns(action, g, coins) {
-  if (action === 'win' || action === 'lose') return 1;
-  const base = (g && g.action === action ? g.coins : ALL_GIFTS.find(x => x.action === action)?.coins) || 0;
-  if (!(base > 0) || !(coins >= base * 1.5)) return 1;
-  return Math.max(1, Math.round(coins / base));
-}
+function giftRuns(action, g, coins) { return runsFor(action, (g && g.action === action ? g.coins : ALL_GIFTS.find(x => x.action === action)?.coins) || 0, coins); }
 function onGift(user, giftName, count, coins, forced) {
   const g = forced ? ALL_GIFTS.find(a => a.action === forced) : findGift(giftName);
   const action = forced || (g ? g.action : actionByCoins(coins || 1));
   const total = (coins || g?.coins || 1) * count;
   const runs = count * giftRuns(action, g, coins);
   addPoints(user, total * 10);
-  showFeed(user, `đã gửi ${giftName || g?.gift || 'quà'}`, count, g ? g.emoji : '🎁');
+  flashChip(action, user, runs);
   if (total >= 99) gBanner(user, giftName || g?.gift || 'quà', g ? (runs > count ? `${g.label} ×${runs}` : g.label) : '');
   queueAction(action, user, runs);                                               // đủ số lượng đã tặng (quà đắt: đủ theo xu)
   trackCombo(action, user, count);
@@ -3316,7 +3315,7 @@ function trackCombo(action, user, n) {
   if (sum < 5 || time < (comboCd.get(action) || 0)) return;
   comboCd.set(action, time + 12); comboLog.set(action, []);
   const g = ALL_GIFTS.find(x => x.action === action);
-  banner(`🔥 COMBO x${sum}!`, `${g ? g.emoji + ' SIÊU ' + g.label.toUpperCase() : 'SIÊU BẪY'} — cảm ơn ${esc(user.name)}`); sfx('power');
+  banner(`🔥 COMBO x${sum}!`, `${g ? g.emoji + ' SIÊU ' + g.label.toUpperCase() : 'SIÊU BẪY'} — cảm ơn ${esc(user.name)}`, 3, 2.4); sfx('power');
   later(0.7, () => { if (state.phase !== 'play') return; if (action === 'rose') SPAWN.potato(user, true); else for (let i = 0; i < 3; i++) queueAction(action, user); });
 }
 let likeAcc = 0;
@@ -3325,15 +3324,15 @@ function onLike(user, count) {   // tim cộng dồn cả phòng: đủ CONFIG.l
   likeAcc += count;
   let n = 0;
   n = Math.floor(likeAcc / CONFIG.likePer); likeAcc -= n * CONFIG.likePer; if (n) queueAction('pebble', user, n);   // đủ bao nhiêu mốc tim ném bấy nhiêu đá
-  if (n) showFeed(user, `đủ ${CONFIG.likePer} tim → ném đá`, n, '❤️');
+  if (n) flashChip('like', user, n);
 }
 function onComment(user, text) {
   const key = String(CONFIG.commentKey || '').trim().toLowerCase();
   if (key && !String(text || '').toLowerCase().includes(key)) return;   // chỉ bình luận có từ khóa mới ném dép
-  addPoints(user, 3); queueAction('slipper', user);
+  addPoints(user, 3); flashChip('comment', user); queueAction('slipper', user);
 }
-function onFollow(user) { addPoints(user, 30); showFeed(user, 'đã follow → hàng rào', 1, '➕'); queueAction('fence', user); }
-function onShare(user) { addPoints(user, 30); showFeed(user, 'đã chia sẻ → pháo hẹn giờ', 1, '↗️'); queueAction('bomb', user); }
+function onFollow(user) { addPoints(user, 30); flashChip('follow', user); queueAction('fence', user); }
+function onShare(user) { addPoints(user, 30); flashChip('share', user); queueAction('bomb', user); }
 
 // =====================================================================
 // Ván chơi
@@ -3361,12 +3360,12 @@ function endRound(who, by) {
     puff(new V3(0, 2, HOUSE_FRONT + 0.6), { color: 0xd8c6a0, n: 14, size: 2, speed: 5, life: 1.2 });
     explosion(new V3(0, 0, HOUSE_FRONT + 0.8), 0.6);
     state.nextMap = (state.map + 1) % MAPS.length;
-    if (by) banner('🏆 WIN NGAY!', `${esc(by.name)} tặng quà WIN NGAY`); else banner('💥 PHÁ ĐƯỢC CỬA RỒI!', 'Zombie vào nhà ăn não...');
+    if (by) banner('🏆 WIN NGAY!', `${esc(by.name)} tặng quà WIN NGAY`, 6, 3.2); else banner('💥 PHÁ ĐƯỢC CỬA RỒI!', 'Zombie vào nhà ăn não...', 6, 3.2);
     setPhase('end', 999); startWinCut();
   } else {
     state.win = Math.max(0, state.win - 1);
-    if (by) { banner('😵 ZOMBIE THUA!', `${esc(by.name)} tặng quà THUA NGAY`); explosion(new V3(mon.x, 0, mon.z), 0.5); }
-    else banner('⏰ HẾT GIỜ! KHÁN GIẢ BẢO VỆ THÀNH CÔNG!', mvpName ? `MVP: ${esc(mvpName)}` : 'Ngôi nhà an toàn!');
+    if (by) { banner('😵 ZOMBIE THUA!', `${esc(by.name)} tặng quà THUA NGAY`, 6, 3.5); explosion(new V3(mon.x, 0, mon.z), 0.5); }
+    else banner('⏰ HẾT GIỜ! KHÁN GIẢ BẢO VỆ THÀNH CÔNG!', mvpName ? `MVP: ${esc(mvpName)}` : 'Ngôi nhà an toàn!', 6, 3.5);
     mon.cur = ''; playAnim('Death', 0.15); sfx('win');
     for (let i = 0; i < 10; i++) later(i * 0.2, () => puff(new V3(mon.x + rand(-4, 4), rand(3, 7), mon.z - rand(2, 8)), { color: pick([0xffd84a, 0xff5a7a, 0x7dff6a, 0x7fc8ff]), n: 8, size: 0.4, speed: 5, add: true, tex: starTex, grav: 4 }));
   }
@@ -3399,7 +3398,7 @@ function updatePhase(dt) {
   if (state.phase === 'intro') {
     state.t -= dt;
     const c = Math.ceil(state.t - 0.6);
-    if (c !== state.count) { state.count = c; if (c > 0) { banner(String(c), `Ván ${state.round || 1} • 🗺️ Map ${state.map + 1}: ${T.name} • ${T.length}m`); sfx('beep'); } else { banner('PHÁ NHÀ!', T.warn || ''); sfx('go'); } }
+    if (c !== state.count) { state.count = c; if (c > 0) { banner(String(c), `Ván ${state.round || 1} • 🗺️ Map ${state.map + 1}: ${T.name} • ${T.length}m`, 5, 0.95); sfx('beep'); } else { banner('PHÁ NHÀ!', T.warn || '', 5, 1.3); sfx('go'); } }
     if (state.t <= 0) setPhase('play', 0);
   } else if (state.phase === 'play') {
     if (CONFIG.timerOn) { state.roundT -= dt; if (state.roundT <= 0) { state.roundT = 0; endRound('viewers'); } }
@@ -3476,7 +3475,7 @@ function updateWinCut(dt) {
       C.stage = 'cheer'; C.t = 0; mon.z = ROOM.z + 1.75; mon.cur = ''; playAnim('Cheer');
       state.win += T.winBonus || 1; const w = $('win'); w.classList.remove('bump'); void w.offsetWidth; w.classList.add('bump');
       popText(new V3(mon.x, MON_H + 0.7, mon.z), '🧠 NÃO!!!', 'big', 2.2);
-      banner(T.winBonus ? '🏰 HẠ ĐƯỢC LÂU ĐÀI!' : '🧠 NÃO NGON QUÁ!', `${esc(CONFIG.streamerName)} +${T.winBonus || 1} WIN • Sang map: ${MAPS[state.nextMap].name}`); sfx('lose');
+      banner(T.winBonus ? '🏰 HẠ ĐƯỢC LÂU ĐÀI!' : '🧠 NÃO NGON QUÁ!', `${esc(CONFIG.streamerName)} +${T.winBonus || 1} WIN • Sang map: ${MAPS[state.nextMap].name}`, 6, 3); sfx('lose');
     }
   } else if (C.stage === 'cheer') {
     if (C.t > 2.4) { state.cut = null; room.g.visible = false; resetRound(); }
@@ -3517,12 +3516,13 @@ function updateCamera(dt) {
   const portrait = camera.aspect < 0.85;
   // càng gần nhà camera càng lùi/nâng nhẹ để thấy trọn ngôi nhà (như video mẫu)
   const near = clamp(1 - (mon.z - HOUSE_FRONT - 1) / 20, 0, 1), e = near * near * (3 - 2 * near);
-  const back = Math.max(3, (portrait ? 12.5 : 11) - e * 5.5 + camAdj.back), up = Math.max(1.2, (portrait ? 6 : 5.2) - e * 2.6 + camAdj.up);
-  const ahead = Math.max(2.5, ((portrait ? 12 : 11) - camAdj.up * 0.6) * (1 - 0.6 * e));
+  // khung dọc TikTok: zombie đứng ~58% chiều cao (trên vùng bình luận), chân trời ~25%, nhà to hơn
+  const back = Math.max(3, (portrait ? 16 : 11) - e * (portrait ? 7 : 5.5) + camAdj.back), up = Math.max(1.2, (portrait ? 5 : 5.2) - e * 2.2 + camAdj.up);
+  const ahead = Math.max(2.5, ((portrait ? 5.5 : 11) - camAdj.up * 0.6) * (1 - 0.4 * e));
   const fast = mon.kv > 2 || mon.flip || mon.carry || mon.lift;
   const k = 1 - Math.exp(-dt * (fast ? 9 : 3.2));
   camPos.lerp(tv.set(mon.x * (0.55 + 0.4 * e), up + mon.gy + mon.y * 0.9, mon.z + back + mon.y * 0.6), k);
-  camLook.lerp(tv.set(mon.x * (0.3 + 0.6 * e), 1.5 + mon.gy + mon.y * 1.15, mon.z - ahead), k);
+  camLook.lerp(tv.set(mon.x * (0.3 + 0.6 * e), (portrait ? 0 : 1.5) + e * 1.2 + mon.gy + mon.y * 1.15, mon.z - ahead), k);
   camShake = Math.max(0, camShake - dt * 1.6);
   const s = camShake * 0.35;
   camera.position.set(camPos.x + rand(-s, s), camPos.y + rand(-s, s), camPos.z);
@@ -3538,62 +3538,137 @@ function updateCamera(dt) {
 const $ = id => document.getElementById(id);
 const hintText = () => `🎮 Streamer: ${CONFIG.lockForward ? 'A/D ← → đi ngang' : 'W/S tới-lùi • A/D trái-phải • Shift chạy'}${CONFIG.lockJump ? '' : ' • Space nhảy'} • F đấm • 🖱️ chuột phải kéo: camera`;
 document.getElementById('hint').textContent = hintText();
-let bannerTimer = 0, gTimer = 0;
-function banner(t, sub) { const b = $('banner'); b.innerHTML = t + (sub ? `<small>${sub}</small>` : ''); b.classList.remove('show'); void b.offsetWidth; b.classList.add('show'); clearTimeout(bannerTimer); bannerTimer = setTimeout(() => b.classList.remove('show'), 2200); }
-function gBanner(user, gift, label) {
-  const b = $('gbanner'); b.innerHTML = ''; b.appendChild(avatarEl(user));
-  const s = document.createElement('span'); s.textContent = `${user.name} đã gửi ${gift}${label ? ' → ' + label : ''}`; b.appendChild(s);
-  b.classList.add('show'); clearTimeout(gTimer); gTimer = setTimeout(() => b.classList.remove('show'), 4000);
+// ----- khe thông báo giữa màn: MỖI LÚC 1 cái, ưu tiên cao chen ngang (logic.js NoteQueue) -----
+// prio: 6 kết ván · 5 đếm ngược · 3 combo / động đất · 2 quà to / sự kiện · 1 thường
+const notes = new NoteQueue(5);
+let noteShown = null, tipT = 0, tipI = 0;
+function banner(t, sub, prio = 1, dur = 2.2) { notes.push({ kind: 'big', t, sub, prio, dur }, time); }
+function gBanner(user, gift, label) { notes.push({ kind: 'gift', user, gift, label, prio: 2, dur: 2.6, key: 'g:' + user.id + ':' + gift }, time); }
+function renderNote(n) {
+  const b = $('banner'), g = $('gbanner');
+  b.classList.remove('show'); g.classList.remove('show');
+  if (!n) return;
+  if (n.kind === 'gift') {
+    g.innerHTML = ''; g.appendChild(avatarEl(n.user));
+    const s = document.createElement('span'); s.textContent = `${n.user.name} tặng ${n.gift}${n.label ? ' → ' + n.label : ''}`; g.appendChild(s);
+    void g.offsetWidth; g.classList.add('show');
+  } else { b.innerHTML = n.t + (n.sub ? `<small>${n.sub}</small>` : ''); void b.offsetWidth; b.classList.add('show'); }
 }
-function showFeed(user, text, count, emoji) {
-  const f = $('feed'), c = document.createElement('div'); c.className = 'fc';
-  c.appendChild(avatarEl(user));
-  const tx = document.createElement('div'); tx.className = 'tx'; tx.innerHTML = `${esc(user.name)}<small>${esc(text)}</small>`; c.appendChild(tx);
-  const gi = document.createElement('div'); gi.className = 'gi'; gi.textContent = emoji; c.appendChild(gi);
-  const x = document.createElement('div'); x.className = 'x'; x.textContent = 'x' + count; c.appendChild(x);
-  f.prepend(c); while (f.children.length > 3) f.lastChild.remove();
-  setTimeout(() => { c.classList.add('out'); setTimeout(() => c.remove(), 500); }, 4200);
+function updateNotes(dt) {
+  notes.tick(time);
+  if (notes.cur !== noteShown || (notes.cur && notes.cur.dirty)) { noteShown = notes.cur; if (noteShown) noteShown.dirty = false; renderNote(noteShown); }
+  // khe rảnh lâu → xoay vòng 1 dòng hướng dẫn cho người mới vào phòng
+  const tip = $('tip');
+  if (notes.cur || state.phase !== 'play' || !CONFIG.tips) { tipT = 0; if (tip.classList.contains('show')) tip.classList.remove('show'); return; }
+  tipT += dt;
+  if (tipT > 3.5 && !tip.classList.contains('show')) { const L = tipLines(); if (L.length) { tip.innerHTML = L[tipI++ % L.length]; tip.classList.add('show'); } }
+  if (tipT > 8) { tip.classList.remove('show'); tipT = 2.6; }
 }
+function tipLines() {
+  const L = [];
+  for (const c of legend.vill) L.push(c.social ? `<b>${esc(c.gift)}</b> → ${esc(c.label)}` : `Tặng <b>${esc(c.gift)}</b> → ${esc(c.label)} chặn zombie`);
+  for (const c of legend.hero) L.push(`Fan zombie: tặng <b>${esc(c.gift)}</b> → ${esc(c.label)}`);
+  return L;
+}
+
+// ----- 2 cột quà: "tặng gì → ra gì" (ảnh + tên quà + giá), cột dài thì xoay trang, ai vừa tặng thì chip đó sáng lên kèm avatar -----
+let giftSheet = null;                                   // /api/gifts của app: ảnh + giá quà TikTok (tên tiếng Việt)
+async function loadGiftSheet() { try { const r = await fetch('/api/gifts'); if (r.ok) { giftSheet = await r.json(); buildLegends(); } } catch {} }
+function sheetFor(g) {
+  if (!Array.isArray(giftSheet)) return null;
+  const low = x => String(x || '').toLowerCase().trim();
+  for (const c of [g.gift, ...(g.names || []).slice(0, 1)]) { const hit = giftSheet.find(x => low(x.name) === low(c)); if (hit) return hit; }
+  return null;
+}
+const PER_PAGE = 6, PAGE_SEC = 7;
+const legend = { hero: [], vill: [], page: 0, pageT: 0, hits: new Map(), dirty: true };
 function buildLegends() {
-  const chip = (g, cls) => `<div class="chip ${cls || ''}"><em>${g.img ? `<img src="${esc(g.img)}" alt="">` : g.emoji}</em><div>${esc(g.label)}</div></div>`;   // chỉ tên tác dụng, icon to
-  // Đã gán quà trong app → hiện tên + ẢNH quà thật đã gán
   const mapped = g => ((CONFIG.giftMap || {})[g.action] || []).filter(x => x && (x.giftName || x.giftId != null));
-  const named = g => { const m = mapped(g), n = m.map(x => x.giftName).filter(Boolean), img = (m.find(x => x.giftImage) || {}).giftImage; return n.length ? { ...g, gift: n.slice(0, 2).join(', '), img } : g; };
-  $('heroList').innerHTML = HEROES.filter(g => (g.action !== 'time' || CONFIG.timerOn) && (!g.opt || mapped(g).length)).map(g => chip(named(g), 'hero')).join('');
-  $('villList').innerHTML = [...VILLAINS.filter(g => !g.opt || mapped(g).length).map(named), ...SOCIAL.map(g => g.gift === 'Thả tim' ? { ...g, label: `Ném đá (${CONFIG.likePer} tim)` } : g.gift === 'Bình luận' && CONFIG.commentKey ? { ...g, label: `Ném dép (gõ ${CONFIG.commentKey})` } : g)].map(g => chip(g)).join('');
+  const info = (g, side) => {
+    const m = mapped(g), names = m.map(x => x.giftName).filter(Boolean), img = (m.find(x => x.giftImage) || {}).giftImage, sh = names.length ? null : sheetFor(g);
+    return { a: g.action, side, label: g.label, gift: names.length ? names.slice(0, 2).join(', ') : g.gift, img: img || (sh && sh.image) || '', emoji: g.emoji,
+      coins: names.length ? null : (sh && sh.diamond) || g.coins };
+  };
+  legend.hero = HEROES.filter(g => (g.action !== 'time' || CONFIG.timerOn) && (!g.opt || mapped(g).length)).map(g => info(g, 'hero'));
+  legend.vill = [...VILLAINS.filter(g => !g.opt || mapped(g).length).map(g => info(g, 'vill')),
+    { a: 'like', social: true, label: 'Ném đá', gift: `${CONFIG.likePer} tim cả phòng`, emoji: '❤️' },
+    ...(CONFIG.commentKey ? [{ a: 'comment', social: true, label: 'Ném dép', gift: `Gõ ${CONFIG.commentKey}`, emoji: '💬' }] : []),
+    { a: 'follow', social: true, label: 'Hàng rào', gift: 'Follow', emoji: '➕' },
+    { a: 'share', social: true, label: 'Pháo hẹn giờ', gift: 'Chia sẻ', emoji: '↗️' }];
+  legend.page = Math.min(legend.page, pageCount(legend.vill.length, PER_PAGE) - 1); legend.dirty = true;
 }
-let boardT = 0;
+function chipHtml(c) {
+  const h = legend.hits.get(c.a), on = h && h.until > time;
+  const sub = c.social ? esc(c.gift) : `${esc(c.gift)}${c.coins ? ` · ${c.coins} xu` : ''}`;
+  return `<div class="chip ${c.side === 'hero' ? 'hero' : ''}${on ? ' hit' : ''}"><em>${c.img ? `<img src="${esc(c.img)}" alt="">` : c.emoji}</em><div><div>${esc(c.label)}</div><small>${sub}</small>`
+    + (on ? `<div class="who">${avatarEl(h.u).outerHTML}<span>${esc(h.u.name)}</span><b>×${h.n}</b></div>` : '') + '</div></div>';
+}
+function renderLegend() {
+  legend.dirty = false;
+  const np = pageCount(legend.vill.length, PER_PAGE), p0 = legend.page * PER_PAGE;
+  $('heroList').innerHTML = legend.hero.map(chipHtml).join('');
+  $('villList').innerHTML = legend.vill.slice(p0, p0 + PER_PAGE).map(chipHtml).join('');
+  $('villPg').textContent = np > 1 ? `${legend.page + 1}/${np}` : '';
+}
+// có người tặng → chip của món đó sáng 2,5 giây (cột phải tự lật tới trang chứa chip)
+function flashChip(a, u, n = 1) {
+  if (!u) return;
+  const old = legend.hits.get(a), same = old && old.until > time && old.u.id === u.id;
+  legend.hits.set(a, { u, n: (same ? old.n : 0) + n, until: time + 2.5 });
+  const i = legend.vill.findIndex(c => c.a === a);
+  if (i >= 0 && pageOf(i, PER_PAGE) !== legend.page) { legend.page = pageOf(i, PER_PAGE); legend.pageT = 0; }
+  legend.dirty = true;
+}
+function updateLegend(dt) {
+  if (document.body.classList.contains('nolegend')) return;
+  const np = pageCount(legend.vill.length, PER_PAGE);
+  legend.pageT += dt;
+  if (np > 1 && legend.pageT > PAGE_SEC && ![...legend.hits.values()].some(h => h.until > time)) { legend.page = (legend.page + 1) % np; legend.pageT = 0; legend.dirty = true; }
+  for (const [a, h] of legend.hits) if (h.until <= time) { legend.hits.delete(a); legend.dirty = true; }
+  if (legend.dirty) renderLegend();
+}
+
+let boardT = 0, boardSig = '';
 const doorLabel = makeLabel('dlab'); doorLabel.innerHTML = '<div class="dt">🚪 CỬA NHÀ</div><div class="dhp"><i></i></div>';
 const doorBarEl = doorLabel.querySelector('i');
+const setTxt = (el, v) => { v = String(v); if (el.__v !== v) { el.__v = v; el.textContent = v; } };   // chỉ ghi DOM khi đổi
+const setCss = (el, k, v) => { const kk = '__' + k; if (el[kk] !== v) { el[kk] = v; el.style[k] = v; } };
+const setCls = (el, c, on) => { on = !!on; const kk = '__c' + c; if (el[kk] !== on) { el[kk] = on; el.classList.toggle(c, on); } };
 function updateHud(dt) {
-  $('winN').textContent = state.win;
-  { const q = queuePending(), el = $('qPend'); el.textContent = q > 1 ? `🎁 còn ${q} lượt quà đang chạy` : ''; el.style.display = q > 1 ? '' : 'none'; } $('winT').textContent = CONFIG.winTarget;
+  updateNotes(dt); updateLegend(dt);
+  setTxt($('winN'), state.win); setTxt($('winT'), CONFIG.winTarget);
+  { const q = queuePending(), el = $('qPend'), e = actionQueue[0];      // hàng chờ quà: tổng + món kế tiếp của ai
+    const sig = q > 1 && e ? `${q}|${e.a}|${e.u && e.u.id}|${e.n}` : '';
+    if (el.__v !== sig) { el.__v = sig; el.style.display = sig ? '' : 'none';
+      if (sig) { const g = ALL_GIFTS.find(x => x.action === e.a); el.innerHTML = ''; el.append(`⏳ ${q} quà chờ · tiếp: ${g ? g.emoji : '🎁'}`); if (e.u && e.u.name) { el.appendChild(avatarEl(e.u)); el.append(`${e.u.name} ×${e.n}`); } } } }
   const dk = door.hp / door.maxHp, rt = Math.max(0, Math.ceil(state.roundT));
-  $('timerN').textContent = `${Math.floor(rt / 60)}:${String(rt % 60).padStart(2, '0')}`;
-  $('tmrW').classList.toggle('low', rt <= 20 && state.phase === 'play'); $('tmrW').style.display = CONFIG.timerOn ? '' : 'none';
+  setTxt($('timerN'), `${Math.floor(rt / 60)}:${String(rt % 60).padStart(2, '0')}`);
+  setCls($('tmrW'), 'low', rt <= 20 && state.phase === 'play'); setCss($('tmrW'), 'display', CONFIG.timerOn ? '' : 'none');
   { const L = START_Z - HOUSE_FRONT, f = q => clamp((START_Z - q) / L, 0, 1) * 100;   // thanh đường đi: đầu đường → cửa nhà
-    $('rtZ').style.left = f(mon.z) + '%'; $('rtFill').style.width = f(mon.z) + '%';
-    $('rtCp').style.left = f(cpZ) + '%'; $('rtCp').style.display = CONFIG.checkpoint ? '' : 'none'; $('rtCp').textContent = state.cp ? '✅' : '🚩'; }
-  $('distN').textContent = Math.max(0, Math.round(mon.z - HOUSE_FRONT - 1.3));
+    const zp = f(mon.z).toFixed(1) + '%'; setCss($('rtZ'), 'left', zp); setCss($('rtFill'), 'width', zp);
+    setCss($('rtCp'), 'left', f(cpZ).toFixed(1) + '%'); setCss($('rtCp'), 'display', CONFIG.checkpoint ? '' : 'none'); setTxt($('rtCp'), state.cp ? '✅' : '🚩'); }
+  setTxt($('distN'), Math.max(0, Math.round(mon.z - HOUSE_FRONT - 1.3)));
+  { const dh = $('doorHp'); setCss(dh.firstChild, 'width', (dk * 100).toFixed(1) + '%'); setCls(dh, 'regen', door.regen); setCls(dh, 'low', dk < 0.3); }
   if (mon.ready) {
-    mon.bf.textContent = (mon.shieldHp > 0 ? '🚪' + mon.shieldHp + (mon.shieldStock ? ` +${mon.shieldStock}` : '') : '') + (mon.stun > 0 && state.phase === 'play' ? '💫' : '');
+    setTxt(mon.bf, (mon.shieldHp > 0 ? '🚪' + mon.shieldHp + (mon.shieldStock ? ` +${mon.shieldStock}` : '') : '') + (mon.boost > 0 && state.phase === 'play' ? `👟${Math.ceil(mon.boost)}` : '') + (mon.stun > 0 && state.phase === 'play' ? '💫' : ''));
     placeEl(mon.label, mon.x, mon.y + mon.gy + MON_H + 0.45, mon.z, 12, 0.6, 1.2);
   }
-  doorBarEl.style.width = (dk * 100) + '%'; doorLabel.classList.toggle('regen', !!door.regen);
+  setCss(doorBarEl, 'width', (dk * 100).toFixed(1) + '%'); setCls(doorLabel, 'regen', door.regen);
   placeEl(doorLabel, 0, 3.5, HOUSE_FRONT + 0.3, 14, 0.45, 1.1);
   boardT -= dt;
   if (boardT <= 0) {
     boardT = 0.5;
-    const list = [...players.values()].sort((a, b) => b.pts - a.pts).slice(0, 5), B = $('board'); B.innerHTML = '';
-    list.forEach((p, i) => {
-      const r = document.createElement('div'); r.className = 'br';
-      const rk = document.createElement('span'); rk.textContent = ['🥇', '🥈', '🥉', '4', '5'][i];
-      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = p.name;
-      const pt = document.createElement('span'); pt.className = 'p'; pt.textContent = Math.round(p.pts);
-      r.append(rk, avatarEl(p), nm, pt); B.appendChild(r);
-    });
-    const pill = (el, p) => { el.innerHTML = ''; if (!p) return; el.appendChild(avatarEl(p)); const s = document.createElement('span'); s.textContent = 'x' + Math.round(p.pts / 10); el.appendChild(s); };
-    pill($('pillL'), list[0]); pill($('pillR'), list[1]);
+    const list = [...players.values()].sort((a, b) => b.pts - a.pts).slice(0, 3), sig = list.map(p => p.id + ':' + Math.round(p.pts)).join('|');
+    if (sig !== boardSig) {
+      boardSig = sig; const B = $('board'); B.innerHTML = '';
+      list.forEach((p, i) => {
+        const r = document.createElement('div'); r.className = 'br';
+        const rk = document.createElement('span'); rk.textContent = ['🥇', '🥈', '🥉'][i];
+        const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = p.name;
+        const pt = document.createElement('span'); pt.className = 'p'; pt.textContent = Math.round(p.pts);
+        r.append(rk, avatarEl(p), nm, pt); B.appendChild(r);
+      });
+    }
   }
 }
 
@@ -3835,11 +3910,11 @@ function tick(dt) {
       else { mon.vx += (dx / gdt - mon.vx) * k; mon.vz += (dz / gdt - mon.vz) * k; } }   // vận tốc thật (làm mượt) cho việc ném đón đầu
     updateWade(gdt); updateItems(gdt); updatePeas(gdt); updateBolts(gdt); updateCamera(dt);
   }
-  updateFx(dt); updateHouseFx(dt); updatePops(dt); updateHud(dt);
+  updateFx(dt); updateHouseFx(dt); updatePops(dt); updateHud(dt); pulseGlow();
   WIND.value = time;
   if (composer) composer.render(); else renderer.render(scene, camera);
 }
-resize(); buildMap(clamp((Number(Q.get('map')) || 1) - 1, 0, MAPS.length - 1)); buildRoom(); buildLegends(); buildPanel(); startConnection();
+resize(); buildMap(clamp((Number(Q.get('map')) || 1) - 1, 0, MAPS.length - 1)); buildRoom(); buildLegends(); buildPanel(); startConnection(); if (IN_APP) loadGiftSheet();
 camera.position.copy(camPos); camera.lookAt(camLook);
 requestAnimationFrame(frame);
 try {
