@@ -104,3 +104,18 @@ test('quick-launch.html: bỏ thẻ Game Camera khi hubOwned, nghe hub:owns', ()
 test('style.css: lớp .st-hub-*', () => {
     for (const c of ['.st-hub-hint', '.st-hub-owns', '.st-hub-ov-row']) assert.ok(CSS.includes(c), 'thiếu ' + c);
 });
+
+test('vòng sửa 1: .st-toggle[hidden] ẩn thật (công tắc Hub ẩn khi !allowed)', () => {
+    assert.match(CSS, /\.st-toggle\[hidden\]\s*\{\s*display:\s*none;?\s*\}/);
+    assert.ok(CSS.indexOf('.st-toggle[hidden]') > CSS.indexOf('.st-toggle {'), 'đặt sau .st-toggle');
+});
+
+test('vòng sửa 1: hub:owns về Trang chủ bằng goHome(), khôi phục màn cuối bỏ qua màn camera, lỗi công tắc báo r.error, Tải chỉ http(s)', () => {
+    const js = between(APP, '// ===== HP Game Hub (thẻ trong Cài đặt)', '// ===== /HP Game Hub');
+    const h = js.slice(js.indexOf("socket.on('hub:owns'"));
+    assert.ok(h.includes('goHome()') && !h.includes("showView('view-home')"));
+    const start = between(APP, 'async function startApp() {', 'initSidebarToggle();');
+    assert.ok(start.includes('!hubCamGameId(last)'));
+    assert.ok(js.includes('stToast(r.error'), 'công tắc báo lỗi server');
+    assert.ok(js.includes('https?:'), 'chỉ mở địa chỉ http(s)');
+});

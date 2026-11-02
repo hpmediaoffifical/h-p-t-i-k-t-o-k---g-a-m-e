@@ -5359,14 +5359,14 @@
         else if (act === 'pair') hubPost('/api/hub/pair');
         else if (act === 'download') {
             const url = hubState && hubState.download;
-            if (url) window.open(url, '_blank');
+            if (/^https?:[/][/]/i.test(url || '')) window.open(url, '_blank');
             else stToast('Chưa có địa chỉ tải HP Game Hub', 'error');
         }
     });
     hubEl('st-hub-enabled')?.addEventListener('change', async (e) => {
         const el = e.currentTarget;
         const r = await hubPost('/api/hub/enabled', { enabled: !!el.checked });
-        if (!r || !r.ok) { el.checked = !el.checked; return; }
+        if (!r || !r.ok) { el.checked = !el.checked; if (r && r.error) stToast(r.error, 'error'); return; }
         stToast(el.checked ? '✓ Đã bật liên kết HP Game Hub' : 'Đã tắt liên kết HP Game Hub');
     });
     hubEl('st-hub-open-cam')?.addEventListener('click', () => hubOpenPage('camera'));
@@ -5383,7 +5383,7 @@
     socket.on('hub:owns', () => {
         // Đang đứng ở màn Game Camera lúc Hub vừa nhận camera → đưa sang thẻ Hub
         Promise.all([loadGames().catch(() => {}), loadHubCard()]).then(() => {
-            if (hubOwnsCamera() && hubActiveCamView()) { showView('view-home'); window.hpOpenHubCard(); }
+            if (hubOwnsCamera() && hubActiveCamView()) { goHome(); currentGame = null; window.hpOpenHubCard(); }
         });
     });
     loadHubCard();
@@ -7397,7 +7397,7 @@
         let last = 'home';
         try { last = localStorage.getItem(LAST_VIEW_KEY) || 'home'; } catch (_) {}
         // Màn nhớ lại là mục giờ đã Ẩn (HP KEY gs) → về Trang chủ, không bật hộp "Chưa mở" nêu tên mục ẩn.
-        if (last !== 'home' && games.some(g => g.id === last && g.lstate !== 'hidden')) openGame(last);
+        if (last !== 'home' && !hubCamGameId(last) && games.some(g => g.id === last && g.lstate !== 'hidden')) openGame(last);
         else goHome();
         initSidebarToggle();
         // CHỈ check 1 lần khi mở app — KHÔNG có setInterval định kỳ.
