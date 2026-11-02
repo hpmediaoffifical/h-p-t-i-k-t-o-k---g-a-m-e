@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CollisionWorld, makeBox, stepBody, STEP_UP } from '../../src/web/js/logic/physics.js';
+import { CollisionWorld, makeBox, stepBody, STEP_UP } from '../public/games/creatoronline/js/logic/physics.js';
 
 const GRAVITY = 18;
 const body = (x, y, z) => ({ pos: { x, y, z }, vy: 0, grounded: true, radius: 0.35, height: 1.6 });

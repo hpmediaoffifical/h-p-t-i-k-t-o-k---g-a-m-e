@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {
   createRoomState, pushComment, applyGift, topFans, memberCount, clampIdols, startPk, pkAddScore, pkHas, pkShare,
   pkResult, pkRemaining, judgeBeat, comboReward, pickWeighted, distToRect, inRect, cooldownLeft, ROOM_ID, MIN_IDOLS, MAX_IDOLS,
-} from '../../src/web/js/logic/rooms.js';
-import { defaultProfile, sanitizeProfile, spend } from '../../src/web/js/logic/profile.js';
+} from '../public/games/creatoronline/js/logic/rooms.js';
+import { defaultProfile, sanitizeProfile, spend } from '../public/games/creatoronline/js/logic/profile.js';
 
 const rose = { id: 'rose', price: 1 };
 const car = { id: 'car', price: 199 };

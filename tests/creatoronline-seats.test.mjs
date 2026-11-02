@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SeatHouse, NpcSeatSim } from '../../src/web/js/logic/seats.js';
+import { SeatHouse, NpcSeatSim } from '../public/games/creatoronline/js/logic/seats.js';
 
 const rooms = [
   { id: 'G1', type: 'group' },

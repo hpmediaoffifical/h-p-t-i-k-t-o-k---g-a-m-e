@@ -23,7 +23,9 @@ import {
 } from './logic/rooms.js';
 import { SeatHouse, NpcSeatSim } from './logic/seats.js';
 
-const cfg = await fetch('data/game-config.json').then((r) => r.json());
+const cfg = await fetch('data.json').then((r) => r.json());
+// chữ trên màn LED/biển phòng vẽ bằng canvas lúc dựng tòa nhà → nạp font trước, không thì vẽ bằng font dự phòng
+await Promise.all(['700 20px "Baloo 2"', '800 20px "Baloo 2"'].map((f) => document.fonts.load(f).catch(() => null)));
 const T = cfg.tuning;
 await Promise.race([document.fonts?.ready, new Promise((r) => setTimeout(r, 1500))]);
 
@@ -111,7 +113,7 @@ const TICKET = { id: 'ticket', name: SEAT.ticket.name, icon: SEAT.ticket.icon, p
 const accentOf = (room) => (room.type === 'group' ? room.def.accent : room.type === 'stand' ? `hsl(${room.index * 36},85%,62%)` : room.type === 'sing' ? '#ff6fb5' : '#31d0a0');
 
 const effects = new Effects(scene);
-const audio = new AudioFx();
+const audio = new AudioFx({ files: cfg.audioFiles });
 for (const room of world.rooms) audio.setChannel(room.id, genreSrc(states.get(room.id).genre));
 audio.setChannel('lobby', { style: cfg.lobbyMusic.style, file: cfg.lobbyMusic.file });
 const remotes = new Map();
@@ -2160,8 +2162,9 @@ const npcCtx = {
 
 let lastFrame = performance.now();
 function frame(now, once = false) {
-  const dt = Math.min(0.05, (now - lastFrame) / 1000);
-  lastFrame = now;
+  // chặn cả dt âm: gọi frame() tay (__creator.frame, performance.now) xen vòng rAF làm now < lastFrame → lerp ngoại suy, camera văng
+  const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000));
+  lastFrame = Math.max(lastFrame, now);
   const t = now / 1000;
   frameNo++;
 

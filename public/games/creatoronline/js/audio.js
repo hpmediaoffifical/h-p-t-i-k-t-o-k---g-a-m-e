@@ -43,12 +43,13 @@ export const STYLES = {
 };
 
 export class AudioFx {
-  constructor() {
+  /** @param {{files?: string[]}} [opts] files = tên file nhạc có trong audio/ (data.json → audioFiles) */
+  constructor({ files = [] } = {}) {
     this.ctx = null;
     this.musicOn = true;
     this.sfxOn = true;
     this.channels = new Map();
-    this.audioList = null; // Promise<Set<filename>> from the server
+    this.audioList = Promise.resolve(new Set(files || [])); // danh sách tĩnh (app không có /api/audio)
     this.timer = null;
   }
 
@@ -103,11 +104,6 @@ export class AudioFx {
   /** Does `url` (e.g. "audio/kpop.mp3") exist on the server? Asks once for the folder listing. */
   hasFile(url) {
     if (!url) return Promise.resolve(false);
-    if (!this.audioList) {
-      this.audioList = /^https?:$/.test(location.protocol)
-        ? fetch('api/audio').then((r) => (r.ok ? r.json() : [])).then((list) => new Set(list)).catch(() => new Set())
-        : Promise.resolve(new Set());
-    }
     return this.audioList.then((set) => set.has(url.replace(/^audio\//, '')));
   }
 

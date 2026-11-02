@@ -1,0 +1,1327 @@
+{
+  "_ghi_chu": "🏢 Creator Online — dữ liệu game (chép từ CREATOR ONLINE/assets/data/game-config.json). Bản LIVE dùng thêm suggestedGiftMap/actions/live; bản đi dạo (?demo=1) dùng cả ví/cửa hàng.",
+  "audioFiles": [],
+  "tuning": {
+    "walkSpeed": 3.6,
+    "runSpeed": 6.6,
+    "npcWalkSpeed": 2.2,
+    "jumpVelocity": 6.2,
+    "gravity": 18,
+    "seed": 2026,
+    "audienceCount": 26,
+    "startCoins": 500,
+    "watchRewardSec": 30,
+    "watchRewardCoins": 3,
+    "roleShare": 0.1,
+    "pkDurationSec": 60,
+    "autoPkEverySec": 150,
+    "wheelCooldownSec": 120,
+    "commentEverySec": [
+      1.6,
+      4.2
+    ],
+    "npcGiftEverySec": [
+      2.5,
+      7
+    ],
+    "networkSendHz": 10,
+    "audioRadius": 20
+  },
+  "roomTypes": {
+    "group": {
+      "label": "LIVE nhóm",
+      "icon": "🎤",
+      "desc": "5–9 thành viên: Idol nhảy, MC, Kỹ thuật, Quản lý. Sân khấu lớn, nhiều đèn, TV trực tiếp."
+    },
+    "stand": {
+      "label": "LIVE đứng",
+      "icon": "🧍",
+      "desc": "1 NPC đứng, 2–3 đèn cơ bản và máy tính màn hình tương tác."
+    },
+    "sing": {
+      "label": "LIVE ngồi hát",
+      "icon": "🎵",
+      "desc": "1 NPC ngồi ca hát, tương tác với màn hình và máy tính."
+    },
+    "game": {
+      "label": "LIVE game",
+      "icon": "🎮",
+      "desc": "1 NPC ngồi chơi game, màn hình lớn chiếu trận đấu."
+    }
+  },
+  "groupRooms": [
+    {
+      "id": "G1",
+      "name": "VITAMIN B",
+      "accent": "#ff9f1c",
+      "genre": "hiphop",
+      "theme": "fire",
+      "style": "boy",
+      "outfits": [
+        "boyOrange",
+        "boyWhite"
+      ],
+      "hair": [
+        "black",
+        "brown",
+        "blonde"
+      ],
+      "hairStyles": [
+        "short"
+      ],
+      "note": "Nhóm nam mặc định (ai vào cũng được)"
+    },
+    {
+      "id": "G2",
+      "name": "VENUS STAR",
+      "accent": "#b36bff",
+      "genre": "kpop",
+      "theme": "venus",
+      "style": "girl",
+      "outfits": [
+        "idolPurple",
+        "idolWhite"
+      ],
+      "hair": [
+        "blonde",
+        "silver",
+        "brown"
+      ],
+      "hairStyles": [
+        "long",
+        "bun"
+      ]
+    },
+    {
+      "id": "G3",
+      "name": "LOLLIPOP",
+      "accent": "#ff6fb5",
+      "genre": "tiktok",
+      "theme": "candy",
+      "style": "girl",
+      "outfits": [
+        "idolCandy",
+        "idolPink"
+      ],
+      "hair": [
+        "pink",
+        "blonde",
+        "brown"
+      ],
+      "hairStyles": [
+        "twin",
+        "long"
+      ]
+    },
+    {
+      "id": "G4",
+      "name": "BONITA GIRL",
+      "accent": "#ff3b5c",
+      "genre": "vpop",
+      "theme": "bonita",
+      "style": "girl",
+      "outfits": [
+        "idolRed",
+        "idolBlack"
+      ],
+      "hair": [
+        "black",
+        "brown",
+        "red"
+      ],
+      "hairStyles": [
+        "long",
+        "bun"
+      ]
+    },
+    {
+      "id": "G5",
+      "name": "BLACKSWAN",
+      "accent": "#c9cfe6",
+      "genre": "edm",
+      "theme": "swan",
+      "style": "girl",
+      "outfits": [
+        "idolBlack",
+        "idolSwan"
+      ],
+      "hair": [
+        "black",
+        "silver"
+      ],
+      "hairStyles": [
+        "long",
+        "bun"
+      ]
+    }
+  ],
+  "randomGroupNames": [
+    "GALAXY BOYS",
+    "NEON KIDS",
+    "SUGAR RUSH",
+    "MOONLIGHT",
+    "PINK PANDA",
+    "STARRY NIGHT",
+    "DREAM TEAM",
+    "KẸO NGỌT",
+    "SAO MAI",
+    "BÔNG HỒNG LỬA"
+  ],
+  "genres": {
+    "kpop": {
+      "type": "group",
+      "label": "K-Pop Dance",
+      "style": "kpop",
+      "file": "audio/kpop.mp3",
+      "mo_ta": "K-Pop dance sôi động 120–126 BPM, trống four-on-the-floor, synth sáng, bass bật nảy, điệp khúc hô theo được. Không khí concert idol."
+    },
+    "edm": {
+      "type": "group",
+      "label": "EDM Festival",
+      "style": "edm",
+      "file": "audio/edm.mp3",
+      "mo_ta": "EDM / Big-room 128 BPM, build-up rồi drop mạnh, supersaw, tiếng clap dày, có đoạn hô 'Put your hands up'. Hợp đèn laser."
+    },
+    "vpop": {
+      "type": "group",
+      "label": "V-Pop Remix",
+      "style": "vpop",
+      "file": "audio/vpop.mp3",
+      "mo_ta": "V-Pop remix 100–110 BPM, giai điệu dễ nhớ, beat house nhẹ, kiểu nhạc nhảy TikTok Việt."
+    },
+    "hiphop": {
+      "type": "group",
+      "label": "Hip-hop / Rap",
+      "style": "hiphop",
+      "file": "audio/hiphop.mp3",
+      "mo_ta": "Hip-hop boom-bap 88–92 BPM, 808 trầm, snare đanh, hi-hat lắc, để đội nhảy freestyle/battle."
+    },
+    "tiktok": {
+      "type": "group",
+      "label": "Trend TikTok",
+      "style": "tiktok",
+      "file": "audio/tiktok.mp3",
+      "mo_ta": "Nhạc trend ngắn 110–120 BPM, vui nhộn, nhiều hiệu ứng 'pop', 'whoosh', hợp nhảy đồng loạt theo trend."
+    },
+    "talk": {
+      "type": "stand",
+      "label": "Tâm sự đêm khuya",
+      "style": "talk",
+      "file": "audio/talk.mp3",
+      "mo_ta": "Lo-fi chill 75–80 BPM, piano điện, tiếng vinyl rè nhẹ, để nói chuyện tâm sự."
+    },
+    "sale": {
+      "type": "stand",
+      "label": "Bán hàng chốt đơn",
+      "style": "sale",
+      "file": "audio/sale.mp3",
+      "mo_ta": "Nhạc nền bán hàng 110 BPM, ukulele + vỗ tay, tươi vui, có tiếng 'ting' khi chốt đơn."
+    },
+    "tarot": {
+      "type": "stand",
+      "label": "Tarot huyền bí",
+      "style": "tarot",
+      "file": "audio/tarot.mp3",
+      "mo_ta": "Ambient huyền bí 60 BPM, pad dày, chuông gió, tiếng vang xa, không trống."
+    },
+    "comedy": {
+      "type": "stand",
+      "label": "Hài & kể chuyện",
+      "style": "comedy",
+      "file": "audio/comedy.mp3",
+      "mo_ta": "Nhạc hài kiểu hoạt hình 100 BPM, bassoon/tuba nhún nhảy, mõ gỗ, tiếng 'boing'."
+    },
+    "news": {
+      "type": "stand",
+      "label": "Tin nóng 24h",
+      "style": "news",
+      "file": "audio/news.mp3",
+      "mo_ta": "Nhạc bản tin 120 BPM, synth dồn dập, tiếng tích tắc đồng hồ, cảm giác khẩn trương."
+    },
+    "ballad": {
+      "type": "sing",
+      "label": "Ballad",
+      "style": "ballad",
+      "file": "audio/ballad.mp3",
+      "mo_ta": "Beat ballad karaoke 68–72 BPM, piano rải hợp âm, dây (strings) nền, trống nhẹ — để NPC hát."
+    },
+    "bolero": {
+      "type": "sing",
+      "label": "Bolero",
+      "style": "bolero",
+      "file": "audio/bolero.mp3",
+      "mo_ta": "Beat bolero 64–68 BPM, guitar điện tremolo, nhịp bolero đặc trưng, tiếng maracas."
+    },
+    "acoustic": {
+      "type": "sing",
+      "label": "Acoustic",
+      "style": "acoustic",
+      "file": "audio/acoustic.mp3",
+      "mo_ta": "Guitar mộc quạt chả 92–96 BPM, shaker, ấm áp kiểu cafe acoustic."
+    },
+    "rnb": {
+      "type": "sing",
+      "label": "R&B Chill",
+      "style": "rnb",
+      "file": "audio/rnb.mp3",
+      "mo_ta": "R&B 82–86 BPM, Rhodes, tiếng búng tay, bass mượt, nhịp lắc (swing)."
+    },
+    "racing": {
+      "type": "game",
+      "label": "Đua xe",
+      "style": "racing",
+      "file": "audio/racing.mp3",
+      "mo_ta": "Nhạc đua xe 150 BPM, bass saw dồn 16 nốt, kèm tiếng động cơ rú và drift."
+    },
+    "battle": {
+      "type": "game",
+      "label": "Sinh tồn bắn súng",
+      "style": "battle",
+      "file": "audio/battle.mp3",
+      "mo_ta": "Nhạc battle royale hùng tráng 140 BPM, trống tom dồn, kèn đồng, tiếng súng xa xa."
+    },
+    "moba": {
+      "type": "game",
+      "label": "MOBA 5v5",
+      "style": "moba",
+      "file": "audio/moba.mp3",
+      "mo_ta": "Nhạc giao tranh 120 BPM kiểu orchestral, dây + timpani, tiếng 'First Blood'."
+    },
+    "craft": {
+      "type": "game",
+      "label": "Xây dựng sandbox",
+      "style": "craft",
+      "file": "audio/craft.mp3",
+      "mo_ta": "Piano thưa nhẹ 90 BPM, yên bình, tiếng đào khối, chim hót."
+    },
+    "horror": {
+      "type": "game",
+      "label": "Kinh dị",
+      "style": "horror",
+      "file": "audio/horror.mp3",
+      "mo_ta": "Drone u ám 50 BPM, nhịp tim, tiếng cửa kẽo kẹt, jump-scare thỉnh thoảng."
+    }
+  },
+  "lobbyMusic": {
+    "file": "audio/lobby.mp3",
+    "style": "lobby",
+    "mo_ta": "Lounge jazz-pop 90 BPM, Rhodes + bass mềm, nhạc sảnh tòa nhà sáng tạo khi không đứng gần phòng nào."
+  },
+  "lightThemes": {
+    "neon": {
+      "label": "Neon hồng tím",
+      "colors": [
+        "#ff4fa3",
+        "#9b5cff",
+        "#35d0ff"
+      ]
+    },
+    "ice": {
+      "label": "Băng xanh",
+      "colors": [
+        "#7fd8ff",
+        "#ffffff",
+        "#4f7dff"
+      ]
+    },
+    "fire": {
+      "label": "Lửa vàng",
+      "colors": [
+        "#ff7a2f",
+        "#ffd23f",
+        "#ff3b3b"
+      ]
+    },
+    "rainbow": {
+      "label": "Cầu vồng",
+      "colors": [
+        "#ff3b3b",
+        "#ffd23f",
+        "#3be38f",
+        "#35d0ff",
+        "#9b5cff"
+      ]
+    },
+    "gold": {
+      "label": "Hoàng kim",
+      "colors": [
+        "#ffd23f",
+        "#fff2b3",
+        "#ffae00"
+      ]
+    },
+    "venus": {
+      "label": "Venus tím vàng",
+      "colors": [
+        "#b36bff",
+        "#ffd23f",
+        "#ffffff"
+      ]
+    },
+    "candy": {
+      "label": "Kẹo ngọt",
+      "colors": [
+        "#ff7ac0",
+        "#7fe0ff",
+        "#ffe066"
+      ]
+    },
+    "bonita": {
+      "label": "Latin rực lửa",
+      "colors": [
+        "#ff3b5c",
+        "#ffb703",
+        "#ff7a2f"
+      ]
+    },
+    "swan": {
+      "label": "Thiên nga đen",
+      "colors": [
+        "#ffffff",
+        "#9aa7c7",
+        "#7a5cff"
+      ]
+    }
+  },
+  "gifts": [
+    {
+      "id": "rose",
+      "name": "Hoa hồng",
+      "icon": "🌹",
+      "price": 1
+    },
+    {
+      "id": "heart",
+      "name": "Trái tim",
+      "icon": "💖",
+      "price": 5
+    },
+    {
+      "id": "icecream",
+      "name": "Kem ốc quế",
+      "icon": "🍦",
+      "price": 10
+    },
+    {
+      "id": "mic",
+      "name": "Micro vàng",
+      "icon": "🎤",
+      "price": 30
+    },
+    {
+      "id": "cake",
+      "name": "Bánh kem",
+      "icon": "🎂",
+      "price": 50
+    },
+    {
+      "id": "car",
+      "name": "Siêu xe",
+      "icon": "🏎️",
+      "price": 199
+    },
+    {
+      "id": "castle",
+      "name": "Lâu đài",
+      "icon": "🏰",
+      "price": 499
+    },
+    {
+      "id": "rocket",
+      "name": "Tên lửa",
+      "icon": "🚀",
+      "price": 999
+    }
+  ],
+  "roles": {
+    "idol": {
+      "label": "Idol nhảy",
+      "icon": "💃",
+      "price": 30,
+      "gift": "Giày nhảy",
+      "desc": "Lên sân khấu nhảy cùng nhóm. Nhấn F đúng nhịp để ăn combo, nhận 10% quà khán giả tặng."
+    },
+    "mc": {
+      "label": "MC",
+      "icon": "🎙️",
+      "price": 50,
+      "gift": "Micro MC",
+      "desc": "Dẫn chương trình: đọc và trả lời bình luận trên TV, kêu gọi thả tim, giới thiệu tiết mục."
+    },
+    "tech": {
+      "label": "Kỹ thuật",
+      "icon": "🎛️",
+      "price": 50,
+      "gift": "Bàn mixer",
+      "desc": "Điều khiển đèn, khói, pháo giấy, laser, đổi bài nhạc và góc máy quay trên TV trực tiếp."
+    },
+    "manager": {
+      "label": "Quản lý",
+      "icon": "📋",
+      "price": 100,
+      "gift": "Cặp quản lý",
+      "desc": "Đổi thể loại phòng miễn phí, thêm/bớt thành viên (5–9 người), mở PK với nhóm khác."
+    }
+  },
+  "prices": {
+    "genreGroup": 50,
+    "genreSolo": 20,
+    "request": 10
+  },
+  "seats": {
+    "mo_ta": "Phòng đơn (đứng / ngồi hát / game) mang tên người tặng vé. 60 giây đầu không ai giành được, người đến sau xếp hàng chờ cạnh phòng.",
+    "ticket": {
+      "name": "Vé vào phòng",
+      "icon": "🎟️"
+    },
+    "price": 30,
+    "holdSec": 60,
+    "maxQueue": 6,
+    "hostShare": 0.2,
+    "npcEverySec": [
+      7,
+      16
+    ],
+    "npcStaySec": [
+      90,
+      300
+    ]
+  },
+  "fanRanks": [
+    {
+      "min": 0,
+      "label": "Fan mới"
+    },
+    {
+      "min": 100,
+      "label": "Fan cứng"
+    },
+    {
+      "min": 500,
+      "label": "Fan VIP"
+    },
+    {
+      "min": 2000,
+      "label": "Đại gia"
+    },
+    {
+      "min": 10000,
+      "label": "Thần tài"
+    }
+  ],
+  "wheel": [
+    {
+      "label": "10 xu",
+      "coins": 10,
+      "w": 26
+    },
+    {
+      "label": "20 xu",
+      "coins": 20,
+      "w": 22
+    },
+    {
+      "label": "30 xu",
+      "coins": 30,
+      "w": 18
+    },
+    {
+      "label": "50 xu",
+      "coins": 50,
+      "w": 13
+    },
+    {
+      "label": "80 xu",
+      "coins": 80,
+      "w": 9
+    },
+    {
+      "label": "150 xu",
+      "coins": 150,
+      "w": 6
+    },
+    {
+      "label": "300 xu",
+      "coins": 300,
+      "w": 3
+    },
+    {
+      "label": "Vương miện",
+      "item": "hat_crown",
+      "w": 3
+    }
+  ],
+  "shop": [
+    {
+      "id": "outfit_hoodie",
+      "slot": "outfit",
+      "value": "hoodie",
+      "name": "Hoodie xanh",
+      "price": 0
+    },
+    {
+      "id": "outfit_tee",
+      "slot": "outfit",
+      "value": "tee",
+      "name": "Áo thun + jeans",
+      "price": 0
+    },
+    {
+      "id": "outfit_street",
+      "slot": "outfit",
+      "value": "street",
+      "name": "Streetwear cam",
+      "price": 40
+    },
+    {
+      "id": "outfit_idolPink",
+      "slot": "outfit",
+      "value": "idolPink",
+      "name": "Đồ idol hồng",
+      "price": 120
+    },
+    {
+      "id": "outfit_idolWhite",
+      "slot": "outfit",
+      "value": "idolWhite",
+      "name": "Đồ idol trắng",
+      "price": 120
+    },
+    {
+      "id": "outfit_idolBlack",
+      "slot": "outfit",
+      "value": "idolBlack",
+      "name": "Đồ idol đen ánh kim",
+      "price": 160
+    },
+    {
+      "id": "outfit_mcSuit",
+      "slot": "outfit",
+      "value": "mcSuit",
+      "name": "Vest MC đỏ",
+      "price": 150
+    },
+    {
+      "id": "outfit_gamer",
+      "slot": "outfit",
+      "value": "gamer",
+      "name": "Áo gamer",
+      "price": 80
+    },
+    {
+      "id": "hair_brown",
+      "slot": "hair",
+      "value": "brown",
+      "name": "Tóc nâu",
+      "price": 0
+    },
+    {
+      "id": "hair_black",
+      "slot": "hair",
+      "value": "black",
+      "name": "Tóc đen",
+      "price": 0
+    },
+    {
+      "id": "hair_blonde",
+      "slot": "hair",
+      "value": "blonde",
+      "name": "Tóc vàng",
+      "price": 40
+    },
+    {
+      "id": "hair_pink",
+      "slot": "hair",
+      "value": "pink",
+      "name": "Tóc hồng",
+      "price": 60
+    },
+    {
+      "id": "hair_blue",
+      "slot": "hair",
+      "value": "blue",
+      "name": "Tóc xanh",
+      "price": 60
+    },
+    {
+      "id": "hair_silver",
+      "slot": "hair",
+      "value": "silver",
+      "name": "Tóc bạch kim",
+      "price": 80
+    },
+    {
+      "id": "hat_none",
+      "slot": "hat",
+      "value": "none",
+      "name": "Không đội mũ",
+      "price": 0
+    },
+    {
+      "id": "hat_cap",
+      "slot": "hat",
+      "value": "cap",
+      "name": "Mũ lưỡi trai",
+      "price": 30
+    },
+    {
+      "id": "hat_red",
+      "slot": "hat",
+      "value": "red",
+      "name": "Mũ len đỏ",
+      "price": 30
+    },
+    {
+      "id": "hat_crown",
+      "slot": "hat",
+      "value": "crown",
+      "name": "Vương miện",
+      "price": 2000
+    }
+  ],
+  "creatorNames": [
+    "Mochi",
+    "Sumi",
+    "Bé Na",
+    "Kem Dâu",
+    "Bơ Bơ",
+    "Tiểu Ngư",
+    "Mây Mây",
+    "Cún Bông",
+    "Hạt Dẻ",
+    "Su Kem",
+    "Bánh Flan",
+    "Trà Sữa",
+    "Gấu Bông",
+    "Thỏ Ngọc",
+    "Mèo Mun",
+    "Na Na",
+    "Tí Hon",
+    "Bin Bin",
+    "Kiwi",
+    "Dâu Tây",
+    "Xoài Non",
+    "Ốc Quế",
+    "Cốm Xanh",
+    "Bắp Rang",
+    "Chip Chip",
+    "Lu Lu",
+    "Bạc Hà",
+    "Sò Điệp",
+    "Bảo Bối",
+    "Kẹo Dẻo",
+    "Mít Tố Nữ",
+    "Nấm Lùn",
+    "Đậu Đỏ",
+    "Me Chua",
+    "Táo Đỏ",
+    "Cherry",
+    "Đào Tiên",
+    "Pudding",
+    "Muối Ớt",
+    "Gừng Cay",
+    "Quế Thơm",
+    "Sen Hồng",
+    "Lúa Non",
+    "Khoai Môn",
+    "Bánh Bò",
+    "Nhãn Lồng",
+    "Chôm Chôm",
+    "Ổi Xá Lị",
+    "Vải Thiều",
+    "Mận Hậu",
+    "Bông Lan",
+    "Sữa Chua",
+    "Bánh Giò",
+    "Rau Má",
+    "Thạch Dừa",
+    "Chè Khúc",
+    "Kem Bơ",
+    "Sầu Riêng",
+    "Dừa Xiêm",
+    "Măng Cụt",
+    "Hồng Trà",
+    "Lục Trà",
+    "Bánh Tráng",
+    "Xôi Xéo",
+    "Bánh Cuốn",
+    "Phở Cuốn",
+    "Nem Chua",
+    "Tôm Tít",
+    "Cua Đồng",
+    "Ốc Len"
+  ],
+  "fanNames": [
+    "Fan Tùng",
+    "Hội Mê Idol",
+    "Bé Bi",
+    "Anh Ba Tưa",
+    "Chị Tư",
+    "Út Lì",
+    "Hai Lúa",
+    "Tèo Em",
+    "Cô Bảy",
+    "Ông Năm",
+    "Mai Xinh",
+    "Long Nhí",
+    "Hùng Ka",
+    "Vy Vy",
+    "Tuấn Kiệt",
+    "Thảo Mai",
+    "Quốc Bảo",
+    "Ngân Hà",
+    "Phúc Lộc",
+    "An Nhiên",
+    "Minh Khang",
+    "Gia Hân",
+    "Bảo Anh Fan",
+    "Khánh Ly Fan",
+    "Đức Trí",
+    "Thu Trang",
+    "Hoàng Nam",
+    "Kim Chi",
+    "Thiên Ân",
+    "Duy Mạnh"
+  ],
+  "playerNames": [
+    "Tân Binh",
+    "Creator Nhí",
+    "Sao Mai",
+    "Ngôi Sao Mới",
+    "Fan Số 1",
+    "Idol Tương Lai"
+  ],
+  "comments": {
+    "any": [
+      "Hay quá trời ơi!",
+      "Thả tim nè ❤",
+      "Chào mọi người, em ở Hà Nội",
+      "Chào cả nhà, mình ở Sài Gòn nè",
+      "Xin cái tim với ạ",
+      "Idol xinh quá",
+      "Ai cùng quê Nghệ An không?",
+      "Hôm nay live tới mấy giờ vậy?",
+      "Mic hơi nhỏ xíu",
+      "Âm thanh đỉnh thật",
+      "Follow rồi nha",
+      "Lần đầu vào phòng, chào cả nhà",
+      "Cho xin tên bài với",
+      "Ủng hộ hết mình!",
+      "Mãi yêu ❤❤❤",
+      "Đèn đẹp quá",
+      "Ăn tối chưa idol?"
+    ],
+    "group": [
+      "MC ơi đọc tên em với!",
+      "Kỹ thuật tăng đèn lên!",
+      "Idol giữa nhảy đẹp nhất",
+      "PK đi PK đi!",
+      "Bắn pháo giấy đi kỹ thuật ơi",
+      "Đội hình hôm nay đông quá",
+      "Quản lý cho thêm thành viên đi",
+      "Bài này nhảy cuốn thật",
+      "Vũ đạo đồng đều ghê",
+      "Nhóm mình vô địch!"
+    ],
+    "stand": [
+      "Chị nói chuyện duyên ghê",
+      "Kể tiếp đi idol",
+      "Chốt đơn cho em 1 cái!",
+      "Bói cho em chuyện tình cảm với",
+      "Tin này thật không vậy?",
+      "Cười đau bụng luôn",
+      "Màn hình có gì vậy idol?"
+    ],
+    "sing": [
+      "Hát bài nữa đi!",
+      "Giọng ngọt quá",
+      "Request bài bolero ạ",
+      "Lên note cao ghê",
+      "Nghe mà nổi da gà",
+      "Hát bài sinh nhật cho em đi",
+      "Đàn hay quá"
+    ],
+    "game": [
+      "Bắn hay quá!",
+      "Top 1 đi anh ơi",
+      "Né kìa né kìa!",
+      "Pha xử lý đỉnh cao",
+      "Gánh team luôn",
+      "Chơi map khác đi",
+      "Xe đó nhanh ghê",
+      "Sợ quá đừng mở cửa!"
+    ]
+  },
+  "streamerLines": {
+    "group": {
+      "mc": [
+        "Xin chào cả nhà đã tới với nhóm {room}!",
+        "Cả nhà thả tim cho các idol nào!",
+        "Tiết mục tiếp theo sẽ cực cháy!",
+        "Ai muốn lên sân khấu thì tặng Giày nhảy nha!",
+        "Kỹ thuật ơi cho đèn lên!"
+      ],
+      "idol": [
+        "Yeah!",
+        "Cảm ơn cả nhà!",
+        "Nhảy cùng tụi mình nè!",
+        "1, 2, 3, 4!",
+        "Yêu mọi người ❤"
+      ],
+      "tech": [
+        "Đèn ok!",
+        "Âm thanh chuẩn rồi!",
+        "Chuẩn bị pháo giấy!",
+        "Đổi góc máy nha!"
+      ],
+      "manager": [
+        "Nhóm mình lên top rồi!",
+        "Ai PK với tụi mình không?",
+        "Cả nhà nhớ follow nhóm nha!"
+      ]
+    },
+    "talk": [
+      "Hôm nay mọi người thế nào?",
+      "Kể mọi người nghe chuyện này nè...",
+      "Đọc bình luận nha",
+      "Ai mất ngủ giống mình không?"
+    ],
+    "sale": [
+      "Chốt đơn nhanh kẻo hết!",
+      "Giá hôm nay siêu hời!",
+      "Mã giảm giá trên màn hình nha!",
+      "Ai lấy size M nào?"
+    ],
+    "tarot": [
+      "Rút cho bạn một lá nè...",
+      "Lá này là Mặt Trời, tin vui sắp đến!",
+      "Hít thở sâu nào...",
+      "Năng lượng hôm nay rất tốt"
+    ],
+    "comedy": [
+      "Có một anh chàng đi vào quán phở...",
+      "Haha, khoan đã, chưa hết!",
+      "Câu đố vui nè cả nhà!",
+      "Cười lên nào!"
+    ],
+    "news": [
+      "Tin nóng vừa cập nhật!",
+      "Thời tiết hôm nay nắng đẹp",
+      "Giá vàng tăng nhẹ",
+      "Đọc tiếp tin tiếp theo nha"
+    ],
+    "ballad": [
+      "Bài tiếp theo tặng cả nhà",
+      "Cảm ơn mọi người đã nghe mình hát",
+      "La la la...",
+      "Ai request bài gì nào?"
+    ],
+    "bolero": [
+      "Bolero ngọt ngào tặng cả nhà",
+      "Đêm nay mình hát bolero nha",
+      "Cảm ơn quý khán giả"
+    ],
+    "acoustic": [
+      "Mình đàn bài nhẹ nhàng nha",
+      "Guitar hôm nay hơi lệch dây, hihi",
+      "Hát cùng mình nhé"
+    ],
+    "rnb": [
+      "Chill cùng mình nào",
+      "Yeah... baby...",
+      "Bài này cực chill"
+    ],
+    "racing": [
+      "Vào cua nè!",
+      "Drift!",
+      "Về nhất rồi!",
+      "Xe này mạnh ghê"
+    ],
+    "battle": [
+      "Có địch bên trái!",
+      "Bo đang thu!",
+      "Còn 5 người!",
+      "Top 1 thôi anh em!"
+    ],
+    "moba": [
+      "Giao tranh rồng!",
+      "Đẩy trụ nào!",
+      "Pentakill!!!",
+      "Gank đường giữa!"
+    ],
+    "craft": [
+      "Xây nhà gỗ nha",
+      "Đào kim cương nè",
+      "Trời tối rồi, về nhà thôi"
+    ],
+    "horror": [
+      "Ơ... tiếng gì vậy?",
+      "Đừng ra đây mà!",
+      "AAAAA!",
+      "Có ai đứng sau lưng không..."
+    ]
+  },
+  "songGuess": [
+    {
+      "name": "Chúc mừng sinh nhật",
+      "notes": [
+        [
+          67,
+          0.75
+        ],
+        [
+          67,
+          0.25
+        ],
+        [
+          69,
+          1
+        ],
+        [
+          67,
+          1
+        ],
+        [
+          72,
+          1
+        ],
+        [
+          71,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "Ngôi sao lấp lánh (Twinkle)",
+      "notes": [
+        [
+          60,
+          1
+        ],
+        [
+          60,
+          1
+        ],
+        [
+          67,
+          1
+        ],
+        [
+          67,
+          1
+        ],
+        [
+          69,
+          1
+        ],
+        [
+          69,
+          1
+        ],
+        [
+          67,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "Kìa con bướm vàng",
+      "notes": [
+        [
+          60,
+          1
+        ],
+        [
+          62,
+          1
+        ],
+        [
+          64,
+          1
+        ],
+        [
+          60,
+          1
+        ],
+        [
+          60,
+          1
+        ],
+        [
+          62,
+          1
+        ],
+        [
+          64,
+          1
+        ],
+        [
+          60,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "Jingle Bells",
+      "notes": [
+        [
+          64,
+          1
+        ],
+        [
+          64,
+          1
+        ],
+        [
+          64,
+          2
+        ],
+        [
+          64,
+          1
+        ],
+        [
+          64,
+          1
+        ],
+        [
+          64,
+          2
+        ],
+        [
+          64,
+          1
+        ],
+        [
+          67,
+          1
+        ],
+        [
+          60,
+          1.5
+        ],
+        [
+          62,
+          0.5
+        ],
+        [
+          64,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "Khúc hoan ca (Ode to Joy)",
+      "notes": [
+        [
+          64,
+          1
+        ],
+        [
+          64,
+          1
+        ],
+        [
+          65,
+          1
+        ],
+        [
+          67,
+          1
+        ],
+        [
+          67,
+          1
+        ],
+        [
+          65,
+          1
+        ],
+        [
+          64,
+          1
+        ],
+        [
+          62,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "London Bridge",
+      "notes": [
+        [
+          67,
+          1.5
+        ],
+        [
+          69,
+          0.5
+        ],
+        [
+          67,
+          1
+        ],
+        [
+          65,
+          1
+        ],
+        [
+          64,
+          1
+        ],
+        [
+          65,
+          1
+        ],
+        [
+          67,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "Mary có con cừu nhỏ",
+      "notes": [
+        [
+          64,
+          1
+        ],
+        [
+          62,
+          1
+        ],
+        [
+          60,
+          1
+        ],
+        [
+          62,
+          1
+        ],
+        [
+          64,
+          1
+        ],
+        [
+          64,
+          1
+        ],
+        [
+          64,
+          2
+        ]
+      ]
+    }
+  ],
+  "quiz": [
+    {
+      "q": "Thủ đô của Việt Nam là?",
+      "a": [
+        "Hà Nội",
+        "Huế",
+        "Đà Nẵng"
+      ],
+      "ok": 0
+    },
+    {
+      "q": "Đỉnh núi cao nhất Việt Nam?",
+      "a": [
+        "Bạch Mã",
+        "Fansipan",
+        "Bà Đen"
+      ],
+      "ok": 1
+    },
+    {
+      "q": "Cầu vồng có bao nhiêu màu?",
+      "a": [
+        "5",
+        "6",
+        "7"
+      ],
+      "ok": 2
+    },
+    {
+      "q": "Thành phố ngàn hoa là?",
+      "a": [
+        "Đà Lạt",
+        "Vũng Tàu",
+        "Nha Trang"
+      ],
+      "ok": 0
+    },
+    {
+      "q": "Vịnh di sản thế giới ở Quảng Ninh?",
+      "a": [
+        "Vịnh Xuân Đài",
+        "Vịnh Cam Ranh",
+        "Vịnh Hạ Long"
+      ],
+      "ok": 2
+    },
+    {
+      "q": "Tết Trung thu là ngày nào âm lịch?",
+      "a": [
+        "15/8",
+        "1/1",
+        "5/5"
+      ],
+      "ok": 0
+    },
+    {
+      "q": "Hành tinh lớn nhất hệ Mặt Trời?",
+      "a": [
+        "Sao Hỏa",
+        "Sao Mộc",
+        "Trái Đất"
+      ],
+      "ok": 1
+    },
+    {
+      "q": "Con vật được gọi là chúa sơn lâm?",
+      "a": [
+        "Sư tử",
+        "Voi",
+        "Hổ"
+      ],
+      "ok": 2
+    },
+    {
+      "q": "1 giờ có bao nhiêu giây?",
+      "a": [
+        "3600",
+        "600",
+        "6000"
+      ],
+      "ok": 0
+    },
+    {
+      "q": "Năm 2026 là năm con gì?",
+      "a": [
+        "Rồng",
+        "Ngựa",
+        "Rắn"
+      ],
+      "ok": 1
+    },
+    {
+      "q": "Nước sôi ở bao nhiêu độ C (mực nước biển)?",
+      "a": [
+        "90",
+        "100",
+        "120"
+      ],
+      "ok": 1
+    },
+    {
+      "q": "Bánh truyền thống ngày Tết miền Bắc?",
+      "a": [
+        "Bánh chưng",
+        "Bánh xèo",
+        "Bánh mì"
+      ],
+      "ok": 0
+    }
+  ]
+}

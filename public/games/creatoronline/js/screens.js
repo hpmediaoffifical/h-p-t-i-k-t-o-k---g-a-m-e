@@ -6,7 +6,7 @@
 import { topFans, pkShare, memberCount } from './logic/rooms.js';
 import { formatThousands } from './logic/format.js';
 
-const FONT = 'Nunito, system-ui, sans-serif';
+const FONT = "'Baloo 2', system-ui, sans-serif";
 
 function done(scr) {
   scr.tex.needsUpdate = true;
