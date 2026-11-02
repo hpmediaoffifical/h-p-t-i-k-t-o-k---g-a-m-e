@@ -4825,7 +4825,8 @@ function emitGift(g) {
     // 🧩 HP Game Hub giữ Game Camera: gửi quà sang Hub (không chờ) và BỎ QUA nhánh camera cục bộ bên dưới.
     // Không có Hub / chưa ghép / tắt công tắc / Hub chưa nhận camera → hubCam = false → đúng đường cũ.
     const hubCam = actionHub.onGift(g, { coins: giftMap[String(g.giftId)]?.diamond ?? g.diamondCount ?? 1 });
-    const camRoute = camRouteForGift(hubCam, hubCam ? [] : camGiftClaims(g));
+    // camClaims tính SAU camSessionGift (giữ đúng thứ tự cũ: camPlayActives() phụ thuộc phiên vừa mở).
+    const camRoute = camRouteForGift(hubCam, []);
     rememberLiveTranslateUser(liveTranslateRecentGifts, g);
     // 🎮 Phiên game theo quà: quà kích hoạt mở / gia hạn / xếp hàng phiên TRƯỚC khi đưa quà cho các game
     // (để game của phiên nhận luôn quà này nếu nó cũng là quà chơi game).
@@ -4844,7 +4845,7 @@ function emitGift(g) {
         sheetItem,
         image: sheetItem?.image || g.giftPicture,
         coinValue: sheetItem?.diamond ?? g.diamondCount ?? 1,
-        camClaims: camRoute.camClaims,
+        camClaims: camRoute.runLocalCam ? camGiftClaims(g) : camRoute.camClaims,
         ts: Date.now()
     };
     console.log(`[gift] emit → ${enriched.nickname || enriched.uniqueId} sent "${enriched.giftName || '?'}" (id=${enriched.giftId}, x${enriched.repeatCount || 1}, ${enriched.coinValue || 0}💎)`);

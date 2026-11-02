@@ -106,7 +106,7 @@ test('(pair) tự ghép đôi, đồng bộ trạng thái / hồ sơ / danh mụ
     const gifts = find(fake, 'catalog.gifts')[0].data.gifts;
     assert.ok(gifts.some((g) => g.giftId === '5655'));
     assert.equal(gifts.find((g) => g.giftId === 'music').virtual, true);
-    const saved = JSON.parse(fs.readFileSync(path.join(tmp, 'hub-link.json'), 'utf8'));
+    const saved = JSON.parse(fs.readFileSync(path.join(tmp, 'hub-link', APP_ID, 'hub-link.json'), 'utf8'));
     assert.ok(saved.token);
     assert.deepEqual(fake.scopesOf(APP_ID).sort(), ['gift.plan', 'live.send', 'state.read']);
     // thẻ trạng thái có đủ trường cho giao diện
@@ -225,7 +225,7 @@ test('(resync) Hub chết rồi sống lại: về đường cũ, tự ghép l�
     cleanups.push(() => fake2.close());
     assert.ok(await until(() => hub.publicState().connected, 6000), 'phải tự nối lại');
     assert.ok(await until(() => ['live.status', 'profile.changed', 'catalog.gifts'].every((n) => find(fake2, n).length >= 1), 3000));
-    assert.ok(fs.existsSync(path.join(tmp, 'hub-link.json')));
+    assert.ok(fs.existsSync(path.join(tmp, 'hub-link', APP_ID, 'hub-link.json')));
 });
 
 test('(enabled) tắt công tắc ngắt kết nối, bật lại thì nối lại', async () => {
@@ -316,4 +316,32 @@ test('(download-cache) đường nóng publicState / ownsCamera không đọc li
     const { hub } = await setup({ hubOpts: { createHubLink: spy } });
     for (let i = 0; i < 50; i++) { hub.publicState(); hub.ownsCamera(); }
     assert.ok(reads <= 1, `links đọc ${reads} lần, mong tối đa 1`);
+});
+
+test('(per-appid) hai appId cùng thư mục gốc giữ token riêng', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hp-action-hub-'));
+    const fake = await startFakeHub({});
+    const make = (id) => createActionHub({
+        env: { HP_ACTION_HUB_APP_ID: id }, createHubLink, dataDir: tmp, version: '1.2.3',
+        getCatalog: () => CATALOG, logger: { info() {}, warn() {} }, syncMs: 100,
+        sdk: { discoveryFile: fake.discoveryFile, installFile: path.join(tmp, 'khong-co.json'), probePorts: [], pollMs: 200, backoffMinMs: 100, backoffMaxMs: 300 }
+    });
+    const a = make('hp-action-live');
+    const b = make('hp-action-live-dev');
+    cleanups.push(async () => { a.stop(); b.stop(); await fake.close(); fs.rmSync(tmp, { recursive: true, force: true }); });
+    a.start(); b.start();
+    assert.ok(await until(() => a.publicState().connected && b.publicState().connected), 'cả hai phải nối được');
+    const read = (id) => JSON.parse(fs.readFileSync(path.join(tmp, 'hub-link', id, 'hub-link.json'), 'utf8'));
+    const ta = read('hp-action-live').token;
+    const tb = read('hp-action-live-dev').token;
+    assert.ok(ta && tb && ta !== tb, 'token phải riêng từng appId');
+    assert.ok(!fs.existsSync(path.join(tmp, 'hub-link.json')), 'không ghi token vào thư mục gốc dùng chung');
+});
+
+test('(iso-quiet) allowed=false: không báo hub:state qua syncNow / start / stop', async () => {
+    const { hub, calls } = await setup({ env: {} });
+    hub.syncNow(); hub.start(); hub.setEnabled(false); hub.setEnabled(true); hub.stop();
+    await sleep(300);
+    assert.equal(calls.pub.length, 0);
+    assert.equal(calls.owns.length, 0);
 });
