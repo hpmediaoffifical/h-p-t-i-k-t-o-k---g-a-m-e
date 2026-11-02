@@ -571,7 +571,7 @@ const GAMES = {
 ,
     pokemon: {
         id: 'pokemon',
-        name: 'Săn Pokemon LIVE',
+        name: 'Săn Pokemon',
         description: 'Người xem táp tim / gõ 111 vào ghế, tặng quà nhận bóng, gõ 1-9 chọn Pokemon để ném. Bảng xếp hạng tuần, nhiệm vụ ngày, MC AI. Bảng quà có link OBS riêng.',
         icon: '🔴',
         overlayPath: '/overlay/pokemon',
@@ -6892,7 +6892,7 @@ app.post('/api/test-gift', (req, res) => {
 });
 
 // OBS overlay (transparent fullpage)
-// 🔴 Săn Pokemon LIVE — overlay game + bảng quà (nguồn OBS riêng). Game nhận sự kiện qua socket, không có route API riêng.
+// 🔴 Săn Pokemon — overlay game + bảng quà (nguồn OBS riêng). Game nhận sự kiện qua socket, không có route API riêng.
 app.get('/overlay/pokemon', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'pokemon', 'overlay.html'));
 });

@@ -297,11 +297,11 @@
                 <div id="leaguecard-panel" class="leaguecard-panel"></div>
             </section>
 
-            <!-- GAME VIEW: 🔴 SĂN POKEMON LIVE — nội dung do public/games/pokemon/pokemon-panel.js dựng -->
+            <!-- GAME VIEW: 🔴 SĂN POKEMON — nội dung do public/games/pokemon/pokemon-panel.js dựng -->
             <section id="view-pokemon" class="view game-view">
                 <header class="game-header">
                     <div>
-                        <h2>🔴 Săn Pokemon LIVE</h2>
+                        <h2>🔴 Săn Pokemon</h2>
                         <div class="game-sub">Người xem táp tim / gõ 111 vào ghế · tặng quà nhận bóng · gõ 1-9 chọn Pokemon để ném — overlay 1080×1920</div>
                     </div>
                     <div class="overlay-bar">
@@ -1780,6 +1780,18 @@
                 </div>
             </section>
 
+            <!-- GAME VIEW: 🎮 GAME TƯƠNG TÁC — menu nhóm game người xem nhập vai (public/games/gametuongtac/registry.js).
+                 Chỉ là menu: mỗi game con giữ view, panel, link OBS riêng bên dưới. -->
+            <section id="view-gametuongtac" class="view game-view gametuongtac-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🎮 Game Tương Tác</h2>
+                        <div class="game-sub">Game người xem nhập vai vào LIVE · mỗi game một link OBS riêng · bấm ⚙ Cài đặt để vào game</div>
+                    </div>
+                </header>
+                <div class="game-body gametuongtac-body"><div id="gtt-root"></div></div>
+            </section>
+
             <!-- ============ GAME VIEW: Nhà Tù Online ============ -->
             <section id="view-nhatu" class="view game-view nhatu-view">
                 <header class="game-header">
@@ -3057,6 +3069,8 @@
     <script src="/games/body/core.js"></script>
     <script src="/games/body/body-panel.js"></script>
     <script src="/games/camgames/registry.js"></script>
+    <script src="/games/gametuongtac/registry.js"></script>
+    <script src="/games/gametuongtac/gametuongtac-panel.js"></script>
     <script src="/games/camgames/camgames-panel.js"></script>
     <script src="/games/camgames/camgames-trigger.js"></script>
     <script src="/games/trongcay/game.js"></script>

@@ -447,6 +447,10 @@
     ]);
     // Game camera (Touch & Play, Chém Trái Cây, Đập Muỗi, Bắn Cung) không hiện riêng trong danh sách — vào qua 🎥 Game Camera.
     const CAM_CHILD_GAMES = new Set((window.HpCamGames || []).map(g => g.id));
+    // 🎮 Game Tương Tác (Zombie Phá Nhà, Nhà Tù Online, Creator Online…) — cũng gom 1 mục, game con mở từ menu nhóm.
+    // Danh sách: public/games/gametuongtac/registry.js. Nhóm chỉ là menu: game con giữ id/route/config/link OBS riêng.
+    const TT_HUB_ID = 'gametuongtac';
+    const TT_CHILD_GAMES = new Set((window.HpTuongTacGames || []).map(g => g.id));
 
     // Công cụ cắt ngang mọi game (Bảng Quà Tổng) có nút RIÊNG ở đáy sidebar — KHÔNG hiện trong
     // Thư viện Game lẫn lưới trang chủ, vì hai chỗ đó là danh sách game/tính năng.
@@ -495,6 +499,16 @@
             g.locked = licenseLocked.has(g.id);
             g.lstate = licenseStates[g.id] || (g.locked ? 'locked' : 'on');
         }
+        // 🎮 Game Tương Tác: mục nhóm đứng ở chỗ game con đầu tiên trong danh sách; ẩn nếu KEY ẩn hết game con đã vào app.
+        const ttKids = games.filter(g => TT_CHILD_GAMES.has(g.id));
+        if (ttKids.length && ttKids.some(g => g.lstate !== 'hidden')) {
+            const at = games.findIndex(g => TT_CHILD_GAMES.has(g.id));
+            games.splice(at, 0, {
+                id: TT_HUB_ID, name: 'Game Tương Tác', icon: '🎮', virtual: true, hub: true,
+                description: 'Game người xem nhập vai: Zombie Phá Nhà, Nhà Tù Online, Săn Pokemon, Creator Online…',
+                locked: false, lstate: 'on'
+            });
+        }
         renderGameList();
         syncGiftboardSideButton();
     }
@@ -530,7 +544,7 @@
     function renderGameList() {
         dom.gameList.innerHTML = '';
         for (const g of games) {
-            if (LIBRARY_HIDDEN.has(g.id) || CAM_CHILD_GAMES.has(g.id)) continue;
+            if (LIBRARY_HIDDEN.has(g.id) || CAM_CHILD_GAMES.has(g.id) || TT_CHILD_GAMES.has(g.id)) continue;
             if (g.lstate === 'hidden') continue;   // HP KEY: mục Ẩn (chưa ra mắt) không hiện
             const paused = g.lstate === 'off';      // HP KEY: mục Tạm tắt (bảo trì) cho mọi KEY
             const div = document.createElement('div');
@@ -547,9 +561,9 @@
             div.innerHTML = `<span class="ico">${g.icon}</span>
                 <div class="meta">
                     <div class="gn">${g.name}${badge}</div>
-                    ${paused ? '<div class="gd game-lock-notice">Tạm bảo trì</div>' : g.locked ? '<div class="gd game-lock-notice">Đã khóa</div>' : renderGameDevelopmentNotice(g)}
+                    ${g.hub ? `<div class="gd gtt-side-sum" data-hub-sum>${ttHubSummary()}</div>` : paused ? '<div class="gd game-lock-notice">Tạm bảo trì</div>' : g.locked ? '<div class="gd game-lock-notice">Đã khóa</div>' : renderGameDevelopmentNotice(g)}
                 </div>
-                <button class="game-toggle ${isEnabled ? 'on' : 'off'}" data-game-toggle="${g.id}" title="${g.locked ? lockTip : (isEnabled ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT') + ' ' + (g.virtual ? 'tool' : 'game') + ' chạy ngầm'}"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="3" x2="12" y2="12.5"/><path d="M7.1 6.7a7.3 7.3 0 1 0 9.8 0"/></svg></button>`;
+                ${g.hub ? '<span class="gtt-side-arrow" aria-hidden="true">›</span>' : `<button class="game-toggle ${isEnabled ? 'on' : 'off'}" data-game-toggle="${g.id}" title="${g.locked ? lockTip : (isEnabled ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT') + ' ' + (g.virtual ? 'tool' : 'game') + ' chạy ngầm'}"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="3" x2="12" y2="12.5"/><path d="M7.1 6.7a7.3 7.3 0 1 0 9.8 0"/></svg></button>`}`;
             // Click toàn thân (trừ toggle) → mở game
             div.addEventListener('click', (e) => {
                 if (e.target.closest('[data-game-toggle]')) return;
@@ -616,9 +630,20 @@
         const cfg = g.config || {};
         return !('enabled' in cfg) || cfg.enabled !== false;
     }
+    // Dòng phụ của mục 🎮 Game Tương Tác ở thanh bên: "1/2 đang bật · 1 sắp ra mắt".
+    function ttHubSummary() {
+        const kids = games.filter(g => TT_CHILD_GAMES.has(g.id) && g.lstate !== 'hidden');
+        const on = kids.filter(g => !g.locked && isGameEnabled(g)).length;
+        const soon = (window.HpTuongTacGames || []).filter(t => t.soon || !games.some(g => g.id === t.id)).length;
+        return `${on}/${kids.length} đang bật` + (soon ? ` · ${soon} sắp ra mắt` : '');
+    }
     // Nút ⏻ trong Thư viện Game phản ánh đúng config — gọi mỗi khi enabled đổi (kể cả đổi từ cửa sổ
     // Khởi động nhanh / thiết bị khác qua socket 'gameConfig'), không chỉ khi bấm chính nút đó.
     function syncSideToggle(gameId) {
+        if (TT_CHILD_GAMES.has(gameId)) {
+            const sum = document.querySelector('[data-hub-sum]');
+            if (sum) sum.textContent = ttHubSummary();
+        }
         const g = games.find(x => x.id === gameId);
         const btn = document.querySelector(`[data-game-toggle="${gameId}"]`);
         if (!g || !btn) return;
@@ -901,8 +926,9 @@
     document.getElementById('btn-open-giftboard')?.addEventListener('click', () => openGame('giftboard'));
 
     function highlightActiveGame(gameId) {
+        const sideId = TT_CHILD_GAMES.has(gameId) ? TT_HUB_ID : gameId;   // game con Game Tương Tác → tô mục nhóm
         document.querySelectorAll('.game-item').forEach(el => {
-            el.classList.toggle('active', el.dataset.id === gameId);
+            el.classList.toggle('active', el.dataset.id === sideId);
         });
         document.getElementById('btn-open-giftboard')?.classList.toggle('active', gameId === 'giftboard');
     }
@@ -920,7 +946,7 @@
         // Nhặt Lá giữ batch lá đang chạy trong RAM; chỉ reload thủ công khi cần nạp asset mới.
         // Đập Muỗi cũng vậy: reload là mất sạch muỗi + điểm đang chơi giữa live (có nút 🔄 Reload riêng).
         // 🎥 Game Camera: overlay mẹ chứa mọi game camera đang chạy (muỗi, chuỗi Đá Cầu, phiên quà…) — mở lại màn này không tải lại OBS.
-        if (gameId !== 'nhatla' && gameId !== 'dapmuoi' && gameId !== 'dacau' && gameId !== 'body' && gameId !== 'camgames') {
+        if (gameId !== 'nhatla' && gameId !== 'dapmuoi' && gameId !== 'dacau' && gameId !== 'body' && gameId !== 'camgames' && gameId !== TT_HUB_ID) {
             try { socket && socket.emit('overlay:reload', { gameId }); } catch (e) {}
         }
         // Đóng các popup Hũ khi rời sang game khác (tránh popup mở treo)
@@ -951,11 +977,15 @@
         else if (gameId === 'leaguecard') { if (!window.__giftSheet) window.__giftSheet = giftSheet; showView('view-leaguecard'); window.HpLeagueCardPanel?.open(socket); }
         else if (gameId === 'touchplay') showView('view-touchplay');
         else if (gameId === 'camgames') { showView('view-camgames'); window.HpCamGamesPanel?.open(socket); }
+        else if (gameId === TT_HUB_ID) { showView('view-gametuongtac'); window.HpTuongTacPanel?.open(socket); }
         else if (gameId === 'obs-effects') showView('view-obs-effects');
     }
 
     // Màn Game Camera mở màn cài đặt game con; màn con có nút "← Game Camera".
     window.hpOpenGame = openGame;
+    // Menu 🎮 Game Tương Tác (gametuongtac-panel.js) đọc games[] (đã gắn khoá KEY) + bật/tắt game con như nút ⏻.
+    window.hpGameList = () => games;
+    window.hpSetGameEnabled = (id, on) => { const g = games.find(x => x.id === id); return g && !g.locked ? setGameEnabled(g, !!on) : Promise.resolve(); };
 
     function openVoteComment(game) {
         if (window.HpVoteCommentPanel && typeof window.HpVoteCommentPanel.open === 'function') {
