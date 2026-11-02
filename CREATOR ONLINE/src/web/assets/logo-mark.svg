@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Creator Online app mark: HP Media "hp" badge (peach to pink) + the 3-light rig of a LIVE room -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F6C3A8"/>
+      <stop offset="1" stop-color="#E6A2D0"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="500" height="500" rx="112" fill="url(#bg)"/>
+  <!-- light beams (middle washes the wall, sides light the creator) -->
+  <polygon points="236,78 276,78 330,232 182,232" fill="url(#beam)" opacity="0.55"/>
+  <polygon points="152,80 176,80 236,214 150,214" fill="url(#beam)" opacity="0.45"/>
+  <polygon points="336,80 360,80 362,214 276,214" fill="url(#beam)" opacity="0.45"/>
+  <!-- light bar + 3 heads -->
+  <rect x="132" y="58" width="248" height="14" rx="7" fill="#ffffff"/>
+  <circle cx="164" cy="80" r="15" fill="#ffffff"/>
+  <circle cx="256" cy="80" r="17" fill="#ffffff"/>
+  <circle cx="348" cy="80" r="15" fill="#ffffff"/>
+  <!-- hp -->
+  <text x="256" y="432" text-anchor="middle" font-family="Impact, Anton, 'Arial Black', sans-serif" font-size="288" fill="#ffffff" letter-spacing="-4">hp</text>
+  <!-- live dot -->
+  <circle cx="432" cy="86" r="24" fill="#ff2d55" stroke="#ffffff" stroke-width="7"/>
+</svg>

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Creator Online</title>
+  <link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="game"></div>
+
+  <div id="hud" class="hidden">
+    <!-- top-left -->
+    <div id="top-left">
+      <div id="brand"><img class="brand-mark" src="assets/logo-mark.svg" alt=""><span>Creator Online</span><canvas id="avatar" width="64" height="64" title="Nhân vật của bạn"></canvas></div>
+      <div class="pill dark" id="online-pill" title="Số người trong tòa nhà">
+        <span class="dot"></span><span id="online-count">0</span>
+        <span class="sep"></span><span id="net-status" class="net">Offline</span>
+      </div>
+      <div id="info">
+        <div class="row"><span class="ic white" data-icon="clock"></span><b id="clock">--:--</b>&nbsp;·&nbsp;<span id="where">Sảnh chính</span></div>
+        <div class="row"><span class="ic gold" data-icon="trophy"></span><span id="rank">Fan mới</span></div>
+        <div class="row"><span class="ic pink" data-icon="star"></span>Vai trò:&nbsp;<span id="role">Khán giả</span></div>
+        <div class="row"><span class="ic red" data-icon="heart"></span>Đã thả&nbsp;<b id="hearts">0</b>&nbsp;tim</div>
+        <div class="row hint" id="hint"></div>
+      </div>
+    </div>
+
+    <!-- top-right -->
+    <div id="top-right">
+      <div id="toolbar">
+        <button class="coin-pill" data-btn="coins" title="Xu của bạn"><span id="coins">0</span><span class="ic" data-icon="coin"></span></button>
+        <button data-btn="rooms" title="Danh sách phòng (L)"><span data-icon="pin"></span></button>
+        <button data-btn="friends" title="Người trong tòa nhà"><span data-icon="users"></span></button>
+        <button data-btn="notif" title="Thông báo"><span data-icon="bell"></span><i id="notif-badge" class="badge" style="display:none">0</i></button>
+        <button data-btn="chat" title="Ẩn/hiện chat"><span data-icon="chat"></span></button>
+        <button data-btn="shop" title="Tủ đồ"><span data-icon="shirt"></span></button>
+        <button class="green" data-btn="fullscreen" title="Toàn màn hình"><span data-icon="expand"></span></button>
+      </div>
+      <div id="subbar">
+        <span class="dot"></span><span id="online-count2">0</span>
+        <button data-btn="music" class="tog" title="Nhạc phòng"><span data-icon="music"></span></button>
+        <button data-btn="sound" class="tog" title="Âm thanh"><span data-icon="volume"></span></button>
+        <button data-btn="camera" class="tog" title="Đổi góc camera"><span data-icon="camera"></span></button>
+        <button data-btn="fullscreen" class="tog" title="Toàn màn hình"><span data-icon="screen"></span></button>
+        <button data-btn="help" class="tog" title="Hướng dẫn (?)"><span data-icon="help"></span></button>
+      </div>
+    </div>
+
+    <div id="pkbar">
+      <div class="pk-names"><span id="pk-left"></span><b id="pk-time"></b><span id="pk-right"></span></div>
+      <div class="pk-track"><i id="pk-fill"></i></div>
+    </div>
+
+    <div id="banner"></div>
+    <div id="toasts"></div>
+
+    <div id="rhythm">
+      <div class="target"></div>
+      <div id="rhythm-ring"></div>
+      <div id="rhythm-grade" class="grade"></div>
+      <div id="rhythm-combo"></div>
+    </div>
+
+    <div id="roombar">
+      <div class="rb-head"><b id="roombar-title"></b><span id="roombar-sub"></span></div>
+      <div class="rb-btns">
+        <button data-btn="rb-seat" id="rb-seat" class="rb-seat" title="Tặng vé để làm chủ phòng (V)">🎟️ Vào phòng <kbd>V</kbd></button>
+        <button data-btn="rb-heart" title="Thả tim (H)">❤ Thả tim <kbd>H</kbd></button>
+        <button data-btn="rb-gift" title="Tặng quà (G)">🎁 Quà <kbd>G</kbd></button>
+        <button data-btn="rb-role" id="rb-role" title="Nhận vai (R)">⭐ Vai trò <kbd>R</kbd></button>
+        <button data-btn="rb-genre" title="Thể loại (T)">🎵 Thể loại <kbd>T</kbd></button>
+        <button data-btn="rb-game" title="Mini game (M)">🎮 Mini game <kbd>M</kbd></button>
+      </div>
+    </div>
+
+    <div id="prompt"><span class="key">E</span><span id="prompt-text"></span></div>
+
+    <div id="chat">
+      <div id="chat-log"></div>
+      <input id="chat-input" maxlength="120" placeholder="Nhấn Enter để chat..." autocomplete="off">
+    </div>
+
+    <div id="touch">
+      <div id="joy"><div id="joy-knob"></div></div>
+      <button id="t-jump">Nhảy</button>
+      <button id="t-act">E</button>
+      <button id="t-heart">❤</button>
+      <button id="t-beat">F</button>
+    </div>
+  </div>
+
+  <div id="panel">
+    <div class="card">
+      <div class="panel-head"><h2 id="panel-title"></h2><button id="panel-close" aria-label="Đóng">✕</button></div>
+      <div id="panel-body"></div>
+    </div>
+  </div>
+
+  <div id="start">
+    <div class="start-card">
+      <h1 class="logo"><img src="assets/logo-full.svg" alt="Creator Online by HP Media"></h1>
+      <p class="tagline">Tòa nhà 25 phòng LIVE: sân khấu nhóm, phòng đứng, phòng ngồi hát, phòng game. Đi xem, thả tim, tặng quà, làm MC, Kỹ thuật, Quản lý hay Idol!</p>
+      <div id="loading">Đang dựng tòa nhà sáng tạo...</div>
+      <form id="start-form" class="hidden">
+        <label>Biệt danh của bạn
+          <input id="start-name" maxlength="20" autocomplete="off" required>
+        </label>
+        <div class="choice-label">Trang phục</div>
+        <div class="choices" id="choose-outfit"></div>
+        <div class="choice-label">Kiểu tóc</div>
+        <div class="choices" id="choose-hair"></div>
+        <p id="returning" class="returning"></p>
+        <button type="submit" class="big">Vào tòa nhà</button>
+        <p class="controls">WASD: đi • Shift: chạy • E: tương tác • H: thả tim • G: quà • R: vai trò • F: bắt nhịp • Enter: chat</p>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
