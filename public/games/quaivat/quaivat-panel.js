@@ -70,7 +70,7 @@
     async function load() {
         try { const r = await fetch('/api/games/quaivat/config'); cfg = r.ok ? await r.json() : {}; } catch (e) { cfg = {}; }
         cfg = Object.assign({ enabled: true, qvStreamerName: '', qvStreamerAvatar: '', qvDoorHp: 600, qvRoundSeconds: 180, qvStartMap: 1,
-            qvLockJump: false, qvLockForward: false, qvAutoDodge: true, qvSound: true, qvZombieModel: 'basic', qvTimerOn: false, qvCheckpoint: true, qvShowLegend: true, qvWinShape: '9:16', qvLikePer: 100, qvCommentKey: '111', qvGiftMap: {} }, cfg || {});
+            qvLockJump: false, qvLockForward: false, qvSound: true, qvZombieModel: 'basic', qvTimerOn: false, qvCheckpoint: true, qvShowLegend: true, qvWinShape: '9:16', qvLikePer: 100, qvCommentKey: '111', qvGiftMap: {} }, cfg || {});
         if (Number(cfg.qvDoorHp) === 1200 && !cfg.qvHpV2) { cfg.qvDoorHp = 600; cfg.qvHpV2 = true; schedulePersist(); }   // cửa giờ tự hồi máu → hạ máu mặc định cũ một lần
         if (!cfg.qvGiftMap || typeof cfg.qvGiftMap !== 'object') cfg.qvGiftMap = {};
     }

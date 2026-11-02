@@ -44,10 +44,8 @@ const CONFIG = {
   lockJump: Q.get('nojump') === '1' || lsGet('qv_lockJump') === '1',      // khóa nhảy (Space)
   lockForward: Q.get('nofwd') === '1' || lsGet('qv_lockFwd') === '1',    // khóa tiến tới: chỉ đi ngang
   monsterColor: 0x8a4dff,
-  mineCount: 7,           // số mìn đất đặt ngẫu nhiên mỗi ván
   windSeconds: 6,         // hoa gió thổi trong N giây
   windPush: 1.8,          // sức gió đẩy lùi (m/giây)
-  xbarrelChance: 0.25,    // tỉ lệ thùng gỗ (Hoa hồng) là thùng thuốc nổ
 };
 function actionByCoins(c) {
   if (c >= 1000) return 'quake';
@@ -91,19 +89,41 @@ function speckle(g, w, h, colors, n, s0, s1) {
   for (let i = 0; i < n; i++) { g.globalAlpha = rand(0.08, 0.3); g.fillStyle = pick(colors); const s = rand(s0, s1); g.fillRect(Math.random() * w, Math.random() * h, s, s); }
   g.globalAlpha = 1;
 }
+// ----- giải phóng bộ nhớ GPU -----
+// keep(): đánh dấu tài nguyên DÙNG CHUNG (cache geo/MS, mô hình tải về, texture tạo 1 lần) → disposeTree bỏ qua
+const keep = r => { if (r) r.userData.keep = true; return r; };
+const TEX_KEYS = ['map', 'bumpMap', 'normalMap', 'emissiveMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'aoMap', 'lightMap', 'displacementMap', 'specularMap'];
+function disposeTree(root) {
+  const done = new Set();
+  const free = r => { if (r && r.dispose && !done.has(r) && !(r.userData && r.userData.keep)) { done.add(r); r.dispose(); } };
+  root.traverse(o => {
+    if (o.isInstancedMesh) o.dispose();                                   // nhả instanceMatrix (geometry thường là của mô hình ENV dùng chung)
+    if (o.isSkinnedMesh && o.skeleton) o.skeleton.dispose();             // texture xương riêng của từng bản sao (cáo)
+    if (o.geometry && !o.isSprite) free(o.geometry);                      // Sprite dùng geometry nội bộ chung của three
+    for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) {
+      if (m.userData.keep) continue;
+      for (const k of TEX_KEYS) free(m[k]);
+      if (m.uniforms) for (const u of Object.values(m.uniforms)) if (u && u.value && u.value.isTexture) free(u.value);
+      free(m);
+    }
+  });
+}
 const geoCache = new Map();
-const geo = (k, f) => { if (!geoCache.has(k)) geoCache.set(k, f()); return geoCache.get(k); };
+const geo = (k, f) => { if (!geoCache.has(k)) geoCache.set(k, keep(f())); return geoCache.get(k); };
 const msCache = new Map();
 function MS(color, rough = 0.85, metal = 0, extra) {
   const k = color + '|' + rough + '|' + metal + '|' + (extra ? JSON.stringify(extra) : '');
-  if (!msCache.has(k)) msCache.set(k, new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, envMapIntensity: 0.35, ...(extra || {}) }));
+  if (!msCache.has(k)) msCache.set(k, keep(new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, envMapIntensity: 0.35, ...(extra || {}) })));
   return msCache.get(k);
 }
-const GBOX = new THREE.BoxGeometry(1, 1, 1), GSPH = new THREE.SphereGeometry(1, 20, 14);
+const GBOX = keep(new THREE.BoxGeometry(1, 1, 1)), GSPH = keep(new THREE.SphereGeometry(1, 20, 14));
 function put(m, x, y, z, parent, shadow = true) { m.position.set(x, y, z); m.castShadow = shadow; m.receiveShadow = true; if (parent) parent.add(m); return m; }
 function box(w, h, d, mat, x = 0, y = 0, z = 0, parent) { const m = new THREE.Mesh(GBOX, mat); m.scale.set(w, h, d); return put(m, x, y, z, parent); }
 function sph(r, mat, x = 0, y = 0, z = 0, parent) { const m = new THREE.Mesh(GSPH, mat); m.scale.setScalar(r); return put(m, x, y, z, parent); }
-function cyl(rt, rb, h, mat, x = 0, y = 0, z = 0, parent, seg = 16) { return put(new THREE.Mesh(geo(`cy${rt}_${rb}_${h}_${seg}`, () => new THREE.CylinderGeometry(rt, rb, h, seg)), mat), x, y, z, parent); }
+function cyl(rt, rb, h, mat, x = 0, y = 0, z = 0, parent, seg = 16) {
+  rt = Math.round(rt * 100) / 100; rb = Math.round(rb * 100) / 100; h = Math.round(h * 100) / 100;   // làm tròn 1cm: số đo ngẫu nhiên (thân cây…) không đẻ ra vô hạn khối trong cache
+  return put(new THREE.Mesh(geo(`cy${rt}_${rb}_${h}_${seg}`, () => new THREE.CylinderGeometry(rt, rb, h, seg)), mat), x, y, z, parent);
+}
 function blobGeo(detail, amp, seed = 0) {
   let g = new THREE.IcosahedronGeometry(1, detail);
   g.deleteAttribute('normal'); g.deleteAttribute('uv'); g = mergeVertices(g);
@@ -118,7 +138,7 @@ function blobGeo(detail, amp, seed = 0) {
 // đo chiều cao model có khung xương (Box3 không đúng với SkinnedMesh)
 function boneTop(model) { model.updateMatrixWorld(true); let m = 0; const v = new V3(); model.traverse(o => { if (o.isBone) { o.getWorldPosition(v); m = Math.max(m, v.y); } }); return m; }
 // Viền nét kiểu hoạt hình: bản sao mặt sau phóng to một chút, tô màu nâu đậm
-const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x1d130c, side: THREE.BackSide });
+const OUTLINE_MAT = keep(new THREE.MeshBasicMaterial({ color: 0x1d130c, side: THREE.BackSide }));
 function addOutline(root, thick = 0.02, minR = 0.02) {
   root.updateMatrixWorld(true); const ws = new V3(), list = [];
   root.traverse(o => { if (o.isMesh && !o.isSkinnedMesh && !o.isInstancedMesh && !o.userData.isOutline && !(o.material && o.material.transparent)) list.push(o); });
@@ -198,8 +218,9 @@ addEventListener('keydown', () => AC && AC.resume());
 // =====================================================================
 const RATIO = (() => { const r = Q.get('ratio') || '1:1'; if (r === 'full') return 0; const [a, b] = r.split(':').map(Number); return a / b || 0; })();
 const gameEl = document.getElementById('game'), labelsEl = document.getElementById('labels');
-const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// có hậu kỳ (composer tự khử răng cưa MSAA×4) thì khử răng cưa của khung chính là thừa → chỉ bật ở ?q=low
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: Q.get('q') === 'low' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, Q.get('q') === 'low' ? 1 : 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -283,19 +304,19 @@ const HS = 0.74;          // tỉ lệ ngôi nhà (cửa cao ~2.3m → người 
 let HOUSE_FRONT = -88;    // mặt trước ngôi nhà (đổi theo độ dài map)
 // ===== CÁC MAP: mỗi map dài hơn, đổi khung cảnh + chướng ngại riêng (thêm map mới vào đây) =====
 const MAPS = [
-  { name: 'Vườn Xanh', path: { kind: 'stripe', a: '#5ea53a', b: '#4a8f2c', base: '#4a8f2c', blade: ['30,70,15', '200,240,150'] }, length: 90, mines: 7, prop: 'rock', props: 4,
+  { name: 'Vườn Xanh', path: { kind: 'stripe', a: '#5ea53a', b: '#4a8f2c', base: '#4a8f2c', blade: ['30,70,15', '200,240,150'] }, length: 90, prop: 'rock', props: 4,
     sky: ['#2f7fdc', '#6fb6f0', '#bfe2fb', '#e2f3ff'], fog: 0xcde8fb, sun: 0xfff0d8, sunI: 2.8, hemi: [0xd6ecff, 0x4d7a2a, 0.45],
     lawn: '#6db53e', lawnSp: ['#4f9a2a', '#8fd25a', '#5ea835'], laneA: '#a5d96a', laneB: '#86c550', blade: ['50,110,25', '230,255,190'],
     hedge: [0x3f8a2a, 0x4a9a32, 0x3a7f26, 0x52a538], hedgeCore: 0x2f6e22, tree: [0x4f9e2f, 0x5bb337, 0x3f8a28, 0x6cc040, 0x4a9a35], trunk: 0x6b4527,
     hill: [0x78c060, 0x6db455, 0x84c86a], mtn: 0x86a6cf, flowers: [0xffffff, 0xfff27a, 0xff9ec4, 0xc9a7ff],
     wall: '#efe3c6', roof: ['#8e2a1a', '#d9573a', '#c84a30', '#7c2214'], sunflowers: true },
-  { name: 'Mùa Thu', path: { kind: 'leaves', a: '#9aa23e', b: '#868d35', base: '#868d35', blade: ['70,60,15', '240,230,160'], leaf: ['#e8892a', '#e0a828', '#f0c040', '#d0602a', '#c8a030'] }, grade: { hi: [1.09, 1.0, 0.88] }, style: 'autumn', length: 110, mines: 9, prop: 'pumpkin', props: 7, haz: 'leafpile', hazN: 6,
+  { name: 'Mùa Thu', path: { kind: 'leaves', a: '#9aa23e', b: '#868d35', base: '#868d35', blade: ['70,60,15', '240,230,160'], leaf: ['#e8892a', '#e0a828', '#f0c040', '#d0602a', '#c8a030'] }, grade: { hi: [1.09, 1.0, 0.88] }, style: 'autumn', length: 110, prop: 'pumpkin', props: 7, haz: 'leafpile', hazN: 6,
     sky: ['#4a7fc4', '#8fb9e0', '#f2d7b0', '#f8e6c8'], fog: 0xf0dcc0, sun: 0xffd9a0, sunI: 2.6, hemi: [0xffe6c4, 0x7a5a2a, 0.5],
     lawn: '#a39a3e', lawnSp: ['#8a7f2a', '#c4b45a', '#9a6a2a'], laneA: '#cdc56c', laneB: '#b0a54e', blade: ['110,90,25', '255,240,190'],
     hedge: [0x8a7a2a, 0x9a6a20, 0x7a8a2a, 0xa0782a], hedgeCore: 0x5e5a1e, tree: [0xe07a2a, 0xd4a020, 0xc0502a, 0xe8b040, 0xb83a1e], trunk: 0x5a3a20,
     hill: [0xb0a050, 0xc09040, 0xa08a40], mtn: 0x9a8fb0, flowers: [0xffb040, 0xff7a3a, 0xffe07a, 0xc0502a],
     wall: '#f3dcc0', roof: ['#5a2e1a', '#a0603a', '#8a4e2a', '#4a2412'], sunflowers: true },
-  { name: 'Xứ Tuyết', path: { kind: 'snow', base: '#e3ebf5', bump: 0.4, rough: 0.7 }, expo: 0.82, grade: { sh: [0.8, 0.92, 1.18], hi: [1.03, 1.02, 1.0], sat: 1.2, con: 0.7 }, style: 'snow', length: 130, mines: 11, prop: 'snowman', props: 8, dust: 0xf4f8ff, haz: 'ice', hazN: 7,
+  { name: 'Xứ Tuyết', path: { kind: 'snow', base: '#e3ebf5', bump: 0.4, rough: 0.7 }, expo: 0.82, grade: { sh: [0.8, 0.92, 1.18], hi: [1.03, 1.02, 1.0], sat: 1.2, con: 0.7 }, style: 'snow', length: 130, prop: 'snowman', props: 8, dust: 0xf4f8ff, haz: 'ice', hazN: 7,
     sky: ['#6a88b0', '#a9bfd8', '#dfe8f2', '#f2f6fa'], fog: 0xe6eef6, sun: 0xeef4ff, sunI: 2.2, hemi: [0xeef4ff, 0x9aa8b8, 0.7],
     lawn: '#eef3f8', lawnSp: ['#d6e0ea', '#ffffff', '#c8d4e2'], laneA: '#f4f8fc', laneB: '#dbe6f1', blade: ['150,170,200', '255,255,255'],
     hedge: [0x2f5a40, 0x3a6a4a, 0xe8eef5, 0xdfe7f0], hedgeCore: 0x2a4a38, tree: [0x2e6b4a, 0x3a7a55, 0xeef3f8, 0xffffff], trunk: 0x4a3426,
@@ -330,7 +351,7 @@ const MAPS = [
     hedge: [0x2e3324, 0x262c1e, 0x343a28, 0x2a2420], hedgeCore: 0x1a1e14, tree: [0x3a3428, 0x2e2a22, 0x46402e, 0x2a3020], trunk: 0x2a2018,
     hill: [0x2e2a30, 0x26222a, 0x34303a], mtn: 0x3a2a4a, flowers: [0x9a6aff, 0xff6a6a, 0xd0d0ff],
     wall: '#8a8494', roof: ['#2a1e30', '#4a3658', '#3a2a48', '#1e1424'], sunflowers: false },
-  { name: 'Đầm Sen', water: true, length: 125, mines: 9, prop: 'rock', props: 5,
+  { name: 'Đầm Sen', water: true, length: 125, prop: 'rock', props: 5,
     path: { kind: 'stripe', a: '#66b040', b: '#529a34', base: '#529a34', blade: ['30,75,20', '205,245,160'] }, grade: { sh: [0.9, 0.98, 1.12], hi: [1.06, 1.02, 0.93] },
     sky: ['#2584d6', '#68bdf0', '#c2e9f8', '#e4f6ff'], fog: 0xd2ecf4, sun: 0xfff2d8, sunI: 2.8, hemi: [0xd8f0ff, 0x4a7a3a, 0.5],
     lawn: '#5fa83c', lawnSp: ['#4a9430', '#86cc58', '#5aa236'], laneA: '#a5d96a', laneB: '#86c550', blade: ['50,110,25', '230,255,190'],
@@ -363,12 +384,12 @@ function planWater() {
 }
 let lotusTex = null, lotusMat = null, waterTex = null;
 function mkLotusPad(r = 0.85) {                         // lá sen tròn có khía, gân toả từ tâm
-  if (!lotusTex) lotusTex = ctex(256, 256, (q, w, h) => {
+  if (!lotusTex) lotusTex = keep(ctex(256, 256, (q, w, h) => {
     const gr = q.createRadialGradient(128, 128, 10, 128, 128, 128); gr.addColorStop(0, '#7fcf4a'); gr.addColorStop(0.75, '#4fa83a'); gr.addColorStop(1, '#2f7a2a');
     q.fillStyle = gr; q.fillRect(0, 0, w, h); q.strokeStyle = 'rgba(210,255,170,.45)'; q.lineWidth = 2;
     for (let k = 0; k < 16; k++) { const a = k / 16 * 6.283; q.beginPath(); q.moveTo(128, 128); q.lineTo(128 + Math.cos(a) * 124, 128 + Math.sin(a) * 124); q.stroke(); }
     speckle(q, w, h, ['#2f7a2a', '#9ae070'], 400, 1, 3);
-  });
+  }));
   const m = new THREE.Mesh(geo('lotuspad', () => new THREE.CircleGeometry(1, 30, 0.22, Math.PI * 2 - 0.44)), (lotusMat ||= new THREE.MeshStandardMaterial({ map: lotusTex, roughness: 0.55, envMapIntensity: 0.4, side: THREE.DoubleSide })));
   m.rotation.x = -Math.PI / 2; m.rotation.z = rand(0, 6.28); m.scale.setScalar(r); m.receiveShadow = true;
   return m;
@@ -637,13 +658,13 @@ function buildWorld() {
 }
 // đoạn nước: mặt nước gợn sóng (đục, che phần chân zombie lún xuống) + bờ cát + đá viền + lá sen, bông sen, lau sậy
 function buildWater() {
-  if (!waterTex) waterTex = ctex(256, 256, (q, w, h) => {
+  if (!waterTex) waterTex = keep(ctex(256, 256, (q, w, h) => {
     q.fillStyle = '#2f8f9e'; q.fillRect(0, 0, w, h);
     for (let k = 0; k < 40; k++) { const x = Math.random() * w, y = Math.random() * h, r = rand(20, 60), gr = q.createRadialGradient(x, y, 0, x, y, r);
       gr.addColorStop(0, Math.random() < 0.5 ? 'rgba(20,90,110,.5)' : 'rgba(90,190,190,.35)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); q.fillStyle = gr; q.fillRect(x - r, y - r, 2 * r, 2 * r); }
     q.strokeStyle = 'rgba(210,250,255,.35)'; q.lineCap = 'round';
     for (let k = 0; k < 90; k++) { const x = Math.random() * w, y = Math.random() * h, l = rand(8, 26); q.lineWidth = rand(1, 2.5); q.beginPath(); q.moveTo(x, y); q.quadraticCurveTo(x + l / 2, y - rand(2, 5), x + l, y); q.stroke(); }
-  }, [3, 1.6]);
+  }, [3, 1.6]));
   const wMat = new THREE.MeshStandardMaterial({ color: 0xbfeff5, map: waterTex, bumpMap: waterTex, bumpScale: 0.6, roughness: 0.1, metalness: 0.05, envMapIntensity: 1.3 });
   const sandMat = MS(0xc9b07a, 0.95), stoneMat = MS(0x8a8f86, 0.9), reedMat = MS(0x5f8a2e, 0.85), catMat = MS(0x6a3e1e, 0.9);
   const m4 = new THREE.Matrix4(), qq = new THREE.Quaternion(), reeds = [], stones = [];
@@ -749,7 +770,7 @@ function loadEnv(name) {
   if (!envCache.has(name)) envCache.set(name, new GLTFLoader().loadAsync(ENV_DIR + name + '.glb').then(g => {
     const root = g.scene; root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(root), c = box.getCenter(new V3()), sz = box.getSize(new V3());
-    const parts = []; root.traverse(o => { if (o.isMesh) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => { m.envMapIntensity = 0.45; }); parts.push({ geo: o.geometry, mat: o.material, m: o.matrixWorld.clone() }); } });
+    const parts = []; root.traverse(o => { if (o.isMesh) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => { m.envMapIntensity = 0.45; keep(m); }); keep(o.geometry); parts.push({ geo: o.geometry, mat: o.material, m: o.matrixWorld.clone() }); } });
     return { parts, c, minY: box.min.y, h: Math.max(1e-4, sz.y), w: Math.max(sz.x, sz.z) };
   }).catch(e => { console.warn('Không tải được mô hình', name, e); return null; }));
   return envCache.get(name);
@@ -757,7 +778,7 @@ function loadEnv(name) {
 // gom các bản sao của 1 mô hình thành InstancedMesh (ít lệnh vẽ) — spots: [{x, y, z, h, ry}]
 const tintCache = new Map();
 function tintMat(mat, hex) {
-  const k = mat.uuid + hex; if (!tintCache.has(k)) { const m = mat.clone(); m.color.multiply(new THREE.Color(hex)).multiplyScalar(1.6); m.emissive = new THREE.Color(0x3a0800); tintCache.set(k, m); }
+  const k = mat.uuid + hex; if (!tintCache.has(k)) { const m = keep(mat.clone()); m.color.multiply(new THREE.Color(hex)).multiplyScalar(1.6); m.emissive = new THREE.Color(0x3a0800); tintCache.set(k, m); }
   return tintCache.get(k);
 }
 function plantEnv(info, spots, parent, tint) {
@@ -823,7 +844,9 @@ async function decorateMap() {
 }
 function buildMap(i) {
   state.map = i; T = MAPS[i]; HOUSE_FRONT = 2 - T.length;
-  world.clear();
+  // map cũ: gỡ ngay, giải phóng GPU SAU khi map mới đã vẽ vài khung (shader dùng lại, khỏi biên dịch lại → đỡ khựng)
+  const old = world.children.slice(); world.clear();
+  if (old.length) setTimeout(() => old.forEach(disposeTree), 1500);
   scene.background = new THREE.Color(T.sky[3]);
   const su = skyDome.material.uniforms;
   su.cTop.value.set(T.sky[0]); su.cMid.value.set(T.sky[1]); su.cLow.value.set(T.sky[2]); su.cHor.value.set(T.sky[3]);
@@ -1019,7 +1042,7 @@ function hpLogoMat() {
   const c = document.createElement('canvas'); c.width = c.height = 512;
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
   const im = new Image(); im.onload = () => { c.getContext('2d').drawImage(im, 0, 0, 512, 512); t.needsUpdate = true; }; im.src = '/hp-logo-pink.svg';
-  _hpLogoMat = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 });   // giữ đúng màu logo
+  _hpLogoMat = keep(new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }));   // giữ đúng màu logo
   return _hpLogoMat;
 }
 // hình xăm: chỉ giữ nét chữ trắng của logo + khung bo góc, tô mực xanh sẫm, hơi trong để hoà vào da
@@ -1039,7 +1062,7 @@ function hpTattooMat() {
     t.needsUpdate = true;
   };
   im.src = '/hp-logo-pink.svg';
-  _hpTattooMat = new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.85, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 });
+  _hpTattooMat = keep(new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.85, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 }));
   return _hpTattooMat;
 }
 function hpLogo(size, x, y, z, rx, parent) {
@@ -1276,12 +1299,15 @@ function buildHouse() {
 // =====================================================================
 const softTex = ctex(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.45, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); });
 const starTex = ctex(64, 64, (g) => { g.fillStyle = '#fff'; g.translate(32, 32); g.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 9 : 30, a = i / 10 * Math.PI * 2 - Math.PI / 2; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.fill(); });
-const parts = [], debrisList = [];
+keep(softTex); keep(starTex);
+const parts = [], debrisList = [], spritePool = [];   // hạt khói/sao: dùng lại Sprite + material thay vì tạo mới từng hạt
 function puff(pos, o = {}) {
   const { color = 0xffffff, n = 6, speed = 2, size = 0.8, life = 0.8, up = 1, grav = 0, add = false, tex = softTex, grow = 1.8, opacity = 0.85 } = o;
   for (let i = 0; i < n; i++) {
-    const mat = new THREE.SpriteMaterial({ map: tex, color, transparent: true, opacity, depthWrite: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending });
-    const s = new THREE.Sprite(mat); s.position.copy(pos); const sz = size * rand(0.7, 1.3); s.scale.setScalar(sz); scene.add(s);
+    let s = spritePool.pop(), mat;
+    if (s) { mat = s.material; mat.map = tex; mat.color.set(color); mat.opacity = opacity; mat.blending = add ? THREE.AdditiveBlending : THREE.NormalBlending; }
+    else { mat = new THREE.SpriteMaterial({ map: tex, color, transparent: true, opacity, depthWrite: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending }); s = new THREE.Sprite(mat); }
+    s.position.copy(pos); const sz = size * rand(0.7, 1.3); s.scale.setScalar(sz); scene.add(s);
     parts.push({ s, mat, v: new V3(rand(-1, 1), rand(0.1, 1) * up, rand(-1, 1)).multiplyScalar(speed).add(o.vel || new V3()), t: 0, life: life * rand(0.7, 1.2), sz, grow, grav, op: opacity });
   }
 }
@@ -1309,7 +1335,7 @@ function updateFx(dt) {
     if (p.ring) { p.ring.scale.setScalar(0.2 + p.r * k); p.ring.material.opacity = 0.9 * (1 - k); if (k >= 1) { scene.remove(p.ring); p.ring.material.dispose(); parts.splice(i, 1); } continue; }
     p.v.y -= p.grav * dt; p.v.multiplyScalar(Math.exp(-1.8 * dt)); p.s.position.addScaledVector(p.v, dt);
     p.s.scale.setScalar(p.sz * (1 + (p.grow - 1) * k)); p.mat.opacity = p.op * (1 - k);
-    if (k >= 1) { scene.remove(p.s); p.mat.dispose(); parts.splice(i, 1); }
+    if (k >= 1) { scene.remove(p.s); if (spritePool.length < 600) spritePool.push(p.s); else p.mat.dispose(); parts.splice(i, 1); }
   }
   for (let i = debrisList.length - 1; i >= 0; i--) {
     const d = debrisList[i]; d.t += dt;
@@ -1375,7 +1401,7 @@ const mon = {
   root: new THREE.Group(), tilt: new THREE.Group(), ready: false, actions: {}, cur: '',
   x: 0, y: 0, gy: 0, z: START_Z, vy: 0, kv: 0, charT: 0, flip: null, windLean: 0,
   stun: 0, lastHurt: -99, flash: 0, lift: null, carry: null, attackT: 0, avoid: null,
-  aiX: 0, aiT: 0, speedUntil: 0, armorUntil: 0, stamina: 1, punchBoost: 0, mats: [], blocker: null,
+  aiX: 0, aiT: 0, vx: 0, vz: 0, boost: 0, armorUntil: 0, stamina: 1, punchBoost: 0, mats: [], blocker: null,
 };
 mon.root.add(mon.tilt); scene.add(mon.root);
 // ----- ZOMBIE (streamer): dựng bằng khối bo tròn, chuyển động lê bước khập khiễng -----
@@ -1740,7 +1766,7 @@ function playAnim(name, fade = 0.2, ts = 1) {
 function monJump() {
   if (CONFIG.lockJump) return;
   if (state.phase !== 'play' || mon.y > 0 || mon.lift || mon.carry || mon.stun > 0 || mon.kv > 1) return;
-  mon.vy = 6.2; mon.cur = ''; playAnim('Jump', 0.08, 1.3);   // cao ~0.75m: vừa qua khoai/lốp/bẫy sfx('whoosh');
+  mon.vy = 6.9; mon.cur = ''; playAnim('Jump', 0.08, 1.3); sfx('whoosh');   // cao ~0.9m: qua được khoai (0.85m), lốp, bẫy
 }
 function hitMonster(dmg, knock, owner, opts = {}) {
   if (state.phase !== 'play' || !mon.ready) return false;
@@ -1870,7 +1896,7 @@ function slimeFactor() {
   for (const it of items) if (!it.dead && it.kind === 'slime' && it.state === 'set' && Math.hypot(it.g.position.x - mon.x, it.g.position.z - mon.z) < 1.9) return 0.35;
   return 1;
 }
-const keys = {}; let lastInput = -99, autoDodge = true;
+const keys = {}; let lastInput = -99;
 const CTRL_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space', 'KeyF', 'KeyJ', 'ShiftLeft', 'ShiftRight'];
 function keyDown(code) {
   if (!CTRL_KEYS.includes(code)) return;
@@ -1896,6 +1922,7 @@ function updateMonster(dt) {
   mon.stars.visible = mon.stun > 0 && state.phase === 'play';
   if (mon.stars.visible) mon.stars.children.forEach((s, i) => { const a = time * 5 + i * 2.1; s.position.set(Math.cos(a) * 0.6, Math.sin(time * 8 + i) * 0.08, Math.sin(a) * 0.6); });
   if (state.phase !== 'play') { applyMon(); return; }
+  if (mon.boost > 0) mon.boost = Math.max(0, mon.boost - dt);              // tăng tốc: chỉ trừ giờ khi đang chơi
 
   const manual = true;   // luôn do streamer điều khiển bằng bàn phím — không bấm thì đứng yên (Khóa tiến/lùi = tự đi tới, chỉ lái ngang)
   let anim = 'Walking', ts = 1;
@@ -1938,12 +1965,11 @@ function updateMonster(dt) {
       const sprint = manual && !CONFIG.lockForward && fwd > 0 && (keys.ShiftLeft || keys.ShiftRight) && !mon.tired;
       if (sprint) mon.stamina = Math.max(0, mon.stamina - dt * 0.35); else mon.stamina = Math.min(1, mon.stamina + dt * 0.15);
       if (mon.stamina <= 0.02) mon.tired = true; else if (mon.stamina >= 0.35) mon.tired = false;
-      const base = CONFIG.monsterSpeed * slimeFactor() * terrainFactor() * (1 - 0.6 * wind) * (time < mon.speedUntil ? 1.7 : 1);
+      const base = CONFIG.monsterSpeed * slimeFactor() * terrainFactor() * (1 - 0.6 * wind) * (mon.boost > 0 ? 1.7 : 1);
       let vF = fwd > 0 ? base * (sprint ? 1.6 : 1) : fwd < 0 ? -base * 0.85 : 0;   // + = tiến về nhà, − = quay lại đi về đầu đường
       let vX = side * base * 1.1;
       let punching = false;
       if (vF > 0 && b && !(mon.avoid === b && !manual)) {
-        if (!b.aiSeen) { b.aiSeen = true; if (!manual && autoDodge && b.kind !== 'fence' && b.kind !== 'fox' && Math.random() < 0.45) { const sd = mon.x < b.g.position.x ? -1 : 1; let nx = b.g.position.x + sd * (b.halfW + 1.0); if (Math.abs(nx) > LANE) nx = b.g.position.x - sd * (b.halfW + 1.0); mon.avoid = b; mon.aiX = clamp(nx, -LANE, LANE); } }
         if (mon.avoid !== b || manual) { vF = 0; punching = true; punchAt(b, dt); }
       } else if (vF > 0 && atDoor) { vF = 0; vX = clamp(-mon.x * 2, -1, 1); punching = true; punchAt(null, dt); }
       else if (vF > 0 && atWall) { vF = 0; vX = clamp(-mon.x * 3, -2, 2); mon.aiX = 0; }
@@ -1966,7 +1992,7 @@ function updateMonster(dt) {
       anim = punching ? 'Punch' : speed > 0.05 ? (running ? 'Running' : 'Walking') : 'Idle'; ts = 1;
       const stepI = Math.floor(mon.walkPh / Math.PI);                         // mỗi lần đặt chân: bụi + tiếng bước
       if (stepI !== mon.lastStep) { mon.lastStep = stepI; if (speed > 0.05 && mon.y <= 0) { const sd = stepI % 2 ? 1 : -1; puff(new V3(mon.x + sd * 0.13, Math.max(mon.gy, 0) + 0.06, mon.z + 0.1), { color: mon.gy < -0.3 ? 0xe8f8ff : T.dust || 0xcdb98e, n: 3, size: 0.32, speed: 0.6, up: 0.35, life: 0.65, opacity: 0.5 }); sfx('step'); } }
-      if (time < mon.speedUntil && speed > 0.05 && Math.random() < dt * 15) puff(new V3(mon.x, 0.3, mon.z + 0.4), { color: 0x6fd0ff, n: 1, size: 0.6, add: true, life: 0.5 });
+      if (mon.boost > 0 && speed > 0.05 && Math.random() < dt * 15) puff(new V3(mon.x, 0.3, mon.z + 0.4), { color: 0x6fd0ff, n: 1, size: 0.6, add: true, life: 0.5 });
     }
     if (wind > 0) mon.z += CONFIG.windPush * wind * dt; // gió hoa thổi lùi
     terrainPush(dt);
@@ -2100,9 +2126,9 @@ function launch(it, from, to, T, spin = 0) {
 function flyTime(from, to, k = 16) { return clamp(from.distanceTo(to) / k, 0.7, 2.4); }
 function openDoor(d = 0.9) { if (!door.broken) { if (time > door.openUntil) sfx('creak'); door.openUntil = Math.max(door.openUntil, time + d); } }
 // chọn chỗ rơi phía trước quái, tính cả quãng quái đi được trong lúc đồ vật đang bay
+// đoán chỗ zombie sẽ đứng: theo vận tốc ĐO THẬT (mon.vz) — streamer đứng yên thì ném đúng chỗ đứng, không ném vượt lên trước
 function aheadSpot(minA = 4, maxA = 13, onPath = 0.75) {
-  const moving = !mon.blocker && mon.kv < 0.5 && !mon.lift && mon.stun <= 0;
-  const mz = moving ? mon.z - CONFIG.monsterSpeed * flyTime(DOOR_POS(), mon.root.position) : mon.z;
+  const mz = clamp(mon.z + mon.vz * flyTime(DOOR_POS(), mon.root.position), HOUSE_FRONT + 1, mon.z + 3);
   const room = mz - (HOUSE_FRONT + 2.6);
   if (room < minA) return null;
   const d = rand(minA, Math.min(maxA, room));
@@ -2110,8 +2136,8 @@ function aheadSpot(minA = 4, maxA = 13, onPath = 0.75) {
   return new V3(clamp(x, -LANE, LANE), 0, mz - d);
 }
 function predictMon(T, y = 1.3) {
-  let z = mon.z; if (!mon.blocker && mon.kv < 0.5 && !mon.lift && mon.stun <= 0) z -= CONFIG.monsterSpeed * T * 0.9;
-  return new V3(mon.x, mon.y + mon.gy + y, Math.max(z, HOUSE_FRONT + 1));
+  const z = mon.lift || mon.carry ? mon.z : mon.z + mon.vz * T * 0.9;
+  return new V3(clamp(mon.x + mon.vx * T * 0.9, -LANE, LANE), mon.y + mon.gy + y, clamp(z, HOUSE_FRONT + 1, Math.max(mon.z, restZ())));
 }
 function obstacleCount() { return items.filter(i => !i.dead && i.blocker).length; }
 
@@ -2181,6 +2207,7 @@ function mkBalloons() {
   g.userData.line = line; return g;
 }
 const rockTex = ctex(128, 128, (g, w, h) => { g.fillStyle = '#8b8a86'; g.fillRect(0, 0, w, h); speckle(g, w, h, ['#5d5c58', '#b3b1ab', '#6f6e69'], 1500, 1, 4); });
+keep(rockTex);
 function mkBoulder() {
   const g = new THREE.Group(), roll = new THREE.Group(); g.add(roll);
   const m = new THREE.Mesh(geo('boulder', () => blobGeo(2, 0.16, 4.2)), new THREE.MeshStandardMaterial({ map: rockTex, roughness: 0.95, flatShading: true }));
@@ -2252,6 +2279,7 @@ const potatoTex = ctex(256, 128, (g, w, h) => {
     g.strokeStyle = 'rgba(235,200,140,.55)'; g.lineWidth = 1; g.beginPath(); g.arc(x, y - 1, 4, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
   }
 });
+keep(potatoTex); keep(zSkinTex);
 // khối khoai sần sùi, méo, một đầu to (+x) — thay dáng quả trứng trơn
 function potatoGeo() {
   const g = new THREE.SphereGeometry(1, 48, 32), pa = g.attributes.position, v = new V3(), n = new V3();
@@ -2326,15 +2354,6 @@ function mkMine() {
   cyl(0.24, 0.28, 0.12, MS(0x3c4248, 0.4, 0.8), 0, 0.19, 0, g, 14);
   const led = sph(0.07, new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff0000, emissiveIntensity: 2 }), 0, 0.28, 0, g);
   g.userData.led = led; return g;
-}
-function placeMine(minDist = 7) {
-  for (let k = 0; k < 25; k++) {
-    const x = rand(-LANE + 0.4, LANE - 0.4), z = rand(HOUSE_FRONT + 6, START_Z - 7);
-    if (Math.hypot(x - mon.x, z - mon.z) < minDist) continue;
-    if (items.some(i => !i.dead && i.kind === 'mine' && Math.hypot(i.g.position.x - x, i.g.position.z - z) < 4)) continue;
-    const it = newItem('mine', MINE_OWNER, mkMine(), { noLabel: true });
-    it.g.position.set(x, 0, z); it.state = 'set'; lotusIfWater(it); return it;
-  }
 }
 // ----- chướng ngại riêng của từng map (đá / bí ngô / người tuyết), quái phải đấm vỡ -----
 function mkProp(kind) {
@@ -2471,6 +2490,7 @@ function updateBolts(dt) {
 function spawnObstacleFromDoor(kind, owner, mk, o) {
   const from = DOOR_POS();
   let to = aheadSpot(o.minA ?? 4, o.maxA ?? 13, o.onPath ?? 0.75), onMon = false;
+  if (!to && kind === 'xbarrel') to = new V3(clamp(mon.x + pick([-2, 2]), -LANE, LANE), 0, Math.min(mon.z + 1, restZ()));   // sát cửa: đặt cạnh zombie (nổ vẫn trúng) chứ không rơi thẳng lên đầu
   if (!to || obstacleCount() >= 45) { to = new V3(mon.x, 0, mon.z); onMon = true; }
   if (kind === 'fence') to.x = 0;
   const it = newItem(kind, owner, mk(), o);
@@ -2484,8 +2504,9 @@ function spawnFromGround(kind, owner, mk, o) {
   const minA = o.minA ?? 4, maxA = (o.maxA ?? 14) + 8, room = mon.z - (HOUSE_FRONT + 2.5);
   let x = 0, z = 0;
   for (let k = 0; k < 12; k++) {
-    z = room > minA ? mon.z - rand(minA, Math.min(maxA, room)) : mon.z - rand(0.6, 1.8);
-    x = kind === 'fence' ? 0 : Math.random() < (o.onPath ?? 0.6) * 0.55 ? clamp(mon.x + rand(-1, 1), -LANE, LANE) : rand(-LANE + 0.4, LANE - 0.4);
+    const close = room <= minA;                                                     // zombie đã sát cửa → mọc ngay dưới chân (trước đây mọc lọt vào trong nhà)
+    z = close ? Math.max(HOUSE_FRONT + 0.95, mon.z - rand(0.1, 0.9)) : mon.z - rand(minA, Math.min(maxA, room));
+    x = kind === 'fence' ? 0 : close ? clamp(mon.x + rand(-0.5, 0.5), -LANE, LANE) : Math.random() < (o.onPath ?? 0.6) * 0.55 ? clamp(mon.x + rand(-1, 1), -LANE, LANE) : rand(-LANE + 0.4, LANE - 0.4);
     if (!items.some(i => !i.dead && i.state === 'set' && Math.hypot(i.g.position.x - x, i.g.position.z - z) < 1.3)) break;
   }
   const it = newItem(kind, owner, mk(), o);
@@ -2493,16 +2514,23 @@ function spawnFromGround(kind, owner, mk, o) {
   puff(new V3(x, 0.15, z), { color: T.dust || 0x8a6a40, n: 8, size: 0.8, speed: 2.5, up: 2, life: 0.7 }); debris(new V3(x, 0.2, z), 0x6a4a2a, 4, 0.1, 4); sfx('pop');
   return it;
 }
+// zombie đang đứng sát cửa: đồ lăn (khoai/thùng/lốp) ra cửa là lăn về phía đầu đường → ném thẳng vào người thay vì phí quà
+function nearDoor() { return mon.z < HOUSE_FRONT + 4.5; }
+function throwAtMon(it, hit, spin = 4) {
+  const from = DOOR_POS(), T = flyTime(from, mon.root.position, 16), to = predictMon(T, 1.1);
+  launch(it, from, to, T, spin); it.thrown = hit; openDoor(0.5); sfx('whoosh');
+}
 const SPAWN = {
   rose: u => SPAWN.potato(u),                                                   // quà khoai (id cũ 'rose' giữ để quà đã gán không mất)
   plant: u => spawnFromGround('plant', u, mkShooter, { blocker: true, hp: 80, maxHp: 80, halfW: 0.45, halfD: 0.45, labelY: 2.0, debrisColor: 0x5ccf3e, minA: 6, maxA: 14, onPath: 0.35, spin: 0 }),
   potato: (u, mega) => {
     const it = newItem('potato', u, mkPotato(), { labelY: mega ? 2.6 : 1.1 });
     if (mega) { it.mega = true; it.R = 0.58 * 2.2; it.g.scale.setScalar(2.2); popText(DOOR_POS().setY(4.5), '🥔 KHOAI KHỔNG LỒ!', 'big', 1.4); camShake = 0.3; }
+    if (nearDoor()) return throwAtMon(it, mega ? { dmg: 80, knock: 7, text: 'KHOAI KHỔNG LỒ!', unblockable: true, stun: 0.8 } : { dmg: 18, knock: 2.5, text: 'BỊCH!' }, 5);
     launch(it, DOOR_POS(), new V3(rand(-1.2, 1.2), mega ? 1.2 : 0.4, HOUSE_FRONT + 3), 0.6, 5); openDoor(); sfx('whoosh');
   },
   xbarrel: u => spawnObstacleFromDoor('xbarrel', u, mkXBarrel, { labelY: 1.6, minA: 2.5, maxA: 6, onPath: 0.9, spin: 6 }),
-  barrel: u => { const it = newItem('rbarrel', u, mkRollBarrel(), { labelY: 1.5, debrisColor: 0x9a5f2c }); launch(it, DOOR_POS(), new V3(rand(-1.2, 1.2), 0.58, HOUSE_FRONT + 3), 0.6, 4); openDoor(); sfx('whoosh'); },
+  barrel: u => { const it = newItem('rbarrel', u, mkRollBarrel(), { labelY: 1.5, debrisColor: 0x9a5f2c }); if (nearDoor()) return throwAtMon(it, { dmg: 28, knock: 3.5, text: 'RẦM!' }, 4); launch(it, DOOR_POS(), new V3(rand(-1.2, 1.2), 0.58, HOUSE_FRONT + 3), 0.6, 4); openDoor(); sfx('whoosh'); },
   barrelStatic: u => spawnObstacleFromDoor('barrel', u, mkBarrel, { blocker: true, hp: 80, maxHp: 80, halfW: 0.6, halfD: 0.6, labelY: 1.6, debrisColor: 0x9a5f2c }),
   fence: u => spawnObstacleFromDoor('fence', u, mkFence, { blocker: true, hp: 160, maxHp: 160, halfW: 6.4, halfD: 0.3, labelY: 1.9, debrisColor: 0xf4efe4, minA: 5, maxA: 9, spin: 0, onPath: 0 }),
   trap: u => spawnFromGround('trap', u, mkTrap, { labelY: 0.6, minA: 3.5, maxA: 9, onPath: 0.85, spin: 4 }),
@@ -2515,6 +2543,7 @@ const SPAWN = {
   bomb: u => spawnObstacleFromDoor('bomb', u, mkBomb, { labelY: 1.7, minA: 3, maxA: 8, onPath: 0.8, spin: 5 }),
   tire: u => {
     const it = newItem('tire', u, mkTire(), { labelY: 1.9 });
+    if (nearDoor()) return throwAtMon(it, { dmg: 25, knock: 4, text: 'TRÚNG!' }, 3);
     const from = DOOR_POS(); launch(it, from, new V3(rand(-1, 1), 0.63, HOUSE_FRONT + 3), 0.6, 0);
     openDoor(); sfx('whoosh');
   },
@@ -2740,21 +2769,21 @@ function mkGhostHand() {
 }
 let sandTex = null;
 function mkQuicksand() {
-  if (!sandTex) sandTex = ctex(256, 256, (q, w, h) => {
+  if (!sandTex) sandTex = keep(ctex(256, 256, (q, w, h) => {
     const gr = q.createRadialGradient(128, 128, 8, 128, 128, 128); gr.addColorStop(0, '#6a4a22'); gr.addColorStop(0.65, '#a5814c'); gr.addColorStop(1, 'rgba(205,170,115,0)');
     q.fillStyle = gr; q.fillRect(0, 0, w, h); q.strokeStyle = 'rgba(70,45,15,.5)'; q.lineWidth = 4;
     for (let k = 0; k < 3; k++) { q.beginPath(); for (let a = 0; a < 13; a += 0.1) { const r = a * 8.5; q.lineTo(128 + Math.cos(a + k * 2.1) * r, 128 + Math.sin(a + k * 2.1) * r); } q.stroke(); }
-  });
+  }));
   const g = new THREE.Group();
   const m = new THREE.Mesh(geo('qsdisc', () => new THREE.CircleGeometry(1, 36)), new THREE.MeshStandardMaterial({ map: sandTex, transparent: true, roughness: 1, depthWrite: false }));
   m.rotation.x = -Math.PI / 2; m.position.y = 0.03; m.scale.setScalar(2.0); g.add(m); g.userData.disc = m; return g;
 }
 let lavaTex = null;
 function mkLavacrack() {
-  if (!lavaTex) lavaTex = ctex(256, 64, (q, w, h) => {
+  if (!lavaTex) lavaTex = keep(ctex(256, 64, (q, w, h) => {
     q.fillStyle = '#140804'; q.fillRect(0, 0, w, h); q.strokeStyle = '#ffb040'; q.lineCap = 'round'; q.lineJoin = 'round';
     for (let k = 0; k < 3; k++) { q.lineWidth = rand(5, 11); q.beginPath(); let y = h / 2 + rand(-8, 8); q.moveTo(0, y); for (let x = 0; x <= w; x += 14) { y = clamp(y + rand(-10, 10), 10, h - 10); q.lineTo(x, y); } q.stroke(); }
-  });
+  }));
   const g = new THREE.Group(), w = rand(3.6, 5);
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: lavaTex, emissive: 0xff5a10, emissiveMap: lavaTex, emissiveIntensity: 1, roughness: 1 });
   const m = new THREE.Mesh(geo('lavapl', () => new THREE.PlaneGeometry(1, 1)), mat); m.rotation.x = -Math.PI / 2; m.position.y = 0.03; m.scale.set(w, 0.9, 1); g.add(m);
@@ -2969,9 +2998,11 @@ function breakItem(it) {
 }
 function removeItem(it) {
   if (it.dead) return; it.dead = true; scene.remove(it.g); it.label.remove();
-  if (it.shadow) scene.remove(it.shadow);
+  if (it.shadow) { scene.remove(it.shadow); disposeTree(it.shadow); }
   if (mon.carry === it) mon.carry = null;
-  if (it.g.userData.line) scene.remove(it.g.userData.line);
+  if (it.g.userData.line) { scene.remove(it.g.userData.line); disposeTree(it.g.userData.line); }
+  if (it.mixer) it.mixer.stopAllAction();
+  disposeTree(it.g);
 }
 function popBalloons(it) {
   if (!it || it.dead) return;
@@ -2999,7 +3030,7 @@ function onLand(it) {
   it.squash = 0.25;
   if (it.onMon && Math.hypot(p.x - mon.x, p.z - mon.z) < 1.6) hitMonster(25, 2.5, it.owner, { text: 'BỊCH!' });
   it.state = 'set'; it.t = 0;
-  if (it.kind === 'slime') { const pd = mkPuddle(); pd.position.copy(p).setY(0); scene.remove(it.g); it.g = pd; scene.add(pd); it.life = 14; }
+  if (it.kind === 'slime') { const pd = mkPuddle(); pd.position.copy(p).setY(0); scene.remove(it.g); disposeTree(it.g); it.g = pd; scene.add(pd); it.life = 14; }
   if (it.kind === 'bomb') it.fuse = 6;
   lotusIfWater(it);
   if (it.kind === 'plant') { it.life = 18; it.cd = 0.8; }
@@ -3020,7 +3051,8 @@ function updateItems(dt) {
       if (it.spin) { it.g.rotation.x += it.spin * dt; it.g.rotation.z += it.spin * 0.4 * dt; }
       if (it.kind === 'fence') it.g.scale.setScalar(Math.min(1, 0.15 + it.ft / it.T));
       if (it.ft >= it.T) { p.copy(it.to); it.g.rotation.set(0, it.kind === 'fence' ? 0 : rand(-0.3, 0.3), 0); it.g.scale.setScalar(1);
-        if (it.kind === 'tire') { it.state = 'roll'; it.vz = 11; it.vx = 0; puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
+        if (it.thrown) onLand(it);
+        else if (it.kind === 'tire') { it.state = 'roll'; it.vz = 11; it.vx = 0; puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
         else if (it.kind === 'potato' || it.kind === 'rbarrel') { it.endZ = rand(-1.6, 0.6); it.state = 'roll'; it.head = rand(-0.35, 0.35); it.speed = rand(7.5, 9); it.bumpT = 0; it.curv = 0; it.hop = 0; it.g.rotation.set(0, 0, 0); puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
         else onLand(it);
       }
@@ -3032,8 +3064,6 @@ function updateItems(dt) {
       p.y = 0.63 + Math.abs(Math.sin(it.t * 7)) * 0.4;
       it.g.userData.roll.rotation.x += it.vz * dt / 0.63;
       // né (AI)
-      if (!it.aiSeen && dz < 7 && dz > 0) { it.aiSeen = true; if (!manual && autoDodge && Math.random() < 0.4) { if (Math.random() < 0.5) it.aiJump = true; else { mon.aiX = clamp(p.x + (mon.x < p.x ? -2.6 : 2.6), -LANE, LANE); mon.aiT = 2; } } }
-      if (it.aiJump && dz < 2 && dz > 0) { it.aiJump = false; monJump(); }
       if (!it.hit && Math.abs(dz) < 0.9 && Math.abs(p.x - mon.x) < 1.1 && mon.y < 0.7 && !mon.lift) {
         it.hit = true; hitMonster(25, 4, it.owner, { text: 'TRÚNG!' }); sfx('hit'); it.vx = rand(-6, 6); it.vz = 8;
         puff(p.clone(), { color: 0xd8c6a0, n: 6, size: 1, speed: 3 });
@@ -3058,8 +3088,6 @@ function updateItems(dt) {
       it.speed = Math.max(3.2, it.speed - dt * (it.hit ? 1.2 : 0.3));
       if (Math.random() < dt * 8) puff(new V3(p.x, 0.1, p.z), { color: 0xd8c6a0, n: 1, size: 0.45, speed: 0.6, life: 0.5 });
       const dz = mon.z - p.z;
-      if (!it.aiSeen && dz < 6 && dz > 0) { it.aiSeen = true; if (!manual && autoDodge && Math.random() < 0.3) it.aiJump = true; }
-      if (it.aiJump && dz < 1.6 && dz > 0) { it.aiJump = false; monJump(); }
       if (!it.hit && Math.hypot(p.x - mon.x, p.z - mon.z) < (it.mega ? 2.3 : 1.2) && mon.y < (it.mega ? 1.8 : 0.85) && !mon.lift && !mon.carry) {
         it.hit = true; if (it.mega) { hitMonster(80, 7, it.owner, { text: 'KHOAI KHỔNG LỒ!', unblockable: true, stun: 0.8 }); camShake = 0.5; } else if (isB) hitMonster(28, 3.5, it.owner, { text: 'RẦM!' }); else hitMonster(18, 2.5, it.owner, { text: 'BỐP!' }); sfx('bonk');
         it.head = (Math.random() < 0.5 ? -1 : 1) * rand(0.5, 1.0); it.speed *= 0.6;   // bật lệch sang bên, vẫn lăn tiếp về đầu đường
@@ -3121,7 +3149,6 @@ function updateItems(dt) {
       if (it.squash > 0) { it.squash -= dt; const k = it.squash / 0.25; it.g.scale.set(1 + 0.25 * k, 1 - 0.3 * k, 1 + 0.25 * k); } else if (it.kind !== 'slime' && it.kind !== 'xbarrel' && !it.wilt && !it.mega && !it.noRescale) it.g.scale.setScalar(1);
       const dx = Math.abs(p.x - mon.x), dz = mon.z - p.z;
       if (it.kind === 'trap') {
-        if (!it.aiSeen && dz > 0 && dz < 6 && dx < 1.2) { it.aiSeen = true; if (!manual && autoDodge && Math.random() < 0.35) { mon.aiX = clamp(p.x + (mon.x < p.x ? -1.8 : 1.8), -LANE, LANE); mon.aiT = 2; } }
         if (!it.snapped && dx < 0.75 && Math.abs(dz) < 0.75 && mon.y < 0.3 && !mon.lift) {
           it.snapped = true; it.t = 0; sfx('snap'); hitMonster(30, 0, it.owner, { stun: 1.8, text: 'KẸP!', unblockable: true });
         }
@@ -3180,7 +3207,6 @@ function updateItems(dt) {
       } else if (it.kind === 'bomb') {
         it.fuse -= dt; const sp = it.g.userData.spark; sp.scale.setScalar(0.4 + Math.random() * 0.4);
         it.g.scale.setScalar(1 + (it.fuse < 1.5 ? Math.abs(Math.sin(it.t * 18)) * 0.12 : 0));
-        if (!it.aiSeen && dz > 0 && dz < 6 && dx < 1.5) { it.aiSeen = true; if (!manual && autoDodge && Math.random() < 0.3) { mon.aiX = clamp(p.x + (mon.x < p.x ? -2.6 : 2.6), -LANE, LANE); mon.aiT = 2; } }
         if (Math.hypot(p.x - mon.x, p.z - mon.z) < 1.6 || it.fuse <= 0) {
           explosion(p.clone()); const d = Math.hypot(p.x - mon.x, p.z - mon.z);
           if (d < 3.6 && mon.y < 2) hitMonster(Math.round(130 * (1 - d / 6)), 7, it.owner, { stun: 0.6, text: 'BÙM!', unblockable: true });
@@ -3206,10 +3232,14 @@ function queueAction(a, user, n = 1) {
 }
 function queuePending() { let t = 0; for (const e of actionQueue) t += e.n; return t; }
 // món chỉ chạy được 1 cái 1 lúc → đợi tới lượt (không đổi quà, không bỏ)
+// Đá lăn / Bàn tay / Động đất: đẩy zombie về cột mốc/đầu đường → chờ tới khi zombie đi xa khỏi đó (bằng không là phí quà người tặng)
+const SEND_BACK = { boulder: 20, hand: 20, quake: 10 };
+function sendBackRoom(need) { return mon.z <= restZ() - Math.min(need, (restZ() - HOUSE_FRONT) * 0.5); }
 function canRunNow(a) {
   if (!mon.ready || state.phase !== 'play') return false;
-  if (a === 'hand') return !mon.lift && !mon.carry && !items.some(i => !i.dead && i.kind === 'hand');
+  if (a === 'hand') return !mon.lift && !mon.carry && !items.some(i => !i.dead && i.kind === 'hand') && sendBackRoom(SEND_BACK.hand);
   if (a === 'balloon') return !mon.lift && !mon.carry && !items.some(i => !i.dead && i.kind === 'balloon');
+  if (SEND_BACK[a]) return !mon.lift && !mon.carry && !items.some(i => !i.dead && i.kind === 'boulder') && sendBackRoom(SEND_BACK[a]);
   return true;
 }
 function runAction(a, u) {
@@ -3226,13 +3256,13 @@ function runAction(a, u) {
     puff(dp, { color: 0x7dff6a, n: 10, size: 0.7, speed: 3, add: true, life: 0.8, tex: starTex }); popText(dp.clone().setY(4.4), '+150 🔧', 'heal');
     return;
   }
-  if (a === 'shoes') { mon.speedUntil = time + 5; sfx('power'); return; }          // tăng tốc: chỉ vệt sáng dưới chân, không chú thích
+  if (a === 'shoes') { mon.boost += 5; sfx('power'); return; }                     // tăng tốc CỘNG DỒN 5 giây/quà (tặng 10 = 50 giây), còn dư giữ sang ván sau
   if (a === 'shield') {                                                        // khiên cộng dồn: đang có khiên thì cất vào kho, vỡ cái này dùng cái kia
     if (mon.shieldHp > 0) { mon.shieldStock = (mon.shieldStock || 0) + 1; popText(new V3(mon.x, mon.y + 2.6, mon.z), `🚪 +1 khiên (kho ${mon.shieldStock})`, 'info', 1.1); sfx('heal'); }
     else { equipShield(); popText(new V3(mon.x, mon.y + 2.6, mon.z), '🚪 KHIÊN!', 'info', 1.2); }
     return;
   }
-  if (a === 'time' && !CONFIG.timerOn) return runAction('shoes', u);
+  if (a === 'time' && !CONFIG.timerOn) { mon.boost += 20; sfx('power'); popText(new V3(mon.x, mon.y + 3.6, mon.z), '👟 +20 giây tăng tốc', 'heal'); return; }   // tắt đồng hồ: +20 giây thành 20 giây tăng tốc (không còn bằng 1 Heart Me)
   if (a === 'time') { state.roundT += 20; sfx('heal'); popText(new V3(mon.x, mon.y + 3.6, mon.z), '⏳ +20 giây', 'heal'); puff(new V3(mon.x, mon.y + 1.6, mon.z), { color: 0x7dff6a, n: 8, tex: starTex, add: true, size: 0.5, speed: 3 }); return; }
   if (state.phase !== 'play') return;
   if (a === 'win') { door.hp = 0; return endRound('monster', u); }    // quà WIN ngay: phá cửa, vào nhà ăn não
@@ -3257,15 +3287,23 @@ function actionForGiftId(id) {
   return null;
 }
 function findGift(name) { const n = String(name || '').toLowerCase().trim(); return ALL_GIFTS.find(g => g.names.includes(n)); }
-const LIMIT = { shield: 60, win: 1, lose: 1, banana: 20, net: 5, bees: 4, crows: 4, meteor: 2, hand: 1, quake: 1, mine: 5, xbarrel: 20, flower: 4, lightning: 3, boulder: 2, balloon: 2, fox: 5, bomb: 8, repair: 20, shoes: 1, shield: 1, time: 5, plant: 6 };
+// Quà đắt hơn giá món trong bảng (Lion 29.999 xu khớp tên "Đá lăn" 299 xu, quà to gán vào món rẻ…) → chạy ĐỦ theo xu thật
+// (Lion = 100 Đá lăn). WIN/THUA ngay luôn chỉ 1 lần mỗi quà.
+function giftRuns(action, g, coins) {
+  if (action === 'win' || action === 'lose') return 1;
+  const base = (g && g.action === action ? g.coins : ALL_GIFTS.find(x => x.action === action)?.coins) || 0;
+  if (!(base > 0) || !(coins >= base * 1.5)) return 1;
+  return Math.max(1, Math.round(coins / base));
+}
 function onGift(user, giftName, count, coins, forced) {
   const g = forced ? ALL_GIFTS.find(a => a.action === forced) : findGift(giftName);
   const action = forced || (g ? g.action : actionByCoins(coins || 1));
   const total = (coins || g?.coins || 1) * count;
+  const runs = count * giftRuns(action, g, coins);
   addPoints(user, total * 10);
   showFeed(user, `đã gửi ${giftName || g?.gift || 'quà'}`, count, g ? g.emoji : '🎁');
-  if (total >= 99) gBanner(user, giftName || g?.gift || 'quà', g ? g.label : '');
-  queueAction(action, user, count);                                              // đủ số lượng đã tặng
+  if (total >= 99) gBanner(user, giftName || g?.gift || 'quà', g ? (runs > count ? `${g.label} ×${runs}` : g.label) : '');
+  queueAction(action, user, runs);                                               // đủ số lượng đã tặng (quà đắt: đủ theo xu)
   trackCombo(action, user, count);
 }
 // COMBO: cùng 1 loại bẫy được tặng ≥5 lần trong 10 giây → bản SIÊU (khoai khổng lồ / thêm 3 cái)
@@ -3326,7 +3364,7 @@ function endRound(who, by) {
     if (by) banner('🏆 WIN NGAY!', `${esc(by.name)} tặng quà WIN NGAY`); else banner('💥 PHÁ ĐƯỢC CỬA RỒI!', 'Zombie vào nhà ăn não...');
     setPhase('end', 999); startWinCut();
   } else {
-    state.win--;
+    state.win = Math.max(0, state.win - 1);
     if (by) { banner('😵 ZOMBIE THUA!', `${esc(by.name)} tặng quà THUA NGAY`); explosion(new V3(mon.x, 0, mon.z), 0.5); }
     else banner('⏰ HẾT GIỜ! KHÁN GIẢ BẢO VỆ THÀNH CÔNG!', mvpName ? `MVP: ${esc(mvpName)}` : 'Ngôi nhà an toàn!');
     mon.cur = ''; playAnim('Death', 0.15); sfx('win');
@@ -3339,8 +3377,11 @@ function resetRound() {
   if (state.nextMap != null && state.nextMap !== state.map) buildMap(state.nextMap);
   state.nextMap = null;
   for (const it of items) removeItem(it); items.length = 0; comboLog.clear();
-  Object.assign(mon, { charT: 0, flip: null, windLean: 0, x: 0, y: 0, gy: 0, z: START_Z, vy: 0, kv: 0, stun: 0, lift: null, carry: null, avoid: null, speedUntil: 0, armorUntil: 0, stamina: 1, yaw: 0, yawT: 0, jerk: 0, shieldHp: 0 });
-  if (mon.shieldMesh) mon.shieldMesh.visible = false; mon.shieldStock = 0;
+  // khiên đã tặng (đang đeo + trong kho) giữ sang ván mới — không ăn mất quà của fan
+  const shields = (mon.shieldStock || 0) + (mon.shieldHp > 0 ? 1 : 0);
+  Object.assign(mon, { charT: 0, flip: null, windLean: 0, x: 0, y: 0, gy: 0, z: START_Z, vy: 0, kv: 0, stun: 0, lift: null, carry: null, avoid: null, armorUntil: 0, stamina: 1, yaw: 0, yawT: 0, jerk: 0, shieldHp: 0 });
+  if (mon.shieldMesh) mon.shieldMesh.visible = false; mon.shieldStock = Math.max(0, shields - 1);
+  if (shields > 0 && mon.shieldMesh) equipShield();
   door.broken = false; door.pivot.visible = true;
   roundPts.clear();                                                              // KHÔNG xoá hàng chờ quà: quà chưa chạy giữ sang ván mới
   for (const L of bolts) { scene.remove(L.cloud); if (L.bolt) scene.remove(L.bolt); } bolts.length = 0;
@@ -3572,7 +3613,7 @@ function applyServerConfig(c) {
   if (Number(c.qvRoundSeconds) > 0) CONFIG.roundSeconds = Math.max(30, Number(c.qvRoundSeconds));
   CONFIG.lockJump = !!c.qvLockJump; CONFIG.lockForward = !!c.qvLockForward;
   CONFIG.timerOn = !!c.qvTimerOn; CONFIG.checkpoint = c.qvCheckpoint !== false; if (cp.g) cp.g.visible = CONFIG.checkpoint;
-  autoDodge = c.qvAutoDodge !== false; soundOn = c.qvSound !== false;
+  soundOn = c.qvSound !== false;
   CONFIG.giftMap = c.qvGiftMap && typeof c.qvGiftMap === 'object' ? c.qvGiftMap : {};
   if (typeof c.qvZombieModel === 'string' && /^[a-z]+$/.test(c.qvZombieModel) && c.qvZombieModel !== CONFIG.zombieModel) {
     lsSet('qv_zm', c.qvZombieModel);                               // đổi nhân vật → nạp lại với ?zm=<mới> (không lặp kể cả khi localStorage hỏng)
@@ -3711,7 +3752,6 @@ function buildPanel() {
   };
   $('btnSound').onclick = e => { soundOn = !soundOn; e.target.classList.toggle('on', soundOn); };
   $('btnDemo').onclick = e => { demo = !demo; e.target.classList.toggle('on', demo); };
-  $('btnAuto').onclick = e => { autoDodge = !autoDodge; e.target.classList.toggle('on', autoDodge); };
   $('btnReset').onclick = () => resetRound();
   $('lockJump').checked = CONFIG.lockJump; $('lockFwd').checked = CONFIG.lockForward; $('timerOn').checked = CONFIG.timerOn;
   $('timerOn').onchange = e => { CONFIG.timerOn = e.target.checked; lsSet('qv_timer', CONFIG.timerOn ? '1' : '0'); buildLegends(); };
@@ -3751,9 +3791,10 @@ function updateDemo(dt) {
 // =====================================================================
 let last = performance.now();
 function frame(now) {
+  requestAnimationFrame(frame);
+  if (now - last < 1000 / 60 - 4) return;            // màn 120/144Hz: không vẽ quá ~60–70 khung/giây (OBS chỉ quay 30/60) → đỡ nóng GPU
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   tick(dt);
-  requestAnimationFrame(frame);
 }
 // lội nước: phao vịt nổi quanh hông, bắn nước lúc xuống, gợn sóng theo bước
 let duck = null;
@@ -3787,7 +3828,12 @@ function tick(dt) {
   time += dt;
   if (state.phase !== 'loading') {
     let gdt = dt; if (hitStop > 0) { hitStop -= dt; gdt = 0; }               // khựng hình khi trúng đòn mạnh
-    updateDemo(gdt); updateQueue(gdt); updatePhase(gdt); updateMonster(gdt); updateWade(gdt); updateItems(gdt); updatePeas(gdt); updateBolts(gdt); updateCamera(dt);
+    const px = mon.x, pz = mon.z;
+    updateDemo(gdt); updateQueue(gdt); updatePhase(gdt); updateMonster(gdt);
+    if (gdt > 0) { const dx = mon.x - px, dz = mon.z - pz, k = Math.min(1, gdt * 6);
+      if (Math.abs(dx) + Math.abs(dz) > 2) mon.vx = mon.vz = 0;                       // dịch chuyển tức thời (về đầu đường) — không tính là chạy
+      else { mon.vx += (dx / gdt - mon.vx) * k; mon.vz += (dz / gdt - mon.vz) * k; } }   // vận tốc thật (làm mượt) cho việc ném đón đầu
+    updateWade(gdt); updateItems(gdt); updatePeas(gdt); updateBolts(gdt); updateCamera(dt);
   }
   updateFx(dt); updateHouseFx(dt); updatePops(dt); updateHud(dt);
   WIND.value = time;
@@ -3798,7 +3844,7 @@ camera.position.copy(camPos); camera.lookAt(camLook);
 requestAnimationFrame(frame);
 try {
   await setupMonster();
-  try { foxGltf = await loadModel('fox', 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/Fox/glTF-Binary/Fox.glb'); } catch (e) { console.warn('Không tải được cáo', e); }
+  try { foxGltf = await loadModel('fox', 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/Fox/glTF-Binary/Fox.glb'); foxGltf.scene.traverse(o => { if (o.isMesh) { keep(o.geometry); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { keep(m); TEX_KEYS.forEach(k => keep(m[k])); }); } }); } catch (e) { console.warn('Không tải được cáo', e); }
   $('loading').remove();
   startIntro();
 } catch (e) {

@@ -7569,7 +7569,9 @@ app.post('/api/quaivat/window/open', (req, res) => {
     const profileDir = path.join(DATA_DIR, 'quaivat-window', found.browser);
     try { fs.mkdirSync(profileDir, { recursive: true }); } catch (e) {}
     const url = `http://127.0.0.1:${PORT}/overlay/quaivat?ratio=full&win=1&shape=${encodeURIComponent(shape)}`;
-    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat(`--window-size=${w},${h}`, ...(pos ? [`--window-position=${pos[0]},${pos[1]}`] : []));
+    // OBS bắt cửa sổ: Chromium mặc định ngừng vẽ / hãm nhịp khi cửa sổ bị che hoặc thu nhỏ → hình trong OBS đứng
+    const keepDrawing = ['--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling'];
+    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat(`--window-size=${w},${h}`, ...(pos ? [`--window-position=${pos[0]},${pos[1]}`] : []), ...keepDrawing);
     try {
         const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
         child.on('error', (e) => console.warn('[quaivat] mở cửa sổ game lỗi:', e.message));
