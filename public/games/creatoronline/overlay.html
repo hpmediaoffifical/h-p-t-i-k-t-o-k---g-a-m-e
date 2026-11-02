@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Creator Online – HP Action LIVE</title>
+  <!-- ?demo=1 → Bản đi dạo (WASD, ví trong bộ nhớ) để xem thử, không dùng cho OBS -->
+  <script>if (new URLSearchParams(location.search).get('demo') === '1') location.replace('/games/creatoronline/demo.html');</script>
+  <link rel="icon" type="image/svg+xml" href="/games/creatoronline/assets/logo-mark.svg">
+  <link rel="stylesheet" href="/games/creatoronline/fonts.css">
+  <link rel="stylesheet" href="/games/creatoronline/live.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/games/quaivat/vendor/three.module.min.js",
+        "three/addons/": "/games/quaivat/vendor/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="labels"></div>
+  <div id="hud"></div>
+  <div id="loading">🏢 Creator Online</div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/games/creatoronline/js/game.js"></script>
+</body>
+</html>
