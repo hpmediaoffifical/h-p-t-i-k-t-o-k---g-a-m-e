@@ -9245,6 +9245,24 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .st-toggle input { accent-color: #ff6b3d; }
 .st-select { background: #0e1118; border: 1px solid #2c3243; color: #e6e8ee; border-radius: 6px; padding: 3px 6px; font-size: 12px; }
 .settings-popup .hint { font-size: 11px; color: #8b93a8; margin-top: 6px; line-height: 1.45; }
+/* 🧩 Thẻ HP Game Hub trong ⚙ Cài đặt */
+.st-hub-text { font-size: 12px; color: #cdd3e0; line-height: 1.45; }
+.st-hub-owns { margin-top: 10px; padding: 8px 10px; background: #0e1118; border: 1px solid #232936; border-radius: 10px; }
+.st-hub-owns-text { font-size: 12px; font-weight: 700; color: #e6e8ee; }
+.st-hub-owns .st-actions { margin-top: 8px; }
+.st-hub-hints { display: flex; flex-direction: column; gap: 6px; }
+.st-hub-hints:not(:empty) { margin-top: 10px; }
+.st-hub-hint { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; font-size: 11px; line-height: 1.45; background: rgba(245,158,11,.10); color: #fbbf24; border: 1px solid rgba(245,158,11,.30); }
+.st-hub-hint > span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.st-hub-hint button { flex: 0 0 auto; }
+.st-hub-overlays { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.st-hub-overlays[hidden] { display: none; }
+.st-hub-ov-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12px; background: #0e1118; border: 1px solid #232936; border-radius: 10px; padding: 8px 12px; }
+.st-hub-ov-row .st-k { flex: 0 0 auto; }
+.st-hub-ov-row .st-v { flex: 1 1 140px; text-align: left; }
+.st-hub-ov-row button { flex: 0 0 auto; }
+.game-item.hub-owned { cursor: pointer; }
+.game-item.hub-owned .gd { color: #4ade80; }
 
 /* ============ CHÉM TRÁI CÂY (.ctc-*) ============ */
 .chemtraicay-body { display: flex; flex-direction: column; gap: 10px; padding: 12px; min-height: 0; flex: 1; overflow: auto; }

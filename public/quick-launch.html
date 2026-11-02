@@ -658,6 +658,7 @@
         socket.on('disconnect', () => setBanner('socket', 'Mất kết nối app — đang thử lại…'));
         // 🔒 Tính năng theo KEY: admin đổi tính năng của key → nạp lại danh sách thẻ.
         socket.on('license:features', () => { try { loadGames(); } catch (e) {} });
+        socket.on('hub:owns', () => { try { loadGames(); } catch (e) {} });
         socket.on('gameConfig', ({ gameId, config }) => {
             const g = games.find(x => x.id === gameId);
             if (!g) return;
@@ -903,7 +904,8 @@
             try {
                 const r = await fetch('/api/games');
                 const list = await r.json();
-                games = list.filter(g => STABLE_IDS.includes(g.id));
+                // 🧩 HP Game Hub đang giữ Game Camera → bỏ thẻ Game Camera (không khởi động được ở đây)
+                games = list.filter(g => STABLE_IDS.includes(g.id) && !g.hubOwned);
                 games.push({
                     id: 'liveTranslate',
                     name: 'Dịch Thuật LIVE',

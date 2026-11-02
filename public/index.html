@@ -2889,6 +2889,24 @@
                     <label class="st-toggle"><input type="checkbox" id="st-auto-reconnect" checked /> <span>Tự kết nối lại khi rớt LIVE <span class="hint-inline">(giữ nguyên số liệu buổi live)</span></span></label>
                 </details>
 
+                <!-- 🧩 HP Game Hub (thẻ liên kết: trạng thái, Game Camera chuyển sang Hub) -->
+                <section class="settings-block" id="st-hub">
+                    <div class="settings-block-title">🧩 HP Game Hub <span class="st-pill" id="st-hub-pill">…</span></div>
+                    <div class="st-hub-text" id="st-hub-text">Đang kiểm tra…</div>
+                    <div class="st-actions">
+                        <button class="primary small" id="st-hub-main" hidden></button>
+                    </div>
+                    <label class="st-toggle" id="st-hub-enabled-row" hidden><input type="checkbox" id="st-hub-enabled" /> <span>Liên kết HP Game Hub <span class="hint-inline">(tắt thì Game Camera chạy ngay trong app này)</span></span></label>
+                    <div class="st-hub-owns" id="st-hub-owns" hidden>
+                        <div class="st-hub-owns-text">Game Camera đang chạy trên HP Game Hub</div>
+                        <div class="st-actions">
+                            <button class="ghost small" id="st-hub-open-cam" title="Mở màn Game Camera trên HP Game Hub">Mở Game Camera</button>
+                            <button class="ghost small" id="st-hub-lq" title="Level Quest vẫn chạy trong app này">LEVEL QUEST</button>
+                        </div>
+                    </div>
+                    <div class="st-hub-hints" id="st-hub-hints"></div>
+                </section>
+
                 <!-- 🖥 OBS & Overlay -->
                 <section class="settings-block">
                     <div class="settings-block-title">🖥 OBS &amp; Overlay</div>
@@ -2897,6 +2915,7 @@
                         <div class="st-row"><span class="st-k">Địa chỉ</span><span class="st-v mono" id="st-overlay-host">—</span></div>
                         <div class="st-row"><span class="st-k">LIVE Studio</span><span class="st-v" id="st-overlay-mapped">—</span></div>
                     </div>
+                    <div class="st-hub-overlays" id="st-hub-overlays" hidden></div>
                     <label class="st-toggle"><input type="checkbox" id="st-lan-access" /> <span>Cho máy khác trong mạng LAN mở overlay <span class="hint-inline">(cần khởi động lại app)</span></span></label>
                     <div class="hint" id="st-lan-hint"></div>
                     <div class="st-actions">

@@ -536,6 +536,18 @@
             const div = document.createElement('div');
             div.className = 'game-item' + (g.locked ? ' locked' : '') + (paused ? ' paused' : '');
             div.dataset.id = g.id;
+            // 🧩 HP Game Hub đang giữ Game Camera: chỉ một dòng trạng thái (không có nút ⏻), bấm → thẻ HP Game Hub trong Cài đặt
+            if (g.id === 'camgames' && g.hubOwned) {
+                div.classList.add('hub-owned');
+                div.innerHTML = `<span class="ico">${g.icon}</span>
+                <div class="meta">
+                    <div class="gn">${g.name}</div>
+                    <div class="gd">Đang chạy trên HP Game Hub</div>
+                </div>`;
+                div.addEventListener('click', () => window.hpOpenHubCard());
+                dom.gameList.appendChild(div);
+                continue;
+            }
             // Determine if game has 'enabled' field in its config (pktiktok + vipwelcome)
             const cfg = g.config || {};
             const hasEnabledField = ('enabled' in cfg);
@@ -911,6 +923,8 @@
         const game = games.find(g => g.id === gameId);
         if (!game) return;
         if (game.locked) { showLicenseLocked(game); return; }   // 🔒 tính năng theo KEY (cả khi mở từ Khởi động nhanh)
+        // 🧩 Game Camera + game con (trừ Level Quest) đang chạy trên HP Game Hub → mở thẻ HP Game Hub thay vì màn cũ
+        if (hubCamGameId(gameId)) { window.hpOpenHubCard(); return; }
         currentGame = game;
         highlightActiveGame(gameId);
         // Body class: dùng để CSS ẩn/hiện FAB/popup theo game
@@ -5167,6 +5181,7 @@
         if (!settingsPopup) return;
         settingsPopup.hidden = false;
         loadSettingsPanel();
+        loadHubCard();
         if (lastLicenseInfo) updateLicenseBadge(lastLicenseInfo);
     };
     document.getElementById('st-sign-key-save')?.addEventListener('click', async () => {
@@ -5230,6 +5245,149 @@
     document.getElementById('settings-close')?.addEventListener('click', () => {
         if (settingsPopup) settingsPopup.hidden = true;
     });
+
+    // ===== HP Game Hub (thẻ trong Cài đặt) =====
+    // Trạng thái lấy từ GET /api/hub/state (server không phát hub:state khi tắt / không được phép) + socket 'hub:state'.
+    // Quà → camera chạy ở server; ở đây chỉ vẽ thẻ + chuyển hướng giao diện khi Hub giữ Game Camera.
+    let hubState = null;
+    const HUB_BTN_LABEL = { open: 'Mở HP Game Hub', launch: 'Mở HP Game Hub', pair: 'Cho phép lại', download: 'Tải HP Game Hub' };
+    const hubEl = (id) => document.getElementById(id);
+    function hubOwnsCamera() {
+        if (hubState) return !!hubState.ownsCamera;
+        const cg = games.find(x => x.id === 'camgames');
+        return !!(cg && cg.hubOwned);
+    }
+    // id game cần chuyển sang thẻ Hub khi Hub giữ camera (camgames + game con camera, TRỪ level-quest: vẫn chạy trong app này)
+    function hubCamGameId(id) {
+        if (!hubOwnsCamera()) return false;
+        return id === 'camgames' || (CAM_CHILD_GAMES.has(id) && id !== 'level-quest');
+    }
+    function hubActiveCamView() {
+        const vid = document.querySelector('.view.active')?.id || '';
+        if (vid === 'view-camgames') return true;
+        return [...CAM_CHILD_GAMES].some(id => id !== 'level-quest' && vid === 'view-' + id);
+    }
+    async function hubPost(route, body) {
+        try {
+            const r = await (await fetch(route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })).json();
+            if (r && r.hub) renderHubCard(r.hub);
+            return r;
+        } catch (e) { stToast('Không gọi được HP Game Hub: ' + e.message, 'error'); return null; }
+    }
+    function hubOpenPage(page) {
+        hubPost('/api/hub/open', { page }).then((r) => {
+            if (r && r.ok === false) stToast('Chưa mở được HP Game Hub - thử mở Hub bằng tay', 'error');
+        });
+    }
+    function hubCopyLink(url, btn) {
+        const done = () => { stToast('✓ Đã chép link'); if (btn) { const t = btn.textContent; btn.textContent = 'Đã chép'; setTimeout(() => { btn.textContent = t; }, 1500); } };
+        const fallback = () => {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = url; ta.style.cssText = 'position:fixed;left:-9999px';
+                document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
+            } catch (e) { stToast('Không chép được link', 'error'); }
+        };
+        try { navigator.clipboard.writeText(url).then(done, fallback); } catch (e) { fallback(); }
+    }
+    function renderHubCard(pub) {
+        if (!pub || typeof pub !== 'object') return;
+        hubState = pub;
+        const card = pub.card || { tone: 'off', text: '', action: null };
+        const pill = hubEl('st-hub-pill');
+        if (pill) {
+            const map = { ok: ['ok', 'Đã nối'], warn: ['warn', 'Cần xem'], idle: ['', 'Chưa nối'], off: ['', 'Tắt'] };
+            const m = map[card.tone] || map.idle;
+            pill.className = 'st-pill' + (m[0] ? ' ' + m[0] : '');
+            pill.textContent = m[1];
+        }
+        const text = hubEl('st-hub-text'); if (text) text.textContent = card.text || '';
+        const main = hubEl('st-hub-main');
+        if (main) {
+            const label = HUB_BTN_LABEL[card.action];
+            main.hidden = !label;
+            main.textContent = label || '';
+            main.dataset.action = card.action || '';
+        }
+        const row = hubEl('st-hub-enabled-row'); if (row) row.hidden = !pub.allowed;
+        const en = hubEl('st-hub-enabled'); if (en) en.checked = !!pub.enabled;
+        const owns = !!pub.ownsCamera;
+        const ownsBox = hubEl('st-hub-owns'); if (ownsBox) ownsBox.hidden = !owns;
+        const hints = hubEl('st-hub-hints');
+        if (hints) {
+            hints.textContent = '';
+            for (const h of Array.isArray(pub.hints) ? pub.hints : []) {
+                const d = document.createElement('div');
+                d.className = 'st-hub-hint';
+                const sp = document.createElement('span'); sp.textContent = '⚠ ' + (h.text || ''); d.appendChild(sp);
+                if (h.page) {
+                    const b = document.createElement('button');
+                    b.className = 'ghost small'; b.textContent = 'Mở';
+                    b.addEventListener('click', () => hubOpenPage(h.page));
+                    d.appendChild(b);
+                }
+                hints.appendChild(d);
+            }
+        }
+        // Link overlay OBS của Hub (chỉ khi Hub giữ camera): trong khối 🖥 OBS & Overlay
+        const ov = hubEl('st-hub-overlays');
+        if (ov) {
+            ov.textContent = '';
+            const list = Array.isArray(pub.overlays) ? pub.overlays : [];
+            ov.hidden = !(owns && list.length);
+            if (owns) for (const o of list) {
+                if (!o || !o.url) continue;
+                const r = document.createElement('div'); r.className = 'st-hub-ov-row';
+                const k = document.createElement('span'); k.className = 'st-k'; k.textContent = 'HP Game Hub - ' + o.id;
+                const v = document.createElement('span'); v.className = 'st-v mono'; v.textContent = o.url;
+                const b = document.createElement('button'); b.className = 'ghost small'; b.textContent = 'Chép link';
+                b.addEventListener('click', () => hubCopyLink(o.url, b));
+                r.append(k, v, b); ov.appendChild(r);
+            }
+        }
+    }
+    async function loadHubCard() {
+        try {
+            const r = await (await fetch('/api/hub/state')).json();
+            if (r && r.hub) renderHubCard(r.hub);
+        } catch (e) { /* server chưa sẵn sàng - giữ thẻ cũ */ }
+    }
+    hubEl('st-hub-main')?.addEventListener('click', async (e) => {
+        const act = e.currentTarget.dataset.action;
+        if (act === 'open') hubOpenPage('home');
+        else if (act === 'launch') { const r = await hubPost('/api/hub/launch'); if (r && r.ok === false) stToast('Chưa mở được HP Game Hub - thử mở Hub bằng tay', 'error'); }
+        else if (act === 'pair') hubPost('/api/hub/pair');
+        else if (act === 'download') {
+            const url = hubState && hubState.download;
+            if (url) window.open(url, '_blank');
+            else stToast('Chưa có địa chỉ tải HP Game Hub', 'error');
+        }
+    });
+    hubEl('st-hub-enabled')?.addEventListener('change', async (e) => {
+        const el = e.currentTarget;
+        const r = await hubPost('/api/hub/enabled', { enabled: !!el.checked });
+        if (!r || !r.ok) { el.checked = !el.checked; return; }
+        stToast(el.checked ? '✓ Đã bật liên kết HP Game Hub' : 'Đã tắt liên kết HP Game Hub');
+    });
+    hubEl('st-hub-open-cam')?.addEventListener('click', () => hubOpenPage('camera'));
+    hubEl('st-hub-lq')?.addEventListener('click', () => {
+        if (settingsPopup) settingsPopup.hidden = true;
+        openGame('level-quest');
+    });
+    // Mở ⚙ Cài đặt tại thẻ HP Game Hub (Thư viện / Khởi động nhanh / lúc Hub vừa nhận camera)
+    window.hpOpenHubCard = () => {
+        openSettingsPopup();
+        setTimeout(() => { try { hubEl('st-hub')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }, 60);
+    };
+    socket.on('hub:state', (pub) => renderHubCard(pub));
+    socket.on('hub:owns', () => {
+        // Đang đứng ở màn Game Camera lúc Hub vừa nhận camera → đưa sang thẻ Hub
+        Promise.all([loadGames().catch(() => {}), loadHubCard()]).then(() => {
+            if (hubOwnsCamera() && hubActiveCamView()) { showView('view-home'); window.hpOpenHubCard(); }
+        });
+    });
+    loadHubCard();
+    // ===== /HP Game Hub =====
 
     // ===== Xóa KEY đang dùng (logout) =====
     // Gọi /api/license/deactivate → reset config.license → reload → license gate hiện lại
