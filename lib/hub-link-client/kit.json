@@ -1,0 +1,11 @@
+{
+  "version": "0.1.0",
+  "copiedAt": "2026-11-02T03:37:58.830Z",
+  "files": {
+    "index.cjs": "a9b33c955742f582bc862f3baae98a915daa658dc773e60f0d27d65487646c1c",
+    "index.mjs": "aa514ee39beb11c06769428ea6e71f96e1051d6646ac9d6d1635b49f5d77a8f8",
+    "fake-hub.cjs": "e8be3bd9ceec1f2a9f4e878f168c543aa8ae745fe92738ea96f3aa06e2766978",
+    "links.json": "24385232bd225046d2592cfbef4cd71809efe32794814e612a2b1112f7daafc2",
+    "README.md": "7aef1dc39a26471b67bb239a804a8412dfb3d55160a1c04aba6ccc4ac38e2504"
+  }
+}
