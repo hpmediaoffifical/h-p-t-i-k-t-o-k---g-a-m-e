@@ -1,9 +1,14 @@
 /* 🔴 Săn Pokemon LIVE — màn cài đặt trong app.
-   Game tự có bảng điều khiển riêng (trong overlay, ?panel=1): thử sự kiện, cấu hình quà & thưởng, link OBS, dọn ghế.
+   Bảng điều khiển của game (/overlay/pokemon?panel=1) là điều khiển TỪ XA: thử sự kiện, thời tiết, dọn ghế… gửi lệnh
+   POST /api/games/pokemon/cmd → gameCmd → overlay OBS làm (không chạy bản game thứ 2 trong cửa sổ đó).
    Màn này chỉ hiện 2 link OBS + nút mở bảng điều khiển + đèn trạng thái, không trùng việc với overlay.
    Cấu hình lưu qua /api/games/pokemon/config (chung cho mọi overlay). */
 (function () {
     const OVERLAY_PATH = '/overlay/pokemon';
+    // ?obs=1: ẩn nút ⚙, không chạy người xem giả. ?mute=1: cửa sổ xem trước trong app không kêu đôi với OBS.
+    const OBS_QUERY = '?obs=1';
+    const PREVIEW_QUERY = '?mute=1';
+    const PANEL_QUERY = '?panel=1';
     const GIFTS_PATH = '/overlay/pokemon-gifts';
     const base = () => location.origin;
     let mounted = false;
@@ -40,22 +45,24 @@
         const style = document.createElement('style');
         style.textContent = css;
         document.head.appendChild(style);
-        const overlay = base() + OVERLAY_PATH;
+        const overlay = base() + OVERLAY_PATH + OBS_QUERY;
+        const preview = base() + OVERLAY_PATH + PREVIEW_QUERY;
+        const panel = base() + OVERLAY_PATH + PANEL_QUERY;
         const gifts = base() + GIFTS_PATH;
         host.innerHTML = `
             <div class="pokemon-card">
                 <h3>📺 Link OBS (Browser Source 1080×1920)</h3>
-                <p>Game chạy ngay khi app nối phòng LIVE: tim, bình luận, chia sẻ, quà của người xem tự chảy vào game. Không cần cấu hình thêm trong app.</p>
-                <div class="pokemon-link"><label>Màn chơi chính</label><input readonly value="${overlay}" /><button data-copy="${overlay}">📋 Copy</button><button data-open="${overlay}?panel=1">🪟 Mở</button></div>
+                <p>Game chạy ngay khi app nối phòng LIVE: tim, bình luận, chia sẻ, quà của người xem tự chảy vào game. Không cần cấu hình thêm trong app. Link đã kèm <b>?obs=1</b>: không có nút ⚙ và người xem giả trên sóng.</p>
+                <div class="pokemon-link"><label>Màn chơi chính</label><input readonly value="${overlay}" /><button data-copy="${overlay}">📋 Copy</button><button data-open="${preview}" title="Xem trước (tắt tiếng)">🪟 Mở</button></div>
                 <div class="pokemon-link"><label>Bảng quà (nguồn riêng)</label><input readonly value="${gifts}" /><button data-copy="${gifts}">📋 Copy</button><button data-open="${gifts}">🪟 Mở</button></div>
                 <div class="pokemon-status" id="pokemon-status">Đang kiểm tra trạng thái…</div>
             </div>
             <div class="pokemon-card">
                 <h3>🎛 Bảng điều khiển game</h3>
-                <p>Thử sự kiện (tim · chat 111 / 1-9 · tặng quà theo danh mục quà của app), cấu hình <b>quà → bóng</b> (bậc theo xu, quà đặc biệt, VIP, triệu hồi huyền thoại), link OBS, dọn ghế, xóa thống kê. Cấu hình lưu chung cho mọi overlay.</p>
+                <p>Thử sự kiện (tim · chat 111 / 1-9 · tặng quà theo danh mục quà của app), cấu hình <b>quà → bóng</b> (bậc theo xu, quà đặc biệt, VIP, triệu hồi huyền thoại), link OBS, dọn ghế, xóa thống kê. Mọi nút <b>gửi thẳng tới overlay OBS</b> đang mở. Cấu hình lưu chung cho mọi overlay.</p>
                 <div class="pokemon-actions">
-                    <button class="primary" data-open="${overlay}?panel=1">🎛 MỞ BẢNG ĐIỀU KHIỂN</button>
-                    <button class="ghost" data-test-gift>🎁 Thử tặng quà ngẫu nhiên</button>
+                    <button class="primary" data-open="${panel}">🎛 MỞ BẢNG ĐIỀU KHIỂN</button>
+                    <button class="ghost" data-test-gift title="Chỉ gửi tới game Săn Pokemon">🎁 Thử tặng quà ngẫu nhiên</button>
                 </div>
             </div>
             <div class="pokemon-card">
@@ -65,17 +72,19 @@
                     <li>Táp tim: mỗi 10 tim = 1 cầu Lv.10, tự ném. Chia sẻ / theo dõi nhận 1 cầu Lv.20.</li>
                     <li>Mỗi quà = đúng 1 quả cầu; giá quà quyết định cấp cầu (bắt chắc Pokemon tới cấp đó): 1 xu Lv.10 · 5 xu Lv.20 · 10 xu Lv.25 · 20 xu Lv.30 · 30 xu Lv.35 · 99 xu Lv.40 · … · 5000 xu Lv.100 (Master Ball, bắt 100%).</li>
                     <li>Quà tạo sự kiện cho cả phòng: 50 xu mồi hiếm · 88-99 xu đổi thời tiết · 100 xu đổi lượt Pokemon · 199 xu đóng băng · 299 xu x2 điểm · 500 xu mưa cầu mọi ghế · 1000 xu triệu hồi Huyền Thoại.</li>
-                    <li>Cả phòng xong hết nhiệm vụ → top 20 bảng xếp hạng nhận 1 cầu quý, nhiệm vụ làm lại. Người tặng quà được vinh danh trên màn.</li>
+                    <li>Cả phòng xong hết nhiệm vụ → top 3 bảng xếp hạng nhận 1 cầu quý Lv.85, hạng 4-20 nhận cầu Lv.40, nhiệm vụ làm lại (tối đa 3 vòng/ngày). Người tặng quà được vinh danh trên màn.</li>
+                    <li>Quà triệu hồi Huyền Thoại: con đó khoá 10 giây cho người tặng, bóng của quà tự nhắm vào nó.</li>
                     <li>Gõ <b>1</b>-<b>9</b> để khóa Pokemon muốn bắt. Bảng xếp hạng tuần tính theo điểm Pokemon bắt được.</li>
                 </ol>
             </div>`;
         host.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => copy(b.dataset.copy, b)));
         host.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => window.open(b.dataset.open, '_blank', 'width=560,height=996')));
         host.querySelector('[data-test-gift]')?.addEventListener('click', () => {
-            fetch('/api/test-gift', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+            // Chỉ game Pokemon nhận (lệnh sim trên overlay), không phát quà thử cho mọi game khác như /api/test-gift.
+            fetch('/api/games/pokemon/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'sim', payload: { kind: 'gift' } }) }).catch(() => {});
         });
         document.getElementById('btn-pokemon-copy')?.addEventListener('click', (e) => copy(overlay, e.currentTarget));
-        document.getElementById('btn-pokemon-pop')?.addEventListener('click', () => window.open(overlay, '_blank', 'width=540,height=960'));
+        document.getElementById('btn-pokemon-pop')?.addEventListener('click', () => window.open(preview, '_blank', 'width=540,height=960'));
     }
 
     function refreshStatus() {
