@@ -353,14 +353,15 @@ function setClub(v, club, { auto = false } = {}) {
   else if (auto) v.autoChip = true;
   if (v.place?.kind === 'crowd') v.place = null; // reconcile sẽ dẫn sang khu khán giả nhóm mới
 }
-function applyCoFan(v, f) {
+function applyCoFan(v, f, { club = true } = {}) {
   if (!f) return;
   if (Number.isInteger(f.rank)) v.rank = f.rank;
   if (Number.isFinite(f.xu)) v.lifeXu = f.xu;
-  if (f.club && (v.clubAuto || !v.club) && f.club !== v.club) setClub(v, f.club);
+  if (club && f.club && (v.clubAuto || !v.club) && f.club !== v.club) setClub(v, f.club);
 }
 
-function ensureViewer(u, { gift = false } = {}) {
+/** @param {{gift?:boolean, coFan?:object, coFanClub?:boolean}} [o] coFan (server) áp trước khi sinh nhân vật → fan quay lại vào thẳng nhóm đã lưu */
+function ensureViewer(u, { gift = false, coFan = null, coFanClub = true } = {}) {
   const now = Date.now();
   let v = viewers.get(u.id);
   if (!v) {
@@ -375,6 +376,7 @@ function ensureViewer(u, { gift = false } = {}) {
     }
   }
   v.lastActive = now;
+  if (coFan) applyCoFan(v, coFan, { club: coFanClub });
   if (!v.club) setClub(v, autoClub(), { auto: true });
   if (!v.actor) trySpawn(v, gift);
   return v;
@@ -450,6 +452,7 @@ function syncNpcCrowd() {
   });
 }
 function removeViewer(v, now) {
+  roleCmdAt.delete(v.id);
   for (const c of CLUBS) stages[c].remove(v.id);
   for (const e of roles.drop(v.id, now)) onRoleEvent(e);
   const c = seatHouse.removeEverywhere(v.id, now);
@@ -519,6 +522,7 @@ function leavePlace(v) {
 function enterPlace(v, d) {
   const a = v.actor;
   if (d.kind === 'room') {
+    releaseCrowd(v);
     const room = world.byId.get(d.roomId);
     const host = npcs.byRoom.get(room.id).main;
     host.baseName = v.name;
@@ -662,8 +666,7 @@ function onGift(p) {
   const u = userOf(p);
   if (!u) return;
   const now = Date.now();
-  const v = ensureViewer(u, { gift: true });
-  applyCoFan(v, p.coFan);
+  const v = ensureViewer(u, { gift: true, coFan: p.coFan });
   const count = Math.max(1, Number(p.repeatCount) || 1);
   const res = resolveGift({ giftId: p.giftId, giftName: p.giftName, coins: p.coinValue ?? p.diamondCount, count }, CFG.coGiftMap);
   let plan = planGift(res, { tierFallback: CFG.coTierFallback });
@@ -687,8 +690,12 @@ function onGift(p) {
   // chỗ đứng: vai > phòng > sân khấu; vai/phòng hết chỗ → bậc 2 (spec §4.2)
   let shot = null;
   if (plan.place === 'role') {
-    const r = roles.request(club, plan.role, v.id, now);
-    if (r.status === 'granted') {
+    const owned = seatHouse.ownedBy(v.id);
+    // chủ phòng tặng quà vai: mỗi người 1 chỗ (vai > phòng) — giữ phòng thêm thay vì có 2 thân
+    const r = owned ? { status: 'room' } : roles.request(club, plan.role, v.id, now);
+    if (r.status === 'room') claimRoom(v, now);
+    else if (r.status === 'granted') {
+      clearStage(v);
       shot = { kind: 'role', target: `G${r.club}`, gifter: v.id, view: 'close', focus: v.id, durMs: L.shotSec.role * 1000 };
       setTicker(states.get(`G${r.club}`), `${ROLE_INFO[r.role].icon} ${v.name} là ${ROLE_INFO[r.role].label} của ${clubRoom(r.club).def.name}!`, 8);
     } else if (r.status === 'extended' || r.status === 'held') chipFor(v, `${ROLE_INFO[r.role]?.icon ?? '⭐'} ${r.status === 'extended' ? '+90 giây' : 'giữ vai'}`);
@@ -698,6 +705,7 @@ function onGift(p) {
     } else plan = { ...plan, ...fallbackPlan(), building: plan.building, openPk: plan.openPk };
   } else if (plan.place === 'room') {
     const ok = claimRoom(v, now);
+    if (ok === 'own') clearStage(v);
     if (ok === 'own') shot = { kind: 'room', target: seatHouse.ownedBy(v.id).id, gifter: v.id, view: 'room', focus: v.id, durMs: L.shotSec.room * 1000 };
     else if (ok === 'queue') stageAdd(v, res.xu, now);
     else if (ok === 'full') plan = { ...plan, ...fallbackPlan(), building: plan.building, openPk: plan.openPk };
@@ -713,7 +721,12 @@ function onGift(p) {
   if (plan.openPk && requestPk({ club, by: v.name }, now) === 'start' && pk && (pk.a === club || pk.b === club)) pk.addGift(club, v.id, res.xu, now);
   reconcile(v);
 }
+function clearStage(v) {
+  for (const c of CLUBS) stages[c].remove(v.id);
+}
 function stageAdd(v, xu, now) {
+  // mỗi người 1 chỗ (vai > phòng > sân): người giữ vai / chủ phòng không chiếm chỗ vô hình trên sân
+  if (roles.roleOf(v.id) || seatHouse.ownedBy(v.id)) return { status: 'held' };
   for (const c of CLUBS) if (c !== v.club) stages[c].remove(v.id);
   const r = stages[v.club].add(v.id, xu, now);
   if (r.replaced) {
@@ -726,6 +739,13 @@ function stageAdd(v, xu, now) {
 }
 /** Vé: phòng đơn chưa có chủ là người xem (ngẫu nhiên), hết thì xếp hàng ở phòng hàng ngắn nhất. */
 function claimRoom(v, now) {
+  const held = roles.roleOf(v.id);
+  if (held) {
+    // người giữ vai tặng vé: giữ vai (gia hạn nếu không ai chờ) — không lấy thêm phòng
+    const r = roles.request(held.club, held.role, v.id, now);
+    chipFor(v, `${ROLE_INFO[held.role].icon} ${r.status === 'extended' ? '+90 giây' : 'giữ vai'}`);
+    return 'extended';
+  }
   const owned = seatHouse.ownedBy(v.id);
   if (owned) {
     owned.since = Math.max(owned.since, now - seatHouse.holdMs + 60000); // mua vé nữa: giữ chắc thêm 60 giây
@@ -816,6 +836,7 @@ function startGala(club, v, now) {
   }
   for (const a of npcs.byRoom.get(room.id).members.idols) a.forceMode = 'dance2';
   gala = { club, gifter: v.id, until: now + L.galaSec * 1000, borrowed };
+  S.drawLabel(world.wardrobe.screen, `👑 GALA · ${v.name}`, '#c98a14'); // biển tòa nhà (sảnh Tây) hiện tên người tặng
   if (pk && !pk.isOver(now)) pk.pause(now);
 }
 function endGala() {
@@ -829,6 +850,7 @@ function endGala() {
   for (const a of npcs.byRoom.get(`G${gala.club}`).members.idols) a.forceMode = null;
   for (const c of CLUBS) npcs.applyRoles(`G${c}`);
   gala = null;
+  S.drawLabel(world.wardrobe.screen, '🏢 CREATOR ONLINE', '#7a5cff');
   if (pk) pk.resume(Date.now());
   if (pendingAfterGala) {
     const r = pendingAfterGala;
@@ -925,6 +947,7 @@ function tickPk(now) {
     if (pk.isOver(now)) endPk(now);
     return;
   }
+  if (gala) return; // PK mở sau Gala (spec §8)
   const pend = sched.takePending(now);
   if (pend) return beginPkFor(pend, now);
   if (sched.autoDue(now)) {
@@ -980,13 +1003,16 @@ function onChat(p) {
   if (!u) return;
   const now = Date.now();
   const raw = String(p.comment ?? '');
-  const v = ensureViewer(u);
-  applyCoFan(v, p.coFan);
-  v.lastCommentAt = now;
   const club = parseClubCode(raw);
+  // bình luận là mã club: không áp club cũ trong coFan (server sẽ gửi club mới) → tránh đổi nhóm 2 lần
+  const v = ensureViewer(u, { coFan: p.coFan, coFanClub: club == null });
+  v.lastCommentAt = now;
   if (club != null) {
     // có coFan = bộ đếm server đang chạy → server quyết định club (gửi 'creatoronline:fan'); không có (lệnh thử) → tự đổi
-    if (!('coFan' in p)) {
+    if ('coFan' in p) {
+      // server từ chối khi chưa hết thời gian chờ đổi nhóm (không gửi gì) → báo cho người xem biết
+      if (club !== v.club && !v.clubAuto && now - (v.clubAt ?? 0) < CFG.coClubSwitchSec * 1000) chipFor(v, '⏳ chờ chút mới đổi nhóm');
+    } else {
       if (v.clubAuto || now - (v.clubAt ?? 0) >= CFG.coClubSwitchSec * 1000) {
         v.clubAt = now;
         setClub(v, club);
@@ -1028,8 +1054,7 @@ function onLike(p) {
   const u = userOf(p);
   if (!u) return;
   const now = Date.now();
-  const v = ensureViewer(u);
-  applyCoFan(v, p.coFan);
+  const v = ensureViewer(u, { coFan: p.coFan });
   const n = Math.max(1, Number(p.likeCount) || 1);
   v.likes += n;
   v.likeBatch += n;
@@ -1065,8 +1090,7 @@ function onSocial(p) {
   const u = userOf(p);
   if (!u) return;
   const kind = /chia sẻ|share/i.test(String(p.label || '')) ? 'share' : 'follow';
-  const v = ensureViewer(u);
-  applyCoFan(v, p.coFan);
+  const v = ensureViewer(u, { coFan: p.coFan });
   chipFor(v, kind === 'share' ? 'đã chia sẻ 🔁' : 'đã follow ❤');
   const st = states.get(clubRoom(v.club).id);
   if (!st.thanks.some((t) => t.name === v.name)) st.thanks.push({ name: v.name, what: kind === 'share' ? 'chia sẻ' : 'follow' });
@@ -1076,6 +1100,7 @@ function onSocial(p) {
 function onRoleEvent(e) {
   const v = viewers.get(e.id);
   if (e.type === 'grant' && v) {
+    clearStage(v);
     director.push({ kind: 'role', target: `G${e.club}`, gifter: v.id, view: 'close', focus: v.id, durMs: L.shotSec.role * 1000 }, Date.now());
     setTicker(states.get(`G${e.club}`), `${ROLE_INFO[e.role].icon} ${v.name} là ${ROLE_INFO[e.role].label}!`, 8);
   }
@@ -1092,6 +1117,7 @@ function onSeatEvent(e, now) {
     ownSince.set(e.room, now);
     const v = viewers.get(e.to.id);
     if (v) {
+      clearStage(v);
       director.push({ kind: 'room', target: e.room, gifter: v.id, view: 'room', focus: v.id, durMs: L.shotSec.room * 1000 }, now);
       reconcile(v);
     }
@@ -1305,6 +1331,7 @@ function simulateRooms(dt, now) {
 // ------------------------------------------------------------------ hệ thống chạy mỗi 0,25 giây
 let slowT = 0;
 let labelT = 0;
+let boardT = 0;
 function tickSystems(now) {
   // sân khấu
   for (const c of CLUBS) {
@@ -1550,7 +1577,11 @@ function frame(now, once = false) {
     if (labelT <= 0) {
       labelT = 1;
       tickLabels(wall);
-      if (frameNo % 8 === 0) drawBoardWall();
+      boardT -= 1;
+      if (boardT <= 0) {
+        boardT = shotNow?.view === 'board' ? 1 : 8;
+        drawBoardWall();
+      }
     }
     slowT -= 0.25;
     if (slowT <= 0) {
@@ -1641,7 +1672,9 @@ function onFanUpdate(f) {
 const SESSION_KEY = 'co_session_v1';
 function saveSession(now) {
   try {
-    const list = [...viewers.values()].filter((v) => now - v.lastActive < CFG.coViewerIdleMin * 60000).slice(-400);
+    const keep = protectedIds();
+    const recent = [...viewers.values()].filter((v) => !keep.has(v.id) && now - v.lastActive < CFG.coViewerIdleMin * 60000).sort((a, b) => b.lastActive - a.lastActive);
+    const list = [...viewers.values()].filter((v) => keep.has(v.id)).concat(recent).slice(0, 400);
     const snap = {
       at: now,
       roomId: sessionRoomId,
@@ -1698,13 +1731,15 @@ function restoreSession() {
     }
     for (const s of snap.viewers ?? []) {
       viewers.set(s.id, { id: s.id, name: s.name, avatar: s.avatar, club: s.club, clubAuto: s.clubAuto, pendingClub: null, rank: s.rank ?? 0, lifeXu: 0, sessionXu: s.sessionXu ?? 0, likes: s.likes ?? 0, likeBatch: 0, likeChipAt: 0, lastActive: s.lastActive, lastGiftAt: s.lastGiftAt ?? 0, lastCommentAt: 0, goldUntil: 0, greeted: !!s.greeted, actor: null, place: null, crowdSpot: null, autoChip: false, spawnWanted: s.spawned });
+      fanAsk.add(s.id);
     }
     const keep = protectedIds();
     for (const v of viewers.values()) if (v.spawnWanted || keep.has(v.id)) trySpawn(v, keep.has(v.id));
     for (const v of viewers.values()) reconcile(v);
     for (const r of soloRooms) {
-      const o = seatHouse.get(r.id).owner;
-      if (o && !viewers.has(o.id)) seatHouse.leave(r.id, o.id, now);
+      const s = seatHouse.get(r.id);
+      s.queue = s.queue.filter((q) => viewers.has(q.id));
+      if (s.owner && !viewers.has(s.owner.id)) onSeatEvent(seatHouse.leave(r.id, s.owner.id, now), now);
     }
     topDirty = true;
     for (const r of groupRooms) npcs.applyRoles(r.id);
@@ -1718,21 +1753,25 @@ function restoreSession() {
 /** Buổi LIVE mới (đổi phòng TikTok / lệnh 🧹 Làm mới buổi): xoá PK, vai, phòng, khách trên sân, top fan buổi. */
 function newSession(roomId) {
   const now = Date.now();
+  pendingAfterGala = null; // không mở PK thừa khi kết thúc Gala dưới đây
   if (gala) endGala();
   endSpotlight();
   for (const v of [...viewers.values()]) despawn(v);
   viewers.clear();
+  roleCmdAt.clear();
+  fanAsk.clear();
   for (const r of soloRooms) {
     const s = seatHouse.get(r.id);
+    s.queue.length = 0; // trước leave(): leave() đẩy người đầu hàng lên làm chủ
     if (s.owner) seatHouse.leave(r.id, s.owner.id, now);
-    s.queue.length = 0;
     restoreSoloHost(r);
+    Object.assign(states.get(r.id), { comments: [], thanks: [], greet: [], hearts: 0, giftTotal: 0, dirty: true });
   }
   ownSince.clear();
   for (const r of groupRooms) {
     const st = states.get(r.id);
     st.holders = { mc: null, tech: null, manager: null, idol: {} };
-    Object.assign(st, { giftTotal: 0, hearts: 0, fans: {}, comments: [], lastGift: null, mvp: '', mvpUntil: 0, ticker: '', dirty: true });
+    Object.assign(st, { giftTotal: 0, hearts: 0, fans: {}, comments: [], lastGift: null, mvp: '', mvpUntil: 0, ticker: '', fxQueue: [], thanks: [], greet: [], lastComment: null, dirty: true });
     npcs.applyRoles(r.id);
     for (const c of crowdSpots(r)) c.occ = null;
   }
@@ -1767,7 +1806,10 @@ function onAppCmd(d) {
     else if (p.kind === 'follow') onSocial({ ...u, label: 'đã theo dõi' });
   } else if (d.cmd === 'pk') {
     if (pk && !pk.isOver(now)) return hud.chip('⚔️ Đang có PK');
-    requestPk(p.a ? { club: Number(p.a), vs: Number(p.b) || undefined } : {}, now, { force: true });
+    const club = (x) => (Number.isInteger(Number(x)) && Number(x) >= 1 && Number(x) <= 5 ? Number(x) : undefined);
+    const a = club(p.a);
+    const b = club(p.b);
+    requestPk(a ? { club: a, vs: b !== a ? b : undefined } : {}, now, { force: true });
   } else if (d.cmd === 'skip') director.skip(now);
   else if (d.cmd === 'cut' && p.target && world.byId.get(p.target)) director.push({ kind: 'big', target: p.target, gifter: null, view: 'stage', durMs: 15000 }, now);
   else if (d.cmd === 'reset') newSession(sessionRoomId);
@@ -1786,11 +1828,18 @@ function applyServerConfig(raw) {
     return;
   }
   if (prev.coBadWords !== CFG.coBadWords) filterText = makeTextFilter(CFG.coBadWords);
-  // đổi thông số: dựng lại từ ảnh chụp với thông số mới (giữ người đang trên sân / giữ vai / PK)
-  stages = Object.fromEntries(CLUBS.map((c) => [c, StageSlots.fromJSON(stages[c].toJSON(), stageOpts())]));
-  roles = RoleBoard.fromJSON(roles.toJSON(), roleOpts());
-  sched = PkScheduler.fromJSON(sched.toJSON(), schedOpts());
-  director = Director.fromJSON(director.toJSON(), dirOpts());
+  // đổi thông số: dựng lại từ ảnh chụp với thông số mới (giữ người đang trên sân / giữ vai / PK) — chỉ hệ thống bị đổi
+  const changed = (keys) => keys.some((k) => prev[k] !== CFG[k]);
+  if (changed(['coStageSlots', 'coStageBaseSec', 'coStagePerCoinSec', 'coStageMaxSec'])) stages = Object.fromEntries(CLUBS.map((c) => [c, StageSlots.fromJSON(stages[c].toJSON(), stageOpts())]));
+  if (changed(['coRoleSec', 'coRoleLockSec', 'coRoleMaxSec'])) roles = RoleBoard.fromJSON(roles.toJSON(), roleOpts());
+  if (changed(['coPkEveryMin'])) sched = PkScheduler.fromJSON(sched.toJSON(), schedOpts());
+  if (changed(['coCamMaxPer5Min'])) {
+    director = Director.fromJSON(director.toJSON(), dirOpts());
+    shotNow = director.current; // cùng cảnh → không cắt lại camera
+    dcam.shot = shotNow;
+  }
+  // giảm số chỗ sân khấu / vai: người ở chỗ bị bỏ phải về khu khán giả (không đứng đơ trên sân)
+  for (const v of viewers.values()) reconcile(v);
   seatHouse.holdMs = CFG.coRoomHoldSec * 1000;
   seatHouse.maxQueue = CFG.coRoomQueueMax;
   applyAudioCfg();
@@ -1813,6 +1862,22 @@ window.addEventListener('pointerdown', unlock);
 window.addEventListener('keydown', unlock);
 document.getElementById('loading')?.remove();
 requestAnimationFrame(frame);
+// Nhịp dự phòng: cửa sổ game thu nhỏ / nguồn OBS ẩn → requestAnimationFrame đứng, nhưng quà/bình luận vẫn tới →
+// hết giờ sân/vai/phòng, PK, lưu buổi LIVE vẫn phải chạy (không dồn lại xử lý một lúc khi hiện lại).
+let bgSaveT = 0;
+setInterval(() => {
+  if (performance.now() - lastRender < 700) return;
+  const wall = Date.now();
+  tickSystems(wall);
+  tickDirector(wall);
+  simulateRooms(0.25, wall);
+  bgSaveT -= 0.25;
+  if (bgSaveT <= 0) {
+    bgSaveT = 2;
+    saveSession(wall);
+    if (fanAsk.size) askFans();
+  }
+}, 250);
 
 if (typeof window.io === 'function') {
   const socket = window.io({ reconnection: true, reconnectionDelay: 600, reconnectionDelayMax: 5000 });
