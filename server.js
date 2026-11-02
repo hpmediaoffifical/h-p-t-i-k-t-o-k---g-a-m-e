@@ -305,6 +305,11 @@ const DaCau = require('./public/games/dacau/game.js');
 // 🧍 Bộ Tách Người — module server riêng (port HP LIVE NPC): route /overlay/body, /api/body/*, ẩn cam OBS, quà → body:run.
 const BodyServer = require('./lib/body-server');
 
+// ⛓️ Nhà Tù Online: bộ quà gợi ý (nhiệm vụ / chức vụ / sự kiện) nằm chung data.json với overlay + panel.
+function nhatuSuggestedGiftMap() {
+    try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'games', 'nhatu', 'data.json'), 'utf8')).suggestedGiftMap || {}; } catch (e) { return {}; }
+}
+
 const GAMES = {
     thuytinh: {
         id: 'thuytinh',
@@ -420,13 +425,14 @@ const GAMES = {
             ntSound: true, ntMusic: false,
             ntBossSec: 180,           // 👑 Đại Ca giữ ghế bấy nhiêu giây (tặng thêm = cộng giờ, người khác tặng = cướp ngôi)
             ntGuardSec: 180,          // 👮 Cán Bộ trực bấy nhiêu giây
+            ntJobSec: 180,            // 🧑‍🍳 Đầu Bếp / 🧹 Tổ Trưởng / 🩺 Y Tá làm bấy nhiêu giây
             ntBossFollowers: 6,       // số đàn em bu quanh đại ca (massa vai, lau chân, quạt, che ô…)
             ntJailIdleSec: 180,       // luật ngầm: người xem im lặng bấy nhiêu giây → nhốt biệt giam trên lầu (0 = tắt)
             ntJoinOnLike: true,       // thả tim là vào trại (và được thả khỏi biệt giam)
             ntBossCoins: 0,           // quà chưa gán ≥ bấy nhiêu xu → lên Đại Ca (0 = chỉ quà đã gán)
             ntGuardCoins: 0,          // quà chưa gán ≥ bấy nhiêu xu → làm Cán Bộ (0 = chỉ quà đã gán)
             ntShowGiftLegend: true,   // hiện bảng "🎁 Tặng quà để…" trên overlay
-            ntGiftMap: {}             // { [action]: [{ giftId, giftName, giftImage }] } — quà gán thẳng 1 nhiệm vụ
+            ntGiftMap: nhatuSuggestedGiftMap()   // { [action]: [{ giftId, giftName, giftImage, coins }] } — mặc định = bộ quà gợi ý trong data.json
         }
     },
     nhietdo: {

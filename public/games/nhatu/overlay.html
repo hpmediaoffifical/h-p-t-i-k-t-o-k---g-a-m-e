@@ -54,9 +54,10 @@
   #legend h4 { margin: 0 0 .15em; font-size: .5em; color: #d9f27a; }
   .nt-lg { display: flex; align-items: center; gap: .25em; font-size: .44em; font-weight: 700; padding: .05em 0; white-space: nowrap; overflow: hidden; }
   .nt-lg img { width: 1.5em; height: 1.5em; object-fit: contain; flex: none; }
-  .nt-lg .gn { color: #ffcf3f; max-width: 6em; overflow: hidden; text-overflow: ellipsis; }
+  .nt-lg .gi { width: 1.5em; text-align: center; }
   .roles { color: #ffcf3f; font-size: .95em; }
   .nt-tag.jailed { color: #b9bec8; background: rgba(60, 60, 66, .85); }
+  .nt-tag.job { color: #9dffb0; background: rgba(20, 70, 40, .9); }
   .nt-tag.jailed::before { content: '🔒'; }
   #board-wrap h4 { margin: 0 0 .15em; font-size: .52em; color: #ffcf3f; }
   .nt-br { display: flex; align-items: center; gap: .3em; font-size: .5em; font-weight: 800; padding: .08em 0; }
@@ -95,9 +96,10 @@
   .nt-track { height: .3em; border-radius: 1em; background: rgba(255,255,255,.15); overflow: hidden; margin: .3em 0 .25em; }
   #spot-bar { height: 100%; width: 0; background: linear-gradient(90deg, #ffcf3f, #ff7a3c); transition: width .2s linear; }
   #spot-tip { font-size: .46em; font-weight: 700; color: #d9f27a; margin-bottom: .15em; }
-  #menu { display: grid; grid-template-columns: repeat(4, 1fr); gap: .2em; }
+  #menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.2em, 1fr)); gap: .2em; }
   .nt-act { display: flex; align-items: center; gap: .3em; background: rgba(255,255,255,.1); border-radius: .35em; padding: .12em .3em; font-size: .46em; font-weight: 800; white-space: nowrap; overflow: hidden; }
-  .nt-act b { background: #fff; color: #1e2128; border-radius: .3em; padding: 0 .3em; font-size: .9em; }
+  .nt-act b { background: #fff; color: #1e2128; border-radius: .3em; min-width: 1.35em; text-align: center; padding: 0 .2em; font-size: .95em; }
+  .nt-act i { font-style: normal; font-size: .75em; color: #c9ced8; margin: 0 -.1em; }
   #queue { display: flex; align-items: center; gap: .2em; margin-top: .25em; font-size: .5em; font-weight: 800; color: #c9ced8; }
   #queue:empty { display: none; }
   #queue .nt-av { width: 1.6em; height: 1.6em; font-size: .9em; }
@@ -118,7 +120,7 @@
       </div>
     </div>
     <div id="tr">
-      <div id="board-wrap" class="panel hidden"><h4>🏆 Phạm nhân gương mẫu</h4><div id="board"></div></div>
+      <div id="board-wrap" class="panel hidden"><h4>🏆 Bảng điểm trong trại</h4><div id="board"></div></div>
       <div id="legend" class="panel hidden"></div>
     </div>
     <div id="banner"></div>

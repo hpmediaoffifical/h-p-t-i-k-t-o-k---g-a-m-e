@@ -476,6 +476,23 @@ export function buildWorld(scene) {
     box(tx - 0.8, tx + 0.8, 0.003, 0.01, tz - 3.6, tz - 0.45, red, { collide: false, cast: false });
   }
 
+  // 🧑‍🍳 quầy cơm của Đầu Bếp (dưới ban công, giữa hai cột)
+  const kitchen = { chef: { x: -3, z: -9.55, ry: 0 }, serveSpots: [{ x: -4, z: -7.85 }, { x: -3, z: -7.85 }, { x: -2, z: -7.85 }] };
+  {
+    const steel = new THREE.MeshStandardMaterial({ color: 0xb8c0c8, roughness: 0.35, metalness: 0.5 });
+    const pot = new THREE.MeshStandardMaterial({ color: 0x8a9099, roughness: 0.4, metalness: 0.6 });
+    box(-4.6, -1.4, 0, 0.92, -9.15, -8.5, steel);
+    box(-4.65, -1.35, 0.92, 0.97, -9.2, -8.45, M.tableTop, { collide: false });
+    for (const [px, r] of [[-4.0, 0.22], [-3.0, 0.26], [-2.0, 0.2]]) {
+      const geo = new THREE.CylinderGeometry(r, r * 0.92, 0.3, 16);
+      geo.translate(px, 1.12, -8.82);
+      batch.add(geo, pot, { cast: true, receive: true });
+    }
+    const sign = signMesh('🍚 BẾP ĂN', 1.6, 0.42, '#c0262d', '#ffffff');
+    sign.position.set(-3, 2.55, -9.6);
+    scene.add(sign);
+  }
+
   inst.build(scene);
   batch.build(scene, cameraBlockers);
 
@@ -537,6 +554,7 @@ export function buildWorld(scene) {
     courtSpots,
     guardPost: { x: 9.6, z: 2.2, ry: Math.PI / 2 },
     throne,
+    kitchen,
     gate: { x: 0, z: 12.9 },
     stage: { x: 15.2, z: 1 },
     /** Đóng / mở cửa song sắt của một phòng (phòng biệt giam). */

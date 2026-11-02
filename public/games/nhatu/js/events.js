@@ -17,7 +17,7 @@ const d2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
  * @param {object} ctx {scene, world, npcs, DATA, CFG, viewers, chatLine, banner, sfx, addPoints, doAction, spot}
  */
 export function createEvents(ctx) {
-  const { scene, world, npcs, DATA, CFG, chatLine, banner, sfx, addPoints, spot } = ctx;
+  const { scene, world, npcs, DATA, CFG, chatLine, banner, sfx, addPoints, spot, dirt } = ctx;
   const lines = (k, name = '') => pick(R, DATA.chat[k] ?? ['...']).replace('{name}', name);
   const fireworks = new Fireworks(scene);
   const st = {
@@ -32,6 +32,7 @@ export function createEvents(ctx) {
     karaoke: null,
     nightUntil: 0,
     jailOcc: new Map(), // id phòng → số người bị nhốt
+    jobs: new Map(), // id → {v, kind, until, t, team, busy, k} — Đầu Bếp / Tổ Trưởng / Y Tá
     later: [], // {at, fn}
   };
   const defs = Object.fromEntries((DATA.giftActions || []).map((a) => [a.id, a]));
@@ -44,6 +45,7 @@ export function createEvents(ctx) {
         !n.puppet &&
         !n.isBoss &&
         !n.isFollower &&
+        !n.jobRole &&
         n.role !== 'guard' &&
         !n.viewerRec?.jailed &&
         !(n.viewerRec && spot.current?.id === n.viewerRec.id) &&
@@ -68,6 +70,7 @@ export function createEvents(ctx) {
       old.npc.label.say('Mất ghế rồi...', 3);
     } else banner(`👑 ${v.name} lên làm Đại Ca!`);
     if (v.guardRole) endGuard(v.id);
+    if (st.jobs.has(v.id)) endJob(v.id);
     st.boss = v;
     st.bossUntil = now + CFG.bossSec * 1000;
     const n = v.npc;
@@ -165,6 +168,7 @@ export function createEvents(ctx) {
       return;
     }
     if (st.boss === v) endBoss();
+    if (st.jobs.has(v.id)) endJob(v.id);
     const n = v.npc;
     v.guardRole = true;
     v.lookBeforeRole = { ...n.char.look };
@@ -218,9 +222,186 @@ export function createEvents(ctx) {
     }
   }
 
+  // ------------------------------------------------------------ 🧑‍🍳 🧹 🩺 chức vụ trong trại
+  const JOBS = {
+    chef: { emoji: '🧑‍🍳', title: 'Đầu bếp', look: (l) => ({ ...l, outfit: 'chef', hat: 'chef', boss: false, armband: false }) },
+    leader: { emoji: '🧹', title: 'Tổ trưởng', look: (l) => ({ ...l, armband: true, boss: false }) },
+    nurse: { emoji: '🩺', title: 'Y tá', look: (l) => ({ ...l, outfit: 'nurse', hat: 'nurse', boss: false, armband: false }) },
+  };
+
+  /** Mỗi người chỉ giữ 1 chức vụ: nhận chức mới thì bỏ chức cũ. */
+  function endAnyRole(v) {
+    if (st.boss === v) endBoss();
+    if (st.guards.has(v.id)) endGuard(v.id);
+    if (st.jobs.has(v.id)) endJob(v.id);
+  }
+
+  function becomeJob(kind, v) {
+    const J = JOBS[kind];
+    const now = Date.now();
+    const cur = st.jobs.get(v.id);
+    if (cur && cur.kind === kind) {
+      cur.until += CFG.jobSec * 1000;
+      v.npc.label.say(`${J.emoji} Thêm giờ làm ${J.title.toLowerCase()}!`, 3);
+      return;
+    }
+    endAnyRole(v);
+    const n = v.npc;
+    v.lookBeforeRole = { ...n.char.look };
+    setLook(n.char, J.look(n.char.look));
+    n.label.setName(`${J.emoji} ${J.title} ${v.name}`);
+    n.label.setKind('job');
+    n.jobRole = kind;
+    npcs.release(n);
+    const job = { v, kind, until: now + CFG.jobSec * 1000, t: 1, team: [], busy: new Set(), k: 0 };
+    st.jobs.set(v.id, job);
+    banner(`${J.emoji} ${v.name} nhận chức ${J.title}!`);
+    chatLine('Hệ thống', `${v.name} được giao làm ${J.title} của trại!`, 'gift');
+    sfx('bell');
+    if (kind === 'leader') {
+      for (let i = 0; i < 5; i++) dirt.spawn();
+      const team = freeInmates({ npcOnly: true })
+        .sort((a, b) => d2(a.body.pos, n.body.pos) - d2(b.body.pos, n.body.pos))
+        .slice(0, 4);
+      for (const m of team) {
+        m.isFollower = true;
+        setProp(m.char, 'mop');
+      }
+      job.team = team;
+    }
+  }
+
+  function endJob(id) {
+    const job = st.jobs.get(id);
+    if (!job) return;
+    st.jobs.delete(id);
+    for (const m of job.team) {
+      m.isFollower = false;
+      setProp(m.char, 'none');
+      if (m.char.root.parent) npcs.release(m);
+    }
+    const v = job.v;
+    const n = v.npc;
+    n.jobRole = null;
+    if (!n.char.root.parent) return;
+    setProp(n.char, 'none');
+    setLook(n.char, { ...(v.lookBeforeRole ?? n.char.look), armband: false });
+    n.label.setName(v.star ? `⭐ ${v.name}` : v.name);
+    n.label.setKind('viewer');
+    npcs.release(n);
+  }
+
+  function updateChef(job, dt) {
+    const n = job.v.npc;
+    const K = world.kitchen;
+    const atStation = d2(n.body.pos, K.chef) < 0.7 && n.locked && !n.path.length;
+    if (!n.locked) {
+      // đi vòng qua đầu quầy gần nhất rồi mới vào sau quầy (đi chéo sẽ kẹt góc quầy)
+      const sx = n.body.pos.x < K.chef.x ? -5.05 : -0.95;
+      const via = n.body.pos.z < -9.2 ? [] : [{ x: sx, z: -8.1 }, { x: sx, z: K.chef.z }];
+      npcs.command(n, { dest: { level: 0, x: K.chef.x, z: K.chef.z }, via, mode: 'serve', stay: 600, ry: K.chef.ry, then: () => setProp(n.char, 'bowl') });
+      return;
+    }
+    if (!atStation) return;
+    job.t -= dt;
+    if (job.t > 0 || job.busy.size >= 3) return;
+    job.t = currentMeal() ? 2.2 : 4.5;
+    const c = freeInmates({ npcOnly: true }).filter((m) => d2(m.body.pos, K.chef) < 20 && m.char.propName === 'none')[0];
+    if (!c) return;
+    const sp = K.serveSpots[job.k++ % K.serveSpots.length];
+    job.busy.add(c);
+    npcs.command(c, {
+      dest: { level: 0, ...sp },
+      mode: 'idle',
+      stay: 1.3,
+      ry: Math.PI,
+      then: () => {
+        setProp(c.char, 'bowl');
+        n.label.say(lines('chef', c.name), 2.5);
+      },
+      done: () => {
+        job.busy.delete(c);
+        addPoints(job.v, 1, '🍚');
+        const seat = world.seats.filter((x) => !x.occupant).sort((a, b) => d2(a, c.body.pos) - d2(b, c.body.pos))[0];
+        if (!seat) return setProp(c.char, 'none');
+        npcs.command(c, { dest: { level: 0, ...seat.approach }, seat, mode: 'eat', stay: 8, done: () => setProp(c.char, 'none') });
+      },
+    });
+  }
+
+  function updateLeader(job, dt) {
+    const n = job.v.npc;
+    job.team = job.team.filter((m) => m.char.root.parent);
+    if (dirt.spots.length < 3) dirt.spawn();
+    for (const m of job.team) {
+      if (m.locked) continue;
+      ctx.doAction(m, 'mop', null);
+      setProp(m.char, 'mop');
+    }
+    job.t -= dt;
+    if (job.t > 0 || n.locked) return;
+    job.t = 6;
+    const m = pick(R, job.team);
+    if (!m) return;
+    npcs.command(n, {
+      dest: { level: 0, x: m.body.pos.x + 1.1, z: m.body.pos.z + 0.4 },
+      mode: 'talk',
+      stay: 3,
+      ry: Math.atan2(-1.1, -0.4),
+      then: () => {
+        n.label.say(lines('leader'), 2.5);
+        addPoints(job.v, 1, '🧹');
+      },
+    });
+  }
+
+  function updateNurse(job, dt) {
+    const n = job.v.npc;
+    job.t -= dt;
+    if (job.t > 0 || n.locked) return;
+    job.t = 7;
+    const p = pick(R, freeInmates().filter((m) => m !== n && d2(m.body.pos, n.body.pos) < 22));
+    if (!p) return;
+    const dx = n.body.pos.x - p.body.pos.x;
+    const dz = n.body.pos.z - p.body.pos.z;
+    const dl = Math.hypot(dx, dz) || 1;
+    npcs.command(p, { inPlace: true, mode: 'idle', stay: 9 }); // bệnh nhân đứng chờ y tá tới
+    npcs.command(n, {
+      dest: { level: p.body.pos.y > 2 ? 1 : 0, x: p.body.pos.x + (dx / dl) * 0.9, z: p.body.pos.z + (dz / dl) * 0.9 },
+      mode: 'serve',
+      stay: 3,
+      ry: Math.atan2(-dx, -dz),
+      then: () => {
+        setProp(n.char, 'cup');
+        n.label.say(lines('nurse'), 2.5);
+        p.faceActor = n;
+        after(1.2, () => p.char.root.parent && p.label.say(lines('patient'), 2.5));
+        addPoints(job.v, 1, '🩺');
+      },
+      done: () => setProp(n.char, 'none'),
+    });
+  }
+
+  function currentMeal() {
+    return npcs.phaseKey === 'meal';
+  }
+
+  function updateJobs(dt, now) {
+    for (const [id, job] of st.jobs) {
+      if (now > job.until || !job.v.npc.char.root.parent) {
+        if (job.v.npc.char.root.parent) chatLine('Hệ thống', `${job.v.name} hết ca ${JOBS[job.kind].title.toLowerCase()}.`, 'system');
+        endJob(id);
+        continue;
+      }
+      if (job.kind === 'chef') updateChef(job, dt);
+      else if (job.kind === 'leader') updateLeader(job, dt);
+      else updateNurse(job, dt);
+    }
+  }
+
   // ------------------------------------------------------------ 🔒 biệt giam (luật ngầm)
   function jail(v) {
-    if (v.jailed || st.boss === v || v.guardRole) return;
+    if (v.jailed || st.boss === v || v.guardRole || st.jobs.has(v.id)) return;
     const cell = pickJailCell(world.cells, st.jailOcc, 3);
     if (!cell) return;
     v.jailed = true;
@@ -531,6 +712,9 @@ export function createEvents(ctx) {
     switch (id) {
       case 'boss': becomeBoss(v); break;
       case 'guard': becomeGuard(v); break;
+      case 'chef':
+      case 'leader':
+      case 'nurse': becomeJob(id, v); break;
       case 'party': party(v); break;
       case 'karaoke': karaoke(v); break;
       case 'armwrestle': if (!armwrestle(v)) v.npc.label.say('Hết bàn trống rồi!', 2); break;
@@ -561,6 +745,7 @@ export function createEvents(ctx) {
     }
     updateBoss(dt, now);
     updateGuards(now);
+    updateJobs(dt, now);
     updatePets(dt);
     updateWalkers(dt);
     fireworks.update(dt);
@@ -577,7 +762,7 @@ export function createEvents(ctx) {
   /** Luật ngầm: người xem im lặng quá CFG.jailIdleSec → nhốt biệt giam trên lầu (gọi mỗi giây). */
   function checkJail(viewers, now) {
     for (const v of viewers.values()) {
-      if (v.jailed || st.boss === v || v.guardRole || spot.current?.id === v.id || spot.queue.some((q) => q.id === v.id)) continue;
+      if (v.jailed || st.boss === v || v.guardRole || st.jobs.has(v.id) || spot.current?.id === v.id || spot.queue.some((q) => q.id === v.id)) continue;
       if (shouldJail(v.lastActive, now, CFG.jailIdleSec)) jail(v);
     }
   }
@@ -586,6 +771,7 @@ export function createEvents(ctx) {
   function onViewerRemoved(v) {
     if (st.boss === v) endBoss();
     if (st.guards.has(v.id)) endGuard(v.id);
+    if (st.jobs.has(v.id)) endJob(v.id);
     if (v.jailed) {
       const c = v.jailCell;
       const left = Math.max(0, (st.jailOcc.get(c.id) ?? 1) - 1);
@@ -598,6 +784,7 @@ export function createEvents(ctx) {
   function reset() {
     endBoss();
     for (const id of [...st.guards.keys()]) endGuard(id);
+    for (const id of [...st.jobs.keys()]) endJob(id);
     for (const p of st.pets) {
       scene.remove(p.a.root);
       p.label.dispose();
@@ -621,10 +808,18 @@ export function createEvents(ctx) {
     onViewerRemoved,
     reset,
     isNight: () => performance.now() < st.nightUntil,
+    /** Biểu tượng chức vụ hiện tại của người xem (cho bảng điểm). */
+    roleEmoji(v) {
+      if (st.boss === v) return '👑';
+      if (st.guards.has(v.id)) return '👮';
+      const j = st.jobs.get(v.id);
+      return j ? JOBS[j.kind].emoji : v.star ? '⭐' : '';
+    },
     /** Thông tin cho HUD: đại ca + cán bộ hiện tại. */
     roles: () => ({
       boss: st.boss ? { name: st.boss.name, left: Math.max(0, (st.bossUntil - Date.now()) / 1000) } : null,
       guards: [...st.guards.values()].map((g) => ({ name: g.v.name, left: Math.max(0, (g.until - Date.now()) / 1000) })),
+      jobs: [...st.jobs.values()].map((j) => ({ name: j.v.name, emoji: JOBS[j.kind].emoji, title: JOBS[j.kind].title, left: Math.max(0, (j.until - Date.now()) / 1000) })),
       jailed: [...st.jailOcc.values()].reduce((a, b) => a + b, 0),
     }),
     burst: (x, y, z) => fireworks.burst(x, y, z),

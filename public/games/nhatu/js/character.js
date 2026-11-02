@@ -189,6 +189,10 @@ export function createCharacter(look) {
   glasses.add(bridge);
   glasses.visible = false;
   face.add(glasses);
+  const armband = mesh(G.cyl, mat(0xe5483d), 0, -0.12, 0);
+  armband.scale.set(0.17, 0.08, 0.17);
+  armband.visible = false;
+  armL.pivot.add(armband);
   const chain = mesh(G.chain, mat(0xf2c230, { rough: 0.25, emissive: 0x3a2a00 }), 0, 0.86, 0.02);
   chain.rotation.x = Math.PI / 2 - 0.25;
   chain.visible = false;
@@ -216,6 +220,7 @@ export function createCharacter(look) {
     belt,
     glasses,
     chain,
+    armband,
     prop: null,
     propName: 'none',
     phase: Math.random() * 10,
@@ -233,13 +238,17 @@ export function setLook(char, look) {
   const guard = look.outfit === 'guard';
   const stripe = look.outfit === 'stripe';
   const civil = look.outfit === 'civil'; // người thân đi thăm nuôi
+  const chef = look.outfit === 'chef'; // 🧑‍🍳 đầu bếp: áo trắng, quần caro
+  const nurse = look.outfit === 'nurse'; // 🩺 y tá: đồ trắng, quần hồng nhạt
+  const white = mat(0xf7f7f7, { rough: 0.6 });
   const shirt = civil ? mat(look.shirt ?? 0xe86fa0) : null;
-  char.torso.material = guard ? mat(GUARD_BLUE) : stripe ? stripeMaterial(4) : civil ? shirt : mat(ORANGE);
-  const legMat = guard ? mat(NAVY) : stripe ? stripeMaterial(2) : civil ? mat(0x3a4a6b) : mat(ORANGE);
-  const armMat = guard ? mat(GUARD_BLUE) : stripe ? stripeMaterial(2) : civil ? shirt : mat(ORANGE);
+  char.torso.material = guard ? mat(GUARD_BLUE) : stripe ? stripeMaterial(4) : civil ? shirt : chef || nurse ? white : mat(ORANGE);
+  const legMat = guard ? mat(NAVY) : stripe ? stripeMaterial(2) : civil ? mat(0x3a4a6b) : chef ? stripeMaterial(3) : nurse ? mat(0xf5c6d6) : mat(ORANGE);
+  const armMat = guard ? mat(GUARD_BLUE) : stripe ? stripeMaterial(2) : civil ? shirt : chef || nurse ? white : mat(ORANGE);
   char.legL.limb.material = char.legR.limb.material = legMat;
   char.armL.limb.material = char.armR.limb.material = armMat;
-  char.patch.visible = !guard && !stripe && !civil;
+  char.patch.visible = !guard && !stripe && !civil && !chef && !nurse;
+  char.armband.visible = !!look.armband;
   char.belt.visible = guard;
   char.glasses.visible = !!look.boss;
   char.chain.visible = !!look.boss;
@@ -266,6 +275,28 @@ export function setLook(char, look) {
     tilt.add(brim);
     tilt.add(mesh(G.small, mat(0xf2c230, { emissive: 0x332200 }), 0, 0.38, 0.4));
     char.hatGroup.add(tilt);
+  } else if (look.hat === 'chef') {
+    const w = mat(0xffffff, { rough: 0.8 });
+    const toque = new THREE.Group();
+    toque.position.y = 0.3;
+    const band = mesh(G.cyl, w, 0, 0.08, 0);
+    band.scale.set(0.62, 0.22, 0.62);
+    const puff = mesh(G.sphere, w, 0, 0.3, 0);
+    puff.scale.set(0.78, 0.5, 0.78);
+    toque.add(band, puff);
+    char.hatGroup.add(toque);
+  } else if (look.hat === 'nurse') {
+    const cap = new THREE.Group();
+    cap.position.set(0, 0.38, 0.05);
+    cap.rotation.x = -0.35;
+    const base = mesh(G.box, mat(0xffffff, { rough: 0.7 }), 0, 0, 0);
+    base.scale.set(0.42, 0.14, 0.24);
+    const crossV = mesh(G.box, mat(0xe5483d), 0, 0.01, 0.125);
+    crossV.scale.set(0.05, 0.11, 0.01);
+    const crossH = mesh(G.box, mat(0xe5483d), 0, 0.01, 0.125);
+    crossH.scale.set(0.11, 0.05, 0.01);
+    cap.add(base, crossV, crossH);
+    char.hatGroup.add(cap);
   } else if (look.hat === 'crown') {
     const gold = mat(0xf2c230, { rough: 0.25, emissive: 0x4a3300 });
     const crown = new THREE.Group();

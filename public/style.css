@@ -9757,3 +9757,5 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .nt-x:hover { color: #ff4d5e; }
 #nt-btn-demo.nt-on { border-color: #7dff6a; color: #7dff6a; }
 .nt-grow.nt-grow3 { grid-template-columns: 300px 1fr auto; }
+.nt-giftbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.nt-coin { color: #8fd3ff; font-size: 11px; margin-left: 2px; }

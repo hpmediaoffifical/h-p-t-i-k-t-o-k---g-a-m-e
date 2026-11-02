@@ -52,6 +52,7 @@ const CFG = {
   giftMap: {},
   bossSec: 180,
   guardSec: 180,
+  jobSec: 180,
   bossFollowers: 6,
   jailIdleSec: 180,
   joinOnLike: true,
@@ -310,7 +311,7 @@ function doAction(n, id, v = null) {
 }
 
 // vai trò Đại Ca / Cán Bộ, luật biệt giam, sự kiện quà cả trại
-const events = createEvents({ scene, world, npcs, DATA, CFG, viewers, chatLine, banner, sfx, addPoints, doAction, spot });
+const events = createEvents({ scene, world, npcs, DATA, CFG, viewers, chatLine, banner, sfx, addPoints, doAction, spot, dirt });
 const allGiftActions = ACTIONS.map((a) => ({ ...a, group: 'task' })).concat(DATA.giftActions || []);
 
 /** Kích hoạt một hành động quà (nhiệm vụ, vai trò hoặc sự kiện) cho người xem. */
@@ -597,11 +598,15 @@ function buildMenu() {
   for (const a of ACTIONS) {
     const c = document.createElement('div');
     c.className = 'nt-act';
-    const k = document.createElement('b');
-    k.textContent = `${a.keys[0]}/${a.keys[1].toUpperCase()}`;
+    const k1 = document.createElement('b');
+    k1.textContent = a.keys[0];
+    const or = document.createElement('i');
+    or.textContent = 'hoặc';
+    const k2 = document.createElement('b');
+    k2.textContent = a.keys[1].toUpperCase();
     const t = document.createElement('span');
     t.textContent = `${a.emoji} ${a.label}`;
-    c.append(k, t);
+    c.append(k1, or, k2, t);
     menuEl.append(c);
   }
 }
@@ -625,6 +630,7 @@ function updateHud() {
   const parts = [];
   if (r.boss) parts.push(`👑 Đại ca: ${r.boss.name} (${mmss(r.boss.left)})`);
   for (const g of r.guards.slice(0, 2)) parts.push(`👮 Cán bộ: ${g.name} (${mmss(g.left)})`);
+  for (const j of r.jobs.slice(0, 3)) parts.push(`${j.emoji} ${j.title}: ${j.name} (${mmss(j.left)})`);
   $('roles').textContent = parts.join(' · ');
   $('roles').classList.toggle('hidden', parts.length === 0);
 
@@ -649,7 +655,7 @@ function updateHud() {
     who.append(box);
     const total = Math.max(1, (spot.deadline() - cur.startedAt) / 1000);
     $('spot-bar').style.width = `${Math.max(0, Math.min(100, (spot.remaining(now) / total) * 100))}%`;
-    $('spot-tip').textContent = 'Bình luận số hoặc chữ để ra lệnh:';
+    $('spot-tip').textContent = 'Bình luận 1 SỐ hoặc 1 CHỮ để ra lệnh (vd: gõ 1 hoặc gõ B = ném bóng):';
   } else {
     const t = document.createElement('div');
     t.className = 'nt-spot-name';
@@ -661,7 +667,7 @@ function updateHud() {
     box.append(t, s);
     who.append(box);
     $('spot-bar').style.width = '0%';
-    $('spot-tip').textContent = 'Lệnh khi tới lượt:';
+    $('spot-tip').textContent = 'Khi tới lượt, bình luận 1 SỐ hoặc 1 CHỮ (vd: gõ 1 hoặc gõ B = ném bóng):';
   }
   const qEl = $('queue');
   qEl.replaceChildren();
@@ -683,7 +689,7 @@ function updateHud() {
     .slice(0, 5);
   const B = $('board');
   B.replaceChildren();
-  top.forEach(([, r], i) => {
+  top.forEach(([id, r], i) => {
     const row = document.createElement('div');
     row.className = 'nt-br';
     const rk = document.createElement('span');
@@ -691,7 +697,9 @@ function updateHud() {
     rk.textContent = ['🥇', '🥈', '🥉', '4', '5'][i];
     const nm = document.createElement('span');
     nm.className = 'nm';
-    nm.textContent = r.name;
+    const live = viewers.get(id);
+    const badge = live ? events.roleEmoji(live) : '';
+    nm.textContent = badge ? `${badge} ${r.name}` : r.name;
     const pt = document.createElement('span');
     pt.className = 'pt';
     pt.textContent = formatThousands(r.points);
@@ -712,7 +720,8 @@ function buildLegend() {
   const h = document.createElement('h4');
   h.textContent = '🎁 Tặng quà để…';
   host.append(h);
-  for (const { a, g } of rows.slice(0, 12)) {
+  rows.sort((p, q) => (p.g.coins || 0) - (q.g.coins || 0));
+  for (const { a, g } of rows.slice(0, 20)) {
     const row = document.createElement('div');
     row.className = 'nt-lg';
     if (g.giftImage && /^https?:/i.test(g.giftImage)) {
@@ -722,12 +731,15 @@ function buildLegend() {
       img.alt = '';
       row.append(img);
     }
-    const nm = document.createElement('span');
-    nm.className = 'gn';
-    nm.textContent = g.giftName || `#${g.giftId}`;
+    else {
+      const ph = document.createElement('span');
+      ph.className = 'gi';
+      ph.textContent = '🎁';
+      row.append(ph);
+    }
     const ac = document.createElement('span');
     ac.textContent = `→ ${a.emoji} ${a.label}`;
-    row.append(nm, ac);
+    row.append(ac);
     host.append(row);
   }
 }
@@ -831,7 +843,9 @@ function frame(nowPerf) {
   if (t.ended) endTurn(t.ended);
   if (t.started) beginTurn(t.started);
   const cur = spot.current && viewers.get(spot.current.id);
-  if (cur && CFG.idleAuto > 0 && now - cur.lastCmdAt > CFG.idleAuto * 1000 && !cur.npc.locked) {
+  // người đang giữ chức vụ (Đại Ca, Cán Bộ, Đầu Bếp…) thì cứ làm việc của chức vụ, không tự đổi nhiệm vụ
+  const hasRole = cur && (cur.npc.isBoss || cur.npc.jobRole || cur.guardRole);
+  if (cur && !hasRole && CFG.idleAuto > 0 && now - cur.lastCmdAt > CFG.idleAuto * 1000 && !cur.npc.locked) {
     cur.lastCmdAt = now;
     doAction(cur.npc, pick(Math.random, ACTIONS.filter((a) => a.id !== 'sleep')).id, cur); // tự chơi khi người xem im lặng
   }
@@ -923,6 +937,7 @@ function applyServerConfig(c) {
   CFG.giftMap = c.ntGiftMap && typeof c.ntGiftMap === 'object' ? c.ntGiftMap : {};
   CFG.bossSec = num(c.ntBossSec, CFG.bossSec, 20, 3600);
   CFG.guardSec = num(c.ntGuardSec, CFG.guardSec, 20, 3600);
+  CFG.jobSec = num(c.ntJobSec, CFG.jobSec, 20, 3600);
   CFG.bossFollowers = num(c.ntBossFollowers, CFG.bossFollowers, 0, 8);
   CFG.jailIdleSec = num(c.ntJailIdleSec, CFG.jailIdleSec, 0, 7200);
   CFG.bossCoins = num(c.ntBossCoins, CFG.bossCoins, 0, 100000);
@@ -1017,4 +1032,16 @@ if (typeof window.io === 'function') {
 
 // thử trong trình duyệt: ?demo=1 · ?mode=streamer
 if (['auto', 'streamer'].includes(Q.get('mode'))) CFG.mode = Q.get('mode');
-window.__nhatu = { CFG, spot, viewers, npcs, onGift, onComment, onLike, doAction, renderer, scene };
+window.__nhatu = {
+  CFG, spot, viewers, npcs, onGift, onComment, onLike, doAction, renderer, scene,
+  /** gỡ lỗi: tua nhanh mô phỏng `sec` giây không cần vẽ (khi tab bị ẩn requestAnimationFrame dừng) */
+  advance(sec) {
+    for (let t = 0; t < sec; t += 0.05) {
+      const r = spot.tick(Date.now());
+      if (r.ended) endTurn(r.ended);
+      if (r.started) beginTurn(r.started);
+      for (const a of simulate(0.05)) syncActor(a);
+      events.update(0.05);
+    }
+  },
+};

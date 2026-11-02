@@ -18,11 +18,11 @@
         enabled: true, ntMode: 'auto', ntStreamerName: '', ntTurnBase: 25, ntTurnPerCoin: 1, ntTurnMax: 90, ntMinTurn: 15, ntPreempt: true,
         ntQueueMax: 20, ntIdleAuto: 6, ntAnyoneAct: false, ntJoinOnComment: true, ntMaxViewers: 40, ntNpcCount: 28, ntMinuteMs: 1000,
         ntLikePerDay: 300, ntShowMenu: true, ntSound: true, ntMusic: false, ntGiftMap: {},
-        ntBossSec: 180, ntGuardSec: 180, ntBossFollowers: 6, ntJailIdleSec: 180, ntJoinOnLike: true,
+        ntBossSec: 180, ntGuardSec: 180, ntJobSec: 180, ntBossFollowers: 6, ntJailIdleSec: 180, ntJoinOnLike: true,
         ntBossCoins: 0, ntGuardCoins: 0, ntShowGiftLegend: true
     };
 
-    let socket = null, cfg = null, actions = [], giftActions = [], initialized = false, pendingSave = null, demoOn = false;
+    let socket = null, cfg = null, actions = [], giftActions = [], suggested = {}, initialized = false, pendingSave = null, demoOn = false;
     const held = new Set();
     const $ = (sel, ctx = document) => ctx.querySelector(sel);
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -41,7 +41,7 @@
         cfg = Object.assign({}, DEFAULTS, cfg || {});
         if (!cfg.ntGiftMap || typeof cfg.ntGiftMap !== 'object') cfg.ntGiftMap = {};
         if (!actions.length) {
-            try { const r = await fetch('/games/nhatu/data.json'); if (r.ok) { const d = await r.json(); actions = d.actions || []; giftActions = d.giftActions || []; } } catch (e) {}
+            try { const r = await fetch('/games/nhatu/data.json'); if (r.ok) { const d = await r.json(); actions = d.actions || []; giftActions = d.giftActions || []; suggested = d.suggestedGiftMap || {}; } } catch (e) {}
         }
     }
     function schedulePersist() { clearTimeout(pendingSave); pendingSave = setTimeout(() => persist().catch(() => toast('Lưu thất bại', 'error')), 350); }
@@ -107,6 +107,7 @@
             ${num('ntBossSec', '👑 Đại Ca giữ ghế (giây)', 20, 30)}
             ${num('ntBossFollowers', '👑 Số đàn em bu quanh đại ca', 0, 1)}
             ${num('ntGuardSec', '👮 Cán Bộ trực (giây)', 20, 30)}
+            ${num('ntJobSec', '🧑‍🍳🧹🩺 Đầu Bếp / Tổ Trưởng / Y Tá làm (giây)', 20, 30)}
             ${num('ntBossCoins', '👑 Quà chưa gán ≥ xu → Đại Ca (0 = tắt)', 0, 10)}
             ${num('ntGuardCoins', '👮 Quà chưa gán ≥ xu → Cán Bộ (0 = tắt)', 0, 10)}
             ${num('ntJailIdleSec', '🔒 Im lặng bao lâu thì nhốt biệt giam (giây, 0 = tắt)', 0, 30, 'Luật ngầm: người xem không bình luận / thả tim / tặng quà quá lâu → tự bị nhốt vào phòng trên lầu, thả tim lại là được thả')}
@@ -135,7 +136,7 @@
         const host = $('#nt-control');
         if (!host) return;
         const streamerMode = cfg.ntMode === 'streamer';
-        const codes = actions.map((a, i) => `<button class="ghost small nt-cmd" data-act="${esc(a.id)}" title="Phím ${i + 1}">${esc(a.emoji)} ${esc(a.label)}<small>${esc(a.keys[0])} / ${esc(String(a.keys[1] || '').toUpperCase())}</small></button>`).join('');
+        const codes = actions.map((a, i) => `<button class="ghost small nt-cmd" data-act="${esc(a.id)}" title="Phím ${i + 1}">${esc(a.emoji)} ${esc(a.label)}<small>gõ ${esc(a.keys[0])} hoặc ${esc(String(a.keys[1] || '').toUpperCase())}</small></button>`).join('');
         host.innerHTML = `
             <div class="nd-card-title">${streamerMode ? '🎮 Điều khiển nhân vật streamer' : '🎥 Ra lệnh thay người đang có lượt'}</div>
             <div class="nt-cmds">${codes}</div>
@@ -183,8 +184,8 @@
         if (!host) return;
         const row = a => {
             const list = cfg.ntGiftMap[a.id] || [];
-            const chips = list.map((g, i) => `<span class="nt-chip">${g.giftImage ? `<img src="${esc(g.giftImage)}">` : '🎁'}${esc(g.giftName || ('#' + g.giftId))}<button class="nt-x" data-a="${esc(a.id)}" data-i="${i}" title="Bỏ">✕</button></span>`).join('');
-            const sub = a.keys ? `Mã bình luận: ${a.keys.join(' · ')}` : (a.desc || '');
+            const chips = list.map((g, i) => `<span class="nt-chip">${g.giftImage ? `<img src="${esc(g.giftImage)}">` : '🎁'}${esc(g.giftName || ('#' + g.giftId))}${g.coins ? `<small class="nt-coin">${esc(g.coins)}💎</small>` : ''}<button class="nt-x" data-a="${esc(a.id)}" data-i="${i}" title="Bỏ">✕</button></span>`).join('');
+            const sub = a.keys ? `Bình luận: gõ ${a.keys[0]} hoặc ${String(a.keys[1] || '').toUpperCase()}` : (a.desc || '');
             return `<div class="nt-grow nt-grow3">
                 <div class="nt-actname"><span class="nt-emo">${esc(a.emoji)}</span><div><b>${esc(a.label)}</b><small>${esc(sub)}</small></div></div>
                 <div class="nt-chips">${chips}<button class="ghost small nt-add" data-a="${esc(a.id)}">＋ Chọn quà</button></div>
@@ -194,15 +195,24 @@
         const roles = giftActions.filter(a => a.group === 'role');
         const evts = giftActions.filter(a => a.group === 'event');
         host.innerHTML = `
-            <div class="nd-card-title">🎁 Gán quà → vai trò, sự kiện, nhiệm vụ</div>
+            <div class="nt-giftbar"><div class="nd-card-title">🎁 Gán quà → chức vụ, sự kiện, nhiệm vụ</div><button class="ghost small" id="nt-suggest" title="Gán lại toàn bộ theo bộ quà gợi ý (nhiệm vụ 1–10 xu, chức vụ 99 xu, sự kiện 88–299 xu)">🎁 Dùng bộ quà gợi ý</button></div>
             <div class="nt-hint">Mọi món quà đều cho người tặng 1 lượt lên sóng. Gán thêm quà để món đó kích hoạt ngay một vai trò / sự kiện bên dưới. Quà đã gán hiện trên overlay trong bảng "🎁 Tặng quà để…".</div>
-            <div class="nd-card-title" style="margin-top:6px">👑 Vai trò</div>
+            <div class="nd-card-title" style="margin-top:6px">👑 Chức vụ</div>
             ${roles.map(row).join('')}
             <div class="nd-card-title" style="margin-top:8px">🎉 Sự kiện cả trại</div>
             ${evts.map(row).join('')}
             <div class="nd-card-title" style="margin-top:8px">🎯 Nhiệm vụ cá nhân</div>
             ${actions.map(row).join('')}`;
         host.querySelectorAll('.nt-try').forEach(b => b.addEventListener('click', () => cmd('test', { kind: 'action', action: b.dataset.a })));
+        host.querySelector('#nt-suggest')?.addEventListener('click', async () => {
+            if (!Object.keys(suggested).length) { toast('Chưa có bộ quà gợi ý', 'error'); return; }
+            const has = Object.keys(cfg.ntGiftMap || {}).length > 0;
+            const ok = !has || (window.hpConfirm ? await window.hpConfirm('Thay toàn bộ quà đang gán bằng bộ quà gợi ý?') : confirm('Thay toàn bộ quà đang gán bằng bộ quà gợi ý?'));
+            if (!ok) return;
+            cfg.ntGiftMap = JSON.parse(JSON.stringify(suggested));
+            renderGifts();
+            persist().then(() => toast('Đã gán bộ quà gợi ý')).catch(() => toast('Lưu thất bại', 'error'));
+        });
         host.querySelectorAll('.nt-add').forEach(b => b.addEventListener('click', () => openPicker(b.dataset.a)));
         host.querySelectorAll('.nt-x').forEach(b => b.addEventListener('click', () => {
             const arr = cfg.ntGiftMap[b.dataset.a] || [];
@@ -259,7 +269,8 @@
                 cfg.ntGiftMap[k] = (cfg.ntGiftMap[k] || []).filter(g => String(g.giftId) !== id);
                 if (!cfg.ntGiftMap[k].length) delete cfg.ntGiftMap[k];
             });
-            (cfg.ntGiftMap[pickerAction] = cfg.ntGiftMap[pickerAction] || []).push({ giftId: id, giftName: r.dataset.gn, giftImage: r.dataset.gi });
+            const sg = (Array.isArray(window.__giftSheet) ? window.__giftSheet : []).find(g => String(g.id) === id);
+            (cfg.ntGiftMap[pickerAction] = cfg.ntGiftMap[pickerAction] || []).push({ giftId: id, giftName: r.dataset.gn, giftImage: r.dataset.gi, coins: sg ? sg.diamond || 0 : 0 });
             pickerEl.hidden = true;
             renderGifts(); persist().catch(() => toast('Lưu thất bại', 'error'));
         }));

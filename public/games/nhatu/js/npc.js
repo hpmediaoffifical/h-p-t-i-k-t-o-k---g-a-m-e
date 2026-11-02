@@ -147,7 +147,7 @@ export class NpcManager {
    * Ra lệnh cho một nhân vật: đi tới `dest`, đến nơi thì làm `mode` trong `stay` giây.
    * Trong lúc đó bộ não lịch trại không chen vào (n.locked). `then` chạy lúc tới nơi, `done` lúc làm xong.
    */
-  command(n, { dest, mode = 'idle', stay = 3, ry, seat, shoot = false, then, done, inPlace = false }) {
+  command(n, { dest, mode = 'idle', stay = 3, ry, seat, shoot = false, then, done, inPlace = false, via = null }) {
     if (n.seat) this.releaseSeat(n);
     n.locked = true;
     n.stay = 0;
@@ -159,7 +159,10 @@ export class NpcManager {
     if (inPlace) {
       n.path = []; // làm ngay tại chỗ (nhảy, cúi chào…), không đi đâu
       this.arrive(n, {});
-    } else this.route(n, dest);
+    } else {
+      this.route(n, dest);
+      if (via?.length) n.path.splice(n.path.length - 1, 0, ...via.map((p) => ({ x: p.x, z: p.z }))); // điểm đi vòng trước đích
+    }
   }
 
   /** Game điều khiển trực tiếp (đám đông bu quanh đại ca…): set n.puppetVel {x,z}, n.mode, n.puppetFace. */
