@@ -138,7 +138,8 @@ export class AudioFx {
         ch.el.preload = 'none';
         if (this.ctx) this._wireEl(ch);
       }
-      ch.el.src = src.file;
+      // data.json ghi "audio/x.mp3" (tương đối thư mục game) — overlay chạy ở /overlay/creatoronline nên đổi sang tuyệt đối
+      ch.el.src = /^(/|https?:)/.test(src.file) ? src.file : `/games/creatoronline/${src.file}`;
     });
     if (this.ctx) this._wire(ch);
     return ch;

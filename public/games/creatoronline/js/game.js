@@ -361,7 +361,7 @@ function applyCoFan(v, f, { club = true } = {}) {
 }
 
 /** @param {{gift?:boolean, coFan?:object, coFanClub?:boolean}} [o] coFan (server) áp trước khi sinh nhân vật → fan quay lại vào thẳng nhóm đã lưu */
-function ensureViewer(u, { gift = false, coFan = null, coFanClub = true } = {}) {
+function ensureViewer(u, { gift = false, coFan = null, coFanClub = true, initialClub = null } = {}) {
   const now = Date.now();
   let v = viewers.get(u.id);
   if (!v) {
@@ -377,6 +377,11 @@ function ensureViewer(u, { gift = false, coFan = null, coFanClub = true } = {}) 
   }
   v.lastActive = now;
   if (coFan) applyCoFan(v, coFan, { club: coFanClub });
+  // người mới vào bằng bình luận mã club: dùng luôn nhóm đó (không tự xếp rồi mới đổi)
+  if (!v.club && initialClub) {
+    setClub(v, initialClub);
+    v.clubAt = now;
+  }
   if (!v.club) setClub(v, autoClub(), { auto: true });
   if (!v.actor) trySpawn(v, gift);
   return v;
@@ -1005,8 +1010,13 @@ function onChat(p) {
   const raw = String(p.comment ?? '');
   const club = parseClubCode(raw);
   // bình luận là mã club: không áp club cũ trong coFan (server sẽ gửi club mới) → tránh đổi nhóm 2 lần
-  const v = ensureViewer(u, { coFan: p.coFan, coFanClub: club == null });
+  const isNew = !viewers.has(u.id);
+  const v = ensureViewer(u, { coFan: p.coFan, coFanClub: club == null, initialClub: club });
   v.lastCommentAt = now;
+  if (club != null && isNew && v.club === club) {
+    setTimeout(() => chipFor(v, `✓ → ${CLUB_NO[club]} ${clubRoom(club).def.name}`), 300);
+    return;
+  }
   if (club != null) {
     // có coFan = bộ đếm server đang chạy → server quyết định club (gửi 'creatoronline:fan'); không có (lệnh thử) → tự đổi
     if ('coFan' in p) {

@@ -175,7 +175,7 @@ function logoTexture() {
     ctx.drawImage(img, C - 200, C - 200, 400, 400);
     tex.needsUpdate = true;
   };
-  img.src = 'assets/logo-mark.svg';
+  img.src = '/games/creatoronline/assets/logo-mark.svg'; // tuyệt đối: overlay chạy ở /overlay/creatoronline
   return tex;
 }
 
