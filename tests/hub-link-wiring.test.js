@@ -107,6 +107,6 @@ test('electron-main.js: đặt HP_ACTION_HUB_APP_ID trước khi require server.
     const iEnv = ELECTRON.indexOf('HP_ACTION_HUB_APP_ID', s);
     const iReq = ELECTRON.indexOf("require('./server.js')", s);
     assert.ok(iEnv >= 0 && iReq >= 0 && iEnv < iReq, 'HP_ACTION_HUB_APP_ID phải xuất hiện trước require server.js');
-    assert.ok(ELECTRON.includes("app.isPackaged ? 'hp-action-live' : 'hp-action-live-dev'"), 'bản cài = hp-action-live, bản dev = hp-action-live-dev');
+    assert.ok(ELECTRON.includes("process.env.HP_ACTION_HUB_APP_ID = app.isPackaged ? 'hp-action-live' : (process.env.HP_ACTION_HUB_APP_ID || 'hp-action-live-dev')"), 'bản cài = hp-action-live (không thừa kế env cha), bản dev = env hoặc hp-action-live-dev');
     assert.ok((ELECTRON.match(/hubStop/g) || []).length >= 2, 'hai đường thoát phải gọi hubStop');
 });

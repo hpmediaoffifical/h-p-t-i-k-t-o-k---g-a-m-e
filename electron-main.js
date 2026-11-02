@@ -75,7 +75,8 @@ function startServer() {
         if (!fs.existsSync(writableDataDir)) fs.mkdirSync(writableDataDir, { recursive: true });
         process.env.HP_DATA_DIR = writableDataDir;
         // Liên kết HP Game Hub chỉ bật khi vỏ Electron khai báo mã app (chạy `node server.js` tay thì không nối).
-        if (!process.env.HP_ACTION_HUB_APP_ID) process.env.HP_ACTION_HUB_APP_ID = app.isPackaged ? 'hp-action-live' : 'hp-action-live-dev';
+        // Bản cài luôn là hp-action-live (không thừa kế mã dev từ môi trường cha); bản dev cho phép ghi đè.
+        process.env.HP_ACTION_HUB_APP_ID = app.isPackaged ? 'hp-action-live' : (process.env.HP_ACTION_HUB_APP_ID || 'hp-action-live-dev');
         require('./server.js');
     } catch (err) {
         dialog.showErrorBox('Lỗi khởi động server', String(err && err.stack || err));

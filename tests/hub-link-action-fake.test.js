@@ -189,6 +189,19 @@ test('(test-from-hub) quà từ Thử quà trên Hub giữ id của Hub, không 
     assert.equal(find(fake, 'live.gift')[0].data.id, 'ht1');
 });
 
+test('(test-from-hub) gift.test thiếu giftId bị bỏ qua, không thành quà "undefined"', async () => {
+    const { fake, hub, calls } = await setup();
+    assert.ok(await until(() => hub.publicState().connected));
+    fake.emit(APP_ID, 'gift.test', { id: 'bad1', giftName: 'X', quantity: 1, coins: 1, user: { uniqueId: 'u1' } });
+    fake.emit(APP_ID, 'gift.test', { id: 'bad2', giftId: '', quantity: 1, coins: 1 });
+    fake.emit(APP_ID, 'gift.test', { id: 'ok1', giftId: '5655', quantity: 1, coins: 1 });
+    assert.ok(await until(() => calls.test.length >= 1));
+    await sleep(150);
+    assert.equal(calls.test.length, 1);
+    assert.equal(calls.test[0].giftId, '5655');
+    assert.equal(calls.test[0].hubGiftId, 'ok1');
+});
+
 test('(catalog-request) Hub xin danh mục: gửi lại dù chữ ký không đổi', async () => {
     const { fake, hub } = await setup();
     assert.ok(await until(() => find(fake, 'catalog.gifts').length >= 1));
