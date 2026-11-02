@@ -108,7 +108,7 @@
         });
         $('#qv-btn-open')?.addEventListener('click', async () => {      // Edge/Chrome --app (app tắt GPU nên game 3D không chạy trong cửa sổ Electron)
             try {
-                const r = await fetch('/api/quaivat/window/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shape: cfg.qvWinShape || '9:16' }) });
+                const r = await fetch('/api/quaivat/window/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shape: cfg.qvWinShape || '9:16', quality: cfg.qvQuality || 'high' }) });
                 const j = await r.json().catch(() => ({}));
                 if (j.ok) toast('Đã mở cửa sổ game');
                 else toast(j.error || 'Không mở được cửa sổ game', 'error');
@@ -152,6 +152,8 @@
                 <b>Bắt đầu 3 bước:</b> ① <b>🎮 Mở cửa sổ game</b> ② OBS thêm nguồn <b>Window Capture</b> bắt cửa sổ đó ③ Gán quà bên dưới rồi bấm <b>🧪 Thử</b></div>
             <div class="nd-card-title">⚙ Cài đặt ván</div>
             <label class="qv-row"><span title="OBS: nguồn Window Capture bắt cửa sổ game">Khung cửa sổ game</span><select data-k="qvWinShape">${[['9:16', '📱 Dọc 9:16 (TikTok)'], ['1:1', '⬛ Vuông 1:1'], ['16:9', '🖥 Ngang 16:9']].map(([v, n]) => `<option value="${v}"${(cfg.qvWinShape || '9:16') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+            <label class="qv-row"><span title="Máy yếu / OBS giật: chọn Nhẹ rồi mở lại cửa sổ game">Chất lượng hình</span><select data-k="qvQuality">${[['high', '✨ Đẹp'], ['low', '⚡ Nhẹ (máy yếu)']].map(([v, n]) => `<option value="${v}"${(cfg.qvQuality || 'high') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+            <label class="qv-row"><span title="Đồ trang trí theo mùa: tự bật Noel (10/12–2/1) và Tết (2 tuần quanh mùng 1)">Trang trí mùa</span><select data-k="qvSeason">${[['auto', '📅 Tự theo ngày'], ['off', 'Tắt'], ['noel', '🎄 Noel'], ['tet', '🧧 Tết']].map(([v, n]) => `<option value="${v}"${(cfg.qvSeason || 'auto') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
             <label class="qv-row"><span>Nhân vật zombie</span><select data-k="qvZombieModel">${ZOMBIES.map(([v, n]) => `<option value="${v}"${cfg.qvZombieModel === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
             <label class="qv-row"><span>Tên streamer (zombie)</span><input type="text" data-k="qvStreamerName" placeholder="Streamer" value="${esc(cfg.qvStreamerName)}"></label>
             <label class="qv-row"><span>Link avatar</span><input type="text" data-k="qvStreamerAvatar" placeholder="https://… (không bắt buộc)" value="${esc(cfg.qvStreamerAvatar)}"></label>

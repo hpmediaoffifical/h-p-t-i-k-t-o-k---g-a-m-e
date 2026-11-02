@@ -388,7 +388,7 @@ const GAMES = {
             qvDoorHp: 600, qvRoundSeconds: 180, qvStartMap: 1,
             qvLockJump: false, qvLockForward: false, qvSound: true,
             qvHold: true, qvHunger: true, qvTips: true, qvGolden: true, qvMods: true, qvCues: true,   // giữ nhà · cơn đói · hướng dẫn · giờ vàng · biến thể ván · nhắc lời dẫn
-            qvWinTarget: 20, qvLikeGoal: 20,   // mục tiêu WIN mỗi chặng · thanh tim cả phòng (× ngưỡng tim) → mưa đá
+            qvWinTarget: 20, qvLikeGoal: 20, qvQuality: 'high',   // chất lượng hình cửa sổ game: high | low (máy yếu)   // mục tiêu WIN mỗi chặng · thanh tim cả phòng (× ngưỡng tim) → mưa đá
             qvZombieModel: 'basic',   // basic | chubby | arm | ribcage | classic — mô hình Quaternius CC0 trong public/games/quaivat/models/zombie
             qvTimerOn: false,         // đồng hồ mỗi ván: mặc định tắt (chơi tới khi phá được cửa)
             qvCheckpoint: true,       // cột mốc giữa đường
@@ -7571,7 +7571,8 @@ app.post('/api/quaivat/window/open', (req, res) => {
     if (!found) return res.json({ ok: false, error: 'Không tìm thấy Microsoft Edge hoặc Google Chrome trên máy' });
     const profileDir = path.join(DATA_DIR, 'quaivat-window', found.browser);
     try { fs.mkdirSync(profileDir, { recursive: true }); } catch (e) {}
-    const url = `http://127.0.0.1:${PORT}/overlay/quaivat?ratio=full&win=1&shape=${encodeURIComponent(shape)}`;
+    const low = req.body && req.body.quality === 'low';            // máy yếu: tắt hậu kỳ, bóng nhẹ, ít hạt bay
+    const url = `http://127.0.0.1:${PORT}/overlay/quaivat?ratio=full&win=1&shape=${encodeURIComponent(shape)}${low ? '&q=low' : ''}`;
     // OBS bắt cửa sổ: Chromium mặc định ngừng vẽ / hãm nhịp khi cửa sổ bị che hoặc thu nhỏ → hình trong OBS đứng
     const keepDrawing = ['--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling'];
     const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat(`--window-size=${w},${h}`, ...(pos ? [`--window-position=${pos[0]},${pos[1]}`] : []), ...keepDrawing);

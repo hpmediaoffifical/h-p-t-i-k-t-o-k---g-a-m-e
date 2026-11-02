@@ -45,6 +45,7 @@ const CONFIG = {
   likeGoal: 20,                         // ❤ thanh tim cả phòng: đủ (likePer × số này) tim trong 1 ván → MƯA ĐÁ thưởng
   mods: true,                           // từ vòng map thứ 2: mỗi ván bốc 1 luật biến thể
   autoplay: Q.get('auto') === '1',      // zombie tự chạy (AI) — luôn bật khi Demo; streamer bấm phím thì giành lại quyền lái 3 giây
+  season: Q.get('season') || 'auto',    // trang trí mùa: auto (theo ngày) | off | noel | tet
   cues: true,                           // nhắc lời dẫn cho streamer (chỉ hiện trong app, không lên hình)             // khe thông báo rảnh → xoay vòng 1 dòng "tặng gì → ra gì" cho người mới vào
   likePer: 100,           // thả tim: cộng dồn cả phòng, đủ bấy nhiêu tim → 1 cục đá
   commentKey: '111',      // bình luận có chứa từ khóa này mới ném dép ('' = mọi bình luận)
@@ -266,7 +267,7 @@ function addRim(mat) {
   const key = 'rim:' + (prev ? prev.toString() : ''); mat.customProgramCacheKey = () => key;
   mat.needsUpdate = true;
 }
-let composer = null, bloomPass = null, gradePass = null, camBaseFov = 52, fovKick = 0, hitStop = 0;
+let composer = null, bloomPass = null, gradePass = null, camBaseFov = 52, fovKick = 0, hitStop = 0, slowT = 0;
 if (HQ) {
   composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
   composer.addPass(new RenderPass(scene, camera));
@@ -293,6 +294,7 @@ sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 120 });
 const fill = new THREE.DirectionalLight(0xbcd6ff, 0.55); fill.position.set(-14, 9, -24); scene.add(fill);
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+if (!HQ) { sun.shadow.mapSize.set(1024, 1024); renderer.shadowMap.type = THREE.PCFShadowMap; }   // ?q=low: bóng nhẹ
 scene.add(sun, sun.target);
 
 // =====================================================================
@@ -632,9 +634,9 @@ function buildWorld() {
   for (let i = 0; i < 8; i++) { const h = sph(rand(18, 30), MS(pick(T.hill), 1), -120 + i * 34 + rand(-8, 8), -10, HOUSE_FRONT - 86 - rand(0, 30), world); h.scale.y *= 0.55; h.castShadow = false; }
   for (let i = 0; i < 7; i++) {
     const x = -180 + i * 60 + rand(-10, 10), r = rand(30, 45), h = rand(45, 70);
-    const mtn = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), new THREE.MeshStandardMaterial({ color: T.mtn, roughness: 1, flatShading: true }));
+    const mtn = new THREE.Mesh(craggyCone(r, h), new THREE.MeshStandardMaterial({ color: T.mtn, roughness: 1, flatShading: true }));
     mtn.position.set(x, h / 2 - 8, HOUSE_FRONT - 216); world.add(mtn);
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(r * 0.32, h * 0.32, 7), new THREE.MeshStandardMaterial({ color: 0xf4f8ff, roughness: 1, flatShading: true }));
+    const cap = new THREE.Mesh(craggyCone(r * 0.32, h * 0.32, 0.05), new THREE.MeshStandardMaterial({ color: new THREE.Color(0xf4f8ff).lerp(new THREE.Color(T.mtn), isNight() ? 0.55 : 0), roughness: 1, flatShading: true }));
     cap.position.set(x, h - 8 - h * 0.16, HOUSE_FRONT - 216); world.add(cap);
   }
   const cloudTex = ctex(256, 128, (g) => {
@@ -697,6 +699,18 @@ function buildWater() {
 }
 
 const world = new THREE.Group(); scene.add(world);
+// nón núi gồ ghề: nhiều mặt + đỉnh lệch + sườn nhấp nhô (thay nón 7 mặt trơn nhìn "rẻ")
+function craggyCone(r, h, amp = 0.12) {
+  const g = new THREE.ConeGeometry(r, h, 9, 4), pa = g.attributes.position, v = new V3();
+  const sx = rand(-0.12, 0.12) * r, sz = rand(-0.08, 0.08) * r;
+  for (let i = 0; i < pa.count; i++) {
+    v.fromBufferAttribute(pa, i); const t = (v.y + h / 2) / h;                    // 0 chân → 1 đỉnh
+    if (t > 0.01 && t < 0.99) { const n = 1 + amp * (Math.sin(v.x * 3.1 / r + v.z * 2.3 / r) + rand(-0.6, 0.6)); v.x *= n; v.z *= n; v.y += rand(-0.03, 0.03) * h; }
+    v.x += sx * t; v.z += sz * t; pa.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals(); return g;
+}
+function isNight() { const c = new THREE.Color(T.sky[0]); return T.night || (c.r + c.g + c.b) / 3 < 0.12; }
 const skyDome = new THREE.Mesh(new THREE.SphereGeometry(480, 40, 20), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
   uniforms: { cTop: { value: new THREE.Color() }, cMid: { value: new THREE.Color() }, cLow: { value: new THREE.Color() }, cHor: { value: new THREE.Color() },
@@ -710,6 +724,22 @@ const skyDome = new THREE.Mesh(new THREE.SphereGeometry(480, 40, 20), new THREE.
       gl_FragColor = vec4(col, 1.0); }`
 }));
 skyDome.renderOrder = -1; skyDome.frustumCulled = false; scene.add(skyDome);
+const stars = (() => {
+  const n = 420, pos = new Float32Array(n * 3), v = new V3();
+  for (let i = 0; i < n; i++) { do { v.set(rand(-1, 1), rand(0.06, 1), rand(-1, 0.4)); } while (v.lengthSq() > 1); v.normalize().multiplyScalar(450); pos.set([v.x, v.y, v.z], i * 3); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const p = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 2.4, sizeAttenuation: false, transparent: true, opacity: 0.85, depthWrite: false, fog: false, toneMapped: false }));
+  p.renderOrder = -1; p.frustumCulled = false; p.visible = false; skyDome.add(p); return p;
+})();
+const moon = (() => {
+  const t = ctex(256, 256, (q, w, h) => {
+    const gl = q.createRadialGradient(128, 128, 40, 128, 128, 128); gl.addColorStop(0, 'rgba(255,248,220,.55)'); gl.addColorStop(1, 'rgba(255,248,220,0)'); q.fillStyle = gl; q.fillRect(0, 0, w, h);
+    q.fillStyle = '#fff6dc'; q.beginPath(); q.arc(128, 128, 52, 0, 7); q.fill();
+    q.fillStyle = 'rgba(190,180,150,.45)'; for (const [x, y, r] of [[110, 112, 12], [146, 140, 9], [130, 152, 6], [150, 108, 7], [104, 144, 5]]) { q.beginPath(); q.arc(x, y, r, 0, 7); q.fill(); }
+  });
+  const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, fog: false, depthWrite: false, transparent: true, toneMapped: false }));
+  m.scale.setScalar(95); m.position.copy(new V3(0.42, 0.36, -1).normalize().multiplyScalar(440)); m.visible = false; m.renderOrder = -1; skyDome.add(m); return m;
+})();
 // ---- vật liệu có gió (cỏ, tán cây) ----
 function windify(mat, amp, tip) {
   mat.onBeforeCompile = sh => {
@@ -861,10 +891,126 @@ function buildMap(i) {
   hemi.color.setHex(T.hemi[0]); hemi.groundColor.setHex(T.hemi[1]); hemi.intensity = T.hemi[2];
   sun.color.setHex(T.sun); sun.intensity = T.sunI;
   buildWorld(); houseFx.lights = []; houseFx.bats = null;
-  (T.house === 'castle' ? buildCastle : buildHouse)(); buildCheckpoint(); decorateMap();
+  stars.visible = moon.visible = isNight(); moon.material.color.setHex(T.style === 'volcano' ? 0xffb08a : 0xffffff); buildAmbient();
+  (T.house === 'castle' ? buildCastle : buildHouse)(); buildCheckpoint(); decorateMap(); seasonDeco();
   document.getElementById('mapN').textContent = `🗺️ Map ${i + 1}: ${T.name}`;
 }
+// ---------------- 🎄 trang trí theo mùa (chỉ đồ trang trí, quà + luật giữ nguyên) ----------------
+const TET = ['2027-02-06', '2028-01-26', '2029-02-13', '2030-02-03'];          // mùng 1 Tết
+function seasonNow(d = new Date()) {
+  if (CONFIG.season === 'off') return null;
+  if (CONFIG.season === 'noel' || CONFIG.season === 'tet') return CONFIG.season;
+  const m = d.getMonth() + 1, day = d.getDate();
+  if ((m === 12 && day >= 10) || (m === 1 && day <= 2)) return 'noel';
+  for (const t of TET) { const k = (d - new Date(t + 'T00:00:00')) / 864e5; if (k >= -14 && k <= 10) return 'tet'; }
+  return null;
+}
+let seasonGroup = null, coupletTex = null;
+function seasonDeco() {
+  if (seasonGroup) { world.remove(seasonGroup); disposeTree(seasonGroup); seasonGroup = null; }
+  const S = seasonNow(); if (!S) return;
+  const g = new THREE.Group(); world.add(g); seasonGroup = g;
+  const F = HOUSE_FRONT;
+  if (S === 'noel') {
+    const leaf = MS(0x1f6b34, 0.8), star = MS(0xffd84a, 0.3, 0.4, { emissive: 0xffb000, emissiveIntensity: 1.6 });
+    const bulbs = [0xff3a3a, 0xffd84a, 0x4ad0ff, 0x7dff6a].map(c => MS(c, 0.3, 0, { emissive: c, emissiveIntensity: 1.8 }));
+    const tree = (x, z, h) => {
+      for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(geo(`xmas${i}`, () => new THREE.ConeGeometry(1.15 - i * 0.28, 1.3, 10)), leaf); put(c, x, h * (0.45 + i * 0.33), z, g).scale.setScalar(h / 2.6); }
+      cyl(0.14, 0.18, 0.5, MS(0x5a3a20, 0.9), x, 0.25, z, g, 8);
+      sph(0.16, star, x, h * 1.33, z, g).scale.set(1, 1, 0.4);
+      for (let i = 0; i < 14; i++) { const a = i * 2.4, y = rand(0.4, 1.15) * h, r = (1.2 - y / h * 0.75) * h / 2.6; sph(0.07, bulbs[i % 4], x + Math.cos(a) * r, y, z + Math.sin(a) * r, g); }
+    };
+    const gift = (x, z) => { const c = pick([0xd8281e, 0x2a7ad9, 0xf2b705, 0x7a3ad9]), s0 = rand(0.4, 0.65); box(s0, s0 * 0.8, s0, MS(c, 0.5), x, s0 * 0.4, z, g); box(s0 + 0.02, s0 * 0.82, 0.08, MS(0xffffff, 0.5), x, s0 * 0.4, z, g); box(0.08, s0 * 0.82, s0 + 0.02, MS(0xffffff, 0.5), x, s0 * 0.4, z, g); };
+    for (const sx of [-1, 1]) { tree(sx * 5.9, START_Z - 7, 2.6); tree(sx * 6.4, F + 3.5, 3.4); tree(sx * 6.2, (START_Z + F) / 2, 2.4); for (let i = 0; i < 3; i++) gift(sx * (5.2 + rand(-0.3, 0.4)), START_Z - 5.6 + rand(-0.6, 0.6)); }   // trong khung dọc (khung hẹp ngang)
+  } else {
+    if (!coupletTex) coupletTex = keep(ctex(64, 256, (q, w, h) => {
+      q.fillStyle = '#c4161c'; q.fillRect(0, 0, w, h); q.strokeStyle = '#ffd36a'; q.lineWidth = 3; q.strokeRect(4, 4, w - 8, h - 8);
+      q.fillStyle = '#ffd36a'; for (let k = 0; k < 4; k++) { const y = 26 + k * 58; q.fillRect(20, y, 24, 5); q.fillRect(30, y - 10, 5, 28); q.fillRect(18, y + 12, 28, 4); q.beginPath(); q.arc(32, y + 22, 5, 0, 7); q.fill(); }
+    }));
+    const red = MS(0xd8261c, 0.45, 0, { emissive: 0x5a0606, emissiveIntensity: 1 }), gold = MS(0xffc83a, 0.35, 0.5);
+    const lantern = (x, y, z) => {                                              // đèn lồng đỏ tua vàng
+      const l = sph(0.22, red, x, y, z, g); l.scale.set(1, 0.85, 1);
+      cyl(0.11, 0.11, 0.06, gold, x, y + 0.2, z, g, 10); cyl(0.11, 0.11, 0.06, gold, x, y - 0.2, z, g, 10);
+      cyl(0.012, 0.012, 0.4, MS(0x3a2a10, 0.9), x, y + 0.42, z, g, 4); cyl(0.015, 0.04, 0.22, gold, x, y - 0.33, z, g, 6);
+    };
+    const blossom = (x, z, col) => {                                            // cây mai (vàng) / đào (hồng)
+      const tr = MS(0x5a3a20, 0.9), fl = MS(col, 0.5, 0, { emissive: col, emissiveIntensity: 0.15 });
+      cyl(0.12, 0.18, 1.6, tr, x, 0.8, z, g, 7);
+      for (let b = 0; b < 4; b++) { const a = b * 1.7; const br = cyl(0.05, 0.08, 1.1, tr, x + Math.cos(a) * 0.35, 1.75, z + Math.sin(a) * 0.35, g, 5); br.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6); }
+      for (let i = 0; i < 46; i++) sph(rand(0.07, 0.12), fl, x + rand(-1.1, 1.1), rand(1.6, 2.7), z + rand(-1.1, 1.1), g);
+    };
+    for (const sx of [-1, 1]) {
+      lantern(sx * 2.5, 2.9, F + 0.45); lantern(sx * 5.6, 3.1, START_Z - 6);
+      blossom(sx * 6.6, F + 3.4, sx < 0 ? 0xffd21f : 0xff8ec4); blossom(sx * 6.3, START_Z - 9, sx < 0 ? 0xff8ec4 : 0xffd21f); blossom(sx * 6.3, (START_Z + F) / 2, sx < 0 ? 0xffd21f : 0xff8ec4);
+      const cp = new THREE.Mesh(geo('couplet', () => new THREE.PlaneGeometry(0.5, 2.0)), new THREE.MeshStandardMaterial({ map: coupletTex, roughness: 0.7 }));
+      cp.position.set(sx * 1.55, 1.9, F + 0.32); g.add(cp);                       // câu đối hai bên cửa
+    }
+  }
+  g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+}
+
+// ---------------- hạt bay theo map ----------------
+const AMB_TEX = {};
+function ambTex(kind) {
+  if (AMB_TEX[kind]) return AMB_TEX[kind];
+  const draw = {
+    leaf: (q, w, h) => { q.fillStyle = '#e8892a'; q.beginPath(); q.moveTo(32, 4); q.quadraticCurveTo(62, 28, 32, 60); q.quadraticCurveTo(2, 28, 32, 4); q.fill(); q.strokeStyle = '#8a4a14'; q.lineWidth = 3; q.beginPath(); q.moveTo(32, 8); q.lineTo(32, 58); q.stroke(); },
+    flake: (q, w, h) => { q.strokeStyle = '#ffffff'; q.lineWidth = 5; q.lineCap = 'round'; for (let k = 0; k < 3; k++) { const a = k * Math.PI / 3; q.beginPath(); q.moveTo(32 + Math.cos(a) * 26, 32 + Math.sin(a) * 26); q.lineTo(32 - Math.cos(a) * 26, 32 - Math.sin(a) * 26); q.stroke(); } },
+    glow: (q, w, h) => { const g = q.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(255,255,255,.7)'); g.addColorStop(1, 'rgba(255,255,255,0)'); q.fillStyle = g; q.fillRect(0, 0, w, h); },
+    petal: (q, w, h) => { q.fillStyle = '#ff9ec8'; q.beginPath(); q.ellipse(32, 32, 14, 26, 0.4, 0, 7); q.fill(); q.fillStyle = '#ffd1e4'; q.beginPath(); q.ellipse(29, 26, 6, 12, 0.4, 0, 7); q.fill(); },
+    seed: (q, w, h) => { q.strokeStyle = 'rgba(255,255,255,.95)'; q.lineWidth = 2; for (let k = 0; k < 10; k++) { const a = k / 10 * 6.283; q.beginPath(); q.moveTo(32, 32); q.lineTo(32 + Math.cos(a) * 24, 32 + Math.sin(a) * 24); q.stroke(); } q.fillStyle = '#d8c8a0'; q.beginPath(); q.arc(32, 32, 4, 0, 7); q.fill(); },
+  }[kind];
+  return (AMB_TEX[kind] = keep(ctex(64, 64, draw)));
+}
+// kiểu hạt theo map: tex, màu, số lượng, cỡ (m), rơi (m/s), trôi ngang, cộng sáng, lắc lư
+const AMBIENT = {
+  'Vườn Xanh': { tex: 'seed', col: 0xffffff, n: 26, size: 0.55, fall: 0.25, drift: 0.6, sway: 1 },
+  'Mùa Thu': { tex: 'leaf', col: 0xffffff, n: 46, size: 0.6, fall: 1.1, drift: 0.8, sway: 2, spin: true, tint: [0xe8892a, 0xe0a828, 0xd0602a, 0xf0c040] },
+  'Xứ Tuyết': { tex: 'flake', col: 0xffffff, n: 70, size: 0.42, fall: 1.4, drift: 0.4, sway: 1.2, spin: true },
+  'Nghĩa Trang Đêm': { tex: 'glow', col: 0x9dffc0, n: 34, size: 0.5, fall: -0.15, drift: 0.5, sway: 1.5, add: true, blink: true },
+  'Sa Mạc': { tex: 'glow', col: 0xe8c890, n: 40, size: 0.35, fall: 0.1, drift: 2.4, sway: 0.6, opacity: 0.55 },
+  'Núi Lửa': { tex: 'glow', col: 0xff7a2a, n: 60, size: 0.32, fall: -1.2, drift: 0.5, sway: 1.4, add: true, blink: true },
+  'Lâu Đài Hoang': { tex: 'glow', col: 0xc49dff, n: 30, size: 0.55, fall: -0.1, drift: 0.4, sway: 1.6, add: true, blink: true },
+  'Đầm Sen': { tex: 'petal', col: 0xffffff, n: 30, size: 0.45, fall: 0.5, drift: 0.7, sway: 1.6, spin: true },
+};
+const amb = { mesh: null, cfg: null, p: [] };
+function buildAmbient() {
+  if (amb.mesh) { scene.remove(amb.mesh); amb.mesh.dispose(); amb.mesh.material.dispose(); amb.mesh = null; }
+  const C = AMBIENT[T.name]; amb.cfg = C; if (!C) return;
+  const n = HQ ? C.n : Math.round(C.n / 2);
+  const mat = new THREE.MeshBasicMaterial({ map: ambTex(C.tex), color: C.col, transparent: true, depthWrite: false, side: THREE.DoubleSide, opacity: C.opacity ?? 0.95,
+    blending: C.add ? THREE.AdditiveBlending : THREE.NormalBlending, toneMapped: !C.add, fog: !C.add });
+  const m = new THREE.InstancedMesh(geo('ambq', () => new THREE.PlaneGeometry(1, 1)), mat, n);
+  m.frustumCulled = false; m.renderOrder = 3; m.castShadow = m.receiveShadow = false;
+  if (C.tint) { const c = new THREE.Color(); for (let i = 0; i < n; i++) m.setColorAt(i, c.setHex(pick(C.tint))); }
+  amb.p = Array.from({ length: n }, () => ({ x: rand(-14, 14), y: rand(0.3, 10), z: rand(-38, 4), ph: rand(0, 6.28), s: rand(0.7, 1.3), r: rand(0, 6.28) }));
+  scene.add(m); amb.mesh = m;
+}
+const _ambM = new THREE.Matrix4(), _ambQ = new THREE.Quaternion(), _ambE = new THREE.Euler(), _ambS = new V3(), _ambP = new V3();
+function updateAmbient(dt) {
+  const C = amb.cfg, m = amb.mesh; if (!C || !m) return;
+  const cx = camera.position.x, cz = camera.position.z;
+  for (let i = 0; i < amb.p.length; i++) {
+    const q = amb.p[i];
+    q.y -= C.fall * dt * q.s; q.x += (C.drift * 0.5 + Math.sin(time * 0.7 + q.ph) * C.sway * 0.5) * dt; q.ph += dt; q.r += dt * 2 * q.s;
+    if (q.y < 0.1) q.y += 10; if (q.y > 10.5) q.y -= 10;
+    if (q.x > 14) q.x -= 28; if (q.x < -14) q.x += 28;
+    let z = cz + q.z; z = cz - 38 + ((((z - (cz - 38)) % 42) + 42) % 42);           // luôn quanh camera (phía trước)
+    _ambP.set(cx + q.x, q.y, z);
+    if (C.spin) _ambQ.setFromEuler(_ambE.set(q.r, q.r * 0.7, q.r * 0.4)); else _ambQ.copy(camera.quaternion);
+    const blink = C.blink ? 0.55 + 0.45 * Math.sin(time * 3 + q.ph * 5) : 1;
+    _ambS.setScalar(C.size * q.s * blink);
+    m.setMatrixAt(i, _ambM.compose(_ambP, _ambQ, _ambS));
+  }
+  m.instanceMatrix.needsUpdate = true;
+}
+
 // ---------------- Ngôi nhà ----------------
+// vết nứt trên cánh cửa: hiện dần khi máu cửa < 75%, ván rơi ở mốc 50% / 25%
+function addDoorCracks(z) {
+  const m = new THREE.Mesh(geo('doorcrack', () => new THREE.PlaneGeometry(1.8, 3.0)), new THREE.MeshBasicMaterial({ map: crackTex, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  m.position.set(0.95, 1.56, z); door.pivot.add(m); door.crack = m; door.chunk = 2;
+}
 const door = { hp: CONFIG.doorHp, maxHp: CONFIG.doorHp, open: 0, openUntil: 0, shake: 0, broken: false, tier: 0, over: 0 };
 const DOOR_TINT = [[1, 1, 1], [0.62, 0.68, 0.8], [0.48, 0.52, 0.6]], DOOR_NAME = ['🚪 CỬA GỖ', '🛡️ CỬA SẮT', '🛡️ CỬA THÉP'];
 function hipRoof(w, d, h, over) {
@@ -971,7 +1117,7 @@ function buildCastle() {
   });
   door.mat = new THREE.MeshStandardMaterial({ map: gateTex, roughness: 0.75, envMapIntensity: 0.4 });
   door.pivot = new THREE.Group(); door.pivot.position.set(-0.95, 0.7, F + 0.15); H.add(door.pivot);
-  door.panel = box(1.9, 3.12, 0.14, door.mat, 0.95, 1.56, 0, door.pivot);
+  door.panel = box(1.9, 3.12, 0.14, door.mat, 0.95, 1.56, 0, door.pivot); addDoorCracks(0.08);
   const ring = new THREE.Mesh(geo('cring', () => new THREE.TorusGeometry(0.16, 0.035, 6, 14)), iron); put(ring, 1.55, 1.5, 0.12, door.pivot);
   door.baseX = -0.95;
   // đuốc hai bên cổng (lửa lập loè)
@@ -1147,6 +1293,7 @@ function buildHouse() {
     put(new THREE.Mesh(gq, plasterMat), (x0 + x1) / 2, (y0 + y1) / 2, F, H);
   };
   facade(-8, -DX, 0.7, 5.9); facade(DX, 8, 0.7, 5.9); facade(-DX, DX, DY, 5.9);
+  for (let k = 0; k < 2; k++) { const L = new THREE.PointLight(0x000000, 0, 0.01); L.position.set(0, -40, F); H.add(L); }   // giữ số đèn = lâu đài (đuốc 2 bên)
   buildFoyer(H, F);
   for (const x of [-8.02, 8.02]) for (const z of [-5.02, 5.02]) for (let i = 0; i < 7; i++) {   // đá góc (quoin) so le
     const big = i % 2 === 0; box(big ? 0.62 : 0.42, 0.66, big ? 0.62 : 0.42, whiteD, x, 1.05 + i * 0.72, z, H);
@@ -1244,7 +1391,7 @@ function buildHouse() {
   });
   door.mat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.6, envMapIntensity: 0.5 });
   door.pivot = new THREE.Group(); door.pivot.position.set(-0.95, 0.7, F + 0.15); H.add(door.pivot);
-  door.panel = box(1.9, 3.12, 0.12, door.mat, 0.95, 1.56, 0, door.pivot);
+  door.panel = box(1.9, 3.12, 0.12, door.mat, 0.95, 1.56, 0, door.pivot); addDoorCracks(0.07);
   sph(0.08, MS(0xffd36a, 0.25, 0.9), 1.65, 1.45, 0.1, door.pivot); box(0.05, 0.3, 0.04, MS(0xffd36a, 0.25, 0.9), 1.65, 1.6, 0.08, door.pivot);
   door.baseX = -0.95;
   // mái che nhỏ trên cửa (2 mái dốc) + công-xon
@@ -1313,7 +1460,7 @@ function puff(pos, o = {}) {
 }
 function debris(pos, color, n = 8, size = 0.16, speed = 6) {
   for (let i = 0; i < n; i++) {
-    const m = box(size * rand(0.6, 1.6), size * rand(0.4, 1), size * rand(0.6, 2), MS(color, 0.85), pos.x, pos.y, pos.z, scene);
+    const m = box(size * rand(0.6, 1.6), size * rand(0.4, 1), size * rand(0.6, 2), MS(color, 0.85), pos.x, pos.y, pos.z, scene); m.castShadow = false;
     debrisList.push({ m, v: new V3(rand(-1, 1) * speed * 0.6, rand(0.5, 1.2) * speed, rand(-1, 1) * speed * 0.6), w: new V3(rand(-10, 10), rand(-10, 10), rand(-10, 10)), t: 0, life: rand(1.2, 1.8), s0: m.scale.clone() });
   }
 }
@@ -1793,7 +1940,7 @@ function hitMonster(dmg, knock, owner, opts = {}) {
   if (knock) mon.kv = Math.min(mon.kv + knock * 4, 36);
   if (opts.stun) mon.stun = Math.max(mon.stun, opts.stun);
   if (opts.text) popText(hp.clone().setY(hp.y + 0.6), opts.text + (owner && owner.name && owner.id ? ' · ' + owner.name : ''), 'big', 1.1);   // ghi công: bẫy của AI
-  if (dmg >= 60 || (knock || 0) >= 4) { hitStop = Math.max(hitStop, 0.08); fovKick = Math.min(7, fovKick + 4); }   // khựng hình + giật ống kính
+  if (dmg >= 60 || (knock || 0) >= 4) { hitStop = Math.max(hitStop, dmg >= 100 ? 0.15 : 0.08); fovKick = Math.min(7, fovKick + 4); }   // khựng hình + giật ống kính
   camShake = Math.max(camShake, Math.min(0.5, 0.08 + dmg / 300));
   return true;
 }
@@ -1935,7 +2082,7 @@ function updateMonster(dt) {
   mon.mats.forEach((m, i) => m.color.copy(mon.baseColors[i]).lerp(CHAR_COL, ck * 0.93));
   if (ck > 0 && Math.random() < dt * 12) puff(new V3(mon.x + rand(-0.35, 0.35), mon.y + mon.gy + MON_H * rand(0.5, 1), mon.z), { color: 0x2b2b2b, n: 1, size: 0.7, up: 2.5, speed: 1, life: 1.3, opacity: 0.55 });
   mon.shield.visible = mon.armor > 0 || time < mon.armorUntil;
-  if (mon.shield.visible) mon.shield.material.opacity = 0.18 + Math.sin(time * 6) * 0.06;
+  if (mon.shield.visible) { mon.shield.material.opacity = 0.2 + Math.sin(time * 6) * 0.07; if (mon.armor > 0) { mon.shield.material.color.setHex(0xffd84a); mon.shield.material.emissive.setHex(0xffa000); } else { mon.shield.material.color.setHex(0x5fb8ff); mon.shield.material.emissive.setHex(0x2a7fff); } }
   mon.stars.visible = mon.stun > 0 && state.phase === 'play';
   if (mon.stars.visible) mon.stars.children.forEach((s, i) => { const a = time * 5 + i * 2.1; s.position.set(Math.cos(a) * 0.6, Math.sin(time * 8 + i) * 0.08, Math.sin(a) * 0.6); });
   if (state.phase !== 'play') { applyMon(); return; }
@@ -2193,18 +2340,26 @@ function mkTire() {
   const hub = cyl(0.26, 0.26, 0.26, MS(0xc9ccd2, 0.3, 0.8), 0, 0, 0, inner, 16); hub.rotation.x = Math.PI / 2;
   g.userData.roll = roll; return g;
 }
+let hazardTex = null;
 function mkTrap() {
-  const g = new THREE.Group();
-  cyl(0.62, 0.62, 0.05, MS(0x555a60, 0.5, 0.7), 0, 0.03, 0, g, 24);
-  cyl(0.18, 0.18, 0.1, MS(0xb33a2a, 0.5, 0.4), 0, 0.08, 0, g, 12);
+  if (!hazardTex) hazardTex = keep(ctex(256, 32, (q, w, h) => { q.fillStyle = '#ffd21f'; q.fillRect(0, 0, w, h); q.fillStyle = '#1a1a1a'; for (let x = -h; x < w; x += 32) { q.beginPath(); q.moveTo(x, h); q.lineTo(x + 16, h); q.lineTo(x + 16 + h, 0); q.lineTo(x + h, 0); q.fill(); } }, [3, 1]));
+  const g = new THREE.Group(), steel = MS(0xb8bec6, 0.28, 0.95), dark = MS(0x3a3f46, 0.5, 0.8);
+  cyl(0.78, 0.82, 0.08, MS(0xc8281e, 0.55, 0.3), 0, 0.04, 0, g, 28);                                   // đế đỏ
+  const ring = new THREE.Mesh(geo('trapring', () => new THREE.CylinderGeometry(0.83, 0.83, 0.1, 40, 1, true)), new THREE.MeshStandardMaterial({ map: hazardTex, roughness: 0.6, side: THREE.DoubleSide }));
+  put(ring, 0, 0.05, 0, g);                                                                              // viền sọc cảnh báo
+  cyl(0.22, 0.24, 0.12, MS(0xffd21f, 0.45, 0.5), 0, 0.12, 0, g, 16);                                     // lẫy giữa
+  sph(0.07, MS(0xff3030, 0.3, 0, { emissive: 0xff1010, emissiveIntensity: 1.5 }), 0, 0.2, 0, g);
   const jaws = [];
-  for (const s of [1, -1]) {
-    const piv = new THREE.Group(); piv.rotation.y = s > 0 ? 0 : Math.PI; g.add(piv);
-    const j = new THREE.Group(); piv.add(j); j.position.y = 0.06;
-    const arc = new THREE.Mesh(geo('jaw', () => new THREE.TorusGeometry(0.55, 0.04, 6, 18, Math.PI)), MS(0x8a9097, 0.35, 0.9)); arc.rotation.x = -Math.PI / 2; put(arc, 0, 0, 0, j);
-    for (let i = 1; i < 8; i++) { const a = i / 8 * Math.PI; const tooth = new THREE.Mesh(geo('tooth', () => new THREE.ConeGeometry(0.05, 0.16, 5)), MS(0xdfe3e8, 0.3, 0.9)); put(tooth, Math.cos(a) * 0.55, 0.08, -Math.sin(a) * 0.55, j); }
+  for (const sgn of [1, -1]) {
+    const piv = new THREE.Group(); piv.rotation.y = sgn > 0 ? 0 : Math.PI; g.add(piv);
+    const j = new THREE.Group(); piv.add(j); j.position.y = 0.08;
+    const arc = new THREE.Mesh(geo('jaw2', () => new THREE.TorusGeometry(0.62, 0.06, 8, 22, Math.PI)), steel); arc.rotation.x = -Math.PI / 2; put(arc, 0, 0, 0, j);
+    for (let i = 1; i < 9; i++) { const a = i / 9 * Math.PI; const tooth = new THREE.Mesh(geo('tooth2', () => new THREE.ConeGeometry(0.075, 0.24, 5)), MS(0xeef2f6, 0.25, 0.95)); put(tooth, Math.cos(a) * 0.62, 0.12, Math.sin(a) * 0.62, j); }
     jaws.push(j);
   }
+  for (let i = 0; i < 4; i++) { const l = new THREE.Mesh(geo('chainlink', () => new THREE.TorusGeometry(0.07, 0.022, 5, 10)), dark); l.position.set(0.86 + i * 0.12, 0.05, 0.1 + i * 0.05); l.rotation.set(Math.PI / 2, 0, i % 2 ? Math.PI / 2 : 0); g.add(l); }
+  cyl(0.04, 0.02, 0.4, dark, 1.36, 0.12, 0.3, g, 6);                                                    // cọc ghim
+  g.scale.setScalar(1.15);
   g.userData.jaws = jaws; return g;
 }
 function mkSlimeBlob() { return sph(0.55, MS(0xe455d8, 0.15, 0, { emissive: 0x4a0f44 }), 0, 0, 0, new THREE.Group()).parent; }   // hồng tím: nổi trên cỏ xanh / đường tối
@@ -2221,12 +2376,19 @@ function mkFence() {
   return g;
 }
 function mkBomb() {
-  const g = new THREE.Group();
-  sph(0.5, MS(0x1d1d22, 0.25, 0.6), 0, 0.5, 0, g);
-  cyl(0.15, 0.15, 0.2, MS(0x777777, 0.3, 0.8), 0, 1.02, 0, g, 10);
-  const f = cyl(0.03, 0.03, 0.35, MS(0xc9a46a, 0.9), 0.08, 1.25, 0, g, 5); f.rotation.z = -0.4;
+  const g = new THREE.Group(), red = MS(0xd8261c, 0.45, 0.1, { emissive: 0x3a0604 }), gold = MS(0xffc83a, 0.35, 0.6), paper = MS(0xf6e6c0, 0.8);
+  const pos = [[0, 0], [0.24, 0], [-0.24, 0], [0.12, 0.21], [-0.12, 0.21], [0.12, -0.21], [-0.12, -0.21]];
+  for (const [x, z] of pos) {
+    const h = 0.95 + (x === 0 && z === 0 ? 0.15 : 0);
+    cyl(0.115, 0.115, h, red, x, h / 2, z, g, 12);
+    cyl(0.118, 0.118, 0.07, gold, x, h * 0.3, z, g, 12); cyl(0.118, 0.118, 0.07, gold, x, h * 0.7, z, g, 12);
+    cyl(0.1, 0.1, 0.02, paper, x, h + 0.005, z, g, 10);
+  }
+  cyl(0.39, 0.39, 0.12, gold, 0, 0.5, 0, g, 20);                                                          // đai buộc
+  box(0.3, 0.16, 0.02, MS(0xffe08a, 0.6, 0.3), 0, 0.5, 0.4, g);                                          // tem chữ Phúc vàng
+  const f = cyl(0.025, 0.025, 0.45, MS(0x5a3a1a, 0.9), 0.05, 1.3, 0, g, 5); f.rotation.z = -0.35;
   const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, color: 0xffd060, blending: THREE.AdditiveBlending, depthWrite: false }));
-  spark.position.set(0.16, 1.42, 0); spark.scale.setScalar(0.5); g.add(spark); g.userData.spark = spark;
+  spark.position.set(0.13, 1.52, 0); spark.scale.setScalar(0.5); g.add(spark); g.userData.spark = spark;
   return g;
 }
 function mkBalloons() {
@@ -2357,11 +2519,26 @@ function restPotato(it) {
   if (resting.length > 25) breakItem(resting[0]);
 }
 // ----- thùng thuốc nổ -----
+let warnTex = null;
 function mkXBarrel() {
-  const g = mkBarrel();
-  g.userData.body = g.children[0].material;
-  cyl(0.6, 0.6, 0.22, MS(0xd8281e, 0.6), 0, 0.62, 0, g, 22);
-  for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; box(0.16, 0.24, 0.03, MS(0xffd21f, 0.6), Math.sin(a) * 0.61, 0.62, Math.cos(a) * 0.61, g).rotation.y = a; }
+  if (!warnTex) warnTex = keep(ctex(128, 128, (q, w, h) => {
+    q.fillStyle = '#ffd21f'; q.beginPath(); q.moveTo(64, 10); q.lineTo(120, 112); q.lineTo(8, 112); q.closePath(); q.fill();
+    q.lineWidth = 8; q.strokeStyle = '#1a1a1a'; q.stroke(); q.fillStyle = '#1a1a1a'; q.fillRect(58, 40, 12, 42); q.fillRect(58, 90, 12, 12);
+  }));
+  const g = new THREE.Group();
+  const pts = []; for (let i = 0; i <= 12; i++) { const y = 1.25 * i / 12; pts.push(new THREE.Vector2(0.52 + 0.06 * Math.sin(Math.PI * y / 1.25), y)); }
+  const body = new THREE.MeshStandardMaterial({ color: 0xd42a1e, roughness: 0.38, metalness: 0.55 });
+  put(new THREE.Mesh(geo('xdrum', () => new THREE.LatheGeometry(pts, 26)), body), 0, 0, 0, g);
+  for (const y of [0.18, 0.62, 1.06]) { const t = new THREE.Mesh(geo('xband', () => new THREE.TorusGeometry(0.585, 0.04, 6, 28)), MS(0x2a2a2a, 0.4, 0.8)); t.rotation.x = Math.PI / 2; put(t, 0, y, 0, g); }
+  const stripe = new THREE.Mesh(geo('xstripe', () => new THREE.CylinderGeometry(0.583, 0.583, 0.2, 32, 1, true)), new THREE.MeshStandardMaterial({ map: hazardTex || (hazardTex = keep(ctex(256, 32, (q, w, h) => { q.fillStyle = '#ffd21f'; q.fillRect(0, 0, w, h); q.fillStyle = '#1a1a1a'; for (let x = -h; x < w; x += 32) { q.beginPath(); q.moveTo(x, h); q.lineTo(x + 16, h); q.lineTo(x + 16 + h, 0); q.lineTo(x + h, 0); q.fill(); } }, [3, 1]))), roughness: 0.6 }));
+  put(stripe, 0, 0.84, 0, g);
+  for (const a of [0, Math.PI]) { const sgn = new THREE.Mesh(geo('xsign', () => new THREE.PlaneGeometry(0.42, 0.42)), new THREE.MeshStandardMaterial({ map: warnTex, transparent: true, alphaTest: 0.3, roughness: 0.6 })); sgn.position.set(Math.sin(a) * 0.6, 0.42, Math.cos(a) * 0.6); sgn.rotation.y = a; g.add(sgn); }
+  cyl(0.5, 0.5, 0.04, MS(0x8a1a12, 0.5, 0.5), 0, 1.25, 0, g, 24);
+  cyl(0.08, 0.08, 0.1, MS(0x666666, 0.4, 0.8), 0.22, 1.3, 0.1, g, 8);
+  const f = cyl(0.025, 0.025, 0.3, MS(0xc9a46a, 0.9), 0.22, 1.47, 0.1, g, 5); f.rotation.z = -0.35;
+  const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, color: 0xffb030, blending: THREE.AdditiveBlending, depthWrite: false }));
+  spark.position.set(0.28, 1.62, 0.1); spark.scale.setScalar(0.42); g.add(spark);
+  g.userData.body = body; g.userData.spark = spark;
   return g;
 }
 function barrelBoom(it) {
@@ -2383,10 +2560,13 @@ const CHAR_COL = new THREE.Color(0x141414);
 const MINE_OWNER = { id: '', name: 'Mìn' };
 function mkMine() {
   const g = new THREE.Group();
-  const mound = sph(0.62, MS(0x7a5530, 1), 0, 0, 0, g); mound.scale.set(1, 0.3, 1); g.userData.dirt = [mound];
+  const mound = sph(0.66, MS(0x7a5530, 1), 0, 0, 0, g); mound.scale.set(1, 0.3, 1); g.userData.dirt = [mound];
   for (let i = 0; i < 6; i++) g.userData.dirt.push(sph(0.1, MS(0x5e3f22, 1), rand(-0.55, 0.55), 0.04, rand(-0.55, 0.55), g));
-  cyl(0.24, 0.28, 0.12, MS(0x3c4248, 0.4, 0.8), 0, 0.19, 0, g, 14);
-  const led = sph(0.07, new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff0000, emissiveIntensity: 2 }), 0, 0.28, 0, g);
+  const coil = MS(0xc9ced6, 0.25, 0.95);
+  for (let i = 0; i < 4; i++) { const t = new THREE.Mesh(geo('coil', () => new THREE.TorusGeometry(0.2, 0.035, 6, 18)), coil); t.rotation.x = Math.PI / 2; put(t, 0, 0.12 + i * 0.07, 0, g); }
+  cyl(0.3, 0.3, 0.07, MS(0xd8261c, 0.45, 0.3), 0, 0.42, 0, g, 18);                                       // mặt bật đỏ
+  cyl(0.31, 0.31, 0.03, MS(0xffd21f, 0.5, 0.4), 0, 0.38, 0, g, 18);
+  const led = sph(0.08, new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff0000, emissiveIntensity: 2 }), 0, 0.48, 0, g);
   g.userData.led = led; return g;
 }
 // ----- chướng ngại riêng của từng map (đá / bí ngô / người tuyết), quái phải đấm vỡ -----
@@ -2793,10 +2973,13 @@ function mkBanana() {
   sph(1, y, 0, 0.09, 0, g).scale.set(0.12, 0.08, 0.12); cyl(0.03, 0.04, 0.12, br, 0, 0.17, 0, g, 6);
   g.scale.setScalar(1.6); return g;
 }
+let netTex = null;
 function mkNet() {
+  if (!netTex) netTex = keep(ctex(128, 128, (q, w, h) => { q.clearRect(0, 0, w, h); q.strokeStyle = '#f0e2b0'; q.lineWidth = 5; for (let i = -w; i < w * 2; i += 22) { q.beginPath(); q.moveTo(i, 0); q.lineTo(i + h, h); q.stroke(); q.beginPath(); q.moveTo(i, h); q.lineTo(i + h, 0); q.stroke(); } q.fillStyle = '#c9b070'; for (let x = 0; x < w; x += 11) for (let y = 0; y < h; y += 11) if ((x + y) % 22 === 0) q.fillRect(x - 2, y - 2, 5, 5); }, [2, 2]));
   const g = new THREE.Group();
-  g.add(new THREE.Mesh(geo('netball', () => new THREE.IcosahedronGeometry(0.4, 1)), new THREE.MeshBasicMaterial({ color: 0xf0e6c0, wireframe: true })));
-  for (const sx of [-1, 1]) sph(0.07, MS(0x777777, 0.4, 0.6), sx * 0.38, 0, 0, g);
+  g.add(new THREE.Mesh(geo('netball2', () => new THREE.SphereGeometry(0.42, 16, 12)), new THREE.MeshStandardMaterial({ map: netTex, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.9 })));
+  for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; sph(0.08, MS(0x55595e, 0.35, 0.8), Math.cos(a) * 0.44, -0.05, Math.sin(a) * 0.44, g); }
+  const tail = cyl(0.025, 0.025, 0.5, MS(0xc9a46a, 0.9), 0, 0.55, 0, g, 5); tail.rotation.z = 0.4;
   return g;
 }
 function attachNet(owner, dur) {
@@ -3304,7 +3487,7 @@ function updateItems(dt) {
         if (Math.random() < dt * 25) puff(new V3(p.x + rand(-1.5, 1.5), 0.3, p.z - 1.5), { color: 0xc9b48a, n: 1, size: 1.4, life: 0.8 });
         camShake = Math.max(camShake, 0.15);
         for (const o of items) if (o !== it && !o.dead && o.state === 'set' && Math.abs(o.g.position.z - p.z) < 2.4 && (o.kind === 'fence' || Math.abs(o.g.position.x - p.x) < 2.6)) breakItem(o);
-        if (!it.hit && !mon.lift && mon.z - p.z < 2.8 && mon.z - p.z > -1) { it.hit = true; hitMonster(300, 0, it.owner, { text: 'BẸP DÍ!', unblockable: true }); if (mon.shieldHp > 0) breakShield(); mon.carry = it; mon.kv = 0; }
+        if (!it.hit && !mon.lift && mon.z - p.z < 2.8 && mon.z - p.z > -1) { it.hit = true; hitMonster(300, 0, it.owner, { text: 'BẸP DÍ!', unblockable: true }); if (mon.shieldHp > 0) breakShield(); mon.carry = it; mon.kv = 0; slowT = 0.35; }
         if (mon.carry === it) { mon.z = p.z + 2.9; mon.y = 0.4; if (mon.z >= restZ() - 0.05) { mon.carry = null; mon.y = 0; mon.kv = 4; mon.stun = 1.2; } }
         if (p.z > START_Z + 18) { if (mon.carry === it) mon.carry = null; removeItem(it); }
       }
@@ -3376,6 +3559,7 @@ function updateItems(dt) {
       } else if (it.kind === 'xbarrel') {
         // sau 1 giây: phình to + đỏ dần rồi nổ
         const k = clamp((it.t - 1) / 1.4, 0, 1), b = it.g.userData.body;
+        if (it.g.userData.spark) it.g.userData.spark.scale.setScalar(0.3 + Math.random() * 0.35 + k * 0.4);
         b.color.setRGB(1, 1 - 0.78 * k, 1 - 0.82 * k);
         b.emissive.setRGB(k * (0.55 + 0.45 * Math.sin(time * (10 + 30 * k))), 0.04 * k, 0);
         const sc = 1 + 0.6 * k * k + Math.sin(time * 34) * 0.05 * k;
@@ -3620,7 +3804,7 @@ function confetti(n) {
 }
 function startIntro() {
   setPhase('intro', 3.6); state.count = 4;
-  door.tier = 0; door.over = 0; door.maxHp = door.hp = mapDoorHp(); state.roundT = mapRoundT();
+  door.tier = 0; door.over = 0; door.maxHp = door.hp = mapDoorHp(); state.roundT = mapRoundT(); door.chunk = 2;
   doorLabel.querySelector('.dt').textContent = T.house === 'castle' ? '🏰 CỔNG LÂU ĐÀI' : DOOR_NAME[0];
   state.cp = false; drawCp(false); state.dynT = T.dynEvery || 0; state.quakeT = 0;
   for (let i = 0; i < (T.props || 0); i++) placeProp(T.prop);
@@ -3628,7 +3812,7 @@ function startIntro() {
   state.mod = CONFIG.mods && state.loop >= 1 ? pick(ROUND_MODS) : null;          // từ vòng map thứ 2: mỗi ván 1 luật biến thể
   state.golden = !!(CONFIG.golden && goldenDue()); if (state.golden) lastGolden = performance.now();
   door.maxHp = door.hp = mapDoorHp(); state.modT = 0;
-  if (scene.fog && state.fogBase) { scene.fog.near = state.fogBase[0] * (state.mod && state.mod.id === 'fog' ? 0.35 : 1); scene.fog.far = state.fogBase[1] * (state.mod && state.mod.id === 'fog' ? 0.45 : 1); }
+  if (scene.fog && state.fogBase) { scene.fog.near = state.fogBase[0] * (state.mod && state.mod.id === 'fog' ? 0.5 : 1); scene.fog.far = state.fogBase[1] * (state.mod && state.mod.id === 'fog' ? 0.62 : 1); }
   buildLegends();
   mon.cur = ''; playAnim('Idle');
 }
@@ -3654,6 +3838,8 @@ function endRound(who, by, holdWin) {
   if (who === 'monster') {
     door.broken = true; door.pivot.visible = false;
     for (let i = 0; i < 4; i++) debris(new V3(rand(-0.8, 0.8), rand(0.8, 3), HOUSE_FRONT + 0.5), 0x7a4423, 6, 0.25, 8);
+    for (let i = 0; i < 6; i++) debris(new V3(rand(-0.7, 0.7), rand(0.6, 3), HOUSE_FRONT + 0.4), pick([0x7a4423, 0x9a5f2c, 0x5a3014]), 1, 0.7, 10);   // ván cửa to
+    slowT = 0.6; hitStop = Math.max(hitStop, 0.12); camShake = Math.max(camShake, 0.7);
     puff(new V3(0, 2, HOUSE_FRONT + 0.6), { color: 0xd8c6a0, n: 14, size: 2, speed: 5, life: 1.2 });
     explosion(new V3(0, 0, HOUSE_FRONT + 0.8), 0.6);
     state.nextMap = (state.map + 1) % MAPS.length; state.cleared++; state.loop = Math.floor(state.cleared / MAPS.length);
@@ -3726,7 +3912,13 @@ function updatePhase(dt) {
     door.hp = Math.min(door.maxHp, door.hp + door.maxHp * 0.08 * dt);
     if (Math.random() < dt * 4) puff(new V3(rand(-0.6, 0.6), rand(1, 2.6), HOUSE_FRONT + 0.4), { color: 0x7dff6a, n: 1, size: 0.35, speed: 1, up: 2, life: 0.7, add: true, tex: starTex });
   }
-  const k = door.hp / door.maxHp, tn = DOOR_TINT[door.tier || 0]; door.mat.color.setRGB((0.55 + 0.45 * k) * tn[0], (0.45 + 0.55 * k) * tn[1], (0.4 + 0.6 * k) * tn[2]);
+  const k = door.hp / door.maxHp, tn = DOOR_TINT[door.tier || 0];
+  if (door.crack) {
+    door.crack.material.opacity = clamp((0.75 - k) / 0.6, 0, 1);
+    const ch = k < 0.25 ? 0 : k < 0.5 ? 1 : 2;                                  // qua mốc 50% / 25%: văng 1 mảng ván
+    if (ch < door.chunk && state.phase === 'play') { for (let i = door.chunk; i > ch; i--) debris(new V3(rand(-0.6, 0.6), rand(1, 2.6), HOUSE_FRONT + 0.5), 0x7a4423, 5, 0.32, 6); sfx('crack'); camShake = Math.max(camShake, 0.25); }
+    door.chunk = ch;
+  } door.mat.color.setRGB((0.55 + 0.45 * k) * tn[0], (0.45 + 0.55 * k) * tn[1], (0.4 + 0.6 * k) * tn[2]);
 }
 
 // =====================================================================
@@ -3829,9 +4021,9 @@ function updateCamera(dt) {
   camLook.lerp(tv.set(mon.x * (0.3 + 0.6 * e), (portrait ? 0 : 1.5) + e * 1.2 + mon.gy + mon.y * 1.15, mon.z - ahead), k);
   camShake = Math.max(0, camShake - dt * 1.6);
   const s = camShake * 0.35;
-  camera.position.set(camPos.x + rand(-s, s), camPos.y + rand(-s, s), camPos.z);
+  camera.position.set(camPos.x + Math.sin(time * 41) * s, camPos.y + Math.cos(time * 33) * s * 0.8, camPos.z);
   fovKick *= Math.exp(-dt * 6); camera.fov = camBaseFov + fovKick; camera.updateProjectionMatrix();
-  camera.lookAt(camLook);
+  camera.lookAt(camLook); if (camShake > 0.05) camera.rotateZ(Math.sin(time * 27) * camShake * 0.03);
   skyDome.position.copy(camera.position);
   sun.position.set(mon.x + 16, 34, mon.z + 10); sun.target.position.set(mon.x, 0, mon.z - 10);
 }
@@ -4045,6 +4237,7 @@ function applyServerConfig(c) {
   CONFIG.timerOn = !!c.qvTimerOn; CONFIG.checkpoint = c.qvCheckpoint !== false; if (cp.g) cp.g.visible = CONFIG.checkpoint;
   soundOn = c.qvSound !== false;
   CONFIG.hold = c.qvHold !== false; CONFIG.hunger = c.qvHunger !== false; CONFIG.tips = c.qvTips !== false;
+  if (['auto', 'off', 'noel', 'tet'].includes(c.qvSeason) && !Q.get('season')) { const ch = CONFIG.season !== c.qvSeason; CONFIG.season = c.qvSeason; if (ch && state.phase !== 'loading') seasonDeco(); }
   CONFIG.golden = c.qvGolden !== false; CONFIG.mods = c.qvMods !== false; CONFIG.cues = c.qvCues !== false;
   if (Number(c.qvWinTarget) >= 1) CONFIG.winTarget = Math.min(999, Math.round(Number(c.qvWinTarget)));
   if (c.qvLikeGoal != null && Number(c.qvLikeGoal) >= 0) CONFIG.likeGoal = Math.min(500, Math.round(Number(c.qvLikeGoal)));
@@ -4268,6 +4461,7 @@ function tick(dt) {
   time += dt;
   if (state.phase !== 'loading') {
     let gdt = dt; if (hitStop > 0) { hitStop -= dt; gdt = 0; }               // khựng hình khi trúng đòn mạnh
+    if (slowT > 0) { slowT -= dt; gdt *= 0.3; }                                  // quay chậm: phá cửa, đá lăn trúng
     const px = mon.x, pz = mon.z;
     updateDemo(gdt); updateQueue(gdt); updatePhase(gdt); updateMonster(gdt);
     if (gdt > 0) { const dx = mon.x - px, dz = mon.z - pz, k = Math.min(1, gdt * 6);
@@ -4275,7 +4469,7 @@ function tick(dt) {
       else { mon.vx += (dx / gdt - mon.vx) * k; mon.vz += (dz / gdt - mon.vz) * k; } }   // vận tốc thật (làm mượt) cho việc ném đón đầu
     updateWade(gdt); updateItems(gdt); updatePeas(gdt); updateBolts(gdt); updateCamera(dt);
   }
-  updateFx(dt); updateHouseFx(dt); updatePops(dt); updateHud(dt); pulseGlow(); updateDecals(dt); updateSession(dt);
+  updateFx(hitStop > 0 ? dt * 0.1 : slowT > 0 ? dt * 0.35 : dt); updateAmbient(dt); updateHouseFx(dt); updatePops(dt); updateHud(dt); pulseGlow(); updateDecals(dt); updateSession(dt);
   WIND.value = time;
   if (composer) composer.render(); else renderer.render(scene, camera);
 }
