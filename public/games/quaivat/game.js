@@ -4778,7 +4778,7 @@ function updateHud(dt) {
     if (on) { setCss($('likeFill'), 'width', Math.min(100, state.likesRound / goal * 100).toFixed(1) + '%'); setTxt($('likeTx'), `❤ ${state.likesRound.toLocaleString('vi-VN')}/${goal.toLocaleString('vi-VN')} → MƯA ĐÁ`); } }
   { const L = START_Z - HOUSE_FRONT, f = q => clamp((START_Z - q) / L, 0, 1) * 100;   // thanh đường đi: đầu đường → cửa nhà
     const zp = f(mon.z).toFixed(1) + '%'; setCss($('rtZ'), 'left', zp); setCss($('rtFill'), 'width', zp);
-    setCss($('rtCp'), 'left', f(cpZ).toFixed(1) + '%'); setCss($('rtCp'), 'display', CONFIG.checkpoint ? '' : 'none'); setTxt($('rtCp'), state.cp ? '✅' : '🚩'); }
+    setCss($('rtCp'), 'left', f(cpZ).toFixed(1) + '%'); setCss($('rtCp'), 'display', CONFIG.checkpoint ? '' : 'none'); setCls($('rtCp'), 'ok', !!state.cp); }
   setTxt($('distN'), Math.max(0, Math.round(mon.z - HOUSE_FRONT - 1.3)));
   { const dh = $('doorHp'); setCss(dh.firstChild, 'width', (dk * 100).toFixed(1) + '%'); setCls(dh, 'regen', door.regen); setCls(dh, 'low', dk < 0.3); }
   if (mon.ready) {
