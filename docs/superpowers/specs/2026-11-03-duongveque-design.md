@@ -110,6 +110,38 @@ tự chọn theo bậc giá). Vẫn giữ **mọi quà quy ra mét theo xu** →
   → GIỮ 5 m/xu, để streamer tự chỉnh ô "mét/xu" trong panel; muốn cân lại thì nên chỉnh đường dài/xe chậm hơn thay vì mét/xu.
 - Thử: `?mute=1&lobby=0.3&warp=1&riders=14` rồi `__dvq.sim('gift', {action:'croc', coins:99})`; panel tự có nút thử cho mọi trò.
 
+## Đợt 4 (03/11, theo yêu cầu user trong phiên)
+
+- **Mỗi xe một tài xế:** \`g.drivers[i]\` (\`g.driver\` = xe đầu, giữ tương thích). Quà Tài xế: đang lái → cộng giờ; không thì xe còn trống
+  đầu tiên (trong số xe đang có) → xe có người hết giờ đang giữ lái → xếp hàng chung. Mỗi xe tự đếm giờ, hết giờ người đầu hàng lên đúng xe đó;
+  đoàn thêm xe thì người chờ tự lên xe mới. Tài xế xe sau vẫn tính 1 chỗ của đoàn (xe không biến mất khi họ rời ghế khách).
+  Hình: mặt tài xế ở cửa lái mọi xe, nhãn "🧑‍✈️ XE n · tên · giờ", băng rôn "LÊN LÀM TÀI XẾ XE n", HUD "+N xe".
+- **Ghế + trạm dừng chân đông người:** thả tim cũng lên xe (trừ phe Phá); ghế xếp theo điểm ván này = xu Cứu × coinLikes (10) + tim.
+  Người dùng lưu \`likesAll\` / \`coinsAll\` qua các ván. \`g.crowd()\` = người đang ngồi xe rồi tới người từng thả tim / tặng quà nhiều nhất
+  (cả phe Phá), tối đa \`crowdMax\` 100. Trạm dừng chân: sân trạm lát gạch, bàn nhựa xanh ghế đỏ dù quán, 40–100 người đứng thành nhóm 4,
+  18% đi dạo; 3 người nói cùng lúc (đổi mỗi 2,5 giây) câu hỏi Tết ("Có người yêu chưa? 😏", "Thưởng Tết nhiều hông?"…); ít người xem thì
+  thêm dân quanh trạm cho đủ 40. Ảnh đại diện vẽ sẵn vào canvas nhỏ (\`avatarSprite\`, LRU 700) → 100 người không phải cắt tròn từng mặt.
+- **💸 Chủ nợ rượt** thay 🍙 Bánh chưng mẹ gửi (đang từ phố về quê nên vô lý): chủ nợ chạy xe máy dí theo, đòi nợ ĐÍCH DANH 1 người
+  trong top 10 tặng quà + thả tim (\`g.topFans(10)\`, trừ người tặng) với 10 câu ngẫu nhiên ("Ê {tên}! Mày không trả nợ cho tao à?!"…),
+  khách hoảng nhảy trong xe, tài xế đạp ga → đẩy tới (tiếp cận 0,7 giây). Sự kiện \`debt {user, debtor}\`.
+- **🏁 Về cổng làng đếm ngược 15 giây** (\`finishSec\`): đoàn đỗ ở cổng, đồng hồ ván dừng, trạm dừng còn lại bỏ qua; phe Phá đẩy lùi
+  khỏi đích thì huỷ đếm (\`finishCancel\`) và chạy tiếp; giữ đủ 15 giây mới hiện thắng. Khung đếm ngược dùng khung cứu nạn của HUD.
+- **Cảnh theo 63 tỉnh cũ** (\`route.js\` \`PARTS\` + \`partAt\`): mỗi tỉnh mới chia đều quãng cho các tỉnh cũ đã gộp (đi Nam → Bắc), mỗi
+  đoạn có kiểu cảnh (thành phố / thôn quê / biển / núi / cố đô) + 2–4 nét đặc trưng + biển chào riêng. 74 nét vẽ trong \`FEAT\` (game.js):
+  rừng đước, quạt gió điện, ruộng muối, nhà công tử, chùa Khmer, thốt nốt, chợ nổi, cầu dây văng, đồng sen, lò gạch Mang Thít, thanh long,
+  Tòa Thánh Cao Đài, cao su, Landmark 81, chợ Bến Thành, KCN, hải đăng, giàn khoan, điều, tiêu, đồi cát, tháp Chăm, cà phê, thác, nhà kính
+  Đà Lạt, nho, cừu, voi, nhà rông, nhà thờ Gỗ, tỏi Lý Sơn, phố Hội An, Ngọ Môn, chùa Thiên Mụ, thuyền rồng, hang, núi đá vôi, đồi chè,
+  nhà thờ đá, đình làng, nhãn, vải, cảng, phượng đỏ, thuyền buồm Hạ Long, quan họ, Tháp Rùa, Chùa Một Cột, cầu Long Biên, nhà ống,
+  thủy điện, bò sữa Mộc Châu, hoa mận/đào, đồi A1, ruộng bậc thang, biển mây, cáp treo Fansipan, hoa tam giác mạch, nhà sàn…
+  Lớp giữa mỗi ô 62% là nét đặc trưng, còn lại là nền kiểu cảnh; màu cảnh pha dần ở 18% cuối mỗi đoạn tỉnh cũ.
+  Sang tỉnh cũ kế: biển xanh nhỏ "BẠC LIÊU · nay thuộc Cà Mau" + băng rôn; HUD ghi "Cà Mau · Bạc Liêu · Cánh đồng điện gió".
+- **🍜 Quán ăn vỉa hè** (\`food.js\` FOOD, 63 tỉnh cũ × 2 món + câu mời giọng địa phương, soạn bởi agent writer): mỗi tỉnh cũ 2 xe đẩy dù
+  quán, bảng tên món, khói thơm, người bán đội nón lá vẫy; chỉ người bán GẦN NHẤT phía trước đoàn xe gọi mời (bóng thoại).
+  Ví dụ Gia Lai "Mời ăn Bún cua thúi với Phở khô Gia Lai nhé!". Món kém chắc (cần người quê xem lại): Đồng Nai, Bình Phước, Đắk Nông
+  (nông sản thay món quán), Điện Biên / Lai Châu (món chung Tây Bắc), Bình Dương "Bánh bèo bì Bến Cát", Long An "Thanh long".
+- Test mới: tài xế nhiều xe (2), ghế theo tim + quà, đám đông trạm dừng, chủ nợ top 10, đếm ngược cổng làng (+ huỷ khi bị đẩy lùi),
+  không dừng trạm khi đã tới đích (đã thấy fail trước khi sửa), 63 tỉnh cũ đủ + partAt Nam → Bắc, 63 tỉnh có 2 món + câu mời đúng độ dài.
+
 ## Nối app
 
 - `server.js`: `GAMES.duongveque` (khoá `dvq*`, quà gợi ý từ `data.json`), `/overlay/duongveque`, `/api/duongveque/window/open` (Edge/Chrome --app), `/api/duongveque/key` + socket `duongveque:key` (jump | ram | start), `global.__dvqApplyHotkeys`.

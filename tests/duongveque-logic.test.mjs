@@ -822,3 +822,15 @@ test('bị đẩy vọt tới cổng làng thì không dừng trạm xăng / tr�
   assert.ok(g.finish || g.phase === 'result');
   assert.equal(g.halt, null);
 });
+
+test('quán ăn vỉa hè: đủ 63 tỉnh cũ, mỗi tỉnh 2 món ≤ 22 ký tự + câu mời ≤ 60 ký tự có nhắc món', async () => {
+  const { FOOD } = await import('../public/games/duongveque/food.js');
+  const { PARTS } = await import('../public/games/duongveque/route.js');
+  const names = Object.values(PARTS).flat().map(p => p.name);
+  assert.deepEqual(Object.keys(FOOD).sort(), [...names].sort());
+  for (const [k, v] of Object.entries(FOOD)) {
+    assert.equal(v.food.length, 2, k);
+    for (const d of v.food) assert.ok(d.length <= 22, `${k}: "${d}" dài ${d.length}`);
+    assert.ok(v.invite.length <= 60, `${k}: câu mời dài ${v.invite.length}`);
+  }
+});
