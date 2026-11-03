@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Director, IdleCycle, PRIORITY, PK_ROLE_PRIORITY } from '../public/games/creatoronline/js/logic/director.js';
+import { Director, IdleCycle, PRIORITY, PK_ROLE_PRIORITY, SOFT_PRIO } from '../public/games/creatoronline/js/logic/director.js';
 
 /** Cảnh thử: { kind, target, gifter, view, focus, durMs }. */
 const shot = (kind, target, gifter, durMs, extra = {}) => ({ kind, target, gifter, view: 'stage', focus: null, durMs, ...extra });
@@ -11,8 +11,41 @@ const targets = (d) => d.queue.map((s) => s.target);
 // ───────── ưu tiên ─────────
 
 test('PRIORITY đúng bảng mục 12; vai ở sân PK đứng ngay trên cảnh PK', () => {
-  assert.deepEqual({ ...PRIORITY }, { gala: 70, spotlight: 60, big: 50, pk: 45, room: 40, role: 30, idle: 0 });
+  assert.deepEqual({ ...PRIORITY }, { gala: 70, spotlight: 60, big: 50, pk: 45, duel: 44, room: 40, act: 35, role: 30, chorus: 6, fan: 5, idle: 0 });
   assert.equal(PK_ROLE_PRIORITY, 46);
+  assert.equal(SOFT_PRIO, 10);
+});
+
+test('GĐ2: cảnh fan nổi bật (miễn phí) bị cảnh quà cắt ngay, không chờ 8 giây', () => {
+  const d = new Director();
+  d.push(shot('fan', 'G1', null, 5000, { view: 'close', focus: 'u1' }), 0);
+  assert.equal(d.tick(0, ctx()).kind, 'fan');
+  d.push(shot('act', 'G2', 'x', 7000, { view: 'close', focus: 'u2' }), 1000);
+  const s = d.tick(1000, ctx());
+  assert.equal(s.kind, 'act');
+  assert.equal(s.startAt, 1000);
+});
+
+test('GĐ2: cảnh cổ vũ (6) cắt cảnh fan (5) ngay; cảnh ném (35) KHÔNG cắt thách đấu (44) trước 8 giây', () => {
+  const d = new Director();
+  d.push(shot('fan', 'G1', null, 5000), 0);
+  d.tick(0, ctx());
+  d.push(shot('chorus', 'G3', null, 6000), 500);
+  assert.equal(d.tick(500, ctx()).kind, 'chorus');
+  const d2 = new Director();
+  d2.push(shot('duel', 'plaza', null, 60000), 0);
+  d2.tick(0, ctx());
+  d2.push(shot('act', 'G2', 'x', 7000), 1000);
+  assert.equal(d2.tick(5000, ctx()).kind, 'duel');
+  assert.equal(d2.tick(9000, ctx()).kind, 'duel'); // thấp hơn → chờ thách đấu xong
+});
+
+test('GĐ2: cảnh thách đấu (44) chờ khi đang PK (45)', () => {
+  const d = new Director();
+  d.push(shot('duel', 'plaza', null, 60000), 0);
+  const s = d.tick(0, ctx({ pk: { a: 1, b: 2 } }));
+  assert.equal(s.kind, 'pk');
+  assert.equal(d.queue.length, 1);
 });
 
 // ───────── trần cảnh quay mỗi người ─────────

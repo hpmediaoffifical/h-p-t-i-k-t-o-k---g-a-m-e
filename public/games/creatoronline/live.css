@@ -25,6 +25,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0c16; col
   50% { box-shadow: 0 0 0 .16em #fff3a8, 0 0 1.3em .35em rgba(255,190,40,.95); }
 }
 .co-badge { margin-left: .2em; font-size: .9em; }
+/* GĐ2: số người chơi (#12) — người khác gõ "ném 12", "ghép 12"…; màu nền = màu nhóm */
+.co-no { flex: none; min-width: 1.45em; padding: .08em .3em .12em; border-radius: .4em; background: #ff4fa3; color: #fff; font-weight: 900; font-size: .92em; text-align: center; box-shadow: inset 0 -.08em 0 rgba(0,0,0,.25); }
+.co-no::before { content: '#'; font-size: .72em; opacity: .85; margin-right: .04em; }
+.co-tag.npc .co-no { display: none; }
 .co-bubble { display: none; max-width: 9em; white-space: normal; text-align: center; background: #fff; color: #1a1828; font-weight: 800; font-size: .86em; line-height: 1.15; padding: .3em .55em; border-radius: .6em; margin-bottom: .3em; box-shadow: 0 .08em .3em rgba(0,0,0,.35); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .co-bubble:not(.show) { display: none; }
 .co-bubble.show { animation: coPop .25s ease-out; }
@@ -42,7 +46,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0c16; col
 .co-chip-genre { font-size: calc(var(--u) * 32); background: var(--accent, #ff4fa3); color: #fff; padding: calc(var(--u) * 4) calc(var(--u) * 18); border-radius: calc(var(--u) * 30); white-space: nowrap; }
 
 .co-pk { left: calc(var(--u) * 120); top: calc(var(--u) * 240); width: calc(var(--u) * 800); height: calc(var(--u) * 180); padding: calc(var(--u) * 12) calc(var(--u) * 22); display: flex; flex-direction: column; justify-content: space-between; }
-.co-pk-row1, .co-pk-row2, .co-pk-row3 { display: flex; align-items: center; gap: calc(var(--u) * 14); }
+/* GĐ2: thách đấu 1–1 dùng chung ô PK — viền vàng, avatar 2 người */
+.co-pk.duel { box-shadow: 0 0 0 calc(var(--u) * 5) #ffd23f, 0 calc(var(--u) * 6) calc(var(--u) * 24) rgba(0,0,0,.35); background: rgba(40, 18, 30, .9); }
+.co-pk.duel .co-pk-a, .co-pk.duel .co-pk-b { display: flex; align-items: center; gap: calc(var(--u) * 8); }
+.co-pk.duel .co-pk-b { justify-content: flex-end; }
+.co-pk-row1, .co-pk-row2, .co-pk-row3 { display: flex; align-items: center; gap: calc(var(--u) * 14); line-height: 1.15; }
 .co-pk-row1 { font-size: calc(var(--u) * 38); }
 .co-pk-a { flex: 1; color: #ff7aa8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .co-pk-b { flex: 1; color: #7cc6ff; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

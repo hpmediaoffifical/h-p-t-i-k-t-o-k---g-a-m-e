@@ -53,7 +53,7 @@ test('onGift cộng coinValue × repeatCount, trả về cấp mới', () => {
     const L = createFanLedger({ file: null, now: () => t });
     assert.equal(L.get('1'), null);
     const a = L.onGift({ userId: '1', nickname: 'Anna', coinValue: 1, repeatCount: 99 });
-    assert.deepEqual(a, { id: '1', name: 'Anna', xu: 99, rank: 0, club: null });
+    assert.deepEqual(a, { id: '1', name: 'Anna', xu: 99, rank: 0, club: null, vip: [] });
     const b = L.onGift({ userId: '1', nickname: 'Anna', coinValue: 1 });
     assert.equal(b.xu, 100);
     assert.equal(b.rank, 1);
@@ -96,7 +96,7 @@ test('lưu file nguyên tử + nạp lại; reset xoá hết', () => {
     L.flushSync();
     assert.equal(fs.existsSync(file + '.tmp'), false);
     const L2 = createFanLedger({ file, now: () => 5 });
-    assert.deepEqual(L2.get('1'), { id: '1', name: 'An', xu: 120, rank: 1, club: 4 });
+    assert.deepEqual(L2.get('1'), { id: '1', name: 'An', xu: 120, rank: 1, club: 4, vip: [] });
     L2.reset();
     assert.equal(createFanLedger({ file, now: () => 5 }).size(), 0);
 });
@@ -122,4 +122,73 @@ test('chỉ bỏ người dưới 100 xu không gặp quá 180 ngày — fan có
     assert.equal(L2.get('lon').xu, 100);
     t = 3650 * DAY;
     assert.equal(createFanLedger({ file, now: () => t }).get('lon').rank, 1);
+});
+
+test('đồ VIP trọn đời: onGift(g, { vip }) thêm vào bộ đồ, không trùng, sắp xếp', () => {
+    const L = createFanLedger({ file: null, now: () => 0 });
+    assert.deepEqual(L.onGift({ userId: '1', nickname: 'Hùng', coinValue: 99 }, { vip: 'wings' }).vip, ['wings']);
+    assert.deepEqual(L.onGift({ userId: '1', coinValue: 1 }, { vip: 'hat' }).vip, ['hat', 'wings']);
+    assert.deepEqual(L.onGift({ userId: '1', coinValue: 1 }, { vip: 'hat' }).vip, ['hat', 'wings'], 'tặng lại mũ không nhân đôi');
+    assert.deepEqual(L.onGift({ userId: '1', coinValue: 1 }, { vip: ['glasses', 'glasses', 'hat'] }).vip, ['glasses', 'hat', 'wings']);
+    assert.equal(L.get('1').xu, 102);
+});
+
+test('đồ VIP: giá trị lạ bị bỏ, quà thường không đổi bộ đồ', () => {
+    const L = createFanLedger({ file: null, now: () => 0 });
+    assert.deepEqual(L.onGift({ userId: '2', nickname: 'Lan' }, { vip: 'vuongmien' }).vip, []);
+    assert.deepEqual(L.onGift({ userId: '2' }, { vip: ['hat', 42, null, 'Hat'] }).vip, ['hat']);
+    assert.deepEqual(L.onGift({ userId: '2' }).vip, ['hat']);
+});
+
+test('đồ VIP: quà thử / người xem giả không được đồ', () => {
+    const L = createFanLedger({ file: null, now: () => 0 });
+    assert.equal(L.onGift({ userId: '3', source: 'test' }, { vip: 'hat' }), null);
+    assert.equal(L.onGift({ uniqueId: 'sim7' }, { vip: 'wings' }), null);
+    assert.equal(L.get('3'), null);
+    assert.equal(L.size(), 0);
+});
+
+test('đồ VIP: lưu qua flushSync + nạp lại; file có giá trị lạ thì lọc khi nạp', () => {
+    const file = tmpFile();
+    const L = createFanLedger({ file, now: () => 5 });
+    L.onGift({ userId: '1', nickname: 'Mai', coinValue: 5 }, { vip: 'glasses' });
+    L.onGift({ userId: '1', coinValue: 5 }, { vip: 'wings' });
+    L.flushSync();
+    assert.deepEqual(createFanLedger({ file, now: () => 5 }).get('1').vip, ['glasses', 'wings']);
+
+    fs.writeFileSync(file, JSON.stringify({ v: 1, fans: {
+        a: { name: 'Tú', xu: 3, lastSeen: 5, vip: ['wings', 'crown', 'hat', 'wings', 7] },
+        b: { name: 'Bé', xu: 3, lastSeen: 5, vip: 'hat' },
+        c: { name: 'Cò', xu: 3, lastSeen: 5 },
+    } }));
+    const L2 = createFanLedger({ file, now: () => 5 });
+    assert.deepEqual(L2.get('a').vip, ['hat', 'wings']);
+    assert.deepEqual(L2.get('b').vip, ['hat']);
+    assert.deepEqual(L2.get('c').vip, []);
+});
+
+test('đồ VIP: người có đồ VIP không bị dọn dù dưới 100 xu và vắng quá 180 ngày', () => {
+    let t = 0;
+    const file = tmpFile();
+    const L = createFanLedger({ file, now: () => t });
+    L.onGift({ userId: 'thuong', coinValue: 10 });
+    L.onGift({ userId: 'vip', coinValue: 10 }, { vip: 'hat' });
+    L.flushSync();
+    t = 400 * DAY;
+    const L2 = createFanLedger({ file, now: () => t });
+    assert.equal(L2.get('thuong'), null);
+    assert.deepEqual(L2.get('vip').vip, ['hat']);
+});
+
+test('view luôn có mảng vip (get, getMany, top, onChat) và là bản sao', () => {
+    const L = createFanLedger({ file: null, now: () => 0 });
+    L.onGift({ userId: '1', coinValue: 5 });
+    const v = L.onChat({ userId: '2', nickname: 'Nam', comment: '3' });
+    assert.deepEqual(v.vip, []);
+    assert.ok(Array.isArray(L.get('1').vip));
+    assert.ok(Array.isArray(L.getMany(['1', '2'])['2'].vip));
+    assert.ok(L.top(5).every((f) => Array.isArray(f.vip)));
+    L.onGift({ userId: '1' }, { vip: 'hat' });
+    L.get('1').vip.push('wings');
+    assert.deepEqual(L.get('1').vip, ['hat'], 'sửa view không đổi dữ liệu gốc');
 });

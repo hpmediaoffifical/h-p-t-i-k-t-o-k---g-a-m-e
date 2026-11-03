@@ -10,8 +10,17 @@
 
 import { stripVN } from './codes.js';
 
-/** Một quà bị gán cho nhiều hành động → chạy hành động đứng trước (spec 4.2). */
-export const ACTION_PRIORITY = ['gala', 'spotlight', 'pkStart', 'manager', 'tech', 'mc', 'ticket', 'confetti', 'genre'];
+/**
+ * Hành động GĐ2 "người xem chơi với nhau" (spec mục 21): nhắm vào người khác (`ném 12` rồi tặng), đồ VIP trọn đời,
+ * hành động riêng. Kế hoạch của chúng không lên sân / không sự kiện tòa nhà / không mở PK — cảnh quay riêng của hành
+ * động đã là phần thưởng (bên gọi tự lùi về sân khấu khi không có người để nhắm).
+ */
+export const SOCIAL_ACTIONS = ['duel', 'hug', 'pair', 'throwEgg', 'throwHeart', 'throwCake'];
+export const VIP_ACTIONS = ['vipWings', 'vipGlasses', 'vipHat'];
+export const SOLO_ACTIONS = ['transform', 'fly', 'fireworks'];
+
+/** Một quà bị gán cho nhiều hành động → chạy hành động đứng trước (spec 4.2). Hành động GĐ2 đứng sau hành động cũ. */
+export const ACTION_PRIORITY = ['gala', 'spotlight', 'pkStart', 'manager', 'tech', 'mc', 'ticket', 'confetti', 'genre', ...SOCIAL_ACTIONS, ...VIP_ACTIONS, ...SOLO_ACTIONS];
 
 /** Xu tối thiểu của bậc 1..7 (spec 4.2). */
 const TIER_MIN = [1, 5, 30, 99, 299, 1000, 10000];
@@ -82,9 +91,9 @@ export function resolveGift(gift, giftMap) {
   return { xu, tier: tierOf(xu), action, mapped: action !== null };
 }
 
-/** Kế hoạch trơn: fan lên sân khấu club mình, không gì thêm (bậc 1). */
+/** Kế hoạch trơn: fan lên sân khấu club mình, không gì thêm (bậc 1). `social` = hành động GĐ2 (null = không). */
 function basePlan() {
-  return { place: 'stage', role: null, roomFx: null, shoutout: false, genre: false, building: null, openPk: false };
+  return { place: 'stage', role: null, roomFx: null, shoutout: false, genre: false, building: null, openPk: false, social: null };
 }
 
 /** Kế hoạch mặc định theo bậc cho quà chưa gán (spec 4.2, bảng bậc). */
@@ -140,6 +149,7 @@ function clampTier(tier) {
  * - roomFx: hiệu ứng lớp B tại sân ('random' pháo giấy/khói/chớp · 'confetti' mưa pháo giấy)
  * - shoutout: MC NPC gọi tên · genre: đổi thể loại nhạc sân/phòng
  * - building: sự kiện cả tòa nhà ('big' quà lớn · 'spotlight' tâm điểm · 'gala') · openPk: mở PK nếu đang không có
+ * - social: hành động GĐ2 (SOCIAL_ACTIONS / VIP_ACTIONS / SOLO_ACTIONS) — khi có thì place = null
  * Quà đã gán mà bậc ≥ 5 → chạy thêm sự kiện của bậc (lấy cái mạnh hơn) + mở PK.
  * @param {{action:string|null, tier:number, mapped:boolean}} resolved kết quả resolveGift
  * @param {{tierFallback?:boolean}} [opts] `coTierFallback` — tắt thì quà chưa gán chỉ lên sân khấu
@@ -149,6 +159,10 @@ export function planGift(resolved, opts = {}) {
   const tierFallback = opts?.tierFallback === undefined ? true : !!opts.tierFallback;
   const t = clampTier(tier);
   if (!mapped || !ACTION_PRIORITY.includes(action)) return tierFallback ? tierPlan(t) : basePlan();
+  if (SOCIAL_ACTIONS.includes(action) || VIP_ACTIONS.includes(action) || SOLO_ACTIONS.includes(action)) {
+    // GĐ2: không lên sân, không sự kiện tòa nhà, không mở PK ở bất kỳ bậc nào (spec mục 21.2)
+    return { ...basePlan(), place: null, social: action };
+  }
   const plan = actionPlan(action);
   if (t >= 5) {
     plan.building = strongerBuilding(plan.building, TIER_BUILDING[t]);

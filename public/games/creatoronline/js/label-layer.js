@@ -120,11 +120,15 @@ export function attachLabel(char, name, kind = 'npc', avatar = '') {
   const badgeEl = document.createElement('b');
   badgeEl.className = 'co-badge';
   badgeEl.hidden = true;
-  tag.append(nameEl, badgeEl);
+  const noEl = document.createElement('b'); // GĐ2: số người chơi (#12) để người khác gõ "ném 12"
+  noEl.className = 'co-no';
+  noEl.hidden = true;
+  tag.append(noEl, nameEl, badgeEl);
   wrap.append(bubble, flashEl, tag);
   let img = null;
   let badgeText = '';
   let nameText = '';
+  let noKey = '';
   const item = { char, wrap, bubble, flashEl, tag, kind: 'npc', height: 1.95, extra: 0, bubbleTime: 0, flashTime: 0, z: 0, shown: false, hidden: false, want: false, sx: 0, sy: 0, dist: 0, score: 0 };
   const setName = (n) => {
     const t = String(n ?? '');
@@ -185,6 +189,15 @@ export function attachLabel(char, name, kind = 'npc', avatar = '') {
       badgeText = text;
       badgeEl.textContent = text;
       badgeEl.hidden = !text;
+    },
+    /** Số người chơi trước tên (#12) theo màu nhóm; n rỗng/null = ẩn. Chỉ ghi DOM khi đổi. */
+    setNo(n, color = '') {
+      const key = `${n ?? ''}|${color}`;
+      if (key === noKey) return;
+      noKey = key;
+      noEl.hidden = n == null || n === '';
+      noEl.textContent = noEl.hidden ? '' : String(n);
+      noEl.style.background = color || '';
     },
     setKind,
     get kind() {

@@ -127,7 +127,7 @@ const vwSignals = require('./lib/vipwelcome/join-signals');
 const vwTiers = require('./lib/vipwelcome/tier-match');
 const { createPresence: createVipPresence, createPendingCards: createVipPendingCards } = require('./lib/vipwelcome/presence');
 const { createGiftLedger: createVipGiftLedger } = require('./lib/vipwelcome/gift-ledger');
-const { createFanLedger: createCoFanLedger, fanKey: coFanKey } = require('./lib/creatoronline-fans');
+const { createFanLedger: createCoFanLedger, fanKey: coFanKey, stripVN: coStripVN } = require('./lib/creatoronline-fans');
 const { createMediaQueue: createVipMediaQueue } = require('./lib/vipwelcome/media-queue');
 // Giai đoạn 3: sổ ghé phòng theo buổi, gộp thẻ khi đông, câu đọc tên
 const { createVisits: createVipVisits } = require('./lib/vipwelcome/visits');
@@ -324,12 +324,33 @@ process.on('exit', () => { try { coFans.flushSync(); } catch (e) {} });
 function coFansActive() {
     try { return appConfig.games.creatoronline?.enabled !== false && (io.sockets.adapter.rooms.get('co-overlay')?.size || 0) > 0; } catch (e) { return false; }
 }
+// 🏢 Creator Online GĐ2 — quà gán vipHat/vipGlasses/vipWings trong coGiftMap → đồ VIP giữ trọn đời trong bộ đếm fan.
+const CO_VIP_ACTIONS = [['vipHat', 'hat'], ['vipGlasses', 'glasses'], ['vipWings', 'wings']];
+/** 'hat' | 'glasses' | 'wings' nếu quà khớp 1 mục VIP (so giftId trước, rồi tên quà bỏ dấu/hoa thường); null nếu không. */
+function coVipItemForGift(payload) {
+    const map = appConfig.games.creatoronline?.coGiftMap;
+    if (!map || typeof map !== 'object' || !payload) return null;
+    const entriesOf = (action) => (Array.isArray(map[action]) ? map[action] : []).filter(e => e && typeof e === 'object');
+    const id = payload.giftId != null && String(payload.giftId) !== '' ? String(payload.giftId) : '';
+    if (id) {
+        for (const [action, item] of CO_VIP_ACTIONS) {
+            if (entriesOf(action).some(e => e.giftId != null && String(e.giftId) === id)) return item;
+        }
+    }
+    const name = coStripVN(String(payload.giftName || ''));
+    if (name) {
+        for (const [action, item] of CO_VIP_ACTIONS) {
+            if (entriesOf(action).some(e => e.giftName && coStripVN(String(e.giftName)) === name)) return item;
+        }
+    }
+    return null;
+}
 /** Gắn coFan (cấp + club đã lưu, giá trị TRƯỚC sự kiện này) vào payload; trả về bản cập nhật cần phát 'creatoronline:fan' hoặc null. */
 function coFansTouch(payload, kind) {
     if (!coFansActive()) return null;
     try {
         payload.coFan = coFans.get(coFanKey(payload));
-        if (kind === 'gift') return coFans.onGift(payload);
+        if (kind === 'gift') return coFans.onGift(payload, { vip: coVipItemForGift(payload) });
         if (kind === 'chat') return coFans.onChat(payload, { switchSec: Number(appConfig.games.creatoronline?.coClubSwitchSec ?? 60) });
     } catch (e) { console.warn('[creatoronline] bộ đếm fan lỗi:', e?.message || e); }
     return null;
@@ -489,6 +510,14 @@ const GAMES = {
             coLiveTv: true,           // TV trực tiếp trong sân khấu nhóm (vẽ cảnh lần 2)
             coShowGiftLegend: true, coShowJoinHint: true,
             coBadWords: '',           // từ cấm thêm, cách nhau bằng dấu phẩy
+            coWinSize: '608x1080',    // cửa sổ game cho TikTok Studio bắt: '540x960' | '608x1080' | '720x1280' | '1080x1920'
+            coSocial: true,           // 🤝 bật người xem chơi với nhau (ném / ghép đôi / ôm / thách đấu / cổ vũ)
+            coFanSpotSec: 25,         // mỗi bấy nhiêu giây quay cận 5 giây "fan nổi bật" theo điểm tương tác miễn phí; 0 = tắt
+            coPairSec: 60,            // 💞 ghép đôi kéo dài bấy nhiêu giây
+            coDuelSec: 60,            // 🥊 trận thách đấu kéo dài bấy nhiêu giây
+            coEmoteSec: 10,           // chờ giữa 2 lần biểu cảm miễn phí (bình luận)
+            coLookSec: 60,            // chờ giữa 2 lần đổi áo/tóc (bình luận)
+            coChorusMin: 3,           // 📣 số người tối thiểu cổ vũ đồng thanh
             coGiftMap: creatorOnlineSuggestedGiftMap()   // { [action]: [{ giftId, giftName, giftImage, coins }] }
         }
     },
@@ -7682,6 +7711,12 @@ app.post('/api/creatoronline/fans/reset', (req, res) => {
     res.json({ ok: true });
 });
 // body { demo: true } → mở Bản đi dạo (WASD, ví trong bộ nhớ) để streamer xem thử; mặc định mở overlay LIVE ?win=1.
+// body { size: '720x1280' } ghi đè coWinSize (cỡ cửa sổ LIVE cho TikTok Studio "Chụp cửa sổ"); sai giá trị → '608x1080'.
+const CO_WIN_SIZES = ['540x960', '608x1080', '720x1280', '1080x1920'];
+function coWinSizeArg(...candidates) {
+    const ok = candidates.map(s => String(s ?? '').trim().toLowerCase()).find(s => CO_WIN_SIZES.includes(s)) || '608x1080';
+    return ok.replace('x', ',');
+}
 app.post('/api/creatoronline/window/open', (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
     const found = CaptionListener.resolveBrowserExe('edge', { exists: (p) => { try { return fs.existsSync(p); } catch (e) { return false; } } });
@@ -7692,7 +7727,7 @@ app.post('/api/creatoronline/window/open', (req, res) => {
     const url = demo ? `http://127.0.0.1:${PORT}/games/creatoronline/demo.html` : `http://127.0.0.1:${PORT}/overlay/creatoronline?win=1`;
     // OBS bắt cửa sổ: Chromium mặc định ngừng vẽ / hãm nhịp khi cửa sổ bị che hoặc thu nhỏ → hình trong OBS đứng
     const keepDrawing = ['--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling'];
-    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat(demo ? '--window-size=1280,800' : '--window-size=540,960', ...keepDrawing);
+    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat(demo ? '--window-size=1280,800' : '--window-size=' + coWinSizeArg(req.body && req.body.size, appConfig.games.creatoronline?.coWinSize), ...keepDrawing);
     try {
         const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
         child.on('error', (e) => console.warn('[creatoronline] mở cửa sổ game lỗi:', e.message));

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ACTION_PRIORITY, tierOf, resolveGift, planGift, fallbackPlan, legendRows,
+  ACTION_PRIORITY, SOCIAL_ACTIONS, VIP_ACTIONS, SOLO_ACTIONS, tierOf, resolveGift, planGift, fallbackPlan, legendRows,
 } from '../public/games/creatoronline/js/logic/events.js';
 
 /** Bộ quà gợi ý theo spec 4.3 (tạo mới mỗi lần, không dùng chung trạng thái). */
@@ -20,15 +20,31 @@ const suggested = () => ({
 
 /** Kế hoạch đầy đủ (mặc định = lên sân khấu trơn) để so sánh deepEqual. */
 const plan = (over = {}) => ({
-  place: 'stage', role: null, roomFx: null, shoutout: false, genre: false, building: null, openPk: false, ...over,
+  place: 'stage', role: null, roomFx: null, shoutout: false, genre: false, building: null, openPk: false, social: null, ...over,
 });
 
 const T2 = plan({ roomFx: 'random', shoutout: true });
 
 // ------------------------------------------------------------------ bậc xu
 
-test('ACTION_PRIORITY đúng thứ tự spec 4.2', () => {
-  assert.deepEqual(ACTION_PRIORITY, ['gala', 'spotlight', 'pkStart', 'manager', 'tech', 'mc', 'ticket', 'confetti', 'genre']);
+test('ACTION_PRIORITY đúng thứ tự spec 4.2; hành động GĐ2 đứng sau hành động cũ', () => {
+  assert.deepEqual(ACTION_PRIORITY.slice(0, 9), ['gala', 'spotlight', 'pkStart', 'manager', 'tech', 'mc', 'ticket', 'confetti', 'genre']);
+  assert.deepEqual(ACTION_PRIORITY.slice(9), [...SOCIAL_ACTIONS, ...VIP_ACTIONS, ...SOLO_ACTIONS]);
+  assert.equal(new Set(ACTION_PRIORITY).size, ACTION_PRIORITY.length);
+});
+
+test('planGift: hành động GĐ2 không lên sân, không sự kiện tòa nhà, không mở PK ở mọi bậc', () => {
+  for (const action of [...SOCIAL_ACTIONS, ...VIP_ACTIONS, ...SOLO_ACTIONS]) {
+    for (const tier of [1, 4, 5, 6, 7]) {
+      assert.deepEqual(planGift({ action, tier, mapped: true }), plan({ place: null, social: action }), `${action} bậc ${tier}`);
+    }
+  }
+});
+
+test('resolveGift: quà gán vừa vé vừa ném bánh → vé thắng (hành động cũ đứng trước)', () => {
+  const map = { ticket: [{ giftId: 9340, giftName: 'Bánh sinh nhật' }], throwCake: [{ giftId: 9340, giftName: 'Bánh sinh nhật' }] };
+  assert.equal(resolveGift({ giftId: 9340, coins: 1 }, map).action, 'ticket');
+  assert.equal(resolveGift({ giftId: 9340, coins: 1 }, { throwCake: map.throwCake }).action, 'throwCake');
 });
 
 test('tierOf: các mốc biên của 7 bậc', () => {

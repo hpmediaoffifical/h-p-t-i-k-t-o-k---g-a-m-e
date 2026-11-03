@@ -99,10 +99,13 @@ export class LiveHud {
     this.el.pk.hidden = !p;
     this.el.title.hidden = !!p || this.el.title.hidden;
     if (!p) return;
+    // GĐ2: cùng ô cho thách đấu 1–1 (kind 'duel': số người chơi + avatar thay cho mã nhóm)
+    const duel = p.kind === 'duel';
+    if (this.el.pk.classList.contains('duel') !== duel) this.el.pk.classList.toggle('duel', duel);
     const tops = (list) => list.map((f) => `<span class="co-pk-top">${img(f.avatar, 'co-av')}${esc(f.name)}</span>`).join('');
     const x2 = (side) => (p.final && p.trailing === side ? '<em class="co-x2">❤ ×2</em>' : '');
     const html = `
-      <div class="co-pk-row1"><span class="co-pk-a">${esc(p.aNo)} ${esc(p.aName)}</span><span class="co-pk-time${p.final ? ' final' : ''}">⚔ ${esc(p.left)}s</span><span class="co-pk-b">${esc(p.bName)} ${esc(p.bNo)}</span></div>
+      <div class="co-pk-row1"><span class="co-pk-a">${img(p.aAv, 'co-av')}${esc(p.aNo)} ${esc(p.aName)}</span><span class="co-pk-time${p.final ? ' final' : ''}">${duel ? '🥊' : '⚔'} ${esc(p.left)}s</span><span class="co-pk-b">${esc(p.bName)} ${esc(p.bNo)}${img(p.bAv, 'co-av')}</span></div>
       <div class="co-pk-row2"><b>${fmt(p.aScore)}</b><div class="co-pk-bar"><i style="width:${(p.share * 100).toFixed(1)}%"></i></div><b>${fmt(p.bScore)}</b></div>
       <div class="co-pk-row3"><span class="co-pk-tops">${x2('a')}${tops(p.topA)}</span><span class="co-pk-need">${p.needXu ? `cần ${fmt(p.needXu)} xu để lật kèo` : esc(p.hint || '')}</span><span class="co-pk-tops r">${tops(p.topB)}${x2('b')}</span></div>`;
     this._set('pk', this.el.pk, html);

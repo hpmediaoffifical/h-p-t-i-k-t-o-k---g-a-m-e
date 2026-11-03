@@ -9,7 +9,7 @@
  * buổi LIVE bằng toJSON/fromJSON thì `now` phải là đồng hồ thật (Date.now()), không phải performance.now().
  *
  * Một cảnh (shot): { id, kind, target, gifter, view, focus, durMs, startAt, endAt, queuedAt }
- * - kind: 'gala' | 'spotlight' | 'big' | 'room' | 'role' | 'pk' | 'idle'
+ * - kind: 'gala' | 'spotlight' | 'big' | 'room' | 'role' | 'pk' | 'idle' | GĐ2: 'duel' | 'act' | 'chorus' | 'fan'
  * - target: 'G1'..'G5' (sân nhóm), 'N01'.. (phòng), 'board' (bảng xếp hạng), 'overview' (toàn tòa nhà)
  * - view: gợi ý cho director-cam: 'stage' | 'close' | 'room' | 'board' | 'slice' | 'overview'
  * - focus: id người xem cần đặt vào khung (null = không ai)
@@ -19,8 +19,15 @@
  * thêm giờ) → so `shot !== last` hoặc `shot.id` để biết lúc cắt cảnh. Chỉ đọc, đừng sửa.
  */
 
-/** Ưu tiên cảnh: cao cắt ngang thấp (sau mốc tối thiểu), ngang hoặc thấp hơn thì xếp hàng. */
-export const PRIORITY = Object.freeze({ gala: 70, spotlight: 60, big: 50, pk: 45, room: 40, role: 30, idle: 0 });
+/**
+ * Ưu tiên cảnh: cao cắt ngang thấp (sau mốc tối thiểu), ngang hoặc thấp hơn thì xếp hàng.
+ * GĐ2 (spec mục 21): `duel` thách đấu 1–1 · `act` ném / ôm / ghép đôi (quà nhắm người khác) · `chorus` cổ vũ đồng
+ * thanh · `fan` cận 5 giây "fan nổi bật" theo điểm tương tác miễn phí.
+ */
+export const PRIORITY = Object.freeze({ gala: 70, spotlight: 60, big: 50, pk: 45, duel: 44, room: 40, act: 35, role: 30, chorus: 6, fan: 5, idle: 0 });
+
+/** Cảnh ưu tiên dưới mốc này (rảnh, fan nổi bật, cổ vũ — đều miễn phí) bị cảnh quà cắt ngay, không chờ minShotMs. */
+export const SOFT_PRIO = 10;
 
 /** Cảnh vai thuộc một trong 2 sân đang PK: đứng ngay trên cảnh PK (mục 9). */
 export const PK_ROLE_PRIORITY = 46;
@@ -185,8 +192,8 @@ export class Director {
     if (cur) {
       if (now >= cur.endAt) {
         cur = null;
-      } else if (next && next.prio > this._prio(cur, pkStages) && (cur.kind === 'idle' || now - cur.startAt >= this.minShotMs)) {
-        // cảnh rảnh bị cảnh sự kiện cắt ngay (chốt 03/11/2026); cảnh khác phải chạy đủ minShotMs
+      } else if (next && next.prio > this._prio(cur, pkStages) && (this._prio(cur, pkStages) < SOFT_PRIO || now - cur.startAt >= this.minShotMs)) {
+        // cảnh rảnh / miễn phí bị cảnh sự kiện cắt ngay (chốt 03/11/2026); cảnh khác phải chạy đủ minShotMs
         this._stop(cur, now);
         cur = null;
       }

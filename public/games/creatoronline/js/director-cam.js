@@ -93,7 +93,7 @@ export class DirectorCam {
     // Gala: 3 giây đầu toàn tòa nhà rồi mới vào sân
     const galaOpen = shot?.kind === 'gala' && now - (shot.startAt ?? now) < 3000;
     const view = galaOpen ? 'overview' : shot?.view ?? 'overview';
-    if (view === 'overview' || (!room && view !== 'board' && view !== 'close')) {
+    if (view === 'overview' || (!room && view !== 'board' && view !== 'close' && view !== 'duo' && view !== 'over')) {
       P.set(sway * 4, 78, 34);
       L.set(0, 0, -2);
       return 'overview';
@@ -104,6 +104,40 @@ export class DirectorCam {
       P.set(HALL.maxX - 18.4, 4.4, s.z + sway * 1.2);
       L.set(HALL.maxX - 0.4, 1.9, s.z);
       return view;
+    }
+    if (view === 'duo') {
+      // GĐ2: 2 người (thách đấu / ghép đôi / ôm ở Sàn Giao Lưu) — khung giữa 2 người, lùi theo khoảng cách
+      const a = shot.focus ? actorOf(shot.focus) : null;
+      const b = shot.focus2 ? actorOf(shot.focus2) : null;
+      const pa = a && !a.hidden ? a.body.pos : null;
+      const pb = b && !b.hidden ? b.body.pos : null;
+      if (pa || pb) {
+        const p = pa ?? pb;
+        const mx = pa && pb ? (pa.x + pb.x) / 2 : p.x;
+        const mz = pa && pb ? (pa.z + pb.z) / 2 : p.z;
+        const my = Math.max(pa?.y ?? 0, pb?.y ?? 0);
+        const sep = pa && pb ? Math.hypot(pa.x - pb.x, pa.z - pb.z) : 0;
+        const face = Number.isFinite(shot.face) ? shot.face : (a ?? b).ry;
+        const dist = 6.2 + sep * 0.8;
+        // đo ở 1080×1920: đầu 2 người ~y 610 (trên dòng hướng dẫn y 940, dưới thanh PK/thách đấu)
+        P.set(mx + Math.sin(face) * dist + sway * 0.4, my + 1.8, mz + Math.cos(face) * dist);
+        L.set(mx, my + 0.3, mz);
+        return view;
+      }
+    }
+    if (view === 'over') {
+      // GĐ2: cận người đứng giữa đám khán giả — cao hơn đầu người phía trước, chúc xuống ~30°
+      const a = shot.focus ? actorOf(shot.focus) : null;
+      if (a && !a.hidden) {
+        const p = a.body.pos;
+        // hướng đứng ở khu khán giả (quay về sân khấu), không theo hướng đang đi — đang đi về phía camera thì lộ gáy
+        const ry = a.crowdRy ?? a.ry;
+        const fx = Math.sin(ry);
+        const fz = Math.cos(ry);
+        P.set(p.x + fx * 4 + sway * 0.4, p.y + 3.4, p.z + fz * 4);
+        L.set(p.x, p.y + 1.1, p.z);
+        return view;
+      }
     }
     if (view === 'close') {
       const a = shot.focus ? actorOf(shot.focus) : null;

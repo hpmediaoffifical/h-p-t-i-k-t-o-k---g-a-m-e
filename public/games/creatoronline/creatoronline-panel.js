@@ -4,7 +4,9 @@
    - Cài đặt co* (POST /api/games/creatoronline/config) — spec docs/superpowers/specs/2026-11-03-creatoronline-design.md §17.3.
    - Lệnh overlay qua POST /api/games/creatoronline/cmd (gameCmd {cmd, payload}): test / pk / skip / cut / reset.
    - 🎁 Gán quà → hành động (coGiftMap theo giftId), cảnh báo quà trùng với Nhà Tù / Zombie đang bật.
-   - 📌 Câu ghim bình luận TikTok, 🏆 Top fan trọn đời (/api/creatoronline/fans/top).
+   - 📌 Câu ghim bình luận TikTok, 🏆 Top fan trọn đời (/api/creatoronline/fans/top, kèm đồ VIP 🎩🕶️🪽).
+   - GĐ2 🤝 Chơi với nhau: cài đặt coSocial/coFanSpotSec/coPairSec/coDuelSec/coEmoteSec/coLookSec/coChorusMin,
+     nút thử cmd('test', {kind:'scenario', scenario}), chọn cỡ cửa sổ coWinSize (chèn cạnh #co-btn-open).
    Danh sách hành động + bộ quà gợi ý đọc chung public/games/creatoronline/data.json với overlay.
    Expose: window.HpCreatorOnlinePanel.open(socket)
    ============================================================ */
@@ -17,8 +19,12 @@
         coStageBaseSec: 12, coStagePerCoinSec: 3, coStageMaxSec: 120, coStageSlots: 12, coRoomHoldSec: 60, coRoomQueueMax: 6,
         coRoleSec: 180, coRoleLockSec: 45, coRoleMaxSec: 300, coPkEveryMin: 5, coPkSec: 90, coPkFinalSec: 30, coMvpMin: 10,
         coCamMaxPer5Min: 90, coTierFallback: true, coLikeMilestone: 300, coSound: true, coMusic: true, coMusicVol: 0.35,
-        coLiveTv: true, coShowGiftLegend: true, coShowJoinHint: true, coBadWords: '', coGiftMap: {}
+        coLiveTv: true, coShowGiftLegend: true, coShowJoinHint: true, coBadWords: '', coGiftMap: {},
+        coWinSize: '608x1080', coSocial: true, coFanSpotSec: 25, coPairSec: 60, coDuelSec: 60, coEmoteSec: 10, coLookSec: 60, coChorusMin: 3
     };
+    // cỡ cửa sổ game (TikTok Studio "Chụp cửa sổ") — khớp CO_WIN_SIZES trong server.js
+    const WIN_SIZES = [['540x960', '540×960 (nhẹ)'], ['608x1080', '608×1080 (khuyên dùng)'], ['720x1280', '720×1280 (nét)'], ['1080x1920', '1080×1920 (nét nhất — máy mạnh)']];
+    const SOCIAL_TESTS = [['throw', '🎂 Ném bánh'], ['pair', '💞 Ghép đôi'], ['hug', '🤗 Ôm'], ['duel', '🥊 Thách đấu'], ['chorus', '📣 Cổ vũ đồng thanh'], ['free', '👕 Áo/tóc/biểu cảm'], ['vip', '👑 Đồ VIP'], ['center', '⭐ Center + đội trưởng']];
     // game Tương Tác khác có bảng gán quà riêng (cấu trúc khác nhau → mỗi game 1 hàm lấy danh sách giftId)
     const OTHER_MAPS = [
         { id: 'nhatu', name: 'Nhà Tù Online', ids: c => mapIds(c && c.ntGiftMap) },
@@ -51,6 +57,7 @@
         if (!giftActions.length) {
             try { const r = await fetch('/games/creatoronline/data.json'); if (r.ok) { const d = await r.json(); giftActions = d.giftActions || []; suggested = d.suggestedGiftMap || {}; } } catch (e) {}
         }
+        migrateGd2Gifts();
         others = new Map();
         await Promise.all(OTHER_MAPS.map(async g => {
             try {
@@ -61,6 +68,23 @@
                 for (const id of g.ids(c)) others.set(id, (others.get(id) || []).concat(g.name));
             } catch (e) {}
         }));
+    }
+    // GĐ2: người đã lưu coGiftMap ở GĐ1 chưa có quà cho 12 hành động mới → bổ sung 1 lần từ bộ gợi ý,
+    // bỏ quà đang gán cho hành động khác (1 quà ↔ 1 hành động). coGdMigrated thiếu = 0 (không có trong defaultConfig).
+    const GD2_KEYS = ['throwCake', 'throwHeart', 'throwEgg', 'pair', 'hug', 'duel', 'fireworks', 'fly', 'transform', 'vipHat', 'vipGlasses', 'vipWings'];
+    function migrateGd2Gifts() {
+        const map = cfg.coGiftMap;
+        if (Number(cfg.coGdMigrated || 0) === 2 || GD2_KEYS.some(k => k in map)) return;
+        if (!GD2_KEYS.some(k => Array.isArray(suggested[k]) && suggested[k].length)) return;   // chưa đọc được bộ gợi ý → để lần sau
+        const used = new Set(mapIds(map));
+        for (const k of GD2_KEYS) {
+            const add = (Array.isArray(suggested[k]) ? suggested[k] : []).filter(g => g && g.giftId != null && !used.has(String(g.giftId)));
+            if (!add.length) continue;
+            add.forEach(g => used.add(String(g.giftId)));
+            map[k] = JSON.parse(JSON.stringify(add));
+        }
+        cfg.coGdMigrated = 2;
+        schedulePersist();
     }
     function schedulePersist() { clearTimeout(pendingSave); pendingSave = setTimeout(() => persist().catch(() => toast('Lưu thất bại', 'error')), 350); }
     async function persist() {
@@ -76,7 +100,7 @@
     }
     async function openWindow(demo) {     // Edge/Chrome --app (Electron của app tắt GPU → game 3D chạy ngoài)
         try {
-            const r = await fetch('/api/creatoronline/window/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ demo: !!demo }) });
+            const r = await fetch('/api/creatoronline/window/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ demo: !!demo, size: cfg && cfg.coWinSize }) });
             const j = await r.json().catch(() => ({}));
             toast(j.ok ? (demo ? 'Đã mở Bản đi dạo' : 'Đã mở cửa sổ game') : (j.error || 'Không mở được cửa sổ game'), j.ok ? 'success' : 'error');
         } catch (e) { toast('Không mở được cửa sổ game', 'error'); }
@@ -85,11 +109,21 @@
     // ---------------- thanh công cụ ----------------
     function bindShell() {
         $('#co-btn-copy')?.addEventListener('click', async () => {
-            const path = '/overlay/creatoronline' + (cfg && cfg.coQuality === 'low' ? '?q=low' : '');
-            const url = window.buildOverlayURL ? window.buildOverlayURL(path) : location.origin + path;
+            const url = overlayUrl();
             try { await navigator.clipboard.writeText(url); toast('Đã copy link OBS (Browser Source 1080×1920)'); } catch (e) { prompt('Link OBS:', url); }
         });
         $('#co-btn-open')?.addEventListener('click', () => openWindow(false));
+        // chọn cỡ cửa sổ game ngay cạnh nút mở (index.html không có sẵn → chèn từ đây)
+        const openBtn = $('#co-btn-open');
+        if (openBtn && !$('#co-winsize')) {
+            const sel = document.createElement('select');
+            sel.id = 'co-winsize';
+            sel.className = 'co-winsize';
+            sel.title = 'Cỡ cửa sổ game — TikTok Studio "Chụp cửa sổ" bắt đúng cỡ này (to hơn = nét hơn, nặng máy hơn)';
+            sel.innerHTML = WIN_SIZES.map(([v, l]) => `<option value="${v}">🖥 ${esc(l)}</option>`).join('');
+            sel.addEventListener('change', () => { if (!cfg) return; cfg.coWinSize = sel.value; schedulePersist(); });
+            openBtn.insertAdjacentElement('afterend', sel);
+        }
         $('#co-btn-demo')?.addEventListener('click', () => openWindow(true));
         $('#co-btn-reload')?.addEventListener('click', () => { socket && socket.emit('overlay:reload', { gameId: GAME_ID }); toast('Đã gửi lệnh tải lại overlay'); });
         $('#co-btn-skip')?.addEventListener('click', () => cmd('skip'));
@@ -101,7 +135,15 @@
     }
 
     // ---------------- vẽ ----------------
-    function render() { renderSettings(); renderControl(); renderFans(); renderGifts(); }
+    function render() {
+        const ws = $('#co-winsize');
+        if (ws) ws.value = WIN_SIZES.some(([v]) => v === cfg.coWinSize) ? cfg.coWinSize : '608x1080';
+        renderSettings(); renderControl(); renderFans(); renderGifts();
+    }
+    function overlayUrl() {
+        const path = '/overlay/creatoronline' + (cfg && cfg.coQuality === 'low' ? '?q=low' : '');
+        return window.buildOverlayURL ? window.buildOverlayURL(path) : location.origin + path;
+    }
 
     function num(k, label, min, max, step, title) {
         return `<label class="co-row"><span${title ? ` title="${esc(title)}"` : ''}>${label}</span><input type="number" min="${min}"${max != null ? ` max="${max}"` : ''} step="${step}" data-k="${k}" data-num="1" value="${esc(cfg[k])}"></label>`;
@@ -139,13 +181,40 @@
                 ${chk('coLiveTv', '📺 TV trực tiếp trong sân khấu nhóm (tắt cho nhẹ máy)')}
                 ${chk('coSound', '🔊 Hiệu ứng âm thanh')}
                 ${chk('coMusic', '🎵 Nhạc theo phòng đang quay')}
-            </div>`;
+            </div>
+            <div class="nd-card-title co-subtitle">🤝 Chơi với nhau</div>
+            <div class="co-checks">${chk('coSocial', '🤝 Bật người xem chơi với nhau')}</div>
+            ${num('coFanSpotSec', '⭐ Quay cận fan nổi bật mỗi (giây, 0 = tắt)', 0, 120, 5, 'Mỗi lần quay cận 5 giây người tương tác miễn phí nhiều nhất (bình luận, tim, chia sẻ)')}
+            ${num('coPairSec', '💞 Ghép đôi kéo dài (giây)', 20, 300, 10)}
+            ${num('coDuelSec', '🥊 Thách đấu kéo dài (giây)', 30, 180, 10)}
+            ${num('coEmoteSec', '😆 Chờ giữa 2 lần biểu cảm (giây)', 3, 60, 1)}
+            ${num('coLookSec', '👕 Chờ giữa 2 lần đổi áo/tóc (giây)', 10, 600, 10)}
+            ${num('coChorusMin', '📣 Số người tối thiểu cổ vũ đồng thanh', 2, 10, 1)}
+            <details class="co-help">
+                <summary>📺 Phát nét lên TikTok Studio</summary>
+                <div class="co-help-body">
+                    <b>Cách 1 — qua OBS (nét nhất)</b>
+                    <ol>
+                        <li>OBS → thêm <b>Browser Source</b>, dán link: <code class="co-url">${esc(overlayUrl())}</code></li>
+                        <li>Rộng 1080 × cao 1920, FPS 60 (máy yếu để 30).</li>
+                        <li>OBS → Cài đặt → Video: Canvas dọc 1080×1920.</li>
+                        <li>TikTok Studio chọn nguồn <b>"OBS Virtual Camera"</b> (bấm Start Virtual Camera trong OBS), hoặc phát bằng RTMP/stream key nếu tài khoản có.</li>
+                    </ol>
+                    <b>Cách 2 — không cần OBS</b>
+                    <ol>
+                        <li>Chọn cỡ cửa sổ <b>720×1280</b> hoặc <b>1080×1920</b> cạnh nút 🎮 Mở cửa sổ game, rồi bấm mở.</li>
+                        <li>TikTok Studio → thêm nguồn <b>"Chụp cửa sổ"</b> → chọn cửa sổ game, kéo vừa khung dọc.</li>
+                    </ol>
+                    <div class="co-hint co-warn">Cửa sổ nhỏ (540×960) bị phóng to nên mờ. Máy yếu: chọn Chất lượng hình ⚡ Nhẹ.</div>
+                </div>
+            </details>`;
         host.querySelectorAll('[data-k]').forEach(el => {
             el.addEventListener(el.type === 'checkbox' || el.tagName === 'SELECT' || el.type === 'range' ? 'change' : 'input', () => {
                 const k = el.dataset.k;
                 cfg[k] = el.type === 'checkbox' ? el.checked : el.dataset.num ? Number(el.value) || 0 : el.value;
                 schedulePersist();
                 if (k === 'coGiftMap') renderGifts();
+                if (k === 'coQuality') { const u = host.querySelector('.co-url'); if (u) u.textContent = overlayUrl(); }
             });
         });
     }
@@ -175,11 +244,16 @@
                 <button class="ghost small" data-test="like">❤️ Thả tim</button>
                 <button class="ghost small" data-test="follow">➕ Follow</button>
             </div>
+            <div class="nd-card-title" style="margin-top:8px">🧪 Thử chơi với nhau</div>
+            <div class="co-cmds">
+                ${SOCIAL_TESTS.map(([s, l]) => `<button class="ghost small" data-scenario="${s}">${l}</button>`).join('')}
+            </div>
             <div class="nd-card-title" style="margin-top:8px">📌 Câu ghim bình luận</div>
             <div class="co-pin"><span id="co-pin-text">${esc(pinText())}</span><button class="ghost small" id="co-pin-copy">📋 Copy</button></div>
             <div class="co-hint">Ghim câu này trên TikTok để người mới vào biết cách chơi. Dòng hướng dẫn trên overlay cũng xoay vòng 3 câu này.</div>
             <div class="co-hint co-warn">⚠ Chỉ dùng <b>một</b> trong hai: nguồn Browser Source trong OBS <b>hoặc</b> cửa sổ game. Mở cả hai thì mỗi bên tự chạy PK, vai, phòng riêng và có thể lệch nhau.</div>`;
         host.querySelectorAll('[data-gift]').forEach(b => b.addEventListener('click', () => cmd('test', { kind: 'gift', coins: Number(b.dataset.gift) })));
+        host.querySelectorAll('[data-scenario]').forEach(b => b.addEventListener('click', () => cmd('test', { kind: 'scenario', scenario: b.dataset.scenario })));
         host.querySelectorAll('[data-test]').forEach(b => b.addEventListener('click', () => {
             const t = b.dataset.test;
             if (t === 'club') cmd('test', { kind: 'comment', text: '1' });
@@ -200,7 +274,7 @@
         host.innerHTML = `
             <div class="co-giftbar"><div class="nd-card-title">🏆 Top fan trọn đời</div><button class="ghost small" id="co-fans-reset" title="Xoá toàn bộ cấp fan đã lưu">🗑 Làm mới</button></div>
             <div class="co-hint">Tổng xu người xem đã tặng trong Creator Online, giữ qua mọi buổi LIVE. Chỉ ghi khi overlay đang chạy. Cấp: Fan mới · ⭐ Fan cứng 100 · 💎 Fan VIP 500 · 👑 Đại gia 2.000 · 🏆 Thần tài 10.000 xu.</div>
-            ${top === null ? '<div class="nd-empty">Chưa đọc được danh sách.</div>' : top.length ? `<ol class="co-fans">${top.map(f => `<li><span>${ranks[f.rank] || ''} ${esc(f.name || f.id)}</span><small>${f.club ? `nhóm ${esc(f.club)} · ` : ''}${Number(f.xu).toLocaleString('vi-VN')} xu</small></li>`).join('')}</ol>` : '<div class="nd-empty">Chưa có ai tặng quà.</div>'}`;
+            ${top === null ? '<div class="nd-empty">Chưa đọc được danh sách.</div>' : top.length ? `<ol class="co-fans">${top.map(f => `<li><span>${ranks[f.rank] || ''} ${esc(f.name || f.id)}</span><small>${(f.vip || []).map(v => ({ hat: '🎩', glasses: '🕶️', wings: '🪽' }[v] || '')).join('')}${f.vip && f.vip.length ? ' · ' : ''}${f.club ? `nhóm ${esc(f.club)} · ` : ''}${Number(f.xu).toLocaleString('vi-VN')} xu</small></li>`).join('')}</ol>` : '<div class="nd-empty">Chưa có ai tặng quà.</div>'}`;
         host.querySelector('#co-fans-reset')?.addEventListener('click', async () => {
             const ok = window.hpConfirm ? await window.hpConfirm('Xoá toàn bộ cấp fan trọn đời của Creator Online?') : confirm('Xoá toàn bộ cấp fan?');
             if (!ok) return;
@@ -225,11 +299,11 @@
                 <button class="ghost small co-try" data-a="${esc(a.id)}" title="Thử trên overlay với người xem ảo">🧪 Thử</button>
             </div>`;
         };
-        const groups = [['place', '🎟️ Phòng'], ['role', '🎙️ Vai trong nhóm'], ['stage', '💃 Trên sân khấu'], ['event', '🎉 Sự kiện lớn']];
+        const groups = [['place', '🎟️ Phòng'], ['role', '🎙️ Vai trong nhóm'], ['stage', '💃 Trên sân khấu'], ['social', '🤝 Chơi với nhau (gõ "ném 12" rồi tặng)'], ['solo', '✨ Hành động riêng'], ['vip', '👑 Đồ VIP giữ trọn đời'], ['event', '🎉 Sự kiện lớn']];
         host.innerHTML = `
             <div class="co-giftbar"><div class="nd-card-title">🎁 Gán quà → hành động</div><button class="ghost small" id="co-suggest" title="Gán lại toàn bộ theo bộ quà gợi ý">🎁 Dùng bộ quà gợi ý</button></div>
-            <div class="co-hint"><b>Quà bất kỳ</b> (kể cả Hoa hồng) đều cho người tặng lên sân khấu nhóm của họ. Gán thêm quà để món đó chạy một hành động bên dưới. Quà chưa gán thì chạy theo bậc xu: 30–98 xu → phòng mang tên · 99–298 → vai · 299–999 → quà lớn + PK · 1.000–9.999 → tâm điểm · từ 10.000 → Gala.</div>
-            ${groups.map(([g, title]) => `<div class="nd-card-title" style="margin-top:8px">${title}</div>${giftActions.filter(a => a.group === g).map(row).join('')}`).join('')}`;
+            <div class="co-hint"><b>Quà bất kỳ</b> (kể cả Hoa hồng) đều cho người tặng lên sân khấu nhóm của họ. Gán thêm quà để món đó chạy một hành động bên dưới. Quà chưa gán thì chạy theo bậc xu: 30–98 xu → phòng mang tên · 99–298 → vai · 299–999 → quà lớn + PK · 1.000–9.999 → tâm điểm · từ 10.000 → Gala. Quà ở nhóm 🤝 cần chọn người: người xem gõ ném / ghép / ôm / thách + số trên đầu nhân vật (vd. 'ném 12') rồi tặng; không gõ số thì nhắm người đang lên hình.</div>
+            ${groups.map(([g, title]) => { const acts = giftActions.filter(a => a.group === g); return acts.length ? `<div class="nd-card-title" style="margin-top:8px">${title}</div>${acts.map(row).join('')}` : ''; }).join('')}`;
         host.querySelectorAll('.co-try').forEach(b => b.addEventListener('click', () => cmd('test', { kind: 'action', action: b.dataset.a })));
         host.querySelector('#co-suggest')?.addEventListener('click', async () => {
             if (!Object.keys(suggested).length) { toast('Chưa có bộ quà gợi ý', 'error'); return; }

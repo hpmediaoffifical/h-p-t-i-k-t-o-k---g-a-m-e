@@ -106,6 +106,8 @@ export function disposeCharacter(char) {
   char.root.parent?.remove(char.root);
   char.stickMat?.dispose();
   char.stickMat = null;
+  // phụ kiện setExtras chỉ dùng geometry/material chung → không dispose, chỉ bỏ tham chiếu
+  char.xp = null;
 }
 
 export function createCharacter(look) {
@@ -312,6 +314,8 @@ export function setLook(char, look) {
     c.add(mesh(G.small, mat(0xff3b6b, { emissive: 0x550018 }), 0, 0.02, 0.29));
     char.hatGroup.add(c);
   }
+  // đang đội vương miện lông vũ → giấu mũ thường + chỉnh vương miện theo kiểu tóc mới
+  if (char.extras) applyVipHat(char);
 }
 
 /** Show/hide hand props. */
@@ -324,6 +328,369 @@ export function setProps(char, { mic = false, stick = false, headset = false, cl
     char.stickMat.color.set(stickColor);
     char.stickMat.emissive.set(stickColor);
   }
+}
+
+// ===== Phụ kiện thêm (setExtras) — dựng lười lần bật đầu, giữ group để bật/tắt lại; mọi geometry/material dùng chung =====
+const EXTRA_DEFAULTS = Object.freeze({ vipHat: false, glasses: false, wings: false, splat: null, armband: null, scale: 1, aura: null });
+const SPLATS = ['cake', 'egg', 'heart'];
+const GOLD = { rough: 0.25, metal: 0.8, emissive: 0x3a2800 };
+const xgeo = {};
+let xmats = null; // material trong suốt/phát sáng dùng chung (mat() không có tuỳ chọn trong suốt)
+const auraMats = new Map(); // màu → material vòng sáng
+
+/** Sao n cánh, đỉnh hướng lên. */
+function starShape(outer, inner, n = 5) {
+  const s = new THREE.Shape();
+  for (let i = 0; i < n * 2; i++) {
+    const r = i % 2 ? inner : outer;
+    const a = Math.PI / 2 + (i * Math.PI) / n;
+    if (i) s.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    else s.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  s.closePath();
+  return s;
+}
+
+function gx() {
+  if (xgeo.star) return xgeo;
+  // kính ngôi sao: tròng đặc + gọng sao rỗng ruột
+  xgeo.star = new THREE.ShapeGeometry(starShape(0.104, 0.05));
+  const frame = starShape(0.126, 0.063);
+  frame.holes.push(starShape(0.1, 0.048));
+  xgeo.starFrame = new THREE.ShapeGeometry(frame);
+  xgeo.bridge = new THREE.CylinderGeometry(0.012, 0.012, 0.06, 6).rotateZ(Math.PI / 2);
+  xgeo.temple = new THREE.BoxGeometry(0.018, 0.018, 0.41);
+  // vương miện lông vũ: vành loe + chùm lông (cầu kéo dài, gốc ở y=0)
+  xgeo.vipRing = new THREE.CylinderGeometry(0.31, 0.25, 0.11, 20, 1, true);
+  xgeo.plume = new THREE.SphereGeometry(0.07, 10, 8).translate(0, 0.07, 0);
+  // dính mặt: kem bánh / trứng ốp / tim
+  xgeo.blob = new THREE.SphereGeometry(0.2, 18, 12);
+  xgeo.eggWhite = new THREE.CylinderGeometry(0.19, 0.19, 0.022, 22).rotateX(Math.PI / 2);
+  const h = new THREE.Shape();
+  h.moveTo(0, 0.025);
+  h.bezierCurveTo(0, 0.05, -0.05, 0.06, -0.06, 0.03);
+  h.bezierCurveTo(-0.07, 0, -0.03, -0.03, 0, -0.06);
+  h.bezierCurveTo(0.03, -0.03, 0.07, 0, 0.06, 0.03);
+  h.bezierCurveTo(0.05, 0.06, 0, 0.05, 0, 0.025);
+  xgeo.heart = new THREE.ExtrudeGeometry(h, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.01, bevelSegments: 2, curveSegments: 8 }).center();
+  // băng đội trưởng ôm bắp tay (vòng nằm ngang)
+  xgeo.armband = new THREE.TorusGeometry(0.083, 0.024, 6, 18).rotateX(Math.PI / 2);
+  // cánh tiên (cánh phải, gốc ở 0,0): thùy trên lớn + thùy dưới nhỏ
+  const up = new THREE.Shape();
+  up.moveTo(0, 0);
+  up.bezierCurveTo(0.05, 0.25, 0.3, 0.55, 0.52, 0.5);
+  up.bezierCurveTo(0.66, 0.46, 0.62, 0.25, 0.45, 0.15);
+  up.bezierCurveTo(0.3, 0.06, 0.12, 0.02, 0, 0);
+  xgeo.wingUp = new THREE.ShapeGeometry(up, 10);
+  const low = new THREE.Shape();
+  low.moveTo(0, 0);
+  low.bezierCurveTo(0.15, -0.02, 0.36, -0.08, 0.38, -0.22);
+  low.bezierCurveTo(0.39, -0.33, 0.24, -0.34, 0.15, -0.24);
+  low.bezierCurveTo(0.08, -0.16, 0.03, -0.07, 0, 0);
+  xgeo.wingLow = new THREE.ShapeGeometry(low, 10);
+  // vòng sáng dưới chân: màu đỉnh mờ dần 2 mép (cộng màu → đen = trong suốt)
+  const ring = new THREE.RingGeometry(0.3, 0.75, 40, 4).rotateX(-Math.PI / 2);
+  const pos = ring.attributes.position;
+  const col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const r = Math.hypot(pos.getX(i), pos.getZ(i));
+    const b = Math.sin((Math.PI * (r - 0.3)) / 0.45) ** 2;
+    col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = b;
+  }
+  ring.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  xgeo.aura = ring;
+  return xgeo;
+}
+
+function xm() {
+  if (xmats) return xmats;
+  const glow = (color, emissive, opacity, emissiveIntensity) =>
+    new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity, roughness: 0.3, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false });
+  xmats = {
+    lens: glow(0xff5fb8, 0xff2f9a, 0.55, 0.72),
+    wingUp: glow(0xbff3ff, 0x5fd6ff, 0.75, 0.6),
+    wingLow: glow(0xffc4e6, 0xff7ac0, 0.75, 0.6),
+  };
+  return xmats;
+}
+
+function auraMat(color) {
+  if (!auraMats.has(color)) {
+    auraMats.set(
+      color,
+      new THREE.MeshBasicMaterial({ color, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })
+    );
+  }
+  return auraMats.get(color);
+}
+
+function normExtras(e = {}) {
+  const sc = Number(e.scale);
+  return {
+    vipHat: !!e.vipHat,
+    glasses: !!e.glasses,
+    wings: !!e.wings,
+    splat: SPLATS.includes(e.splat) ? e.splat : null,
+    armband: typeof e.armband === 'number' && Number.isFinite(e.armband) ? e.armband : null,
+    scale: Number.isFinite(sc) && sc > 0 ? Math.min(2, Math.max(0.5, sc)) : 1,
+    aura: typeof e.aura === 'number' && Number.isFinite(e.aura) ? e.aura : null,
+  };
+}
+
+function buildVipHat(char) {
+  const X = gx();
+  const G = g();
+  const wrap = new THREE.Group(); // tâm đầu
+  wrap.position.y = 0.36;
+  const crown = new THREE.Group();
+  wrap.add(crown);
+  const gold = mat(0xffc93a, GOLD);
+  crown.add(mesh(X.vipRing, gold));
+  // đá quý phía trước
+  const gem = mesh(G.small, mat(0xff3b9a, { rough: 0.3, emissive: 0x5a0030 }), 0, -0.005, 0.285);
+  gem.scale.set(1, 1, 0.6);
+  crown.add(gem);
+  for (const sx of [-1, 1]) {
+    const a = sx * 0.6;
+    const side = mesh(G.small, mat(0x5fe3ff, { rough: 0.3, emissive: 0x0d3a48 }), Math.sin(a) * 0.282, -0.005, Math.cos(a) * 0.282);
+    side.scale.setScalar(0.6);
+    crown.add(side);
+  }
+  // 5 chùm lông xòe ở nửa sau vành: hồng / xanh / trắng
+  const fm = [
+    mat(0xff7ac8, { rough: 0.9, emissive: 0x40102a }),
+    mat(0x7fe8ff, { rough: 0.9, emissive: 0x0d3a48 }),
+    mat(0xffffff, { rough: 0.9, emissive: 0x303030 }),
+  ];
+  const plan = [
+    [-0.9, 0, 0.78],
+    [-0.45, 1, 0.92],
+    [0, 2, 1.05],
+    [0.45, 1, 0.92],
+    [0.9, 0, 0.78],
+  ];
+  for (const [off, ci, hgt] of plan) {
+    const a = Math.PI + off;
+    const pg = new THREE.Group();
+    pg.position.set(Math.sin(a) * 0.29, 0.04, Math.cos(a) * 0.29);
+    pg.rotation.y = a; // +z cục bộ hướng ra ngoài
+    const p = mesh(X.plume, fm[ci]);
+    p.scale.set(0.75, 2.6 * hgt, 0.35);
+    p.rotation.x = 0.5; // ngả ra ngoài
+    pg.add(p);
+    crown.add(pg);
+  }
+  wrap.userData.crown = crown;
+  char.headPivot.add(wrap);
+  return wrap;
+}
+
+/** Bật/tắt vương miện lông vũ: giấu hatGroup, tóc búi thì nới vành ôm quanh búi. */
+function applyVipHat(char) {
+  const on = !!char.extras?.vipHat;
+  char.hatGroup.visible = !on;
+  const xp = (char.xp ??= {});
+  if (on && !xp.vipHat) xp.vipHat = buildVipHat(char);
+  if (!xp.vipHat) return;
+  xp.vipHat.visible = on;
+  if (!on) return;
+  const look = char.look ?? {};
+  const bun = look.hair && look.hair !== 'bald' && look.hairStyle === 'bun';
+  const crown = xp.vipHat.userData.crown;
+  crown.position.set(0, 0.43, bun ? -0.06 : -0.03);
+  crown.scale.setScalar(bun ? 1.18 : 1);
+}
+
+function buildGlasses(char) {
+  const X = gx();
+  const gold = mat(0xffc93a, GOLD);
+  const grp = new THREE.Group();
+  grp.position.y = 0.36; // = nhóm mặt
+  for (const sx of [-1, 1]) {
+    const s = new THREE.Group();
+    s.position.set(sx * 0.14, -0.02, 0.46);
+    s.rotation.y = sx * 0.25; // ôm theo mặt cong
+    s.add(mesh(X.starFrame, gold, 0, 0, 0.002), mesh(X.star, xm().lens, 0, 0, -0.002));
+    grp.add(s);
+    const tmp = mesh(X.temple, gold, sx * 0.34, 0.01, 0.245);
+    tmp.rotation.y = -sx * 0.376;
+    grp.add(tmp);
+  }
+  grp.add(mesh(X.bridge, gold, 0, 0.02, 0.485));
+  char.headPivot.add(grp);
+  return grp;
+}
+
+function buildWings(char) {
+  const X = gx();
+  const M = xm();
+  const group = new THREE.Group();
+  const mk = (sx) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx * 0.06, 0.78, -0.23); // lưng (−z)
+    const w = new THREE.Group();
+    w.scale.x = sx; // cánh trái = soi gương
+    w.add(mesh(X.wingUp, M.wingUp), mesh(X.wingLow, M.wingLow));
+    pivot.add(w);
+    pivot.rotation.y = sx * 0.35;
+    group.add(pivot);
+    return pivot;
+  };
+  const r = mk(1);
+  const l = mk(-1);
+  char.body.add(group);
+  return { group, l, r };
+}
+
+function buildSplat(char, kind) {
+  const X = gx();
+  const G = g();
+  const grp = new THREE.Group();
+  grp.position.y = 0.36; // tâm đầu
+  if (kind === 'cake') {
+    const cream = mat(0xfff6ea, { rough: 0.9 });
+    const main = mesh(X.blob, cream, 0, -0.04, 0.36);
+    main.scale.set(1.5, 1.2, 0.5);
+    const pink = mesh(X.blob, mat(0xffa6c9, { rough: 0.8 }), 0.04, 0.04, 0.42);
+    pink.scale.set(0.75, 0.5, 0.35);
+    const cherry = mesh(G.small, mat(0xd81e3c, { rough: 0.3, emissive: 0x3a0010 }), 0.05, 0.12, 0.475);
+    cherry.scale.setScalar(0.9);
+    const stem = mesh(X.bridge, mat(0x3d7a2a), 0.07, 0.19, 0.475);
+    stem.rotation.z = Math.PI / 2 - 0.4;
+    grp.add(main, pink, cherry, stem);
+    for (const [x, y, z] of [[-0.2, -0.24, 0.32], [0.1, -0.27, 0.34], [0.22, -0.18, 0.31]]) {
+      const d = mesh(G.small, cream, x, y, z);
+      d.scale.set(0.6, 1.1, 0.6);
+      grp.add(d);
+    }
+  } else if (kind === 'egg') {
+    const n = new THREE.Vector3(0.06, 0.12, 0.99).normalize();
+    const egg = new THREE.Group();
+    egg.position.copy(n).multiplyScalar(0.448);
+    egg.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+    egg.rotateZ(0.35); // lệch xéo
+    const white = mesh(X.eggWhite, mat(0xfffdf6, { rough: 0.5 }));
+    white.scale.set(1.1, 0.9, 1);
+    const yolk = mesh(X.blob, mat(0xffb81f, { rough: 0.3, emissive: 0x3a2200 }), 0.02, 0.01, 0.02);
+    yolk.scale.set(0.42, 0.4, 0.22);
+    egg.add(white, yolk);
+    grp.add(egg);
+  } else {
+    // má hồng to + 3 tim bay vòng quanh đầu
+    const rosy = mat(0xff6f9a, { rough: 0.9 });
+    for (const sx of [-1, 1]) {
+      const c = mesh(G.small, rosy, sx * 0.25, -0.12, 0.33);
+      c.scale.set(1.6, 0.9, 0.45);
+      grp.add(c);
+    }
+    const orbit = new THREE.Group();
+    orbit.position.y = 0.46;
+    const hm = mat(0xff5fa2, { rough: 0.4, emissive: 0x5a0f2e });
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      const ht = mesh(X.heart, hm, Math.sin(a) * 0.44, 0, Math.cos(a) * 0.44);
+      ht.rotation.y = a;
+      ht.scale.setScalar(1.2);
+      orbit.add(ht);
+    }
+    grp.add(orbit);
+    grp.userData.orbit = orbit;
+  }
+  char.headPivot.add(grp);
+  return grp;
+}
+
+function buildArmband(char) {
+  const X = gx();
+  const grp = new THREE.Group();
+  grp.position.y = -0.09; // bắp tay sát vai
+  const band = mesh(X.armband, mat(0xffffff, { rough: 0.55 }));
+  const star = mesh(X.star, mat(0xffc93a, GOLD), -0.0764, 0, 0.0764);
+  star.rotation.y = -Math.PI / 4; // quay ra ngoài-trước
+  star.scale.setScalar(0.4);
+  grp.add(band, star);
+  char.armL.pivot.add(grp);
+  return { group: grp, band };
+}
+
+function buildAura(char) {
+  const m = new THREE.Mesh(gx().aura, auraMat(0xffffff));
+  m.position.y = 0.02;
+  m.renderOrder = 1;
+  char.root.add(m);
+  return m;
+}
+
+/**
+ * Gắn phụ kiện thêm cho nhân vật. Truyền TRỌN trạng thái mỗi lần (khoá thiếu = tắt);
+ * gọi lại bao nhiêu lần cũng được — chỉ dựng/đổi phần khác với lần trước, phần tắt chỉ ẩn để dùng lại.
+ * @param {object} char nhân vật từ createCharacter
+ * @param {{vipHat?:boolean, glasses?:boolean, wings?:boolean, splat?:null|'cake'|'egg'|'heart',
+ *          armband?:null|number, scale?:number, aura?:null|number}} [extras]
+ *   vipHat = vương miện lông vũ (thay look.hat), glasses = kính ngôi sao, wings = cánh tiên,
+ *   splat = thứ dính trên mặt sau khi bị ném, armband = màu băng đội trưởng (tay armL),
+ *   scale = phóng to char.body (0.5..2), aura = màu vòng sáng dưới chân.
+ * @returns {object} char.extras (đã chuẩn hoá)
+ */
+export function setExtras(char, extras = {}) {
+  const prev = char.extras ?? EXTRA_DEFAULTS;
+  const next = normExtras(extras ?? {});
+  char.extras = next;
+  const xp = (char.xp ??= {});
+
+  if (next.vipHat !== prev.vipHat) applyVipHat(char);
+
+  if (next.splat !== prev.splat) {
+    xp.splat ??= {};
+    for (const k of SPLATS) if (xp.splat[k]) xp.splat[k].visible = false;
+    if (next.splat) (xp.splat[next.splat] ??= buildSplat(char, next.splat)).visible = true;
+  }
+
+  // kính bị kem/trứng che → ẩn (tránh 2 mặt chồng nhau nhấp nháy)
+  const glassesOn = next.glasses && next.splat !== 'cake' && next.splat !== 'egg';
+  if (glassesOn && !xp.glasses) xp.glasses = buildGlasses(char);
+  if (xp.glasses) xp.glasses.visible = glassesOn;
+
+  if (next.wings !== prev.wings) {
+    if (next.wings && !xp.wings) xp.wings = buildWings(char);
+    if (xp.wings) xp.wings.group.visible = next.wings;
+  }
+
+  if (next.armband !== prev.armband) {
+    if (next.armband !== null && !xp.armband) xp.armband = buildArmband(char);
+    if (xp.armband) {
+      xp.armband.group.visible = next.armband !== null;
+      if (next.armband !== null) xp.armband.band.material = mat(next.armband, { rough: 0.55 });
+    }
+  }
+
+  if (next.aura !== prev.aura) {
+    if (next.aura !== null && !xp.aura) xp.aura = buildAura(char);
+    if (xp.aura) {
+      xp.aura.visible = next.aura !== null;
+      if (next.aura !== null) xp.aura.material = auraMat(next.aura);
+    }
+  }
+
+  if (next.scale !== prev.scale) char.body.scale.setScalar(next.scale);
+  return next;
+}
+
+/** Nhịp động của phụ kiện: cánh vỗ, tim xoay, vòng sáng thở. */
+function animateExtras(char, dt, mode, t) {
+  const xp = char.xp;
+  if (xp.wings?.group.visible) {
+    const f = mode === 'fly' ? Math.sin(t * 9) * 0.6 : Math.sin(t * 3) * 0.25;
+    xp.wings.r.rotation.y = 0.35 + f;
+    xp.wings.l.rotation.y = -(0.35 + f);
+  }
+  const hs = xp.splat?.heart;
+  if (hs?.visible) {
+    const orbit = hs.userData.orbit;
+    orbit.rotation.y = (orbit.rotation.y + dt * 2.4) % (Math.PI * 2);
+    orbit.children.forEach((h, i) => (h.position.y = Math.sin(t * 4 + i * 2.1) * 0.03));
+  }
+  if (xp.aura?.visible) xp.aura.scale.setScalar(1 + Math.sin(t * 3) * 0.06);
 }
 
 const lerp = (a, b, k) => a + (b - a) * k;
@@ -342,7 +709,7 @@ export function animateCharacter(char, dt, s) {
   const beat = s.beat ?? t * 2;
   const bp = beat * Math.PI; // half a cycle per beat
   let legL = 0, legR = 0, armL = 0, armR = 0, armLz = 0.12, armRz = -0.12, legZ = 0;
-  let bob = 0, bodyY = 0, headX = 0, headZ = 0, sway = 0, spin = 0;
+  let bob = 0, bodyY = 0, headX = 0, headZ = 0, sway = 0, spin = 0, lean = 0;
 
   switch (s.mode) {
     case 'walk': {
@@ -489,6 +856,73 @@ export function animateCharacter(char, dt, s) {
       armR = -0.6 + Math.sin(t * 6) * 0.25;
       headZ = Math.sin(t * 3) * 0.08;
       break;
+    case 'hug':
+      // 2 tay đưa ra trước ngang ngực, khép vào trong; hơi chúi người
+      armL = armR = -1.5;
+      armLz = -0.55;
+      armRz = 0.55;
+      lean = 0.1;
+      sway = Math.sin(t * 1.6) * 0.06;
+      headZ = Math.sin(t * 1.6) * 0.06;
+      break;
+    case 'fight': {
+      // thủ thế quyền anh, đấm thẳng luân phiên theo nhịp
+      const jab = Math.sin(bp);
+      const jr = Math.max(0, jab) ** 2;
+      const jl = Math.max(0, -jab) ** 2;
+      armR = -1.85 + jr * 0.3;
+      armL = -1.85 + jl * 0.3;
+      armRz = 0.32 - jr * 0.27;
+      armLz = -0.32 + jl * 0.27;
+      legL = -0.22;
+      legR = 0.18;
+      legZ = 0.14;
+      bob = Math.abs(Math.sin(bp * 2)) * 0.04;
+      headX = 0.1;
+      sway = jab * 0.05;
+      lean = 0.06;
+      break;
+    }
+    case 'fly':
+      // dang tay 2 bên, chân buông ra sau; độ cao do bên gọi lo
+      armLz = 1.5 + Math.sin(t * 6) * 0.2;
+      armRz = -armLz;
+      legL = 0.35 + Math.sin(t * 3) * 0.1;
+      legR = 0.45 + Math.sin(t * 3 + 1) * 0.1;
+      bob = Math.sin(t * 3) * 0.04;
+      lean = 0.15;
+      headX = -0.1;
+      break;
+    case 'cry':
+      // thua: cúi gằm, vai xuôi, run run
+      headX = 0.45;
+      armL = armR = -0.15;
+      armLz = -0.05;
+      armRz = 0.05;
+      bob = -0.03;
+      lean = 0.1;
+      sway = Math.sin(t * 18) * 0.03;
+      headZ = Math.sin(t * 14) * 0.05;
+      break;
+    case 'heartPose':
+      // giơ 2 tay lên ôm đầu thành hình tim
+      armLz = 2.6;
+      armRz = -2.6;
+      armL = armR = 0.35;
+      bob = Math.abs(Math.sin(bp)) * 0.04;
+      headZ = Math.sin(bp * 0.5) * 0.06;
+      break;
+    case 'shake':
+      // lắc hông nhanh, tay co
+      sway = Math.sin(t * 22) * 0.14;
+      spin = Math.sin(t * 22 + 1) * 0.22;
+      armL = armR = -1.0;
+      armLz = 0.6;
+      armRz = -0.6;
+      legZ = 0.12;
+      bob = Math.abs(Math.sin(t * 11)) * 0.03;
+      headZ = -sway * 0.6;
+      break;
     default: // idle
       armL = Math.sin(t * 1.8) * 0.05;
       armR = -armL;
@@ -514,8 +948,10 @@ export function animateCharacter(char, dt, s) {
   char.headPivot.rotation.z = lerp(char.headPivot.rotation.z, headZ, k);
   char.body.position.y = lerp(char.body.position.y, bob + bodyY, k);
   char.body.rotation.z = lerp(char.body.rotation.z, sway, k);
+  char.body.rotation.x = lerp(char.body.rotation.x, lean, k);
   // spin is set directly so the turn reads crisply
   char.body.rotation.y = spin ? spin : lerp(char.body.rotation.y, 0, k);
+  if (char.xp) animateExtras(char, dt, s.mode, t);
 }
 
 /** Draw a tiny chibi face portrait to a canvas (HUD avatar). */

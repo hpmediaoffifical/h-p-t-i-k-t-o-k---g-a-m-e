@@ -12,7 +12,8 @@
  */
 import * as THREE from 'three';
 import { buildWorld } from './world.js';
-import { animateCharacter, setLook, setProps, disposeCharacter } from './character.js';
+import { animateCharacter, setLook, setProps, disposeCharacter, setExtras } from './character.js';
+import { SocialPlay } from './social-play.js';
 import { NpcManager, makeActor, syncActor, separateActors, setHidden, setLabelFactory, corridorPath } from './npc.js';
 import { Effects } from './effects.js';
 import { AudioFx } from './audio.js';
@@ -47,6 +48,8 @@ const DEFAULTS = {
   coRoleSec: 180, coRoleLockSec: 45, coRoleMaxSec: 300, coPkEveryMin: 5, coPkSec: 90, coPkFinalSec: 30, coMvpMin: 10,
   coCamMaxPer5Min: 90, coTierFallback: true, coLikeMilestone: 300, coSound: true, coMusic: true, coMusicVol: 0.35,
   coLiveTv: true, coShowGiftLegend: true, coShowJoinHint: true, coBadWords: '', coGiftMap: DATA.suggestedGiftMap || {},
+  // GĐ2 chơi với nhau (spec mục 21)
+  coSocial: true, coFanSpotSec: 25, coPairSec: 60, coDuelSec: 60, coEmoteSec: 10, coLookSec: 60, coChorusMin: 3,
 };
 const clampN = (v, lo, hi, def) => {
   const n = Number(v);
@@ -75,6 +78,13 @@ function normalizeCfg(raw) {
   c.coViewerIdleMin = clampN(c.coViewerIdleMin, 1, 600, 30);
   c.coMvpMin = clampN(c.coMvpMin, 1, 120, 10);
   c.coMusicVol = clampN(c.coMusicVol, 0, 1, 0.35);
+  c.coSocial = c.coSocial !== false;
+  c.coFanSpotSec = Number(c.coFanSpotSec) > 0 ? clampN(c.coFanSpotSec, 10, 120, 25) : 0;
+  c.coPairSec = clampN(c.coPairSec, 20, 300, 60);
+  c.coDuelSec = clampN(c.coDuelSec, 30, 180, 60);
+  c.coEmoteSec = clampN(c.coEmoteSec, 3, 60, 10);
+  c.coLookSec = clampN(c.coLookSec, 10, 600, 60);
+  c.coChorusMin = clampN(c.coChorusMin, 2, 10, 3);
   if (!c.coGiftMap || typeof c.coGiftMap !== 'object') c.coGiftMap = {};
   return c;
 }
@@ -219,6 +229,60 @@ function freshSystems() {
 }
 freshSystems();
 
+// GĐ2 người xem chơi với nhau (social-play.js): cầu nối tới các hàm của file này (khai báo hàm được hoist)
+const social = new SocialPlay({
+  viewers, S: L.social, shotSec: L.shotSec, hud, effects, audio, scene, LOW, CLUB_NO, npcs, states,
+  get CFG() {
+    return CFG;
+  },
+  director: () => director,
+  shotNow: () => shotNow,
+  clubRoom, clubColor, chipFor, reconcile, npcSay, setTicker, requestPk, applyGenre, bodyChars, reseatNear,
+  vol: (room) => vol(room), // vol khai báo const bên dưới
+  pkActive: () => !!pk && !pk.isOver(Date.now()),
+  pkLikes: (club, n) => pk && !pk.isOver(Date.now()) && (club === pk.a || club === pk.b) && pk.addLikes(club, n, Date.now()),
+  baseLook: (v, type) => npcs.lookFromName(v.name, type),
+  placeKind: (v) => v.place?.kind ?? null,
+  giftEntry: (action) => (CFG.coGiftMap[action] || [])[0] ?? null,
+  onDuelEnd: (now) => {
+    // PK nhóm bị hoãn vì đang thách đấu → mở bây giờ
+    if (pendingAfterGala && !gala) {
+      const r = pendingAfterGala;
+      pendingAfterGala = null;
+      requestPk(r, now);
+    }
+  },
+});
+/** Thân đang đại diện người xem: nhân vật của họ + NPC chủ phòng khi họ giữ phòng mang tên. */
+function bodyChars(v) {
+  const out = [];
+  if (v.actor) out.push({ char: v.actor.char, type: 'stand' });
+  if (v.place?.kind === 'room') {
+    const r = world.byId.get(v.place.roomId);
+    const host = r && npcs.byRoom.get(r.id)?.main;
+    if (host) out.push({ char: host.char, type: r.type });
+  }
+  return out;
+}
+/** Kết bạn: cùng nhóm, cùng đứng khán giả → dời người kết bạn sang ô trống gần bạn mình nhất. */
+function reseatNear(v, w) {
+  if (!v.actor || v.club !== w.club || v.place?.kind !== 'crowd' || !w.crowdSpot) return;
+  const room = clubRoom(v.club);
+  let best = null;
+  let bd = Infinity;
+  for (const s of crowdSpots(room)) {
+    if (s.occ) continue;
+    const d = Math.hypot(s.x - w.crowdSpot.x, s.z - w.crowdSpot.z);
+    if (d < bd) (bd = d), (best = s);
+  }
+  if (!best || bd > 3) return;
+  releaseCrowd(v);
+  best.occ = v.id;
+  v.crowdSpot = best;
+  routeTo(v.actor, room, best);
+  v.actor.crowdRy = best.ry;
+}
+
 // ------------------------------------------------------------------ tiện ích
 const textOf = (v) => filterText(String(v ?? ''), 60);
 /** Khoá người xem dùng chung server (lib/creatoronline-fans.js fanKey): userId, không có thì uniqueId viết thường. */
@@ -297,7 +361,9 @@ function releaseCrowd(v) {
 }
 function takeCrowdSpot(v, room) {
   releaseCrowd(v);
-  const spot = crowdSpots(room).find((s) => !s.occ);
+  // GĐ2: đã tặng quà buổi này → hàng đầu (gần sân khấu); chưa tặng → từ hàng sau lên
+  const list = crowdSpots(room);
+  const spot = v.sessionXu > 0 ? list.find((s) => !s.occ) : list.findLast((s) => !s.occ);
   if (spot) {
     spot.occ = v.id;
     v.crowdSpot = spot;
@@ -357,7 +423,16 @@ function applyCoFan(v, f, { club = true } = {}) {
   if (!f) return;
   if (Number.isInteger(f.rank)) v.rank = f.rank;
   if (Number.isFinite(f.xu)) v.lifeXu = f.xu;
+  applyVip(v, f.vip);
   if (club && f.club && (v.clubAuto || !v.club) && f.club !== v.club) setClub(v, f.club);
+}
+/** Đồ VIP trọn đời từ server (gộp với đồ vừa tặng ở overlay). */
+function applyVip(v, list) {
+  if (!Array.isArray(list) || !list.length) return;
+  const set = new Set([...(v.vip ?? []), ...list.filter((x) => x === 'hat' || x === 'glasses' || x === 'wings')]);
+  if (set.size === (v.vip?.length ?? 0)) return;
+  v.vip = [...set].sort();
+  if (v.actor) social.dress(v);
 }
 
 /** @param {{gift?:boolean, coFan?:object, coFanClub?:boolean}} [o] coFan (server) áp trước khi sinh nhân vật → fan quay lại vào thẳng nhóm đã lưu */
@@ -383,6 +458,7 @@ function ensureViewer(u, { gift = false, coFan = null, coFanClub = true, initial
     v.clubAt = now;
   }
   if (!v.club) setClub(v, autoClub(), { auto: true });
+  social.onJoin(v);
   if (!v.actor) trySpawn(v, gift);
   return v;
 }
@@ -422,13 +498,14 @@ function spawnActor(v) {
   const room = clubRoom(v.club);
   const x = room.door.out.x + range(Math.random, -2.5, 2.5);
   const z = room.door.out.z + range(Math.random, 0.5, 2.5);
-  const a = makeActor(scene, { name: v.name, look: npcs.lookFromName(v.name, 'stand'), kind: 'viewer', x, z });
+  const a = makeActor(scene, { name: v.name, look: social.lookOf(v), kind: 'viewer', x, z });
   a.label.setAvatar(v.avatar);
   setProps(a.char, { stick: true, stickColor: clubColor(v.club) });
   Object.assign(a, { viewerId: v.id, role: 'viewer', path: [], stuckT: 0, stuckCount: 0, stuckRef: { x, z } });
   a.ry = Math.PI;
   v.actor = a;
   v.place = null;
+  social.dress(v);
   liveActors = null;
   reconcile(v); // vào khu khán giả nhóm mình ngay (thả tim / bình luận thường không qua reconcile ở chỗ khác)
   if (v.autoChip) {
@@ -458,6 +535,7 @@ function syncNpcCrowd() {
 }
 function removeViewer(v, now) {
   roleCmdAt.delete(v.id);
+  social.onLeave(v, now);
   for (const c of CLUBS) stages[c].remove(v.id);
   for (const e of roles.drop(v.id, now)) onRoleEvent(e);
   const c = seatHouse.removeEverywhere(v.id, now);
@@ -472,6 +550,10 @@ function desiredPlace(v) {
   if (r) return { kind: 'role', club: r.club, role: r.role, key: `role:${r.club}:${r.role}` };
   const seat = seatHouse.ownedBy(v.id);
   if (seat) return { kind: 'room', roomId: seat.id, key: `room:${seat.id}` };
+  // GĐ2: Sàn Giao Lưu (thách đấu / ôm / nhảy đôi) > ⭐ Center (giữa sân, top quà nhóm 5 phút) > sân khấu
+  const sp = social.placeOf(v);
+  if (sp) return sp;
+  if (social.isCenter(v)) return { kind: 'center', club: v.club, key: `center:${v.club}` };
   for (const c of CLUBS) {
     const slot = stages[c].slotOf(v.id);
     if (slot != null) return { kind: 'stage', club: c, slot, key: `stage:${c}:${slot}` };
@@ -536,7 +618,8 @@ function enterPlace(v, d) {
     host.label.setAvatar(v.avatar);
     host.label.setKind('host');
     host.viewerId = v.id;
-    setLook(host.char, npcs.lookFromName(v.name, room.type));
+    setLook(host.char, social.lookOf(v, room.type));
+    setExtras(host.char, social.extrasOf(v)); // đồ VIP / bánh dính mặt theo người giữ phòng
     const st = states.get(room.id);
     st.title = `${SOLO_PREFIX[room.type]} ${v.name}`;
     st.streamer = v.name;
@@ -547,6 +630,20 @@ function enterPlace(v, d) {
   } else if (!a) {
     v.place = d;
     return;
+  } else if (d.kind === 'plaza') {
+    releaseCrowd(v);
+    place(a, social.plazaSpot(d));
+    a.fixed = true;
+    setProps(a.char, {});
+  } else if (d.kind === 'center') {
+    // ⭐ Center: đứng giữa mép trước sân khấu, cầm mic; chỗ khách trên sân nhường cho người khác
+    const room = clubRoom(d.club);
+    releaseCrowd(v);
+    stages[d.club].remove(v.id);
+    place(a, { x: room.cx, z: -30.1, y: room.stageY, ry: 0 });
+    a.fixed = true;
+    setProps(a.char, { mic: true });
+    effects.confetti(room.cx, 3, -30.1, LOW ? 50 : 100, 2);
   } else if (d.kind === 'stage') {
     const room = clubRoom(d.club);
     releaseCrowd(v);
@@ -596,6 +693,7 @@ function restoreSoloHost(room) {
   host.label.setAvatar('');
   host.label.setKind('npc');
   setLook(host.char, host.npcLook);
+  setExtras(host.char, {});
   const st = states.get(room.id);
   st.title = `${SOLO_PREFIX[room.type]} ${host.npcName}`;
   st.streamer = host.npcName;
@@ -691,6 +789,14 @@ function onGift(p) {
   hud.pushGift({ key: `${v.id}|${p.giftId || p.giftName}`, name: v.name, avatar: v.avatar, giftName: p.giftName || 'Quà', giftImage: p.sheetItem?.image || p.image || p.giftPicture || '', count }, now);
   if (!reGiftGap) burst(room, TIER_ICON[res.tier], Math.min(8, Math.max(2, count)));
   audio.play(res.tier >= 5 ? 'bigGift' : 'gift', vol(room) * 0.7);
+  // GĐ2: mọi quà → Center / thách đấu / bạn bè nhảy theo; quà gán hành động chơi với nhau (không làm được → lên sân)
+  social.onAnyGift(v, res.xu, now);
+  if (plan.social) {
+    if (!social.onGiftAction(v, plan.social, res, p, now)) plan = { ...plan, place: 'stage', social: null };
+    else if (res.tier >= 5) hud.banner({ avatar: v.avatar, name: v.name, text: `${p.giftName || 'Quà'}${res.xu > 1 ? ` · ${res.xu.toLocaleString('vi-VN')} xu` : ''}`, sub: `${CLUB_NO[club]} ${room.def.name}`, giftImage: p.sheetItem?.image || p.image || p.giftPicture || '', tier: res.tier >= 6 ? 6 : 5 }, now, 4000);
+  }
+  // quà đầu tiên: người đứng khán giả lên hàng đầu
+  if (v.place?.kind === 'crowd' && v.sessionXu === res.xu) v.place = null;
 
   // chỗ đứng: vai > phòng > sân khấu; vai/phòng hết chỗ → bậc 2 (spec §4.2)
   let shot = null;
@@ -870,6 +976,12 @@ function requestPk(req, now, { force = false } = {}) {
     pendingAfterGala ??= req;
     return;
   }
+  // GĐ2: đang thách đấu 1–1 → PK nhóm mở ngay sau trận (social onDuelEnd)
+  if (social.duelActive(now) && !force) {
+    pendingAfterGala ??= req;
+    hud.chip('⚔️ PK nhóm sau thách đấu');
+    return 'pending';
+  }
   const r = sched.request(req, now, { force });
   if (r === 'start') beginPkFor(req, now);
   else if (r === 'pending') {
@@ -952,7 +1064,7 @@ function tickPk(now) {
     if (pk.isOver(now)) endPk(now);
     return;
   }
-  if (gala) return; // PK mở sau Gala (spec §8)
+  if (gala || social.duelActive(now)) return; // PK mở sau Gala (spec §8) / sau thách đấu 1–1
   const pend = sched.takePending(now);
   if (pend) return beginPkFor(pend, now);
   if (sched.autoDue(now)) {
@@ -1034,6 +1146,9 @@ function onChat(p) {
   const holder = roles.roleOf(v.id);
   const cmd = parseRoleCommand(raw);
   if (holder && cmd && cmd.role === holder.role) return runRoleCommand(v, holder, cmd);
+  // GĐ2: lệnh đội trưởng (pk N / nhạc), lệnh chơi với nhau (ném 12, áo 3, nhảy, A/B…) không hiện như câu thường
+  if (social.captainCommand(v, raw, cmd, now)) return;
+  if (social.onComment(v, raw, now)) return;
   const text = textOf(raw);
   if (!text) return;
   const room = clubRoom(v.club);
@@ -1075,6 +1190,7 @@ function onLike(p) {
     const w = pk.addLikes(v.club, n, now);
     if (w === 2) v.x2 = true;
   }
+  social.onLike(v, n, now);
   milestoneLikers.set(v.id, (milestoneLikers.get(v.id) ?? 0) + n);
   const before = Math.floor(totalLikes / CFG.coLikeMilestone);
   totalLikes += n;
@@ -1101,6 +1217,8 @@ function onSocial(p) {
   if (!u) return;
   const kind = /chia sẻ|share/i.test(String(p.label || '')) ? 'share' : 'follow';
   const v = ensureViewer(u, { coFan: p.coFan });
+  if (kind === 'share') social.onShare(v, Date.now());
+  else social.onFollow(v, Date.now());
   chipFor(v, kind === 'share' ? 'đã chia sẻ 🔁' : 'đã follow ❤');
   const st = states.get(clubRoom(v.club).id);
   if (!st.thanks.some((t) => t.name === v.name)) st.thanks.push({ name: v.name, what: kind === 'share' ? 'chia sẻ' : 'follow' });
@@ -1140,6 +1258,7 @@ function onSeatEvent(e, now) {
 
 // ------------------------------------------------------------------ đạo diễn
 function shotAlive(s) {
+  if (s.kind === 'duel' || s.kind === 'act' || s.kind === 'fan') return social.shotAlive(s, Date.now());
   if (s.kind === 'room') return seatHouse.get(s.target)?.owner?.id === s.gifter;
   if (s.kind === 'role') return roles.roleOf(s.gifter) != null;
   return true;
@@ -1372,6 +1491,7 @@ function tickSystems(now) {
     }
   }
   tickPk(now);
+  social.tick(now);
   if (spotlight && now > spotlight.until) endSpotlight();
   if (gala && now > gala.until) endGala();
   // người xem: im lặng lâu thì rời; tim cộng dồn → chip mỗi 2 giây
@@ -1396,13 +1516,15 @@ function tickLabels(now) {
   for (const v of viewers.values()) {
     const a = v.actor;
     if (!a) continue;
-    const kind = v.id === focus ? 'spot' : v.place?.kind === 'stage' || v.place?.kind === 'role' ? 'host' : now < v.goldUntil ? 'gifter' : 'viewer';
+    const pkind = v.place?.kind;
+    const kind = v.id === focus || v.id === shotNow?.focus2 ? 'spot' : pkind === 'stage' || pkind === 'role' || pkind === 'center' || pkind === 'plaza' ? 'host' : now < v.goldUntil ? 'gifter' : 'viewer';
     if (a.label.kind !== kind) a.label.setKind(kind);
-    a.label.setPriority((v.rank ?? 0) * 3 + (now - v.lastGiftAt < 60000 ? 40 : 0) + (now - v.lastCommentAt < 10000 ? 20 : 0));
+    a.label.setPriority((v.rank ?? 0) * 3 + (now - v.lastGiftAt < 60000 ? 40 : 0) + (now - v.lastCommentAt < 10000 ? 20 : 0) + (pkind === 'plaza' ? 30 : 0));
+    a.label.setNo(CFG.coSocial ? v.no : null, clubColor(v.club));
     const rankIcon = ['', '⭐', '💎', '👑', '🏆'][v.rank] ?? '';
-    const role = v.place?.kind === 'role' ? ROLE_INFO[v.place.role].icon : '';
+    const role = pkind === 'role' ? ROLE_INFO[v.place.role].icon : '';
     const mvp = (v.mvpUntil ?? 0) > now ? '🏅' : '';
-    a.label.setBadge(`${role}${mvp}${rankIcon}`);
+    a.label.setBadge(`${role}${mvp}${social.badgeOf(v, now)}${rankIcon}`);
     if (now < v.goldUntil && v.place?.kind === 'crowd') setProps(a.char, { stick: true, stickColor: 0xffd23f });
   }
   const wide = shotNow?.view === 'overview' || shotNow?.view === 'slice' || shotNow?.kind === 'pk';
@@ -1420,13 +1542,34 @@ function hudLegend() {
   if (legendCache.key === key) return legendCache.items;
   const items = [{ icon: '🌹', text: 'Quà bất kỳ → lên sân khấu', giftImage: null }];
   const order = ['ticket', 'mc', 'tech', 'manager', 'genre', 'confetti', 'pkStart', 'spotlight', 'gala'];
+  // GĐ2: hành động nhắm người khác cần gõ số trước
+  const aim = { throwCake: 'ném', throwHeart: 'ném', throwEgg: 'ném', pair: 'ghép', hug: 'ôm', duel: 'thách' };
+  if (CFG.coSocial) order.splice(1, 0, 'throwCake', 'pair', 'duel', 'hug', 'vipWings', 'vipHat', 'vipGlasses', 'fly', 'fireworks', 'transform', 'throwHeart', 'throwEgg');
   for (const id of order) {
     const g = (CFG.coGiftMap[id] || [])[0];
     const a = DATA.giftActions.find((x) => x.id === id);
-    if (g && a) items.push({ icon: a.emoji, text: `${g.giftName} → ${a.label}`, giftImage: g.giftImage || null });
+    if (g && a) items.push({ icon: a.emoji, text: aim[id] ? `"${aim[id]} 12" + ${g.giftName} → ${a.label}` : `${g.giftName} → ${a.label}`, giftImage: g.giftImage || null });
   }
   legendCache = { key, items };
   return items;
+}
+/** Câu hướng dẫn: thay {ticket}/{throw}/{pair}/{duel} bằng tên quà đang gán; câu có chỗ trống chưa gán quà thì bỏ. */
+let joinCache = { key: '', lines: [] };
+function joinLines() {
+  const key = `${JSON.stringify(CFG.coGiftMap)}|${CFG.coSocial}`;
+  if (joinCache.key === key) return joinCache.lines;
+  const name = (action) => (CFG.coGiftMap[action] || [])[0]?.giftName || '';
+  const fill = { ticket: ticketName(), throw: name('throwCake'), pair: name('pair'), duel: name('duel') };
+  const socialLine = /ném|ghép|thách|áo|nhảy|bạn/;
+  const lines = [];
+  for (const l of L.joinLines) {
+    if (!CFG.coSocial && socialLine.test(l)) continue;
+    const keys = [...l.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
+    if (keys.some((k) => !fill[k])) continue; // chưa gán quà cho chỗ trống → bỏ câu
+    lines.push(l.replace(/\{(\w+)\}/g, (_, k) => fill[k]));
+  }
+  joinCache = { key, lines };
+  return lines;
 }
 function tickHud(now, dt) {
   const room = dcam.room;
@@ -1442,17 +1585,17 @@ function tickHud(now, dt) {
       final: pk.isFinal(now), needXu: tr ? pk.needXu() : 0, trailing: tr === pk.a ? 'a' : tr === pk.b ? 'b' : null,
       topA: top(pk.a), topB: top(pk.b), hint: `gõ ${pk.a} hoặc ${pk.b} để vào phe`,
     });
-  } else hud.setPk(null);
+  } else hud.setPk(social.duelHud(now)); // GĐ2: thách đấu 1–1 dùng chung ô PK (không chạy cùng PK nhóm)
   // người đang được quay
   const s = shotNow;
   const v = s?.focus ? viewers.get(s.focus) : s?.gifter ? viewers.get(s.gifter) : null;
   if (v && s.endAt) {
-    const where = v.place?.kind === 'role' ? `${ROLE_INFO[v.place.role].icon} ${ROLE_INFO[v.place.role].label} ${clubRoom(v.place.club).def.name}` : v.place?.kind === 'room' ? `🎟️ ${states.get(v.place.roomId).title}` : v.place?.kind === 'stage' ? `💃 trên sân ${clubRoom(v.place.club).def.name}` : `${CLUB_NO[v.club]} ${clubRoom(v.club).def.name}`;
+    const where = social.onAirLabel(v, s, now) ?? (v.place?.kind === 'role' ? `${ROLE_INFO[v.place.role].icon} ${ROLE_INFO[v.place.role].label} ${clubRoom(v.place.club).def.name}` : v.place?.kind === 'room' ? `🎟️ ${states.get(v.place.roomId).title}` : v.place?.kind === 'stage' ? `💃 trên sân ${clubRoom(v.place.club).def.name}` : `${CLUB_NO[v.club]} ${clubRoom(v.club).def.name}`);
     hud.setOnAir({ name: v.name, avatar: v.avatar, label: where, remainSec: (s.endAt - now) / 1000, progress: (s.endAt - now) / Math.max(1, s.endAt - s.startAt) });
   } else hud.setOnAir(null);
   hud.setLegend(hudLegend(), CFG.coShowGiftLegend);
   hud.setTopFans(sessionTop().slice(0, 3));
-  hud.setJoinLines(L.joinLines.map((l) => l.replace('{ticket}', ticketName())), CFG.coShowJoinHint);
+  hud.setJoinLines(joinLines(), CFG.coShowJoinHint);
   hud.tick(now, dt);
   const hint = CFG.coShowJoinHint ? hud.joinLine : '';
   for (const r of groupRooms) {
@@ -1528,14 +1671,16 @@ function allActors() {
   return liveActors;
 }
 function updateViewerActors(dt) {
+  const now = Date.now();
   for (const v of viewers.values()) {
     const a = v.actor;
     if (!a || a.hidden) continue;
     const kind = v.place?.kind;
-    if (kind === 'stage') {
-      const beat = beats.get(`G${v.place.club}`) ?? 0;
+    if (kind === 'stage' || kind === 'center' || kind === 'plaza') {
+      // sân khấu / Center nhảy theo nhạc sân nhóm; Sàn Giao Lưu theo nhạc sảnh; biểu cảm GĐ2 ghi đè
+      const beat = beats.get(kind === 'plaza' ? `G${v.club}` : `G${v.place.club}`) ?? 0;
       const order = ['dance1', 'dance2', 'dance4', 'dance3'];
-      a.mode = order[Math.floor(beat / 16) % order.length];
+      a.mode = social.modeOf(v, now, beat) ?? order[Math.floor(beat / 16) % order.length];
       if (!a.far) animateCharacter(a.char, dt, { mode: a.mode, speed: 0, beat });
     } else if (kind === 'role') {
       const beat = beats.get(`G${v.place.club}`) ?? 0;
@@ -1546,7 +1691,7 @@ function updateViewerActors(dt) {
     } else {
       const beat = beats.get(`G${v.club}`) ?? 0;
       a.ry += ((a.crowdRy ?? Math.PI) - a.ry) * Math.min(1, dt * 5);
-      a.mode = Math.floor(beat / 8) % 3 === 2 ? 'clap' : 'wave';
+      a.mode = social.modeOf(v, now, beat) ?? (Math.floor(beat / 8) % 3 === 2 ? 'clap' : 'wave');
       if (!a.far) animateCharacter(a.char, dt, { mode: a.mode, speed: 0, beat });
       stepBody(a.body, 0, 0, dt, world.collision, DATA.tuning.gravity);
     }
@@ -1611,6 +1756,7 @@ function frame(now, once = false) {
   const actors = allActors();
   separateActors(actors);
   for (const a of actors) syncActor(a);
+  social.frame(dt, wall); // món ném bay, bay lên bằng bóng bay (sau syncActor)
   effects.update(dt);
   world.update(dt, t, beats, boosts);
   // màn hình: phòng đang quay 4 lần/giây, LED các sân 1,5 giây, phòng khác chỉ biển cửa
@@ -1671,6 +1817,7 @@ function onFanUpdate(f) {
   if (!v) return;
   if (Number.isInteger(f.rank)) v.rank = f.rank;
   if (Number.isFinite(f.xu)) v.lifeXu = f.xu;
+  applyVip(v, f.vip);
   if (f.club && f.club !== v.club) {
     v.clubAt = Date.now();
     setClub(v, f.club);
@@ -1688,7 +1835,8 @@ function saveSession(now) {
     const snap = {
       at: now,
       roomId: sessionRoomId,
-      viewers: list.map((v) => ({ id: v.id, name: v.name, avatar: v.avatar, club: v.club, clubAuto: v.clubAuto, rank: v.rank, sessionXu: v.sessionXu, likes: v.likes, lastActive: v.lastActive, lastGiftAt: v.lastGiftAt, greeted: v.greeted, spawned: !!v.actor })),
+      viewers: list.map((v) => ({ id: v.id, name: v.name, avatar: v.avatar, club: v.club, clubAuto: v.clubAuto, rank: v.rank, sessionXu: v.sessionXu, likes: v.likes, lastActive: v.lastActive, lastGiftAt: v.lastGiftAt, greeted: v.greeted, spawned: !!v.actor, pick: v.pick, vip: v.vip, giantUntil: v.giantUntil, duelWinUntil: v.duelWinUntil })),
+      social: social.toJSON(),
       stages: CLUBS.map((c) => stages[c].toJSON()),
       roles: roles.toJSON(),
       seats: soloRooms.map((r) => [r.id, seatHouse.snapshot(r.id)]),
@@ -1740,9 +1888,10 @@ function restoreSession() {
       if (theme) applyTheme(world.byId.get(id), theme);
     }
     for (const s of snap.viewers ?? []) {
-      viewers.set(s.id, { id: s.id, name: s.name, avatar: s.avatar, club: s.club, clubAuto: s.clubAuto, pendingClub: null, rank: s.rank ?? 0, lifeXu: 0, sessionXu: s.sessionXu ?? 0, likes: s.likes ?? 0, likeBatch: 0, likeChipAt: 0, lastActive: s.lastActive, lastGiftAt: s.lastGiftAt ?? 0, lastCommentAt: 0, goldUntil: 0, greeted: !!s.greeted, actor: null, place: null, crowdSpot: null, autoChip: false, spawnWanted: s.spawned });
+      viewers.set(s.id, { id: s.id, name: s.name, avatar: s.avatar, club: s.club, clubAuto: s.clubAuto, pendingClub: null, rank: s.rank ?? 0, lifeXu: 0, sessionXu: s.sessionXu ?? 0, likes: s.likes ?? 0, likeBatch: 0, likeChipAt: 0, lastActive: s.lastActive, lastGiftAt: s.lastGiftAt ?? 0, lastCommentAt: 0, goldUntil: 0, greeted: !!s.greeted, actor: null, place: null, crowdSpot: null, autoChip: false, spawnWanted: s.spawned, pick: s.pick ?? null, vip: Array.isArray(s.vip) ? s.vip : [], giantUntil: s.giantUntil ?? 0, duelWinUntil: s.duelWinUntil ?? 0 });
       fanAsk.add(s.id);
     }
+    social.load(snap.social); // số #N, cặp đôi, thách đấu, Center… (trước khi sinh nhân vật)
     const keep = protectedIds();
     for (const v of viewers.values()) if (v.spawnWanted || keep.has(v.id)) trySpawn(v, keep.has(v.id));
     for (const v of viewers.values()) reconcile(v);
@@ -1786,6 +1935,7 @@ function newSession(roomId) {
     for (const c of crowdSpots(r)) c.occ = null;
   }
   freshSystems();
+  social.reset();
   sessionRoomId = roomId ?? null;
   shotNow = null;
   topDirty = true;
@@ -1797,6 +1947,61 @@ function newSession(roomId) {
 function testUser(name) {
   const n = name || pick(Math.random, DATA.fanNames);
   return { userId: `test_${n}`, uniqueId: `test_${n}`, nickname: n, profilePicture: '' };
+}
+/** Quà thử theo hành động đã gán (không gán thì quà lạ giá `coins`). */
+function testGift(u, action, coins = 1) {
+  const g = (CFG.coGiftMap[action] || [])[0];
+  if (g) onGift({ ...u, giftId: g.giftId, giftName: g.giftName, coinValue: g.coins || coins, repeatCount: 1, sheetItem: { image: g.giftImage } });
+  else hud.chip(`Chưa gán quà cho "${action}"`);
+}
+/** GĐ2: kịch bản thử "chơi với nhau" bằng người xem ảo (nút 🧪 trong panel). */
+function runScenario(kind) {
+  const names = pick(Math.random, [['Mây', 'Gió'], ['Bơ', 'Sữa'], ['Mít', 'Na'], ['Tí', 'Tèo']]);
+  const A = testUser(names[0]);
+  const B = testUser(names[1]);
+  const later = (ms, fn) => setTimeout(fn, ms);
+  const noOf = (u) => viewers.get(fanKeyOf(u))?.no ?? '';
+  if (kind === 'throw') {
+    onChat({ ...B, comment: 'hello cả nhà' });
+    onChat({ ...A, comment: '2' });
+    later(300, () => onChat({ ...A, comment: `ném ${noOf(B)}` }));
+    later(900, () => testGift(A, 'throwCake'));
+    later(5000, () => onChat({ ...B, comment: `ném ${noOf(A)}` }));
+    later(5600, () => testGift(B, 'throwEgg')); // trả đũa
+  } else if (kind === 'pair' || kind === 'hug' || kind === 'duel') {
+    onChat({ ...A, comment: 'hi' });
+    onChat({ ...B, comment: 'chào' });
+    const verb = { pair: 'ghép', hug: 'ôm', duel: 'thách' }[kind];
+    later(400, () => onChat({ ...A, comment: `${verb} ${noOf(B)}` }));
+    later(1000, () => testGift(A, kind));
+    if (kind === 'duel') {
+      for (let i = 0; i < 6; i++) later(3000 + i * 1500, () => onChat({ ...testUser(`Fan${i}`), comment: i % 2 ? 'b' : 'a' }));
+      later(9000, () => testGift(B, 'confetti', 30));
+      later(12000, () => onLike({ ...testUser('Fan1'), likeCount: 40 }));
+    }
+  } else if (kind === 'chorus') {
+    const word = pick(Math.random, ['gooo', 'ủng hộ', 'yeah', 'quá đỉnh']);
+    for (let i = 0; i < 5; i++) later(i * 600, () => onChat({ ...testUser(`Hô${i}`), comment: word }));
+  } else if (kind === 'free') {
+    onChat({ ...A, comment: '3' });
+    later(400, () => onChat({ ...A, comment: `áo ${1 + Math.floor(Math.random() * 8)}` }));
+    later(600, () => onChat({ ...A, comment: `tóc ${1 + Math.floor(Math.random() * 6)}` }));
+    later(1200, () => onChat({ ...A, comment: pick(Math.random, ['nhảy', 'vẫy', 'tim', 'lắc']) }));
+    later(1500, () => onChat({ ...B, comment: '3' }));
+    later(2000, () => onChat({ ...B, comment: `bạn ${noOf(A)}` }));
+    for (let i = 0; i < 4; i++) later(2500 + i * 500, () => onSocial({ ...A, label: i ? 'đã theo dõi' : 'đã chia sẻ' }));
+  } else if (kind === 'vip') {
+    onChat({ ...A, comment: 'xin chào' });
+    later(500, () => testGift(A, 'vipWings', 1000));
+    later(4000, () => testGift(A, 'vipHat', 149));
+    later(7000, () => testGift(A, 'vipGlasses', 249));
+  } else if (kind === 'center') {
+    const c = 1 + Math.floor(Math.random() * 5);
+    onChat({ ...A, comment: String(c) });
+    onChat({ ...B, comment: String(c) });
+    later(500, () => onGift({ ...A, giftId: '', giftName: 'Kẹo', coinValue: 10, repeatCount: 1 }));
+    later(4000, () => onGift({ ...B, giftId: '', giftName: 'Kẹo', coinValue: 25, repeatCount: 1 }));
+  } else hud.chip(`Kịch bản lạ: ${kind}`);
 }
 function onAppCmd(d) {
   if (!d || d.gameId !== 'creatoronline') return;
@@ -1814,6 +2019,7 @@ function onAppCmd(d) {
     } else if (p.kind === 'comment') onChat({ ...u, comment: p.text || pick(Math.random, DATA.comments.any) });
     else if (p.kind === 'like') onLike({ ...u, likeCount: 20 });
     else if (p.kind === 'follow') onSocial({ ...u, label: 'đã theo dõi' });
+    else if (p.kind === 'scenario') runScenario(String(p.scenario || ''));
   } else if (d.cmd === 'pk') {
     if (pk && !pk.isOver(now)) return hud.chip('⚔️ Đang có PK');
     const club = (x) => (Number.isInteger(Number(x)) && Number(x) >= 1 && Number(x) <= 5 ? Number(x) : undefined);
@@ -1848,6 +2054,8 @@ function applyServerConfig(raw) {
     shotNow = director.current; // cùng cảnh → không cắt lại camera
     dcam.shot = shotNow;
   }
+  if (changed(['coPairSec', 'coDuelSec', 'coChorusMin'])) social.applyConfig();
+  if (changed(['coSocial'])) for (const r of groupRooms) states.get(r.id).dirty = true;
   // giảm số chỗ sân khấu / vai: người ở chỗ bị bỏ phải về khu khán giả (không đứng đơ trên sân)
   for (const v of viewers.values()) reconcile(v);
   seatHouse.holdMs = CFG.coRoomHoldSec * 1000;
@@ -1960,6 +2168,6 @@ function sim({ commentsPerMin = 40, likesPerMin = 60, giftsPerMin = 12, people =
 window.__creator = {
   get CFG() { return CFG; }, world, npcs, states, viewers, get stages() { return stages; }, get roles() { return roles; }, seatHouse,
   get director() { return director; }, get pk() { return pk; }, dcam, renderer, scene, camera, audio, labelLayer, hud,
-  onGift, onChat, onLike, onSocial, onAppCmd, newSession, sim: DEBUG || location.hostname === '127.0.0.1' || location.hostname === 'localhost' ? sim : undefined,
+  social, onGift, onChat, onLike, onSocial, onAppCmd, newSession, runScenario, sim: DEBUG || location.hostname === '127.0.0.1' || location.hostname === 'localhost' ? sim : undefined,
   frame: () => frame(performance.now(), true),
 };
