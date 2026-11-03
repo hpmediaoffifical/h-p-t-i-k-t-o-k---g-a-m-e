@@ -14,7 +14,7 @@
     const DEFAULTS = {
         enabled: true, dvqControl: 'auto', dvqStreamerName: '', dvqGoal: 6000, dvqRoundSec: 240, dvqFinalSec: 30, dvqSpeed: 100,
         dvqFuelBurn: 3, dvqMeterPerCoin: 5, dvqLikePer: 300, dvqRamCd: 12, dvqDodgeMax: 10, dvqDefaultSide: 'cuu',
-        dvqAutoNext: true, dvqVehicle: 'bus', dvqDriverSec: 180, dvqSeats: 14, dvqBike: 'green', dvqSound: true, dvqShowLegend: true, dvqPenalties: '',
+        dvqAutoNext: true, dvqVehicle: 'bus', dvqDriverSec: 180, dvqSeats: 14, dvqMaxCars: 3, dvqRestStop: true, dvqGasStop: true, dvqPolice: true, dvqPoliceLikes: 2000, dvqRoadEvents: true, dvqBike: 'green', dvqSound: true, dvqShowLegend: true, dvqPenalties: '',
         dvqKeyJump: 'F7', dvqKeyRam: 'F8', dvqKeyStart: 'F9', dvqGiftMap: {}
     };
     const BIKES = [['red', '🔴 Đỏ'], ['blue', '🔵 Xanh dương'], ['pink', '🩷 Hồng'], ['yellow', '🟡 Vàng'], ['green', '🟢 Xanh lá'], ['black', '⚫ Đen']];
@@ -98,7 +98,9 @@
             ${sel('dvqVehicle', 'Loại xe', [['bus', '🚌 Xe buýt — chở cả đoàn người xem'], ['oxcart', '🐂 Xe bò có máng — chở cả đoàn'], ['scooter', '🛵 Xe máy — chỉ tài xế']])}
             ${sel('dvqBike', 'Màu xe', BIKES)}
             ${num('dvqDriverSec', '🧑‍✈️ Mỗi lượt tài xế (giây)', 30, 30, 'Tặng quà Lên làm tài xế → lái bấy nhiêu giây (tặng ×N = N lượt). Có người chờ thì hết giờ đổi người; không ai chờ → người đang lái giữ nguyên')}
-            ${num('dvqSeats', '🧳 Số ghế hiện trên xe', 4, 1, 'Người bình luận 1 / tặng quà Cứu được lên xe (ảnh đại diện ngồi trong xe). Dư ghế hiện +N')}
+            ${num('dvqSeats', '🧳 Số ghế hiện trên xe', 4, 1, 'Người bình luận 1 / tặng quà Cứu được lên xe (thấy đầu + vai trong cửa sổ). Đầy ghế thì nối thêm xe')}
+            ${num('dvqMaxCars', '🚌 Đoàn xe tối đa (chiếc)', 1, 1, 'Đông người lên xe thì nối thêm xe phía sau, cả cảnh thu nhỏ lại cho vừa khung')}
+            ${num('dvqPoliceLikes', '🚓 CSGT: số tim cần thả', 100, 100, 'Bị CSGT giữ: cả phòng thả đủ bấy nhiêu tim mới được đi. Quà Cứu lúc đó: 1 xu = 10 tim. Đồng hồ ván vẫn chạy, quá 45 giây thì được nhắc nhở cho đi')}
             ${sel('dvqGoal', 'Đường về quê dài', goalOpts, true)}
             ${num('dvqRoundSec', 'Giây một ván', 60, 30)}
             ${num('dvqFinalSec', '🔥 Nước rút ×2: bấy nhiêu giây cuối', 0, 5)}
@@ -119,6 +121,10 @@
             <div class="dvq-checks">
                 <label><input type="checkbox" data-k="dvqAutoNext"${cfg.dvqAutoNext !== false ? ' checked' : ''}> 🔁 Hết ván tự sang ván mới (bỏ tick = chờ streamer bấm Bắt đầu)</label>
                 <label><input type="checkbox" data-k="dvqShowLegend"${cfg.dvqShowLegend !== false ? ' checked' : ''}> 🎁 Hiện 2 cột quà CỨU / PHÁ trên overlay</label>
+                <label><input type="checkbox" data-k="dvqRestStop"${cfg.dvqRestStop !== false ? ' checked' : ''}> 🍜 Trạm dừng chân 30 giây (cả đoàn xuống ăn uống, đồng hồ ván dừng)</label>
+                <label><input type="checkbox" data-k="dvqGasStop"${cfg.dvqGasStop !== false ? ' checked' : ''}> ⛽ Trạm xăng 15 giây (đổ đầy bình, đi vệ sinh)</label>
+                <label><input type="checkbox" data-k="dvqPolice"${cfg.dvqPolice !== false ? ' checked' : ''}> 🚓 Thỉnh thoảng CSGT kiểm tra (thả tim mới được đi)</label>
+                <label><input type="checkbox" data-k="dvqRoadEvents"${cfg.dvqRoadEvents !== false ? ' checked' : ''}> 🚂 Tình huống đường xá: kẹt xe, chắn tàu, đàn bò, thủng lốp, say xe, check-in, lì xì</label>
                 <label><input type="checkbox" data-k="dvqSound"${cfg.dvqSound !== false ? ' checked' : ''}> 🔊 Âm thanh</label>
             </div>`;
         host.querySelectorAll('[data-k]').forEach(el => {
@@ -147,6 +153,10 @@
             <div class="nd-card-title" style="margin-top:8px">🧪 Thử nhanh (không cần LIVE)</div>
             <div class="dvq-cmds"><b class="dvq-side cuu">🛡️ Cứu</b>${cuu.map(tbtn).join('')}</div>
             <div class="dvq-cmds"><b class="dvq-side pha">⚔️ Phá</b>${pha.map(tbtn).join('')}</div>
+            <div class="dvq-cmds"><b class="dvq-side" style="background:#2a2f3d;color:#ffe27a">🗺️ Dọc đường</b>
+                ${[['rest', '🍜 Trạm dừng'], ['gas', '⛽ Trạm xăng'], ['police', '🚓 CSGT'], ['flat', '🛞 Thủng lốp'], ['train', '🚂 Chắn tàu'], ['cows', '🐄 Đàn bò'], ['jam', '🚗 Kẹt xe'], ['carsick', '🤢 Say xe'], ['photo', '📸 Check-in'], ['lixi', '🧧 Lì xì']].map(([k, n]) => `<button class="ghost small" data-event="${k}">${n}</button>`).join('')}
+                <button class="ghost small" data-test="like1000">❤️ 1000 tim</button>
+            </div>
             <div class="dvq-cmds">
                 <button class="ghost small" data-test="like">❤️ 100 tim</button>
                 <button class="ghost small" data-test="share">↗️ Chia sẻ</button>
@@ -159,9 +169,11 @@
         host.querySelectorAll('[data-key]').forEach(b => b.addEventListener('click', () => key(b.dataset.key)));
         host.querySelectorAll('[data-try]').forEach(b => b.addEventListener('click', () => cmd('test', { kind: 'gift', action: b.dataset.try })));
         host.querySelectorAll('[data-end]').forEach(b => b.addEventListener('click', () => cmd('end', { winner: b.dataset.end })));
+        host.querySelectorAll('[data-event]').forEach(b => b.addEventListener('click', () => cmd('event', { kind: b.dataset.event })));
         host.querySelectorAll('[data-test]').forEach(b => b.addEventListener('click', () => {
             const t = b.dataset.test;
             if (t === 'c1' || t === 'c2') cmd('test', { kind: 'comment', text: t === 'c1' ? '1' : '2' });
+            else if (t === 'like1000') cmd('test', { kind: 'like', count: 1000 });
             else cmd('test', { kind: t });
         }));
         const pad = $('#dvq-pad');

@@ -32,10 +32,11 @@
   .track .end.l { left: -60px; } .track .end.r { right: -62px; }
   .track .flag { position: absolute; top: -6px; width: 4px; height: 46px; background: rgba(255,255,255,.5); border-radius: 2px; }
   .dist { text-align: center; font-size: 30px; font-weight: 800; color: #e9f1ff; }
+  .prov { text-align: center; font-size: 26px; font-weight: 800; color: #ffe27a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dist b { color: #ffe27a; }
 
   /* ---------- kéo co 2 phe ---------- */
-  #tug { position: absolute; left: 20px; right: 20px; top: 222px; padding: 10px 16px 12px; }
+  #tug { position: absolute; left: 20px; right: 20px; top: 254px; padding: 10px 16px 12px; }
   .tugbar { position: relative; height: 58px; border-radius: 29px; overflow: hidden; background: #e8322c; box-shadow: inset 0 3px 8px rgba(0,0,0,.35); }
   .tugbar .cuu { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #12a150, #35d07f); transition: width .35s ease; }
   .tugbar .lab { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; gap: 8px; font-size: 30px; font-weight: 800; text-shadow: 0 2px 2px rgba(0,0,0,.4); white-space: nowrap; }
@@ -46,13 +47,13 @@
   .tugsub b { color: #ffe27a; }
 
   /* ---------- trạng thái xe ---------- */
-  #status { position: absolute; left: 20px; top: 352px; display: flex; gap: 10px; }
+  #status { position: absolute; left: 20px; top: 384px; display: flex; gap: 10px; }
   .chip { display: flex; align-items: center; gap: 8px; padding: 6px 16px; font-size: 28px; font-weight: 800; border-radius: 999px; background: rgba(22,26,36,.78); white-space: nowrap; }
   .fuelbar { width: 150px; height: 18px; border-radius: 9px; background: rgba(255,255,255,.2); overflow: hidden; }
   .fuelbar i { display: block; height: 100%; background: linear-gradient(90deg, #ffb02e, #ffe27a); transition: width .2s linear; }
   .chip.low { background: #c3261f; animation: pulse .5s infinite; }
   .chip.ready { background: #0f8f4a; }
-  #status2 { position: absolute; left: 20px; top: 412px; display: flex; gap: 10px; }
+  #status2 { position: absolute; left: 20px; top: 444px; display: flex; gap: 10px; }
   #status2 .chip { font-size: 24px; padding: 4px 14px; }
   #cdriver span { max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
   .chip.speedo { gap: 4px; min-width: 170px; justify-content: center; }
@@ -62,7 +63,7 @@
   .chip.speedo.fast { background: #b35a00; }
 
   /* ---------- bảng quà 2 phe ---------- */
-  .legend { position: absolute; top: 466px; width: 240px; padding: 8px 8px 10px; }
+  .legend { position: absolute; top: 498px; width: 240px; padding: 8px 8px 10px; }
   .legend.l { left: 14px; } .legend.r { right: 14px; }
   .legend h4 { margin: 0 0 4px; font-size: 24px; font-weight: 800; text-align: center; padding: 2px 0; border-radius: 12px; }
   .legend.l h4 { background: #12a150; } .legend.r h4 { background: #d12a24; }
@@ -73,7 +74,7 @@
   .legend .free { margin-top: 4px; font-size: 20px; font-weight: 700; color: #cfd9ea; text-align: center; line-height: 1.25; }
 
   /* ---------- tin nổi + băng rôn ---------- */
-  #feed { position: absolute; left: 280px; right: 280px; top: 476px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  #feed { position: absolute; left: 280px; right: 280px; top: 508px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
   .toast { display: flex; align-items: center; gap: 10px; max-width: 100%; padding: 6px 16px 6px 8px; border-radius: 999px; font-size: 26px; font-weight: 800;
     background: rgba(22,26,36,.82); white-space: nowrap; animation: tin .25s ease-out; }
   .toast.cuu { border: 3px solid #35d07f; } .toast.pha { border: 3px solid #ff5a4f; }
@@ -87,7 +88,7 @@
   #banner .b small { display: block; font-size: 32px; font-weight: 700; color: #ffe27a; margin-top: 4px; }
   #banner .b.cuu { background: rgba(10,120,60,.92); } #banner .b.pha { background: rgba(170,30,25,.92); } #banner .b.gold { background: rgba(190,110,0,.94); }
   @keyframes pop { from { transform: scale(.4); opacity: 0; } }
-  #rescue { position: absolute; left: 270px; right: 270px; top: 478px; padding: 12px 18px; text-align: center; border: 4px solid #ffd23a; }
+  #rescue { position: absolute; left: 270px; right: 270px; top: 508px; padding: 12px 18px; text-align: center; border: 4px solid #ffd23a; }
   #rescue .t { font-size: 30px !important; line-height: 1.2; }
   #rescue .t { font-size: 36px; font-weight: 800; }
   #rescue .bar { height: 30px; margin-top: 8px; border-radius: 15px; background: rgba(255,255,255,.2); overflow: hidden; }
@@ -121,8 +122,9 @@
   <div id="hud">
     <div id="top" class="panel">
       <div class="row"><div class="brand">🛵 ĐƯỜNG VỀ QUÊ<small id="round">Ván 1</small></div><div class="timer" id="timer">4:00</div></div>
-      <div class="track" id="track"><span class="end l">🏙️</span><div class="fill" id="tfill"></div><span class="bike" id="tbike">🛵</span><span class="end r">🏡</span></div>
+      <div class="track" id="track"><span class="end l">🌴</span><div class="fill" id="tfill"></div><span class="bike" id="tbike">🛵</span><span class="end r">🏔️</span></div>
       <div class="dist" id="dist"><b>0</b> / 2.000 m</div>
+      <div class="prov" id="prov">📍 Cà Mau</div>
     </div>
     <div id="tug" class="panel">
       <div class="tugbar"><div class="cuu" id="tcuu" style="width:50%"></div><div class="knot" id="tknot" style="left:50%"></div>

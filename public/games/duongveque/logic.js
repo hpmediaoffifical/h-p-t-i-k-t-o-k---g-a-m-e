@@ -10,6 +10,8 @@
  *  - Về tới quê trước khi hết giờ → phe Cứu thắng; hết giờ → phe Phá thắng. 30 giây cuối mọi quà ×2.
  */
 
+import { rangesOf } from './route.js';
+
 export const SIDES = ['cuu', 'pha'];
 
 // min = giá xu tối thiểu khi quà CHƯA GÁN tự chọn hành động theo giá (quà đã gán thì giá nào cũng chạy đúng hành động đó).
@@ -66,7 +68,16 @@ export const DEFAULTS = {
   pushMax: 5,
   driverSec: 180,      // 🧑‍✈️ mỗi lượt tài xế bấy nhiêu giây; hết giờ không ai chờ → người đang lái giữ nguyên
   seats: 14,           // chỗ ngồi hiện trên xe (người phe Cứu); dư thì chỉ đếm "+N"
+  maxCars: 3,          // 🚌 đoàn xe: đầy seats ghế thì nối thêm 1 xe phía sau (tối đa bấy nhiêu xe)
   maxRiders: 300,      // nhớ tối đa bấy nhiêu người đã lên xe (LIVE dài)
+  // ---- lộ trình về quê (mỗi ván 1 lần, theo phần quãng đường) ----
+  restStop: true, restAt: 0.4, restSec: 30,     // 🍜 trạm dừng chân: cả đoàn xuống ăn uống — ĐỒNG HỒ VÁN DỪNG
+  gasStop: true, gasAt: 0.7, gasSec: 15,        // ⛽ trạm xăng: đi vệ sinh + đổ đầy bình — đồng hồ dừng
+  police: true, policeChance: 0.7,              // 🚓 CSGT kiểm tra (ngẫu nhiên): thả đủ policeLikes tim mới được đi — đồng hồ VẪN CHẠY
+  policeLikes: 2000, coinLikes: 10,             // quà Cứu lúc bị giữ: 1 xu = coinLikes tim
+  policeMaxSec: 45,                             // quá bấy nhiêu giây chưa đủ tim → được nhắc nhở cho đi
+  roadEvents: 3,                                // số tình huống đường xá mỗi ván (kẹt xe, chắn tàu, đàn bò, thủng lốp, say xe, check-in, lì xì)
+  flatLikes: 600, flatMaxSec: 25,               // 🛞 thủng lốp: thả bấy nhiêu tim để bơm
   maxUsers: 2000,      // quá bấy nhiêu người xem thì đầu ván dọn người không còn trên xe / không lái
 };
 
@@ -152,6 +163,8 @@ export function createGame(options = {}, rnd = Math.random) {
     driver: null,      // { id, name, avatar, left } — null = streamer tự lái
     driverQueue: [],   // [{ user, sec }]
     riders: [],        // id người phe Cứu theo thứ tự lên xe
+    plan: [],          // lộ trình ván này: [{ kind, at (mét), done }]
+    halt: null,        // xe đang dừng: { kind, left, need, got, pauseClock, t, deferred: [] }
     get final() { return this.phase === 'race' && this.timeLeft <= this.cfg.finalSec; },
     get progress() { return Math.max(0, Math.min(1, this.dist / this.cfg.goal)); },
   };
@@ -284,7 +297,9 @@ export function createGame(options = {}, rnd = Math.random) {
     const list = g.riders.map(id => g.users.get(id)).filter(u => u && u.side !== 'pha' && (!g.driver || u.id !== g.driver.id));
     list.sort((a, b) => b.cuu - a.cuu || g.riders.indexOf(a.id) - g.riders.indexOf(b.id));
     paxTick = g.tick;
-    return (paxCache = { seated: list.slice(0, cfg.seats), extra: Math.max(0, list.length - cfg.seats), total: list.length });
+    const cars = Math.max(1, Math.min(cfg.maxCars, Math.ceil(list.length / cfg.seats)));
+    const cap = cfg.seats * cars;
+    return (paxCache = { seated: list.slice(0, cap), extra: Math.max(0, list.length - cap), total: list.length, cars });
   };
 
   /** Quà thật / quà thử. gift = { giftId, giftName, coins (xu 1 cái), count }. giftMap theo resolveGift. */
@@ -304,16 +319,25 @@ export function createGame(options = {}, rnd = Math.random) {
       return r;
     }
     giveCoins(u, r.side, coins * count);
+    if (g.halt) {
+      if (r.action === 'driver') assignDriver(u, count);
+      if (g.halt.need && r.side === 'cuu') haltProgress(coins * count * cfg.coinLikes, u);
+      g.halt.deferred.push({ u, action: r.action, coins, count, driverDone: r.action === 'driver' });
+      emit('deferred', { user: { id: u.id, name: u.name, avatar: u.avatar }, action: r.action, side: r.side, coins: coins * count, halt: g.halt.kind });
+      return r;
+    }
     applyAction(r.action, u, coins, count);
     return r;
   };
 
   g.like = function (who, n) {
     const u = user(who);
-    g.likeAcc += Math.max(0, Number(n) || 0);
+    const nl = Math.max(0, Number(n) || 0);
+    if (g.halt && g.halt.need) haltProgress(nl, u);
+    g.likeAcc += nl;
     while (g.likeAcc >= cfg.likePer) {
       g.likeAcc -= cfg.likePer;
-      if (g.phase === 'race') { addPush(metersFor(1, cfg), 0.8, 'cuu', 'like'); g.fuel = Math.min(100, g.fuel + cfg.likeFuel); }
+      if (g.phase === 'race' && !g.halt) { addPush(metersFor(1, cfg), 0.8, 'cuu', 'like'); g.fuel = Math.min(100, g.fuel + cfg.likeFuel); }
       emit('likeBurst', { user: { id: u.id, name: u.name, avatar: u.avatar } });
     }
   };
@@ -390,12 +414,99 @@ export function createGame(options = {}, rnd = Math.random) {
     return false;
   }
 
+  // Tình huống đường xá đặt đúng tỉnh trên tuyến Cà Mau → Hà Giang (route.js): mỗi tình huống 1 dãy [from, to) phần quãng đường
+  const ROAD_EVENTS = [
+    { kind: 'jam',     ranges: rangesOf(['TP. Hồ Chí Minh', 'Hà Nội']) },                                   // 🚗 kẹt xe cửa ngõ
+    { kind: 'train',   ranges: rangesOf(['Hà Tĩnh', 'Nghệ An', 'Thanh Hóa', 'Hưng Yên', 'Bắc Ninh']) },     // 🚂 chắn tàu Bắc – Nam
+    { kind: 'cows',    ranges: rangesOf(['Tây Ninh', 'Đồng Nai', 'Lâm Đồng', 'Đắk Lắk', 'Gia Lai']) },      // 🐄 đàn bò qua đường
+    { kind: 'flat',    ranges: [[0.1, 0.9]] },                                                              // 🛞 thủng lốp — thả tim bơm
+    { kind: 'carsick', ranges: rangesOf(['Lâm Đồng', 'Sơn La', 'Điện Biên', 'Lai Châu', 'Lào Cai', 'Lạng Sơn']) }, // 🤢 say xe qua đèo
+    { kind: 'photo',   ranges: rangesOf(['Đà Nẵng', 'Huế', 'Quảng Ninh', 'Lào Cai']) },                    // 📸 Hải Vân · Hạ Long · Sa Pa
+    { kind: 'lixi',    ranges: rangesOf(['Cao Bằng', 'Tuyên Quang']) },                                    // 🧧 họ hàng lì xì gần tới quê
+  ];
+  const TIMED = { train: 7, cows: 5, carsick: 5, photo: 5 };
+  function buildPlan() {
+    const L = cfg.goal, plan = [];
+    const free = m => plan.every(x => Math.abs(x.at - m) > Math.max(250, L * 0.05));
+    if (cfg.restStop) plan.push({ kind: 'rest', at: L * cfg.restAt, done: false });
+    if (cfg.gasStop) plan.push({ kind: 'gas', at: L * cfg.gasAt, done: false });
+    if (cfg.police && g.rnd() < cfg.policeChance) {
+      for (let k = 0; k < 8; k++) { const m = L * (0.18 + g.rnd() * 0.64); if (free(m)) { plan.push({ kind: 'police', at: m, done: false }); break; } }
+    }
+    const pool = ROAD_EVENTS.slice();
+    for (let n = 0; n < cfg.roadEvents && pool.length; n++) {
+      const e = pool.splice(Math.floor(g.rnd() * pool.length), 1)[0];
+      for (let k = 0; k < 8; k++) {
+        const [from, to] = e.ranges[Math.floor(g.rnd() * e.ranges.length)];
+        const m = L * (from + g.rnd() * (to - from));
+        if (free(m)) { plan.push({ kind: e.kind, at: m, done: false }); break; }
+      }
+    }
+    return plan.sort((a, b) => a.at - b.at);
+  }
+  function startHalt(kind) {
+    const h = { kind, t: 0, got: 0, need: 0, left: 0, maxLeft: 0, pauseClock: false, deferred: [], helpers: new Map() };
+    if (kind === 'rest') { h.left = cfg.restSec; h.pauseClock = true; }
+    else if (kind === 'gas') { h.left = cfg.gasSec; h.pauseClock = true; g.fuel = 100; g.walking = false; g.fuelAlarm = null; }
+    else if (kind === 'police') { h.need = cfg.policeLikes; h.maxLeft = cfg.policeMaxSec; }
+    else if (kind === 'flat') { h.need = cfg.flatLikes; h.maxLeft = cfg.flatMaxSec; }
+    else h.left = TIMED[kind] || 5;
+    g.halt = h;
+    emit('halt', { kind, sec: h.left || h.maxLeft, need: h.need, pauseClock: h.pauseClock });
+  }
+  function haltProgress(n, u) {
+    const h = g.halt;
+    h.got += n;
+    if (u) h.helpers.set(u.id, (h.helpers.get(u.id) || 0) + n);
+  }
+  function endHalt(how) {
+    const h = g.halt;
+    g.halt = null;
+    const helpers = [...h.helpers].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, n]) => { const u = g.users.get(id); return { id, name: u ? u.name : id, avatar: u ? u.avatar : '', likes: n }; });
+    emit('haltEnd', { kind: h.kind, how, helpers });
+    for (const d of h.deferred) applyAction(d.action, d.u, d.coins, d.count, d.driverDone);
+  }
+  /** Tình huống không bắt dừng: kẹt xe (chậm), lì xì (thưởng). */
+  function startRoadEffect(kind) {
+    if (kind === 'jam') { g.effects.push({ id: ++SEQ, kind: 'jam', t: 0, dur: 10, slow: 0.3, user: { id: 'road', name: 'Kẹt xe' } }); emit('roadEvent', { kind }); }
+    else if (kind === 'lixi') { g.fuel = Math.min(100, g.fuel + 30); addPush(metersFor(40, cfg), 1.5, 'cuu', 'lixi'); emit('roadEvent', { kind }); }
+  }
+  /** Bật ngay một tình huống (nút thử trong panel): rest | gas | police | jam | train | cows | flat | carsick | photo | lixi */
+  g.triggerEvent = function (kind) {
+    if (g.phase !== 'race' || g.halt) return false;
+    if (kind === 'jam' || kind === 'lixi') { startRoadEffect(kind); return true; }
+    if (!['rest', 'gas', 'police', 'flat', ...Object.keys(TIMED)].includes(kind)) return false;
+    startHalt(kind);
+    return true;
+  };
+  function stepPlan() {
+    if (g.halt || g.exclusive) return;
+    const next = g.plan.find(x => !x.done && g.dist >= x.at);
+    if (!next) return;
+    next.done = true;
+    if (next.kind === 'jam' || next.kind === 'lixi') startRoadEffect(next.kind);
+    else startHalt(next.kind);
+  }
+  function stepHalt(dt) {
+    const h = g.halt;
+    h.t += dt;
+    if (!h.pauseClock) g.timeLeft = Math.max(0, g.timeLeft - dt);
+    if (h.need) {
+      if (h.got >= h.need) return endHalt('likes');
+      if (h.t >= h.maxLeft) return endHalt('timeout');
+    } else {
+      h.left -= dt;
+      if (h.left <= 0) return endHalt('time');
+    }
+  }
+
   function startRace() {
     g.round += 1;
     g.phase = 'race'; g.phaseT = 0;
     g.timeLeft = cfg.roundSec; g.dist = 0; g.maxDist = 0; g.fuel = 100; g.shield = 0;
     g.walking = false; g.fuelAlarm = null; g.rescue = null; g.exclusive = null; g.xqueue = [];
-    g.pushes = []; g.effects = []; g.obstacles = []; g.result = null;
+    g.pushes = []; g.effects = []; g.obstacles = []; g.result = null; g.halt = null;
+    g.plan = buildPlan();
     g.jumpT = 0; g.jumpCd = 0; g.ramCd = 0; g.ramWindow = 0; g.aiTimers = [];
     if (g.users.size > cfg.maxUsers) {
       const keep = new Set([...g.riders, ...(g.driver ? [g.driver.id] : []), ...g.driverQueue.map(q => q.user.id), ...g.pending.map(p => p.u.id)]);
@@ -416,7 +527,7 @@ export function createGame(options = {}, rnd = Math.random) {
       betrayers: [...g.users.values()].filter(u => u.betrayed).map(u => ({ id: u.id, name: u.name, avatar: u.avatar })),
     };
     g.phase = 'result'; g.phaseT = 0;
-    g.pushes = []; g.effects = []; g.obstacles = []; g.exclusive = null; g.xqueue = []; g.rescue = null; g.fuelAlarm = null;
+    g.pushes = []; g.effects = []; g.obstacles = []; g.exclusive = null; g.xqueue = []; g.rescue = null; g.fuelAlarm = null; g.halt = null;
     emit('roundEnd', g.result);
   }
 
@@ -489,6 +600,15 @@ export function createGame(options = {}, rnd = Math.random) {
     if (g.phase === 'result') { if (cfg.autoNext && g.phaseT >= cfg.resultSec) { g.phase = 'lobby'; g.phaseT = 0; emit('lobby'); } return; }
 
     // ---- race ----
+    if (g.halt) {
+      g.speed = 0;
+      stepHalt(dt);
+      if (g.timeLeft <= cfg.finalSec && g.timeLeft + dt > cfg.finalSec && !(g.halt && g.halt.pauseClock)) emit('final', { sec: cfg.finalSec, mult: cfg.finalMult });
+      if (g.timeLeft <= 0) endRace('pha');
+      return;
+    }
+    stepPlan();
+    if (g.halt) return;
     g.timeLeft = Math.max(0, g.timeLeft - dt);
     g.jumpT = Math.max(0, g.jumpT - dt);
     g.jumpCd = Math.max(0, g.jumpCd - dt);
@@ -560,7 +680,7 @@ export function createGame(options = {}, rnd = Math.random) {
     g.phase = 'lobby'; g.phaseT = 0; g.result = null; g.pending = []; g.dist = 0; g.maxDist = 0; g.fuel = 100;
     g.pushes = []; g.effects = []; g.obstacles = []; g.exclusive = null; g.xqueue = []; g.rescue = null; g.fuelAlarm = null;
     g.users = new Map(); g.totals = { cuu: 0, pha: 0 };
-    g.driver = null; g.driverQueue = []; g.riders = []; paxTick = -1;
+    g.driver = null; g.driverQueue = []; g.riders = []; g.halt = null; g.plan = []; paxTick = -1;
     emit('lobby');
   };
   return g;

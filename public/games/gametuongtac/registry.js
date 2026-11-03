@@ -34,7 +34,7 @@
         },
         {
             id: 'duongveque', name: 'Đường Về Quê', icon: '🛵',
-            desc: 'Xe buýt / xe bò chở cả đoàn người xem về quê ăn Tết (2D, 100 km/h): phe Cứu đẩy xe, đổ xăng; phe Phá thả vỏ chuối, xe container đẩy lùi, lốc xoáy.',
+            desc: 'Đoàn xe buýt / xe bò chở người xem từ Mũi Cà Mau về Hà Giang qua 34 tỉnh: trạm dừng chân, trạm xăng, CSGT thả tim; phe Cứu đẩy xe, phe Phá đẩy lùi.',
             play: 'Bình luận 1 lên xe / 2 phe Phá · quà 2 phe · quà tài xế lái 3 phút',
             note: 'Streamer bấm Nhảy / Húc (phím tắt F7 / F8) hoặc để Tự lái.'
         },

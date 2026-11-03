@@ -1,12 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, metersFor, pickAction, resolveGift, sideFromComment, ACTIONS } from '../public/games/duongveque/logic.js';
+import { ROUTE, provinceAt, provinceIndex, rangesOf } from '../public/games/duongveque/route.js';
 
 const A = { id: 'a', name: 'An' }, B = { id: 'b', name: 'Bình' };
 const run = (g, sec, dt = 0.05) => { for (let t = 0; t < sec; t += dt) g.step(dt); };
 // số mét/xu cố định cho test (mặc định game có thể đổi khi cân lại)
 const M25 = { meterPerCoin: 2.5, minMeters: 5 };
-const race = (opts = {}) => { const g = createGame(Object.assign({ autoPilot: false, lobbySec: 0.05 }, M25, opts), () => 0.99); run(g, 0.1); assert.equal(g.phase, 'race'); g.drainEvents(); return g; };
+// test luật cơ bản: tắt lộ trình (trạm dừng, CSGT, tình huống) — có test riêng bên dưới
+const NOPLAN = { restStop: false, gasStop: false, police: false, roadEvents: 0 };
+const race = (opts = {}) => { const g = createGame(Object.assign({ autoPilot: false, lobbySec: 0.05 }, M25, NOPLAN, opts), () => 0.99); run(g, 0.1); assert.equal(g.phase, 'race'); g.drainEvents(); return g; };
 
 test('mét theo xu: tuyến tính, có tối thiểu', () => {
   assert.equal(metersFor(1, M25), 5);
@@ -193,7 +196,7 @@ test('về tới quê → Cứu thắng; hết giờ → Phá thắng; 30 giây 
 });
 
 test('quà lúc chờ ván không mất: chạy khi ván bắt đầu', () => {
-  const g = createGame({ autoPilot: false, lobbySec: 1, ...M25 }, () => 0.5);
+  const g = createGame({ autoPilot: false, lobbySec: 1, ...M25, ...NOPLAN }, () => 0.5);
   g.gift(A, { action: 'helmet', coins: 10 });
   assert.equal(g.pending.length, 1);
   run(g, 1.1);
@@ -222,7 +225,7 @@ test('tim cả phòng: đủ likePer → gió + xăng', () => {
 test('tự lái (AI) né được một phần vật cản và tự húc', () => {
   let s = 1;
   const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  const g = createGame({ autoPilot: true, lobbySec: 0.05, fuelBurn: 0, ...M25 }, rnd);
+  const g = createGame({ autoPilot: true, lobbySec: 0.05, fuelBurn: 0, ...M25, ...NOPLAN }, rnd);
   run(g, 0.1);
   let dodge = 0, hit = 0, ram = 0;
   for (let i = 0; i < 40; i++) {
@@ -272,7 +275,7 @@ test('tài xế: chính mình tặng thêm thì cộng giờ; ×2 = 6 phút; qu�
 });
 
 test('hành khách: phe Cứu lên xe, đổi sang Phá thì xuống, tài xế không chiếm ghế, dư ghế đếm +N', () => {
-  const g = race({ seats: 2 });
+  const g = race({ seats: 2, maxCars: 1 });
   g.comment(A, '1');
   g.gift(B, { action: 'wind', coins: 5 });
   g.comment({ id: 'c', name: 'Chi' }, '1');
@@ -296,7 +299,7 @@ test('quà có số xu vô hạn/không hợp lệ không làm thắng ngay (l�
 });
 
 test('tài xế: tặng lúc đang chờ ván thì nhận lái ngay, xu và cú đẩy chạy khi ván bắt đầu (không nhân đôi giờ lái)', () => {
-  const g = createGame({ autoPilot: false, lobbySec: 1, ...M25 }, () => 0.5);
+  const g = createGame({ autoPilot: false, lobbySec: 1, ...M25, ...NOPLAN }, () => 0.5);
   g.gift(A, { action: 'driver', coins: 99 });
   assert.equal(g.phase, 'lobby');
   assert.equal(g.driver && g.driver.id, 'a');
@@ -321,7 +324,7 @@ test('bị đẩy lùi quá vạch xuất phát tới bến xe → phe Phá th�
 });
 
 test('LIVE nhiều giờ: danh sách lên xe có trần, người xem cũ được dọn đầu ván, tài xế và người trên xe giữ lại', () => {
-  const g = createGame({ autoPilot: false, lobbySec: 0.05, resultSec: 0.05, maxRiders: 50, maxUsers: 100, ...M25 }, () => 0.5);
+  const g = createGame({ autoPilot: false, lobbySec: 0.05, resultSec: 0.05, maxRiders: 50, maxUsers: 100, ...M25, ...NOPLAN }, () => 0.5);
   for (let i = 0; i < 400; i++) g.comment({ id: 'v' + i, name: 'v' + i }, '1');
   assert.equal(g.riders.length, 50);
   assert.ok(g.riders.includes('v399') && !g.riders.includes('v0'));
@@ -331,4 +334,138 @@ test('LIVE nhiều giờ: danh sách lên xe có trần, người xem cũ đư�
   assert.ok(g.users.size <= 51, `users=${g.users.size}`);
   assert.ok(g.users.has('v0') && g.users.has('v399'));
   assert.equal(g.passengers().total, 50 - (g.riders.includes('v0') ? 1 : 0));
+});
+
+// ---------------- đoàn xe + lộ trình về quê ----------------
+const PLAN = (o = {}) => { const g = createGame(Object.assign({ autoPilot: false, lobbySec: 0.05, ...M25, fuelBurn: 0, restStop: false, gasStop: false, police: false, roadEvents: 0 }, o), () => 0.5); for (let i = 0; i < 2; i++) g.step(0.05); g.drainEvents(); return g; };
+
+test('đoàn xe: đầy ghế thì nối thêm xe, tối đa maxCars, dư nữa mới +N', () => {
+  const g = PLAN({ seats: 4, maxCars: 3 });
+  for (let i = 0; i < 4; i++) g.comment({ id: 'v' + i, name: 'v' + i }, '1');
+  assert.equal(g.passengers().cars, 1);
+  g.comment({ id: 'v4', name: 'v4' }, '1');
+  assert.equal(g.passengers().cars, 2);
+  for (let i = 5; i < 15; i++) g.comment({ id: 'v' + i, name: 'v' + i }, '1');
+  const p = g.passengers();
+  assert.equal(p.cars, 3);
+  assert.equal(p.seated.length, 12);
+  assert.equal(p.extra, 3);
+});
+
+test('trạm dừng chân: xe dừng, ĐỒNG HỒ VÁN DỪNG, quà lúc dừng tính xu ngay và chạy khi xe đi tiếp', () => {
+  const g = PLAN({ restStop: true, restAt: 0.1, restSec: 30, goal: 6000, speed: 30 });
+  g.dist = 650;                         // quá 600 m
+  g.step(0.05);
+  assert.equal(g.halt && g.halt.kind, 'rest');
+  assert.ok(g.drainEvents().some(e => e.type === 'halt' && e.kind === 'rest' && e.pauseClock));
+  const t0 = g.timeLeft, d0 = g.dist;
+  g.gift(A, { action: 'helmet', coins: 10 });
+  assert.equal(g.totals.cuu, 10);
+  assert.equal(g.shield, 0);            // chưa chạy hành động
+  for (let i = 0; i < 200; i++) g.step(0.1);   // 20 giây
+  assert.equal(g.timeLeft, t0);
+  assert.equal(g.dist, d0);
+  for (let i = 0; i < 110; i++) g.step(0.1);   // hết 30 giây
+  assert.equal(g.halt, null);
+  assert.equal(g.shield, 25);
+  assert.ok(g.drainEvents().some(e => e.type === 'haltEnd' && e.kind === 'rest'));
+  for (let i = 0; i < 10; i++) g.step(0.1);
+  assert.ok(g.dist > d0 && g.timeLeft < t0);
+});
+
+test('trạm xăng: đổ đầy bình, dừng 15 giây rồi đi; mỗi trạm chỉ 1 lần/ván', () => {
+  const g = PLAN({ gasStop: true, gasAt: 0.5, gasSec: 15, goal: 2000, speed: 20 });
+  g.fuel = 12; g.dist = 1001;
+  g.step(0.05);
+  assert.equal(g.halt.kind, 'gas');
+  assert.equal(g.fuel, 100);
+  for (let i = 0; i < 160; i++) g.step(0.1);
+  assert.equal(g.halt, null);
+  g.dist = 1001; g.step(0.05);
+  assert.equal(g.halt, null);
+});
+
+test('CSGT: đồng hồ vẫn chạy, đủ 2000 tim (hoặc quà Cứu 1 xu = 10 tim) mới được đi; quá giờ thì được nhắc nhở cho đi', () => {
+  const g = PLAN({ goal: 6000, roundSec: 999 });
+  assert.equal(g.triggerEvent('police'), true);
+  const t0 = g.timeLeft;
+  g.like(A, 1500);
+  for (let i = 0; i < 20; i++) g.step(0.1);
+  assert.equal(g.halt.kind, 'police');
+  assert.ok(g.timeLeft < t0 - 1.9);
+  g.gift(B, { action: 'wind', coins: 50 });   // +500 tim
+  g.step(0.05);
+  assert.equal(g.halt, null);
+  const end = g.drainEvents().find(e => e.type === 'haltEnd');
+  assert.equal(end.how, 'likes');
+  assert.equal(end.helpers[0].id, 'a');
+  // quá giờ
+  assert.equal(g.triggerEvent('police'), true);
+  for (let i = 0; i < 460; i++) g.step(0.1);
+  assert.equal(g.halt, null);
+  assert.ok(g.drainEvents().some(e => e.type === 'haltEnd' && e.how === 'timeout'));
+});
+
+test('quà Phá lúc bị CSGT giữ không tính tim, vẫn chạy khi xe đi tiếp', () => {
+  const g = PLAN({ goal: 6000, roundSec: 999, policeLikes: 100 });
+  g.dist = 3000;
+  g.triggerEvent('police');
+  g.gift(B, { action: 'wind', coins: 1 });
+  g.gift(A, { action: 'container', coins: 100 });   // phe Phá (container) — không tính tim
+  assert.equal(g.halt.got, 10);
+  g.like(A, 90);
+  g.step(0.05);
+  assert.equal(g.halt, null);
+  assert.equal(g.xqueue.length + (g.exclusive ? 1 : 0), 1);
+});
+
+test('lộ trình: trạm dừng + trạm xăng + CSGT + tình huống đúng chặng, không chồng nhau, mỗi ván làm lại', () => {
+  let s = 3; const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  const g = createGame({ autoPilot: false, lobbySec: 0.05, resultSec: 0.05, policeChance: 1, roadEvents: 3 }, rnd);
+  for (let r = 0; r < 20; r++) {
+    for (let i = 0; i < 3 && g.phase !== 'race'; i++) g.step(0.05);
+    const kinds = g.plan.map(x => x.kind);
+    assert.ok(kinds.includes('rest') && kinds.includes('gas') && kinds.includes('police'), kinds.join());
+    assert.ok(g.plan.length >= 5 && g.plan.length <= 6);
+    for (let i = 1; i < g.plan.length; i++) assert.ok(g.plan[i].at - g.plan[i - 1].at > 250);
+    const at = k => { const x = g.plan.find(y => y.kind === k); return x ? provinceAt(x.at, 6000).name : null; };
+    if (at('jam')) assert.ok(['TP. Hồ Chí Minh', 'Hà Nội'].includes(at('jam')), at('jam'));
+    if (at('photo')) assert.ok(['Đà Nẵng', 'Huế', 'Quảng Ninh', 'Lào Cai'].includes(at('photo')), at('photo'));
+    if (at('lixi')) assert.ok(['Cao Bằng', 'Tuyên Quang'].includes(at('lixi')), at('lixi'));
+    g.forceEnd('cuu');
+  }
+});
+
+test('tình huống: chắn tàu dừng 7 giây (đồng hồ chạy), kẹt xe làm chậm, thủng lốp thả tim bơm, lì xì cho xăng + đẩy tới', () => {
+  const g = PLAN({ goal: 6000, roundSec: 999, speed: 20 });
+  g.triggerEvent('train');
+  for (let i = 0; i < 60; i++) g.step(0.1);
+  assert.equal(g.halt.kind, 'train');
+  for (let i = 0; i < 15; i++) g.step(0.1);
+  assert.equal(g.halt, null);
+  g.triggerEvent('jam'); g.step(0.1);
+  assert.ok(Math.abs(g.speed - 6) < 1e-9);
+  for (let i = 0; i < 110; i++) g.step(0.1);
+  g.triggerEvent('flat');
+  g.like(A, 600); g.step(0.05);
+  assert.equal(g.halt, null);
+  g.fuel = 10; const d = g.dist;
+  g.triggerEvent('lixi');
+  for (let i = 0; i < 20; i++) g.step(0.1);
+  assert.ok(g.fuel >= 36 && g.dist > d + 100);
+});
+
+test('tuyến Cà Mau → Hà Giang: đủ 34 tỉnh/thành sau sắp xếp 2025, không trùng, đầu Cà Mau cuối Tuyên Quang (Hà Giang)', () => {
+  assert.equal(ROUTE.length, 34);
+  assert.equal(new Set(ROUTE.map(p => p.name)).size, 34);
+  assert.equal(ROUTE[0].name, 'Cà Mau');
+  assert.ok(ROUTE[33].old.includes('Hà Giang'));
+  // 63 tỉnh cũ = 34 tỉnh mới + các tỉnh cũ đã gộp vào
+  const all = new Set(ROUTE.flatMap(p => [p.name === 'TP. Hồ Chí Minh' ? 'TP. Hồ Chí Minh' : p.name, ...p.old]));
+  assert.equal(all.size, 63);
+  for (const p of ROUTE) assert.ok(p.landmark && p.icon && p.biome, p.name);
+  assert.equal(provinceAt(-500, 6000).name, 'Cà Mau');
+  assert.equal(provinceAt(6000, 6000).name, 'Tuyên Quang');
+  assert.equal(provinceIndex(3000, 6000), 17);
+  assert.deepEqual(rangesOf(['Hà Nội']).length, 1);
 });

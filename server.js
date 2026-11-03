@@ -454,7 +454,7 @@ const GAMES = {
     duongveque: {
         id: 'duongveque',
         name: 'Đường Về Quê',
-        description: 'Xe buýt / xe bò chở cả đoàn người xem về quê ăn Tết (2D cuộn ngang, 100 km/h): phe Cứu lên xe, đẩy xe tới, đổ xăng, che chắn; phe Phá thả vỏ chuối, chó rượt, xe container đẩy lùi, lốc xoáy. Quà tài xế = lên lái 3 phút. Streamer nhảy né và húc phản đòn.',
+        description: 'Xe buýt / xe bò chở cả đoàn người xem từ Mũi Cà Mau về Hà Giang qua 34 tỉnh (2D cuộn ngang, 100 km/h, trạm dừng chân, trạm xăng, CSGT): phe Cứu lên xe, đẩy xe tới, đổ xăng, che chắn; phe Phá thả vỏ chuối, chó rượt, xe container đẩy lùi, lốc xoáy. Quà tài xế = lên lái 3 phút. Streamer nhảy né và húc phản đòn.',
         icon: '🛵',
         overlayPath: '/overlay/duongveque',
         // Khoá riêng tiền tố dvq*. Luật ở public/games/duongveque/logic.js, overlay đọc trong game.js → applyServerConfig.
@@ -475,7 +475,13 @@ const GAMES = {
             dvqAutoNext: true,        // hết ván tự sang ván mới
             dvqVehicle: 'bus',        // 🚌 bus (xe buýt chở cả đoàn) | oxcart (🐂 xe bò có máng) | scooter (🛵 xe máy 1 người)
             dvqDriverSec: 180,        // 🧑‍✈️ quà tài xế: lái bấy nhiêu giây, hết giờ đổi người chờ; không ai chờ → giữ nguyên người đang lái
-            dvqSeats: 14,             // số người phe Cứu hiện ngồi trên xe (dư hiện +N)
+            dvqSeats: 14,             // số ghế mỗi xe (người phe Cứu); đầy thì nối thêm xe
+            dvqMaxCars: 3,            // đoàn xe tối đa bấy nhiêu chiếc (dư nữa hiện +N)
+            dvqRestStop: true,        // 🍜 trạm dừng chân 30 giây (đồng hồ ván dừng)
+            dvqGasStop: true,         // ⛽ trạm xăng 15 giây: đổ đầy bình + đi vệ sinh
+            dvqPolice: true,          // 🚓 thỉnh thoảng CSGT kiểm tra: thả đủ tim mới được đi (đồng hồ vẫn chạy)
+            dvqPoliceLikes: 2000,     // số tim cần thả khi bị CSGT giữ (quà Cứu: 1 xu = 10 tim)
+            dvqRoadEvents: true,      // tình huống đường xá: kẹt xe, chắn tàu, đàn bò, thủng lốp, say xe, check-in, lì xì
             dvqBike: 'green',         // màu xe: red | blue | pink | yellow | green | black
             dvqSound: true,
             dvqShowLegend: true,      // hiện 2 cột "🛡️ CỨU / ⚔️ PHÁ" quà trên overlay
