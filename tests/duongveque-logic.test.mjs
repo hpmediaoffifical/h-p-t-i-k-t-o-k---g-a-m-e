@@ -511,3 +511,28 @@ test('bắn tốc độ: được đẩy vọt quá 150 km/h ≥ 1,5 giây thì 
   for (let i = 0; i < 80; i++) g.step(0.1);
   assert.equal(g.halt, null);                        // không bị bắt lần 2 trong ván
 });
+
+test('quãng đường tự theo thời gian ván: 4 phút = 6 km, 10 phút = 15 km; tình huống + cờ mốc chia đều', async () => {
+  const { goalFor, roadEventsFor, flagEveryFor } = await import('../public/games/duongveque/logic.js');
+  assert.equal(goalFor(240), 6000);
+  assert.equal(goalFor(600), 15000);
+  assert.equal(goalFor(60), 2000);
+  assert.equal(roadEventsFor(240), 3);
+  assert.equal(roadEventsFor(600), 7);
+  assert.equal(flagEveryFor(15000), 1300);
+  // mỗi tỉnh ≈ 1/34 thời gian ván khi chạy 100 km/h (không tính quà): 10 phút → ~16 giây/tỉnh
+  const secPerProvince = goalFor(600) / ROUTE.length / (100 / 3.6);
+  assert.ok(secPerProvince > 14 && secPerProvince < 18, String(secPerProvince));
+});
+
+test('bị đẩy về bến xe: ván giữ thêm thời gian cháy bến (depotFireSec) rồi mới sang ván mới', () => {
+  const g = PLAN({ goal: 6000, backFloor: 0.25, resultSec: 2, depotFireSec: 9.5 });
+  g.dist = -1490; g.gift(B, { action: 'wind', coins: 1 }); g.gift(B, { action: 'pothole', coins: 50 });
+  for (let i = 0; i < 300 && g.phase === 'race'; i++) g.step(0.1);
+  assert.equal(g.result.reason, 'depot');
+  for (let i = 0; i < 100; i++) g.step(0.1);     // 10 giây: còn ở màn kết quả (2 + 9,5)
+  assert.equal(g.phase, 'result');
+  for (let i = 0; i < 20; i++) g.step(0.1);
+  assert.notEqual(g.phase, 'result');          // đã sang màn chờ / ván mới
+  assert.equal(g.round, 2);
+});

@@ -462,7 +462,7 @@ const GAMES = {
             enabled: true,
             dvqControl: 'auto',       // auto (Tự lái: AI nhảy/húc thay, treo máy được) | streamer (streamer tự bấm phím)
             dvqStreamerName: '',
-            dvqGoal: 6000,            // mét tới cổng làng (6 km)
+            dvqGoal: 0,               // mét tới cổng làng; 0 = tự theo thời gian ván (25 m/giây: 4 phút = 6 km, 10 phút = 15 km)
             dvqRoundSec: 240,         // giây một ván
             dvqFinalSec: 30,          // nước rút: bấy nhiêu giây cuối mọi quà ×2
             dvqSpeed: 100,            // km/h khi còn xăng
