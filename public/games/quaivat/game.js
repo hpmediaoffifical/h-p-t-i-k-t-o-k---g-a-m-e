@@ -1241,6 +1241,11 @@ function hpTattooMat() {
   _hpTattooMat = keep(new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.85, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 }));
   return _hpTattooMat;
 }
+// logo hp nhỏ dán lên đồ vật (chậu, thùng, xe…) — vừa đủ nhận ra, không lố
+function hpBadge(parent, size, x, y, z, rx = 0, ry = 0) {
+  const m = new THREE.Mesh(geo('hplogo', () => new THREE.PlaneGeometry(1, 1)), hpLogoMat());
+  m.scale.setScalar(size); m.position.set(x, y, z); m.rotation.set(rx, ry, 0, 'YXZ'); m.castShadow = false; parent.add(m); return m;
+}
 function hpLogo(size, x, y, z, rx, parent) {
   const m = new THREE.Mesh(geo('hplogo', () => new THREE.PlaneGeometry(1, 1)), hpLogoMat());
   m.scale.setScalar(size); m.rotation.x = rx || 0; put(m, x, y, z, parent, false); return m;
@@ -2502,6 +2507,7 @@ function mkBarrel() {
   const top = new THREE.Mesh(geo('bcap', () => new THREE.CircleGeometry(0.5, 22)), MS(0x7a4a22, 0.9)); top.rotation.x = -Math.PI / 2; put(top, 0, 1.25, 0, g);
   const bot = new THREE.Mesh(geo('bcap', () => new THREE.CircleGeometry(0.5, 22)), MS(0x7a4a22, 0.9)); bot.rotation.x = Math.PI / 2; put(bot, 0, 0.002, 0, g);   // nắp đáy (thùng lăn không bị rỗng)
   for (const y of [0.2, 1.05]) { const t = new THREE.Mesh(geo('band', () => new THREE.TorusGeometry(0.56, 0.035, 6, 26)), MS(0x3a3a3a, 0.4, 0.8)); t.rotation.x = Math.PI / 2; put(t, 0, y, 0, g); }
+  hpBadge(g, 0.3, 0, 0.62, 0.6);                                                   // logo giữa 2 đai thùng
   return g;
 }
 function mkTire() {
@@ -2659,8 +2665,9 @@ function mkShooter(ice) {
   cyl(0.1, 0.1, 0.03, MS(0x103010, 1), 0, 0.02, 0.57, head, 12).rotation.x = Math.PI / 2;
   for (const sx of [-1, 1]) { sph(0.08, MS(0xffffff, 0.4), sx * 0.14, 0.14, 0.24, head); sph(0.04, MS(0x111111, 0.3), sx * 0.14, 0.15, 0.31, head); }
   const crest = sph(0.2, MS(ice ? 0x5ec8e8 : 0x3aa832), 0, 0.18, -0.3, head); crest.scale.set(0.12, 0.2, 0.3);
-  g.userData.head = head; return g;
   if (ice) for (let k = 0; k < 5; k++) { const cr = new THREE.Mesh(geo('icecrys', () => new THREE.ConeGeometry(0.07, 0.3, 5)), MS(0xe8fbff, 0.1, 0.1, { emissive: 0x2a7090, transparent: true, opacity: 0.85 })); cr.position.set(rand(-0.15, 0.15), 0.3 + rand(0, 0.08), -0.15 + k * 0.03); cr.rotation.set(rand(-0.5, 0.2), 0, rand(-0.5, 0.5)); g.userData.head.add(cr); }   // tinh thể băng trên đầu
+  hpBadge(g, 0.17, 0, 0.21, 0.29, -0.2);                                          // logo nhỏ trên chậu
+  g.userData.head = head; return g;
 }
 const peas = [];
 let plantSleepUntil = -1, firePeaUntil = -1;
@@ -3266,6 +3273,7 @@ function mkDozer() {
   const g = new THREE.Group(), yel = MS(0xf2b705, 0.45, 0.2), dark = MS(0x2a2a2e, 0.7, 0.3), steel = MS(0x8a8f96, 0.4, 0.7);
   box(2.0, 0.9, 2.4, yel, 0, 1.15, 0.2, g);
   box(1.5, 1.1, 1.2, yel, 0, 2.1, 0.6, g);
+  for (const sx of [-1, 1]) hpBadge(g, 0.42, sx * 1.006, 1.2, 0.2, 0, sx * Math.PI / 2); hpBadge(g, 0.42, 0, 1.2, 1.406);   // logo 2 bên hông + đuôi xe
   const glass = new THREE.MeshStandardMaterial({ color: 0x9fd8ff, roughness: 0.1, metalness: 0.3, transparent: true, opacity: 0.55 });
   box(1.32, 0.75, 1.0, glass, 0, 2.2, 0.6, g);
   cyl(0.09, 0.09, 1.0, dark, 0.6, 2.4, -0.3, g, 10);
@@ -3344,11 +3352,11 @@ function mkCactus() {
     const cx = sx * 0.4, cy = 0.42, R = 0.24; sph(R, gr, cx, cy, 0.02, g);
     for (let i = 0; i < 18; i++) { const a = (i * 2.399) % 6.283, el = rand(-0.5, 1.1); const dx = Math.cos(a) * Math.cos(el), dz = Math.sin(a) * Math.cos(el), dy = Math.sin(el); if (dx * sx < -0.35) continue; spike(cx, cy, 0.02, dx, dy, dz, R); }
   }
-  sph(0.12, MS(0xff6aa8, 0.5), 0, 1.92, 0, g); cyl(0.42, 0.36, 0.3, MS(0xb8643a, 0.8), 0, 0.15, 0, g, 12); cyl(0.45, 0.45, 0.06, MS(0xa0532e, 0.8), 0, 0.31, 0, g, 12);
+  sph(0.12, MS(0xff6aa8, 0.5), 0, 1.92, 0, g); cyl(0.42, 0.36, 0.3, MS(0xb8643a, 0.8), 0, 0.15, 0, g, 12); cyl(0.45, 0.45, 0.06, MS(0xa0532e, 0.8), 0, 0.31, 0, g, 12); hpBadge(g, 0.2, 0, 0.14, 0.4, -0.2);
   shrinkKids(g, 0.78); return g;
 }
 function mkSunflower() { const g = new THREE.Group(); cyl(0.05, 0.07, 1.8, MS(0x3a8a2a, 0.7), 0, 0.9, 0, g, 6); for (const sx of [-1, 1]) { const l = sph(0.3, MS(0x4aa83a, 0.6), sx * 0.25, 0.8, 0, g); l.scale.multiply(new V3(1, 0.12, 0.5)); } const head = new THREE.Group(); head.position.set(0, 1.9, 0.05); g.add(head); for (let i = 0; i < 14; i++) { const a = i / 14 * 6.283; const pe = sph(0.2, MS(0xffd21f, 0.5), Math.cos(a) * 0.32, Math.sin(a) * 0.32, 0, head); pe.scale.multiply(new V3(0.5, 1, 0.15)); pe.rotation.z = a - Math.PI / 2; } const c = sph(0.24, MS(0x6a3a1a, 0.8), 0, 0, 0.04, head); c.scale.z *= 0.4; for (const sx of [-1, 1]) sph(0.035, MS(0x111111, 0.3), sx * 0.08, 0.04, 0.14, head); g.userData.head = head; shrinkKids(g, 0.66); return g; }
-function mkIceCart() { const g = new THREE.Group(); box(1.0, 0.6, 1.3, MS(0x6ad0f0, 0.4), 0, 0.55, 0, g); box(1.1, 0.12, 1.4, MS(0xffffff, 0.3), 0, 0.9, 0, g); for (const sx of [-1, 1]) for (const z of [-0.45, 0.45]) { const w = cyl(0.16, 0.16, 0.1, MS(0x2a2a2a, 0.7), sx * 0.55, 0.16, z, g, 12); w.rotation.z = Math.PI / 2; } sph(0.3, MS(0xff8ec4, 0.4), 0, 1.15, 0, g).scale.y = 0.7; return g; }
+function mkIceCart() { const g = new THREE.Group(); box(1.0, 0.6, 1.3, MS(0x6ad0f0, 0.4), 0, 0.55, 0, g); for (const sx of [-1, 1]) hpBadge(g, 0.3, sx * 0.506, 0.55, 0, 0, sx * Math.PI / 2); box(1.1, 0.12, 1.4, MS(0xffffff, 0.3), 0, 0.9, 0, g); for (const sx of [-1, 1]) for (const z of [-0.45, 0.45]) { const w = cyl(0.16, 0.16, 0.1, MS(0x2a2a2a, 0.7), sx * 0.55, 0.16, z, g, 12); w.rotation.z = Math.PI / 2; } sph(0.3, MS(0xff8ec4, 0.4), 0, 1.15, 0, g).scale.y = 0.7; return g; }
 function mkButter() { const g = new THREE.Group(); box(0.36, 0.22, 0.26, MS(0xffe27a, 0.4), 0, 0, 0, g); box(0.38, 0.06, 0.28, MS(0xfff4c0, 0.4), 0, 0.12, 0, g); return g; }
 function mkCoconut() { const g = new THREE.Group(); sph(0.42, MS(0x6a4a2a, 0.9), 0, 0, 0, g); for (const [x, y] of [[-0.1, 0.25], [0.1, 0.25], [0, 0.12]]) sph(0.05, MS(0x2a1a0a, 0.8), x, y, 0.38, g); return g; }
 function shrinkKids(g, k) { for (const c of g.children) { c.position.multiplyScalar(k); c.scale.multiplyScalar(k); } }   // thu nhỏ cây (giữ scale nhóm = 1 cho hiệu ứng mọc lên)
@@ -3421,6 +3429,7 @@ function mkHand() {
   const heel = sph(1, skin, 0, 0.32, -0.05, g); heel.scale.set(0.78, 0.3, 0.72);                 // gò bàn tay nối cổ tay
   cyl(0.6, 0.7, 0.7, skin, 0, 0.75, 0, g, 18);                                                  // cổ tay
   cyl(0.82, 0.8, 0.62, cuff, 0, 1.25, 0, g, 20);                                                // cổ tay áo sơ mi
+  hpBadge(g, 0.34, -0.3, 1.25, 0.77, 0, -0.37);                                       // logo nhỏ trên cổ tay áo
   for (const z of [0.81, -0.81]) { const b = sph(0.09, gold, 0.35, 1.25, z, g); b.scale.z *= 0.5; }   // khuy măng sét
   cyl(0.98, 0.9, 0.5, suit, 0, 1.7, 0, g, 20);                                                  // mép tay áo vest
   cyl(0.98, 1.0, 16, suit, 0, 9.9, 0, g, 20);
