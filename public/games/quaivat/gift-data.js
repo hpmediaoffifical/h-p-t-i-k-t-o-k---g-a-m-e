@@ -28,7 +28,7 @@ export const VILLAINS = [
   { ids: [5487],  names: ['bắn tim', 'finger heart'],                        action: 'repair',    emoji: '🫰', gift: 'Bắn tim',       label: 'Sửa cửa',         coins: 5 },
   { ids: [8635],  names: ['ok'],                                             action: 'net',       emoji: '🕸️', gift: 'OK',            label: 'Ném lưới',        coins: 5 },
   { ids: [9875],  names: ['cỏ bốn lá', 'four-leaf clover', 'tiny diny', 'khủng long nhỏ'], action: 'flower', emoji: '🌸', gift: 'Cỏ bốn lá', label: 'Hoa gió', coins: 10 },
-  { ids: [8825],  names: ['chú heo may mắn', 'lucky pig'],                   action: 'mystery',   emoji: '🎁', gift: 'Chú heo may mắn', label: 'Túi mù',        coins: 10 },
+  { ids: [8825],  names: ['chú heo may mắn', 'lucky pig'],                   action: 'mystery',   emoji: '🎲', gift: 'Chú heo may mắn', label: 'Quà ngẫu nhiên', coins: 10 },
   { ids: [10138], names: ['cà phê phin', 'vietnamese coffee'],               action: 'bees',      emoji: '🐝', gift: 'Cà phê phin',   label: 'Đàn ong',         coins: 10 },
   { ids: [19443], names: ['hoan hô!', 'hoan hô', 'cheer you up'],            action: 'crows',     emoji: '🐦', gift: 'Hoan hô!',      label: 'Đàn quạ',         coins: 15 },
   { ids: [17465], names: ['little kisses', 'nụ hôn nhỏ'],                  action: 'dog',       emoji: '🐈', gift: 'little kisses', label: 'Mèo giữ nhà',     coins: 20 },
@@ -42,6 +42,7 @@ export const VILLAINS = [
   { ids: [6267],  names: ['chó corgi', 'corgi', 'money gun', 'súng bắn tiền', 'galaxy', 'thiên hà', 'lion', 'universe', 'tiktok universe'], action: 'boulder', emoji: '🪨', gift: 'Chó Corgi', label: 'Đá lăn', coins: 299 },
   { ids: [5731],  names: ['san hô', 'coral'],                                action: 'hand',      emoji: '🫳', gift: 'San hô',        label: 'Bàn tay khổng lồ', coins: 499 },
   { ids: [5978],  names: ['tàu hỏa', 'train'],                               action: 'quake',     emoji: '🌋', gift: 'Tàu hỏa',       label: 'Động đất',        coins: 899 },
+  { ids: [13087], names: ['kẹo cao su thổi bong bóng', 'bubble gum'],        action: 'thrower',   emoji: '🦍', gift: 'Kẹo cao su thổi bong bóng', label: 'Khổng lồ tung', coins: 99 },
   { names: [], opt: true, action: 'lose', emoji: '💀', gift: 'THUA ngay', label: 'THUA NGAY', coins: 0 },
 ];
 // Quà giúp zombie (fan của streamer)
@@ -53,7 +54,6 @@ export const HEROES = [
   { ids: [19448], names: ['chuyển động chậm', 'slow motion'],               action: 'vault',     emoji: '🤸', gift: 'Chuyển động chậm', label: 'Nhảy sào',     coins: 10 },
   { ids: [231958], names: ['mind blown'],                                   action: 'icecart',   emoji: '🧊', gift: 'Mind Blown',    label: 'Xe đá bào',       coins: 10 },
   { ids: [51281], names: ['dj vinyl'],                                       action: 'outfit',    emoji: '👕', gift: 'DJ Vinyl',      label: 'Đổi đồ',          coins: 10 },
-  { ids: [13087], names: ['kẹo cao su thổi bong bóng', 'bubble gum'],        action: 'thrower',   emoji: '🦍', gift: 'Kẹo cao su thổi bong bóng', label: 'Khổng lồ ném', coins: 99 },
   { ids: [15063], names: ['vé hành trình'],                                 action: 'lullaby',   emoji: '😴', gift: 'Vé hành trình', label: 'Ru ngủ cây',      coins: 10 },
   { ids: [17666], names: ['gia đình', 'family'],                             action: 'minions',   emoji: '🧟', gift: 'Gia đình',      label: 'Zombie con',      coins: 90 },
   { ids: [6097],  names: ['vương miện nhỏ', 'mini crown'],                   action: 'armor',     emoji: '🛡️', gift: 'Vương miện nhỏ', label: 'Giáp vàng',     coins: 99 },

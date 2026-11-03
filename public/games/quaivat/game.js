@@ -48,7 +48,9 @@ const CONFIG = {
   autoplay: Q.get('auto') === '1',      // zombie tự chạy (AI) — luôn bật khi Demo; streamer bấm phím thì giành lại quyền lái 3 giây
   season: Q.get('season') || 'auto',    // trang trí mùa: auto (theo ngày) | off | noel | tet
   cues: true,                           // nhắc lời dẫn cho streamer (chỉ hiện trong app, không lên hình)             // khe thông báo rảnh → xoay vòng 1 dòng "tặng gì → ra gì" cho người mới vào
-  likePer: 100,           // thả tim: cộng dồn cả phòng, đủ bấy nhiêu tim → 1 cục đá
+  likePer: 100,           // thả tim: cộng dồn cả phòng, đủ bấy nhiêu tim → 1 hiệu ứng (likeAct)
+  likeAct: 'pebble',      // hiệu ứng mỗi mốc tim: id hành động | 'random' (ngẫu nhiên cả 2 phe)
+  shareAct: 'bomb',       // hiệu ứng khi chia sẻ: id hành động | 'random'
   commentKey: '111',      // bình luận có chứa từ khóa này mới ném dép ('' = mọi bình luận)
   timerOn: Q.get('timer') === '1' || lsGet('qv_timer') === '1',   // đồng hồ mỗi ván — mặc định TẮT: chơi tới khi zombie phá được cửa
   checkpoint: lsGet('qv_cp') !== '0',      // cột mốc giữa đường: zombie qua mốc rồi thì không bị đẩy lùi quá mốc
@@ -152,10 +154,17 @@ function setItemLod(g, far) {
   g.traverse(o => { if (!o.isMesh) return; if (o.userData.isOutline) o.visible = !far; else { if (o.userData.cs0 === undefined) o.userData.cs0 = o.castShadow; o.castShadow = !far && o.userData.cs0; } });
 }
 function warmShaders(g) {
-  if (!renderer.compileAsync || !g.visible) return;
-  let mats = 0; g.traverse(o => { if (o.material) mats++; }); if (!mats) return;
-  g.visible = false; g.userData.warming = true;
-  renderer.compileAsync(g, camera, scene).catch(() => {}).then(() => { if (g.userData.warming) { g.userData.warming = false; g.visible = true; } });
+  if (!g.visible) return;
+  const mats = new Set(); g.traverse(o => { for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) mats.add(m); }); if (!mats.size) return;
+  try { renderer.compile(g, camera, scene); } catch (e) { return; }               // tạo chương trình (driver biên dịch song song nếu có KHR_parallel_shader_compile)
+  g.visible = false; g.userData.warming = true; const t0 = performance.now();
+  const check = () => {                                                            // tự kiểm tra sẵn sàng (compileAsync của three ném lỗi khi vật bị xoá giữa chừng)
+    if (!g.userData.warming) return;
+    let ok = true;
+    try { for (const m of mats) { const pr = renderer.properties.get(m).currentProgram; if (pr && pr.isReady && !pr.isReady()) { ok = false; break; } } } catch (e) { ok = true; }
+    if (ok || performance.now() - t0 > 1500) { g.userData.warming = false; g.visible = true; } else setTimeout(check, 16);
+  };
+  setTimeout(check, 0);
 }
 function addOutline(root, thick = 0.02, minR = 0.02) {
   root.updateMatrixWorld(true); const ws = new V3(), list = [];
@@ -2377,6 +2386,7 @@ function applyMon() {
   mon.root.position.set(mon.x, mon.y + mon.gy, mon.z);
   { const d = Math.atan2(Math.sin((mon.yawT || 0) - (mon.yaw || 0)), Math.cos((mon.yawT || 0) - (mon.yaw || 0))); mon.yaw = (mon.yaw || 0) + d * 0.15; }   // xoay theo đường ngắn nhất
   mon.root.rotation.y = Math.PI - mon.yaw;
+  if (mon.flip && !mon.carry && !mon.lift && mon.y <= 0.001 && mon.vy <= 0) { mon.flip = null; mon.tilt.rotation.x = 0; if (mon.pendingDown) { const l = mon.pendingDown; mon.pendingDown = 0; knockDown(l); } }   // cú lộn bị cắt ngang (thả rơi giữa chừng): không để kẹt tư thế lộn ngược
   if (!mon.root.visible && !state.cut && !(mon.carry && mon.carry.kind === 'chomper' && !mon.carry.dead)) mon.root.visible = true;   // cây ăn thịt bị phá giữa lúc nuốt: không để zombie tàng hình
   if (mon.down && (mon.flip || mon.lift || mon.carry || state.phase !== 'play')) { mon.down = null; mon.tilt.position.y = MON_H * 0.45; }
   if (mon.flip) mon.tilt.rotation.x = -Math.PI * 2 * clamp(mon.flip.t / mon.flip.dur, 0, 1); // lộn nhào ra sau
@@ -3073,9 +3083,9 @@ const SPAWN = {
   thrower: u => {
     const gi = mkGiant(), g = gi ? gi.g : mkMinion(1); if (!gi) g.scale.setScalar(2.7);
     const it = newItem('thrower', u, g, { labelY: gi ? 5.2 : 3.2, noRescale: true, mixer: gi && gi.mixer, giant: !!gi });
-    it.g.position.set(clamp(mon.x + 0.6, -LANE, LANE), 0, mon.z + 2.2); it.state = 'grab'; it.t = 0; it.z0 = mon.z; it.z1 = Math.max(HOUSE_FRONT + 1.6, mon.z - 12); it.x0 = mon.x;
+    it.g.position.set(clamp(mon.x + 0.6, -LANE, LANE), 0, mon.z + 2.2); it.state = 'grab'; it.t = 0; it.z0 = mon.z; it.z1 = Math.min(mon.z + 5, restZ()); it.x0 = mon.x;   /* tung lên trời, rơi lùi về sau ~5m (không quá cột mốc) */
     if (gi) { const sx = mon.x > 0 ? -1 : 1; it.g.position.set(clamp(mon.x + sx * 2.2, -LANE - 0.5, LANE + 0.5), 0, mon.z - 1.4); g.rotation.y = -sx * 0.55; gi.play('Idle_Attack'); sfx('groan'); }   // đứng chéo phía trước, QUAY MẶT về camera gầm (thấy mắt đỏ), không che zombie
-    mon.carry = it; mon.kv = 0; mon.stun = 0; sfx('rumble'); camShake = Math.max(camShake, 0.3); banner('🦍 ZOMBIE KHỔNG LỒ!', esc(u.name) + ' ném zombie bay tới', 2);
+    mon.carry = it; mon.kv = 0; mon.stun = 0; sfx('rumble'); camShake = Math.max(camShake, 0.3); banner('🦍 ZOMBIE KHỔNG LỒ!', esc(u.name) + ' tung zombie lên trời', 2);
   },
   // 🧊 xe đá bào (quà fan): trải vệt băng 15m phía trước, zombie trên băng đi ×1,8 trong 8 giây
   icecart: u => {
@@ -3653,11 +3663,12 @@ function updateThrower(it, p, dt) {
   const ud = it.g.userData;
   if (it.state === 'grab') {
     ud.armL.rotation.x = ud.armR.rotation.x = -1.2 - it.t * 2; mon.y = Math.min(1.6, it.t * 3); mon.z = it.z0 + 0.6;
-    if (it.t > 0.6) { it.state = 'throw'; it.t = 0; sfx('whoosh'); popText(new V3(mon.x, 3.5, mon.z), 'VÈOOO!', 'big', 1); if (ud.play) ud.play('Punch'); }
+    if (it.t > 0.6) { it.state = 'throw'; it.t = 0; sfx('whoosh'); popText(new V3(mon.x, 3.5, mon.z), 'BAY NÈ!', 'big', 1); if (ud.play) ud.play('Punch'); mon.flip = { t: 0, dur: 1.5 }; mon.cur = ''; }
   } else if (it.state === 'throw') {
-    const f = Math.min(1, it.t / 1.2); mon.z = it.z0 + (it.z1 - it.z0) * f; mon.x = it.x0 * (1 - f); mon.y = 1.6 + Math.sin(f * Math.PI) * 4;
+    const f = Math.min(1, it.t / 1.5); mon.z = it.z0 + (it.z1 - it.z0) * f; mon.y = Math.max(0, 1.6 * (1 - f) + Math.sin(f * Math.PI) * 9);   // vọt lên ~10m rồi rơi
+    if (mon.flip) mon.flip.t = Math.min(it.t, 1.5);                                // lộn 1 vòng trên không
     ud.armL.rotation.x = ud.armR.rotation.x = -3.2;
-    if (f >= 1) { end(); mon.stun = 0.4; camShake = Math.max(camShake, 0.4); sfx('thud'); puff(new V3(mon.x, 0.2, mon.z), { color: T.dust || 0xd8c6a0, n: 10, size: 1.2, speed: 3, life: 0.7 }); it.state = 'leave'; it.t = 0; }
+    if (f >= 1) { end(); mon.flip = null; mon.tilt.rotation.x = 0; knockDown(1.5); hitMonster(40, 0, it.owner, { text: 'RẦM!', unblockable: true }); camShake = Math.max(camShake, 0.4); sfx('thud'); puff(new V3(mon.x, 0.2, mon.z), { color: T.dust || 0xd8c6a0, n: 10, size: 1.2, speed: 3, life: 0.7 }); it.state = 'leave'; it.t = 0; }
   } else if (it.giant) {                                                         // khổng lồ: gầm rồi chìm xuống đất
     if (!it.sank) { it.sank = true; if (ud.play) ud.play('Idle'); camShake = Math.max(camShake, 0.2); }
     p.y = -5.5 * Math.max(0, it.t - 0.5) ** 2; if (Math.random() < dt * 25) puff(new V3(p.x + rand(-1.2, 1.2), 0.2, p.z + rand(-1, 1)), { color: T.dust || 0x8a6a40, n: 1, size: 1.2, speed: 1.5, life: 0.7 });
@@ -4279,8 +4290,14 @@ function runAction(a, u) {
   if (!mon.ready) return;
   if (a === 'mystery') {                                                           // TÚI MÙ: ngẫu nhiên 1 quà hành hoặc cứu (trừ WIN/THUA ngay)
     const pool = [...VILLAINS, ...HEROES].filter(g => !['win', 'lose', 'mystery'].includes(g.action));
-    const g = mysteryPick(pool); popText(new V3(mon.x, mon.y + 3.4, mon.z - 1), `🎁 ${g.emoji} ${g.label}`, 'info', 1.4); sfx('pop');
-    return runAction(g.action, u);
+    const g = mysteryPick(pool), hero = HEROES.includes(g);                   // 🎲 quay ~0,8s lướt qua vài trò rồi báo trúng trò nào, phe nào
+    for (let i = 0; i < 6; i++) later(i * 0.13, () => { const r = pick(pool); popText(new V3(mon.x, mon.y + 3.4, mon.z - 1), `🎲 ${r.emoji}`, 'info', 0.2); sfx('step'); });
+    later(0.85, () => {
+      if (state.phase !== 'play') return;
+      banner(`🎲 ${g.emoji} ${g.label}`, `${esc(u.name)} quay trúng · ${hero ? '⚡ GIÚP ZOMBIE' : '🪤 CHẶN ZOMBIE'}`, 2, 1.8); sfx('pop');
+      runAction(g.action, u);
+    });
+    return;
   }
   if (a === 'repair') {
     if (door.hp >= door.maxHp - 1 && door.tier < 2 && !door.broken) { door.over += 150; if (door.over >= 600) { door.over = 0; return upgradeDoor(u); } }
@@ -4375,7 +4392,9 @@ function onLike(user, count) {   // tim cộng dồn cả phòng: đủ ngưỡn
   count = Math.max(0, Math.floor(count) || 0); if (!count) return;
   addPoints(user, count); likeLog.push({ t: performance.now(), n: count });
   const per = curLikePer(); likeAcc += count;
-  const n = Math.floor(likeAcc / per); likeAcc -= n * per; if (n) queueAction('pebble', user, n);   // đủ bao nhiêu mốc tim ném bấy nhiêu đá
+  const n = Math.floor(likeAcc / per); likeAcc -= n * per;                // đủ bao nhiêu mốc tim chạy bấy nhiêu lần
+  if (n) { if (CONFIG.likeAct === 'random') for (let i = 0; i < n; i++) queueAction(socialAct('random'), user); else queueAction(socialAct(CONFIG.likeAct), user, n); }
+  if (n) likeHintPop = time;
   if (n) flashChip('like', user, n);
   if (state.phase === 'play') {                                       // thanh tim cả phòng → MƯA ĐÁ
     state.likesRound += count;
@@ -4395,8 +4414,13 @@ function onComment(user, text) {
   slipperCd.set(user.id, now); if (slipperCd.size > 3000) slipperCd.clear();
   addPoints(user, 3); flashChip('comment', user); queueAction('slipper', user);
 }
+// tim / chia sẻ → hiệu ứng streamer chọn, hoặc 🎲 ngẫu nhiên từ cả 2 phe
+const SOCIAL_RANDOM = () => [...VILLAINS, ...HEROES].filter(g => g.coins > 0 && g.coins <= 99 && !g.opt && !['win', 'lose', 'mystery'].includes(g.action)).map(g => g.action);
+function socialAct(a) { if (a === 'random') return pick(SOCIAL_RANDOM()); return a === 'pebble' || a === 'bomb' || ALL_GIFTS.some(g => g.action === a) ? a : 'pebble'; }
+function socialLabel(a) { if (a === 'random') return '🎲 quà ngẫu nhiên'; if (a === 'pebble') return '🪨 ném đá'; if (a === 'bomb') return '🧨 pháo hẹn giờ'; const g = ALL_GIFTS.find(x => x.action === a); return g ? g.emoji + ' ' + g.label.toLowerCase() : a; }
+let likeHintPop = -9;
 function onFollow(user) { if (!user || followed.has(user.id)) return; followed.add(user.id); addPoints(user, 30); flashChip('follow', user); queueAction('fence', user); }   // follow chỉ tính 1 lần/người
-function onShare(user) { const now = performance.now(); if (!user || now - (shareCd.get(user.id) || -1e9) < 60000) return; shareCd.set(user.id, now); addPoints(user, 30); flashChip('share', user); queueAction('bomb', user); }   // 1 pháo / người / phút
+function onShare(user) { const now = performance.now(); if (!user || now - (shareCd.get(user.id) || -1e9) < 60000) return; shareCd.set(user.id, now); addPoints(user, 30); flashChip('share', user); queueAction(socialAct(CONFIG.shareAct), user); }   // 1 pháo / người / phút
 
 // =====================================================================
 // Ván chơi
@@ -4881,6 +4905,13 @@ function updateHud(dt) {
   { const goal = CONFIG.likePer * CONFIG.likeGoal, on = CONFIG.likeGoal > 0 && state.phase === 'play' && !state.rainDone && state.likesRound > 0;
     setCss($('likeBar'), 'display', on ? '' : 'none');
     if (on) { setCss($('likeFill'), 'width', Math.min(100, state.likesRound / goal * 100).toFixed(1) + '%'); setTxt($('likeTx'), `❤ ${state.likesRound.toLocaleString('vi-VN')}/${goal.toLocaleString('vi-VN')} → MƯA ĐÁ`); } }
+  { const el = $('likeHint'), on = state.phase === 'play';                          // nhắc nhỏ kích người xem thả tim / chia sẻ liên tục
+    setCss(el, 'display', on ? '' : 'none');
+    if (on) {
+      const left = Math.max(1, curLikePer() - likeAcc), share = Math.floor(time / 6) % 3 === 2;
+      setTxt(el, share ? `↗️ Chia sẻ → ${socialLabel(CONFIG.shareAct)}` : time - likeHintPop < 1.2 ? `💥 Đủ tim! → ${socialLabel(CONFIG.likeAct)}` : `❤️ Thả thêm ${left.toLocaleString('vi-VN')} tim → ${socialLabel(CONFIG.likeAct)}`);
+      setCls(el, 'pop', time - likeHintPop < 1.2);
+    } }
   { const L = START_Z - HOUSE_FRONT, f = q => clamp((START_Z - q) / L, 0, 1) * 100;   // thanh đường đi: đầu đường → cửa nhà
     const zp = f(mon.z).toFixed(1) + '%'; setCss($('rtZ'), 'left', zp); setCss($('rtFill'), 'width', zp);
     setCss($('rtCp'), 'left', f(cpZ).toFixed(1) + '%'); setCss($('rtCp'), 'display', CONFIG.checkpoint ? '' : 'none'); setCls($('rtCp'), 'ok', !!state.cp); }
@@ -4955,6 +4986,8 @@ function applyServerConfig(c) {
   if (typeof c.qvStreamerName === 'string' && c.qvStreamerName.trim()) CONFIG.streamerName = c.qvStreamerName.trim();
   if (typeof c.qvStreamerAvatar === 'string') CONFIG.streamerAvatar = c.qvStreamerAvatar.trim();
   if (Number(c.qvLikePer) > 0) CONFIG.likePer = Math.max(1, Math.round(Number(c.qvLikePer)));
+  if (typeof c.qvLikeAct === 'string' && c.qvLikeAct) CONFIG.likeAct = c.qvLikeAct;
+  if (typeof c.qvShareAct === 'string' && c.qvShareAct) CONFIG.shareAct = c.qvShareAct;
   if (typeof c.qvCommentKey === 'string') CONFIG.commentKey = c.qvCommentKey.trim().slice(0, 40);
   if (Number(c.qvDoorHp) > 0) CONFIG.doorHp = Math.max(100, Number(c.qvDoorHp) === 1200 && !c.qvHpV2 ? 600 : Number(c.qvDoorHp));   // máu mặc định cũ 1200 → 600 (giờ cửa tự hồi máu)
   document.body.classList.toggle('nolegend', c.qvShowLegend === false);

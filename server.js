@@ -394,7 +394,9 @@ const GAMES = {
             qvTimerOn: false,         // đồng hồ mỗi ván: mặc định tắt (chơi tới khi phá được cửa)
             qvCheckpoint: true,       // cột mốc giữa đường
             qvShowLegend: true,
-            qvLikePer: 100,           // thả tim: đủ bấy nhiêu tim cả phòng → 1 cục đá
+            qvLikePer: 100,           // thả tim: đủ bấy nhiêu tim cả phòng → 1 hiệu ứng
+            qvLikeAct: 'pebble',      // hiệu ứng mỗi mốc tim: id hành động | 'random'
+            qvShareAct: 'bomb',       // hiệu ứng khi chia sẻ: id hành động | 'random'
             qvCommentKey: '111',      // bình luận có từ khóa này mới ném dép ('' = mọi bình luận)
             qvWinShape: '9:16',       // khung cửa sổ game (OBS bắt cửa sổ): 9:16 | 1:1 | 16:9       // hiện bảng quà ngay trong game (tắt nếu dùng bảng quà OBS riêng)
             qvGiftMap: {}   // { [action]: [{ giftId, giftName, giftImage }] } — trống = khớp theo tên quà mặc định
