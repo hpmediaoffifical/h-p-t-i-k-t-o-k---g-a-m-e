@@ -2184,8 +2184,8 @@ function updateMonster(dt) {
       if (mon.flip) mon.flip.t += dt;
       if (mon.y <= 0) {
         mon.y = 0; mon.vy = 0; puff(new V3(mon.x, 0.2, mon.z), { color: 0xd8c6a0, n: 5, size: 0.9, speed: 2, life: 0.6 });
-        if (mon.pendingDown) { const l = mon.pendingDown; mon.pendingDown = 0; knockDown(l); }
         if (mon.flip) { mon.flip = null; mon.tilt.rotation.x = 0; mon.stun = Math.max(mon.stun, 0.9); sfx('thud'); camShake = Math.max(camShake, 0.35); puff(new V3(mon.x, 0.3, mon.z), { color: 0xd8c6a0, n: 10, size: 1.3, speed: 4, life: 0.9 }); }
+        if (mon.pendingDown) { const l = mon.pendingDown; mon.pendingDown = 0; knockDown(l); }   // lộn xong rơi xuống thì nằm ngửa
       }
     }
     mon.blocker = null;
@@ -2743,7 +2743,8 @@ function barrelBoom(it) {
     mon.vy = Math.max(mon.vy, 3 + 9 * k);
     mon.x = clamp(mon.x + clamp(mon.x - p.x, -1, 1) * 1.2 * k, -LANE, LANE);
     hitMonster(Math.round(30 + 170 * k), 1 + 4 * k, it.owner, { text: k > 0.6 ? 'ĐÙNG!!!' : 'ĐÙNG!', unblockable: true });
-    if (k > 0.5) mon.pendingDown = 1.1;                                       // nổ sát người: bay lên rồi rơi xuống nằm ngửa (không lộn vòng)
+    if (k > 0.7) { mon.flip = { t: 0, dur: 2 * mon.vy / 26 }; mon.cur = ''; }
+    if (k > 0.5) mon.pendingDown = 1.1;                                       // nổ sát người: lộn/bay lên rồi rơi xuống nằm ngửa
   }
   removeItem(it);
 }
@@ -3884,8 +3885,8 @@ function updateNewItem(it, p, dt) {
   const near = r => live && mon.y < 0.3 && Math.hypot(mon.x - p.x, mon.z - p.z) < r;
   if (k === 'banana') {
     if (near(0.65)) {
-      mon.kv = 5; mon.cur = '';                                               // trượt chân ngã ngửa ra sau
-      hitMonster(20, 0, it.owner, { text: 'TRƯỢT VỎ CHUỐI!', unblockable: true, down: 1.1 }); sfx('bonk'); removeItem(it);
+      mon.vy = 8; mon.kv = 6; mon.stun = 0; mon.flip = { t: 0, dur: 2 * 8 / 26 }; mon.cur = ''; mon.pendingDown = 1.2;   // trượt chân: lộn 1 vòng trên không rồi rơi xuống nằm ngửa
+      hitMonster(20, 0, it.owner, { text: 'TRƯỢT VỎ CHUỐI!', unblockable: true }); sfx('bonk'); removeItem(it);
     }
     return true;
   }
