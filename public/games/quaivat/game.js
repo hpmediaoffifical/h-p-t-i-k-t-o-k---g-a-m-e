@@ -5089,7 +5089,7 @@ function updateHud(dt) {
     const sig = (week ? 'w' : 'd') + list.map(p => p.id + ':' + Math.round(p.v)).join('|');
     if (sig !== boardSig) {
       boardSig = sig; const B = $('board'); B.innerHTML = '';
-      setTxt($('boardH'), week ? '🏆 TOP TUẦN' : '🛡️ TOP BẢO VỆ');
+      setTxt($('boardH'), week ? '🏆 BẢNG XẾP HẠNG' : '🛡️ TOP BẢO VỆ');
       list.forEach((p, i) => {
         const r = document.createElement('div'); r.className = 'br';
         const rk = document.createElement('span'); rk.textContent = ['🥇', '🥈', '🥉'][i];
