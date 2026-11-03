@@ -307,6 +307,9 @@ const DaCau = require('./public/games/dacau/game.js');
 const BodyServer = require('./lib/body-server');
 
 // ⛓️ Nhà Tù Online: bộ quà gợi ý (nhiệm vụ / chức vụ / sự kiện) nằm chung data.json với overlay + panel.
+function duongVeQueSuggestedGiftMap() {
+    try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'games', 'duongveque', 'data.json'), 'utf8')).suggestedGiftMap || {}; } catch (e) { return {}; }
+}
 function nhatuSuggestedGiftMap() {
     try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'games', 'nhatu', 'data.json'), 'utf8')).suggestedGiftMap || {}; } catch (e) { return {}; }
 }
@@ -446,6 +449,38 @@ const GAMES = {
             ntRooms: 6,               // 🏠 phòng = đội: bình luận P1…P6 chọn phòng, cả phòng thi đua theo vòng (0 = tắt)
             ntRoomRoundMin: 5,        // mỗi vòng thi đua phòng bấy nhiêu phút — phòng nhất được ăn tiệc + mỗi người +10 điểm
             ntGiftMap: nhatuSuggestedGiftMap()   // { [action]: [{ giftId, giftName, giftImage, coins }] } — mặc định = bộ quà gợi ý trong data.json
+        }
+    },
+    duongveque: {
+        id: 'duongveque',
+        name: 'Đường Về Quê',
+        description: 'Streamer chạy xe máy về quê ăn Tết (2D cuộn ngang): phe Cứu tặng quà đẩy xe tới, đổ xăng, che chắn; phe Phá thả vỏ chuối, chó rượt, xe container đẩy lùi, lốc xoáy. Streamer nhảy né và húc phản đòn.',
+        icon: '🛵',
+        overlayPath: '/overlay/duongveque',
+        // Khoá riêng tiền tố dvq*. Luật ở public/games/duongveque/logic.js, overlay đọc trong game.js → applyServerConfig.
+        defaultConfig: {
+            enabled: true,
+            dvqControl: 'auto',       // auto (Tự lái: AI nhảy/húc thay, treo máy được) | streamer (streamer tự bấm phím)
+            dvqStreamerName: '',
+            dvqGoal: 6000,            // mét tới cổng làng (6 km)
+            dvqRoundSec: 240,         // giây một ván
+            dvqFinalSec: 30,          // nước rút: bấy nhiêu giây cuối mọi quà ×2
+            dvqSpeed: 100,            // km/h khi còn xăng
+            dvqFuelBurn: 1.8,         // % xăng/giây (100% ≈ 55 giây chạy)
+            dvqMeterPerCoin: 8,       // 1 xu = bấy nhiêu mét đẩy tới (Cứu) hoặc lùi (Phá)
+            dvqLikePer: 100,          // đủ bấy nhiêu tim cả phòng → 1 cơn gió + chút xăng
+            dvqRamCd: 12,             // giây hồi chiêu HÚC
+            dvqDodgeMax: 10,          // vật cản giá ≤ bấy nhiêu xu thì nhảy né được
+            dvqDefaultSide: 'cuu',    // quà chưa gán của người chưa chọn phe (bình luận 1/2) tính cho phe này
+            dvqAutoNext: true,        // hết ván tự sang ván mới
+            dvqBike: 'red',           // màu xe: red | blue | pink | yellow | green | black
+            dvqSound: true,
+            dvqShowLegend: true,      // hiện 2 cột "🛡️ CỨU / ⚔️ PHÁ" quà trên overlay
+            dvqPenalties: '',         // hình phạt vui khi phe Phá thắng, mỗi dòng 1 cái ('' = bộ mặc định)
+            dvqKeyJump: 'F7',         // phím tắt toàn cục (Electron) — chơi được khi đang mở TikTok Studio
+            dvqKeyRam: 'F8',
+            dvqKeyStart: 'F9',
+            dvqGiftMap: duongVeQueSuggestedGiftMap()   // { [action]: [{ giftId, giftName, giftImage, coins }] }
         }
     },
     nhietdo: {
@@ -3437,6 +3472,7 @@ function applyGameRuntime(id) {
         else if (id === 'bancung') { banCungApplyConfigToState(c); camApplyHotkeys('bancung'); broadcastBanCungState({ immediate: true }); }
         else if (id === 'dapmuoi') camApplyHotkeys('dapmuoi');
         else if (id === 'nhatla') global.__nhatlaApplyHotkeys?.(c);
+        else if (id === 'duongveque') global.__dvqApplyHotkeys?.(c);
         else if (id === 'trongcay') { trongCayApplyConfigToState(c); broadcastTrongCayState({ immediate: true }); }
     } catch (e) { console.warn('[license] áp lại game ' + id + ' lỗi:', e && e.message); }
 }
@@ -6005,6 +6041,9 @@ app.post('/api/games/:id/config', (req, res) => {
     if (g.id === 'dapmuoi') {
         camApplyHotkeys('dapmuoi');
     }
+    if (g.id === 'duongveque') {
+        try { global.__dvqApplyHotkeys?.(appConfig.games.duongveque); } catch (e) {}
+    }
     if (g.id === 'nhatla') {
         try { global.__nhatlaApplyHotkeys?.(appConfig.games.nhatla); } catch (e) {}
         // Đổi "TOP mấy" hoặc ngưỡng lá tối thiểu → đẩy lại danh sách ngay, đừng đợi quà kế tiếp.
@@ -7697,6 +7736,34 @@ app.get('/overlay/quaivat', (req, res) => {
 // ⛓️ Nhà Tù Online — overlay OBS (Browser Source 1080×1920) hoặc cửa sổ game Edge/Chrome --app (cần GPU/WebGL như Zombie Phá Nhà).
 app.get('/overlay/nhatu', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'nhatu', 'overlay.html'));
+});
+// 🛵 Đường Về Quê — overlay OBS (Browser Source 1080×1920) hoặc cửa sổ Edge/Chrome --app (streamer bấm phím trong cửa sổ).
+app.get('/overlay/duongveque', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'duongveque', 'overlay.html'));
+});
+app.post('/api/duongveque/window/open', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    const found = CaptionListener.resolveBrowserExe('edge', { exists: (p) => { try { return fs.existsSync(p); } catch (e) { return false; } } });
+    if (!found) return res.json({ ok: false, error: 'Không tìm thấy Microsoft Edge hoặc Google Chrome trên máy' });
+    const profileDir = path.join(DATA_DIR, 'duongveque-window', found.browser);
+    try { fs.mkdirSync(profileDir, { recursive: true }); } catch (e) {}
+    const url = `http://127.0.0.1:${PORT}/overlay/duongveque?win=1`;
+    const keepDrawing = ['--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling'];
+    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat('--window-size=540,960', ...keepDrawing);
+    try {
+        const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
+        child.on('error', (e) => console.warn('[duongveque] mở cửa sổ game lỗi:', e.message));
+        child.unref();
+    } catch (e) { return res.json({ ok: false, error: e.message }); }
+    res.json({ ok: true, browser: found.browser });
+});
+// Phím của streamer (nút trong app / phím tắt toàn cục Electron) → overlay: jump | ram | start
+app.post('/api/duongveque/key', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    const action = String(req.body?.action || '');
+    if (!['jump', 'ram', 'start'].includes(action)) return res.status(400).json({ ok: false, error: 'action' });
+    io.emit('duongveque:key', { action });
+    res.json({ ok: true });
 });
 app.post('/api/nhatu/window/open', (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
@@ -9711,6 +9778,7 @@ try { banCungApplyConfigToState(appConfig.games.bancung || makeDefaultBanCungCon
 setTimeout(() => camApplyHotkeys('bancung'), 1500);
 setTimeout(() => { try { global.__vipwelcomeApplyHotkeys?.(appConfig.games.vipwelcome); } catch (e) {} }, 1500);
 setTimeout(() => { try { global.__nhatlaApplyHotkeys?.(appConfig.games.nhatla); } catch (e) {} }, 1500);
+setTimeout(() => { try { global.__dvqApplyHotkeys?.(appConfig.games.duongveque); } catch (e) {} }, 1500);
 try {
     const cfg0 = appConfig.games.bancung || makeDefaultBanCungConfig();
     const init = cfg0.initialHearts != null ? Number(cfg0.initialHearts) : banCungState.maxHp;
@@ -12309,6 +12377,11 @@ io.on('connection', (socket) => {
     onTrusted('quaivat:key', (data) => {
         if (!data || typeof data.code !== 'string' || data.code.length > 24) return;
         socket.broadcast.emit('quaivat:key', { code: data.code, down: data.down === true });
+    });
+    // ĐƯỜNG VỀ QUÊ — phím streamer trong app → overlay
+    onTrusted('duongveque:key', (data) => {
+        if (!data || !['jump', 'ram', 'start'].includes(data.action)) return;
+        socket.broadcast.emit('duongveque:key', { action: data.action });
     });
     // NHÀ TÙ ONLINE — chế độ Streamer: phím trong app → overlay (OBS không nhận bàn phím)
     onTrusted('nhatu:key', (data) => {

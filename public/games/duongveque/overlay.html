@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Đường Về Quê – HP Action LIVE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1b2a3a; }
+  /* khung 9:16 luôn vừa cửa sổ; mọi kích thước HUD theo --u = 1/1080 bề rộng khung */
+  #stage { position: absolute; left: 50%; top: 50%; width: 1080px; height: 1920px; transform-origin: 0 0; overflow: hidden;
+    font-family: 'Baloo 2', system-ui, sans-serif; color: #fff; }
+  #c { position: absolute; inset: 0; width: 1080px; height: 1920px; display: block; }
+  #hud { position: absolute; inset: 0; pointer-events: none; }
+  .hidden { display: none !important; }
+  .panel { background: rgba(22, 26, 36, .78); border-radius: 22px; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+
+  /* ---------- thanh trên ---------- */
+  #top { position: absolute; left: 20px; right: 20px; top: 18px; padding: 14px 22px 16px; }
+  .row { display: flex; align-items: center; gap: 14px; }
+  .brand { font-size: 40px; font-weight: 800; letter-spacing: .5px; color: #ffe27a; text-shadow: 0 3px 0 #b2481b; white-space: nowrap; }
+  .brand small { font-size: 26px; color: #cfe2ff; text-shadow: none; font-weight: 700; margin-left: 6px; }
+  .timer { margin-left: auto; font-size: 54px; font-weight: 800; line-height: 1; padding: 4px 18px; border-radius: 16px; background: rgba(255,255,255,.12); min-width: 170px; text-align: center; }
+  .timer.final { background: #e8322c; animation: pulse .6s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.06); } }
+  .track { position: relative; height: 34px; margin: 14px 64px 4px; border-radius: 17px; background: linear-gradient(90deg, #6b7c93, #8aa06a 35%, #6f8fae 60%, #c9873c); box-shadow: inset 0 3px 6px rgba(0,0,0,.35); }
+  .track .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 17px; background: rgba(255, 226, 122, .55); }
+  .track .bike { position: absolute; top: 50%; font-size: 46px; transform: translate(-50%, -58%); filter: drop-shadow(0 3px 2px rgba(0,0,0,.4)); transition: left .25s linear; }
+  .track .end { position: absolute; top: 50%; transform: translateY(-50%); font-size: 44px; }
+  .track .end.l { left: -60px; } .track .end.r { right: -62px; }
+  .track .flag { position: absolute; top: -6px; width: 4px; height: 46px; background: rgba(255,255,255,.5); border-radius: 2px; }
+  .dist { text-align: center; font-size: 30px; font-weight: 800; color: #e9f1ff; }
+  .dist b { color: #ffe27a; }
+
+  /* ---------- kéo co 2 phe ---------- */
+  #tug { position: absolute; left: 20px; right: 20px; top: 222px; padding: 10px 16px 12px; }
+  .tugbar { position: relative; height: 58px; border-radius: 29px; overflow: hidden; background: #e8322c; box-shadow: inset 0 3px 8px rgba(0,0,0,.35); }
+  .tugbar .cuu { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #12a150, #35d07f); transition: width .35s ease; }
+  .tugbar .lab { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; gap: 8px; font-size: 30px; font-weight: 800; text-shadow: 0 2px 2px rgba(0,0,0,.4); white-space: nowrap; }
+  .tugbar .lab.l { left: 14px; } .tugbar .lab.r { right: 14px; }
+  .tugbar .knot { position: absolute; top: -6px; bottom: -6px; width: 10px; margin-left: -5px; background: #fff; border-radius: 5px; box-shadow: 0 0 10px #fff; transition: left .35s ease; }
+  .av { width: 46px; height: 46px; border-radius: 50%; border: 3px solid #fff; object-fit: cover; background: #f6a21e; display: inline-grid; place-items: center; font-size: 24px; font-weight: 800; overflow: hidden; flex: none; }
+  .tugsub { display: flex; justify-content: space-between; margin-top: 6px; font-size: 24px; font-weight: 700; color: #d6e2f5; }
+  .tugsub b { color: #ffe27a; }
+
+  /* ---------- trạng thái xe ---------- */
+  #status { position: absolute; left: 20px; top: 352px; display: flex; gap: 10px; }
+  .chip { display: flex; align-items: center; gap: 8px; padding: 6px 16px; font-size: 28px; font-weight: 800; border-radius: 999px; background: rgba(22,26,36,.78); white-space: nowrap; }
+  .fuelbar { width: 150px; height: 18px; border-radius: 9px; background: rgba(255,255,255,.2); overflow: hidden; }
+  .fuelbar i { display: block; height: 100%; background: linear-gradient(90deg, #ffb02e, #ffe27a); transition: width .2s linear; }
+  .chip.low { background: #c3261f; animation: pulse .5s infinite; }
+  .chip.ready { background: #0f8f4a; }
+  .chip.speedo { gap: 4px; min-width: 170px; justify-content: center; }
+  .chip.speedo b { font-size: 40px; line-height: 1; color: #ffe27a; }
+  .chip.speedo small { font-size: 20px; color: #cfd9ea; }
+  .chip.speedo.back { background: #c3261f; } .chip.speedo.back b { color: #fff; }
+  .chip.speedo.fast { background: #b35a00; }
+
+  /* ---------- bảng quà 2 phe ---------- */
+  .legend { position: absolute; top: 420px; width: 252px; padding: 10px 10px 12px; }
+  .legend.l { left: 14px; } .legend.r { right: 14px; }
+  .legend h4 { margin: 0 0 6px; font-size: 26px; font-weight: 800; text-align: center; padding: 2px 0; border-radius: 12px; }
+  .legend.l h4 { background: #12a150; } .legend.r h4 { background: #d12a24; }
+  .lg { display: flex; align-items: center; gap: 8px; font-size: 25px; font-weight: 700; padding: 2px 4px; white-space: nowrap; overflow: hidden; }
+  .lg img { width: 44px; height: 44px; object-fit: contain; flex: none; }
+  .lg .e { width: 44px; text-align: center; font-size: 30px; flex: none; }
+  .lg span { overflow: hidden; text-overflow: ellipsis; }
+  .legend .free { margin-top: 4px; font-size: 20px; font-weight: 700; color: #cfd9ea; text-align: center; line-height: 1.25; }
+
+  /* ---------- tin nổi + băng rôn ---------- */
+  #feed { position: absolute; left: 280px; right: 280px; top: 430px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .toast { display: flex; align-items: center; gap: 10px; max-width: 100%; padding: 6px 16px 6px 8px; border-radius: 999px; font-size: 26px; font-weight: 800;
+    background: rgba(22,26,36,.82); white-space: nowrap; animation: tin .25s ease-out; }
+  .toast.cuu { border: 3px solid #35d07f; } .toast.pha { border: 3px solid #ff5a4f; }
+  .toast .nm { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+  .toast .x { color: #ffe27a; }
+  .toast .av { width: 40px; height: 40px; border-width: 2px; font-size: 20px; }
+  @keyframes tin { from { transform: translateY(-14px) scale(.9); opacity: 0; } }
+  #banner { position: absolute; left: 40px; right: 40px; top: 760px; text-align: center; pointer-events: none; }
+  #banner .b { display: inline-block; padding: 14px 34px 16px; border-radius: 28px; font-size: 52px; font-weight: 800; line-height: 1.1;
+    background: rgba(22,26,36,.88); box-shadow: 0 8px 26px rgba(0,0,0,.35); animation: pop .35s cubic-bezier(.2,1.6,.4,1); }
+  #banner .b small { display: block; font-size: 32px; font-weight: 700; color: #ffe27a; margin-top: 4px; }
+  #banner .b.cuu { background: rgba(10,120,60,.92); } #banner .b.pha { background: rgba(170,30,25,.92); } #banner .b.gold { background: rgba(190,110,0,.94); }
+  @keyframes pop { from { transform: scale(.4); opacity: 0; } }
+  #rescue { position: absolute; left: 140px; right: 140px; top: 910px; padding: 14px 22px; text-align: center; }
+  #rescue .t { font-size: 36px; font-weight: 800; }
+  #rescue .bar { height: 30px; margin-top: 8px; border-radius: 15px; background: rgba(255,255,255,.2); overflow: hidden; }
+  #rescue .bar i { display: block; height: 100%; background: linear-gradient(90deg, #12a150, #7cf0a9); transition: width .2s; }
+  #rescue .sec { font-size: 64px; font-weight: 800; color: #ffe27a; line-height: 1; }
+
+  /* ---------- chờ ván / kết quả ---------- */
+  .card { position: absolute; left: 70px; right: 70px; top: 520px; padding: 30px 34px 34px; text-align: center; background: rgba(18, 22, 32, .9); border-radius: 36px; box-shadow: 0 14px 40px rgba(0,0,0,.45); }
+  .card h1 { margin: 0; font-size: 76px; line-height: 1; color: #ffe27a; text-shadow: 0 5px 0 #b2481b; }
+  .card h2 { margin: 10px 0 0; font-size: 40px; color: #fff; }
+  .card .cd { font-size: 120px; font-weight: 800; line-height: 1.05; color: #fff; }
+  .card .how { margin-top: 14px; text-align: left; font-size: 30px; font-weight: 700; line-height: 1.45; color: #dfe8f7; }
+  .card .how b.g { color: #5ef09b; } .card .how b.r { color: #ff7a70; } .card .how b.y { color: #ffe27a; }
+  .card .stat { margin-top: 14px; font-size: 28px; font-weight: 700; color: #b8c6dc; }
+  .cols { display: flex; gap: 18px; margin-top: 20px; text-align: left; }
+  .col { flex: 1; padding: 12px 14px; border-radius: 22px; background: rgba(255,255,255,.07); }
+  .col h3 { margin: 0 0 8px; font-size: 30px; text-align: center; }
+  .col.cuu h3 { color: #5ef09b; } .col.pha h3 { color: #ff7a70; }
+  .pr { display: flex; align-items: center; gap: 10px; font-size: 28px; font-weight: 800; margin: 6px 0; }
+  .pr .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pr .xu { color: #ffe27a; }
+  .note { margin-top: 18px; font-size: 32px; font-weight: 800; line-height: 1.3; padding: 12px 16px; border-radius: 20px; background: rgba(255,255,255,.08); }
+  .note.trash { color: #c8ffb0; } .note.pen { color: #ffd2a8; }
+  .card.win h1 { color: #7cf0a9; text-shadow: 0 5px 0 #0b6b37; }
+  .card.lose h1 { color: #ff8b80; text-shadow: 0 5px 0 #7a1712; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c" width="1080" height="1920"></canvas>
+  <div id="hud">
+    <div id="top" class="panel">
+      <div class="row"><div class="brand">🛵 ĐƯỜNG VỀ QUÊ<small id="round">Ván 1</small></div><div class="timer" id="timer">4:00</div></div>
+      <div class="track" id="track"><span class="end l">🏙️</span><div class="fill" id="tfill"></div><span class="bike" id="tbike">🛵</span><span class="end r">🏡</span></div>
+      <div class="dist" id="dist"><b>0</b> / 2.000 m</div>
+    </div>
+    <div id="tug" class="panel">
+      <div class="tugbar"><div class="cuu" id="tcuu" style="width:50%"></div><div class="knot" id="tknot" style="left:50%"></div>
+        <div class="lab l" id="tl">🛡️ CỨU 0</div><div class="lab r" id="tr">0 PHÁ ⚔️</div></div>
+      <div class="tugsub"><span id="tsl">Bình luận <b>1</b> = phe Cứu</span><span id="tsr">Bình luận <b>2</b> = phe Phá</span></div>
+    </div>
+    <div id="status">
+      <div class="chip speedo" id="cspeed"><b id="speed">0</b><small>km/h</small></div>
+      <div class="chip" id="cfuel">⛽<div class="fuelbar"><i id="fuel" style="width:100%"></i></div></div>
+      <div class="chip hidden" id="cshield">⛑️ <span id="shield">0</span></div>
+      <div class="chip" id="cram">💥 HÚC</div>
+    </div>
+    <div class="legend panel l" id="lgl"><h4>🛡️ CỨU</h4><div id="lgcuu"></div><div class="free">❤️ Tim · ↗️ Chia sẻ<br>= gió + xăng</div></div>
+    <div class="legend panel r" id="lgr"><h4>⚔️ PHÁ</h4><div id="lgpha"></div></div>
+    <div id="feed"></div>
+    <div id="banner"></div>
+    <div id="rescue" class="panel hidden"><div class="t" id="rtxt">🌪️ LỐC XOÁY!</div><div class="sec" id="rsec">10</div><div class="bar"><i id="rbar" style="width:0%"></i></div></div>
+    <div id="lobby" class="card hidden"></div>
+    <div id="result" class="card hidden"></div>
+  </div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script type="module" src="/games/duongveque/game.js"></script>
+</body>
+</html>

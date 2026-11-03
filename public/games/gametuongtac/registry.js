@@ -33,6 +33,12 @@
             note: 'Bảng quà có link OBS riêng (trong ⚙ Cài đặt).'
         },
         {
+            id: 'duongveque', name: 'Đường Về Quê', icon: '🛵',
+            desc: 'Xe máy 2D chạy về quê ăn Tết: phe Cứu đẩy xe, đổ xăng, che chắn; phe Phá thả vỏ chuối, chó rượt, xe container đẩy lùi, lốc xoáy.',
+            play: 'Quà chia 2 phe · bình luận 1/2 chọn phe · tim = gió',
+            note: 'Streamer bấm Nhảy / Húc (phím tắt F7 / F8) hoặc để Tự lái.'
+        },
+        {
             id: 'creatoronline', name: 'Creator Online', icon: '🏢', soon: true,
             desc: 'Tòa nhà LIVE chibi 3D 25 phòng: sân khấu nhóm, phòng LIVE đứng, phòng hát, phòng game — phát triển từ Nhà Tù Online.',
             play: 'Thả tim · quà chọn thể loại · nhận vai · PK',
