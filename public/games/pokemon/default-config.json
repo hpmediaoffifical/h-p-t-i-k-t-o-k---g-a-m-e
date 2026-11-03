@@ -235,7 +235,7 @@
   "contest": {
     "enabled": true,
     "everyMinutes": 5,
-    "openSeconds": 60,
+    "openSeconds": 10,
     "joinCmd": "tranh",
     "triggerCoins": 300,
     "ticketsPerCoin": 1,
@@ -245,7 +245,7 @@
       "hoa hồng"
     ],
     "designatedMult": 3,
-    "finalSeconds": 10,
+    "finalSeconds": 3,
     "finalMult": 2,
     "likesPerTicket": 50,
     "likeCap": 5,
