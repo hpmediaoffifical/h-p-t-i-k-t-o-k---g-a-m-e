@@ -519,14 +519,22 @@ export class NpcManager {
   }
 }
 
-/** Keep characters from overlapping each other (same floor only). */
+const sweep = [];
+const byX = (p, q) => p.body.pos.x - q.body.pos.x;
+/**
+ * Keep characters from overlapping each other (same floor only).
+ * Quét theo trục x (sweep-and-prune): chỉ so những người cách nhau < 2 bán kính theo x — 145 người thì
+ * ~10.000 cặp/bước còn vài trăm.
+ */
 export function separateActors(actors) {
-  for (let i = 0; i < actors.length; i++) {
-    const a = actors[i];
-    if (a.seat || a.carried) continue;
-    for (let j = i + 1; j < actors.length; j++) {
-      const b = actors[j];
-      if (b.seat || b.carried) continue;
+  sweep.length = 0;
+  for (const a of actors) if (!a.seat && !a.carried) sweep.push(a);
+  sweep.sort(byX);
+  for (let i = 0; i < sweep.length; i++) {
+    const a = sweep[i];
+    for (let j = i + 1; j < sweep.length; j++) {
+      const b = sweep[j];
+      if (b.body.pos.x - a.body.pos.x >= a.body.radius + b.body.radius) break; // xa hơn theo x → mọi người sau cũng xa
       if (Math.abs(a.body.pos.y - b.body.pos.y) > 1.2) continue;
       const dx = b.body.pos.x - a.body.pos.x;
       const dz = b.body.pos.z - a.body.pos.z;

@@ -43,7 +43,7 @@
   .nt-bubble { display: none; max-width: 12em; width: max-content; white-space: normal; text-align: center; background: #fff; color: #222;
     font-weight: 700; font-size: .52em; line-height: 1.15; padding: .3em .6em; border-radius: .7em; margin-bottom: .4em; position: relative; box-shadow: 0 .1em .3em rgba(0,0,0,.2); }
   .nt-bubble::after { content: ''; position: absolute; left: 50%; bottom: -.35em; margin-left: -.35em; border: .35em solid transparent; border-top-color: #fff; border-bottom: 0; }
-  .nt-bubble.show { display: block; animation: pop .25s ease-out; }
+  .nt-bubble.show { display: block; } /* hiệu ứng nảy: labels.js say() dùng Web Animations */
   @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
   /* ---------- góc trên ---------- */

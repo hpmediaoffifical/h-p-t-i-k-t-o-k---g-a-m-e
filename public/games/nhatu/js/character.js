@@ -819,16 +819,13 @@ export function animateCharacter(char, dt, s) {
     armRz = -1.2;
   }
 
-  char.legL.pivot.rotation.x = lerp(char.legL.pivot.rotation.x, legL, k);
-  char.legR.pivot.rotation.x = lerp(char.legR.pivot.rotation.x, legR, k);
-  char.legL.pivot.rotation.z = lerp(char.legL.pivot.rotation.z, -legZ, k);
-  char.legR.pivot.rotation.z = lerp(char.legR.pivot.rotation.z, legZ, k);
-  char.armL.pivot.rotation.x = lerp(char.armL.pivot.rotation.x, armL, k);
-  char.armR.pivot.rotation.x = lerp(char.armR.pivot.rotation.x, armR, k);
-  char.armL.pivot.rotation.z = lerp(char.armL.pivot.rotation.z, -armLz, k);
-  char.armR.pivot.rotation.z = lerp(char.armR.pivot.rotation.z, -armRz, k);
-  char.headPivot.rotation.x = lerp(char.headPivot.rotation.x, headX, k);
-  char.headPivot.rotation.z = lerp(char.headPivot.rotation.z, headZ, k);
+  // rotation.set 1 lần/khớp (mỗi lần gán .x hay .z riêng là three.js tính lại quaternion 1 lần)
+  const rot = (o, x, z) => o.rotation.set(lerp(o.rotation.x, x, k), 0, lerp(o.rotation.z, z, k));
+  rot(char.legL.pivot, legL, -legZ);
+  rot(char.legR.pivot, legR, legZ);
+  rot(char.armL.pivot, armL, -armLz);
+  rot(char.armR.pivot, armR, -armRz);
+  rot(char.headPivot, headX, headZ);
   char.body.position.y = lerp(char.body.position.y, bob + bodyY, k);
 }
 
