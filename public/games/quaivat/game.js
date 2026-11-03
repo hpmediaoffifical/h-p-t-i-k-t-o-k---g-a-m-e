@@ -1315,8 +1315,38 @@ function hpSlogan(w, x, y, z, rx, parent) {
 }
 function houseDeco(H, F) {
   const st = T.style;
-  if (st === 'adobe') { hpLogo(1.5, 0, 6.75, F + 0.22, 0, H); hpSlogan(4.2, 0, 5.85, F + 0.22, 0, H); }   // nhà mái bằng: logo + chữ trên tường chắn mái
+  const AR = houseArchi(), PROF = ROOF_PROFILE[AR];
+  if (PROF) { const lz = AR === 'barn' ? 5.9 + 4.65 : AR === 'chalet' ? 5.9 + 4.85 : 5.9 + 5.0; hpLogo(AR === 'barn' ? 0.9 : 1.2, 0, lz, 5.97, 0, H); hpSlogan(AR === 'barn' ? 4.6 : 4.2, 0, AR === 'chalet' ? 5.9 + 1.35 : 5.9 + 0.75, 5.97, 0, H); }   // đầu hồi: logo nhỏ trên đỉnh + chữ dưới hồi
+  else if (st === 'adobe') { hpLogo(1.5, 0, 6.75, F + 0.22, 0, H); hpSlogan(4.2, 0, 5.85, F + 0.22, 0, H); }   // nhà mái bằng: logo + chữ trên tường chắn mái
   else { const a = Math.atan2(4.6, 6), d = 1.7; hpLogo(2.6, 0, 8.0 + 0.06, 3.2 + 0.05, -(Math.PI / 2 - a), H); hpSlogan(5.0, 0, 8.06 - Math.sin(a) * d, 3.25 + Math.cos(a) * d, -(Math.PI / 2 - a), H); }   // logo lớn + dòng chữ dưới logo, nằm theo mặt mái
+  const whiteM = MS(0xf7f4ec, 0.6), darkMM = MS(0x2c2a28, 0.5, 0.5);
+  if (AR === 'cottage' && st !== 'volcano') {                   // nhà vườn: mái che cửa ngói nhỏ + 2 tay đỡ gỗ
+    const cp2 = box(3.6, 0.16, 1.4, MS(new THREE.Color(T.roof[1]).getHex(), 0.6), 0, 4.75, F + 0.7, H); cp2.rotation.x = 0.28;
+    box(3.7, 0.12, 0.12, whiteM, 0, 4.58, F + 1.38, H);
+    for (const sx of [-1, 1]) { const br = box(0.12, 0.9, 0.12, MS(0x6a4422, 0.85), sx * 1.6, 4.2, F + 0.45, H); br.rotation.x = -0.75; }
+  }
+  if (AR === 'vn') {                                               // nhà Việt: đầu đao cong 4 góc, cột đỏ, đèn lồng, câu đối, hoành phi
+    const tile = MS(0x8a2a1a, 0.6), red = MS(0xb8261c, 0.5), gold = MS(0xffc83a, 0.35, 0.6);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const g2 = new THREE.Group(); g2.position.set(sx * 8.95, 5.95, sz * 5.95); g2.rotation.y = Math.atan2(sx, sz); H.add(g2);
+      for (let i = 0; i < 4; i++) { const seg = box(0.34 - i * 0.05, 0.22 - i * 0.03, 0.55, tile, 0, i * i * 0.07 + i * 0.1, i * 0.42, g2); seg.rotation.x = -0.25 - i * 0.28; }
+      sph(0.12, gold, 0, 1.25, 1.55, g2);
+    }
+    for (const sx of [-1, 1]) { const rc = new THREE.Mesh(geo('vnRidge', () => new THREE.ConeGeometry(0.28, 1.2, 8)), tile); rc.position.set(sx * 3.35, 11.0, 0); rc.rotation.z = -sx * 0.5; H.add(rc); }   // đầu nóc cong
+    for (const sx of [-1, 1]) {
+      cyl(0.22, 0.24, 4.8, red, sx * 2.2, 3.1, F + 0.35, H, 12); cyl(0.32, 0.32, 0.3, MS(0x8a8478, 0.8), sx * 2.2, 0.85, F + 0.35, H, 12);
+      box(0.42, 2.6, 0.06, red, sx * 1.45, 2.6, F + 0.12, H); for (let k = 0; k < 5; k++) box(0.18, 0.18, 0.02, gold, sx * 1.45, 3.6 - k * 0.5, F + 0.16, H);   // câu đối
+      const lg = new THREE.Group(); lg.position.set(sx * 2.9, 4.4, F + 0.9); H.add(lg);
+      cyl(0.015, 0.015, 0.6, darkMM, 0, 0.35, 0, lg, 4); const lb = sph(1, MS(0xe0281e, 0.5, 0, { emissive: 0xff3010, emissiveIntensity: 0.6 }), 0, 0, 0, lg); lb.scale.set(0.34, 0.42, 0.34);
+      for (const y of [0.4, -0.4]) cyl(0.16, 0.16, 0.08, gold, 0, y, 0, lg, 10);
+      cyl(0.02, 0.02, 0.35, gold, 0, -0.62, 0, lg, 4);
+    }
+    box(3.2, 0.7, 0.1, red, 0, 4.85, F + 0.14, H); for (let k = 0; k < 4; k++) box(0.34, 0.34, 0.02, gold, -1.05 + k * 0.7, 4.85, F + 0.2, H);   // hoành phi trên cửa
+  }
+  if (st === 'volcano') {                                          // gai obsidian dọc nóc, đầu gai ánh dung nham
+    const obs = MS(0x15101a, 0.25, 0.4), lv = MS(0x2a0a00, 0.5, 0, { emissive: 0xff5a10, emissiveIntensity: 2 });
+    for (let x = -2.8; x <= 2.81; x += 0.7) { const c = new THREE.Mesh(geo('obsSpike', () => new THREE.ConeGeometry(0.22, 1.3, 5)), obs); put(c, x, 11.1, 0, H); c.rotation.z = rand(-0.2, 0.2); sph(0.07, lv, x, 11.75, 0, H); }
+  }
   if (st === 'snow') {                                            // băng nhũ dưới mái, tuyết đọng
     const snowM = MS(0xf8fbff, 0.6), ice = MS(0xd8f2ff, 0.15, 0.1, { transparent: true, opacity: 0.85 });
     for (let x = -8.8; x <= 8.8; x += 0.32) { if (Math.random() < 0.25) continue; const L = rand(0.25, 0.8); const c = new THREE.Mesh(geo('icicle', () => new THREE.ConeGeometry(0.06, 1, 6)), ice); c.scale.y = L; c.rotation.x = Math.PI; put(c, x, 5.58 - L / 2, 6.22, H, false); }
@@ -1351,6 +1381,22 @@ function houseDeco(H, F) {
     for (const [x, z, r] of [[2.4, F + 1.9, 0.38], [-2.6, F + 2.0, 0.32], [-3.1, F + 1.6, 0.26]]) { const j = sph(1, MS(0xb5653a, 0.85), x, r, z, H); j.scale.set(r, r * 1.1, r); cyl(r * 0.45, r * 0.5, r * 0.4, MS(0xa0552e, 0.85), x, r * 2.1, z, H, 10); }
   }
 }
+// kiến trúc riêng từng map: cottage (nhà vườn) · barn (nhà kho nông trại) · chalet (nhà gỗ núi tuyết) · manor (biệt thự ma) · pueblo (nhà đất) · vn (nhà Việt đầu đao) · volcano dùng cottage + gai
+const HOUSE_ARCHI = { 'Mùa Thu': 'barn', 'Xứ Tuyết': 'chalet', 'Nghĩa Trang Đêm': 'manor', 'Đầm Sen': 'vn' };
+function houseArchi() { return T.archi || HOUSE_ARCHI[T.name] || (T.style === 'adobe' ? 'pueblo' : 'cottage'); }
+// mặt cắt mái (x, y) quanh trục dọc z → khối mái kín cả 2 đầu hồi; caps = mặt hồi (tường), sides = mặt mái
+const ROOF_PROFILE = {
+  barn: [[-9.0, 0], [9.0, 0], [6.7, 3.4], [0, 5.4], [-6.7, 3.4]],
+  chalet: [[-9.3, 0], [9.3, 0], [0, 6.6]],
+  manor: [[-8.9, 0], [8.9, 0], [0, 7.2]],
+};
+function gableRoofGeo(prof, depth) {
+  const sh = new THREE.Shape(); prof.forEach(([x, y], i) => i ? sh.lineTo(x, y) : sh.moveTo(x, y)); sh.closePath();
+  const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false }); g.translate(0, 0, -depth / 2); return g;
+}
+function roofHeightAt(prof, x) {                                                    // độ cao mặt mái tại x (để đặt ống khói, tuyết…)
+  let best = 0; for (let i = 0; i < prof.length; i++) { const [x0, y0] = prof[i], [x1, y1] = prof[(i + 1) % prof.length]; if (y0 === 0 && y1 === 0) continue; if ((x - x0) * (x - x1) <= 0 && x0 !== x1) best = Math.max(best, y0 + (y1 - y0) * (x - x0) / (x1 - x0)); } return best;
+}
 function buildHouse() {
   const H = new THREE.Group(); H.scale.setScalar(HS); H.position.set(0, 0, HOUSE_FRONT - 5 * HS); world.add(H);
   const F = 5.0;                                   // mặt trước (toạ độ cục bộ)
@@ -1370,6 +1416,19 @@ function buildHouse() {
     if (T.style === 'haunted') {                                   // nhà ma: ván gỗ mục xám
       for (let x = 0; x < w; x += 32) { g.fillStyle = `hsl(${rand(220, 260)}, ${rand(6, 12)}%, ${rand(30, 40)}%)`; g.fillRect(x, 0, 32, h); g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(x, 0, 2, h); for (let k = 0; k < 6; k++) { g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x + rand(4, 28), rand(0, h), 1.5, rand(20, 80)); } }
       speckle(g, w, h, ['#2a2a34', '#5a5a66'], 1500, 1, 2); return;
+    }
+    const AR = houseArchi();
+    if (AR === 'barn') {                                           // nhà kho: ván dọc đỏ nâu, mạch tối, vân gỗ
+      for (let x = 0; x < w; x += 22) { g.fillStyle = `hsl(${rand(6, 12)}, ${rand(48, 58)}%, ${rand(30, 37)}%)`; g.fillRect(x, 0, 22, h); g.fillStyle = 'rgba(0,0,0,.4)'; g.fillRect(x, 0, 2, h); g.fillStyle = 'rgba(255,255,255,.07)'; g.fillRect(x + 4, 0, 3, h); }
+      speckle(g, w, h, ['#5a1a10', '#b85a40'], 1600, 1, 2); return;
+    }
+    if (AR === 'chalet') {                                         // nhà gỗ khúc: thân gỗ tròn xếp ngang
+      for (let y = 0; y < h; y += 28) { const gr = g.createLinearGradient(0, y, 0, y + 28); gr.addColorStop(0, '#6a4426'); gr.addColorStop(0.35, `hsl(28, 42%, ${rand(40, 46)}%)`); gr.addColorStop(1, '#4a2e18'); g.fillStyle = gr; g.fillRect(0, y, w, 28); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, y + 26, w, 2); }
+      speckle(g, w, h, ['#3a2412', '#9a6a40'], 1400, 1, 2); return;
+    }
+    if (AR === 'vn') {                                             // nhà Việt: vữa vàng ấm, chân tường đá xám
+      const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#f6d98a'); gr.addColorStop(0.82, '#e8bf64'); gr.addColorStop(0.82, '#8a8478'); gr.addColorStop(1, '#6a665c');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h); speckle(g, w, h * 0.8, ['#e2b85a', '#fbe6a8'], 3500, 1, 2.5); return;
     }
     if (T.style === 'volcano') {                                   // nhà đá đen
       g.fillStyle = '#2e2622'; g.fillRect(0, 0, w, h);
@@ -1412,7 +1471,45 @@ function buildHouse() {
     }
     for (let r = 0; r < rows; r++) { g.fillStyle = 'rgba(0,0,0,.32)'; g.fillRect(0, r * rh, w, 4); }
   }, [0.62, 0.62]);
-  if (T.style !== 'adobe') {
+  const AR = houseArchi(), PROF = ROOF_PROFILE[AR];
+  if (PROF) {                                                     // mái đầu hồi quay ra trước (nhà kho / chalet / biệt thự)
+    const rt = roofTex.clone(); rt.needsUpdate = true; rt.repeat.set(0.26, 0.26); rt.center.set(0.5, 0.5); rt.rotation = Math.PI / 2;
+    const gt = plaster.clone(); gt.needsUpdate = true; gt.repeat.set(4 / 16, 1 / 5.2); gt.offset.set(0.5, 0);
+    const roofM = new THREE.MeshStandardMaterial({ map: rt, bumpMap: rt, bumpScale: 1, roughness: 0.65, envMapIntensity: 0.6 }), gableM = new THREE.MeshStandardMaterial({ map: gt, roughness: 0.9 });
+    const rf = put(new THREE.Mesh(gableRoofGeo(PROF, 11.8), [gableM, roofM]), 0, 5.9, 0, H);
+    const trim = AR === 'manor' ? MS(0x2a2a30, 0.7) : white;                      // viền mép hồi (diềm mái)
+    for (let i = 0; i < PROF.length; i++) {
+      const [x0, y0] = PROF[i], [x1, y1] = PROF[(i + 1) % PROF.length]; if (y0 === 0 && y1 === 0) continue;
+      const L = Math.hypot(x1 - x0, y1 - y0), b = box(L + 0.2, 0.32, 0.28, trim, (x0 + x1) / 2, 5.9 + (y0 + y1) / 2, 5.95, H); b.rotation.z = Math.atan2(y1 - y0, x1 - x0);
+    }
+    const top = Math.max(...PROF.map(q => q[1]));
+    if (AR === 'barn') {                                           // cửa gác xép chữ X + ròng rọc + ô thoáng
+      const hy = 5.9 + 2.5; box(2.6, 2.2, 0.12, MS(0x7a2a1a, 0.8), 0, hy, 5.92, H);
+      for (const r of [0.7, -0.7]) { const b = box(3.2, 0.2, 0.08, white, 0, hy, 6.0, H); b.rotation.z = r; }
+      for (const [w, hh, x, y] of [[2.9, 0.2, 0, hy + 1.15], [2.9, 0.2, 0, hy - 1.15], [0.2, 2.5, 1.4, hy], [0.2, 2.5, -1.4, hy]]) box(w, hh, 0.1, white, x, y, 6.0, H);
+      const beam = box(0.3, 0.3, 1.6, MS(0x5a3a1e, 0.9), 0, 5.9 + 4.4, 6.5, H); cyl(0.03, 0.03, 1.6, darkM, 0, 5.9 + 3.6, 7.2, H, 6);
+      for (const sx of [-1, 1]) for (const x of [3.3, 4.6]) { const hb = cyl(0.5, 0.5, 0.9, MS(0xe0b64a, 0.95), sx * x, 0.45 + 0.7, F + 1.2, H, 12); hb.rotation.z = Math.PI / 2; }   // kiện rơm
+    }
+    if (AR === 'chalet') {                                         // tuyết dày 2 mái + ban công gỗ + ống khói đá
+      const snowM = MS(0xf8fbff, 0.55), a = Math.atan2(6.6, 9.3), L = Math.hypot(6.6, 9.3);
+      for (const sx of [-1, 1]) { const sn = box(L * 0.92, 0.32, 11.6, snowM, sx * 9.3 / 2 * 0.98, 5.9 + 6.6 / 2 + 0.2, 0, H); sn.rotation.z = -sx * a; }
+      const wood = MS(0x6a4022, 0.85), woodL = MS(0x8a5a32, 0.8);
+      box(10.5, 0.18, 1.3, wood, 0, 6.2, F + 0.65, H); box(10.5, 0.12, 0.12, woodL, 0, 7.15, F + 1.25, H);
+      for (let x = -5.1; x <= 5.15; x += 0.42) box(0.1, 0.9, 0.1, woodL, x, 6.7, F + 1.25, H);
+      for (const x of [-5.1, 5.1]) { const st = box(0.2, 1.3, 0.2, wood, x, 5.6, F + 1.2, H); st.rotation.x = 0.6; }
+      const cx = 4.6, ry = roofHeightAt(PROF, cx); box(1.4, 3.0, 1.4, MS(0x8a8a90, 0.9), cx, 5.9 + ry + 0.6, -1.8, H); box(1.7, 0.3, 1.7, snowM, cx, 5.9 + ry + 2.2, -1.8, H);
+    }
+    if (AR === 'manor') {                                          // tháp tròn mái chóp + cửa sổ tròn sáng xanh + chóp nhọn hồi
+      const slate = MS(0x26242c, 0.7), tw = new THREE.MeshStandardMaterial({ map: gt.clone(), roughness: 0.95 }); tw.map.repeat.set(1.2, 1.4); tw.map.needsUpdate = true;
+      cyl(1.7, 1.8, 10.6, tw, -7.6, 5.3, 3.6, H, 16); box(4.0, 0.3, 4.0, slate, -7.6, 10.7, 3.6, H).rotation.y = 0.78;
+      const cone = new THREE.Mesh(geo('mcone', () => new THREE.ConeGeometry(2.3, 5.2, 16)), slate); put(cone, -7.6, 13.4, 3.6, H);
+      cyl(0.05, 0.05, 1.6, darkM, -7.6, 16.6, 3.6, H, 6); sph(0.14, MS(0x3aff8a, 0.3, 0, { emissive: 0x3aff8a, emissiveIntensity: 2 }), -7.6, 17.4, 3.6, H);
+      for (const y of [4.2, 8.0]) { const rw = cyl(0.55, 0.55, 0.1, MS(0x1a3a26, 0.2, 0, { emissive: 0x3aff8a, emissiveIntensity: 0.7 }), -7.6 + 0.9, y, 3.6 + 1.45, H, 16); rw.rotation.x = Math.PI / 2; rw.rotation.z = 0.55; }
+      cyl(0.04, 0.06, 1.8, darkM, 0, 5.9 + top + 0.9, 5.9, H, 6);
+      const rw2 = cyl(0.75, 0.75, 0.1, MS(0x1a3a26, 0.2, 0, { emissive: 0x3aff8a, emissiveIntensity: 0.7 }), 0, 5.9 + 3.2, 5.97, H, 20); rw2.rotation.x = Math.PI / 2;
+      const cx = 4.6, ry = roofHeightAt(PROF, cx); box(1.2, 3.2, 1.2, MS(0x3a3438, 0.9), cx, 5.9 + ry + 0.7, -1.8, H);
+    }
+  } else if (T.style !== 'adobe') {
   put(new THREE.Mesh(hipRoof(16, 10, 4.6, 1.0), new THREE.MeshStandardMaterial({ map: roofTex, bumpMap: roofTex, bumpScale: 1.2, roughness: 0.6, envMapIntensity: 0.6, side: THREE.DoubleSide })), 0, 5.9, 0, H);
   box(18.2, 0.34, 0.22, white, 0, 5.82, 6.02, H); box(18.2, 0.34, 0.22, white, 0, 5.82, -6.02, H);
   box(0.22, 0.34, 12.2, white, 9.02, 5.82, 0, H); box(0.22, 0.34, 12.2, white, -9.02, 5.82, 0, H);
@@ -1471,6 +1568,7 @@ function buildHouse() {
     }
   }
   for (const x of [-4.9, 4.9]) windowAt(x, 3.6, F + 0.06, 0, 2.3, 1.9, true);
+  if (houseArchi() === 'chalet') windowAt(0, 5.9 + 3.0, 5.93, 0, 1.6, 1.4, false);   // cửa sổ áp mái trên đầu hồi
   for (const sx of [-1, 1]) windowAt(sx * 8.06, 3.6, 0, sx * Math.PI / 2, 2.0, 1.7, false);       // cửa sổ tường bên
 
   // ---- cửa chính: khung, ô kính trên, mái che, đèn lồng, số nhà ----
