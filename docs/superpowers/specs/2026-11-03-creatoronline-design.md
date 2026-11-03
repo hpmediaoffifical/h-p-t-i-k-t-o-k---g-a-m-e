@@ -669,6 +669,20 @@ Làm trong worktree `.claude/worktrees/creator-online` (checkout chính đang c�
 
 **Đã thử trong trình duyệt** (server worktree, dữ liệu riêng): mọi kiểu cảnh; PK + Gala chạy cùng lúc (PK dừng đồng hồ); 120 người xem giả dồn dập (bình luận/tim/quà mỗi phút 240/300/90) → đúng 60 nhân vật (40 + 20 người tặng), 8 nhãn, geometry/texture đứng yên, không lỗi; đường panel → `/api/games/creatoronline/cmd` → overlay; bản đi dạo vẫn chạy.
 
+### 20.1 Trang trí map cho bớt trống (03/11/2026, nhánh `tuongtac/creator-online-decor`)
+
+`js/decor.js` (`buildDecor(scene, world, {low, spotsOf, staff, labelKind})`, dùng chung bản LIVE + bản đi dạo) và `js/gift-decor.js` (chỉ bản LIVE; logic chọn ô thuần `js/logic/gift-trace.js`, test `tests/creatoronline-gift-trace.test.mjs`). `game.js` chỉ thêm: dựng sau `DirectorCam`, `decor.update(dt, t, {camera, beats, focus: dcam.room, actors})` + `giftDecor.update` mỗi khung, `giftDecor.onGift` + `decor.pushTicker` trong `onGift`, câu hướng dẫn lên dải LED trong `tickHud`, `giftTrace` trong snapshot buổi LIVE, `newSession` xoá sạch.
+
+- **Phố đêm:** sàn phố 480 m (đường vành đai, vạch kẻ, quầng đèn đường), ~300 khối nhà `InstancedMesh` (UV cửa sổ tính theo toạ độ thế giới trong shader → ô cửa không méo), đèn báo không đỏ, 28 xe chạy vành đai, 3 đèn rọi trời quét. Chỉ thấy ở toàn cảnh / lát cắt (trong nhà có trần + tường 9 m) → không làm vòm trời. Sương đổi `Fog(0x10162c, 115, 250)` (cũ 70–140 làm cảnh toàn cảnh xỉn).
+- **Trên cao:** ~550 bóng đèn chạy đuổi + cờ đuôi nheo 5 màu club (hành lang Bắc zigzag tường nhóm ↔ đảo; sảnh Nam theo 9 cột đèn z 25,2 + tán zigzag cột ↔ đảo); 2 dải LED chữ chạy (hành lang Bắc z −15,2; giữa sảnh z 19 — để ở z 27 / z 10 thì che cảnh lát cắt phòng đơn).
+- **Sàn:** thảm đỏ + logo club trước cửa mỗi nhóm, 18 vũng đèn màu.
+- **Đạo cụ có va chạm:** 3 máy bán nước (tường Đông đảo), quầy trà sữa/bắp rang (tường Tây), 4 ghế chờ, 13 cột đèn, góc check-in (x 38,6 z 20), thùng loa ở 2 góc trong cửa nhóm.
+- **Sân khấu nhóm:** rào 2 cánh (chừa lối giữa) + 4 bảng cổ vũ, loa kiểm âm, 4 đèn hắt dùng `themeMats` của phòng. **Rào KHÔNG có va chạm:** người rời sân đi thẳng xuống khán giả sẽ kẹt sau rào.
+- **Biển lightstick:** bóng người tối ở mọi ô `crowdSpots` không có người xem / NPC đứng gần (≤ 0,6 m), nhún theo nhịp chỉ ở phòng đang quay; `?q=low` nửa mật độ.
+- **Nhân viên:** 5 bảo vệ cửa nhóm (có hộp va chạm), quay phim (hành lang Bắc), lao công (sảnh Nam); nhãn `crowd` (không hiện tên), tự ẩn khi cách camera > 32 m (~25 lệnh vẽ / người); `?q=low` chỉ bảo vệ.
+- **Dấu vết quà:** kệ hoa mang tên (8 ô / nhóm, ≥ 10 xu cộng dồn, đầy thì thay kệ ít xu nhất), chùm bóng bay trên giàn đèn (quà ≥ 500 xu, 3 chùm / nhóm), hộp quà ở 2 góc sân khấu (√(xu/30), tối đa 12), băng rôn BẢNG VÀNG top 3 trên tường trước cửa. Chỉ vẽ ô đang có (dồn instance).
+- **Đo (khung 1080×1920, lệnh vẽ camera chính):** toàn cảnh 388 → 426, sân khấu 91 → 119, lát cắt 411 → ~470; thêm ~60k tam giác (bóng người + bóng đèn). Không NPC nào kẹt vì đạo cụ khi chạy `sim()`.
+
 **Còn lại (cần máy thật / người):**
 - Thử OBS Browser Source 1080×1920 + cửa sổ `?win=1`: âm thanh tự phát, FPS thật trên máy stream (Browser pane là render phần mềm, chỉ so tương đối).
 - Một buổi LIVE thử: chụp ảnh điện thoại để chỉnh vùng an toàn HUD; kiểm cấp fan được ghi (`/api/creatoronline/fans/top`).
