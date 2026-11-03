@@ -5498,9 +5498,14 @@
             }
             requestAnimationFrame(render);
         }
+        let fxDrewLast = true;
         function renderFx() {
             if (!renderActive) return;   // preview tắt → dừng vòng vẽ hiệu ứng
             if (!fxCtx) { requestAnimationFrame(renderFx); return; }
+            // không có hiệu ứng nào → khỏi xoá canvas HD (3240×5760) mỗi khung; vẫn xoá 1 lần ngay sau khi hiệu ứng cuối hết
+            const fxBusy = (zigzagLuck.active && zigzagLuck.rect) || fxAnimations.length > 0;
+            if (!fxBusy && !fxDrewLast) { requestAnimationFrame(renderFx); return; }
+            fxDrewLast = !!fxBusy;
             fxCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
             if (zigzagLuck.active && zigzagLuck.rect) {
                 const r = zigzagLuck.rect;

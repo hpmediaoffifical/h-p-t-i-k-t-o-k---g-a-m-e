@@ -191,6 +191,7 @@
                 playing = true;
                 playMedia(payload);
             } else {
+                if (queue.length >= 20) queue.shift(); // PK dồn dập: giữ 20 hiệu ứng chờ gần nhất, không phình mãi
                 queue.push(payload);
                 if (!playing) advanceQueue();
             }

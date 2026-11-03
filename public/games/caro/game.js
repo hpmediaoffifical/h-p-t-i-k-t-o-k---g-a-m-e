@@ -1935,8 +1935,15 @@
         // undo window countdown). Otherwise dùng dirty-render: gọi render() ở mỗi state change.
         // Cải thiện CPU ~80% khi bàn cờ ở trạng thái idle.
         let rafId = null;
+        let matchEndSince = 0;
         function needsAnimation() {
-            if (state.phase === 'matchEnd') return true;                  // win-line animation
+            // win-line animation hết ván: chỉ chạy 8 giây rồi đứng ở khung cuối — trước đây vẽ lại cả canvas 3x
+            // (kèm hàng chục shadowBlur) 60 lần/giây cho tới khi mở ván mới
+            if (state.phase === 'matchEnd') {
+                if (!matchEndSince) matchEndSince = Date.now();
+                return Date.now() - matchEndSince < 8000;
+            }
+            matchEndSince = 0;
             if (state.phase === 'roundEnd' && winLineAnimating()) return true;   // vẽ dần đường thắng
             if (state.hint?.active && Date.now() < (state.hint.expireAt || 0)) return true;
             if (state.userUndo?.active && Date.now() < (state.userUndo.expireAt || 0)) return true;

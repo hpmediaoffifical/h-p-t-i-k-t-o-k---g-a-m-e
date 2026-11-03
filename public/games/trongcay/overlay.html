@@ -76,6 +76,10 @@
         .tc-plant.wilt .tc-leaf-shape { fill: #9a8d46; stroke: rgba(100,82,28,.6); }
         .tc-plant.wilt .tc-leaf-vein { stroke: rgba(255,238,160,.45); }
         @keyframes tc-garden-sway { from { transform: rotate(-1.25deg); } to { transform: rotate(1.25deg); } }
+        /* 🌳 vườn đông (renderStems bật .tc-lite): bỏ bóng đổ từng phần tử + cỏ gốc đứng yên — nhẹ hơn nhiều lần, cả vườn vẫn đung đưa */
+        .tc-garden.tc-lite .tc-stem, .tc-garden.tc-lite .tc-leaf, .tc-garden.tc-lite .tc-fruit-body,
+        .tc-garden.tc-lite .tc-plant.team, .tc-garden.tc-lite .tc-plant.ripe .tc-leaf-shape, .tc-garden.tc-lite .tc-plant.ripe .tc-stem { filter: none; }
+        .tc-garden.tc-lite .tc-tuft { animation: none; will-change: auto; }
 
         .tc-flower-layer, .tc-butterfly-layer { position: absolute; inset: 0; z-index: 14; overflow: visible; }
         /* Lớp icon quà đu đưa CÙNG nhịp với cây (lớp cố định → mượt, icon dính trên ngọn). */
@@ -551,6 +555,20 @@
     const $decor = document.getElementById('tc-decor');
     const $decorStatic = document.getElementById('tc-decor-static');
     const $decorRows = document.getElementById('tc-decor-rows');
+    // ⚡ Mỗi state (≤4 lần/giây khi đông quà) các lớp dưới bị innerHTML lại dù nội dung y hệt → trình duyệt dựng lại
+    // hàng trăm phần tử (80 hoa, bảng TOP, trạng thái…). Bỏ qua lần ghi trùng chuỗi cũ (không đổi gì trên màn hình).
+    (function dedupeInnerHTML(els) {
+        const desc = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+        for (const el of els) {
+            if (!el) continue;
+            let last = null;
+            Object.defineProperty(el, 'innerHTML', {
+                configurable: true,
+                get() { return desc.get.call(this); },
+                set(v) { v = String(v); if (v === last) return; last = v; desc.set.call(this, v); },
+            });
+        }
+    })([$flowers, $status, $top, $decorRows]);
     const $pets = document.getElementById('tc-pets');
     const $petList = document.getElementById('tc-pet-list');
     const svgDefs = `<defs><linearGradient id="tc-leaf-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#72e58a"/><stop offset="0.52" stop-color="#41c463"/><stop offset="1" stop-color="#199842"/></linearGradient><radialGradient id="tc-fruit-grad" cx="0.38" cy="0.34" r="0.75"><stop offset="0" stop-color="#ff9a6b"/><stop offset="0.55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#c62828"/></radialGradient><radialGradient id="tc-cat-grad" cx="0.4" cy="0.28" r="0.85"><stop offset="0" stop-color="#f2ffae"/><stop offset="0.45" stop-color="#b6f24f"/><stop offset="1" stop-color="#5fc21f"/></radialGradient><radialGradient id="tc-cat-head" cx="0.4" cy="0.3" r="0.8"><stop offset="0" stop-color="#eaffb0"/><stop offset="1" stop-color="#6fc62a"/></radialGradient><clipPath id="tc-cat-head-clip"><circle cx="0" cy="0" r="18"/></clipPath><linearGradient id="tc-pupa-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#bdf7c8"/><stop offset="0.5" stop-color="#4cc98a"/><stop offset="1" stop-color="#1f8f5f"/></linearGradient></defs>`;
@@ -1300,12 +1318,54 @@
             return `<path class="tc-shield" d="M ${x0.toFixed(0)} 1122 Q ${cx.toFixed(0)} ${(1122 - 360).toFixed(0)} ${x1.toFixed(0)} 1122 Z"/>`;
         }).join('');
     }
+    // ⚡ Vẽ vườn theo TỪNG cây: chỉ dựng lại DOM của cây nào đổi. Trước đây cả vườn (40 cây × ~200 phần tử SVG
+    // ≈ 8.000) bị innerHTML lại mỗi lần nhận state (4 lần/giây) → phòng đông là overlay đứng hình (đo CDP: ~750 ms/khung,
+    // luồng chính bận 100%). Giữ DOM cây cũ còn giúp nhịp đung đưa không bị khởi động lại (hết giật).
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    let svgLayers = null;               // { plants: <g>, ground: <g>, groundHtml }
+    const plantEls = new Map();         // khoá cây → { html, el }
+    const plantKey = (p) => `${p.uniqueId || p.nickname || ''}|${p.ts || 0}|${p.leafSeed || 0}`;
+    function svgLayersReady() {
+        if (svgLayers && svgLayers.plants.parentNode === $svg) return svgLayers;
+        $svg.innerHTML = svgDefs + '<g class="tc-plants"></g><g class="tc-ground"></g>';
+        plantEls.clear();
+        svgLayers = { plants: $svg.querySelector('.tc-plants'), ground: $svg.querySelector('.tc-ground'), groundHtml: null };
+        return svgLayers;
+    }
+    function syncPlantEls(list, groundHtml) {
+        const L = svgLayersReady();
+        const keep = new Set();
+        let prev = null;
+        for (const { key, html } of list) {
+            keep.add(key);
+            let rec = plantEls.get(key);
+            if (!rec || rec.html !== html) {
+                const tmp = document.createElementNS(SVG_NS, 'g');
+                tmp.innerHTML = html;
+                const el = tmp.firstElementChild;
+                if (rec && rec.el.parentNode) rec.el.replaceWith(el);
+                rec = { html, el };
+                plantEls.set(key, rec);
+            }
+            const want = prev ? prev.nextSibling : L.plants.firstChild;   // giữ thứ tự xa → gần
+            if (rec.el !== want) L.plants.insertBefore(rec.el, want);
+            prev = rec.el;
+        }
+        for (const [k, rec] of plantEls) if (!keep.has(k)) { rec.el.remove(); plantEls.delete(k); }
+        if (L.groundHtml !== groundHtml) { L.groundHtml = groundHtml; L.ground.innerHTML = groundHtml; }
+    }
     function renderStems() {
         const plants = Array.isArray(state.plants) ? state.plants.filter(p => (Number(p.height) || 0) > 0) : [];
         if (plants.length) {
-            let html = '';
+            const list = [];
+            // 🌳 Vườn đông → bớt chi tiết (LOD): đo CDP 40 cây ≈ 9.000 phần tử SVG + bóng đổ từng lá/thân/trái → ~1 khung/giây.
+            // ≤12 cây giữ nguyên; 13–24 cây: ≤9 lá, vẽ ≤14 trái; 25–48: ≤6 lá, ≤8 trái; >48 (trần server 80): ≤4 lá, ≤5 trái. Kèm .tc-lite: bỏ bóng đổ từng phần tử
+            // + cỏ gốc đứng yên (mỗi thứ chuyển động trong SVG là vẽ lại cả SVG mỗi khung). Số trái thật vẫn giữ trong state.
+            const lod = plants.length > 48 ? 3 : plants.length > 24 ? 2 : plants.length > 12 ? 1 : 0;
+            $garden.classList.toggle('tc-lite', lod > 0);
             // vẽ từ TRONG (xa) ra NGOÀI (gần): cây sâu nhỏ hơn nằm sau, cây gần to hơn đè lên → 3D.
             plants.slice().sort((a, b) => plantDepth(a) - plantDepth(b)).forEach((p) => {
+                let html = '';
                 const m = plantMeta(p);
                 const sd = plantSeedInt(p);   // dáng cây suy từ seed CỐ ĐỊNH → cây mới mọc không đổi cây cũ
                 const dur = (4.2 + (sd % 5) * .35).toFixed(2) + 's';
@@ -1319,7 +1379,7 @@
                 html += `<path class="tc-stem ${sd % 2 ? 'alt' : ''}" d="M ${m.baseX} ${m.baseY} C ${m.baseX + m.sway * .18} ${(m.baseY - 220) - m.stemH * .08}, ${m.cx} ${m.topY + m.stemH * .38}, ${m.cx} ${m.topY}"/>`;
                 const hp = clamp(Number(p.height) || 0, 0, config.maxHeight || 100) / (config.maxHeight || 100);
                 // 🍃 Lá NHIỀU HƠN & rải khắp thân theo chiều cao (cây cao = nhiều xu = tán dày, đa hướng).
-                const leafN = clamp(Math.round(3 + hp * 13), 3, 16);
+                const leafN = clamp(Math.round(3 + hp * 13), 3, [16, 9, 6, 4][lod]);
                 for (let j = 0; j < leafN; j++) {
                     const tt = .17 + j * (.74 / leafN);          // trải rộng .17 → ~.91 thân
                     const pt = plantPoint(p, tt);
@@ -1331,7 +1391,7 @@
                 }
                 // 🍎 Trái rải thành NHIỀU CHÙM dọc thân (nhiều trái → nhiều chùm ở nhiều nơi), mỗi
                 // chùm xếp so le (hex) cho thưa tự nhiên. Vị trí suy từ leafSeed → KHÔNG nhảy mỗi tick.
-                const fruitTotal = clamp(Math.round(Number(p.fruits) || 0), 0, 28);
+                const fruitTotal = clamp(Math.round(Number(p.fruits) || 0), 0, [28, 14, 8, 5][lod]);
                 if (fruitTotal) {
                     const fr = 14 * m.ds;
                     const gapX = fr * 2.0, gapY = fr * 1.55;
@@ -1355,8 +1415,9 @@
                     }
                 }
                 html += '</g>';
+                list.push({ key: plantKey(p), html });
             });
-            $svg.innerHTML = svgDefs + html + corpsesSvg() + pupaeSvg() + groundFruitsSvg() + caterpillarsSvg() + protectedZonesSvg();
+            syncPlantEls(list, corpsesSvg() + pupaeSvg() + groundFruitsSvg() + caterpillarsSvg() + protectedZonesSvg());
             return;
         }
         const count = clamp(parseInt(config.display.stemCount, 10) || 7, 1, 12);
