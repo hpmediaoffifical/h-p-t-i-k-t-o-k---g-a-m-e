@@ -463,8 +463,8 @@
 
     async function loadGames() {
         const res = await fetch('/api/games');
-        games = await res.json();
-        games.push({
+        const list = await res.json();   // danh sách cục bộ: 2 lần loadGames() chạy chồng (khởi động + đổi KEY) từng chèn mục 🎮 Game Tương Tác 2 lần
+        list.push({
             id: 'liveTranslate',
             name: 'Dịch Thuật LIVE',
             description: 'Dịch bình luận, đọc bình luận và phụ đề giọng Creator cho OBS.',
@@ -472,7 +472,7 @@
             virtual: true,
             config: { enabled: localStorage.getItem('hp-live-translate-tool-enabled') !== 'false' }
         });
-        games.push({
+        list.push({
             id: 'obs-effects',
             name: 'Hiệu ứng OBS',
             description: 'Bridge WebSocket → OBS Studio. Trigger Lua effects khi nhận gift TikTok.',
@@ -495,20 +495,21 @@
             licenseLocked = new Set(Array.isArray(lf.locked) ? lf.locked : []);
             licenseStates = (lf.states && typeof lf.states === 'object') ? lf.states : {};
         } catch (e) { licenseLocked = new Set(); licenseStates = {}; }
-        for (const g of games) {
+        for (const g of list) {
             g.locked = licenseLocked.has(g.id);
             g.lstate = licenseStates[g.id] || (g.locked ? 'locked' : 'on');
         }
         // 🎮 Game Tương Tác: mục nhóm đứng ở chỗ game con đầu tiên trong danh sách; ẩn nếu KEY ẩn hết game con đã vào app.
-        const ttKids = games.filter(g => TT_CHILD_GAMES.has(g.id));
+        const ttKids = list.filter(g => TT_CHILD_GAMES.has(g.id));
         if (ttKids.length && ttKids.some(g => g.lstate !== 'hidden')) {
-            const at = games.findIndex(g => TT_CHILD_GAMES.has(g.id));
-            games.splice(at, 0, {
+            const at = list.findIndex(g => TT_CHILD_GAMES.has(g.id));
+            list.splice(at, 0, {
                 id: TT_HUB_ID, name: 'Game Tương Tác', icon: '🎮', virtual: true, hub: true,
                 description: 'Game người xem nhập vai: Zombie Phá Nhà, Nhà Tù Online, Săn Pokemon, Creator Online…',
                 locked: false, lstate: 'on'
             });
         }
+        games = list;
         renderGameList();
         syncGiftboardSideButton();
     }
