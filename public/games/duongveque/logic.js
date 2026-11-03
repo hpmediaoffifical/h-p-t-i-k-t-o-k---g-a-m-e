@@ -68,7 +68,10 @@ export const DEFAULTS = {
   pushMax: 5,
   driverSec: 180,      // 🧑‍✈️ mỗi lượt tài xế bấy nhiêu giây; hết giờ không ai chờ → người đang lái giữ nguyên
   seats: 14,           // chỗ ngồi hiện trên xe (người phe Cứu); dư thì chỉ đếm "+N"
-  maxCars: 3,          // 🚌 đoàn xe: đầy seats ghế thì nối thêm 1 xe phía sau (tối đa bấy nhiêu xe)
+  maxCars: 5,          // 🚌 đoàn xe: đầy seats ghế thì nối thêm 1 xe phía sau (tối đa bấy nhiêu xe)
+  windowSeats: 6,      // mỗi xe 6 chỗ trong cửa sổ — dư ngồi trên nóc = CHỞ QUÁ SỐ NGƯỜI (CSGT phạt)
+  speedLimit: 150,     // km/h: được đẩy vọt quá mức này là QUÁ TỐC ĐỘ
+  speedTrap: 0.5,      // mỗi lần quá tốc độ ≥ 1,5 giây: xác suất bị CSGT bắn tốc độ bắt ngay (1 lần CSGT/ván)
   maxRiders: 300,      // nhớ tối đa bấy nhiêu người đã lên xe (LIVE dài)
   // ---- lộ trình về quê (mỗi ván 1 lần, theo phần quãng đường) ----
   restStop: true, restAt: 0.4, restSec: 30,     // 🍜 trạm dừng chân: cả đoàn xuống ăn uống — ĐỒNG HỒ VÁN DỪNG
@@ -165,6 +168,7 @@ export function createGame(options = {}, rnd = Math.random) {
     driverQueue: [],   // [{ user, sec }]
     riders: [],        // id người phe Cứu theo thứ tự lên xe
     plan: [],          // lộ trình ván này: [{ kind, at (mét), done }]
+    kmh: 0, fastT: 0, fastSeen: false,   // tốc độ thật (gồm cú đẩy), thời gian đang quá tốc độ
     halt: null,        // xe đang dừng: { kind, left, need, got, pauseClock, t, deferred: [] }
     get final() { return this.phase === 'race' && this.timeLeft <= this.cfg.finalSec; },
     get progress() { return Math.max(0, Math.min(1, this.dist / this.cfg.goal)); },
@@ -445,16 +449,22 @@ export function createGame(options = {}, rnd = Math.random) {
     }
     return plan.sort((a, b) => a.at - b.at);
   }
-  function startHalt(kind) {
+  function startHalt(kind, reason) {
     // mọi điểm dừng đều dừng đồng hồ ván: chuyện dọc đường không nghiêng về phe nào (đo bằng mô phỏng)
     const h = { kind, t: 0, got: 0, need: 0, left: 0, maxLeft: 0, pauseClock: true, deferred: [], helpers: new Map() };
     if (kind === 'rest') h.left = cfg.restSec;
     else if (kind === 'gas') { h.left = cfg.gasSec; g.fuel = 100; g.walking = false; g.fuelAlarm = null; }
-    else if (kind === 'police') { h.need = cfg.policeLikes; h.maxLeft = cfg.policeMaxSec; }
+    else if (kind === 'police') {
+      h.need = cfg.policeLikes; h.maxLeft = cfg.policeMaxSec;
+      const P = g.passengers();
+      h.reason = reason || (g.fastT > 0.5 ? 'speed' : P.total > P.cars * cfg.windowSeats ? 'overload' : 'papers');
+      h.kmh = Math.round(Math.max(g.kmh, g.peakKmh || 0)); h.over = Math.max(0, P.total - P.cars * cfg.windowSeats);
+      for (const x of g.plan) if (x.kind === 'police') x.done = true;   // mỗi ván chỉ 1 lần CSGT
+    }
     else if (kind === 'flat') { h.need = cfg.flatLikes; h.maxLeft = cfg.flatMaxSec; }
     else h.left = TIMED[kind] || 5;
     g.halt = h;
-    emit('halt', { kind, sec: h.left || h.maxLeft, need: h.need, pauseClock: h.pauseClock });
+    emit('halt', { kind, sec: h.left || h.maxLeft, need: h.need, pauseClock: h.pauseClock, reason: h.reason, kmh: h.kmh, over: h.over });
   }
   function haltProgress(n, u) {
     const h = g.halt;
@@ -480,7 +490,8 @@ export function createGame(options = {}, rnd = Math.random) {
       if (net > 0) addPush(net, 2, 'cuu', 'stash'); else if (net < 0) addPush(-net, 2, 'pha', 'stash');
       emit('stash', { cuu: Math.round(cuu), pha: Math.round(pha), net: Math.round(net), n: h.deferred.length });
     }
-    if (h.kind === 'police' && how === 'timeout' && cfg.policeFine > 0) { addPush(cfg.policeFine, 1.2, 'pha', 'fine'); emit('fine', { meters: cfg.policeFine }); }
+    // quá tốc độ chỉ bắt dừng thả tim (bị bắt vì phe Cứu đẩy mạnh — phạt lùi nữa thì lệch về phe Phá, đo bằng mô phỏng)
+    if (h.kind === 'police' && h.reason !== 'speed' && how === 'timeout' && cfg.policeFine > 0) { addPush(cfg.policeFine, 1.2, 'pha', 'fine'); emit('fine', { meters: cfg.policeFine }); }
   }
   /** Tình huống không bắt dừng: kẹt xe (chậm), lì xì (thưởng). */
   function startRoadEffect(kind) {
@@ -492,6 +503,7 @@ export function createGame(options = {}, rnd = Math.random) {
     if (g.phase !== 'race' || g.halt) return false;
     if (kind === 'jam' || kind === 'lixi') { startRoadEffect(kind); return true; }
     if (!['rest', 'gas', 'police', 'flat', ...Object.keys(TIMED)].includes(kind)) return false;
+    for (const x of g.plan) if (x.kind === kind && !x.done && Math.abs(x.at - g.dist) < 300) x.done = true;   // dùng luôn điểm thật gần đó
     startHalt(kind);
     return true;
   };
@@ -523,7 +535,7 @@ export function createGame(options = {}, rnd = Math.random) {
     g.phase = 'race'; g.phaseT = 0;
     g.timeLeft = cfg.roundSec; g.dist = 0; g.maxDist = 0; g.fuel = 100; g.shield = 0;
     g.walking = false; g.fuelAlarm = null; g.rescue = null; g.exclusive = null; g.xqueue = [];
-    g.pushes = []; g.effects = []; g.obstacles = []; g.result = null; g.halt = null;
+    g.pushes = []; g.effects = []; g.obstacles = []; g.result = null; g.halt = null; g.kmh = 0; g.peakKmh = 0; g.fastT = 0; g.fastSeen = false; g.policeCaught = false;
     g.plan = buildPlan();
     g.jumpT = 0; g.jumpCd = 0; g.ramCd = 0; g.ramWindow = 0; g.aiTimers = [];
     if (g.users.size > cfg.maxUsers) {
@@ -679,7 +691,15 @@ export function createGame(options = {}, rnd = Math.random) {
 
     ai(dt);
 
-    g.dist = Math.max(-cfg.goal * cfg.backFloor, g.dist + dd);   // bị đẩy lùi được quá vạch xuất phát (quà Phá to không bị phí)
+    g.dist = Math.max(-cfg.goal * cfg.backFloor, g.dist + dd);
+    g.kmh = dt > 0 ? (dd / dt) * 3.6 : 0;
+    g.peakKmh = Math.max((g.peakKmh || 0) * Math.pow(0.5, dt / 3), g.kmh);
+    if (g.kmh > cfg.speedLimit) g.fastT += dt; else { g.fastT = Math.max(0, g.fastT - dt * 2); if (g.fastT === 0) g.fastSeen = false; }
+    if (cfg.police && g.fastT >= 1.5 && !g.fastSeen && !g.halt && !g.exclusive) {
+      g.fastSeen = true;
+      const done = g.plan.some(x => x.kind === 'police' && x.done) || g.policeCaught;
+      if (!done && g.rnd() < cfg.speedTrap) { g.policeCaught = true; startHalt('police', 'speed'); return; }
+    }   // bị đẩy lùi được quá vạch xuất phát (quà Phá to không bị phí)
     if (g.dist > g.maxDist) {
       const before = Math.floor(g.maxDist / cfg.flagEvery), after = Math.floor(g.dist / cfg.flagEvery);
       g.maxDist = g.dist;

@@ -14,7 +14,7 @@
     const DEFAULTS = {
         enabled: true, dvqControl: 'auto', dvqStreamerName: '', dvqGoal: 6000, dvqRoundSec: 240, dvqFinalSec: 30, dvqSpeed: 100,
         dvqFuelBurn: 3, dvqMeterPerCoin: 5, dvqLikePer: 300, dvqRamCd: 12, dvqDodgeMax: 10, dvqDefaultSide: 'cuu',
-        dvqAutoNext: true, dvqVehicle: 'bus', dvqDriverSec: 180, dvqSeats: 14, dvqMaxCars: 3, dvqRestStop: true, dvqGasStop: true, dvqPolice: true, dvqPoliceLikes: 2000, dvqRoadEvents: true, dvqBike: 'green', dvqSound: true, dvqShowLegend: true, dvqPenalties: '',
+        dvqAutoNext: true, dvqVehicle: 'bus', dvqDriverSec: 180, dvqSeats: 14, dvqMaxCars: 5, dvqRestStop: true, dvqGasStop: true, dvqPolice: true, dvqPoliceLikes: 2000, dvqRoadEvents: true, dvqBike: 'green', dvqSound: true, dvqShowLegend: true, dvqPenalties: '',
         dvqKeyJump: 'F7', dvqKeyRam: 'F8', dvqKeyStart: 'F9', dvqGiftMap: {}
     };
     const BIKES = [['red', '🔴 Đỏ'], ['blue', '🔵 Xanh dương'], ['pink', '🩷 Hồng'], ['yellow', '🟡 Vàng'], ['green', '🟢 Xanh lá'], ['black', '⚫ Đen']];

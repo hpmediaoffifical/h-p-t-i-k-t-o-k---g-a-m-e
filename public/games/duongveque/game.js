@@ -11,7 +11,8 @@ const Q = new URLSearchParams(location.search);
 // SX = chỗ xe streamer đứng (lệch trái để thấy xa phía trước — vật cản, xe container, lốc xoáy lao tới từ bên phải)
 // PX = điểm ảnh / mét · VS = cỡ xe & vật thể (nhỏ → bản đồ trông rộng) · ROAD_H = bề dày mặt đường
 let SX = 330;   // đổi theo loại xe: xe dài đứng lùi vào giữa để cả thân xe nằm trong khung
-const W = 1080, H = 1920, ROAD = 1150, ROAD_H = 50, LANE = 34, PX0 = 26, VS0 = 0.5;
+const W = 1080, H = 1920, ROAD = 1150, ROAD_H0 = 50, LANE0 = 34, PX0 = 26, VS0 = 0.5;
+let ROAD_H = ROAD_H0, LANE = LANE0;
 let PX = PX0, VS = VS0, zoom = 1;   // đoàn 2–3 xe: thu nhỏ cả cảnh cho vừa khung
 const S = v => v * VS;
 const $ = id => document.getElementById(id);
@@ -86,16 +87,44 @@ function avatar(x, y, r, u, ring = '#fff') {
   else {
     const name = (u && u.name) || '?';
     ctx.fillStyle = AV_COLORS[(name.charCodeAt(0) || 0) % AV_COLORS.length]; ctx.fillRect(x - r, y - r, r * 2, r * 2);
-    ctx.fillStyle = '#fff'; ctx.font = `800 ${Math.round(r * 1.1)}px 'Baloo 2', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff'; ctx.font = `800 ${Math.round(r * 1.1)}px 'Be Vietnam Pro', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText((name.match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase(), x, y + r * 0.08);   // bỏ emoji đầu tên (🧑‍✈️…)
   }
   ctx.restore();
 }
 function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
-function tag(x, y, u, color = 'rgba(22,26,36,.86)', size = 26, max = 16) {
+// ---- lớp xếp nhãn: trong render, nhãn tên + bong bóng thoại được gom vào LBL rồi xếp chống chồng ở cuối khung ----
+let LBL = null;
+function placeLabel(box, prio, draw) {
+  if (!LBL) return draw(0);
+  LBL.push({ ...box, prio, draw, i: LBL.length });
+}
+function layoutLabels() {
+  const list = LBL; LBL = null;
+  list.sort((a, b) => a.prio - b.prio || a.i - b.i);
+  const placed = [];
+  const hits = (b, q) => b.x < q.x + q.w + 8 && b.x + b.w + 8 > q.x && b.y < q.y + q.h + 6 && b.y + b.h + 6 > q.y;
+  for (const L of list) {
+    let dy = 0;
+    for (let n = 0; n < 16; n++) {
+      const b = { x: L.x, y: L.y + dy, w: L.w, h: L.h };
+      const q = placed.find(o => hits(b, o));
+      if (!q) break;
+      dy = q.y - 8 - L.h - L.y;                 // nhảy lên ngay trên nhãn bị đè
+    }
+    if (L.y + dy < 470) dy = 470 - L.y;         // không chui lên vùng HUD
+    placed.push({ x: L.x, y: L.y + dy, w: L.w, h: L.h });
+    L.draw(dy);
+  }
+}
+function tag(x, y, u, color = 'rgba(22,26,36,.86)', size = 26, max = 16, prio = 1) {
   const name = String((u && u.name) || '').slice(0, max);
-  ctx.font = `800 ${size}px 'Baloo 2', sans-serif`;
+  ctx.font = `800 ${size}px 'Be Vietnam Pro', sans-serif`;
   const tw = ctx.measureText(name).width, r = size * 0.7, w = tw + r * 2 + 26, h = size + 14;
+  placeLabel({ x: x - w / 2, y: y - h, w, h }, prio, dy => tagDraw(x, y + dy, u, name, color, size, w, h, r));
+}
+function tagDraw(x, y, u, name, color, size, w, h, r) {
+  ctx.font = `800 ${size}px 'Be Vietnam Pro', sans-serif`;
   rrect(x - w / 2, y - h, w, h, h / 2); ctx.fillStyle = color; ctx.fill();
   avatar(x - w / 2 + r + 4, y - h / 2, r, u);
   ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
@@ -288,7 +317,7 @@ function drawRoadside() {
     if (st === 'city') {
       if (r > 0.8) { ctx.strokeStyle = '#6b6b6b'; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 260); ctx.stroke(); ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(x - 30, y - 240); ctx.lineTo(x + 30, y - 240); ctx.stroke(); ctx.strokeStyle = 'rgba(40,40,40,.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 30, y - 240); ctx.quadraticCurveTo(x - 200, y - 200, x - 360, y - 240); ctx.stroke(); }
       else if (r > 0.6) tree(x, y, '#3e9a45', 0.8);
-      else { const sg = ['PHỞ', 'CÀ PHÊ', 'BÚN BÒ', 'BÁNH MÌ'][Math.floor(hash(k, 22) * 4)]; ctx.fillStyle = r > 0.52 ? '#e2382c' : '#1f6fd1'; rrect(x - 56, y - 120, 112, 44, 8); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = "800 26px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(sg, x, y - 97); ctx.fillStyle = '#777'; ctx.fillRect(x - 4, y - 76, 8, 76); }
+      else { const sg = ['PHỞ', 'CÀ PHÊ', 'BÚN BÒ', 'BÁNH MÌ'][Math.floor(hash(k, 22) * 4)]; ctx.fillStyle = r > 0.52 ? '#e2382c' : '#1f6fd1'; rrect(x - 56, y - 120, 112, 44, 8); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = "800 26px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(sg, x, y - 97); ctx.fillStyle = '#777'; ctx.fillRect(x - 4, y - 76, 8, 76); }
     } else if (st === 'fields') { if (r > 0.75) palm(x, y); else if (r > 0.6) haystack(x, y); else tree(x, y, '#4f9a2c', 0.7); }
     else if (st === 'delta') { if (r > 0.62) palm(x, y); else if (r > 0.52) bananaTree(x, y); else waterJar(x, y); }
     else if (st === 'highland') { if (r > 0.72) pine(x, y); else if (r > 0.58) coffeeBush(x, y); else daQuy(x, y); }
@@ -338,11 +367,11 @@ function drawProvinceMarks() {
     ctx.fillStyle = '#0f7a43'; rrect(-190, -330, 380, 96, 16); ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; rrect(-182, -322, 364, 80, 12); ctx.stroke();
     ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = "800 22px 'Baloo 2'"; ctx.fillText('CHÀO MỪNG ĐẾN', 0, -305);
-    ctx.font = `800 ${p.name.length > 12 ? 34 : 40}px 'Baloo 2'`; ctx.fillText(p.name.toUpperCase(), 0, -268);
+    ctx.font = "800 22px 'Be Vietnam Pro'"; ctx.fillText('CHÀO MỪNG ĐẾN', 0, -305);
+    ctx.font = `800 ${p.name.length > 12 ? 34 : 40}px 'Be Vietnam Pro'`; ctx.fillText(p.name.toUpperCase(), 0, -268);
     ctx.fillStyle = 'rgba(22,26,36,.85)'; rrect(-170, -228, 340, 44, 12); ctx.fill();
-    ctx.fillStyle = '#ffe27a'; ctx.font = "800 22px 'Baloo 2'"; ctx.fillText(`${p.icon} ${p.landmark}`.slice(0, 30), 0, -206);
-    if (p.old.length) { ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = "700 18px 'Baloo 2'"; ctx.fillText(`(gồm ${p.old.join(', ')})`.slice(0, 40), 0, -168); }
+    ctx.fillStyle = '#ffe27a'; ctx.font = "800 22px 'Be Vietnam Pro'"; ctx.fillText(`${p.icon} ${p.landmark}`.slice(0, 30), 0, -206);
+    if (p.old.length) { ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = "700 18px 'Be Vietnam Pro'"; ctx.fillText(`(gồm ${p.old.join(', ')})`.slice(0, 40), 0, -168); }
     ctx.restore();
   }
 }
@@ -420,7 +449,12 @@ function groundChunk(st, k, x0, x1) {
     if (r > 0.8) boat(cx, 1560 + r2 * 200, VS * 1.4, r2 > 0.5);
   } else if (st === 'highland') { // đất đỏ bazan + hàng cà phê
     ctx.fillStyle = '#a5552e'; ctx.fillRect(x0, GROUND_TOP, w + 1, H);
-    for (let y = 1290, j = 0; y < H; y += 110, j++) { ctx.fillStyle = '#2f6e3a'; for (let t = 0; t < 2; t++) { ctx.beginPath(); ctx.arc(x0 + (t + 0.5 + (j % 2) * 0.25) * w / 2, y, 30, 0, Math.PI * 2); ctx.fill(); } }
+    for (let y = 1300, j = 0; y < H; y += 120, j++) for (let t = 0; t < 2; t++) {
+      const rr = 20 + hash(k * 7 + j * 3 + t, 95) * 18, bx = x0 + (t + 0.3 + hash(k + j, 96) * 0.4) * w / 2, by = y + hash(k * 3 + t, 97) * 30;
+      if (hash(k * 5 + j + t, 98) < 0.18) continue;                       // gốc trống, lối đi giữa vườn
+      ctx.fillStyle = (j + t) % 3 ? '#2f6e3a' : '#3b7f45'; ctx.beginPath(); ctx.arc(bx, by, rr, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#c3261f'; for (let q = 0; q < 3; q++) { ctx.beginPath(); ctx.arc(bx + Math.cos(q * 2.1 + k) * rr * 0.6, by + Math.sin(q * 2.1 + j) * rr * 0.5, 4, 0, Math.PI * 2); ctx.fill(); }
+    }
     ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(x0, GROUND_TOP, w + 1, 30);
   } else if (st === 'coast') {    // bãi cát → biển
     ctx.fillStyle = '#f0dca6'; ctx.fillRect(x0, GROUND_TOP, w + 1, 1460 - GROUND_TOP);
@@ -474,8 +508,8 @@ function drawRoad() {
     const x = xAt(m), y = roadTop(m) + ROAD_H + 16;
     ctx.fillStyle = '#fff'; rrect(x - 30, y + 4, 60, 70, 12); ctx.fill();
     ctx.fillStyle = '#e8322c'; rrect(x - 30, y + 4, 60, 26, [12, 12, 0, 0]); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = "800 18px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('L.CÚ', x, y + 18);
-    ctx.fillStyle = '#222'; ctx.font = "800 22px 'Baloo 2'"; ctx.fillText(((goal - m) / 1000).toFixed(1).replace('.', ','), x, y + 50);
+    ctx.fillStyle = '#fff'; ctx.font = "800 18px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('L.CÚ', x, y + 18);
+    ctx.fillStyle = '#222'; ctx.font = "800 22px 'Be Vietnam Pro'"; ctx.fillText(((goal - m) / 1000).toFixed(1).replace('.', ','), x, y + 50);
   }
   const fe = game.cfg.flagEvery;
   for (let m = Math.max(fe, Math.ceil(meterAt(-60) / fe) * fe); m < meterAt(W + 60); m += fe) {
@@ -484,7 +518,7 @@ function drawRoad() {
     ctx.strokeStyle = '#eee'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 140); ctx.stroke();
     ctx.fillStyle = m <= game.maxDist ? '#ffd23a' : '#e8322c';
     ctx.beginPath(); ctx.moveTo(x, y - 140); ctx.quadraticCurveTo(x + 40, y - 132 + wv, x + 84, y - 128); ctx.lineTo(x + 84, y - 90); ctx.quadraticCurveTo(x + 40, y - 94 + wv, x, y - 98); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = "800 22px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`${fmt(m)}m`, x + 42, y - 113);
+    ctx.fillStyle = '#fff'; ctx.font = "800 22px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`${fmt(m)}m`, x + 42, y - 113);
   }
   for (const f of followFlags) {
     const x = xAt(f.m); if (x < -150 || x > W + 150) continue;
@@ -492,7 +526,7 @@ function drawRoad() {
     ctx.strokeStyle = '#ddd'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 110); ctx.stroke();
     ctx.fillStyle = '#ff5fa2'; rrect(x, y - 110, 46, 30, 6); ctx.fill();
     avatar(x + 23, y - 95, 11, f.user);
-    ctx.font = "800 18px 'Baloo 2'"; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(String(f.user.name).slice(0, 10), x, y - 120);
+    ctx.font = "800 18px 'Be Vietnam Pro'"; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(String(f.user.name).slice(0, 10), x, y - 120);
   }
   drawGates();
 }
@@ -503,7 +537,7 @@ function drawGates() {
     ctx.save(); ctx.translate(xd, y); ctx.scale(0.75, 0.75);
     ctx.fillStyle = '#888'; ctx.fillRect(-120, -260, 14, 260); ctx.fillRect(106, -260, 14, 260);
     ctx.fillStyle = '#c3261f'; rrect(-170, -320, 340, 70, 14); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = "800 38px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🚏 BẾN XE CÀ MAU · PHÁ THẮNG', 0, -284);
+    ctx.fillStyle = '#fff'; ctx.font = "800 38px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🚏 BẾN XE CÀ MAU · PHÁ THẮNG', 0, -284);
     ctx.restore();
   }
   // vạch xuất phát
@@ -513,7 +547,7 @@ function drawGates() {
     ctx.save(); ctx.translate(xs, y); ctx.scale(0.75, 0.75); ctx.translate(-xs, -y);
     ctx.fillStyle = '#ccc'; ctx.fillRect(xs - 6, y - 260, 12, 260);
     ctx.fillStyle = '#1f6fd1'; rrect(xs - 190, y - 300, 380, 64, 14); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = "800 34px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🚩 MŨI CÀ MAU · XUẤT PHÁT', xs, y - 266);
+    ctx.fillStyle = '#fff'; ctx.font = "800 34px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🚩 MŨI CÀ MAU · XUẤT PHÁT', xs, y - 266);
     ctx.restore();
   }
   // cổng làng
@@ -524,7 +558,7 @@ function drawGates() {
     ctx.fillStyle = '#b8432f';
     ctx.fillRect(xg - 230, y - 330, 40, 420); ctx.fillRect(xg + 190, y - 330, 40, 420);
     ctx.fillStyle = '#7a2b1e'; rrect(xg - 270, y - 400, 540, 90, 18); ctx.fill();
-    ctx.fillStyle = '#ffd23a'; ctx.font = "800 40px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('LŨNG CÚ · HÀ GIANG — VỀ QUÊ', xg, y - 354);
+    ctx.fillStyle = '#ffd23a'; ctx.font = "800 40px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('LŨNG CÚ · HÀ GIANG — VỀ QUÊ', xg, y - 354);
     ctx.fillStyle = '#c44a2f'; ctx.beginPath(); ctx.moveTo(xg - 300, y - 400); ctx.lineTo(xg, y - 470); ctx.lineTo(xg + 300, y - 400); ctx.fill();
     for (const dx of [-210, 210]) { const sw = Math.sin(T * 2 + dx) * 5; ctx.fillStyle = '#e8322c'; ctx.beginPath(); ctx.ellipse(xg + dx + sw, y - 280, 24, 30, 0, 0, Math.PI * 2); ctx.fill(); }
     mai(xg - 330, y - ROAD_H, 7); mai(xg + 340, y - ROAD_H, 9);
@@ -591,7 +625,7 @@ function rider(x, y, o, pose) {
     ctx.fillStyle = shirt; rrect(-24, -158, 48, 80, 18); ctx.fill();
     ctx.strokeStyle = shirt; ctx.lineWidth = 15; ctx.beginPath(); ctx.moveTo(10, -140); ctx.lineTo(60, -118); ctx.stroke();
     head(0, -190, helm, skin, o);
-    ctx.font = "800 26px 'Baloo 2'"; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText('💦', 40, -230);
+    ctx.font = "800 26px 'Be Vietnam Pro'"; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText('💦', 40, -230);
   }
   ctx.restore();
 }
@@ -652,10 +686,10 @@ function bus(x, y, o) {
   ctx.fillStyle = '#fff'; ctx.fillRect(-560, -120, 560, 26);
   ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(-560, -60, 560, 16);
   ctx.fillStyle = '#e8322c'; rrect(-470, -112, 250, 40, 8); ctx.fill();
-  ctx.fillStyle = '#ffd23a'; ctx.font = "800 30px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ci ? `ĐOÀN VỀ QUÊ · XE ${ci + 1}` : 'VỀ QUÊ ĂN TẾT', -345, -91);
+  ctx.fillStyle = '#ffd23a'; ctx.font = "800 30px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ci ? `ĐOÀN VỀ QUÊ · XE ${ci + 1}` : 'VỀ QUÊ ĂN TẾT', -345, -91);
   ctx.fillStyle = '#bfe3ff'; ctx.beginPath(); ctx.moveTo(-78, -238); ctx.lineTo(-14, -238); ctx.lineTo(-4, -140); ctx.lineTo(-78, -140); ctx.closePath(); ctx.fill();
   if (ci === 0 && o.driver) { ctx.save(); rrect(-78, -238, 74, 98, 6); ctx.clip(); passenger(-44, -196, 24, o.driver); ctx.restore(); }
-  if (ci > 0) { ctx.fillStyle = '#ffd23a'; rrect(-70, -214, 58, 40, 6); ctx.fill(); ctx.fillStyle = '#222'; ctx.font = "800 24px 'Baloo 2'"; ctx.fillText(`XE ${ci + 1}`, -41, -193); }
+  if (ci > 0) { ctx.fillStyle = '#ffd23a'; rrect(-70, -214, 58, 40, 6); ctx.fill(); ctx.fillStyle = '#222'; ctx.font = "800 24px 'Be Vietnam Pro'"; ctx.fillText(`XE ${ci + 1}`, -41, -193); }
   ctx.fillStyle = '#2b2d33'; ctx.fillRect(-120, -238, 34, 194);
   ctx.fillStyle = '#fff6b0'; ctx.beginPath(); ctx.ellipse(-6, -76, 10, 14, 0, 0, Math.PI * 2); ctx.fill();
   // 6 cửa sổ: đầu + vai, vai bị mép dưới cửa sổ che
@@ -675,7 +709,7 @@ function bus(x, y, o) {
   ctx.fillStyle = '#5b4632'; ctx.fillRect(-530, -278, 440, 14);
   ctx.fillStyle = '#e8322c'; rrect(-520, -318, 70, 40, 6); ctx.fill(); ctx.fillStyle = '#2f7de2'; rrect(-440, -306, 60, 28, 6); ctx.fill();
   if (ci === 0) mai(-100, -262, 3);
-  if (P.extra > 0) { ctx.fillStyle = '#ffd23a'; rrect(-560, -380, 120, 44, 22); ctx.fill(); ctx.fillStyle = '#222'; ctx.font = "800 30px 'Baloo 2'"; ctx.fillText(`+${P.extra}`, -500, -357); }
+  if (P.extra > 0) { ctx.fillStyle = '#ffd23a'; rrect(-560, -380, 120, 44, 22); ctx.fill(); ctx.fillStyle = '#222'; ctx.font = "800 30px 'Be Vietnam Pro'"; ctx.fillText(`+${P.extra}`, -500, -357); }
   const flat = o.flat && ci === 0;
   wheel(-100, -42 + (flat ? 12 : 0), flat ? 34 : 42, o.rot || 0); wheel(-450, -42, 42, o.rot || 0);
   ctx.restore();
@@ -709,8 +743,8 @@ function oxcart(x, y, o) {
   ctx.fillStyle = '#9b6a3a'; rrect(-560, -170, 330, 86, 10); ctx.fill();
   ctx.strokeStyle = '#6b4226'; ctx.lineWidth = 5; for (let k = -540; k < -240; k += 40) { ctx.beginPath(); ctx.moveTo(k, -166); ctx.lineTo(k, -88); ctx.stroke(); }
   ctx.fillStyle = '#c98f55'; ctx.fillRect(-566, -180, 342, 16);
-  if (ci > 0) { ctx.fillStyle = '#ffd23a'; rrect(-470, -148, 120, 36, 6); ctx.fill(); ctx.fillStyle = '#222'; ctx.font = "800 24px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`XE ${ci + 1}`, -410, -129); }
-  if (P.extra > 0) { ctx.fillStyle = '#ffd23a'; rrect(-580, -320, 120, 44, 22); ctx.fill(); ctx.fillStyle = '#222'; ctx.font = "800 30px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`+${P.extra}`, -520, -297); }
+  if (ci > 0) { ctx.fillStyle = '#ffd23a'; rrect(-470, -148, 120, 36, 6); ctx.fill(); ctx.fillStyle = '#222'; ctx.font = "800 24px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`XE ${ci + 1}`, -410, -129); }
+  if (P.extra > 0) { ctx.fillStyle = '#ffd23a'; rrect(-580, -320, 120, 44, 22); ctx.fill(); ctx.fillStyle = '#222'; ctx.font = "800 30px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`+${P.extra}`, -520, -297); }
   if (ci === 0) {
     if (o.driver) passenger(-242, -262, 24, o.driver); else head(-242, -256, '#f1d488', '#ffd3ad', {});
     ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-226, -214); ctx.quadraticCurveTo(-120, -180, 20, -150); ctx.stroke();
@@ -747,9 +781,9 @@ function container(xFront, m, u, t, mult) {
   for (let k = 160; k < 550; k += 34) { ctx.beginPath(); ctx.moveTo(k, -290); ctx.lineTo(k, -50); ctx.stroke(); }
   for (const dx of [70, 230, 330, 470]) wheel(dx, -32, 32, -cam * 0.8);
   avatar(250, -200, 60, u, '#fff');
-  ctx.fillStyle = '#fff'; ctx.font = "800 50px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff'; ctx.font = "800 50px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(String((u && u.name) || '').slice(0, 12), 350, -95);
-  if (mult > 1) { ctx.fillStyle = '#ffe27a'; ctx.font = "800 70px 'Baloo 2'"; ctx.fillText(`×${mult}`, 480, -230); }
+  if (mult > 1) { ctx.fillStyle = '#ffe27a'; ctx.font = "800 70px 'Be Vietnam Pro'"; ctx.fillText(`×${mult}`, 480, -230); }
   ctx.restore();
   void t;
 }
@@ -773,7 +807,7 @@ function heli(x, y, u, t) {
   ctx.fillStyle = '#e8322c'; ctx.beginPath(); ctx.ellipse(0, 0, 110, 46, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillRect(-200, -14, 110, 22);
   ctx.fillStyle = '#bfe3ff'; ctx.beginPath(); ctx.ellipse(50, -6, 42, 26, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#fff'; ctx.font = "800 30px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('CỨU HỘ', -36, 14);
+  ctx.fillStyle = '#fff'; ctx.font = "800 30px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('CỨU HỘ', -36, 14);
   const sp = Math.abs(Math.cos(t * 40));
   ctx.fillStyle = '#333'; ctx.fillRect(-6, -64, 12, 22);
   ctx.fillStyle = 'rgba(40,40,40,.7)'; rrect(-170 * sp, -70, 340 * sp, 10, 5); ctx.fill();
@@ -828,7 +862,7 @@ function trashBin(x, y, open, s = 1) {
   ctx.save(); ctx.translate(-48, -112); ctx.rotate(-open * 0.9);
   ctx.fillStyle = '#167a3d'; rrect(0, -14, 96, 16, 6); ctx.fill(); ctx.fillRect(38, -24, 20, 10);
   ctx.restore();
-  ctx.fillStyle = '#fff'; ctx.font = "800 34px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('♻', 0, -56);
+  ctx.fillStyle = '#fff'; ctx.font = "800 34px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('♻', 0, -56);
   ctx.restore();
 }
 function tornado(x, y, t, alpha) {
@@ -864,7 +898,7 @@ function drawFx() {
     const p = f.t / f.dur;
     if (f.k === 'txt') {
       ctx.save(); ctx.globalAlpha = 1 - Math.max(0, p - 0.6) / 0.4;
-      ctx.font = `800 ${f.size}px 'Baloo 2'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `800 ${f.size}px 'Be Vietnam Pro'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineWidth = 9; ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.strokeText(f.text, f.x, f.y - p * 120);
       ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y - p * 120); ctx.restore();
     } else if (f.k === 'conf') {
@@ -875,7 +909,7 @@ function drawFx() {
       // người tặng bay vòng cung vào thùng rác
       const e = ease(p), x = lerp(f.x, f.tx, e), y = lerp(f.y, f.ty, e) - Math.sin(p * Math.PI) * 320;
       ctx.save(); ctx.translate(x, y); ctx.rotate(p * 9); ctx.translate(-x, -y); avatar(x, y, 36, f.user, '#ff5a4f'); ctx.restore();
-      if (p < 0.7) { ctx.font = "800 26px 'Baloo 2'"; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(String(f.user.name).slice(0, 12), x, y - 52); }
+      if (p < 0.7) { ctx.font = "800 26px 'Be Vietnam Pro'"; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(String(f.user.name).slice(0, 12), x, y - 52); }
     } else if (f.k === 'kick') {
       const x = f.x + p * 700, y = f.y - Math.sin(p * Math.PI) * 360;
       ctx.save(); ctx.translate(x, y); ctx.rotate(p * 12); ctx.translate(-x, -y);
@@ -887,7 +921,7 @@ function drawFx() {
     } else if (f.k === 'can') {
       const y = lerp(contactY(cam) - S(700), contactY(cam) - S(170), ease(Math.min(1, p * 1.6)));
       ctx.save(); ctx.globalAlpha = p > 0.75 ? (1 - p) / 0.25 : 1; ctx.fillStyle = '#e8322c'; rrect(SX - S(30), y - 40, 60, 74, 10); ctx.fill(); ctx.fillStyle = '#ffd23a'; ctx.fillRect(SX - S(10), y - 54, 22, 16);
-      ctx.fillStyle = '#fff'; ctx.font = "800 30px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⛽', SX, y); ctx.restore();
+      ctx.fillStyle = '#fff'; ctx.font = "800 30px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⛽', SX, y); ctx.restore();
     }
   }
   if (bin) {
@@ -958,9 +992,9 @@ function updateHud(dt) {
   $('tbike').style.left = `${p * 100}%`;
   const km = m => (m / 1000).toFixed(m >= 10000 ? 1 : 2).replace('.', ',');
   const depot = gl * game.cfg.backFloor;
-  $('dist').innerHTML = game.dist >= 0 ? `<b>${km(game.dist)}</b> / ${km(gl)} km · còn ${km(Math.max(0, gl - game.dist))} km`
-    : `<b style="color:#ff7a70">⚠️ lùi ${km(-game.dist)} km</b> · cách bến xe ${km(Math.max(0, depot + game.dist))} km`;
-  { const pv = ROUTE[provIdx(Math.max(0, game.dist))]; $('prov').textContent = `📍 ${pv.name} · ${pv.icon} ${pv.landmark} · ${provIdx(Math.max(0, game.dist)) + 1}/${NP}`; }
+  $('dist').innerHTML = game.dist >= 0 ? `<b>${km(game.dist)}</b>/${km(gl).replace(/,00$/, '')} km`
+    : `<b style="color:var(--persimmon-hi)">lùi ${km(-game.dist)} km</b>, cách bến xe ${km(Math.max(0, depot + game.dist))} km`;
+  { const pi = provIdx(Math.max(0, game.dist)), pv = ROUTE[pi]; $('prov').innerHTML = `<b>${esc(pv.name)}</b>${pv.icon} ${esc(pv.landmark)}<em>${pi + 1}/${NP}</em>`; }
   const kmh = game.phase === 'race' ? Math.round(vel * 3.6) : 0;
   $('speed').textContent = kmh < -5 ? `◀ ${Math.min(999, -kmh)}` : String(Math.min(999, Math.max(0, kmh)));
   $('cspeed').classList.toggle('back', kmh < -5);
@@ -975,18 +1009,18 @@ function updateHud(dt) {
   $('tcuu').style.width = `${share * 100}%`; $('tknot').style.left = `${share * 100}%`;
   const topC = [...game.users.values()].filter(u => u.cuu > 0).sort((a, b) => b.cuu - a.cuu)[0];
   const topP = [...game.users.values()].filter(u => u.pha > 0).sort((a, b) => b.pha - a.pha)[0];
-  $('tl').innerHTML = `${topC ? avHtml(topC) : ''}🛡️ CỨU ${fmt(tc)}`;
-  $('tr').innerHTML = `${fmt(tp)} PHÁ ⚔️${topP ? avHtml(topP) : ''}`;
-  $('tsl').innerHTML = topC ? `🦸 Ân nhân: <b>${esc(topC.name)}</b>` : 'Bình luận <b>1</b> = phe Cứu';
-  $('tsr').innerHTML = topP ? `😈 Kẻ phá: <b>${esc(topP.name)}</b>` : 'Bình luận <b>2</b> = phe Phá';
+  $('tl').innerHTML = `${topC ? avHtml(topC) : ''}Cứu <b>${fmt(tc)}</b>`;
+  $('tr').innerHTML = `<b>${fmt(tp)}</b> Phá${topP ? avHtml(topP) : ''}`;
+  $('tsl').innerHTML = topC ? `Ân nhân <b>${esc(topC.name)}</b>` : 'Bình luận <b>1</b> để lên xe';
+  $('tsr').innerHTML = topP ? `Kẻ phá <b>${esc(topP.name)}</b>` : 'Bình luận <b>2</b> để vào phe Phá';
   $('fuel').style.width = `${game.fuel}%`;
   $('cfuel').classList.toggle('low', game.fuel < 20 && game.phase === 'race');
   $('cshield').classList.toggle('hidden', game.shield <= 0);
   $('shield').textContent = `${fmt(game.shield)}m`;
-  $('cram').textContent = game.ramCd > 0 ? `💥 HÚC ${Math.ceil(game.ramCd)}s` : '💥 HÚC sẵn sàng';
+  $('cram').textContent = game.ramCd > 0 ? `💥 Húc sau ${Math.ceil(game.ramCd)}s` : '💥 Húc';
   $('cram').classList.toggle('ready', game.ramCd <= 0 && game.phase === 'race');
   const dv = game.driver, q = game.driverQueue.length;
-  $('driver').textContent = dv ? `Tài xế ${dv.name} · ${dv.free ? 'giữ lái' : fmtClock(dv.left)}${q ? ` · chờ ${q}` : ''}` : `Tài xế ${VIEW.streamerName}`;
+  $('driver').textContent = dv ? `${dv.name} ${dv.free ? 'giữ lái' : fmtClock(dv.left)}${q ? `, ${q} người chờ` : ''}` : VIEW.streamerName;
   const px = game.passengers();
   $('pax').textContent = fmt(px.total + (dv ? 1 : 0));
   $('cpax').classList.toggle('hidden', VIEW.vehicle === 'scooter');
@@ -999,7 +1033,7 @@ function updateHud(dt) {
     $('rsec').textContent = `${Math.max(0, Math.ceil(r.left))}s · ${fmt(r.got)}/${fmt(r.need)}`;
     $('rbar').style.width = `${clamp(r.got / r.need, 0, 1) * 100}%`;
   } else if (game.halt) {
-    const h = game.halt, tx = HALT_TXT[h.kind] || { icon: '⏸', title: 'Dừng xe', sub: '' };
+    const h = game.halt, tx = h.kind === 'police' ? policeTxt(h) : (HALT_TXT[h.kind] || { icon: '⏸', title: 'Dừng xe', sub: '' });
     rs.classList.remove('hidden');
     $('rtxt').innerHTML = `${tx.icon} <b>${tx.title}</b><br><small style="font-size:24px;font-weight:700;color:#cfd9ea">${tx.sub}</small>`;
     if (h.need) { $('rsec').textContent = `❤️ ${fmt(h.got)}/${fmt(h.need)}`; $('rbar').style.width = `${clamp(h.got / h.need, 0, 1) * 100}%`; }
@@ -1138,7 +1172,7 @@ function onEvents(list) {
       case 'roundEnd': saveStats(e); showResult(e); if (e.winner === 'cuu') { confetti(160); SFX.win(); } else SFX.lose(); break;
       case 'lobby': $('result').classList.add('hidden'); break;
       case 'join': toast(e.side, e.user, e.side === 'cuu' ? '🛡️ vào phe Cứu · lên xe' : '⚔️ vào phe Phá'); break;
-      case 'halt': { const tx = HALT_TXT[e.kind]; if (tx) banner(`${tx.icon} ${tx.title.toUpperCase()}${e.need ? `<small>Thả ${fmt(e.need)} tim để đi tiếp</small>` : `<small>Dừng ${Math.round(e.sec)} giây · đồng hồ ván tạm dừng</small>`}`, e.kind === 'police' || e.kind === 'flat' ? 'pha' : 'gold', 2600, 3); if (e.kind === 'police') SFX.alarm(); break; }
+      case 'halt': { const tx = e.kind === 'police' ? policeTxt(e) : HALT_TXT[e.kind]; if (tx) banner(`${tx.icon} ${tx.title.toUpperCase()}${e.need ? `<small>Thả ${fmt(e.need)} tim để đi tiếp</small>` : `<small>Dừng ${Math.round(e.sec)} giây · đồng hồ ván tạm dừng</small>`}`, e.kind === 'police' || e.kind === 'flat' ? 'pha' : 'gold', 2600, 3); if (e.kind === 'police') SFX.alarm(); break; }
       case 'haltEnd': { const who = e.helpers && e.helpers[0]; banner(`🚌 XUẤT PHÁT TIẾP!${who ? `<small>❤️ Cảm ơn ${esc(who.name)} đã thả tim</small>` : e.how === 'timeout' && e.kind === 'police' ? '<small>🧾 Nộp phạt rồi đi tiếp</small>' : ''}`, 'cuu', 2000, 2); SFX.honk(); break; }
       case 'stash': banner(`📦 QUÀ DỒN LÚC DỪNG<small>🛡️ +${dtx(e.cuu)} · ⚔️ −${dtx(e.pha)} → ${e.net >= 0 ? 'tiến' : 'lùi'} ${dtx(Math.abs(e.net))}</small>`, e.net >= 0 ? 'cuu' : 'pha', 2600, 3); break;
       case 'fine': banner(`🧾 NỘP PHẠT!<small>Chưa đủ tim — lùi ${dtx(e.meters)}</small>`, 'pha', 2400, 3); SFX.lose(); break;
@@ -1148,7 +1182,7 @@ function onEvents(list) {
       case 'driverQueued': toast('cuu', e.user, `🧑‍✈️ chờ lái · thứ ${e.pos}`); break;
       case 'driverExtend': toast('cuu', e.user, `🧑‍✈️ lái thêm · còn ${fmtClock(e.left)}`); break;
       case 'driverHold': toast('cuu', e.user, '🧑‍✈️ hết giờ · vẫn giữ lái'); break;
-      case 'likeBurst': if (game.phase === 'race') { fx.push({ k: 'wind', t: 0, dur: 0.7 }); floatText('❤️ +gió', '#ff8fb5', SX - S(80), contactY(cam) - S(250), 36); } break;
+      case 'likeBurst': if (game.phase === 'race' && !game.halt) { fx.push({ k: 'wind', t: 0, dur: 0.7 }); floatText('❤️ +gió', '#ff8fb5', SX - S(80), contactY(cam) - S(250), 36); } break;
       case 'share': toast('cuu', e.user, '↗️ chia sẻ · +⛽'); break;
       case 'follow': toast('cuu', e.user, '➕ follow · cắm cờ'); followFlags.push({ m: game.dist + 14 + Math.random() * 6, user: e.user }); if (followFlags.length > 30) followFlags.shift(); break;
       default: break;
@@ -1168,6 +1202,11 @@ const HALT_TXT = {
   carsick: { icon: '🤢', title: 'Có người say xe', sub: 'Dừng hóng gió, uống miếng nước' },
   photo:   { icon: '📸', title: 'Dừng check-in', sub: 'Chụp tấm hình kỷ niệm rồi đi tiếp' },
 };
+function policeTxt(h) {
+  if (h.reason === 'speed') return { icon: '🚓', title: `Chạy quá tốc độ ${h.kmh ? h.kmh + ' km/h' : ''}!`, sub: 'CSGT bắn tốc độ · thả tim nộp phạt · quà Cứu: 1 xu = 10 tim' };
+  if (h.reason === 'overload') return { icon: '🚓', title: `Chở quá số người${h.over ? ' (' + h.over + ' người)' : ''}!`, sub: 'Ngồi trên nóc xe là sai luật · thả tim nộp phạt · quà Cứu: 1 xu = 10 tim' };
+  return HALT_TXT.police;
+}
 const EAT = ['🍜 Phở ngon!', '🥖 Bánh mì!', '☕ Cà phê sữa đá!', '🍚 Cơm tấm!', '🥤 Nước mía!', '🍢 Nem nướng!', '🦐 Bánh xèo!'];
 const MOM = ['📞 Mẹ: Tới {p} chưa con?', '📞 Mẹ: Ở nhà gói bánh chưng rồi nè!', '📞 Ba: Chạy chậm thôi con!', '📞 Mẹ: Nhớ mua quà cho ngoại nha!', '📞 Bà: Về tới đâu rồi cháu?', '📞 Mẹ: Đi đường nhớ ăn uống nha!'];
 /** công trình của điểm dừng đặt tại vị trí trên lộ trình (vẽ cả lúc chưa tới, để thấy từ xa) */
@@ -1186,19 +1225,20 @@ function drawPlanScenery() {
       ctx.fillStyle = '#f3e3c3'; ctx.fillRect(-300, -220, 600, 220);
       ctx.fillStyle = '#b8432f'; ctx.beginPath(); ctx.moveTo(-340, -214); ctx.lineTo(0, -320); ctx.lineTo(340, -214); ctx.fill();
       ctx.fillStyle = '#0f7a43'; rrect(-230, -300, 460, 60, 12); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.font = "800 36px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff'; ctx.font = "800 36px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(`TRẠM DỪNG CHÂN ${ROUTE[provIdx(it.at)].name.toUpperCase()}`.slice(0, 30), 0, -270);
       for (const dx of [-200, 0, 200]) { ctx.fillStyle = '#e8322c'; ctx.beginPath(); ctx.moveTo(dx - 80, -110); ctx.quadraticCurveTo(dx, -170, dx + 80, -110); ctx.fill(); ctx.fillStyle = '#777'; ctx.fillRect(dx - 3, -130, 6, 130); ctx.fillStyle = '#2f7de2'; ctx.fillRect(dx - 50, -44, 100, 12); }
     } else if (it.kind === 'gas') {
       ctx.fillStyle = '#e8322c'; ctx.fillRect(-320, -300, 640, 50);
-      ctx.fillStyle = '#fff'; ctx.font = "800 38px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⛽ XĂNG DẦU', -120, -275);
+      ctx.fillStyle = '#fff'; ctx.font = "800 38px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⛽ XĂNG DẦU', -120, -275);
       ctx.fillStyle = '#ccc'; ctx.fillRect(-290, -250, 16, 250); ctx.fillRect(274, -250, 16, 250);
       for (const dx of [-120, 60]) { ctx.fillStyle = '#f2f2f2'; rrect(dx - 30, -150, 60, 150, 8); ctx.fill(); ctx.fillStyle = '#e8322c'; ctx.fillRect(dx - 30, -150, 60, 30); ctx.fillStyle = '#222'; ctx.fillRect(dx - 18, -110, 36, 24); }
-      ctx.fillStyle = '#5a7fb0'; ctx.fillRect(180, -180, 110, 180); ctx.fillStyle = '#fff'; ctx.font = "800 34px 'Baloo 2'"; ctx.fillText('WC', 235, -150);
+      ctx.fillStyle = '#5a7fb0'; ctx.fillRect(180, -180, 110, 180); ctx.fillStyle = '#fff'; ctx.font = "800 34px 'Be Vietnam Pro'"; ctx.fillText('WC', 235, -150);
     } else if (it.kind === 'police') {
-      ctx.fillStyle = '#e9e4d0'; ctx.fillRect(140, -170, 120, 170); ctx.fillStyle = '#1f4fa0'; ctx.fillRect(130, -200, 140, 34);
-      ctx.fillStyle = '#fff'; ctx.font = "800 22px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('TRẠM CSGT', 200, -183);
-      for (const dx of [300, 360]) { ctx.fillStyle = '#ff7a2f'; ctx.beginPath(); ctx.moveTo(dx - 16, 0); ctx.lineTo(dx, -50); ctx.lineTo(dx + 16, 0); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(dx - 9, -30, 18, 8); }
+      ctx.fillStyle = '#e9e4d0'; ctx.fillRect(560, -190, 150, 190); ctx.fillStyle = '#1f4fa0'; ctx.fillRect(546, -226, 178, 40);
+      ctx.fillStyle = '#fff'; ctx.font = "800 26px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('TRẠM CSGT', 635, -206);
+      ctx.fillStyle = '#bfe3ff'; ctx.fillRect(585, -160, 100, 60);
+      for (const dx of [420, 480]) { ctx.fillStyle = '#ff7a2f'; ctx.beginPath(); ctx.moveTo(dx - 16, 0); ctx.lineTo(dx, -50); ctx.lineTo(dx + 16, 0); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(dx - 9, -30, 18, 8); }
     } else if (it.kind === 'train') {
       ctx.fillStyle = '#5a4a3a'; ctx.fillRect(330, -10, 30, 70); ctx.fillRect(400, -10, 30, 70);       // đường ray cắt ngang
       ctx.fillStyle = '#fff'; ctx.fillRect(296, -200, 12, 200); ctx.fillStyle = '#e8322c'; ctx.beginPath(); ctx.arc(302, -210, 16, 0, Math.PI * 2); ctx.fill();
@@ -1221,7 +1261,7 @@ function drawTrain() {
     ctx.fillStyle = '#bfe3ff'; for (let w = 0; w < 4; w++) ctx.fillRect(x + 20 + w * 50, base - 104, 34, 30);
     ctx.fillStyle = '#222'; for (const dx of [40, 180]) { ctx.beginPath(); ctx.arc(x + dx, base - 6, 14, 0, Math.PI * 2); ctx.fill(); }
   }
-  ctx.fillStyle = '#fff'; ctx.font = "800 26px 'Baloo 2'"; ctx.textAlign = 'left'; ctx.fillText('THỐNG NHẤT', x0 + 30, base - 130);
+  ctx.fillStyle = '#fff'; ctx.font = "800 26px 'Be Vietnam Pro'"; ctx.textAlign = 'left'; ctx.fillText('THỐNG NHẤT', x0 + 30, base - 130);
 }
 /** cảnh xung quanh xe lúc đang dừng */
 function drawHaltScene(cy) {
@@ -1243,9 +1283,11 @@ function drawHaltScene(cy) {
     const px = SX + S(260), py = contactY(cam);
     csgt(px, py, VS * 1.6);
     scooter(px + S(170), py - S(4), { color: '#e9e4d0', rider: 'none', gifts: false, scale: VS * 0.8 });
-    bubble(px, py - S(420), Math.floor(h.t / 3) % 2 ? '👮 Giấy tờ xe đâu?' : '👮 Thả tim mới cho đi nha!');
+    const say = h.reason === 'speed' ? [`👮 ${h.kmh || 180} km/h! Quá tốc độ rồi!`, '👮 Thả tim nộp phạt nha!'] : h.reason === 'overload' ? [`👮 Chở quá ${h.over} người!`, '👮 Ngồi trên nóc là sai luật!'] : ['👮 Giấy tờ xe đâu?', '👮 Thả tim mới cho đi nha!'];
+    bubble(px + S(120), py - S(520), say[Math.floor(h.t / 3) % 2]);
+    if (h.reason === 'speed') { ctx.save(); ctx.translate(px - S(60), py - S(250)); ctx.scale(VS, VS); ctx.fillStyle = '#222'; rrect(-30, -20, 60, 40, 8); ctx.fill(); ctx.fillRect(-10, 18, 16, 40); ctx.fillStyle = '#ff3b30'; ctx.beginPath(); ctx.arc(-30, 0, 12, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
   } else if (h.kind === 'cows') {
-    for (let k = 0; k < 3; k++) { const x = SX + S(220) + k * S(150) - h.t * S(10); cow(x, contactY(meterAt(x)) - S(6), VS * 0.9, k); }
+    for (let k = 0; k < 3; k++) { const x = SX + S(260) + k * S(220) - h.t * S(12); cow(x, contactY(meterAt(x)) - S(6), VS * 1.35, k); }
     bubble(SX + S(380), contactY(cam) - S(220), '👨‍🌾 Từ từ cho bò qua!');
   } else if (h.kind === 'flat') {
     for (let k = 0; k < 3; k++) { ctx.fillStyle = `rgba(230,230,230,${0.5 - k * 0.12})`; ctx.beginPath(); ctx.arc(SX + S(20) + k * S(30) + Math.sin(T * 6 + k) * 6, contactY(cam) - S(40) - k * S(26), S(22 + k * 8), 0, Math.PI * 2); ctx.fill(); }
@@ -1260,8 +1302,12 @@ function drawHaltScene(cy) {
     if ((h.t % 1.2) < 0.12) { ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillRect(0, 0, W, H); }
   }
 }
-function bubble(x, y, text) {
-  ctx.font = "800 24px 'Baloo 2'"; const w = ctx.measureText(text).width + 28;
+function bubble(x, y, text, prio = 2) {
+  ctx.font = "800 24px 'Be Vietnam Pro'"; const w = ctx.measureText(text).width + 28;
+  placeLabel({ x: x - w / 2, y: y - 22, w, h: 58 }, prio, dy => bubbleDraw(x, y + dy, text, w));
+}
+function bubbleDraw(x, y, text, w) {
+  ctx.font = "800 24px 'Be Vietnam Pro'";
   ctx.fillStyle = 'rgba(255,255,255,.95)'; rrect(x - w / 2, y - 22, w, 44, 22); ctx.fill();
   ctx.beginPath(); ctx.moveTo(x - 8, y + 20); ctx.lineTo(x, y + 34); ctx.lineTo(x + 8, y + 20); ctx.fill();
   ctx.fillStyle = '#222'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, x, y + 1);
@@ -1330,11 +1376,14 @@ function render(dt) {
   wheelRot += dd / 0.55;
   const PAX = game.passengers();
   carsNow = VIEW.vehicle === 'scooter' ? 1 : PAX.cars;
-  const zT = [1, 0.8, 0.66][carsNow - 1] || 0.66, sxT = VIEW.vehicle === 'scooter' ? 230 : [330, 450, 575][carsNow - 1] || 575;
+  // đoàn càng dài càng thu nhỏ: 1 xe ×1 · 2 ×0,79 · 3 ×0,65 · 4 ×0,55 · 5 ×0,48; đầu xe lùi về phải đủ chỗ cho cả đoàn
+  const zT = 1 / (1 + 0.27 * (carsNow - 1));
+  const sxT = VIEW.vehicle === 'scooter' ? 230 : Math.max(330, 40 + VS0 * zT * (560 + (carsNow - 1) * CAR_GAP - 100));
   const ez = 1 - Math.pow(0.08, dt);
-  zoom = lerp(zoom, zT, ez); PX = PX0 * zoom; VS = VS0 * zoom; SX = lerp(SX, sxT, ez);
+  zoom = lerp(zoom, zT, ez); PX = PX0 * zoom; VS = VS0 * zoom; SX = lerp(SX, sxT, ez); ROAD_H = ROAD_H0 * (0.6 + 0.4 * zoom); LANE = LANE0 * (0.6 + 0.4 * zoom);
   ctx.save();
   if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+  LBL = [];
   drawSky(); drawFar(); drawMid(); drawRoadside(); drawPlanScenery(); drawTrain(); drawRoad();
   if (game.phase === 'race') drawSpeed(dt, vel);
 
@@ -1365,7 +1414,7 @@ function render(dt) {
   }
   // hiệu ứng có thời hạn
   for (const e of game.effects) {
-    if (e.kind === 'dog') { const V = vehOf(), dx = SX - S(V.rear + 30) + Math.sin(T * 6) * S(16); dog(dx, contactY(meterAt(dx)), T); if (Math.sin(T * 7) > 0.3) { ctx.font = "800 28px 'Baloo 2'"; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText('GÂU!', dx + S(60), contactY(cam) - S(140)); } tag(Math.max(110, dx), contactY(cam) - S(150), e.user, 'rgba(170,30,25,.9)', 20); }
+    if (e.kind === 'dog') { const V = vehOf(), dx = SX - S(V.rear + 30) + Math.sin(T * 6) * S(16); dog(dx, contactY(meterAt(dx)), T); if (Math.sin(T * 7) > 0.3) { ctx.font = "800 28px 'Be Vietnam Pro'"; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText('GÂU!', dx + S(60), contactY(cam) - S(140)); } tag(Math.max(110, dx), contactY(cam) - S(150), e.user, 'rgba(170,30,25,.9)', 20); }
     if (e.kind === 'ducks') { for (let k = 0; k < 6; k++) { const qx = SX + S(160) + k * S(52); duck(qx, contactY(meterAt(qx)) - (k % 2) * S(12), T, k); } tag(SX + S(290), contactY(cam) - S(110), e.user, 'rgba(170,30,25,.9)', 20); }
     if (e.kind === 'tow') {
       const a = Math.min(1, e.t / 0.5, (e.dur - e.t) / 0.4);
@@ -1400,7 +1449,7 @@ function render(dt) {
   if (lose) { const bx = SX + S(300); trashBin(bx, contactY(meterAt(bx)), 0.6, 1.3); ctx.save(); ctx.translate(bx, contactY(cam) - S(130)); ctx.scale(VS, VS); head(0, -30, '#ffcf33', '#ffd3ad', {}); ctx.restore(); }
   // tài xế (người xem tặng quà lái) + streamer
   const d = game.driver;
-  tag(SX - S(V.rear > 200 ? 20 : 0), cy - S(V.top + 40), { name: d ? `🧑‍✈️ ${String(d.name).slice(0, 14)} ${d.free ? '· giữ lái' : fmtClock(d.left)}` : `🧑‍✈️ ${VIEW.streamerName}`, avatar: d ? d.avatar : '' }, 'rgba(190,110,0,.94)', 24, 30);
+  tag(SX - S(V.rear > 200 ? 20 : 0), cy - S(V.top + 40), { name: d ? `🧑‍✈️ ${String(d.name).slice(0, 14)} ${d.free ? '· giữ lái' : fmtClock(d.left)}` : `🧑‍✈️ ${VIEW.streamerName}`, avatar: d ? d.avatar : '' }, 'rgba(190,110,0,.94)', 24, 30, 0);
   // mũ bảo hiểm: lá chắn vàng
   if (game.shield > 0 && game.phase === 'race') {
     ctx.save(); ctx.globalAlpha = 0.35 + Math.sin(T * 5) * 0.1; ctx.strokeStyle = '#ffe27a'; ctx.lineWidth = 6;
@@ -1431,6 +1480,7 @@ function render(dt) {
   // bụi bánh xe
   if (game.speed > 0 && Math.random() < 0.6 && lift < 5) fx.push({ k: 'dust', x: SX - S(vehOf().rear - 20), y: contactY(cam) - S(10), t: 0, dur: 0.6 });
   if (game.fuelAlarm && Math.random() < 0.2) fx.push({ k: 'dust', x: SX - S(100), y: cy - S(40), t: 0, dur: 1 });
+  layoutLabels();
   drawFx();
   ctx.restore();
 }
@@ -1451,7 +1501,7 @@ function tick(dt) {
     momT -= dt; if (momMsg) momMsg.t -= dt;
     if (momT <= 0) { momT = 45 + Math.random() * 35; momMsg = { t: 4, text: MOM[Math.floor(Math.random() * MOM.length)].replace('{p}', ROUTE[Math.min(NP - 1, pi + 2)].name) }; }
   } else lastProv = -1;
-  if (demo) demoTick(dt);
+  if (demo || Q.get('autolike') === '1' || (game.halt && game.halt.testAuto)) demoTick(dt);
   game.step(dt);
   onEvents(game.drainEvents());
   stepFx(dt);
@@ -1464,10 +1514,19 @@ function tick(dt) {
 requestAnimationFrame(frame);
 
 // ---------------- người xem ảo (demo) ----------------
-let demo = Q.get('demo') === '1', demoT = 0;
+let demo = Q.get('demo') === '1', demoT = 0;   // ?autolike=1: chỉ tự thả tim lúc bị giữ, không tặng quà ảo
 const NAMES = ['Minh Anh', 'Tuấn Kiệt', 'Bé Na', 'Hoàng Long', 'Thu Hà', 'Út Mập', 'Khánh Vy', 'Anh Ba', 'Mai Linh', 'Quốc Bảo', 'Ngọc Trâm', 'Chú Tư'];
 const COINS = [1, 1, 1, 1, 5, 5, 5, 10, 30, 30, 100, 199, 500, 1000];
+let demoLikeT = 0;
 function demoTick(dt) {
+  // bị CSGT giữ / thủng lốp: người xem ảo thả tim liên tục cho qua (~4 giây)
+  const hh = game.halt;
+  if (hh && hh.need) {
+    demoLikeT -= dt;
+    if (demoLikeT <= 0) { demoLikeT = 0.25; const nm = NAMES[Math.floor(Math.random() * NAMES.length)]; game.like({ id: `demo_${nm}`, name: nm, avatar: '' }, Math.ceil(hh.need / 16)); }
+    return;
+  }
+  if (!demo) return;   // ?autolike=1: chỉ tự thả tim, không tặng quà ảo
   demoT -= dt;
   if (demoT > 0) return;
   demoT = 0.5 + Math.random() * 1.1;
@@ -1497,7 +1556,10 @@ function onAppCmd(d) {
   else if (d.cmd === 'reset') { game.reset(); followFlags.length = 0; banner('🧹 Đã làm mới', '', 1500); }
   else if (d.cmd === 'end') game.forceEnd(p.winner);
   else if (d.cmd === 'key' && typeof p.action === 'string') game.input(p.action);
-  else if (d.cmd === 'event' && typeof p.kind === 'string') { if (!game.triggerEvent(p.kind)) banner('⚠️ Chỉ thử được khi đang chạy ván, xe không dừng', '', 1500, 1); }
+  else if (d.cmd === 'event' && typeof p.kind === 'string') {
+    if (!game.triggerEvent(p.kind)) banner('⚠️ Chỉ thử được khi đang chạy ván, xe không dừng', '', 1500, 1);
+    else if (game.halt) game.halt.testAuto = true;   // bấm thử: người xem ảo tự thả tim cho qua
+  }
   else if (d.cmd === 'test') {
     const name = p.name || NAMES[Math.floor(Math.random() * NAMES.length)];
     const u = { id: `test_${name}`, name, avatar: '' };
@@ -1544,7 +1606,7 @@ if (Q.get('warp') || Q.get('act')) setTimeout(() => {
     const [action, coins] = a.split(':');
     window.__dvq.sim('gift', { action, coins: Number(coins) || testCoins(action), name: action === 'container' || action === 'tornado' ? 'Út Mập' : 'Minh Anh' });
   }
-  if (Q.get('event')) game.triggerEvent(Q.get('event'));
+  if (Q.get('event') && game.triggerEvent(Q.get('event')) && game.halt && Q.get('autolike') !== '0') game.halt.testAuto = Q.get('autolike') === '1';
   window.__dvq.step(Number(Q.get('after')) || 0);
   if (Q.get('end')) { game.forceEnd(Q.get('end')); window.__dvq.step(1.5); }
   if (Q.get('freeze') === '1') window.__dvq.freeze = true;   // chụp đúng khoảnh khắc này

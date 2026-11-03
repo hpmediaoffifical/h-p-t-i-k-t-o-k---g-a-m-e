@@ -484,3 +484,30 @@ test('bị đẩy vọt qua điểm dừng quá 300 m (vd quà trực thăng) th
   assert.equal(g.halt && g.halt.kind, 'gas');
   assert.ok(g.plan.find(x => x.kind === 'rest').done);
 });
+
+test('CSGT có lý do: chở quá số người (ngồi trên nóc) / kiểm tra giấy tờ', () => {
+  const g = PLAN({ seats: 14, windowSeats: 6, maxCars: 1 });
+  for (let i = 0; i < 5; i++) g.comment({ id: 'v' + i, name: 'v' + i }, '1');
+  g.triggerEvent('police');
+  assert.equal(g.halt.reason, 'papers');
+  g.like(A, 2000); g.step(0.05);
+  for (let i = 5; i < 10; i++) g.comment({ id: 'v' + i, name: 'v' + i }, '1');
+  g.triggerEvent('police');
+  assert.equal(g.halt.reason, 'overload');
+  assert.equal(g.halt.over, 4);
+});
+
+test('bắn tốc độ: được đẩy vọt quá 150 km/h ≥ 1,5 giây thì có thể bị CSGT bắt ngay (1 lần/ván), cú đẩy chỉ tạm dừng', () => {
+  const g = createGame({ autoPilot: false, lobbySec: 0.05, ...M25, fuelBurn: 0, restStop: false, gasStop: false, police: true, policeChance: 0, roadEvents: 0, speedTrap: 1 }, () => 0.1);
+  for (let i = 0; i < 2; i++) g.step(0.05);
+  g.gift(A, { action: 'nitro', coins: 1000 });      // 2.500 m trong ~5 giây ≈ 1.800 km/h
+  for (let i = 0; i < 25 && !g.halt; i++) g.step(0.1);
+  assert.equal(g.halt && g.halt.kind, 'police');
+  assert.equal(g.halt.reason, 'speed');
+  assert.ok(g.halt.kmh > 150);
+  const left = g.pushes.reduce((s, p) => s + p.m * (1 - p.t / p.dur), 0);
+  assert.ok(left > 100, `left=${left}`);             // phần đẩy còn lại vẫn giữ, chạy tiếp sau khi được thả
+  g.like(A, 2000); g.step(0.05);
+  for (let i = 0; i < 80; i++) g.step(0.1);
+  assert.equal(g.halt, null);                        // không bị bắt lần 2 trong ván
+});

@@ -476,7 +476,7 @@ const GAMES = {
             dvqVehicle: 'bus',        // 🚌 bus (xe buýt chở cả đoàn) | oxcart (🐂 xe bò có máng) | scooter (🛵 xe máy 1 người)
             dvqDriverSec: 180,        // 🧑‍✈️ quà tài xế: lái bấy nhiêu giây, hết giờ đổi người chờ; không ai chờ → giữ nguyên người đang lái
             dvqSeats: 14,             // số ghế mỗi xe (người phe Cứu); đầy thì nối thêm xe
-            dvqMaxCars: 3,            // đoàn xe tối đa bấy nhiêu chiếc (dư nữa hiện +N)
+            dvqMaxCars: 5,            // đoàn xe tối đa bấy nhiêu chiếc (càng dài cả cảnh càng thu nhỏ; dư nữa hiện +N)
             dvqRestStop: true,        // 🍜 trạm dừng chân 30 giây (đồng hồ ván dừng)
             dvqGasStop: true,         // ⛽ trạm xăng 15 giây: đổ đầy bình + đi vệ sinh
             dvqPolice: true,          // 🚓 thỉnh thoảng CSGT kiểm tra: thả đủ tim mới được đi (đồng hồ vẫn chạy)
