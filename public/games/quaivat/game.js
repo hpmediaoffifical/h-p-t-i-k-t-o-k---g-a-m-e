@@ -647,10 +647,13 @@ function buildWorld() {
 
   // cột đèn
   for (const sx of [-1, 1]) {   // cột mốc đầu đường — khoai tây lăn về đây
-    const mk = new THREE.Group(); mk.position.set(sx * 6.1, 0, 1.3); world.add(mk);
-    box(0.46, 0.75, 0.22, MS(0xf4f4ee, 0.6), 0, 0.375, 0, mk);
-    const top = cyl(0.23, 0.23, 0.22, MS(0xd8281e, 0.6), 0, 0.75, 0, mk, 16); top.rotation.x = Math.PI / 2;
-    box(0.47, 0.06, 0.23, MS(0x2a2a2a, 0.6), 0, 0.1, 0, mk);
+    const mk = new THREE.Group(); mk.position.set(sx * 6.1, 0, 1.3); world.add(mk);   // trụ tông TikTok: thân đen bóng, viền đèn xanh ngọc / hồng, mặt trước nốt nhạc + LIVE
+    box(0.5, 1.0, 0.3, MS(0x15151a, 0.35, 0.2), 0, 0.5, 0, mk);
+    box(0.58, 0.08, 0.38, MS(0x26262e, 0.3, 0.4), 0, 1.04, 0, mk);
+    box(0.58, 0.06, 0.38, MS(0x26262e, 0.3, 0.4), 0, 0.03, 0, mk);
+    box(0.035, 0.9, 0.035, MS(0x25f4ee, 0.3, 0, { emissive: 0x25f4ee, emissiveIntensity: 1.2 }), -0.262, 0.5, 0.162, mk).castShadow = false;
+    box(0.035, 0.9, 0.035, MS(0xfe2c55, 0.3, 0, { emissive: 0xfe2c55, emissiveIntensity: 1.2 }), 0.262, 0.5, 0.162, mk).castShadow = false;
+    const face = new THREE.Mesh(geo('hplogo', () => new THREE.PlaneGeometry(1, 1)), tikPostMat()); face.scale.set(0.44, 0.88, 1); face.position.set(0, 0.52, 0.153); mk.add(face);
   }
   for (const sx of [-1, 1]) for (let z = HOUSE_FRONT + 8; z < 2; z += 12) {
     cyl(0.07, 0.09, 3.4, MS(0x2b2b2b, 0.5, 0.6), sx * 8, 1.7, z, world, 8);
@@ -1280,6 +1283,26 @@ function walkTextMat() {
   draw(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
   _walkTextMat = keep(new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2 }));
   return _walkTextMat;
+}
+// mặt trụ đầu đường: nốt nhạc lệch màu xanh ngọc / hồng / trắng + chữ LIVE
+let _tikPostMat = null;
+function tikPostMat() {
+  if (_tikPostMat) return _tikPostMat;
+  const c = document.createElement('canvas'); c.width = 128; c.height = 256; const g = c.getContext('2d');
+  g.fillStyle = '#0d0d12'; g.fillRect(0, 0, 128, 256);
+  const note = (dx, dy, col) => {
+    g.save(); g.translate(64 + dx, 96 + dy); g.fillStyle = col; g.strokeStyle = col; g.lineCap = 'round';
+    g.lineWidth = 13; g.beginPath(); g.moveTo(8, -52); g.lineTo(8, 18); g.stroke();                       // thân nốt
+    g.beginPath(); g.arc(-10, 20, 18, 0, 6.283); g.lineWidth = 11; g.stroke();                             // đầu nốt tròn rỗng
+    g.lineWidth = 12; g.beginPath(); g.moveTo(8, -52); g.quadraticCurveTo(14, -30, 36, -26); g.stroke();   // đuôi cờ
+    g.restore();
+  };
+  note(-4, 3, '#25f4ee'); note(4, -3, '#fe2c55'); note(0, 0, '#ffffff');
+  g.fillStyle = '#fe2c55'; g.beginPath(); g.roundRect(22, 178, 84, 40, 10); g.fill();
+  g.fillStyle = '#fff'; g.font = '900 30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('LIVE', 64, 199);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  _tikPostMat = keep(new THREE.MeshBasicMaterial({ map: t, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  return _tikPostMat;
 }
 function hpSlogan(w, x, y, z, rx, parent) {
   const m = new THREE.Mesh(geo('hplogo', () => new THREE.PlaneGeometry(1, 1)), sloganMat());
@@ -4916,6 +4939,7 @@ function updateHud(dt) {
     } }
   { const L = START_Z - HOUSE_FRONT, f = q => clamp((START_Z - q) / L, 0, 1) * 100;   // thanh đường đi: đầu đường → cửa nhà
     const zp = f(mon.z).toFixed(1) + '%'; setCss($('rtZ'), 'left', zp); setCss($('rtFill'), 'width', zp);
+    { const fz = f(mon.z), lab = document.querySelectorAll('#route .rlab'); if (lab.length === 2) { setCss(lab[0], 'opacity', fz > 2.5 && fz < 32 ? '0' : '.92'); setCss(lab[1], 'opacity', fz > 78 ? '0' : '.92'); } }   // ghim zombie đi ngang qua nhãn → nhãn tạm ẩn, không đè nhau
     setCss($('rtCp'), 'left', f(cpZ).toFixed(1) + '%'); setCss($('rtCp'), 'display', CONFIG.checkpoint ? '' : 'none'); setCls($('rtCp'), 'ok', !!state.cp); }
   setTxt($('distN'), Math.max(0, Math.round(mon.z - HOUSE_FRONT - 1.3)));
   { const dh = $('doorHp'); setCss(dh.firstChild, 'width', (dk * 100).toFixed(1) + '%'); setCls(dh, 'regen', door.regen); setCls(dh, 'low', dk < 0.3); }
