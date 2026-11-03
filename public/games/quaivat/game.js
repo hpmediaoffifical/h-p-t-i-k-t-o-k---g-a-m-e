@@ -3071,9 +3071,10 @@ const SPAWN = {
   },
   // 🦍 zombie khổng lồ (quà fan): hiện sau lưng, túm zombie ném bay 12m tới trước
   thrower: u => {
-    const g = mkMinion(1); g.scale.setScalar(2.7);
-    const it = newItem('thrower', u, g, { labelY: 3.2, noRescale: true });
+    const gi = mkGiant(), g = gi ? gi.g : mkMinion(1); if (!gi) g.scale.setScalar(2.7);
+    const it = newItem('thrower', u, g, { labelY: gi ? 5.2 : 3.2, noRescale: true, mixer: gi && gi.mixer, giant: !!gi });
     it.g.position.set(clamp(mon.x + 0.6, -LANE, LANE), 0, mon.z + 2.2); it.state = 'grab'; it.t = 0; it.z0 = mon.z; it.z1 = Math.max(HOUSE_FRONT + 1.6, mon.z - 12); it.x0 = mon.x;
+    if (gi) { const sx = mon.x > 0 ? -1 : 1; it.g.position.set(clamp(mon.x + sx * 2.2, -LANE - 0.5, LANE + 0.5), 0, mon.z - 1.4); g.rotation.y = -sx * 0.55; gi.play('Idle_Attack'); sfx('groan'); }   // đứng chéo phía trước, QUAY MẶT về camera gầm (thấy mắt đỏ), không che zombie
     mon.carry = it; mon.kv = 0; mon.stun = 0; sfx('rumble'); camShake = Math.max(camShake, 0.3); banner('🦍 ZOMBIE KHỔNG LỒ!', esc(u.name) + ' ném zombie bay tới', 2);
   },
   // 🧊 xe đá bào (quà fan): trải vệt băng 15m phía trước, zombie trên băng đi ×1,8 trong 8 giây
@@ -3294,7 +3295,22 @@ function mkPole() { const g = new THREE.Group(), b = MS(0xc9a46a, 0.7); cyl(0.04
 function mkCabbage() { const g = new THREE.Group(); for (let i = 0; i < 6; i++) { const l = sph(0.32 - i * 0.03, MS(i % 2 ? 0x7ec84a : 0x5aa83a, 0.6), rand(-0.04, 0.04), rand(-0.04, 0.04), rand(-0.04, 0.04), g); l.scale.y *= 0.85; l.rotation.set(rand(0, 3), rand(0, 3), 0); } return g; }
 function mkMushroom() { const g = new THREE.Group(); cyl(0.14, 0.2, 0.6, MS(0xf2ead8, 0.7), 0, 0.3, 0, g, 12); const cap = sph(0.45, MS(0x8a4ac8, 0.5, 0, { emissive: 0x200838 }), 0, 0.65, 0, g); cap.scale.y *= 0.6; for (let i = 0; i < 7; i++) { const a = i * 0.9; sph(0.07, MS(0xffffff, 0.6), Math.cos(a) * 0.3, 0.78, Math.sin(a) * 0.3, g); } for (const sx of [-1, 1]) { sph(0.05, MS(0x111111, 0.3), sx * 0.07, 0.42, 0.17, g); } return g; }
 function mkGarlic() { const g = new THREE.Group(), w = MS(0xf4f0e2, 0.6); for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283; const c = sph(0.2, w, Math.cos(a) * 0.14, 0.32, Math.sin(a) * 0.14, g); c.scale.y *= 1.4; } sph(0.22, w, 0, 0.36, 0, g).scale.y *= 1.4; const t = new THREE.Mesh(geo('garlictip', () => new THREE.ConeGeometry(0.1, 0.35, 8)), MS(0xe0d8b8, 0.7)); t.position.y = 0.75; g.add(t); for (const sx of [-1, 1]) { sph(0.04, MS(0x111111, 0.3), sx * 0.08, 0.42, 0.2, g); } return g; }
-function mkCactus() { const g = new THREE.Group(), gr = MS(0x3a9a4a, 0.6); cyl(0.3, 0.34, 1.6, gr, 0, 0.8, 0, g, 10); sph(0.3, gr, 0, 1.6, 0, g); for (const sx of [-1, 1]) { const a = cyl(0.14, 0.14, 0.5, gr, sx * 0.45, 1.0, 0, g, 8); a.rotation.z = sx * 1.2; cyl(0.13, 0.13, 0.45, gr, sx * 0.62, 1.3, 0, g, 8); } for (let i = 0; i < 26; i++) { const sp = new THREE.Mesh(geo('cspike', () => new THREE.ConeGeometry(0.025, 0.14, 4)), MS(0xfff2c0, 0.5)); const a = rand(0, 6.28), y = rand(0.2, 1.7); sp.position.set(Math.cos(a) * 0.33, y, Math.sin(a) * 0.33); sp.rotation.set(Math.PI / 2, 0, -a + Math.PI / 2); g.add(sp); } sph(0.12, MS(0xff6aa8, 0.5), 0, 1.92, 0, g); cyl(0.4, 0.34, 0.3, MS(0xb8643a, 0.8), 0, 0.15, 0, g, 12); shrinkKids(g, 0.78); return g; }
+function mkCactus() {
+  // thân trụ có gân dọc, 2 cục tròn sát gốc, gai dày chĩa ra mọi hướng, hoa hồng trên đỉnh, chậu đất nung
+  const g = new THREE.Group(), gr = MS(0x3a9a4a, 0.6), rib = MS(0x2e7f3c, 0.65), spM = MS(0xfff2c0, 0.5), up = new V3(0, 1, 0), d = new V3();
+  const spikeGeo = geo('cspike', () => new THREE.ConeGeometry(0.025, 0.14, 4));
+  const spike = (cx, cy, cz, dx, dy, dz, r) => { d.set(dx, dy, dz).normalize(); const sp = new THREE.Mesh(spikeGeo, spM); sp.position.set(cx + d.x * (r + 0.05), cy + d.y * (r + 0.05), cz + d.z * (r + 0.05)); sp.quaternion.setFromUnitVectors(up, d); g.add(sp); };
+  cyl(0.3, 0.34, 1.6, gr, 0, 0.8, 0, g, 12); sph(0.3, gr, 0, 1.6, 0, g);
+  for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283; const r = box(0.06, 1.5, 0.06, rib, Math.cos(a) * 0.31, 0.85, Math.sin(a) * 0.31, g); r.rotation.y = -a; }   // gân dọc
+  for (let i = 0; i < 64; i++) { const a = (i * 2.399) % 6.283, y = 0.3 + (i / 64) * 1.35; spike(0, y, 0, Math.cos(a), rand(-0.15, 0.25), Math.sin(a), 0.3); }   // gai thân (xoắn ốc đều)
+  for (let i = 0; i < 10; i++) { const a = i / 10 * 6.283; spike(0, 1.6, 0, Math.cos(a) * 0.7, 0.75, Math.sin(a) * 0.7, 0.28); }               // gai đỉnh
+  for (const sx of [-1, 1]) {                                                       // 2 cục tròn ở gốc
+    const cx = sx * 0.4, cy = 0.42, R = 0.24; sph(R, gr, cx, cy, 0.02, g);
+    for (let i = 0; i < 18; i++) { const a = (i * 2.399) % 6.283, el = rand(-0.5, 1.1); const dx = Math.cos(a) * Math.cos(el), dz = Math.sin(a) * Math.cos(el), dy = Math.sin(el); if (dx * sx < -0.35) continue; spike(cx, cy, 0.02, dx, dy, dz, R); }
+  }
+  sph(0.12, MS(0xff6aa8, 0.5), 0, 1.92, 0, g); cyl(0.42, 0.36, 0.3, MS(0xb8643a, 0.8), 0, 0.15, 0, g, 12); cyl(0.45, 0.45, 0.06, MS(0xa0532e, 0.8), 0, 0.31, 0, g, 12);
+  shrinkKids(g, 0.78); return g;
+}
 function mkSunflower() { const g = new THREE.Group(); cyl(0.05, 0.07, 1.8, MS(0x3a8a2a, 0.7), 0, 0.9, 0, g, 6); for (const sx of [-1, 1]) { const l = sph(0.3, MS(0x4aa83a, 0.6), sx * 0.25, 0.8, 0, g); l.scale.multiply(new V3(1, 0.12, 0.5)); } const head = new THREE.Group(); head.position.set(0, 1.9, 0.05); g.add(head); for (let i = 0; i < 14; i++) { const a = i / 14 * 6.283; const pe = sph(0.2, MS(0xffd21f, 0.5), Math.cos(a) * 0.32, Math.sin(a) * 0.32, 0, head); pe.scale.multiply(new V3(0.5, 1, 0.15)); pe.rotation.z = a - Math.PI / 2; } const c = sph(0.24, MS(0x6a3a1a, 0.8), 0, 0, 0.04, head); c.scale.z *= 0.4; for (const sx of [-1, 1]) sph(0.035, MS(0x111111, 0.3), sx * 0.08, 0.04, 0.14, head); g.userData.head = head; shrinkKids(g, 0.66); return g; }
 function mkIceCart() { const g = new THREE.Group(); box(1.0, 0.6, 1.3, MS(0x6ad0f0, 0.4), 0, 0.55, 0, g); box(1.1, 0.12, 1.4, MS(0xffffff, 0.3), 0, 0.9, 0, g); for (const sx of [-1, 1]) for (const z of [-0.45, 0.45]) { const w = cyl(0.16, 0.16, 0.1, MS(0x2a2a2a, 0.7), sx * 0.55, 0.16, z, g, 12); w.rotation.z = Math.PI / 2; } sph(0.3, MS(0xff8ec4, 0.4), 0, 1.15, 0, g).scale.y = 0.7; return g; }
 function mkButter() { const g = new THREE.Group(); box(0.36, 0.22, 0.26, MS(0xffe27a, 0.4), 0, 0, 0, g); box(0.38, 0.06, 0.28, MS(0xfff4c0, 0.4), 0, 0.12, 0, g); return g; }
@@ -3637,12 +3653,48 @@ function updateThrower(it, p, dt) {
   const ud = it.g.userData;
   if (it.state === 'grab') {
     ud.armL.rotation.x = ud.armR.rotation.x = -1.2 - it.t * 2; mon.y = Math.min(1.6, it.t * 3); mon.z = it.z0 + 0.6;
-    if (it.t > 0.6) { it.state = 'throw'; it.t = 0; sfx('whoosh'); popText(new V3(mon.x, 3.5, mon.z), 'VÈOOO!', 'big', 1); }
+    if (it.t > 0.6) { it.state = 'throw'; it.t = 0; sfx('whoosh'); popText(new V3(mon.x, 3.5, mon.z), 'VÈOOO!', 'big', 1); if (ud.play) ud.play('Punch'); }
   } else if (it.state === 'throw') {
     const f = Math.min(1, it.t / 1.2); mon.z = it.z0 + (it.z1 - it.z0) * f; mon.x = it.x0 * (1 - f); mon.y = 1.6 + Math.sin(f * Math.PI) * 4;
     ud.armL.rotation.x = ud.armR.rotation.x = -3.2;
     if (f >= 1) { end(); mon.stun = 0.4; camShake = Math.max(camShake, 0.4); sfx('thud'); puff(new V3(mon.x, 0.2, mon.z), { color: T.dust || 0xd8c6a0, n: 10, size: 1.2, speed: 3, life: 0.7 }); it.state = 'leave'; it.t = 0; }
+  } else if (it.giant) {                                                         // khổng lồ: gầm rồi chìm xuống đất
+    if (!it.sank) { it.sank = true; if (ud.play) ud.play('Idle'); camShake = Math.max(camShake, 0.2); }
+    p.y = -5.5 * Math.max(0, it.t - 0.5) ** 2; if (Math.random() < dt * 25) puff(new V3(p.x + rand(-1.2, 1.2), 0.2, p.z + rand(-1, 1)), { color: T.dust || 0x8a6a40, n: 1, size: 1.2, speed: 1.5, life: 0.7 });
+    if (it.t > 1.6) removeItem(it);
   } else { it.g.scale.setScalar(Math.max(0.01, 2.7 * (1 - it.t / 0.8))); if (it.t > 0.8) removeItem(it); }
+}
+// 🦍 zombie khổng lồ: mô hình zombie mập (zombie cụt tay nếu NPC đang là zombie mập) phóng to ~4,6m, da tím tái, mắt đỏ rực, vai gai
+let giantGltf = null;
+function giantModelName() { return CONFIG.zombieModel === 'chubby' ? 'arm' : 'chubby'; }
+function mkGiant() {
+  if (!giantGltf) return null;
+  const m = SkeletonUtils.clone(giantGltf.scene), H = 4.6;
+  m.scale.setScalar(H / (boneTop(m) * 1.12 || 1)); m.updateMatrixWorld(true);
+  m.traverse(o => { if (o.isMesh) {
+    o.castShadow = true; o.frustumCulled = false;
+    const mt = o.material.clone(); mt.color = new THREE.Color(0xb4c49c); mt.emissive = new THREE.Color(0x2a0404); mt.emissiveIntensity = 1; mt.roughness = 0.75; o.material = mt;   // nhuộm da xám xanh thối rữa, ửng đỏ
+  } });
+  const bone = n => { let b = null; m.traverse(o => { if (o.isBone && o.name === n) b = o; }); return b; };
+  const head = bone('Head'), v = new V3();
+  if (head) {
+    head.getWorldPosition(v); const top = boneTop(m) * 1.12, r = Math.max(0.25, (top - v.y) * 0.62);
+    const eye = MS(0xff2a10, 0.3, 0, { emissive: 0xff2200, emissiveIntensity: 3 });
+    for (const sx of [-1, 1]) { const e = sph(r * 0.13, eye, 0, 0, 0, null); e.position.set(v.x + sx * r * 0.36, v.y + r * 0.45, v.z + r * 0.88); e.updateMatrixWorld(); head.attach(e); }
+    const brow = MS(0x2a1a2a, 0.8);
+    for (const sx of [-1, 1]) { const b = box(r * 0.42, r * 0.09, r * 0.12, brow, 0, 0, 0, null); b.position.set(v.x + sx * r * 0.36, v.y + r * 0.68, v.z + r * 0.86); b.rotation.z = sx * 0.45; b.updateMatrixWorld(); head.attach(b); }   // mày nhíu giận
+  }
+  const spikeM = MS(0x3a3540, 0.5, 0.6), padM = MS(0x4a3a2a, 0.8);
+  for (const n of ['Shoulder.L', 'Shoulder.R']) {
+    const sh = bone(n); if (!sh) continue; sh.getWorldPosition(v);
+    const pad = sph(0.32, padM, v.x, v.y + 0.12, v.z, null); pad.scale.multiply(new V3(1.2, 0.7, 1.1)); pad.updateMatrixWorld(); sh.attach(pad);
+    for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(geo('gSpike', () => new THREE.ConeGeometry(0.09, 0.42, 6)), spikeM); c.position.set(v.x + (i - 1) * 0.16, v.y + 0.42, v.z - 0.05 + (i % 2) * 0.1); c.rotation.z = (i - 1) * 0.35; c.castShadow = true; c.updateMatrixWorld(); sh.attach(c); }   // gai vai
+  }
+  const g = new THREE.Group(); g.add(m);
+  const mixer = new THREE.AnimationMixer(m); let cur = null;
+  const play = name => { const clip = giantGltf.animations.find(a => a.name === name) || giantGltf.animations.find(a => a.name === 'Idle'); if (!clip) return; const a = mixer.clipAction(clip); if (cur && cur !== a) cur.fadeOut(0.15); a.reset().fadeIn(0.15).play(); cur = a; };
+  g.userData.play = play; g.userData.armL = new THREE.Object3D(); g.userData.armR = new THREE.Object3D();   // khớp với code cũ (tay của zombie con)
+  return { g, mixer, play };
 }
 // ----- 🧊 đường băng: xe đá bào chạy trước, zombie trên băng đi nhanh -----
 // tấm băng: lớp nền (vân nứt + vết trượt) + lớp bóng phản chiếu + mép tuyết vụn hai bên
@@ -5225,6 +5277,7 @@ camera.position.copy(camPos); camera.lookAt(camLook);
 requestAnimationFrame(frame);
 try {
   await setupMonster();
+  loadModel('giant', '/games/quaivat/models/' + ZOMBIE_MODELS[giantModelName()]).then(g => { giantGltf = g; g.scene.traverse(o => { if (o.isMesh) { keep(o.geometry); for (const k of TEX_KEYS) if (o.material[k]) o.material[k].userData.keep = true; } }); }).catch(() => {});
   try { foxGltf = await loadModel('fox', 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/Fox/glTF-Binary/Fox.glb'); foxGltf.scene.traverse(o => { if (o.isMesh) { keep(o.geometry); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { keep(m); TEX_KEYS.forEach(k => keep(m[k])); }); } }); } catch (e) { console.warn('Không tải được cáo', e); }
   $('loading').remove();
   startIntro();
