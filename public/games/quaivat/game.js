@@ -1244,8 +1244,8 @@ function sloganMat() {
     const fam = getComputedStyle(document.body).fontFamily || 'sans-serif';
     let fs = 168; g.font = `900 ${fs}px ${fam}`; while (g.measureText(txt).width > 1880 && fs > 60) { fs -= 4; g.font = `900 ${fs}px ${fam}`; }
     g.textAlign = 'center'; g.textBaseline = 'middle';                         // sơn mờ lên ngói: tông cam đất, như chữ cũ đã phai
-    g.fillStyle = 'rgba(90,38,18,.35)'; g.fillText(txt, 1024, 128);
-    g.fillStyle = 'rgba(255,214,170,.42)'; g.fillText(txt, 1024, 122);
+    g.fillStyle = 'rgba(90,38,18,.4)'; g.fillText(txt, 1024, 128);
+    g.fillStyle = 'rgba(255,240,225,.7)'; g.fillText(txt, 1024, 122);
     t.needsUpdate = true;
   };
   draw(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
