@@ -10,7 +10,9 @@ import { attachLabel } from './labels.js';
 import { pick, range, shuffled } from './logic/rng.js';
 
 const UPPER_THRESHOLD = 2;
-const POOL_SET = new Set(NUMBER_POOL);
+// bỏ số lặp 1 chữ số (1111, 3333…): sheet từ cấm có các số này → bình luận "#3333" bị server chặn, không nhắm được người mang số
+const ID_POOL = NUMBER_POOL.filter((n) => !/^(\d)\1+$/.test(String(n)));
+const POOL_SET = new Set(ID_POOL);
 /** Trong 4 bức tường bao của trại (tường ngoài dày 0,4 m: x ±20, z −16…14). */
 const insideCamp = (x, z) => x > -19.7 && x < 19.7 && z > -15.7 && z < 13.7;
 
@@ -111,8 +113,8 @@ export class NpcManager {
         return want;
       }
     }
-    const free = NUMBER_POOL.filter((n) => !this.byNumber.has(n));
-    if (!free.length) return NUMBER_POOL[Math.floor(this.rng() * NUMBER_POOL.length)]; // trại vượt 224 người: đành trùng
+    const free = ID_POOL.filter((n) => !this.byNumber.has(n));
+    if (!free.length) return ID_POOL[Math.floor(this.rng() * ID_POOL.length)]; // trại vượt 224 người: đành trùng
     return free[Math.floor(this.rng() * free.length)];
   }
 
