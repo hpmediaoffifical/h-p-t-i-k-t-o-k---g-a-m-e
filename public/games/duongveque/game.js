@@ -447,6 +447,52 @@ function drawFoodStalls() {
   }
   if (near && game.phase === 'race') bubble(near.x, near.y, `🍜 ${near.text}`, 2);   // chỉ người bán gần nhất phía trước gọi mời
 }
+// ---- 📣 lâu lâu vài người đứng ven đường giơ bảng "HP MEDIA – TUYỂN IDOL LIVE" (user yêu cầu) ----
+const IDOL_EVERY = 700;   // mét: mỗi đoạn 700 m có ~50% một nhóm giơ bảng (≈ 1 lần / 40–50 giây ở 100 km/h)
+const IDOL_SHOUT = ['📣 Tuyển Idol LIVE nè!', '🎤 Bạn ơi làm Idol hông?', '✨ HP Media tuyển Idol LIVE!', '📣 Inbox HP Media nha!'];
+function idolCrew(x, y, k) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(0.8, 0.8);
+  const n = 2 + (k % 2), shirts = ['#e8322c', '#2f7de2', '#f6a21e'];
+  for (let j = 0; j < n; j++) {   // người giơ bảng (nhún theo nhịp)
+    const px = -110 + j * (220 / (n - 1)), b = Math.abs(Math.sin(T * 6 + j * 1.3)) * 10;
+    fline('#2a3550', 12, px - 7, -6, px - 9, -60 - b); fline('#2a3550', 12, px + 7, -6, px + 9, -60 - b);
+    ctx.fillStyle = shirts[(k + j) % 3]; rrect(px - 20, -118 - b, 40, 62, 10); ctx.fill();
+    fline(shirts[(k + j) % 3], 9, px - 14, -110 - b, px - 22, -190 - b); fline(shirts[(k + j) % 3], 9, px + 14, -110 - b, px + 22, -190 - b);   // 2 tay giơ cao
+    fcirc('#ffd3ad', px, -134 - b, 17);
+    ctx.fillStyle = j % 2 ? '#2b221d' : '#6e4325'; ctx.beginPath(); ctx.arc(px, -140 - b, 17, Math.PI, 0); ctx.fill();
+  }
+  const b = Math.abs(Math.sin(T * 6)) * 8, bw = 320, bh = 120, by = -320 - b;   // bảng
+  ctx.save(); ctx.translate(0, by); ctx.rotate(Math.sin(T * 3) * 0.03);
+  ctx.fillStyle = '#fff8e1'; rrect(-bw / 2, 0, bw, bh, 14); ctx.fill();
+  ctx.strokeStyle = '#e8322c'; ctx.lineWidth = 7; rrect(-bw / 2, 0, bw, bh, 14); ctx.stroke();
+  ctx.fillStyle = '#e8322c'; rrect(-bw / 2 + 10, 10, bw - 20, 46, 8); ctx.fill();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffd23a'; ctx.font = "900 34px 'Be Vietnam Pro'"; ctx.fillText('HP MEDIA', 0, 34);
+  ctx.fillStyle = '#c0261e'; ctx.font = "900 30px 'Be Vietnam Pro'"; ctx.fillText('TUYỂN IDOL LIVE', 0, 88);
+  for (let j = 0; j < 4; j++) { const a = T * 3 + j * 1.57; fcirc('#ffd23a', Math.cos(a) * (bw / 2 + 14), bh / 2 + Math.sin(a) * (bh / 2 + 10), 5); }   // lấp lánh
+  ctx.restore();
+  ctx.restore();
+}
+/** Chỗ đứng giơ bảng: không đè biển chào tỉnh cũ và 2 quán ăn của đoạn đó. */
+function idolSpot(m0) {
+  const P = partAt(m0, game.cfg.goal), len = game.cfg.goal / NP / P.n;
+  return P.from + len * 0.53;   // giữa 2 quán ăn (0,32 · 0,74) của đoạn tỉnh cũ, xa biển chào
+}
+function drawIdolCrews() {
+  const mL = meterAt(-260), mR = meterAt(W + 260);
+  let near = null;
+  for (let k = Math.floor(mL / IDOL_EVERY); k <= Math.floor(mR / IDOL_EVERY); k++) {
+    if (k < 1 || hash(k, 77) > 0.5) continue;
+    const m = idolSpot((k + 0.15 + hash(k, 78) * 0.1) * IDOL_EVERY);
+    if (m == null) continue;
+    const x = xAt(m);
+    if (m > game.cfg.goal - 200 || x < -260 || x > W + 260) continue;
+    idolCrew(x, roadTop(m) + 2, k);
+    const dx = x - SX;
+    if (dx > 40 && dx < 520 && x < W - 80) near = { x, y: roadTop(m) - 330, k };
+  }
+  if (near && game.phase === 'race') bubble(near.x, near.y, IDOL_SHOUT[near.k % IDOL_SHOUT.length], 2);
+}
 const PARTS_OF = pi => { const p = partAt((pi + 0.5) * game.cfg.goal / NP, game.cfg.goal); return PARTS_CACHE[pi] || (PARTS_CACHE[pi] = Array.from({ length: p.n }, (_, k) => partAt((pi + (k + 0.5) / p.n) * game.cfg.goal / NP, game.cfg.goal).part)); };
 const PARTS_CACHE = [];
 // ---- đồ ven đường (lớp 1×) ----
@@ -472,6 +518,7 @@ function drawRoadside() {
     ctx.restore();
   }
   drawFoodStalls();
+  drawIdolCrews();
   // lan can đèo (núi cao, biển)
   ctx.strokeStyle = '#d9d9d9'; ctx.lineWidth = 6;
   for (let x = -20; x < W + 20; x += 18) {
@@ -513,7 +560,7 @@ function drawProvinceMarks() {
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; rrect(-172, -302, 344, 76, 10); ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = `800 ${parts[k].name.length > 12 ? 32 : 38}px 'Be Vietnam Pro'`; ctx.fillText(parts[k].name.toUpperCase(), 0, -274);
-      ctx.font = "700 20px 'Be Vietnam Pro'"; ctx.fillText(`nay thuộc ${p.name}`, 0, -240);
+      if (parts[k].name !== p.name) { ctx.font = "700 20px 'Be Vietnam Pro'"; ctx.fillText(`nay thuộc ${p.name}`, 0, -240); }
       ctx.fillStyle = 'rgba(22,26,36,.85)'; rrect(-170, -210, 340, 40, 10); ctx.fill();
       ctx.fillStyle = '#ffe27a'; ctx.font = "800 20px 'Be Vietnam Pro'"; ctx.fillText(parts[k].sign.slice(0, 30), 0, -190);
       ctx.restore();
@@ -1553,6 +1600,25 @@ function plasticTable(x, y, s) {
   ctx.fillStyle = '#fff6d6'; ctx.beginPath(); ctx.ellipse(-14, -58, 12, 5, 0, 0, Math.PI * 2); ctx.ellipse(16, -58, 12, 5, 0, 0, Math.PI * 2); ctx.fill();   // tô phở
   ctx.restore();
 }
+// 🎤 nhân viên HP Media đi giữa đám đông mời làm idol (user yêu cầu) — {n} = tên người được mời
+const RECRUIT_LINES = ['{n} ơi, Chị làm idol không?', 'Chị muốn lương 200–5000$ không?', 'Chị rất hợp làm idol nhà HP Media đó!',
+  '{n} ơi, mặt sáng thế này phải lên LIVE thôi!', 'HP Media đào tạo miễn phí nè {n}!', 'Giọng hay vậy, làm idol hát LIVE đi {n}!',
+  'Có ekip, có kịch bản, {n} chỉ cần tới!', '{n} thử LIVE 1 buổi tối nay nha?', 'Idol HP Media về quê cũng LIVE được nè!'];
+const RECRUIT_REPLY = ['Thật hả? 😳', 'Để em hỏi mẹ đã…', 'Lương bao nhiêu nữa? 🤑', 'Em ngại lắm 🙈', 'Ok chốt! 🤝', 'Anh xin số đi!', 'Em hát dở lắm á 😂'];
+function hpRecruiter(x, y, walking) {
+  const k = walking ? Math.sin(T * 8) : 0;
+  ctx.save(); ctx.translate(x, y); ctx.scale(0.66, 0.66);
+  fline('#1f2028', 13, -7, -60, -10 - 9 * k, 0); fline('#1f2028', 13, 7, -60, 10 + 9 * k, 0);
+  ctx.fillStyle = '#fff'; rrect(-24, -134, 48, 78, 10); ctx.fill();
+  ctx.fillStyle = '#e8322c'; ctx.font = "900 16px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('HP', 0, -104);
+  fline('#e8322c', 3, -10, -134, 0, -112, 10, -134);   // dây đeo thẻ
+  fline('#fff', 9, 20, -124, 34, -92); ctx.fillStyle = '#c98f55'; ctx.fillRect(28, -108, 22, 30); ctx.fillStyle = '#fff'; ctx.fillRect(31, -104, 16, 22);   // kẹp hồ sơ
+  fline('#fff', 9, -20, -124, -36, -150 - Math.abs(Math.sin(T * 5)) * 10);   // tay vẫy
+  fcirc('#ffd3ad', 0, -152, 19);
+  ctx.fillStyle = '#2b221d'; ctx.beginPath(); ctx.arc(0, -158, 19, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = '#111'; ctx.fillRect(-15, -158, 12, 6); ctx.fillRect(3, -158, 12, 6);   // kính đen
+  ctx.restore();
+}
 function drawRestCrowd(h) {
   const people = game.crowd(game.cfg.crowdMax || 100);
   for (let i = 0; people.length < 40; i++) people.push({ id: `npc${i}`, name: LOCALS[i % LOCALS.length], avatar: '', npc: true });   // ít người xem thì dân quanh trạm cho đủ đông
@@ -1577,10 +1643,20 @@ function drawRestCrowd(h) {
   });
   dots.sort((p, q) => p.y - q.y);
   for (const d of dots) walker(d.x, d.y, d.u, 0.58, d.i, d.still);
+  // nhân viên HP Media: mỗi 3,2 giây đi tới 1 người (1,1 giây) rồi đứng mời
+  const step = 3.2, ti = Math.floor(h.t / step), q = ease((h.t - ti * step) / 1.1);
+  const tgt = j => dots.find(d => d.i === (j * 11 + 5) % dots.length) || dots[0];
+  const A = tgt(Math.max(0, ti - 1)), Bt = tgt(ti), rx = lerp(A.x + 46, Bt.x + 46, ti ? q : 1), ry = lerp(A.y + 4, Bt.y + 4, ti ? q : 1);
+  hpRecruiter(rx, ry, ti > 0 && q < 1);
   ctx.restore();
+  if (fade > 0.6 && (!ti || q >= 1)) {
+    const line = RECRUIT_LINES[ti % RECRUIT_LINES.length].replace('{n}', String(Bt.u.name).slice(0, 10));
+    bubble(rx, ry - 140, `🎤 ${line}`, 1);
+    if (h.t - ti * step > 2) bubble(Bt.x - 20, Bt.y - 120, RECRUIT_REPLY[(ti * 3) % RECRUIT_REPLY.length], 2);
+  }
   // 3 người đang nói (đổi người mỗi 2,5 giây)
   const k0 = Math.floor(h.t / 2.5);
-  for (let k = 0; k < 3 && fade > 0.6; k++) {
+  for (let k = 0; k < 2 && fade > 0.6; k++) {
     const d = dots[(k0 * 7 + k * 13) % dots.length], txt = TET_TALK[(k0 * 5 + k * 3) % TET_TALK.length];
     bubble(d.x, d.y - 120, `${String(d.u.name).slice(0, 10)}: ${txt}`, 3);
   }
