@@ -546,6 +546,7 @@ function buildWorld() {
   const walk = box(300, 0.14, 3.6, new THREE.MeshStandardMaterial({ map: walkTex, roughness: 0.9, envMapIntensity: 0.3 }), 0, 0.07, 2.8, world);
   walk.castShadow = false;
   box(300, 0.2, 0.25, MS(0xb8b8b2, 0.8), 0, 0.1, 4.7, world).castShadow = false;
+  { const t = new THREE.Mesh(geo('hplogo', () => new THREE.PlaneGeometry(1, 1)), walkTextMat()); t.rotation.x = -Math.PI / 2; t.scale.set(10, 10 * 160 / 2048, 1); t.position.set(0, 0.143, 3.15); t.receiveShadow = true; world.add(t); }   // chữ khắc chìm trên vỉa hè đầu đường
   const asphalt = ctex(256, 256, (g, w, h) => { g.fillStyle = '#45484d'; g.fillRect(0, 0, w, h); speckle(g, w, h, ['#2e3034', '#5d6066', '#6b6e74'], 6000, 1, 2.5); }, [60, 2.5]);
   const road = new THREE.Mesh(new THREE.PlaneGeometry(300, 12), new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.95, envMapIntensity: 0.3 }));
   road.rotation.x = -Math.PI / 2; road.position.set(0, 0.0, 10.8); road.receiveShadow = true; world.add(road);
@@ -1232,10 +1233,53 @@ function hpLogo(size, x, y, z, rx, parent) {
   const m = new THREE.Mesh(geo('hplogo', () => new THREE.PlaneGeometry(1, 1)), hpLogoMat());
   m.scale.setScalar(size); m.rotation.x = rx || 0; put(m, x, y, z, parent, false); return m;
 }
+// dòng chữ dưới logo trên mái: sơn mờ màu ngói, kín đáo
+let _sloganMat = null;
+function sloganMat() {
+  if (_sloganMat) return _sloganMat;
+  const c = document.createElement('canvas'); c.width = 2048; c.height = 240;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  const draw = () => {
+    const g = c.getContext('2d'), txt = 'TUYỂN DỤNG IDOL LIVE TOÀN QUỐC'; g.clearRect(0, 0, 2048, 240);
+    const fam = getComputedStyle(document.body).fontFamily || 'sans-serif';
+    let fs = 168; g.font = `900 ${fs}px ${fam}`; while (g.measureText(txt).width > 1880 && fs > 60) { fs -= 4; g.font = `900 ${fs}px ${fam}`; }
+    g.textAlign = 'center'; g.textBaseline = 'middle';                         // sơn mờ lên ngói: tông cam đất, như chữ cũ đã phai
+    g.fillStyle = 'rgba(90,38,18,.35)'; g.fillText(txt, 1024, 128);
+    g.fillStyle = 'rgba(255,214,170,.42)'; g.fillText(txt, 1024, 122);
+    t.needsUpdate = true;
+  };
+  draw(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  _sloganMat = keep(new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  return _sloganMat;
+}
+// chữ khắc chìm trên vỉa hè: nét xám đậm + viền sáng lệch xuống như rãnh đục vào đá
+let _walkTextMat = null;
+function walkTextMat() {
+  if (_walkTextMat) return _walkTextMat;
+  const c = document.createElement('canvas'); c.width = 2048; c.height = 160;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  const draw = () => {
+    const g = c.getContext('2d'), txt = 'HP Media - LIVE Creator Network on TikTok'; g.clearRect(0, 0, 2048, 160);
+    const fam = getComputedStyle(document.body).fontFamily || 'sans-serif';
+    let fs = 112; g.font = `800 ${fs}px ${fam}`; while (g.measureText(txt).width > 1960 && fs > 50) { fs -= 4; g.font = `800 ${fs}px ${fam}`; }
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(255,255,255,.75)'; g.fillText(txt, 1024, 86);           // mép sáng phía dưới rãnh
+    g.fillStyle = 'rgba(70,70,66,.85)'; g.fillText(txt, 1024, 80);             // lòng rãnh tối
+    g.fillStyle = 'rgba(40,40,38,.35)'; g.fillText(txt, 1022, 77);             // bóng mép trên
+    t.needsUpdate = true;
+  };
+  draw(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  _walkTextMat = keep(new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2 }));
+  return _walkTextMat;
+}
+function hpSlogan(w, x, y, z, rx, parent) {
+  const m = new THREE.Mesh(geo('hplogo', () => new THREE.PlaneGeometry(1, 1)), sloganMat());
+  m.scale.set(w, w * 240 / 2048, 1); m.rotation.x = rx || 0; put(m, x, y, z, parent, false); return m;
+}
 function houseDeco(H, F) {
   const st = T.style;
-  if (st === 'adobe') hpLogo(1.5, 0, 6.75, F + 0.22, 0, H);                              // nhà mái bằng: logo trên tường chắn mái
-  else { const a = Math.atan2(4.6, 6); hpLogo(2.6, 0, 8.0 + 0.06, 3.2 + 0.05, -(Math.PI / 2 - a), H); }   // logo lớn trên mái trước
+  if (st === 'adobe') { hpLogo(1.5, 0, 6.75, F + 0.22, 0, H); hpSlogan(4.2, 0, 5.85, F + 0.22, 0, H); }   // nhà mái bằng: logo + chữ trên tường chắn mái
+  else { const a = Math.atan2(4.6, 6), d = 1.7; hpLogo(2.6, 0, 8.0 + 0.06, 3.2 + 0.05, -(Math.PI / 2 - a), H); hpSlogan(5.0, 0, 8.06 - Math.sin(a) * d, 3.25 + Math.cos(a) * d, -(Math.PI / 2 - a), H); }   // logo lớn + dòng chữ dưới logo, nằm theo mặt mái
   if (st === 'snow') {                                            // băng nhũ dưới mái, tuyết đọng
     const snowM = MS(0xf8fbff, 0.6), ice = MS(0xd8f2ff, 0.15, 0.1, { transparent: true, opacity: 0.85 });
     for (let x = -8.8; x <= 8.8; x += 0.32) { if (Math.random() < 0.25) continue; const L = rand(0.25, 0.8); const c = new THREE.Mesh(geo('icicle', () => new THREE.ConeGeometry(0.06, 1, 6)), ice); c.scale.y = L; c.rotation.x = Math.PI; put(c, x, 5.58 - L / 2, 6.22, H, false); }
@@ -2498,7 +2542,7 @@ function mkCat(coat, h) {
   for (let i = 0; i < 5; i++) { const sg = new THREE.Group(); sg.position.set(0, i ? 0.13 : py, i ? 0 : pz); sg.rotation.x = i ? -0.35 : -0.9; par.add(sg); cyl(0.05 - i * 0.004, 0.055 - i * 0.004, 0.14, i === 4 ? dark : fur, 0, 0.065, 0, sg, 6); tail.push(sg); par = sg; }
   g.scale.setScalar(h / 0.95);
   let t = Math.random() * 6;
-  const mixer = { update(dt) {
+  const mixer = { stopAllAction() {}, uncacheRoot() {}, update(dt) {
     t += dt * 11;
     legs.forEach((l, i) => { l.rotation.x = Math.sin(t + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.7; });
     g.position.y = Math.abs(Math.sin(t)) * 0.05 * h; head.rotation.x = Math.sin(t * 2) * 0.05;
@@ -3897,7 +3941,11 @@ function onLand(it) {
   }
   sfx('thud');
   it.squash = 0.25;
-  if (it.onMon && Math.hypot(p.x - mon.x, p.z - mon.z) < 1.6) hitMonster(25, 2.5, it.owner, { text: 'BỊCH!' });
+  if (it.onMon && Math.hypot(p.x - mon.x, p.z - mon.z) < 1.6) {                 // sát cửa hết chỗ: rơi cộc đầu (choáng nhẹ, KHÔNG văng ra) rồi lăn sang bên cạnh
+    hitMonster(25, 0, it.owner, { text: 'BỊCH!', stun: 0.5 });
+    const side = mon.x > 0 ? -1 : 1; p.x = clamp(mon.x + side * (1.3 + (it.halfW || 0.5)), -LANE, LANE);
+    if (Math.abs(p.x - mon.x) < 1.2 + (it.halfW || 0.5)) p.x = clamp(mon.x - side * (1.3 + (it.halfW || 0.5)), -LANE, LANE);
+  }
   it.state = 'set'; it.t = 0;
   if (it.kind === 'slime') { const pd = mkPuddle(); pd.position.copy(p).setY(0); scene.remove(it.g); disposeTree(it.g); it.g = pd; scene.add(pd); it.life = 14; }
   if (it.kind === 'bomb') it.fuse = 6;
