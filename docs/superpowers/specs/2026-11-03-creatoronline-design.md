@@ -675,3 +675,65 @@ Làm trong worktree `.claude/worktrees/creator-online` (checkout chính đang c�
 - Soak test 1 giờ trên máy thật (`?debug=1` + `__creator.sim()`): `renderer.info.memory` phải đứng yên.
 - Sau khi phiên Nhà Tù commit: ghi mã commit nguồn vào đầu `logic/population.js` và `label-layer.js`.
 - GĐ2 (mục 18): PK chia đôi màn hình, mini show A/B/C, phím tắt đạo diễn, nhân vật SkinnedMesh gộp, giành quà giữa các game.
+
+## 21. GĐ2 — người xem chơi với nhau (chốt 03/11/2026, đã làm)
+
+Mục tiêu (lời streamer): người xem chỉ có bình luận / chia sẻ / thả tim / quà; muốn camera quay tới thì phải tương tác, **quà (xu) và quà chỉ định luôn ưu tiên cao nhất**; người xem tự chơi với nhau để tặng nhiều nhất. Gói miễn phí = tương tác chung + đăng ký tham gia.
+
+### 21.1 Số người chơi và nhắm người
+- Mỗi người xem trong tòa nhà có số **#1–#99** (chip màu nhóm trước tên). Số giữ suốt buổi, người rời thì trả số.
+- Bình luận **cả câu**: `ném 12` · `ghép 12` · `ôm 12` · `thách 12` (đặt người nhắm, hiệu lực `live.social.aimSec` 120 giây, chip gợi ý quà cần tặng) · `bạn 12` (kết bạn, miễn phí). Có dấu thì phải đúng chính tả (`bán 12`, `ốm 12` không khớp); `#12` cũng được.
+- Tặng quà nhắm người mà chưa gõ số → nhắm **người đang lên hình**, rồi người vừa bình luận trong 60 giây. Không có ai → quà chạy như quà thường (lên sân) + chip "gõ 'ném 12' trước".
+
+### 21.2 Quà → hành động GĐ2 (`SOCIAL_ACTIONS` / `VIP_ACTIONS` / `SOLO_ACTIONS` trong `logic/events.js`)
+Không lên sân, không sự kiện tòa nhà, không mở PK ở **mọi** bậc (cảnh quay riêng đã là phần thưởng; quà ≥ 299 xu vẫn có banner). Gợi ý mặc định:
+
+| Hành động | Quà gợi ý | Kết quả |
+|---|---|---|
+| `throwCake` | Bánh sinh nhật 1 xu (9340) | bánh bay vòng cung trúng mặt, dính 20 giây, MC + LED đọc tên 2 người; bị ném rồi ném lại trong 60 giây = "trả đũa 🔥" |
+| `throwHeart` | Bắn tim 5 xu (5487) | tim xoay quanh đầu 20 giây |
+| `throwEgg` | Trứng ốp la 199 xu (842726) | trứng dính đầu 20 giây |
+| `pair` | Cánh cung của Thần Tình Yêu 99 xu (13904) | 2 người ra **Sàn Giao Lưu** nhảy đôi `coPairSec` (60), tặng nữa +60 (trần 180); 1 trong 2 đang ghép với người khác → chip 💔, quà lên sân |
+| `hug` | Cái ôm thật chặt 400 xu (60547) | 2 người ôm nhau 10 giây ở Sàn Giao Lưu |
+| `duel` | Găng tay đấm bốc 299 xu (6007) | thách đấu 1–1 `coDuelSec` (60), mục 21.4 |
+| `fireworks` / `fly` / `transform` | Pháo hoa giấy 100 (5585) / Bóng bay trái tim 149 (16552) / Siêu nhân bố 400 (191116) | pháo hoa quanh nhân vật · bay lên 12 giây · khổng lồ ×1,5 + hào quang 60 giây |
+| `vipHat` / `vipGlasses` / `vipWings` | Vương miện lông vũ 149 (17100) / Cặp kính ngôi sao 249 (15752) / Đôi cánh tiên 1000 (14397) | đồ **giữ trọn đời** theo tài khoản TikTok (server `lib/creatoronline-fans.js` → `vip: ['glasses','hat','wings']`, không bao giờ bị dọn) |
+
+Bản cài đã lưu `coGiftMap` từ GĐ1: panel tự thêm 12 hành động một lần (`coGdMigrated = 2`), bỏ quà đã gán chỗ khác.
+
+### 21.3 Sàn Giao Lưu, chỗ đứng
+- Sàn Giao Lưu = vòng logo sảnh Nam (tâm (0, 19)): 1 chỗ thách đấu ở giữa + 4 chỗ cặp (ôm / nhảy đôi). Hết chỗ hoặc 1 người đang **bận** (giữ vai / phòng / chưa có nhân vật) → chỉ hiệu ứng tại chỗ + cảnh cận người được nhắm.
+- Thứ tự chỗ đứng: **vai > phòng > Sàn Giao Lưu > ⭐ Center > sân khấu > khán giả**. Ra sàn xong `reconcile` đưa về chỗ cũ.
+- **⭐ Center** = top quà của nhóm trong 5 phút qua, tối thiểu `centerMinXu` 30 xu: đứng giữa mép trước sân khấu, cầm mic, hào quang vàng; chỗ khách trên sân nhường người khác. Sau mỗi quà người không phải Center thấy chip "cần X xu lên Center".
+- **🎖️ Đội trưởng** = top quà buổi này của nhóm: băng tay màu nhóm; lệnh `pk 1–5` (gọi PK) và `nhạc` (đổi nhạc sân), mỗi lệnh 60 giây 1 lần.
+- Người đã tặng quà buổi này đứng **hàng đầu** khán giả; chưa tặng xếp từ hàng sau lên.
+
+### 21.4 Thách đấu 1–1 (`Duel` trong `logic/social.js`, dùng `PkRound`)
+60 giây, 15 giây cuối nước rút. Người đấu tính quà/tim cho mình; khán giả gõ `A`/`B` (miễn phí, +5 tim cho phe, 5 giây 1 lần) rồi quà/tim của họ tính cho phe đã chọn. Thanh HUD dùng chung ô PK (viền vàng, `setPk({kind:'duel'})`). Thắng: 🏆 sau tên 5 phút + banner; thua: tư thế `cry` 10 giây. Một trận một lúc, nghỉ 20 giây giữa 2 trận. **Không chạy cùng PK nhóm**: đang PK → quà thách đấu lên sân; đang thách đấu → PK nhóm (tự động, quà, đội trưởng, quản lý) chờ tới hết trận. Người đấu rời tòa nhà → người kia thắng.
+
+### 21.5 Miễn phí
+- `áo 1–8`, `tóc 1–6` (`live.social.outfits/hairs`), mỗi loại `coLookSec` 60 giây 1 lần; giữ trong buổi (localStorage), không lưu server.
+- Biểu cảm `nhảy` `vẫy` `tim` `lắc` 4 giây, `coEmoteSec` 10 giây 1 lần.
+- Kết bạn `bạn 12`: cùng nhóm thì đứng cạnh nhau; bạn tặng quà → mình nhảy cổ vũ.
+- **Cổ vũ đồng thanh**: ≥ max(`coChorusMin`, 15 % người đang hoạt động, trần 8) người khác nhau gõ cùng một câu trong 10 giây → biểu tượng trên đầu, chip HUD, cảnh khán giả nhóm đông nhất 6 giây, mỗi người +30 tim cho phe nếu đang PK; nghỉ 30 giây.
+
+### 21.6 Camera
+Bảng `PRIORITY`: gala 70 · spotlight 60 · big 50 · pk 45 · **duel 44** · room 40 · **act 35** (ném/ôm/ghép/đồ VIP/hành động riêng) · role 30 · **chorus 6** · **fan 5** · idle 0. Cảnh dưới `SOFT_PRIO` 10 (miễn phí) bị cảnh quà cắt ngay.
+- **Điểm lên hình** (`CameraScore`): bình luận +3 (10 giây 1 lần), chia sẻ +15, follow +10, mỗi 20 tim +1, giảm nửa sau 60 giây. Mỗi `coFanSpotSec` (25) giây, khi đạo diễn rảnh và hàng chờ trống → cận 5 giây "⭐ fan nổi bật" người điểm cao nhất (≥ 5), rồi điểm về 0.
+- Kiểu nhìn mới ở `director-cam.js`: `duo` (giữa 2 người, lùi theo khoảng cách; đo: đầu ~y 610–640/1920) và `over` (cận người giữa khán giả, cao 3,4 m chúc xuống, hướng theo chỗ đứng khán giả).
+- Ném trúng cùng 1 người trong 8 giây: chỉ hiệu ứng, không xếp thêm cảnh.
+
+### 21.7 Phát nét cho TikTok Studio
+Cửa sổ game mặc định **608×1080** (`coWinSize`: 540×960 · 608×1080 · 720×1280 · 1080×1920; `POST /api/creatoronline/window/open {size}`). Panel có hộp "📺 Phát nét lên TikTok Studio": cách 1 OBS Browser Source 1080×1920 + Virtual Camera; cách 2 TikTok Studio "Chụp cửa sổ" cửa sổ 720×1280 trở lên.
+
+### 21.8 Mã
+- `js/logic/social.js` (thuần, test `tests/creatoronline-social.test.mjs`): `parseSocialCommand`, `chorusKey`, `TagBook`, `CameraScore`, `Chorus`, `CenterBoard`, `Bonds`, `Duel`, `Pranks` — đều có `toJSON/fromJSON`.
+- `js/social-play.js`: phần chạy (Sàn Giao Lưu, món ném bay, ngoại hình, Center/đội trưởng, fan nổi bật, HUD thách đấu), nối với `game.js` qua 1 đối tượng ctx.
+- `character.js setExtras(char, {vipHat, glasses, wings, splat, armband, scale, aura})` (mỗi lần gọi đặt TOÀN BỘ trạng thái; dựng lười, dùng chung material) + tư thế `hug` `fight` `fly` `cry` `heartPose` `shake`.
+- Khoá config mới: `coSocial`, `coFanSpotSec`, `coPairSec`, `coDuelSec`, `coEmoteSec`, `coLookSec`, `coChorusMin`, `coWinSize`. Thông số phụ `data.json → live.social`, `live.shotSec`.
+- Panel: kịch bản thử `cmd('test', {kind:'scenario', scenario})` với `throw|pair|hug|duel|chorus|free|vip|center`.
+
+### 21.9 Chưa kiểm / còn lại
+- Chưa chạy LIVE thật: tên quà Ca khúc / quà id lạ không ảnh hưởng; cần xem người xem thật có hiểu "gõ số trước rồi tặng" không (chip + dòng hướng dẫn xoay).
+- Sàn Giao Lưu dùng vùng logo sảnh — nhánh làm kín bản đồ (`tuongtac/creator-online-decor`) không được đặt vật cản trong bán kính ~5 m quanh (0, 19).
+- Đo khung hình trong Browser pane (software render); cần xem lại trên OBS thật.
