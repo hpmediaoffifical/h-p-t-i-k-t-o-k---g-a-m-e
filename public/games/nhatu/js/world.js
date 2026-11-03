@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CollisionWorld, makeBox } from './logic/physics.js';
+import { SHADOW_LAYER } from './character.js';
 
 export const HALL = { minX: -20, maxX: 20, minZ: -16, maxZ: 14, height: 7.2 };
 export const UPPER_Y = 3.4;
@@ -97,7 +98,8 @@ class Instancer {
  * Build the whole level.
  * @returns world description used by gameplay systems
  */
-export function buildWorld(scene) {
+/** @param {{low?: boolean}} [opts] low = ?q=low (máy yếu): bóng 1024 thay vì 2048 */
+export function buildWorld(scene, { low = false } = {}) {
   const collision = new CollisionWorld(4);
   const batch = new StaticBatch();
   const inst = new Instancer();
@@ -205,6 +207,20 @@ export function buildWorld(scene) {
   for (let j = 0; j < 6; j++) frames.push({ side: 'left', cx: -16, cz: -12 + 4 * j + 2, rot: 1 });
 
   const toWorld = (f, lx, lz) => (f.rot === 0 ? [f.cx + lx, f.cz + lz] : [f.cx + lz, f.cz - lx]);
+  /**
+   * Chỗ NẰM ngủ trên giường tầng (đầu trên gối sát tường sau, chân về phía cửa), mặt ngửa lên.
+   * pos = gốc nhân vật (gót chân), q = hướng nằm, head = điểm treo bảng tên. top = mặt đệm.
+   */
+  function lieSpot(f, top) {
+    const [px, pz] = toWorld(f, -1.44, -3.63); // giữa gối
+    const [fx, fz] = toWorld(f, -1.44, -2.0); // phía chân
+    const l = Math.hypot(px - fx, pz - fz);
+    const h = new THREE.Vector3((px - fx) / l, 0, (pz - fz) / l); // chân → đầu
+    const up = new THREE.Vector3(0, 1, 0);
+    const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(h, up), h, up));
+    const y = top + 0.2; // lưng chạm đệm; đầu chibi to được nâng bằng tư thế cúi đầu (character.js 'sleep')
+    return { pos: new THREE.Vector3(px - h.x * 1.3, y, pz - h.z * 1.3), q, head: new THREE.Vector3(px, y + 0.35, pz) };
+  }
   function localBox(f, lx0, lx1, y0, y1, lz0, lz1, material, opts) {
     if (f.rot === 0) box(f.cx + lx0, f.cx + lx1, y0, y1, f.cz + lz0, f.cz + lz1, material, opts);
     else box(f.cx + lz0, f.cx + lz1, y0, y1, f.cz - lx1, f.cz - lx0, material, opts);
@@ -312,7 +328,8 @@ export function buildWorld(scene) {
         front: pt(0.88, 1.0),
         door: pt(0.88, -0.45),
         inside: pt(0.25, -2.2),
-        beds: [pt(-1.05, -2.35), pt(-1.05, -3.2)].map((b) => ({ ...b, y: base + 0.5, ry: f.rot === 0 ? Math.PI / 2 : Math.PI, occupant: null })),
+        // 2 chỗ: ngồi ở mép giường dưới (nghỉ trưa) — đi ngủ thì người thứ nhất nằm giường dưới, người thứ hai giường trên
+        beds: [pt(-1.05, -2.35), pt(-1.05, -3.2)].map((b, i) => ({ ...b, y: base + 0.5, ry: f.rot === 0 ? Math.PI / 2 : Math.PI, occupant: null, lie: lieSpot(f, base + (i === 0 ? 0.48 : 1.48)) })),
         bounds: { minX: Math.min(c0[0], c1[0]), maxX: Math.max(c0[0], c1[0]), minZ: Math.min(c0[1], c1[1]), maxZ: Math.max(c0[1], c1[1]) },
         faceRy: f.rot === 0 ? Math.PI : -Math.PI / 2,
         doorMesh: door,
@@ -493,6 +510,53 @@ export function buildWorld(scene) {
     scene.add(sign);
   }
 
+  // ---------------------------------------------------------------- 🗑️ thùng rác (quà "Ném vào thùng rác") — sát tường trước, 2 bên cổng
+  const bins = [];
+  {
+    const green = new THREE.MeshStandardMaterial({ color: 0x2f8f4e, roughness: 0.6 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x1f5e34, roughness: 0.6 });
+    for (const x of [-5.6, 7.6]) {
+      const z = 13.1;
+      const body = new THREE.CylinderGeometry(0.6, 0.5, 1.0, 22, 1, true); // đủ rộng cho đầu chibi + mũ len (người bị ném cắm đầu vào)
+      body.translate(x, 0.5, z);
+      batch.add(body, green, { cast: true, receive: true });
+      const rim = new THREE.TorusGeometry(0.6, 0.06, 8, 26);
+      rim.rotateX(Math.PI / 2);
+      rim.translate(x, 1.0, z);
+      batch.add(rim, dark, { cast: true, receive: true });
+      const bottom = new THREE.CircleGeometry(0.5, 22);
+      bottom.rotateX(-Math.PI / 2);
+      bottom.translate(x, 0.12, z);
+      batch.add(bottom, dark, { cast: false, receive: true });
+      const lid = new THREE.CylinderGeometry(0.62, 0.62, 0.06, 22);
+      lid.rotateX(-1.25); // nắp mở ngả ra sau, tựa vào tường
+      lid.translate(x, 1.27, z + 0.7);
+      batch.add(lid, dark, { cast: true, receive: true });
+      // không có hộp va chạm: thùng đứng sát tường sẽ chắn đường đi thẳng dọc tường (NPC đi đường thẳng, không có navmesh)
+      const sign = signMesh('🗑️ THÙNG RÁC', 1.3, 0.34, '#2f8f4e', '#ffffff');
+      sign.position.set(x, 2.15, 13.9);
+      sign.rotation.y = Math.PI;
+      scene.add(sign);
+      // chỗ "cắm" người bị ném (tối đa 3 người/thùng, chân thò lên)
+      bins.push({ x, z, rim: 1.0, approach: { x, z: z - 1.1 }, slots: [{ dx: 0, dz: 0 }, { dx: -0.24, dz: 0.1 }, { dx: 0.24, dz: 0.1 }], used: [null, null, null] });
+    }
+  }
+  // góc khuất sát tường cho quà "Đi bậy / Tè bậy" (ry = hướng mặt vào tường)
+  const mischiefSpots = [
+    ...[-11, -7.4, 4.2, 10.4, 13.4].map((x) => ({ x, z: 13.25, ry: 0 })),
+    ...[6.5, 9.2, 11.6].map((z) => ({ x: 19.3, z, ry: Math.PI / 2 })),
+    ...[-10, -7, 3, 7].map((x) => ({ x, z: -8.35, ry: Math.PI })),
+  ];
+
+  // ☔ chỗ trú mưa: hành lang dưới lối đi tầng trên (trước dãy phòng sau + dãy phòng trái)
+  const shelterSpots = [];
+  for (let x = -12; x <= 10.5; x += 1.1) shelterSpots.push({ x, z: -11.0, ry: Math.PI });
+  for (let z = -9; z <= 11; z += 1.1) shelterSpots.push({ x: -15.0, z, ry: -Math.PI / 2 });
+  // 🏃 thi chạy: 5 làn dọc sân trước (giữa dãy bàn ăn cuối và tường cổng), chạy từ x0 tới x1
+  const raceLanes = [10.0, 10.8, 9.2, 11.5, 8.5].map((z) => ({ z, x0: -7, x1: 12 }));
+  // 🪢 kéo co theo PK: dây dọc trục x giữa khu điểm danh bên phải
+  const tug = { x: 14.2, z: 7.2 };
+
   inst.build(scene);
   batch.build(scene, cameraBlockers);
 
@@ -503,10 +567,11 @@ export function buildWorld(scene) {
   sun.position.set(14, 30, 12);
   sun.target.position.set(0, 0, -1);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(low ? 1024 : 2048, low ? 1024 : 2048);
   Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 80 });
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.03;
+  sun.shadow.camera.layers.enable(SHADOW_LAYER); // bóng thay thế ít đa giác của nhân vật (camera chính không thấy)
   scene.add(sun, sun.target);
   const lamps = [];
   for (const [x, z] of [[-8, -3], [4, -3], [-8, 8], [4, 8], [15, 2]]) {
@@ -526,7 +591,11 @@ export function buildWorld(scene) {
     hemi.intensity = THREE.MathUtils.lerp(1.55, 0.45, f);
     hemi.color.copy(hemiDay).lerp(hemiNight, f);
     sun.intensity = THREE.MathUtils.lerp(1.9, 0.12, f);
-    for (const l of lamps) l.intensity = THREE.MathUtils.lerp(0, 9, f);
+    // đèn trại tắt hẳn ban ngày: đèn cường độ 0 vẫn bị shader tính cho từng điểm ảnh (5 đèn × ~2 triệu điểm ảnh)
+    for (const l of lamps) {
+      l.intensity = THREE.MathUtils.lerp(0, 9, f);
+      l.visible = f > 0.01;
+    }
     M.light.emissiveIntensity = THREE.MathUtils.lerp(0.8, 2.2, f);
     scene.background.copy(dayBg).lerp(nightBg, f);
   }
@@ -555,6 +624,11 @@ export function buildWorld(scene) {
     guardPost: { x: 9.6, z: 2.2, ry: Math.PI / 2 },
     throne,
     kitchen,
+    bins,
+    mischiefSpots,
+    shelterSpots,
+    raceLanes,
+    tug,
     gate: { x: 0, z: 12.9 },
     stage: { x: 15.2, z: 1 },
     /** Đóng / mở cửa song sắt của một phòng (phòng biệt giam). */

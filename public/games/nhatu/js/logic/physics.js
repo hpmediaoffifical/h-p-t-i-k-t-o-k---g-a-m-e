@@ -22,10 +22,13 @@ export class CollisionWorld {
     this.cellSize = cellSize;
     this.cells = new Map();
     this.boxes = [];
+    this._out = [];
+    this._stamp = 0;
   }
 
+  /** Khoá số cho ô lưới (không tạo chuỗi mỗi lần tra). */
   _key(ix, iz) {
-    return `${ix},${iz}`;
+    return (ix + 4096) * 8192 + (iz + 4096);
   }
 
   /** Register a box. */
@@ -43,14 +46,24 @@ export class CollisionWorld {
     return box;
   }
 
-  /** Boxes whose grid cells touch the circle (x, z, r). */
+  /**
+   * Boxes whose grid cells touch the circle (x, z, r).
+   * Trả về MẢNG DÙNG LẠI giữa các lần gọi (gọi mỗi bước cho mọi nhân vật — không cấp phát): duyệt ngay, đừng giữ lại.
+   */
   near(x, z, r) {
     const s = this.cellSize;
-    const out = new Set();
+    const out = this._out;
+    out.length = 0;
+    const stamp = ++this._stamp;
     for (let ix = Math.floor((x - r) / s); ix <= Math.floor((x + r) / s); ix++) {
       for (let iz = Math.floor((z - r) / s); iz <= Math.floor((z + r) / s); iz++) {
         const list = this.cells.get(this._key(ix, iz));
-        if (list) for (const b of list) out.add(b);
+        if (!list) continue;
+        for (const b of list) {
+          if (b._near === stamp) continue; // hộp nằm trên nhiều ô — chỉ lấy 1 lần
+          b._near = stamp;
+          out.push(b);
+        }
       }
     }
     return out;

@@ -332,6 +332,124 @@
    "Khoẻ re rồi!",
    "Thuốc đắng dã tật!",
    "❤️"
+  ],
+  "poop": [
+   "Rặn… rặn… 💩",
+   "Đau bụng quá, ra đây tí…",
+   "Suỵt, đừng ai thấy nha!"
+  ],
+  "pee": [
+   "Xè xè~ 💦",
+   "Nhịn không nổi nữa rồi!",
+   "Quay mặt vô tường, không ai thấy đâu…"
+  ],
+  "relief": [
+   "Phù~ nhẹ cả người!",
+   "Xong! Chuồn thôi!",
+   "Sướng ghê!"
+  ],
+  "caught": [
+   "❗ Bắt quả tang {name}!",
+   "{name}! Đứng lại! Vi phạm nội quy!",
+   "Lại là {name}! Đi theo tôi!"
+  ],
+  "caughtSelf": [
+   "Toang rồi!",
+   "Ơ… cán bộ ơi em lỡ…",
+   "Em xin lỗi cán bộ!"
+  ],
+  "smell": [
+   "Eo ơi! Thối quá!",
+   "Ai đi bậy ở đây vậy trời?!",
+   "Hôi quá, bịt mũi lại!",
+   "Ruồi bay đầy kìa!"
+  ],
+  "offenseJailed": [
+   "Biết vậy đã không đi bậy…",
+   "Ở trong này hối lỗi vậy…",
+   "Lần sau em đi nhà vệ sinh!"
+  ],
+  "mustClean": [
+   "Phải đi dọn bãi của mình rồi…",
+   "Ra tù rồi, đi dọn thôi!",
+   "Dọn sạch mới được thảnh thơi!"
+  ],
+  "cleanDone": [
+   "Sạch bong rồi nhé!",
+   "Từ nay không đi bậy nữa!",
+   "Thơm tho rồi!"
+  ],
+  "report": [
+   "Báo cáo cán bộ!",
+   "Cán bộ ơi, có người làm bậy!",
+   "Em tố cáo ạ!"
+  ],
+  "trashVictim": [
+   "Ơ… gì vậy?",
+   "Ủa ủa ủa?!",
+   "Đừng mà!!"
+  ],
+  "trashGrab": [
+   "Lên nào!",
+   "Đi chơi với tui nha!",
+   "Hự… nặng ghê!"
+  ],
+  "trashStuck": [
+   "Cứu với!!",
+   "Kéo tui ra đi!",
+   "Hôi quá trời ơi!"
+  ],
+  "trashOut": [
+   "Thoát rồi!",
+   "Nhớ mặt đó nha!",
+   "Hôi rình… đi tắm thôi!"
+  ],
+  "laugh": [
+   "Haha!",
+   "Hahaha!",
+   "Hihi!",
+   "Hô hô hô!",
+   "Haha đáng đời!"
+  ],
+  "prank_shave": [
+   "Tóc tui đâu rồi?!",
+   "Mát đầu ghê!",
+   "Ơ… trọc lóc rồi!"
+  ],
+  "prank_dress": [
+   "Sao tui phải mặc cái này?!",
+   "Đẹp không mọi người?",
+   "Hồng hồng xinh xinh…"
+  ],
+  "prank_cake": [
+   "Ơ! Kem!",
+   "Ngọt ghê… nhưng mà!",
+   "Ai úp tui đó?!"
+  ],
+  "slip": [
+   "Á á á!",
+   "Ui da cái lưng!",
+   "Vỏ chuối của ai vậy?!"
+  ],
+  "birthday": [
+   "Chúc mừng sinh nhật {name}!",
+   "Happy birthday {name}!",
+   "Tuổi mới mau ra tù nha {name}!"
+  ],
+  "drill": [
+   "Chạy mau!",
+   "Ra sân! Ra sân!",
+   "Bình tĩnh, xếp hàng!"
+  ],
+  "rain": [
+   "Mưa rồi!!",
+   "Ướt hết rồi!",
+   "Chạy vô hiên!"
+  ],
+  "mouse": [
+   "Á! Chuột!",
+   "Chuột kìa!!",
+   "Ối mẹ ơi!"
   ]
  },
  "actions": [
@@ -475,7 +593,8 @@
    "emoji": "🍜",
    "label": "Tiệc mì tôm",
    "group": "event",
-   "desc": "Cả trại kéo ra bàn ăn mì tôm, người tặng là chủ tiệc."
+   "desc": "Cả trại kéo ra bàn ăn mì tôm, người tặng là chủ tiệc.",
+   "crowd": true
   },
   {
    "id": "karaoke",
@@ -489,7 +608,7 @@
    "emoji": "💪",
    "label": "Vật tay",
    "group": "event",
-   "desc": "Người tặng vật tay với một bạn tù, thắng được cộng điểm."
+   "desc": "Người tặng vật tay với một bạn tù — đang vật thì 2 bên tặng quà để gồng sức; người thua bị người thắng vác ném vào thùng rác. 🎯 Bình luận MÃ SỐ để thách đấu đúng người."
   },
   {
    "id": "dog",
@@ -517,21 +636,24 @@
    "emoji": "🚨",
    "label": "Khám phòng",
    "group": "event",
-   "desc": "Còi báo động: cả trại xếp hàng, cán bộ đi khám từng phòng."
+   "desc": "Còi báo động: cả trại xếp hàng, cán bộ đi khám từng phòng.",
+   "crowd": true
   },
   {
    "id": "flashmob",
    "emoji": "🕺",
    "label": "Flashmob",
    "group": "event",
-   "desc": "Cả trại nhảy múa tập thể."
+   "desc": "Cả trại nhảy múa tập thể.",
+   "crowd": true
   },
   {
    "id": "lightsout",
    "emoji": "🌙",
    "label": "Tắt đèn",
    "group": "event",
-   "desc": "Tắt đèn 15 giây, cả trại ngủ gật."
+   "desc": "Tắt đèn 15 giây, cả trại ngủ gật.",
+   "crowd": true
   },
   {
    "id": "pardon",
@@ -539,6 +661,139 @@
    "label": "Ân xá",
    "group": "event",
    "desc": "Người tặng được tuyên dương ra cổng, bắn pháo hoa, nhận danh hiệu ⭐ Gương mẫu."
+  },
+  {
+   "id": "poop",
+   "emoji": "💩",
+   "label": "Đi bậy",
+   "group": "mischief",
+   "desc": "Lén ra góc tường ngồi xổm đi bậy, để lại bãi có ruồi bay. Cán bộ đứng gần là bị bắt quả tang → giam, ra tù phải tự dọn."
+  },
+  {
+   "id": "pee",
+   "emoji": "💦",
+   "label": "Tè bậy",
+   "group": "mischief",
+   "desc": "Quay mặt vào tường tè bậy, để lại vũng nước. Bị cán bộ thấy là bị giam, ra tù phải tự dọn."
+  },
+  {
+   "id": "report",
+   "emoji": "📢",
+   "label": "Tố cáo cán bộ",
+   "group": "mischief",
+   "desc": "Báo cán bộ người vừa đi bậy / tè bậy mà chưa bị bắt (trong 5 phút) — cán bộ tới bắt đi giam. 🎯 Bình luận MÃ SỐ để tố đúng người. Người tố cáo được điểm."
+  },
+  {
+   "id": "bail",
+   "emoji": "🔓",
+   "label": "Bảo lãnh ra tù",
+   "group": "mischief",
+   "desc": "Đang bị giam vì đi bậy → được thả sớm. Không bị giam thì bảo lãnh giúp bạn tù bị giam lâu nhất (🎯 hoặc bình luận MÃ SỐ người muốn bảo lãnh). Ra tù vẫn phải dọn vệ sinh."
+  },
+  {
+   "id": "trash",
+   "emoji": "🗑️",
+   "label": "Ném vào thùng rác",
+   "group": "mischief",
+   "desc": "Chạy tới 1 bạn tù, vác lên đầu, ném cắm đầu vào thùng rác — kẹt (mặc định 60 giây), cả trại cười haha. 🎯 Tặng xong bình luận MÃ SỐ tù nhân để chọn đúng người (gõ không kịp = vác người ngẫu nhiên)."
+  },
+  {
+   "id": "photo",
+   "emoji": "📸",
+   "label": "Chụp ảnh tập thể",
+   "group": "event",
+   "crowd": true,
+   "desc": "Mọi người quanh người tặng tạo dáng chữ V, đèn flash chụp ảnh lưu niệm (khoảng 4 giây)."
+  },
+  {
+   "id": "cleanup",
+   "emoji": "🧼",
+   "label": "Tổng vệ sinh",
+   "group": "event",
+   "crowd": true,
+   "desc": "Cả trại cùng lúc đi lau mọi vết bẩn và bãi đi bậy. Người xem nào dọn được bãi thì nhận điểm cống hiến."
+  },
+  {
+   "id": "lixi",
+   "emoji": "🧧",
+   "label": "Lì xì bạn tù",
+   "group": "event",
+   "desc": "Lì xì điểm cho 3 bạn tù ngẫu nhiên (+5 mỗi người). 🎯 Bình luận MÃ SỐ → cả phong bao (15 điểm) cho đúng người đó."
+  },
+  {
+   "id": "shave",
+   "emoji": "💇",
+   "label": "Cạo đầu trọc",
+   "group": "prank",
+   "desc": "Chạy tới 1 bạn tù, cạo trọc đầu bóng loáng (mặc định 2 phút). Cả trại cười haha. Combo ×5 / ×10 → 2 / 3 người. 🎯 Bình luận MÃ SỐ để chọn người."
+  },
+  {
+   "id": "dress",
+   "emoji": "👗",
+   "label": "Mặc váy hồng",
+   "group": "prank",
+   "desc": "Bắt 1 bạn tù mặc váy hồng + nơ hồng (mặc định 2 phút). 🎯 Bình luận MÃ SỐ để chọn người."
+  },
+  {
+   "id": "cake",
+   "emoji": "🎂",
+   "label": "Úp bánh kem",
+   "group": "prank",
+   "desc": "Bưng bánh kem chạy tới úp vào mặt 1 bạn tù — mặt dính kem 30 giây. 🎯 Bình luận MÃ SỐ để chọn người."
+  },
+  {
+   "id": "banana",
+   "emoji": "🍌",
+   "label": "Vỏ chuối",
+   "group": "prank",
+   "desc": "Ném vỏ chuối trước mặt người đang đi — giẫm trúng là trượt ngã ngửa, cả trại cười. 🎯 Bình luận MÃ SỐ: người đó bị gọi ra giẫm đúng vỏ chuối."
+  },
+  {
+   "id": "pushup",
+   "emoji": "🏋️",
+   "label": "Phạt hít đất",
+   "group": "prank",
+   "desc": "Báo cán bộ phạt 1 bạn tù hít đất 5 cái tại chỗ (đếm 1, 2, 3…). 🎯 Bình luận MÃ SỐ để chọn người."
+  },
+  {
+   "id": "birthday",
+   "emoji": "🎂",
+   "label": "Sinh nhật",
+   "group": "event",
+   "crowd": true,
+   "desc": "Cả trại vây quanh người tặng vỗ tay chúc mừng sinh nhật, bánh kem + pháo hoa."
+  },
+  {
+   "id": "race",
+   "emoji": "🏃",
+   "label": "Thi chạy",
+   "group": "event",
+   "crowd": true,
+   "desc": "4–5 người (ưu tiên người xem) thi chạy dọc sân trước, khán giả cổ vũ. Về nhất +10 điểm, về chót bị người về nhất ném vào thùng rác."
+  },
+  {
+   "id": "firedrill",
+   "emoji": "🚒",
+   "label": "Diễn tập thoát hiểm",
+   "group": "event",
+   "crowd": true,
+   "desc": "Còi báo — cả trại ôm đầu chạy ra sân tập trung."
+  },
+  {
+   "id": "rain",
+   "emoji": "☔",
+   "label": "Mưa rào",
+   "group": "event",
+   "crowd": true,
+   "desc": "Mưa rào bất chợt, mọi người ôm đầu chạy vào hành lang trú mưa. Trại vắng quà lâu cũng tự mưa."
+  },
+  {
+   "id": "mouse",
+   "emoji": "🐀",
+   "label": "Thả chuột",
+   "group": "event",
+   "crowd": true,
+   "desc": "Chuột chạy ngang sân — ai ở gần hét toáng, nhảy dựng."
   }
  ],
  "suggestedGiftMap": {

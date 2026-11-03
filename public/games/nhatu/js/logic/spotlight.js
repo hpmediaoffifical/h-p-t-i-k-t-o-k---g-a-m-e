@@ -5,7 +5,12 @@
  * - Ai tặng quà được 1 lượt: camera bám theo, bình luận mã (số hoặc chữ) để ra lệnh cho phạm nhân của mình.
  * - Thời lượng lượt = base + (xu - 1) × perCoin, kẹp trong [base, max].
  * - preempt = true: có người mới tặng quà đang chờ → người đang chơi chỉ giữ tối thiểu `minTurn` giây rồi nhường.
+ * - Hàng chờ xếp theo độ ưu tiên (`prio`, mặc định = số xu): quà lớn chen lên trước quà nhỏ. Mỗi người chỉ bị
+ *   chen qua tối đa MAX_JUMPS lần — quà nhỏ không bị đẩy xuống mãi.
  */
+
+/** Một người trong hàng chờ bị quà lớn hơn chen qua tối đa bấy nhiêu lần, sau đó giữ chỗ. */
+export const MAX_JUMPS = 3;
 
 /** Bỏ dấu tiếng Việt + chữ thường: "Lau Sàn" → "lau san". */
 export function stripVN(text) {
@@ -65,10 +70,12 @@ export class SpotlightQueue {
   /**
    * Ghi nhận một món quà.
    * @param {{id:string, name:string, avatar?:string}} user
+   * @param {number} [prio] độ ưu tiên trong hàng chờ (mặc định = số xu; quà đã gán hành động được nhân đôi)
    * @returns {'start'|'extend'|'queued'|'queued-extend'|'full'}
    */
-  addGift(user, coins, now) {
+  addGift(user, coins, now, prio = coins) {
     const sec = turnSeconds(coins, this);
+    const p = Math.max(0, Number(prio) || 0);
     if (this.current && this.current.id === user.id) {
       this.current.endsAt = Math.min(this.current.endsAt + sec * 1000, now + this.max * 1000);
       return 'extend';
@@ -76,6 +83,9 @@ export class SpotlightQueue {
     const waiting = this.queue.find((q) => q.id === user.id);
     if (waiting) {
       waiting.seconds = Math.min(this.max, waiting.seconds + sec);
+      waiting.prio += p; // tặng thêm lúc đang chờ → được chen lên (nếu đủ ưu tiên)
+      this.queue.splice(this.queue.indexOf(waiting), 1);
+      this.place(waiting);
       return 'queued-extend';
     }
     if (!this.current) {
@@ -83,8 +93,20 @@ export class SpotlightQueue {
       return 'start';
     }
     if (this.queue.length >= this.queueMax) return 'full';
-    this.queue.push({ id: user.id, name: user.name, avatar: user.avatar ?? '', seconds: sec });
+    this.place({ id: user.id, name: user.name, avatar: user.avatar ?? '', seconds: sec, prio: p, jumped: 0 });
     return 'queued';
+  }
+
+  /** Chèn vào hàng chờ: đứng trước những người ưu tiên thấp hơn chưa bị chen quá MAX_JUMPS lần. */
+  place(entry) {
+    let at = this.queue.length;
+    while (at > 0) {
+      const q = this.queue[at - 1];
+      if (q.prio >= entry.prio || q.jumped >= MAX_JUMPS) break;
+      at--;
+    }
+    for (let i = at; i < this.queue.length; i++) this.queue[i].jumped++;
+    this.queue.splice(at, 0, entry);
   }
 
   start(entry, now) {

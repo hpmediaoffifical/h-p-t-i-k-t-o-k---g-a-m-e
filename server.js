@@ -110,6 +110,7 @@ const CamSession = require('./lib/camgames-session');
 const { createCamObs } = require('./lib/camgames-obs');
 const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
 const MusicGifts = require('./lib/music-gifts');
+const CommentFilter = require('./lib/comment-filter');   // 🚫 từ cấm chung cho mọi game
 const { LuaSync } = require('./lib/lua-sync');
 const { OBSSettings } = require('./lib/obs-settings');
 
@@ -406,12 +407,13 @@ const GAMES = {
         // Khoá riêng tiền tố nt* (giống qv* của Zombie Phá Nhà). Đọc trong public/games/nhatu/js/game.js → applyServerConfig.
         defaultConfig: {
             enabled: true,
-            ntMode: 'auto',           // auto (tự chơi: quà → lượt lên sóng) | streamer (streamer tự đi lại bằng phím)
+            ntMode: 'auto',           // auto (tự chơi: quà → lượt lên sóng) | streamer (streamer tự đi lại bằng phím) | off (chỉ xem trại, không lượt)
+            ntQuality: 'high',        // high | low (máy yếu: overlay tự tải lại với ?q=low — bớt khử răng cưa, bóng, điểm ảnh)
             ntStreamerName: '',
-            ntTurnBase: 25,           // giây một lượt cho quà 1 xu
-            ntTurnPerCoin: 1,         // + giây cho mỗi xu thêm
-            ntTurnMax: 90,            // trần giây một lượt
-            ntMinTurn: 15,            // có người chờ thì người đang chơi giữ tối thiểu bấy nhiêu giây rồi nhường
+            ntTurnBase: 6,            // giây một lượt cho quà 1 xu (lượt ngắn: camera bám vài giây rồi chuyển người kế)
+            ntTurnPerCoin: 0.5,       // + giây cho mỗi xu thêm
+            ntTurnMax: 30,            // trần giây một lượt
+            ntMinTurn: 4,             // có người chờ thì người đang chơi giữ tối thiểu bấy nhiêu giây rồi nhường
             ntPreempt: true,          // quà mới của người khác → nhường lượt sau ntMinTurn (tắt = chơi hết giờ mới tới người kế)
             ntQueueMax: 20,
             ntIdleAuto: 6,            // người đang có lượt im lặng bấy nhiêu giây → nhân vật tự làm nhiệm vụ (0 = tắt)
@@ -432,6 +434,17 @@ const GAMES = {
             ntBossCoins: 0,           // quà chưa gán ≥ bấy nhiêu xu → lên Đại Ca (0 = chỉ quà đã gán)
             ntGuardCoins: 0,          // quà chưa gán ≥ bấy nhiêu xu → làm Cán Bộ (0 = chỉ quà đã gán)
             ntShowGiftLegend: true,   // hiện bảng "🎁 Tặng quà để…" trên overlay
+            ntCommentPlay: false,     // bình luận 1/B… ra lệnh cho người đang lên sóng (tắt = chỉ chơi bằng quà, bảng dưới gọn)
+            ntOffenseJailSec: 180,    // 💩 💦 đi bậy bị cán bộ bắt / bị tố cáo → giam bấy nhiêu giây (ra tù phải tự dọn)
+            ntTrashSec: 60,           // 🗑️ bị ném vào thùng rác → kẹt bấy nhiêu giây
+            ntPrankSec: 120,          // 💇 👗 trò đùa cạo đầu / váy hồng giữ bấy nhiêu giây
+            ntLikeEvent: 1000,        // ❤️ cả phòng đủ bấy nhiêu tim → 1 sự kiện vui (0 = tắt)
+            ntAutoEvents: true,       // trại vắng quà > 3 phút → thỉnh thoảng tự mưa / chuột chạy qua
+            ntPkTug: true,            // 🪢 PK (tín hiệu thật pk:state) → kéo co giữa sân, đội thua bị ném vào thùng rác
+            ntTargetSec: 15,          // 🎯 quà chơi khăm (thùng rác, trò đùa, vật tay…): bấy nhiêu giây để bình luận MÃ SỐ tù nhân người muốn nhắm; hết giờ → bốc ngẫu nhiên (0 = ngẫu nhiên ngay)
+            ntRevengeSec: 60,         // ⚔️ bị chơi khăm → trong bấy nhiêu giây tặng quà chơi khăm + gõ mã số kẻ đó = trả thù, +5 điểm (0 = tắt)
+            ntRooms: 6,               // 🏠 phòng = đội: bình luận P1…P6 chọn phòng, cả phòng thi đua theo vòng (0 = tắt)
+            ntRoomRoundMin: 5,        // mỗi vòng thi đua phòng bấy nhiêu phút — phòng nhất được ăn tiệc + mỗi người +10 điểm
             ntGiftMap: nhatuSuggestedGiftMap()   // { [action]: [{ giftId, giftName, giftImage, coins }] } — mặc định = bộ quà gợi ý trong data.json
         }
     },
@@ -2421,6 +2434,38 @@ const COMMENT_RULES_SHEET_ID = '1Fv9Jdno_pPMTx_-tnwSfRObm1r1wKds_gaMBnfCDm4M';
 const COMMENT_RULES_GID = '211090113';
 const COMMENT_RULES_REFRESH_MS = 5 * 60 * 1000;
 let commentSheetRules = { forbiddenWords: [], glossary: [], loadedAt: 0, error: '' };
+// 🚫 Từ cấm CHUNG cho mọi game (cột A sheet trên): bình luận dính từ cấm không phát 'chat' cho overlay nào
+// (không game nào đọc / hiển thị) — xem lib/comment-filter.js. Bật/tắt: ⚙ Cài đặt → appConfig.commentFilter.
+let commentForbidden = null;
+let commentForbiddenKey = '';
+const commentFilterStats = { blocked: 0, lastWord: '', lastAt: 0, maskedNames: 0 };
+const COMMENT_RULES_CACHE_FILE = () => path.join(DATA_DIR, 'comment-rules-cache.json');
+/** Danh sách đổi (tải sheet / dùng bản lưu) → dựng lại bộ so khớp ở lần dùng tới. */
+function setCommentForbidden() { commentForbiddenKey = ''; }
+/**
+ * Bộ so khớp từ cấm DÙNG CHUNG cho mọi game + Dịch Thuật LIVE: cột A sheet + từ người dùng tự thêm ở Dịch Thuật.
+ * Dựng lại khi một trong hai đổi (so đúng dấu — lib/comment-filter.js).
+ */
+function getCommentForbidden() {
+    const ownRaw = appConfig.liveTranslate?.forbiddenWords;
+    const own = Array.isArray(ownRaw) ? ownRaw : (typeof ownRaw === 'string' ? ownRaw.split(/\r?\n|,/) : []);
+    const sheet = commentSheetRules.forbiddenWords || [];
+    const key = `${commentSheetRules.loadedAt}|${sheet.length}|${own.join('\n')}`;
+    if (key !== commentForbiddenKey) {
+        commentForbidden = CommentFilter.compileForbidden([...sheet, ...own]);
+        commentForbiddenKey = key;
+    }
+    return commentForbidden;
+}
+function commentFilterOn() { return appConfig.commentFilter?.enabled !== false; }
+function commentFilterMasksNames() { return commentFilterOn() && appConfig.commentFilter?.maskNames !== false; }
+/** Tên người xem dính từ cấm → che bằng *** ngay khi đọc gói TikTok: mọi game / tính năng nhận tên đã che. */
+function maskViewerName(name) {
+    if (!name || !commentFilterMasksNames()) return name;
+    const masked = CommentFilter.maskForbidden(name, getCommentForbidden());
+    if (masked.includes('***') && !String(name).includes('***')) commentFilterStats.maskedNames += 1;
+    return masked;
+}
 const liveTranslateRecentGifts = new Map();
 const liveTranslateRecentMembers = new Map();
 const liveTranslateLastSpoken = new Map();
@@ -2534,6 +2579,9 @@ async function loadCommentRulesSheet() {
         if (from && to) glossary.push(`${from}=${to}`);
     }
     commentSheetRules = { forbiddenWords, glossary, loadedAt: Date.now(), error: '' };
+    setCommentForbidden(forbiddenWords);
+    // nhớ bản tải được gần nhất: mở app lúc mất mạng / Google lỗi vẫn lọc được từ cấm
+    try { fs.writeFileSync(COMMENT_RULES_CACHE_FILE(), JSON.stringify({ forbiddenWords, glossary, loadedAt: commentSheetRules.loadedAt })); } catch (e) {}
     io.emit('translate:rules', getCommentRulesMeta());
     console.log(`[comment-rules] Đã tải ${forbiddenWords.length} từ cấm, ${glossary.length} cụm thay thế.`);
     return commentSheetRules;
@@ -2551,6 +2599,14 @@ function getCommentRulesMeta() {
 async function refreshCommentRulesSheet() {
     try { return await loadCommentRulesSheet(); }
     catch (e) {
+        if (!commentSheetRules.loadedAt) {
+            try {
+                const c = JSON.parse(fs.readFileSync(COMMENT_RULES_CACHE_FILE(), 'utf8'));
+                commentSheetRules = { forbiddenWords: c.forbiddenWords || [], glossary: c.glossary || [], loadedAt: Number(c.loadedAt) || 0, error: '' };
+                setCommentForbidden(commentSheetRules.forbiddenWords);
+                console.warn(`[comment-rules] Dùng bản lưu: ${commentSheetRules.forbiddenWords.length} từ cấm.`);
+            } catch (e2) {}
+        }
         commentSheetRules.error = e.message || 'comment_rules_failed';
         io.emit('translate:rules', getCommentRulesMeta());
         console.warn('[comment-rules] Không tải được quy tắc:', commentSheetRules.error);
@@ -2822,24 +2878,12 @@ function wasLiveTranslateUserRecent(map, user) {
     return liveTranslateUserKeys(user).some(key => (now - (map.get(key) || 0)) <= LIVE_TRANSLATE_PRIORITY_WINDOW_MS);
 }
 
-function liveTranslateForbiddenMatch(haystack, word) {
-    const needle = normalizeModerationText(word).trim();
-    if (!needle) return false;
-    if (!/[a-z0-9]/i.test(needle)) return false;
-    if (needle.length <= 2) return haystack.trim() === needle;
-    if (/\s/.test(needle)) return haystack.includes(needle);
-    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(haystack);
-}
-
-function findLiveTranslateBlockedWord(chat, cfg) {
-    const words = [...(commentSheetRules.forbiddenWords || []), ...(cfg.forbiddenWords || [])];
-    if (!words.length) return '';
-    const haystack = normalizeModerationText(String(chat.comment || ''));
-    for (const word of words) {
-        if (liveTranslateForbiddenMatch(haystack, word)) return String(word || '').trim();
-    }
-    return '';
+/**
+ * Dịch Thuật dùng CHUNG bộ so khớp từ cấm với game (so đúng dấu). Bản cũ bỏ dấu trước khi so nên "chó" chặn nhầm
+ * mọi câu có "cho", "lồn" chặn "lớn", "câm" chặn "cảm ơn".
+ */
+function findLiveTranslateBlockedWord(chat) {
+    return CommentFilter.findForbidden(String(chat.comment || ''), getCommentForbidden());
 }
 
 function detectLiveTranslateToxicText(text) {
@@ -3539,7 +3583,7 @@ function normalizeTikTokUser(u, data) {
     return {
         uniqueId: u.uniqueId || u.displayId || u.display_id || data?.uniqueId || '',
         userId: tiktokIdToString(u.userId) || tiktokIdToString(u.idStr) || tiktokIdToString(u.id_str) || tiktokIdToString(u.id) || tiktokIdToString(data?.userId),
-        nickname: u.nickname || u.nickName || '',
+        nickname: maskViewerName(u.nickname || u.nickName || ''),   // 🚫 tên có từ cấm → *** (mọi game)
         // Cấp người xem: badge USER_GRADE (sceneType 8) + payGrade/userHonor — cùng bộ đọc với Chào Mừng VIP.
         level: vwSignals.readUser(u, vipSignalCtx()).level || Number(u.pay_grade?.level) || 0,
         profilePicture: pickAvatarUrl(u.profilePicture || u.profilePictureUrl || u.avatarThumb || u.avatar_thumb || u.avatarMedium || u.avatarLarge),
@@ -3713,6 +3757,43 @@ try { leagueApplyManual(); } catch (e) {}
 
 // Chống spam toast: lib bắn ERROR cho cả lỗi decode message WebSocket lặp lại giữa buổi live.
 let lastTikTokErrorToast = { message: '', ts: 0 };
+// 💬 Một bình luận (TikTok thật hoặc /api/test-chat): lọc từ cấm → phát cho mọi game + Dịch Thuật + Chào VIP / Bình chọn /
+// Trồng Cây. Tên người đã được che từ cấm trong normalizeTikTokUser. Trả { blocked, nickname } để route thử báo kết quả.
+function handleTikTokChat(data, { test = false } = {}) {
+    if (!test) liveConnected = true;
+    const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
+    const comment = data?.comment ?? data?.content;   // v3 (2.4.4): content
+    if (!test) rememberUserMapping(userId, uniqueId);
+    // 🚫 từ cấm chung: không phát chữ cho game nào; chỉ báo "người này vừa bình luận" (tính tương tác, không hiện / đọc).
+    // Bình luận chỉ gồm chữ số là cú pháp chơi (111, 222, 1-9, mã tù nhân) → không lọc, dù sheet có "111", "1111"…
+    const blockedWord = commentFilterOn() && !CommentFilter.isNumberOnly(comment) ? CommentFilter.findForbidden(comment, getCommentForbidden()) : '';
+    if (blockedWord) {
+        commentFilterStats.blocked += 1;
+        commentFilterStats.lastWord = blockedWord;
+        commentFilterStats.lastAt = Date.now();
+        broadcast('chat:blocked', { uniqueId, nickname, userId, profilePicture, createTime: Date.now() });
+        if (!test) vipHandleActivity(data?.user);
+        return { blocked: blockedWord, nickname };
+    }
+    const chatPayload = {
+        uniqueId, nickname,
+        userId,
+        profilePicture,
+        comment,
+        createTime: Date.now()
+    };
+    broadcast('chat', chatPayload);
+    processLiveTranslateChat(chatPayload);
+    if (!test) {
+        // Chào muộn (TikTok không gửi tín hiệu vào phòng cho người này) + trigger 'comment' riêng
+        vipHandleActivity(data?.user);
+        try { handleVipWelcomeEvent('comment', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified, comment }); } catch (e) {}
+    }
+    try { handleVoteCommentChat({ uniqueId, comment }); } catch (e) {}
+    try { handleTrongCayChat({ uniqueId, nickname, profilePicture, comment }); } catch (e) {}
+    return { blocked: '', nickname };
+}
+
 function attachConnectionEvents(conn, lib) {
     const { WebcastEvent, ControlEvent } = lib;   // từ loadTikTokConnector() — không có biến toàn cục để tránh dùng trước khi nạp
     conn.on(ControlEvent.DECODED_DATA || 'decodedData', (method, data) => {
@@ -3768,26 +3849,7 @@ function attachConnectionEvents(conn, lib) {
         broadcast('error', { message });
     });
 
-    conn.on(WebcastEvent.CHAT, (data) => {
-        liveConnected = true;
-        const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
-        const comment = data?.comment ?? data?.content;   // v3 (2.4.4): content
-        rememberUserMapping(userId, uniqueId);
-        const chatPayload = {
-            uniqueId, nickname,
-            userId,
-            profilePicture,
-            comment,
-            createTime: Date.now()
-        };
-        broadcast('chat', chatPayload);
-        processLiveTranslateChat(chatPayload);
-        // Chào muộn (TikTok không gửi tín hiệu vào phòng cho người này) + trigger 'comment' riêng
-        vipHandleActivity(data?.user);
-        try { handleVipWelcomeEvent('comment', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified, comment }); } catch (e) {}
-        try { handleVoteCommentChat({ uniqueId, comment }); } catch (e) {}
-        try { handleTrongCayChat({ uniqueId, nickname, profilePicture, comment }); } catch (e) {}
-    });
+    conn.on(WebcastEvent.CHAT, (data) => handleTikTokChat(data));
 
     conn.on(WebcastEvent.GIFT, (data) => {
         // giftType 1 = quà có combo: TikTok bắn 1 message MỖI lần bấm + 1 message repeatEnd=1 chốt combo.
@@ -3871,7 +3933,7 @@ function attachConnectionEvents(conn, lib) {
         const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
         const likeCount = Number(data?.likeCount ?? data?.count) || 1;   // v3 (2.4.4): count
         rememberUserMapping(userId, uniqueId);
-        broadcast('like', { uniqueId, nickname, likeCount });
+        broadcast('like', { uniqueId, nickname, likeCount, profilePicture });   // ảnh đại diện: người chỉ thả tim vào game vẫn có avatar
         liveStats.totalLikes += likeCount; emitLiveStatsThrottled();
         // Chào muộn + trigger 'like' riêng
         vipHandleActivity(data?.user);
@@ -3885,7 +3947,7 @@ function attachConnectionEvents(conn, lib) {
         const dtKey = String(data?.common?.displayText?.key || '').toLowerCase();
         const dtPattern = String(data?.common?.displayText?.defaultPattern || '').replace(/{d+:[a-z_]+}/gi, '').trim();
         const label = dtKey.includes('follow') ? 'đã theo dõi' : (dtKey.includes('share') || dtKey.includes('mt_msg')) ? 'đã chia sẻ LIVE' : dtPattern;
-        broadcast('social', { uniqueId, nickname, label });
+        broadcast('social', { uniqueId, nickname, label, profilePicture });
         vipHandleActivity(data?.user);
     });
     // FOLLOW event
@@ -4046,6 +4108,13 @@ function attachConnectionEvents(conn, lib) {
         if (g.level) cur.level = g.level;
         pkGiftDuringMatch.set(k, cur);
     };
+    // Tín hiệu PK chung cho game khác (⛓️ Nhà Tù: kéo co theo PK) — chỉ dữ liệu thật: mở trận, điểm 2 bên, kết thúc.
+    function emitPkState(phase, extra = {}) {
+        const snap = (pkLastScoreSnap || []).map(Number).map(v => (Number.isFinite(v) ? v : 0));
+        const hi = pkHostTeamIndex >= 0 ? pkHostTeamIndex : 0;
+        const others = snap.filter((_, i) => i !== hi);
+        io.emit('pk:state', { phase, active: pkActive, host: snap[hi] || 0, opp: others.length ? Math.max(...others) : 0, ts: Date.now(), ...extra });
+    }
     function resetPkState() {
         pkActive = false;
         pkHostTeamIndex = -1;
@@ -4250,6 +4319,7 @@ function attachConnectionEvents(conn, lib) {
                 if (pkHostTeamIndex < 0 && teams.length > 0) pkHostTeamIndex = 0;
                 console.log(`[pktiktok] PK OPEN: hostTeamIndex=${pkHostTeamIndex}, teams=${teams.length}, ownerId=${ownerId}`);
             } catch (e) {}
+            emitPkState('start');
             scheduleWarn10s(data, 'battle_open');
             if (!pkWarn10sScheduled) console.log(`[pktiktok] PK duration/endTime chưa có trong LINK_MIC_BATTLE — sẽ thử lại ở ARMIES`);
             // Periodic lead/behind check (mỗi 30s)
@@ -4323,6 +4393,7 @@ function attachConnectionEvents(conn, lib) {
                 console.log(`[pktiktok] PK FINISH: không có gift nào trong trận → không TOP 1`);
             }
             pkAutoEnqueue(resultKey, `battle_finish (action=${action})`);
+            emitPkState('end', { active: false, result: resultKey });
             // Delay reset state để khi emit còn dùng được pkLastTopContributor. Queue auto drain 3.5s/item,
             // trước đây 10s là hết hạn khi có ≥3 item xếp trước win/lose → rule TOP 1 im lặng rớt về media mặc định.
             setTimeout(() => { pkLastTopContributor = null; }, 90_000);
@@ -4367,6 +4438,7 @@ function attachConnectionEvents(conn, lib) {
             if (teams.length > 0) {
                 pkLastScoreSnap = teams.map(t => t.score);
                 console.log(`[pktiktok] LINK_MIC_ARMIES scores=[${pkLastScoreSnap.join(', ')}] hostIdx=${pkHostTeamIndex}`);
+                if (pkActive) emitPkState('score');
             }
             scheduleWarn10s(data, 'armies');
             if (data?.triggerCriticalStrike) {
@@ -6143,6 +6215,16 @@ function settingsSnapshot(req) {
         tiktokSignBaseUrl: getTikTokSignBaseUrl(),
         tiktokSignBaseUrlFromEnv: !!(process.env.TIKTOK_SIGN_API_URL || process.env.SIGN_API_URL),
         autoReconnect: appConfig.autoReconnect !== false,
+        commentFilter: {
+            enabled: commentFilterOn(),
+            maskNames: commentFilterMasksNames(),
+            words: getCommentForbidden()?.size || 0,
+            loadedAt: commentSheetRules.loadedAt,
+            error: commentSheetRules.error || '',
+            blocked: commentFilterStats.blocked,
+            lastWord: commentFilterStats.lastWord,
+            maskedNames: commentFilterStats.maskedNames
+        },
         overlay: { host: OBS_LOCAL_HOST, port: PORT, hostMapped: isHostMapped() },
         network: {
             lanAccess: n.lanAccess === true,
@@ -6169,6 +6251,8 @@ app.post('/api/settings', (req, res) => {
         changed = true;
     }
     if (Object.prototype.hasOwnProperty.call(b, 'autoReconnect')) { appConfig.autoReconnect = b.autoReconnect !== false; changed = true; }
+    if (Object.prototype.hasOwnProperty.call(b, 'commentFilter')) { appConfig.commentFilter = { ...(appConfig.commentFilter || {}), enabled: b.commentFilter !== false }; changed = true; }
+    if (Object.prototype.hasOwnProperty.call(b, 'commentFilterNames')) { appConfig.commentFilter = { ...(appConfig.commentFilter || {}), maskNames: b.commentFilterNames !== false }; changed = true; }
     if (Object.prototype.hasOwnProperty.call(b, 'lanAccess')) {
         const n = networkConfig();
         const v = b.lanAccess === true;
@@ -6887,6 +6971,22 @@ app.post('/api/games/:id/test-gift', (req, res) => {
 });
 // Thả quà thử KHÔNG gắn game (cửa sổ 📦 Danh sách quà): không qua khoá theo game ở middleware vì quà
 // phát chung cho mọi game như quà thật — game bị khoá tự bỏ qua; route này không bật/điều khiển game nào.
+// 🚫 Kiểm 1 câu / 1 tên với bộ lọc từ cấm (ô "thử" trong ⚙ Cài đặt) — không phát gì cho game.
+app.post('/api/comment-filter/check', (req, res) => {
+    const text = String(req.body?.text ?? '').slice(0, 300);
+    const compiled = getCommentForbidden();
+    const command = CommentFilter.isNumberOnly(text);   // giống bình luận thật: chỉ số = cú pháp game, không lọc
+    res.json({ ok: true, enabled: commentFilterOn(), command, blocked: command ? '' : CommentFilter.findForbidden(text, compiled), masked: CommentFilter.maskForbidden(text, compiled), words: compiled ? compiled.size : 0 });
+});
+// 💬 Bình luận thử KHÔNG cần LIVE: đi đúng đường bình luận thật (từ cấm, Dịch Thuật, mọi game) — như /api/test-gift.
+app.post('/api/test-chat', (req, res) => {
+    const b = req.body || {};
+    const comment = String(b.comment ?? b.text ?? '').slice(0, 300);
+    if (!comment.trim()) return res.status(400).json({ ok: false, error: 'missing_comment' });
+    const user = { uniqueId: String(b.uniqueId || 'tester').slice(0, 64), nickname: String(b.nickname || 'HP Media').slice(0, 64), profilePicture: String(b.profilePicture || '') };
+    res.json({ ok: true, ...handleTikTokChat({ user, comment }, { test: true }) });
+});
+
 app.post('/api/test-gift', (req, res) => {
     res.json({ ok: true, gift: emitTestGift(req.body || {}) });
 });
@@ -7605,7 +7705,9 @@ app.post('/api/nhatu/window/open', (req, res) => {
     const profileDir = path.join(DATA_DIR, 'nhatu-window', found.browser);
     try { fs.mkdirSync(profileDir, { recursive: true }); } catch (e) {}
     const url = `http://127.0.0.1:${PORT}/overlay/nhatu?win=1`;
-    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat('--window-size=540,960');
+    // OBS bắt cửa sổ: Chromium mặc định ngừng vẽ / hãm nhịp khi cửa sổ bị che hoặc thu nhỏ → hình trong OBS đứng
+    const keepDrawing = ['--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling'];
+    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat('--window-size=540,960', ...keepDrawing);
     try {
         const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
         child.on('error', (e) => console.warn('[nhatu] mở cửa sổ game lỗi:', e.message));

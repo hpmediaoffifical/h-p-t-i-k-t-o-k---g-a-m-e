@@ -1,7 +1,7 @@
 // ⛓️ Nhà Tù Online — chế độ Tự chơi: lượt của người tặng quà + đọc mã hành động từ bình luận.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SpotlightQueue, parseActionCode, turnSeconds, stripVN } from '../public/games/nhatu/js/logic/spotlight.js';
+import { SpotlightQueue, parseActionCode, turnSeconds, stripVN, MAX_JUMPS } from '../public/games/nhatu/js/logic/spotlight.js';
 
 const ACTIONS = [
   { id: 'ball', keys: ['1', 'b', 'bong'] },
@@ -84,4 +84,46 @@ test('skip chuyển ngay sang người kế; hết hàng thì trống', () => {
   assert.equal(q.skip(2000).started, null);
   assert.equal(q.current, null);
   assert.equal(q.remaining(2000), 0);
+});
+
+test('hàng chờ xếp theo xu: quà lớn chen lên trước quà nhỏ', () => {
+  // Arrange
+  const q = new SpotlightQueue({ ...OPTS, queueMax: 10 });
+  q.addGift(user('a'), 1, 0);
+  q.addGift(user('b'), 1, 0);
+  q.addGift(user('c'), 5, 0);
+  // Act
+  q.addGift(user('d'), 299, 0);
+  // Assert
+  assert.deepEqual(q.queue.map((x) => x.id), ['d', 'c', 'b']);
+});
+
+test('quà bằng nhau giữ thứ tự đến; ưu tiên riêng (quà đã gán) thắng số xu', () => {
+  const q = new SpotlightQueue({ ...OPTS, queueMax: 10 });
+  q.addGift(user('a'), 1, 0);
+  q.addGift(user('b'), 10, 0);
+  q.addGift(user('c'), 10, 0);
+  q.addGift(user('d'), 10, 0, 20);
+  assert.deepEqual(q.queue.map((x) => x.id), ['d', 'b', 'c']);
+});
+
+test('người chờ bị chen qua tối đa MAX_JUMPS lần rồi giữ chỗ (quà nhỏ không bị đẩy xuống mãi)', () => {
+  // Arrange
+  const q = new SpotlightQueue({ ...OPTS, queueMax: 20 });
+  q.addGift(user('a'), 1, 0);
+  q.addGift(user('small'), 1, 0);
+  // Act: 5 quà lớn tới sau
+  for (let i = 0; i < 5; i++) q.addGift(user(`big${i}`), 100, 0);
+  // Assert: 'small' chỉ bị chen 3 lần → đứng thứ 4
+  assert.equal(q.queue.findIndex((x) => x.id === 'small'), MAX_JUMPS);
+  assert.equal(q.queue.length, 6);
+});
+
+test('người đang chờ tặng thêm được chen lên theo tổng xu', () => {
+  const q = new SpotlightQueue({ ...OPTS, queueMax: 10 });
+  q.addGift(user('a'), 1, 0);
+  q.addGift(user('b'), 10, 0);
+  q.addGift(user('c'), 1, 0);
+  assert.equal(q.addGift(user('c'), 50, 0), 'queued-extend');
+  assert.deepEqual(q.queue.map((x) => x.id), ['c', 'b']);
 });
