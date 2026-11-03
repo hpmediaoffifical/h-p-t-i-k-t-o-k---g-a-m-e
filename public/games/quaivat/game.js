@@ -2773,7 +2773,7 @@ function mkShooter(ice) {
   cyl(0.1, 0.1, 0.03, MS(0x103010, 1), 0, 0.02, 0.57, head, 12).rotation.x = Math.PI / 2;
   for (const sx of [-1, 1]) { sph(0.08, MS(0xffffff, 0.4), sx * 0.14, 0.14, 0.24, head); sph(0.04, MS(0x111111, 0.3), sx * 0.14, 0.15, 0.31, head); }
   const crest = sph(0.2, MS(ice ? 0x5ec8e8 : 0x3aa832), 0, 0.18, -0.3, head); crest.scale.set(0.12, 0.2, 0.3);
-  if (ice) for (let k = 0; k < 5; k++) { const cr = new THREE.Mesh(geo('icecrys', () => new THREE.ConeGeometry(0.07, 0.3, 5)), MS(0xe8fbff, 0.1, 0.1, { emissive: 0x2a7090, transparent: true, opacity: 0.85 })); cr.position.set(rand(-0.15, 0.15), 0.3 + rand(0, 0.08), -0.15 + k * 0.03); cr.rotation.set(rand(-0.5, 0.2), 0, rand(-0.5, 0.5)); g.userData.head.add(cr); }   // tinh thể băng trên đầu
+  if (ice) for (let k = 0; k < 5; k++) { const cr = new THREE.Mesh(geo('icecrys', () => new THREE.ConeGeometry(0.07, 0.3, 5)), MS(0xe8fbff, 0.1, 0.1, { emissive: 0x2a7090, transparent: true, opacity: 0.85 })); cr.position.set(rand(-0.15, 0.15), 0.3 + rand(0, 0.08), -0.15 + k * 0.03); cr.rotation.set(rand(-0.5, 0.2), 0, rand(-0.5, 0.5)); head.add(cr); }   // tinh thể băng trên đầu
   hpBadge(g, 0.17, 0, 0.21, 0.29, -0.2);                                          // logo nhỏ trên chậu
   g.userData.head = head; return g;
 }
