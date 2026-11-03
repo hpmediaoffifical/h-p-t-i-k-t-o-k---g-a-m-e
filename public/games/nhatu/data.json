@@ -608,7 +608,7 @@
    "emoji": "💪",
    "label": "Vật tay",
    "group": "event",
-   "desc": "Người tặng vật tay với một bạn tù — thắng được cộng điểm, người thua bị người thắng vác ném vào thùng rác."
+   "desc": "Người tặng vật tay với một bạn tù — đang vật thì 2 bên tặng quà để gồng sức; người thua bị người thắng vác ném vào thùng rác. 🎯 Bình luận MÃ SỐ để thách đấu đúng người."
   },
   {
    "id": "dog",
@@ -681,21 +681,21 @@
    "emoji": "📢",
    "label": "Tố cáo cán bộ",
    "group": "mischief",
-   "desc": "Báo cán bộ người vừa đi bậy / tè bậy mà chưa bị bắt (trong 5 phút) — cán bộ tới bắt đi giam. Người tố cáo được điểm."
+   "desc": "Báo cán bộ người vừa đi bậy / tè bậy mà chưa bị bắt (trong 5 phút) — cán bộ tới bắt đi giam. 🎯 Bình luận MÃ SỐ để tố đúng người. Người tố cáo được điểm."
   },
   {
    "id": "bail",
    "emoji": "🔓",
    "label": "Bảo lãnh ra tù",
    "group": "mischief",
-   "desc": "Đang bị giam vì đi bậy → được thả sớm. Không bị giam thì bảo lãnh giúp bạn tù bị giam lâu nhất. Ra tù vẫn phải dọn vệ sinh."
+   "desc": "Đang bị giam vì đi bậy → được thả sớm. Không bị giam thì bảo lãnh giúp bạn tù bị giam lâu nhất (🎯 hoặc bình luận MÃ SỐ người muốn bảo lãnh). Ra tù vẫn phải dọn vệ sinh."
   },
   {
    "id": "trash",
    "emoji": "🗑️",
    "label": "Ném vào thùng rác",
    "group": "mischief",
-   "desc": "Chạy tới 1 bạn tù bất kì, vác lên đầu, ném cắm đầu vào thùng rác — kẹt (mặc định 60 giây), cả trại cười haha."
+   "desc": "Chạy tới 1 bạn tù, vác lên đầu, ném cắm đầu vào thùng rác — kẹt (mặc định 60 giây), cả trại cười haha. 🎯 Tặng xong bình luận MÃ SỐ tù nhân để chọn đúng người (gõ không kịp = vác người ngẫu nhiên)."
   },
   {
    "id": "photo",
@@ -718,42 +718,42 @@
    "emoji": "🧧",
    "label": "Lì xì bạn tù",
    "group": "event",
-   "desc": "Người tặng lì xì điểm cho 3 bạn tù ngẫu nhiên đang trong trại (+5 mỗi người) — ai cũng có phần."
+   "desc": "Lì xì điểm cho 3 bạn tù ngẫu nhiên (+5 mỗi người). 🎯 Bình luận MÃ SỐ → cả phong bao (15 điểm) cho đúng người đó."
   },
   {
    "id": "shave",
    "emoji": "💇",
    "label": "Cạo đầu trọc",
    "group": "prank",
-   "desc": "Chạy tới 1 bạn tù, cạo trọc đầu bóng loáng (mặc định 2 phút). Cả trại cười haha. Combo ×5 / ×10 → 2 / 3 người."
+   "desc": "Chạy tới 1 bạn tù, cạo trọc đầu bóng loáng (mặc định 2 phút). Cả trại cười haha. Combo ×5 / ×10 → 2 / 3 người. 🎯 Bình luận MÃ SỐ để chọn người."
   },
   {
    "id": "dress",
    "emoji": "👗",
    "label": "Mặc váy hồng",
    "group": "prank",
-   "desc": "Bắt 1 bạn tù mặc váy hồng + nơ hồng (mặc định 2 phút)."
+   "desc": "Bắt 1 bạn tù mặc váy hồng + nơ hồng (mặc định 2 phút). 🎯 Bình luận MÃ SỐ để chọn người."
   },
   {
    "id": "cake",
    "emoji": "🎂",
    "label": "Úp bánh kem",
    "group": "prank",
-   "desc": "Bưng bánh kem chạy tới úp vào mặt 1 bạn tù — mặt dính kem 30 giây."
+   "desc": "Bưng bánh kem chạy tới úp vào mặt 1 bạn tù — mặt dính kem 30 giây. 🎯 Bình luận MÃ SỐ để chọn người."
   },
   {
    "id": "banana",
    "emoji": "🍌",
    "label": "Vỏ chuối",
    "group": "prank",
-   "desc": "Ném vỏ chuối trước mặt người đang đi — giẫm trúng là trượt ngã ngửa, cả trại cười."
+   "desc": "Ném vỏ chuối trước mặt người đang đi — giẫm trúng là trượt ngã ngửa, cả trại cười. 🎯 Bình luận MÃ SỐ: người đó bị gọi ra giẫm đúng vỏ chuối."
   },
   {
    "id": "pushup",
    "emoji": "🏋️",
    "label": "Phạt hít đất",
    "group": "prank",
-   "desc": "Báo cán bộ phạt 1 bạn tù hít đất 5 cái tại chỗ (đếm 1, 2, 3…)."
+   "desc": "Báo cán bộ phạt 1 bạn tù hít đất 5 cái tại chỗ (đếm 1, 2, 3…). 🎯 Bình luận MÃ SỐ để chọn người."
   },
   {
    "id": "birthday",

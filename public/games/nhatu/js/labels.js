@@ -114,7 +114,11 @@ export function attachLabel(char, name, kind = 'npc', avatar = '') {
   const badgeEl = document.createElement('b');
   badgeEl.className = 'nt-badge';
   badgeEl.hidden = true;
-  tag.append(nameEl, badgeEl);
+  // mã số tù nhân (in trên áo) — người xem bình luận số này để chọn người chơi khăm sau khi tặng quà
+  const noEl = document.createElement('i');
+  noEl.className = 'nt-no';
+  noEl.hidden = true;
+  tag.append(noEl, nameEl, badgeEl);
   wrap.append(bubble, tag);
   let badgeText = '';
   const item = {
@@ -154,6 +158,16 @@ export function attachLabel(char, name, kind = 'npc', avatar = '') {
     },
     setName(n) {
       nameEl.textContent = n;
+    },
+    /** Mã số tù nhân trước tên (null = ẩn). */
+    setNumber(no) {
+      noEl.textContent = no ? String(no) : '';
+      noEl.hidden = !no;
+    },
+    /** 🏠 Phòng-đội (P1…): mã số đổi màu theo phòng; 0 = không đội. */
+    setTeam(no) {
+      if (no) noEl.dataset.team = String(no);
+      else delete noEl.dataset.team;
     },
     /** Huy hiệu nhỏ sau tên ('🔒 2:31', '⏳2', '🧹'…); '' = ẩn. Chỉ ghi DOM khi đổi. */
     setBadge(text = '') {

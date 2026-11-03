@@ -122,6 +122,37 @@
   @keyframes flash { 0% { opacity: .95; } 100% { opacity: 0; } }
   #queue:empty { display: none; }
   #queue .nt-av { width: 1.45em; height: 1.45em; font-size: .85em; }
+
+  /* 🎯 mã số tù nhân trên bảng tên — màu theo phòng-đội (P1…P6) */
+  .nt-no { font-style: normal; background: #ffcf3f; color: #1e2128; border-radius: .3em; padding: .05em .28em; font-size: .9em; letter-spacing: .02em; }
+  .nt-tag.guard .nt-no { display: none; }
+  [data-team="1"].nt-no, .nt-rm[data-team="1"] b { background: #ff8a3d; }
+  [data-team="2"].nt-no, .nt-rm[data-team="2"] b { background: #5fd3ff; }
+  [data-team="3"].nt-no, .nt-rm[data-team="3"] b { background: #8ff07a; }
+  [data-team="4"].nt-no, .nt-rm[data-team="4"] b { background: #ff7ac8; }
+  [data-team="5"].nt-no, .nt-rm[data-team="5"] b { background: #c3a2ff; }
+  [data-team="6"].nt-no, .nt-rm[data-team="6"] b { background: #ffe066; }
+  /* 🎯 thẻ "chọn người" sau khi tặng quà chơi khăm */
+  #target { display: flex; flex-direction: column; gap: .25em; }
+  .nt-tg { display: flex; align-items: center; gap: .4em; background: rgba(120, 20, 30, .9); border: .08em solid #ff6b6b; border-radius: .5em; padding: .3em .5em;
+    box-shadow: 0 0 .6em rgba(255, 80, 80, .45); animation: tgPulse 1s ease-in-out infinite; }
+  @keyframes tgPulse { 50% { box-shadow: 0 0 1.1em rgba(255, 110, 90, .8); } }
+  .nt-tg-box { flex: 1; min-width: 0; }
+  .nt-tg-title { font-size: .62em; font-weight: 800; color: #fff3a8; line-height: 1.15; }
+  .nt-tg-sub { font-size: .46em; font-weight: 700; color: #ffe1e1; line-height: 1.25; }
+  .nt-tg-track { height: .25em; border-radius: 1em; background: rgba(255,255,255,.2); overflow: hidden; margin-top: .2em; }
+  .nt-tg-track div { height: 100%; width: 100%; background: linear-gradient(90deg, #ffcf3f, #ff5a3c); transition: width .2s linear; }
+  /* 🏠 thi đua phòng */
+  #rooms-wrap { padding: .3em .4em; }
+  #rooms-wrap h4 { margin: 0 0 .15em; font-size: .52em; color: #8ff07a; }
+  #rooms { display: grid; grid-template-columns: repeat(3, auto); gap: .15em .3em; }
+  .nt-rm { display: flex; align-items: center; gap: .25em; font-size: .46em; font-weight: 800; background: rgba(255,255,255,.08); border-radius: .35em; padding: .05em .3em .05em .1em; }
+  .nt-rm b { color: #1e2128; background: #ffcf3f; border-radius: .3em; padding: 0 .25em; }
+  .nt-rm .ppl { color: #eef1f6; font-size: .9em; }
+  .nt-rm .ppl i { font-style: normal; margin-left: .05em; filter: grayscale(1) brightness(2.6); } /* 👤 mặc định tím đậm, chìm trên nền tối */
+  .nt-rm .pt { color: #ffcf3f; margin-left: auto; }
+  .nt-rm.lead { outline: .1em solid #ffcf3f; }
+  .nt-rooms-tip { font-size: .42em; font-weight: 700; color: #c9ced8; margin-top: .2em; }
 </style>
 </head>
 <body>
@@ -140,6 +171,7 @@
     </div>
     <div id="tr">
       <div id="board-wrap" class="panel hidden"><h4>🏆 Bảng điểm trong trại</h4><div id="board"></div></div>
+      <div id="rooms-wrap" class="panel hidden"><h4>🏠 Thi đua phòng · chốt sau <span id="rooms-left">5:00</span></h4><div id="rooms"></div><div class="nt-rooms-tip">Bình luận P1, P2… để vào phòng · ✋ "tham gia" để chơi thi chạy, kéo co, vật tay</div></div>
       <div id="legend" class="panel hidden"></div>
     </div>
     <div id="banner"></div>
@@ -147,6 +179,7 @@
     <div id="bottom">
       <div id="pkbar" class="panel hidden"><span>🪢 Đội mình <b id="pk-host">0</b></span><div class="pk-track"><div id="pk-fill"></div></div><span><b id="pk-opp">0</b> Đội bạn</span></div>
       <div id="chat"></div>
+      <div id="target" class="hidden"></div>
       <div id="spot" class="panel">
         <div id="spot-who"></div>
         <div class="nt-track"><div id="spot-bar"></div></div>

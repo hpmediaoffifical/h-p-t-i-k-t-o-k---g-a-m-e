@@ -5,11 +5,12 @@
  * doors) with simple stuck recovery on top of the shared character physics.
  */
 import { stepBody } from './logic/physics.js';
-import { createCharacter, animateCharacter, disposeCharacter, NUMBER_POOL } from './character.js';
+import { createCharacter, animateCharacter, disposeCharacter, setLook, NUMBER_POOL } from './character.js';
 import { attachLabel } from './labels.js';
 import { pick, range, shuffled } from './logic/rng.js';
 
 const UPPER_THRESHOLD = 2;
+const POOL_SET = new Set(NUMBER_POOL);
 /** Trong 4 bức tường bao của trại (tường ngoài dày 0,4 m: x ±20, z −16…14). */
 const insideCamp = (x, z) => x > -19.7 && x < 19.7 && z > -15.7 && z < 13.7;
 
@@ -82,6 +83,37 @@ export class NpcManager {
     this.inmates = [];
     this.guards = [];
     this.phaseKey = null;
+    this.byNumber = new Map(); // mã số tù nhân → phạm nhân (mỗi người 1 số riêng, in trên áo + bảng tên)
+  }
+
+  /** Phạm nhân đang mang mã số tù nhân `no` (null = không có trong trại). */
+  byNo(no) {
+    return this.byNumber.get(Number(no)) ?? null;
+  }
+
+  /**
+   * Cấp mã số tù nhân chưa ai dùng. `preferred` (vd. số người xem đã mang ở buổi trước) được giữ nếu còn trống;
+   * người xem muốn lại số đang nằm trên áo NPC thì NPC đổi sang số khác.
+   */
+  allocNumber(preferred, forViewer = false) {
+    const want = Number(preferred);
+    if (POOL_SET.has(want)) {
+      const holder = this.byNumber.get(want);
+      if (!holder) return want;
+      if (forViewer && !holder.viewer) {
+        this.byNumber.delete(want);
+        const no = this.allocNumber(null);
+        holder.number = no;
+        this.byNumber.set(no, holder);
+        setLook(holder.char, { ...holder.char.look, number: no });
+        if (holder.prankOrig) holder.prankOrig.number = no;
+        holder.label.setNumber(no);
+        return want;
+      }
+    }
+    const free = NUMBER_POOL.filter((n) => !this.byNumber.has(n));
+    if (!free.length) return NUMBER_POOL[Math.floor(this.rng() * NUMBER_POOL.length)]; // trại vượt 224 người: đành trùng
+    return free[Math.floor(this.rng() * free.length)];
   }
 
   /** Phạm nhân + cán bộ. Mảng dựng lại chỉ khi danh sách đổi (không tạo mảng mới mỗi bước mô phỏng) — đừng sửa trực tiếp. */
@@ -132,8 +164,13 @@ export class NpcManager {
     const i = this.nextIndex++;
     const x = o.x ?? 0;
     const z = o.z ?? 12.4;
-    const npc = makeActor(this.scene, { name: o.name, look: o.look ?? this.randomLook(), kind: o.kind ?? 'npc', x, z, avatar: o.avatar ?? '' });
+    const look = { ...(o.look ?? this.randomLook()) };
+    look.number = this.allocNumber(o.number ?? look.number, o.kind === 'viewer');
+    const npc = makeActor(this.scene, { name: o.name, look, kind: o.kind ?? 'npc', x, z, avatar: o.avatar ?? '' });
+    if (!this.byNumber.has(look.number)) this.byNumber.set(look.number, npc);
+    npc.label.setNumber(look.number);
     Object.assign(npc, {
+      number: look.number,
       role: 'inmate',
       index: i,
       room: this.roomSlots[i % this.roomSlots.length],
@@ -161,6 +198,7 @@ export class NpcManager {
     for (const s of this.world.seats.concat(...this.world.cells.map((c) => c.beds))) if (s.occupant === n) s.occupant = null;
     const i = this.inmates.indexOf(n);
     if (i >= 0) this.inmates.splice(i, 1);
+    if (this.byNumber.get(n.number) === n) this.byNumber.delete(n.number);
     this._all = null;
     disposeCharacter(n.char);
     n.label.dispose();

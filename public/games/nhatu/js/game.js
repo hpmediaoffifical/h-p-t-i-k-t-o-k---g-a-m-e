@@ -7,6 +7,9 @@
  *    lau sàn, ăn cơm… Im lặng quá ntIdleAuto giây thì nhân vật tự làm. Quà tiếp theo chuyển lượt sang người khác.
  *    Không ai tặng quà → camera tự lia quanh trại. Treo máy cả buổi không cần người trực.
  *  - Chế độ STREAMER: streamer tự đi lại bằng phím (cửa sổ game hoặc bàn phím ảo trong app, relay 'nhatu:key').
+ *  - 🎯 Mỗi phạm nhân có MÃ SỐ TÙ NHÂN riêng (trên áo + bảng tên). Quà chơi khăm (thùng rác, trò đùa, vật tay…)
+ *    chờ ntTargetSec giây để người tặng bình luận mã số người muốn nhắm; im lặng → ⚔️ trả thù hoặc ngẫu nhiên.
+ *  - 🏠 Phòng = đội: bình luận P1…P6 chọn phòng, cả phòng thi đua bằng tim / bình luận / chia sẻ / quà theo vòng.
  * Cấu hình: GET /api/games/nhatu/config (khoá nt*). Lệnh panel: gameCmd {gameId:'nhatu'}.
  */
 import * as THREE from 'three';
@@ -20,7 +23,10 @@ import { GameClock, compileSchedule, phaseAt, parseHM, formatHM, minutesToNextPh
 import { stepBody } from './logic/physics.js';
 import { mulberry32, pick, range } from './logic/rng.js';
 import { formatThousands, cleanText } from './logic/format.js';
-import { SpotlightQueue, parseActionCode } from './logic/spotlight.js';
+import { SpotlightQueue, parseActionCode, stripVN } from './logic/spotlight.js';
+import { TARGETED, HOSTILE, parsePrisonerNumbers, matchTargets, TargetWindows, Grudges } from './logic/target.js';
+import { Interest, CameoQueue } from './logic/cameo.js';
+import { parseRoomCode, leastCrowdedRoom, RoomRace, ROOM_POINTS, COMMENT_COOLDOWN_MS, SWITCH_COOLDOWN_MS } from './logic/rooms.js';
 import { createEvents } from './events.js';
 import { pickEvictee, turnHolderIds, SwapBudget } from './logic/population.js';
 import { comboPower } from './logic/live.js';
@@ -72,6 +78,10 @@ const CFG = {
   likeEvent: 1000, // ❤️ cả phòng đủ bấy nhiêu tim → 1 sự kiện vui (0 = tắt)
   autoEvents: true, // trại vắng quà > 3 phút → thỉnh thoảng mưa / chuột chạy qua cho LIVE treo máy sinh động
   pkTug: true, // 🪢 PK → kéo co giữa sân, thua PK vào thùng rác
+  targetSec: 15, // 🎯 quà chơi khăm: bấy nhiêu giây để bình luận MÃ SỐ tù nhân người muốn nhắm; hết giờ → bốc ngẫu nhiên (0 = ngẫu nhiên ngay)
+  revengeSec: 60, // ⚔️ bị chơi khăm → trong bấy nhiêu giây gõ đúng mã số kẻ đó khi tặng quà chơi khăm = trả thù (+5)
+  rooms: 6, // 🏠 phòng = đội P1…P6, thi đua theo vòng (0 = tắt)
+  roomRoundMin: 5, // mỗi vòng thi đua phòng bấy nhiêu phút
 };
 
 // ------------------------------------------------------------------ renderer
@@ -111,6 +121,13 @@ const audio = new AudioFx();
 const spot = new SpotlightQueue({});
 const viewers = new Map(); // id → {id, name, avatar, npc, points, lastActive, lastCmdAt, lastLikeBubble}
 const swapBudget = new SwapBudget({ perSec: 3, burst: 6 }); // trại đầy: tối đa ~3 người thay ra/vào mỗi giây (quà không bị giới hạn)
+const targets = new TargetWindows({ sec: CFG.targetSec }); // 🎯 quà chơi khăm đang chờ người tặng bình luận mã số tù nhân
+const grudges = new Grudges({ sec: CFG.revengeSec }); // ⚔️ ai vừa bị ai chơi khăm
+const interest = new Interest({ halfLifeSec: 90 }); // 🎥 camera đi dạo: ai tương tác nhiều được ghé nhiều
+const cameos = new CameoQueue({ max: 6, ttlSec: 90 }); // 🎥 người chia sẻ / theo dõi được camera ghé riêng
+const roomRace = new RoomRace({ rooms: CFG.rooms, roundSec: CFG.roomRoundMin * 60 }); // 🏠 thi đua phòng
+const teamCells = world.cells.filter((c) => c.level === 0); // P1 = phòng A-01, P2 = A-02…
+const SIGNUP_RE = /^(tham gia|thamgia|tg|join|dang ky|dangky|dk)(?![a-z])/; // ✋ đăng ký trò tập thể (đã bỏ dấu)
 
 function lsGet(k, d) {
   try {
@@ -133,6 +150,7 @@ const savedClock = lsGet('nt_clock', null);
 const clock = new GameClock({ msPerGameMinute: CFG.minuteMs, startMinute: parseHM('10:00'), epochMs: Date.now() });
 if (savedClock && savedClock.total > 0) clock.startMinute = savedClock.total;
 const board = lsGet('nt_board', {}); // id → {name, avatar, points}
+const numMemo = lsGet('nt_numbers', {}); // id người xem → mã số tù nhân đã mang (giữ nguyên số qua các buổi LIVE)
 let campBonusDays = lsGet('nt_bonus_days', 0);
 // "Toàn trại đã gạch" chỉ tăng: cộng dồn mỗi ngày trại theo số phạm nhân (NPC rời trại không làm tụt số)
 let campDays = lsGet('nt_camp_days', 0) || npcs.inmates.reduce((a, n) => a + n.days, 0);
@@ -247,13 +265,16 @@ function ensureViewer(user, how = 'gift') {
     if (victim) removeViewer(victim);
   }
   const saved = board[user.id];
-  const npc = npcs.addInmate({ name: user.name, avatar: user.avatar, kind: 'viewer', x: range(Math.random, -1.6, 1.6), z: 12.6, days: 0 });
+  const npc = npcs.addInmate({ name: user.name, avatar: user.avatar, kind: 'viewer', number: numMemo[user.id], x: range(Math.random, -1.6, 1.6), z: 12.6, days: 0 });
   npc.viewer = true;
-  v = { id: user.id, name: user.name, avatar: user.avatar, npc, points: saved?.points ?? 0, lastActive: now, lastCmdAt: now, lastLikeBubble: 0, lastAct: 0 };
+  v = { id: user.id, name: user.name, avatar: user.avatar, npc, points: saved?.points ?? 0, lastActive: now, lastCmdAt: now, lastLikeBubble: 0, lastAct: 0, team: 0 };
   npc.viewerRec = v;
   viewers.set(user.id, v);
+  delete numMemo[user.id]; // ghi lại ở cuối: cắt bớt sổ thì bỏ người lâu không vào nhất
+  numMemo[user.id] = npc.number;
+  if (CFG.rooms) setTeam(v, leastCrowdedRoom(CFG.rooms, teamCounts()));
   npc.label.say(pick(Math.random, DATA.chat.joined));
-  noteJoin(user.name, npc.room.id);
+  noteJoin(`${user.name} (#${npc.number})`, v.team ? `P${v.team}` : npc.room.id);
   return v;
 }
 
@@ -274,6 +295,49 @@ function flushJoins(dt) {
   const text = n === 1 ? `${joins.names[0]} đã nhập trại! Phòng ${joins.room}.` : `${joins.names.slice(0, 2).join(', ')}${n > 2 ? ` và ${n - 2} người khác` : ''} đã nhập trại!`;
   chatLine('Hệ thống', text, 'system');
   joins.names = [];
+}
+
+// ------------------------------------------------------------------ 🏠 phòng = đội
+/** Đưa người xem vào phòng-đội `no` (P1 = phòng A-01…): ngủ ở phòng đó, mã số tù nhân đổi màu theo phòng. 0 = bỏ đội. */
+function setTeam(v, no) {
+  v.team = no;
+  const cell = teamCells[no - 1];
+  if (cell) v.npc.room = cell;
+  v.npc.label.setTeam(no);
+}
+function teamCounts() {
+  const m = new Map();
+  for (const x of viewers.values()) if (x.team) m.set(x.team, (m.get(x.team) ?? 0) + 1);
+  return m;
+}
+/** Bình luận "P3" → đổi sang phòng 3 (1 lần / phút). */
+function chooseRoom(v, no) {
+  const now = Date.now();
+  if (v.team === no) return v.npc.label.say(`Đang ở phòng P${no} rồi!`, 2);
+  if (now - (v.teamAt ?? 0) < SWITCH_COOLDOWN_MS) return v.npc.label.say('Chờ chút nữa mới đổi phòng được!', 2);
+  v.teamAt = now;
+  setTeam(v, no);
+  v.npc.label.say(`🏠 Vào phòng P${no}!`, 2.5);
+  sfx('pop');
+}
+function roomScore(v, pts) {
+  if (CFG.rooms && v?.team) roomRace.add(v.team, pts);
+}
+/** Hết vòng thi đua: phòng nhất ra bàn ăn tiệc, mỗi người +10. */
+function roomRoundEnd(res) {
+  if (!res.winner) return;
+  const members = [...viewers.values()].filter((x) => x.team === res.winner);
+  banner(`🏆 Phòng P${res.winner} thắng vòng thi đua! Cả phòng ăn tiệc!`);
+  chatLine('Hệ thống', `🏆 Phòng P${res.winner} nhất vòng (${formatThousands(Math.round(res.score))} điểm) — mỗi người +10! Bình luận P1…P${CFG.rooms} để đổi phòng.`, 'gift');
+  sfx('coin');
+  for (const x of members) addPoints(x, 10, '🏆');
+  if (members.length) events.roomFeast(members.map((x) => x.npc));
+}
+
+/** ✋ Bình luận "tham gia" → được ưu tiên chọn vào trò tập thể kế tiếp (thi chạy, kéo co PK, vật tay) trong 5 phút. */
+function signup(v) {
+  v.signupUntil = Date.now() + 5 * 60000;
+  v.npc.label.say('✋ Cho tui chơi với!', 2.5);
 }
 
 function removeViewer(v) {
@@ -387,15 +451,67 @@ function doAction(n, id, v = null) {
 }
 
 // vai trò Đại Ca / Cán Bộ, luật biệt giam, sự kiện quà cả trại
-const events = createEvents({ scene, world, npcs, DATA, CFG, viewers, chatLine, banner, sfx, addPoints, doAction, spot, dirt, camera, flash });
+const events = createEvents({ scene, world, npcs, DATA, CFG, viewers, chatLine, banner, sfx, addPoints, doAction, spot, dirt, camera, flash, onHit });
 const allGiftActions = ACTIONS.map((a) => ({ ...a, group: 'task' })).concat(DATA.giftActions || []);
 const giftDefs = Object.fromEntries(allGiftActions.map((a) => [a.id, a]));
 
-/** Kích hoạt một hành động quà (nhiệm vụ, vai trò hoặc sự kiện) cho người xem. power = combo (1–3). */
-function runGiftAction(id, v, power = 1) {
-  if (events.trigger(id, v, power)) return true;
+/**
+ * Kích hoạt một hành động quà (nhiệm vụ, vai trò hoặc sự kiện) cho người xem. power = combo (1–3).
+ * hits = người bị chỉ định bằng mã số tù nhân (null = bốc ngẫu nhiên như cũ).
+ */
+function runGiftAction(id, v, power = 1, hits = null) {
+  if (events.trigger(id, v, power, hits)) return true;
   if (actionById[id] && events.isOffender(v)) events.bailOut(v); // quà nhiệm vụ lúc đang bị giam → được thả, vẫn phải dọn
   return doAction(v.npc, id, v);
+}
+
+// ------------------------------------------------------------------ 🎯 chỉ định người bằng mã số tù nhân + ⚔️ trả thù
+/** Quà chơi khăm: mở cửa sổ ntTargetSec giây chờ người tặng bình luận mã số tù nhân. Quà cùng loại tới tiếp → gộp combo. */
+function openTarget(action, v, power = 1) {
+  const { merged } = targets.open({ gifterId: v.id, action, power, v }, Date.now());
+  if (merged) return;
+  const a = giftDefs[action];
+  v.npc.label.say('🎯 Chọn ai đây? Bình luận mã số!', 3);
+  chatLine('Hệ thống', `🎯 ${v.name}: bình luận MÃ SỐ tù nhân để ${a.emoji} ${a.label.toLowerCase()} (${CFG.targetSec} giây)`, 'gift');
+}
+
+/** Người tặng bình luận mã số (vd "4823", "#4823 5120") → chạy quà đang chờ vào đúng người đó. */
+const TARGET_MAX = { armwrestle: 1, bail: 1, report: 1 };
+function pickTargets(v, nums) {
+  for (const w of targets.of(v.id)) {
+    const max = TARGET_MAX[w.action] ?? (w.action === 'lixi' ? 3 * Math.min(3, w.power) : Math.min(3, w.power));
+    const r = matchTargets(nums, (no) => npcs.byNo(no), { exclude: v.npc, max, usable: (a) => !events.targetIssue(a, w.action) });
+    if (!r.hits.length) {
+      const no = r.busy[0] ?? r.missing[0];
+      const why = no === v.npc.number ? 'là chính bạn' : r.busy.length ? events.targetIssue(npcs.byNo(no), w.action) : 'không có trong trại';
+      v.npc.label.say(`#${no} ${why} — chọn số khác!`, 2.5);
+      continue;
+    }
+    targets.close(w);
+    v.npc.label.say(`🎯 #${r.hits.map((h) => h.number).join(', #')}!`, 2);
+    runGiftAction(w.action, v, w.power, r.hits);
+  }
+  sfx('pop');
+}
+
+/** Hết giờ mà chưa gõ mã số (gõ không kịp / đã rời trại) → bốc 1 người ngẫu nhiên; người tặng đã rời thì đàn em làm hộ. */
+function expireTargets(now) {
+  for (const w of targets.expired(now)) runGiftAction(w.action, viewers.get(w.gifterId) ?? w.v, w.power, null);
+}
+
+/** Trò chơi khăm của `v` trúng `victim`: trả thù thành công → thưởng; ghi sổ để nạn nhân được trả thù lại. */
+function onHit(v, victim) {
+  const rv = victim?.viewerRec;
+  if (!v || !rv || rv === v) return;
+  const now = Date.now();
+  if (grudges.peek(v.id, now) === rv.id) {
+    grudges.clear(v.id);
+    banner(`⚔️ ${v.name} TRẢ THÙ ${rv.name}!`);
+    addPoints(v, 5, '⚔️');
+  }
+  if (CFG.revengeSec <= 0) return;
+  grudges.record(rv.id, v.id, now);
+  chatLine('Hệ thống', `⚔️ ${rv.name}: tặng quà + gõ #${v.npc.number} trong ${CFG.revengeSec} giây để trả thù ${v.name}!`, 'gift');
 }
 
 // ------------------------------------------------------------------ sự kiện LIVE
@@ -406,6 +522,19 @@ function onComment(user, text) {
   const v = CFG.joinOnComment || viewers.has(user.id) ? ensureViewer(user, 'comment') : null;
   chatLine(user.name, clean, v && spot.current?.id === user.id ? 'spot' : 'viewer');
   if (!v) return;
+  interest.bump(v.id, 'comment', now);
+  if (now - (v.roomCmtAt ?? 0) > COMMENT_COOLDOWN_MS) {
+    v.roomCmtAt = now;
+    roomScore(v, ROOM_POINTS.comment);
+  }
+  // 🎯 đang chờ chọn người để chơi khăm → bình luận mã số tù nhân
+  if (targets.of(v.id).length) {
+    const nums = parsePrisonerNumbers(clean);
+    if (nums.length) return pickTargets(v, nums);
+  }
+  const room = CFG.rooms ? parseRoomCode(clean, CFG.rooms) : null;
+  if (room) return chooseRoom(v, room);
+  if (SIGNUP_RE.test(stripVN(clean).trim())) return signup(v);
   const code = parseActionCode(clean, ACTIONS);
   const isTurn = spot.current?.id === user.id;
   if (code && CFG.commentPlay && (isTurn || (CFG.anyoneAct && now - v.lastAct > 8000))) {
@@ -434,6 +563,8 @@ function onLike(user, count) {
   if (!CFG.joinOnLike && !viewers.has(user.id)) return;
   const v = ensureViewer(user, 'like'); // thả tim = vào trại làm tù nhân (và được thả nếu đang bị nhốt)
   if (!v) return;
+  interest.bump(v.id, 'like', Date.now());
+  roomScore(v, count * ROOM_POINTS.like);
   if (Date.now() - v.lastLikeBubble > 4000) {
     v.lastLikeBubble = Date.now();
     v.npc.label.say('❤️', 1.5);
@@ -449,6 +580,10 @@ function onSocial(user, kind) {
   addPoints(v, kind === 'follow' ? 5 : 3, kind === 'follow' ? '➕' : '↗️');
   chatLine('Hệ thống', kind === 'follow' ? `${user.name} đã theo dõi — được thưởng điểm!` : `${user.name} đã chia sẻ LIVE!`, 'system');
   doAction(v.npc, 'dance', null);
+  const now = Date.now();
+  interest.bump(v.id, kind, now);
+  cameos.push(v.id, kind, now); // 🎥 lúc không ai có lượt quà: camera ghé riêng + lời cảm ơn
+  roomScore(v, ROOM_POINTS[kind]);
 }
 
 function giftActionFor(giftId) {
@@ -467,17 +602,23 @@ function onGift(user, giftName, count, coinEach, giftId) {
   lastGiftAt = Date.now();
   const mapped = giftActionFor(giftId);
   const combo = comboPower(combos, `${v.id}|${giftId || giftName}`, count, Date.now());
+  roomScore(v, coins * ROOM_POINTS.coin);
+  events.duelGift(v, coins); // 💪 đang vật tay → gồng sức
+  events.tugGift(v); // 🪢 đang PK → vào dây kéo co đội mình
   if (mapped && combo.power >= 2) {
     banner(`🔥 COMBO ×${combo.n} — ${v.name}!`);
     const p = v.npc.body.pos;
     events.burst(p.x, p.y + 4, p.z);
   }
-  if (mapped) runGiftAction(mapped, v, combo.power);
+  // 🎯 quà chơi khăm chờ người tặng bình luận mã số tù nhân; quà khác chạy ngay
+  if (mapped && TARGETED.has(mapped) && CFG.targetSec > 0) openTarget(mapped, v, combo.power);
+  else if (mapped) runGiftAction(mapped, v, combo.power);
   else if (CFG.bossCoins > 0 && coins >= CFG.bossCoins) runGiftAction('boss', v);
   else if (CFG.guardCoins > 0 && coins >= CFG.guardCoins) runGiftAction('guard', v);
   if (CFG.mode !== 'auto' && CFG.mode !== 'streamer') return;
   if (mapped && giftDefs[mapped]?.crowd) return; // sự kiện cả trại đã chạy đồng loạt — không bắt ai xếp hàng chờ
-  const res = spot.addGift({ id: v.id, name: v.name, avatar: v.avatar }, coins, Date.now());
+  // hàng chờ xếp theo xu (quà lớn chen lên trước); quà đã gán hành động được ưu tiên gấp đôi
+  const res = spot.addGift({ id: v.id, name: v.name, avatar: v.avatar }, coins, Date.now(), mapped ? coins * 2 : coins);
   // người tặng đầu tiên lên sóng ngay (addGift tự bật lượt, tick() không báo 'started') → vẫn phải viền sáng tên, banner, chuông
   if (res === 'start') beginTurn(spot.current);
   else if (res === 'extend') v.npc.label.say(`⏱ +giờ chơi!`, 2.5);
@@ -655,19 +796,32 @@ function updateCamera(dt) {
   if (actor) {
     cam.yaw += dt * (CFG.mode === 'streamer' ? 0 : 0.07);
   } else {
-    // chuyến tham quan: lúc toàn cảnh, lúc bám một người ngẫu nhiên
+    const now = Date.now();
+    // 🎥 người vừa chia sẻ / theo dõi: camera ghé riêng 4 giây kèm lời cảm ơn (sau quà, trước đi dạo)
+    if (cam.cameo && (now > cam.cameo.until || !cam.cameo.v.npc.char.root.parent)) cam.cameo = null;
+    if (!cam.cameo && cameos.size) {
+      const c = cameos.next(now);
+      const cv = c && viewers.get(c.id);
+      if (cv) {
+        cam.cameo = { v: cv, until: now + 4000 };
+        banner(c.kind === 'share' ? `↗️ Cảm ơn ${cv.name} đã chia sẻ LIVE!` : `➕ Cảm ơn ${cv.name} đã theo dõi!`);
+        cv.npc.label.say('🙏 Cảm ơn cả nhà!', 3);
+      }
+    }
+    // chuyến tham quan: lúc toàn cảnh, lúc bám một người — ai tương tác nhiều (chia sẻ > theo dõi > bình luận > tim) được ghé nhiều
     cam.tourT -= dt;
     if (cam.tourT <= 0 || (cam.tourKind === 'follow' && !npcs.inmates.includes(cam.tourActor))) {
       cam.tourT = 9;
       if (cam.tourKind === 'follow' || Math.random() < 0.35) cam.tourKind = 'overview';
       else {
-        const recent = [...viewers.values()].filter((v) => Date.now() - v.lastActive < 180000).map((v) => v.npc);
-        cam.tourActor = pick(Math.random, recent.length ? recent : npcs.inmates);
+        const id = interest.pick([...viewers.keys()], now);
+        cam.tourActor = id ? viewers.get(id).npc : pick(Math.random, npcs.inmates);
         cam.tourKind = cam.tourActor ? 'follow' : 'overview';
       }
     }
     cam.yaw += dt * 0.05;
-    if (cam.tourKind === 'follow') actor = cam.tourActor;
+    if (cam.cameo) actor = cam.cameo.v.npc;
+    else if (cam.tourKind === 'follow') actor = cam.tourActor;
   }
   if (actor) {
     const p = actor.body.pos;
@@ -716,6 +870,82 @@ function buildMenu() {
 }
 buildMenu();
 
+/** 🎯 Thẻ "chọn người": ai vừa tặng quà chơi khăm, còn mấy giây để bình luận mã số, im lặng thì trả thù ai. */
+function updateTargetCard(now) {
+  const host = hudEl('target');
+  const items = targets.items.slice(0, 2);
+  host.classList.toggle('hidden', !items.length);
+  const sig = items.map((w) => w.id).join(',');
+  if (sig !== hudSig.target) {
+    hudSig.target = sig;
+    host.replaceChildren();
+    for (const w of items) {
+      const v = viewers.get(w.gifterId);
+      const a = giftDefs[w.action];
+      const row = document.createElement('div');
+      row.className = 'nt-tg';
+      const box = document.createElement('div');
+      box.className = 'nt-tg-box';
+      const t1 = document.createElement('div');
+      t1.className = 'nt-tg-title';
+      t1.textContent = `🎯 ${v?.name ?? '?'} · ${a.emoji} ${a.label}`;
+      const t2 = document.createElement('div');
+      t2.className = 'nt-tg-sub';
+      const track = document.createElement('div');
+      track.className = 'nt-tg-track';
+      const fill = document.createElement('div');
+      track.append(fill);
+      box.append(t1, t2, track);
+      row.append(avatarEl(v?.name ?? '?', v?.avatar ?? ''), box);
+      host.append(row);
+      w.el = { t2, fill };
+    }
+  }
+  for (const w of items) {
+    if (!w.el) continue;
+    const left = targets.left(w, now);
+    const foeId = HOSTILE.has(w.action) ? grudges.peek(w.gifterId, now) : null;
+    const foe = foeId ? viewers.get(foeId) : null;
+    const txt = `Bình luận MÃ SỐ tù nhân (số vàng trên bảng tên) · còn ${Math.ceil(left)} giây · hết giờ = bốc ngẫu nhiên${foe ? ` · gõ #${foe.npc.number} = ⚔️ trả thù ${foe.name}` : ''}`;
+    if (w.el.t2.textContent !== txt) w.el.t2.textContent = txt;
+    const pct = `${Math.max(0, Math.min(100, (left * 1000 * 100) / Math.max(1, w.until - w.openedAt))).toFixed(1)}%`;
+    if (w.el.fill.style.width !== pct) w.el.fill.style.width = pct;
+  }
+}
+
+/** 🏠 Bảng thi đua phòng: điểm vòng này + số người mỗi phòng + giờ chốt. */
+function updateRooms(now) {
+  hudEl('rooms-wrap').classList.toggle('hidden', !CFG.rooms);
+  if (!CFG.rooms) return;
+  setText('rooms-left', mmss(roomRace.left(now)));
+  const counts = teamCounts();
+  const score = new Map(roomRace.ranking().map((r) => [r.room, r.score]));
+  const order = Array.from({ length: CFG.rooms }, (_, i) => i + 1).sort((a, b) => (score.get(b) ?? 0) - (score.get(a) ?? 0) || a - b);
+  const sig = order.map((r) => `${r}:${Math.round(score.get(r) ?? 0)}:${counts.get(r) ?? 0}`).join('|');
+  if (sig === hudSig.rooms) return;
+  hudSig.rooms = sig;
+  const host = hudEl('rooms');
+  host.replaceChildren();
+  order.forEach((r, i) => {
+    const row = document.createElement('div');
+    row.className = 'nt-rm';
+    row.dataset.team = String(r);
+    if (i === 0 && (score.get(r) ?? 0) > 0) row.classList.add('lead');
+    const tag = document.createElement('b');
+    tag.textContent = `P${r}`;
+    const ppl = document.createElement('span');
+    ppl.className = 'ppl';
+    const ic = document.createElement('i');
+    ic.textContent = '👤';
+    ppl.append(String(counts.get(r) ?? 0), ic);
+    const pt = document.createElement('span');
+    pt.className = 'pt';
+    pt.textContent = formatThousands(Math.round(score.get(r) ?? 0));
+    row.append(tag, ppl, pt);
+    host.append(row);
+  });
+}
+
 // HUD cập nhật 5 lần/giây nhưng chỉ ghi DOM khi nội dung đổi (trước đây xoá + dựng lại thẻ lượt, hàng chờ,
 // bảng TOP và ảnh avatar mỗi lần → trình duyệt tải lại ảnh, tính lại bố cục liên tục).
 const hudEls = {};
@@ -726,7 +956,7 @@ function setText(id, text) {
   hudText.set(id, text);
   hudEl(id).textContent = text;
 }
-const hudSig = { spot: null, queue: null, board: null };
+const hudSig = { spot: null, queue: null, board: null, target: null, rooms: null };
 const queueBadged = new Set();
 let spotSubEl = null;
 const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
@@ -769,7 +999,8 @@ function updateHud() {
   const card = hudEl('spot');
   const cur = spot.current;
   card.classList.toggle('live', !!cur);
-  card.classList.toggle('hidden', CFG.mode === 'off');
+  // không ai lên sóng / chờ lượt thì thẻ chỉ là dòng hướng dẫn + thanh rỗng → ẩn (trừ khi đang hiện bảng lệnh bình luận)
+  card.classList.toggle('hidden', CFG.mode === 'off' || (!cur && !spot.queue.length && !(CFG.commentPlay && CFG.showMenu)));
   hudEl('menu').classList.toggle('hidden', !CFG.showMenu || !CFG.commentPlay);
   hudEl('spot-tip').classList.toggle('hidden', !CFG.commentPlay);
   const sig = cur ? `on|${cur.id}|${cur.name}|${cur.avatar}|${CFG.commentPlay}` : `off|${CFG.mode}|${CFG.streamerName}|${CFG.commentPlay}`;
@@ -788,7 +1019,9 @@ function updateHud() {
       setText('spot-tip', 'Bình luận 1 SỐ hoặc 1 CHỮ để ra lệnh (vd: gõ 1 hoặc gõ B = ném bóng):');
     } else {
       n.textContent = CFG.mode === 'streamer' ? `🎮 ${CFG.streamerName || 'Streamer'} đang dạo trại` : '🎁 Tặng quà để lên sóng!';
-      sub.textContent = CFG.commentPlay ? 'Bình luận để vào trại · tặng quà để được camera quay và điều khiển phạm nhân của bạn' : 'Tặng quà → camera quay phạm nhân của bạn làm theo món quà';
+      sub.textContent =
+        (CFG.commentPlay ? 'Bình luận để vào trại · tặng quà để được camera quay và điều khiển phạm nhân của bạn' : 'Tặng quà → camera quay phạm nhân của bạn làm theo món quà') +
+        (CFG.targetSec > 0 ? ' · quà chơi khăm: tặng xong bình luận MÃ SỐ người muốn chọn' : '');
       setText('spot-tip', 'Khi tới lượt, bình luận 1 SỐ hoặc 1 CHỮ (vd: gõ 1 hoặc gõ B = ném bóng):');
     }
     box.append(n, sub);
@@ -805,6 +1038,8 @@ function updateHud() {
   }
   const bar = hudEl('spot-bar');
   if (bar.style.width !== barW) bar.style.width = barW;
+  updateTargetCard(now);
+  updateRooms(now);
 
   const qSig = `${spot.queue.length}|${spot.queue.slice(0, 5).map((q) => `${q.id}:${q.name}:${q.avatar}`).join(',')}`;
   if (qSig !== hudSig.queue) {
@@ -926,7 +1161,16 @@ function demoTick() {
   } else if (r < 0.55) onComment(user, pick(Math.random, DATA.chat.free));
   else if (r < 0.75) onLike(user, 15);
   else if (r < 0.86) onGift(user, pick(Math.random, ['Hoa hồng', 'TikTok', 'Kem', 'Bắn tim']), 1, pick(Math.random, [1, 1, 5, 10, 30]), '');
-  else if (r < 0.95) runGiftAction(pick(Math.random, DATA.giftActions).id, ensureViewer(user, 'gift')); // demo cả vai trò + sự kiện
+  else if (r < 0.95) {
+    const a = pick(Math.random, DATA.giftActions).id;
+    const v = ensureViewer(user, 'gift');
+    if (TARGETED.has(a) && CFG.targetSec > 0) {
+      // demo 🎯: mở cửa sổ chọn người, 2/3 số lần "bình luận" mã số 1 người xem khác sau 2–5 giây
+      openTarget(a, v);
+      const others = [...viewers.values()].filter((x) => x !== v);
+      if (others.length && Math.random() < 0.67) setTimeout(() => onComment(user, `#${pick(Math.random, others).npc.number}`), range(Math.random, 2000, 5000));
+    } else runGiftAction(a, v); // demo cả vai trò + sự kiện
+  }
   else onSocial(user, 'follow');
 }
 
@@ -1025,6 +1269,7 @@ function frame(nowPerf) {
   const t = spot.tick(now);
   if (t.ended) endTurn(t.ended);
   if (t.started) beginTurn(t.started);
+  expireTargets(now); // 🎯 hết giờ chọn mã số → trả thù / ngẫu nhiên
   const cur = spot.current && viewers.get(spot.current.id);
   // người đang giữ chức vụ (Đại Ca, Cán Bộ, Đầu Bếp…) thì cứ làm việc của chức vụ, không tự đổi nhiệm vụ
   const hasRole = cur && (cur.npc.isBoss || cur.npc.jobRole || cur.guardRole);
@@ -1063,6 +1308,8 @@ function frame(nowPerf) {
   if (fillerT <= 0) {
     fillerT = 1;
     balancePopulation();
+    const rr = CFG.rooms ? roomRace.tick(now) : null; // 🏠 hết vòng thi đua phòng
+    if (rr) roomRoundEnd(rr);
   }
 
   if (CFG.autoEvents && now - lastGiftAt > 180000) {
@@ -1094,6 +1341,9 @@ function frame(nowPerf) {
     const ranked = Object.entries(board).sort((a, b) => b[1].points - a[1].points);
     for (const [id] of ranked.slice(300)) delete board[id];
     lsSet('nt_board', Object.fromEntries(ranked.slice(0, 200)));
+    const memo = Object.keys(numMemo);
+    for (const id of memo.slice(0, Math.max(0, memo.length - 400))) delete numMemo[id];
+    lsSet('nt_numbers', numMemo);
   }
 }
 requestAnimationFrame(frame);
@@ -1161,6 +1411,21 @@ function applyServerConfig(c) {
   CFG.likeEvent = num(c.ntLikeEvent, CFG.likeEvent, 0, 1000000);
   CFG.autoEvents = c.ntAutoEvents !== false;
   CFG.pkTug = c.ntPkTug !== false;
+  CFG.targetSec = num(c.ntTargetSec, CFG.targetSec, 0, 60);
+  CFG.revengeSec = num(c.ntRevengeSec, CFG.revengeSec, 0, 600);
+  CFG.rooms = Math.round(num(c.ntRooms, CFG.rooms, 0, teamCells.length));
+  CFG.roomRoundMin = num(c.ntRoomRoundMin, CFG.roomRoundMin, 1, 60);
+  targets.sec = CFG.targetSec;
+  grudges.sec = CFG.revengeSec;
+  if (roomRace.rooms !== CFG.rooms || roomRace.roundSec !== CFG.roomRoundMin * 60) {
+    roomRace.setOptions({ rooms: CFG.rooms, roundSec: CFG.roomRoundMin * 60 });
+    roomRace.start(Date.now());
+  }
+  // bớt số phòng / tắt phòng → xếp lại người đang ở phòng không còn
+  for (const x of viewers.values()) {
+    if (!CFG.rooms) x.team && setTeam(x, 0);
+    else if (!x.team || x.team > CFG.rooms) setTeam(x, leastCrowdedRoom(CFG.rooms, teamCounts()));
+  }
   buildLegend();
   spot.setOptions({ base: CFG.turnBase, perCoin: CFG.turnPerCoin, max: CFG.turnMax, queueMax: CFG.queueMax, minTurn: CFG.minTurn, preempt: CFG.preempt });
   if (streamer) streamer.label.setName(CFG.streamerName);
@@ -1190,6 +1455,9 @@ function onAppCmd(d) {
   } else if (d.cmd === 'reset') {
     events.reset();
     spot.clear();
+    targets.clear();
+    grudges.reset();
+    roomRace.start(Date.now());
     for (const v of [...viewers.values()]) removeViewer(v);
     for (const k of Object.keys(board)) delete board[k];
     campBonusDays = 0;
@@ -1203,10 +1471,13 @@ function onAppCmd(d) {
     const u = { id: `test_${name}`, name, avatar: '' };
     if (p.kind === 'action' && typeof p.action === 'string') {
       const v = ensureViewer(u, 'gift');
-      runGiftAction(p.action, v, Math.max(1, Math.min(3, Number(p.power) || 1)));
+      const power = Math.max(1, Math.min(3, Number(p.power) || 1));
+      if (p.target === true && TARGETED.has(p.action) && CFG.targetSec > 0) openTarget(p.action, v, power); // 🧪 thử luôn bước chọn mã số
+      else runGiftAction(p.action, v, power);
     } else if (p.kind === 'comment') onComment(u, p.text || pick(Math.random, DATA.chat.free));
     else if (p.kind === 'like') onLike(u, 20);
     else if (p.kind === 'follow') onSocial(u, 'follow');
+    else if (p.kind === 'share') onSocial(u, 'share');
     else onGift(u, p.giftName || 'Hoa hồng', 1, Number(p.coins) || 1, p.giftId || '');
   }
 }
@@ -1243,6 +1514,8 @@ if (typeof window.io === 'function') {
   });
   socket.on('gift', (g) => g && onGift(appUser(g), g.giftName || 'Quà', Math.max(1, Number(g.repeatCount) || 1), Number(g.coinValue || g.diamondCount || 1), g.giftId));
   socket.on('chat', (c) => c && onComment(appUser(c), c.comment || ''));
+  // 🚫 bình luận dính từ cấm (server đã bỏ chữ): người đang trong trại vẫn tính là còn tương tác — không hiện, không cộng điểm
+  socket.on('chat:blocked', (c) => c && viewers.has(appUser(c).id) && ensureViewer(appUser(c), 'comment'));
   socket.on('like', (l) => l && onLike(appUser(l), Math.max(1, Number(l.likeCount) || 1)));
   socket.on('social', (d) => {
     if (!d) return;
@@ -1263,6 +1536,7 @@ if (typeof window.io === 'function') {
 if (URL_MODE) CFG.mode = URL_MODE;
 window.__nhatu = {
   CFG, spot, viewers, npcs, onGift, onComment, onLike, doAction, renderer, scene, camera, events,
+  targets, grudges, roomRace, interest, cameos, openTarget, onSocial,
   /** gỡ lỗi: tua nhanh mô phỏng `sec` giây không cần vẽ (khi tab bị ẩn requestAnimationFrame dừng) */
   advance(sec) {
     for (let t = 0; t < sec; t += 0.05) {

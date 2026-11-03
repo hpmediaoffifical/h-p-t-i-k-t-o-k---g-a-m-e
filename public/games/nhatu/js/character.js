@@ -143,9 +143,10 @@ function charMaterial() {
 
 // ------------------------------------------------------------------ số áo: 1 atlas cố định, không rò texture
 const NUM_COLS = 8;
-const NUM_ROWS = 14;
+const NUM_ROWS = 28; // 224 số: đủ cho mọi phạm nhân mang mã số tù nhân riêng (NPC + người xem tối đa ~126)
 const NUM_W = 64;
 const NUM_H = 36;
+const NUM_TEX_H = 1024; // 28 hàng × 36 px
 /** Các số áo có sẵn trong atlas (cố định theo hạt giống) — NPC/người xem chọn từ đây. */
 export const NUMBER_POOL = (() => {
   const out = [];
@@ -169,7 +170,7 @@ function numberMaterial() {
   if (numMat) return numMat;
   const c = document.createElement('canvas');
   c.width = NUM_COLS * NUM_W;
-  c.height = 512;
+  c.height = NUM_TEX_H;
   const ctx = c.getContext('2d');
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, c.width, c.height);
@@ -191,7 +192,7 @@ function patchGeometry(number) {
   if (patchGeos.has(slot)) return patchGeos.get(slot);
   const pg = g().patch.clone();
   const uv = pg.attributes.uv;
-  const H = 512;
+  const H = NUM_TEX_H;
   const W = NUM_COLS * NUM_W;
   const x0 = ((slot % NUM_COLS) * NUM_W + 0.5) / W;
   const x1 = ((slot % NUM_COLS) * NUM_W + NUM_W - 0.5) / W;

@@ -21,6 +21,8 @@ const d2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
  */
 export function createEvents(ctx) {
   const { scene, world, npcs, DATA, CFG, chatLine, banner, sfx, addPoints, spot, dirt, viewers, camera, flash } = ctx;
+  /** Trò chơi khăm của người xem `v` trúng `victim` (game.js ghi sổ ⚔️ trả thù). */
+  const onHit = (v, victim, action) => v && victim && ctx.onHit?.(v, victim, action);
   const lines = (k, name = '') => pick(R, DATA.chat[k] ?? ['...']).replace('{name}', name);
   const fireworks = new Fireworks(scene);
   const st = {
@@ -46,6 +48,7 @@ export function createEvents(ctx) {
     mice: [], // 🐀 chuột đang chạy
     race: null, // 🏃 cuộc thi chạy đang diễn ra
     tug: null, // 🪢 kéo co theo PK
+    duel: null, // 💪 trận vật tay đang diễn ra: {a, b, va, vb, pa, pb, at} — 2 bên tặng quà để gồng sức
     rainUntil: 0,
     prankT: 0,
     cleanT: 0,
@@ -75,7 +78,7 @@ export function createEvents(ctx) {
   const after = (sec, fn) => st.later.push({ at: performance.now() + sec * 1000, fn });
   const present = (v) => !!v?.npc?.char.root.parent;
   /** Thân nhân vật của người tặng nếu đang rảnh để góp mặt (không bị giam / không bị vác). */
-  const selfOf = (v) => (v.jailed || v.npc.carried ? null : v.npc);
+  const selfOf = (v) => (v.jailed || v.npc.carried || !v.npc.char.root.parent ? null : v.npc); // đã rời trại → đàn em làm hộ
 
   /** Lệnh cho 1 người tham gia sự kiện tập thể (đánh dấu để sự kiện tập thể sau giành được ngay). */
   function crowdCommand(m, opts) {
@@ -83,6 +86,54 @@ export function createEvents(ctx) {
     m.crowdUntil = performance.now() + ((opts.stay ?? 3) + 5) * 1000;
     npcs.command(m, opts);
   }
+
+  /**
+   * Xếp người cho trò tập thể (thi chạy, kéo co, vật tay ngẫu nhiên): người xem đã bình luận "tham gia" →
+   * người xem tương tác gần nhất → NPC.
+   */
+  function rankCrowd(pool) {
+    const now = Date.now();
+    const signed = (m) => (m.viewerRec?.signupUntil ?? 0) > now;
+    return pool
+      .map((m, i) => ({ m, i, k: signed(m) ? 0 : m.viewerRec ? 1 : 2 }))
+      .sort((a, b) => a.k - b.k || (a.k < 2 ? b.m.viewerRec.lastActive - a.m.viewerRec.lastActive : a.i - b.i))
+      .map((x) => x.m);
+  }
+
+  /** Điểm đến để đi tới sát nhân vật `m` ở bất kỳ đâu (trên lầu, trong phòng giam…), đứng cách `gap` m về phía `from`. */
+  function destNear(m, from, gap = 0.75) {
+    const vp = m.body.pos;
+    const cell = world.cellAt(vp.x, vp.y, vp.z);
+    // trong phòng giam: đứng lùi về phía cửa (không xuyên song sắt); ngoài phòng: đứng lùi về phía người tới
+    const ref = cell ? cell.door : from.body.pos;
+    const dx = ref.x - vp.x;
+    const dz = ref.z - vp.z;
+    const dl = Math.hypot(dx, dz) || 1;
+    const k = Math.min(gap, dl) / dl;
+    const dest = { level: vp.y > 2 ? 1 : 0, x: vp.x + dx * k, z: vp.z + dz * k };
+    if (cell) dest.cell = cell;
+    return dest;
+  }
+
+  /**
+   * 🎯 Vì sao không nhắm được `m` bằng quà `action` (null = nhắm được). Người bị chỉ định bằng mã số tù nhân
+   * được kéo ra khỏi việc đang làm (kể cả người đang lên sóng, đang ngủ, đang trên lầu) — trừ người đang giữ
+   * chức vụ, đang bị giam, đang bị vác / trong thùng rác / đang dính trò khác.
+   */
+  function targetIssue(m, action) {
+    if (!m?.char.root.parent || m.role !== 'inmate') return 'không có trong trại';
+    const rv = m.viewerRec;
+    if (action === 'bail') return rv?.offense ? null : 'không bị giam';
+    if (action === 'lixi') return null;
+    if (action === 'report') return rv && st.offenses.some((o) => o.v === rv && !o.caught && Date.now() - o.at < 5 * 60000) ? null : 'không làm bậy';
+    if (rv?.jailed) return 'đang bị giam';
+    if (m.carried || m.puppet || m.tug || busyTrash(m) || busyPrank(m)) return 'đang bận';
+    if (m.isBoss || m.isFollower || m.jobRole || rv?.guardRole) return 'đang làm chức vụ';
+    if (action === 'banana' && m.body.pos.y > 0.5) return 'đang ở trên lầu';
+    if (action === 'armwrestle' && st.duel) return 'bàn vật tay đang bận';
+    return null;
+  }
+  const usableTarget = (m, action) => !targetIssue(m, action);
 
   // ------------------------------------------------------------ 👑 ĐẠI CA
   function becomeBoss(v) {
@@ -615,13 +666,17 @@ export function createEvents(ctx) {
   }
 
   // ------------------------------------------------------------ sự kiện cả trại
-  function party(v) {
-    banner(`🍜 ${v.name} khao cả trại mì tôm!`);
-    chatLine('Hệ thống', `${v.name} mở tiệc mì tôm cho cả trại!`, 'gift');
+  /** 🍜 Tiệc mì tôm. `guests` = chỉ những người này được mời (phòng thắng thi đua); không có → cả trại. */
+  function party(v, guests = null) {
+    if (v) {
+      banner(`🍜 ${v.name} khao cả trại mì tôm!`);
+      chatLine('Hệ thống', `${v.name} mở tiệc mì tôm cho cả trại!`, 'gift');
+    }
     sfx('coin');
     const seats = world.seats.filter((s) => !s.occupant);
-    const me = selfOf(v);
-    const eaters = [...(me ? [me] : []), ...freeInmates({ crowd: true }).filter((n) => n !== me)].slice(0, seats.length);
+    const me = v ? selfOf(v) : null;
+    const pool = guests ? guests.filter((n) => n.char.root.parent && !n.carried && !n.puppet && !n.tug && !n.viewerRec?.jailed && !n.isBoss && !n.jobRole) : freeInmates({ crowd: true });
+    const eaters = [...(me ? [me] : []), ...pool.filter((n) => n !== me)].slice(0, seats.length);
     eaters.forEach((n, i) => {
       const seat = seats.sort((a, b) => d2(a, n.body.pos) - d2(b, n.body.pos)).shift();
       if (!seat) return;
@@ -634,11 +689,11 @@ export function createEvents(ctx) {
         stay: 8,
         then: () => {
           setProp(n.char, 'bowl');
-          if (R() < 0.25) n.label.say(lines('party', v.name), 3);
+          if (R() < 0.25) n.label.say(v ? lines('party', v.name) : '🏆 Phòng mình nhất!', 3);
         },
         done: () => setProp(n.char, 'none'),
       });
-      if (i === 0) addPoints(v, 5, '🍜');
+      if (i === 0 && v) addPoints(v, 5, '🍜');
     });
   }
 
@@ -672,9 +727,15 @@ export function createEvents(ctx) {
     });
   }
 
-  function armwrestle(v) {
+  /**
+   * 💪 Vật tay. `targets[0]` = người bị thách đấu (mã số tù nhân); không có → bạn tù đã đăng ký "tham gia" / ngẫu nhiên.
+   * Trận đấu ~7 giây: hai bên tặng quà để gồng sức (duelGift) — nhiều xu hơn thì dễ thắng hơn.
+   */
+  function armwrestle(v, targets = null) {
     const n = v.npc;
-    const opp = pick(R, freeInmates().filter((m) => m !== n)) ?? null;
+    if (st.duel) return false;
+    const named = targets?.find((m) => m !== n && usableTarget(m, 'armwrestle'));
+    const opp = named ?? rankCrowd(freeInmates().filter((m) => m !== n))[0] ?? null;
     if (!opp) return false;
     const tables = world.tables.map((t, i) => ({ t, i })).sort((a, b) => d2(a.t, n.body.pos) - d2(b.t, n.body.pos));
     let pair = null;
@@ -687,15 +748,25 @@ export function createEvents(ctx) {
       }
     }
     if (!pair) return false;
-    banner(`💪 ${v.name} vật tay với ${opp.name}!`);
+    banner(named ? `💪 ${v.name} THÁCH ĐẤU #${opp.number} ${opp.name}!` : `💪 ${v.name} vật tay với ${opp.name}!`);
+    if (opp.viewerRec) chatLine('Hệ thống', `💪 ${opp.name} tặng quà để gồng lại! Thua là vào thùng rác!`, 'gift');
     npcs.release(n);
     npcs.release(opp);
+    const duel = { a: n, b: opp, va: v, vb: opp.viewerRec ?? null, pa: 0, pb: 0, at: performance.now(), table: pair[0], live: false };
+    st.duel = duel;
     let seated = 0;
     const startDuel = () => {
       seated++;
-      if (seated < 2) return;
-      after(4.5, () => {
-        const win = R() < 0.55;
+      if (seated < 2 || st.duel !== duel) return;
+      duel.live = true;
+      duel.at = performance.now();
+      after(7, () => {
+        if (st.duel !== duel) return;
+        st.duel = null;
+        if (!n.char.root.parent || !opp.char.root.parent) return;
+        // 55% cho người tặng; mỗi bên tặng thêm quà lúc đang vật → gồng sức (tối đa 90%)
+        const p = Math.max(0.1, Math.min(0.9, 0.55 + (0.4 * (duel.pa - duel.pb)) / (duel.pa + duel.pb + 30)));
+        const win = R() < p;
         const winner = win ? n : opp;
         const loser = win ? opp : n;
         banner(`💪 ${winner.name} thắng vật tay!`);
@@ -703,13 +774,29 @@ export function createEvents(ctx) {
         winner.label.say('Thắng rồi!!', 2.5);
         loser.label.say('Ui da...', 2.5);
         if (win) addPoints(v, 8, '💪');
+        else if (opp.viewerRec) addPoints(opp.viewerRec, 8, '💪');
         sfx(win ? 'swish' : 'miss');
+        onHit(winner.viewerRec, loser, 'armwrestle');
         // luật chung: thua là vào thùng rác
         after(1.2, () => startTrash(winner, loser, { reason: `💪 ${winner.name} thắng vật tay — vác ${loser.name} ném vào thùng rác!` }));
       });
     };
-    npcs.command(n, { dest: { level: 0, ...pair[0].approach }, seat: pair[0], mode: 'wrestle', stay: 7, then: startDuel });
-    npcs.command(opp, { dest: { level: 0, ...pair[1].approach }, seat: pair[1], mode: 'wrestle', stay: 7, then: startDuel });
+    // bị kéo đi giữa chừng (bàn bận / ai đó bị ném thùng rác) → huỷ trận sau 20 giây
+    after(20, () => st.duel === duel && !duel.live && (st.duel = null));
+    npcs.command(n, { dest: { level: 0, ...pair[0].approach }, seat: pair[0], mode: 'wrestle', stay: 9, then: startDuel });
+    npcs.command(opp, { dest: { level: 0, ...pair[1].approach }, seat: pair[1], mode: 'wrestle', stay: 9, then: startDuel });
+    return true;
+  }
+
+  /** Quà tặng lúc đang vật tay: người trong trận được gồng sức. true = đã tính. */
+  function duelGift(v, coins) {
+    const d = st.duel;
+    if (!d || !d.live) return false;
+    const c = Math.max(1, Number(coins) || 1);
+    if (v === d.va) d.pa += c;
+    else if (v === d.vb) d.pb += c;
+    else return false;
+    v.npc.label.say(`💪 GỒNG! +${c}`, 1.5);
     return true;
   }
 
@@ -852,11 +939,13 @@ export function createEvents(ctx) {
     } else chatLine('Hệ thống', `${how} ${v.name} ra tù (bãi đã có người dọn giúp).`, 'system');
   }
 
-  function report(v) {
+  function report(v, targets = null) {
     const me = selfOf(v);
     if (me && !me.locked) npcs.command(me, { inPlace: true, mode: 'talk', stay: 2 });
     v.npc.label.say(lines('report'), 2.5);
-    const rec = pickReportTarget(st.offenses, Date.now(), (x) => x !== v && present(x) && !x.jailed);
+    const named = new Set((targets ?? []).map((m) => m.viewerRec).filter(Boolean));
+    const ok = (x) => x !== v && present(x) && !x.jailed;
+    const rec = (named.size ? pickReportTarget(st.offenses, Date.now(), (x) => named.has(x) && ok(x)) : null) ?? pickReportTarget(st.offenses, Date.now(), ok);
     if (!rec) {
       banner(`📢 ${v.name} đi tố cáo… nhưng trại đang sạch sẽ!`);
       addPoints(v, 1, '📢');
@@ -864,6 +953,7 @@ export function createEvents(ctx) {
     }
     rec.caught = true;
     const off = rec.v;
+    onHit(v, off.npc, 'report');
     banner(`📢 ${v.name} tố cáo ${off.name} ${offenseName(rec.mess.kind)}!`);
     chatLine('Hệ thống', `📢 ${v.name} báo cán bộ: ${off.name} làm bậy!`, 'gift');
     addPoints(v, 5, '📢');
@@ -883,8 +973,9 @@ export function createEvents(ctx) {
     });
   }
 
-  function bail(v) {
-    const target = v.offense ? v : [...st.offenders].filter(present).sort((a, b) => a.offense.until - b.offense.until).pop();
+  function bail(v, targets = null) {
+    const picked = targets?.map((m) => m.viewerRec).find((x) => x?.offense && present(x));
+    const target = picked ?? (v.offense ? v : [...st.offenders].filter(present).sort((a, b) => a.offense.until - b.offense.until).pop());
     if (!target) {
       v.npc.label.say('Trại chưa ai bị giam!', 2);
       addPoints(v, 1, '🔓');
@@ -983,20 +1074,30 @@ export function createEvents(ctx) {
   const tv = new THREE.Vector3();
   const tq = new THREE.Quaternion();
 
-  const busyTrash = (m) => st.trash.some((j) => j.victim === m || j.carrier === m);
+  // người vác xong (nạn nhân đã kẹt trong thùng) là rảnh — không tính bận, không kéo nạn nhân ra khi người vác bị gọi đi
+  const busyTrash = (m) => st.trash.some((j) => j.victim === m || (j.carrier === m && j.phase !== 'stuck'));
 
-  /** Quà 🗑️: người tặng (hoặc đàn em làm hộ) vác 1 bạn tù ném vào thùng. Combo (power 2–3) → ném 2–3 người cùng lúc. */
-  function trash(v, power = 1) {
+  /**
+   * Quà 🗑️: người tặng (hoặc đàn em làm hộ) vác 1 bạn tù ném vào thùng. Combo (power 2–3) → ném 2–3 người cùng lúc.
+   * `targets` = người bị chỉ định bằng mã số tù nhân (null = bốc ngẫu nhiên, ưu tiên người xem).
+   */
+  function trash(v, power = 1, targets = null) {
     let done = 0;
-    for (let i = 0; i < Math.min(3, power); i++) {
+    const n = Math.max(Math.min(3, power), targets?.length ?? 0);
+    for (let i = 0; i < n; i++) {
+      const chosen = targets?.[i] && usableTarget(targets[i], 'trash') ? targets[i] : null;
       let carrier = i === 0 ? selfOf(v) : null;
-      if (!carrier || carrier.isBoss || carrier.puppet || busyTrash(carrier)) carrier = pick(R, freeInmates({ npcOnly: true, crowd: true }).filter((m) => !busyTrash(m))); // bị giam / bận → đàn em làm hộ
+      if (!carrier || carrier.isBoss || carrier.puppet || busyTrash(carrier) || carrier === chosen) carrier = pick(R, freeInmates({ npcOnly: true, crowd: true }).filter((m) => !busyTrash(m) && m !== chosen)); // bị giam / bận → đàn em làm hộ
       if (!carrier) break;
       // crowd: quà cá nhân được kéo người ra khỏi sự kiện tập thể đang chạy (mưa, flashmob…)
-      const victim = pickTrashVictim(freeInmates({ crowd: true }).filter((m) => m !== carrier && !busyTrash(m)), v.id, R);
-      if (!victim) break;
+      const victim = chosen ?? (targets?.length ? null : pickTrashVictim(freeInmates({ crowd: true }).filter((m) => m !== carrier && !busyTrash(m)), v.id, R));
+      if (!victim) continue;
       const proxy = carrier !== v.npc;
-      if (startTrash(carrier, victim, { reason: proxy ? `🗑️ Đàn em của ${v.name} vác ${victim.name} ném vào thùng rác!` : `🗑️ ${v.name} vác ${victim.name} ném vào thùng rác!` })) done++;
+      const who = chosen ? `#${victim.number} ${victim.name}` : victim.name;
+      if (startTrash(carrier, victim, { reason: proxy ? `🗑️ Đàn em của ${v.name} vác ${who} ném vào thùng rác!` : `🗑️ ${v.name} vác ${who} ném vào thùng rác!` })) {
+        done++;
+        onHit(v, victim, 'trash');
+      }
     }
     if (!done) return v.npc.label.say('Không bắt được ai!', 2);
     addPoints(v, 2 * done, '🗑️');
@@ -1028,11 +1129,7 @@ export function createEvents(ctx) {
     victim.label.say(lines('trashVictim'), 2);
     const job = { carrier, victim, bin, slot, phase: 'approach', t: 0, until: 0, at: performance.now() };
     st.trash.push(job);
-    const vp = victim.body.pos;
-    const dx = carrier.body.pos.x - vp.x;
-    const dz = carrier.body.pos.z - vp.z;
-    const dl = Math.hypot(dx, dz) || 1;
-    npcs.command(carrier, { dest: { level: 0, x: vp.x + (dx / dl) * 0.75, z: vp.z + (dz / dl) * 0.75 }, mode: 'idle', stay: 0.3, then: () => grab(job) });
+    npcs.command(carrier, { dest: destNear(victim, carrier), mode: 'idle', stay: 0.3, then: () => grab(job) }); // người bị chỉ định có thể đang trên lầu / trong phòng
     if (reason) banner(reason);
     sfx('pop');
     return true;
@@ -1118,7 +1215,7 @@ export function createEvents(ctx) {
   }
 
   function abortTrashFor(n) {
-    for (const j of st.trash.slice()) if (j.victim === n || j.carrier === n) endTrash(j, 'drop');
+    for (const j of st.trash.slice()) if (j.victim === n || (j.carrier === n && j.phase !== 'stuck')) endTrash(j, 'drop');
   }
 
   function updateTrash(dt) {
@@ -1235,10 +1332,29 @@ export function createEvents(ctx) {
     addPoints(v, 5, '🧼');
   }
 
-  function lixi(v, power = 1) {
+  function lixi(v, power = 1, targets = null) {
+    const slots = 3 * Math.min(3, power);
+    const chosen = (targets ?? []).filter((m) => m !== v.npc && m.char.root.parent);
+    if (chosen.length) {
+      // 🎯 lì xì đích danh: cả phong bao (5 điểm × 3 người × combo) chia cho người được chọn
+      const each = Math.max(5, Math.floor((5 * slots) / chosen.length));
+      banner(`🧧 ${v.name} lì xì cho ${chosen.map((m) => `#${m.number} ${m.name}`).join(', ')}!`);
+      for (const m of chosen) {
+        if (m.viewerRec) addPoints(m.viewerRec, each, `🧧 từ ${v.name}`);
+        else m.label.say('Cảm ơn đại gia! 🧧', 2.5);
+        if (!m.locked && !m.puppet && !m.carried) npcs.command(m, { inPlace: true, mode: 'cheer', stay: 2 });
+      }
+      addPoints(v, 3, '🧧');
+      const me0 = selfOf(v);
+      if (me0) {
+        npcs.release(me0);
+        npcs.command(me0, { inPlace: true, mode: 'cheer', stay: 2.5 });
+      }
+      return;
+    }
     const others = [...viewers.values()].filter((x) => x !== v && present(x));
     const lucky = [];
-    while (lucky.length < 3 * Math.min(3, power) && others.length) lucky.push(others.splice(Math.floor(R() * others.length), 1)[0]);
+    while (lucky.length < slots && others.length) lucky.push(others.splice(Math.floor(R() * others.length), 1)[0]);
     banner(lucky.length ? `🧧 ${v.name} lì xì cho ${lucky.map((x) => x.name).join(', ')}!` : `🧧 ${v.name} lì xì cả trại!`);
     for (const x of lucky) {
       addPoints(x, 5, `🧧 từ ${v.name}`);
@@ -1261,28 +1377,27 @@ export function createEvents(ctx) {
   };
   const busyPrank = (m) => st.pranks.some((j) => j.victim === m || j.actor === m);
 
-  function prank(kind, v, power = 1) {
+  function prank(kind, v, power = 1, targets = null) {
     const def = PRANKS[kind];
     const names = [];
-    for (let i = 0; i < Math.min(3, power); i++) {
+    const n = Math.max(Math.min(3, power), targets?.length ?? 0);
+    for (let i = 0; i < n; i++) {
+      const chosen = targets?.[i] && usableTarget(targets[i], kind) ? targets[i] : null;
       let actor = i === 0 ? selfOf(v) : null;
-      if (!actor || actor.isBoss || actor.puppet || busyPrank(actor) || busyTrash(actor)) actor = pick(R, freeInmates({ npcOnly: true, crowd: true }).filter((m) => !busyPrank(m)));
+      if (!actor || actor.isBoss || actor.puppet || busyPrank(actor) || busyTrash(actor) || actor === chosen) actor = pick(R, freeInmates({ npcOnly: true, crowd: true }).filter((m) => !busyPrank(m) && m !== chosen));
       if (!actor) break;
       const pool = freeInmates({ crowd: true }).filter((m) => m !== actor && !busyPrank(m) && !busyTrash(m) && !(m.prankUntil > performance.now() && m.prankKinds?.has(kind)));
-      const victim = pickTrashVictim(pool, v.id, R);
-      if (!victim) break;
+      const victim = chosen ?? (targets?.length ? null : pickTrashVictim(pool, v.id, R));
+      if (!victim) continue;
       npcs.release(actor);
       npcs.puppetize(victim);
       victim.puppetFace = Math.atan2(actor.body.pos.x - victim.body.pos.x, actor.body.pos.z - victim.body.pos.z);
       if (def.prop) setProp(actor.char, def.prop);
-      const job = { kind, v, actor, victim, phase: 'approach', t: 0 };
+      const job = { kind, v, actor, victim, phase: 'approach', t: 0, at: performance.now() };
       st.pranks.push(job);
-      const vp = victim.body.pos;
-      const dx = actor.body.pos.x - vp.x;
-      const dz = actor.body.pos.z - vp.z;
-      const dl = Math.hypot(dx, dz) || 1;
-      npcs.command(actor, { dest: { level: 0, x: vp.x + (dx / dl) * 0.75, z: vp.z + (dz / dl) * 0.75 }, mode: 'idle', stay: 0.3, then: () => doPrank(job) });
-      names.push(victim.name);
+      npcs.command(actor, { dest: destNear(victim, actor), mode: 'idle', stay: 0.3, then: () => doPrank(job) }); // người bị chỉ định có thể đang trên lầu / trong phòng
+      names.push(chosen ? `#${victim.number} ${victim.name}` : victim.name);
+      onHit(v, victim, kind);
     }
     if (!names.length) return v.npc.label.say('Không bắt được ai!', 2);
     banner(def.text(v.name, names.join(', ')));
@@ -1340,10 +1455,9 @@ export function createEvents(ctx) {
         continue;
       }
       if (j.phase !== 'approach') continue;
-      j.t += 1;
-      const near = d2(j.actor.body.pos, j.victim.body.pos) < 1.15;
+      const near = d2(j.actor.body.pos, j.victim.body.pos) < 1.15 && Math.abs(j.actor.body.pos.y - j.victim.body.pos.y) < 1;
       if (near) doPrank(j);
-      else if (j.t > 60 * 12) finishPrank(j); // ~12 giây không tới được → bỏ
+      else if (performance.now() - j.at > 20000) finishPrank(j); // ~20 giây không tới được (kể cả lên lầu) → bỏ
     }
   }
 
@@ -1415,12 +1529,30 @@ export function createEvents(ctx) {
   }
 
   // ------------------------------------------------------------ 🍌 vỏ chuối · 🏋️ phạt hít đất
-  function banana(v, power = 1) {
+  function banana(v, power = 1, targets = null) {
     const me = selfOf(v);
     if (me && !me.locked) npcs.command(me, { inPlace: true, mode: 'shoot', stay: 0.8 });
     const walkers = npcs.inmates.filter((n) => n.path.length && !n.puppet && !n.carried && !n.seat && n.body.pos.y < 1 && n !== me);
     let placed = 0;
-    for (let i = 0; i < Math.min(3, power); i++) {
+    // 🎯 người bị chỉ định: bị gọi đi về phía giữa sân, vỏ chuối nằm ngay trên đường đi
+    const fa = world.freeArea;
+    for (const t of (targets ?? []).filter((m) => m !== me && usableTarget(m, 'banana'))) {
+      const p = t.body.pos;
+      const a = Math.atan2((fa.minX + fa.maxX) / 2 - p.x, (fa.minZ + fa.maxZ) / 2 - p.z) + range(R, -0.5, 0.5);
+      const cell = world.cellAt(p.x, p.y, p.z);
+      const x = cell ? cell.front.x : p.x + Math.sin(a) * 1.1;
+      const z = cell ? cell.front.z : p.z + Math.cos(a) * 1.1;
+      npcs.release(t);
+      npcs.command(t, { dest: { level: 0, x: x + Math.sin(a) * 2, z: z + Math.cos(a) * 2 }, mode: 'idle', stay: 1 });
+      const mesh = makeBanana();
+      mesh.position.set(x, 0.01, z);
+      mesh.rotation.y = R() * Math.PI * 2;
+      scene.add(mesh);
+      st.peels.push({ mesh, x, z, by: v, until: performance.now() + 25000 });
+      t.label.say(`#${t.number} ơi, ra đây coi!`, 1.6);
+      placed++;
+    }
+    for (let i = targets?.length ? placed : 0; i < Math.min(3, power); i++) {
       const w = walkers.splice(Math.floor(R() * walkers.length), 1)[0];
       let x;
       let z;
@@ -1461,6 +1593,7 @@ export function createEvents(ctx) {
       scene.remove(pl.mesh);
       if (!victim) continue;
       holdPose(victim, 'fall', 1.9);
+      if (pl.by && present(pl.by)) onHit(pl.by, victim, 'banana');
       victim.label.say(lines('slip'), 2);
       sfx('bounce');
       laughAt(victim.body.pos, [victim]);
@@ -1471,17 +1604,19 @@ export function createEvents(ctx) {
     }
   }
 
-  function pushup(v, power = 1) {
+  function pushup(v, power = 1, targets = null) {
     const pool = freeInmates({ crowd: true }).filter((m) => m !== v.npc && !busyTrash(m) && !busyPrank(m));
+    const chosen = (targets ?? []).filter((m) => m !== v.npc && usableTarget(m, 'pushup'));
     const names = [];
-    for (let i = 0; i < Math.min(3, power); i++) {
-      const n = pickTrashVictim(pool, v.id, R);
+    for (let i = 0; i < Math.max(Math.min(3, power), chosen.length); i++) {
+      const n = chosen[i] ?? (targets?.length ? null : pickTrashVictim(pool, v.id, R));
       if (!n) break;
-      pool.splice(pool.indexOf(n), 1);
+      if (pool.includes(n)) pool.splice(pool.indexOf(n), 1);
+      onHit(v, n, 'pushup');
       const g = npcs.guards.slice().sort((a, b) => d2(a.body.pos, n.body.pos) - d2(b.body.pos, n.body.pos))[0];
       if (g) g.label.say(`${n.name}! Hít đất 5 cái!`, 2.5);
       holdPose(n, 'pushup', 5.2, { onEnd: (m) => m.label.say('Mệt quá…', 1.8) });
-      names.push(n.name);
+      names.push(chosen.includes(n) ? `#${n.number} ${n.name}` : n.name);
     }
     if (!names.length) return;
     banner(`🏋️ ${v.name} báo cán bộ phạt ${names.join(', ')} hít đất!`);
@@ -1525,8 +1660,7 @@ export function createEvents(ctx) {
     }
     const me = selfOf(v);
     const pool = freeInmates({ crowd: true }).filter((m) => m !== me);
-    const viewersFirst = pool.filter((m) => m.viewerRec).concat(pool.filter((m) => !m.viewerRec));
-    const racers = [...(me ? [me] : []), ...viewersFirst].slice(0, world.raceLanes.length);
+    const racers = [...(me ? [me] : []), ...rankCrowd(pool)].slice(0, world.raceLanes.length); // đăng ký "tham gia" → người xem → NPC
     if (racers.length < 2) return v.npc.label.say('Không đủ người thi!', 2);
     const R0 = { v, racers, order: [], startAt: performance.now(), done: false };
     st.race = R0;
@@ -1661,7 +1795,7 @@ export function createEvents(ctx) {
   // ------------------------------------------------------------ 🪢 kéo co theo PK (tín hiệu thật pk:state từ server)
   function startTug() {
     if (st.tug || !CFG.pkTug) return;
-    const pool = freeInmates({ crowd: true });
+    const pool = rankCrowd(freeInmates({ crowd: true }));
     const hostTeam = pool.filter((m) => m.viewerRec).slice(0, 6);
     for (const m of pool) if (hostTeam.length < 6 && !m.viewerRec && !hostTeam.includes(m)) hostTeam.push(m);
     const oppTeam = pool.filter((m) => !hostTeam.includes(m) && !m.viewerRec).slice(0, 6);
@@ -1670,19 +1804,38 @@ export function createEvents(ctx) {
     rope.position.set(world.tug.x, 0.95, world.tug.z);
     scene.add(rope);
     const T = { host: 0, opp: 0, shift: 0, hostTeam, oppTeam, rope, startAt: performance.now(), lastAt: performance.now() };
-    const join = (m, side, i) => {
-      abortTrashFor(m);
-      endPoseFor(m);
-      npcs.puppetize(m);
-      m.carried = true;
-      m.animMode = 'pull';
-      m.tug = { side, i };
-    };
-    hostTeam.forEach((m, i) => join(m, 'host', i));
-    oppTeam.forEach((m, i) => join(m, 'opp', i));
+    hostTeam.forEach((m, i) => joinTug(m, 'host', i));
+    oppTeam.forEach((m, i) => joinTug(m, 'opp', i));
     st.tug = T;
     banner('🪢 PK BẮT ĐẦU — KÉO CO! Tặng quà để đội mình kéo thắng!');
     sfx('bell');
+  }
+
+  function joinTug(m, side, i) {
+    abortTrashFor(m);
+    endPoseFor(m);
+    for (const j of st.pranks.slice()) if (j.actor === m || j.victim === m) finishPrank(j);
+    npcs.puppetize(m);
+    m.carried = true;
+    m.animMode = 'pull';
+    m.tug = { side, i };
+  }
+
+  /** Người xem tặng quà lúc đang PK → được đứng vào dây kéo co đội mình (thay NPC). true = vừa vào dây. */
+  function tugGift(v) {
+    const T = st.tug;
+    const n = v?.npc;
+    if (!T || !n?.char.root.parent || n.tug || v.jailed || n.isBoss || n.jobRole || v.guardRole || n.carried) return false;
+    let i = T.hostTeam.findIndex((m) => !m.viewerRec || !m.char.root.parent);
+    if (i < 0 && T.hostTeam.length < 6) i = T.hostTeam.length;
+    if (i < 0) return false;
+    const old = T.hostTeam[i];
+    if (old) releaseTugMember(old);
+    T.hostTeam[i] = n;
+    joinTug(n, 'host', i);
+    banner(`🪢 ${v.name} vào kéo co cho đội mình!`);
+    n.label.say('Kéo!! 💪', 2);
+    return true;
   }
 
   function releaseTugMember(m) {
@@ -1781,24 +1934,24 @@ export function createEvents(ctx) {
    * Kích hoạt vai trò / sự kiện `id` cho người xem `v`. Trả false nếu không phải hành động của module này.
    * power 1–3: combo quà (×5 → 2, ×10 → 3) — trò đùa / thùng rác trúng nhiều người hơn, pháo hoa nhiều hơn…
    */
-  function trigger(id, v, power = 1) {
+  function trigger(id, v, power = 1, targets = null) {
     if (!defs[id]) return false;
     if (v.jailed && v.offense && NEEDS_SELF.has(id)) releaseOffender(v, '🎁');
     else if (v.jailed && !v.offense) free(v);
     switch (id) {
       case 'poop':
       case 'pee': mischief(id, v); break;
-      case 'report': report(v); break;
-      case 'bail': bail(v); break;
-      case 'trash': trash(v, power); break;
+      case 'report': report(v, targets); break;
+      case 'bail': bail(v, targets); break;
+      case 'trash': trash(v, power, targets); break;
       case 'photo': photo(v, power); break;
       case 'cleanup': cleanupAll(v); break;
-      case 'lixi': lixi(v, power); break;
+      case 'lixi': lixi(v, power, targets); break;
       case 'shave':
       case 'dress':
-      case 'cake': prank(id, v, power); break;
-      case 'banana': banana(v, power); break;
-      case 'pushup': pushup(v, power); break;
+      case 'cake': prank(id, v, power, targets); break;
+      case 'banana': banana(v, power, targets); break;
+      case 'pushup': pushup(v, power, targets); break;
       case 'birthday': birthday(v, power); break;
       case 'race': race(v, power); break;
       case 'firedrill': firedrill(v); break;
@@ -1811,7 +1964,7 @@ export function createEvents(ctx) {
       case 'nurse': becomeJob(id, v); break;
       case 'party': party(v); break;
       case 'karaoke': karaoke(v); break;
-      case 'armwrestle': if (!armwrestle(v)) v.npc.label.say('Hết bàn trống rồi!', 2); break;
+      case 'armwrestle': if (!armwrestle(v, targets)) v.npc.label.say(st.duel ? 'Đang có trận vật tay!' : 'Hết bàn trống rồi!', 2); break;
       case 'dog': spawnPet('dog', v); break;
       case 'cat': spawnPet('cat', v); break;
       case 'visit': spawnVisitor(v); break;
@@ -1933,6 +2086,7 @@ export function createEvents(ctx) {
     st.mice = [];
     if (st.race) st.race.done = true;
     st.race = null;
+    st.duel = null;
     endTug(null);
     st.rainUntil = 0;
     rainFx.set(false);
@@ -1975,9 +2129,38 @@ export function createEvents(ctx) {
         if (j.phase === 'approach' || j.phase === 'carry') return j.carrier;
         if (j.phase === 'fly' || (j.phase === 'stuck' && pnow < j.stuckAt + 3500)) return j.victim;
       }
+      // 😂 trò đùa: người làm trò lúc chạy tới (tối đa 8 giây), nạn nhân lúc bị cạo đầu / mặc váy / úp bánh
+      for (let i = st.pranks.length - 1; i >= 0; i--) {
+        const j = st.pranks[i];
+        if (j.phase === 'act') return j.victim;
+        if (pnow - j.at < 8000) return j.actor;
+      }
+      // 💪 trận vật tay đang gồng
+      if (st.duel?.live && st.duel.a.char.root.parent && st.duel.b.char.root.parent) {
+        const a = st.duel.a.body.pos;
+        const b = st.duel.b.body.pos;
+        return { body: { pos: { x: (a.x + b.x) / 2, y: a.y, z: (a.z + b.z) / 2 } } };
+      }
+      // 🍌 ngã vỏ chuối (2 giây đầu) · 🏋️ hít đất (3 giây đầu)
+      for (let i = st.poses.length - 1; i >= 0; i--) {
+        const ps = st.poses[i];
+        if ((ps.kind === 'fall' && ps.t < 2) || (ps.kind === 'pushup' && ps.t < 3)) return ps.n;
+      }
       return null;
     },
     cleanJob,
+    /** 🎯 Vì sao không nhắm được nhân vật bằng quà (null = nhắm được). */
+    targetIssue,
+    /** 💪 quà tặng lúc đang vật tay → gồng sức. */
+    duelGift,
+    /** 🪢 quà tặng lúc PK → vào dây kéo co. */
+    tugGift,
+    /** 🏆 Phòng thắng thi đua: cả phòng ra bàn ăn tiệc mì tôm + pháo hoa. */
+    roomFeast(members) {
+      party(null, members);
+      const c = members.find((m) => m.char.root.parent)?.body.pos;
+      if (c) fireworks.burst(c.x, c.y + 4, c.z);
+    },
     /** Người đang bị giam vì đi bậy (lệnh bình luận / phím số bị chặn). */
     isOffender: (v) => !!v?.offense,
     /** Quà cần ra ngoài làm (nhiệm vụ) của người đang bị giam → thả, vẫn phải dọn. */

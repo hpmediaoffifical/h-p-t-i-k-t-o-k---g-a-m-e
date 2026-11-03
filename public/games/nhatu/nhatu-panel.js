@@ -21,7 +21,8 @@
         ntBossSec: 180, ntGuardSec: 180, ntJobSec: 180, ntBossFollowers: 6, ntJailIdleSec: 180, ntJoinOnLike: true,
         ntBossCoins: 0, ntGuardCoins: 0, ntShowGiftLegend: true,
         ntCommentPlay: false, ntOffenseJailSec: 180, ntTrashSec: 60, ntQuality: 'high',
-        ntPrankSec: 120, ntLikeEvent: 1000, ntAutoEvents: true, ntPkTug: true
+        ntPrankSec: 120, ntLikeEvent: 1000, ntAutoEvents: true, ntPkTug: true,
+        ntTargetSec: 15, ntRevengeSec: 60, ntRooms: 6, ntRoomRoundMin: 5
     };
 
     let socket = null, cfg = null, actions = [], giftActions = [], suggested = {}, initialized = false, pendingSave = null, demoOn = false;
@@ -122,6 +123,10 @@
             ${num('ntTrashSec', '🗑️ Kẹt trong thùng rác (giây)', 5, 10)}
             ${num('ntPrankSec', '💇👗 Trò đùa cạo đầu / váy hồng giữ (giây)', 10, 30)}
             ${num('ntLikeEvent', '❤️ Cả phòng đủ bấy nhiêu tim → 1 sự kiện vui (0 = tắt)', 0, 100)}
+            ${num('ntTargetSec', '🎯 Quà chơi khăm: giây chờ bình luận MÃ SỐ tù nhân (0 = ngẫu nhiên)', 0, 1, 'Tặng quà thùng rác / cạo đầu / váy hồng / bánh kem / vỏ chuối / hít đất / vật tay / lì xì / bảo lãnh / tố cáo → người tặng có bấy nhiêu giây bình luận mã số tù nhân (số vàng trên bảng tên) của người muốn nhắm. Gõ không kịp / người tặng đã rời trại → hết giờ vác 1 người ngẫu nhiên')}
+            ${num('ntRevengeSec', '⚔️ Bị chơi khăm → được trả thù trong (giây, 0 = tắt)', 0, 10, 'Người bị chơi khăm tặng quà chơi khăm trong bấy nhiêu giây và gõ đúng mã số kẻ vừa chơi mình → TRẢ THÙ, được +5 điểm')}
+            ${num('ntRooms', '🏠 Số phòng thi đua P1… (0 = tắt)', 0, 1, 'Người xem bình luận P1, P2… để vào phòng. Cả phòng cộng điểm bằng tim, bình luận, chia sẻ, follow và quà')}
+            ${num('ntRoomRoundMin', '🏠 Mỗi vòng thi đua phòng (phút)', 1, 1, 'Hết vòng: phòng nhiều điểm nhất ra bàn ăn tiệc mì tôm, mỗi người +10 điểm, rồi tính vòng mới')}
             <label class="nt-row"><span>1 phút trong trại =</span><select data-k="ntMinuteMs" data-num="1">${speeds.map(([v, n]) => `<option value="${v}"${Number(cfg.ntMinuteMs) === v ? ' selected' : ''}>${n} ngoài đời</option>`).join('')}</select></label>
             <div class="nt-checks">
                 <label><input type="checkbox" data-k="ntPreempt"${cfg.ntPreempt !== false ? ' checked' : ''}> ⏭ Quà mới → nhường lượt (bỏ tick = chơi hết giờ mới tới người kế)</label>
@@ -166,7 +171,9 @@
                 <button class="ghost small" data-test="comment">💬 Bình luận</button>
                 <button class="ghost small" data-test="like">❤️ Thả tim</button>
                 <button class="ghost small" data-test="follow">➕ Follow</button>
+                <button class="ghost small" data-test="share">↗️ Chia sẻ</button>
                 <button class="ghost small" data-test="combo">🔥 Combo ×10 (thùng rác)</button>
+                <button class="ghost small" data-test="target" title="Mở bước chọn mã số tù nhân như quà thật — không ai bình luận số thì hết giờ bốc ngẫu nhiên">🎯 Thử chọn người (thùng rác)</button>
             </div>
             <div class="nd-card-title" style="margin-top:8px">🪢 Thử kéo co PK</div>
             <div class="nt-cmds">
@@ -182,6 +189,7 @@
             if (t === 'gift') cmd('test', { kind: 'gift', coins: 1 });
             else if (t === 'gift10') cmd('test', { kind: 'gift', coins: 10, giftName: 'Kem' });
             else if (t === 'combo') cmd('test', { kind: 'action', action: 'trash', power: 3 });
+            else if (t === 'target') cmd('test', { kind: 'action', action: 'trash', target: true });
             else cmd('test', { kind: t });
         }));
         const pkSim = { host: 0, opp: 0 };
