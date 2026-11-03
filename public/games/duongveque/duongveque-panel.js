@@ -149,7 +149,7 @@
                 <button class="dvq-big start" data-key="start">🏁 BẮT ĐẦU<small>khi đang chờ ván</small></button>
             </div>
             <div id="dvq-pad" class="dvq-pad" tabindex="0"><div class="dvq-pad-tip">Bấm vào ô này rồi dùng <b>Space</b> = nhảy · <b>Enter</b> = húc · <b>S</b> = bắt đầu. Hoặc phím tắt toàn cục <b>${esc(cfg.dvqKeyJump || '—')}</b> / <b>${esc(cfg.dvqKeyRam || '—')}</b> / <b>${esc(cfg.dvqKeyStart || '—')}</b>.</div></div>
-            <div class="dvq-hint">Xe tự chạy khi còn xăng. Quà <b>CỨU</b> đẩy xe tới / đổ xăng / che chắn, quà <b>PHÁ</b> thả vật cản / đẩy lùi. Mức tác dụng tính theo <b>xu</b> nên quà 2 phe cùng giá triệt tiêu nhau. Về tới cổng làng trước khi hết giờ → phe Cứu thắng. Bị đẩy lùi về tận bến xe (quá vạch xuất phát ¼ quãng đường) hoặc hết giờ → phe Phá thắng.</div>
+            <div class="dvq-hint">Xe tự chạy khi còn xăng. Quà <b>CỨU</b> đẩy xe tới / đổ xăng / che chắn, quà <b>PHÁ</b> thả vật cản / đẩy lùi. Mức tác dụng tính theo <b>xu</b> nên quà 2 phe cùng giá triệt tiêu nhau. Về tới cổng làng trước khi hết giờ → phe Cứu thắng. Bị đẩy lùi về tận nơi tập kết (quá vạch xuất phát ¼ quãng đường) hoặc hết giờ → phe Phá thắng.</div>
             <div class="nd-card-title" style="margin-top:8px">🧪 Thử nhanh (không cần LIVE)</div>
             <div class="dvq-cmds"><b class="dvq-side cuu">🛡️ Cứu</b>${cuu.map(tbtn).join('')}</div>
             <div class="dvq-cmds"><b class="dvq-side pha">⚔️ Phá</b>${pha.map(tbtn).join('')}</div>

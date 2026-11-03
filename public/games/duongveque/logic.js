@@ -72,7 +72,7 @@ export const DEFAULTS = {
   likePer: 300,        // đủ bấy nhiêu tim cả phòng → 1 cơn gió nhỏ + chút xăng
   lobbySec: 8,
   resultSec: 12,
-  depotFireSec: 9.5,   // bị đẩy về bến xe: bến cháy bấy nhiêu giây rồi mới hiện kết quả (ván giữ thêm chừng ấy)
+  depotFireSec: 9.5,   // bị đẩy về nơi tập kết: lán cháy bấy nhiêu giây rồi mới hiện kết quả (ván giữ thêm chừng ấy)
   rescueSec: 10,
   tornadoNeed: 0.3,    // lốc xoáy: phe Cứu cần gom đủ bấy nhiêu phần giá lốc trong rescueSec
   ramCd: 12,           // giây hồi chiêu HÚC
@@ -83,7 +83,7 @@ export const DEFAULTS = {
   autoNext: true,      // hết ván tự sang ván mới
   defaultSide: 'cuu',  // quà chưa gán của người chưa chọn phe tính cho phe này
   flagEvery: 500,      // cắm cờ mốc mỗi bấy nhiêu mét
-  backFloor: 0.25,     // bị đẩy lùi quá vạch xuất phát bấy nhiêu phần đường (0,25 × 6 km = 1,5 km) → về lại BẾN XE: phe Phá thắng ngay
+  backFloor: 0.25,     // bị đẩy lùi quá vạch xuất phát bấy nhiêu phần đường (0,25 × 6 km = 1,5 km) → về lại NƠI TẬP KẾT: phe Phá thắng ngay
   pushRate: 300,       // cú đẩy dài chạy tối đa bấy nhiêu m/giây (quà to = bị đẩy tuột lâu hơn, tối đa pushMax giây)
   pushMax: 5,
   driverSec: 180,      // 🧑‍✈️ mỗi lượt tài xế bấy nhiêu giây; hết giờ không ai chờ → người đang lái giữ nguyên

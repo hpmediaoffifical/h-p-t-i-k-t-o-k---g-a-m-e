@@ -759,7 +759,7 @@ function drawRoad() {
   }
   drawGates();
 }
-// 🚏 Bến xe Cà Mau bằng lá dừa (sau vạch xuất phát ¼ quãng đường). Bị đẩy về tới đây → phe Phá thắng → cả bến bốc cháy.
+// 🚏 Nơi tập kết (lán lá dừa) (sau vạch xuất phát ¼ quãng đường). Bị đẩy về tới đây → phe Phá thắng → cả bến bốc cháy.
 let depotFire = null;   // { t } khi đang cháy
 function frond(x, y, len, ang, col) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
@@ -796,11 +796,11 @@ function depot(x, y) {
     }
   }
   ctx.fillStyle = mix('#6b4226', CHAR, F.char); ctx.fillRect(-760, -360, 1520, 18);                     // xà ngang
-  // biển bến xe
+  // biển nơi tập kết
   ctx.fillStyle = mix('#b3261e', CHAR, F.char * 0.9); rrect(-330, -640, 660, 120, 18); ctx.fill();
   ctx.strokeStyle = mix('#f2c14e', '#3a2a1a', F.char); ctx.lineWidth = 8; rrect(-318, -628, 636, 96, 12); ctx.stroke();
   ctx.fillStyle = mix('#f2c14e', '#4a3a2a', F.char * 0.8); ctx.font = "64px 'Bungee', 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('BẾN XE CÀ MAU', 0, -578);
+  ctx.fillText('NƠI TẬP KẾT', 0, -578);
   ctx.strokeStyle = '#6b4226'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(-260, -520); ctx.lineTo(-240, -470); ctx.moveTo(260, -520); ctx.lineTo(240, -470); ctx.stroke();
   if (!fire) { ctx.fillStyle = 'rgba(255,244,220,.92)'; ctx.font = "800 30px 'Be Vietnam Pro'"; ctx.fillText('Bị đẩy về tới đây là phe Phá thắng', 0, -400); }
   // lửa dày đặc: 3 tầng lưỡi lửa lởm chởm (đỏ thẫm ở gốc → cam → vàng ở ngọn) + lõi sáng; cộng sáng chỉ cho ánh lửa
@@ -1356,7 +1356,7 @@ function updateHud(dt) {
   const km = m => (m / 1000).toFixed(m >= 10000 ? 1 : 2).replace('.', ',');
   const depot = gl * game.cfg.backFloor;
   $('dist').innerHTML = game.dist >= 0 ? `<b>${km(game.dist)}</b>/${km(gl).replace(/,00$/, '')} km`
-    : `<b style="color:var(--persimmon-hi)">lùi ${km(-game.dist)} km</b>, cách bến xe ${km(Math.max(0, depot + game.dist))} km`;
+    : `<b style="color:var(--persimmon-hi)">lùi ${km(-game.dist)} km</b>, cách nơi tập kết ${km(Math.max(0, depot + game.dist))} km`;
   { const pi = provIdx(Math.max(0, game.dist)), pv = ROUTE[pi], pt = partAt(Math.max(0, game.dist), game.cfg.goal).part; $('prov').innerHTML = `<b>${esc(pv.name)}</b>${pv.icon} ${esc(pt.name !== pv.name ? `${pt.name} · ${pt.sign}` : pt.sign)}<em>${pi + 1}/${NP}</em>`; }
   const kmh = game.phase === 'race' ? Math.round(vel * 3.6) : 0;
   $('speed').textContent = kmh < -5 ? `◀ ${Math.min(999, -kmh)}` : String(Math.min(999, Math.max(0, kmh)));
@@ -1426,7 +1426,7 @@ function updateHud(dt) {
       🗺️ <b class="y">Mũi Cà Mau → Cột cờ Lũng Cú</b>, qua ${NP} tỉnh<br>
       🍜 Trạm dừng chân, ⛽ trạm xăng, 🚓 CSGT dọc đường<br>
       🧑‍✈️ Quà <b class="y">tài xế</b>: lên lái ${fmtClock(game.cfg.driverSec)} · bình luận <b class="g">1</b> là lên xe<br>
-      🛡️ Quà <b class="g">CỨU</b>: đẩy xe tới, đổ xăng, che chắn<br>⚔️ Quà <b class="r">PHÁ</b>: vật cản, đẩy lùi về <b class="r">bến xe</b> là thắng<br>
+      🛡️ Quà <b class="g">CỨU</b>: đẩy xe tới, đổ xăng, che chắn<br>⚔️ Quà <b class="r">PHÁ</b>: vật cản, đẩy lùi về <b class="r">nơi tập kết</b> là thắng<br>
       💬 Bình luận <b class="g">1</b> vào phe Cứu · <b class="r">2</b> vào phe Phá<br>🔥 ${game.cfg.finalSec} giây cuối mọi quà <b class="y">×${game.cfg.finalMult}</b></div>
       <div class="stat">📍 Tổng đã chạy ${(st.km || 0).toFixed(1).replace('.', ',')} km · 🛡️ Cứu thắng ${st.wins?.cuu || 0} · ⚔️ Phá thắng ${st.wins?.pha || 0}</div>
       ${fame.length ? `<div class="stat">🦸 Ân nhân tuần: ${fame.map(f => `<b style="color:#5ef09b">${esc(f.name)}</b>`).join(' · ')}</div>` : ''}`;
@@ -1441,7 +1441,7 @@ function showResult(r) {
   const pen = VIEW.penalties[Math.floor(Math.random() * VIEW.penalties.length)] || '';
   el.className = `card ${win ? 'win' : 'lose'}${r.reason === 'depot' ? ' depot' : ''}`;
   $('banner').innerHTML = ''; bannerT = 0;
-  el.innerHTML = `<h1>${win ? '🎉 VỀ TỚI QUÊ!' : r.reason === 'depot' ? '🚏 BỊ ĐẨY VỀ BẾN XE!' : '😭 KẸT GIỮA ĐƯỜNG'}</h1>
+  el.innerHTML = `<h1>${win ? '🎉 VỀ TỚI QUÊ!' : r.reason === 'depot' ? '🚏 BỊ ĐẨY VỀ NƠI TẬP KẾT!' : '😭 KẸT GIỮA ĐƯỜNG'}</h1>
     <h2>${win ? `Phe 🛡️ CỨU thắng · ${fmt(r.timeUsed)} giây` : r.reason === 'depot' ? `Phe ⚔️ PHÁ thắng · ${fmt(r.timeUsed)} giây` : `Phe ⚔️ PHÁ thắng · còn ${dtx(r.goal - r.dist)}`}</h2>
     <div class="cols"><div class="col cuu"><h3>🦸 Ân nhân</h3>${r.topCuu.map(row).join('') || '<div class="pr">—</div>'}</div>
     <div class="col pha"><h3>😈 Kẻ phá</h3>${r.topPha.map(row).join('') || '<div class="pr">—</div>'}</div></div>
@@ -1572,7 +1572,7 @@ function onEvents(list) {
       case 'flag': floatText(`🚩 ${dtx(e.meters)}`, '#ffe27a', SX + S(160), contactY(cam) - S(300), 50); break;
       case 'roundStart': depotFire = null; $('result').classList.add('hidden'); banner(`🏁 VÁN ${e.round} XUẤT PHÁT!<small>Mũi Cà Mau → Lũng Cú · ${NP} tỉnh · 100 km/h</small>`, 'gold', 2000, 3); SFX.honk(); followFlags.length = 0; break;
       case 'roundEnd': saveStats(e);
-        if (e.reason === 'depot') { depotFire = { t: 0, result: e }; banner('🔥 BẾN XE CÀ MAU BỐC CHÁY!<small>Bị đẩy về tận bến, phe Phá thắng</small>', 'pha', 4200, 4); shake = 16; }
+        if (e.reason === 'depot') { depotFire = { t: 0, result: e }; banner('🔥 NƠI TẬP KẾT BỐC CHÁY!<small>Bị đẩy về tận nơi tập kết, phe Phá thắng</small>', 'pha', 4200, 4); shake = 16; }
         else showResult(e);
         if (e.winner === 'cuu') { confetti(160); SFX.win(); } else SFX.lose(); break;
       case 'lobby': $('result').classList.add('hidden'); break;
@@ -1974,7 +1974,7 @@ function drawPossess(e, cy) {
   ctx.fillStyle = '#ff2020'; ctx.shadowBlur = 20;
   for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(dx + s * S(9), dy - S(2), S(5), 0, Math.PI * 2); ctx.fill(); }
   ctx.restore();
-  if (e.t > 0.5) bubble(dx + S(30), cy - S(V.top + 80), '👹 Khà khà… quay đầu về BẾN XE!!');
+  if (e.t > 0.5) bubble(dx + S(30), cy - S(V.top + 80), '👹 Khà khà… quay đầu về NƠI TẬP KẾT!!');
 }
 function pallbearer(x, y, s, ph, k) {
   const b = Math.abs(Math.sin(T * 9 + ph)) * 14, sw = Math.sin(T * 4.5 + ph);
@@ -1995,7 +1995,7 @@ function drawCoffin(e, cy) {
   ctx.fillStyle = '#5a2e14'; ctx.beginPath(); ctx.moveTo(-S(170), -S(30)); ctx.lineTo(S(170), -S(30)); ctx.lineTo(S(160), S(20)); ctx.lineTo(-S(160), S(20)); ctx.fill();
   ctx.fillStyle = '#c0261e'; ctx.fillRect(-S(166), -S(46), S(332), S(18));
   ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = S(5); ctx.strokeRect(-S(150), -S(24), S(300), S(38));
-  ctx.fillStyle = '#f2c14e'; ctx.font = `900 ${Math.round(S(26))}px 'Be Vietnam Pro'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('VỀ BẾN XE', 0, -S(4));
+  ctx.fillStyle = '#f2c14e'; ctx.font = `900 ${Math.round(S(20))}px 'Be Vietnam Pro'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('VỀ NƠI TẬP KẾT', 0, -S(4));
   ctx.restore();
   for (let k = 0; k < 4; k++) pallbearer(gx + k * S(86), y, s, k * 0.6, k);
   if (e.t > 0.9) bubble(gx + S(130), y - S(330), '⚰️♪ Tiễn cả đoàn… lên đường ♪');

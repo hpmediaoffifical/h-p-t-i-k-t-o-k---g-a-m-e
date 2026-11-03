@@ -2251,6 +2251,16 @@ const LIVE_TRANSLATE_LANG_LABELS = {
 for (const gId of Object.keys(GAMES)) {
     if (!appConfig.games[gId]) appConfig.games[gId] = { ...GAMES[gId].defaultConfig };
 }
+// 🛵 Đường Về Quê — trò mới (kinh dị / trừ tà, Chủ nợ rượt, Xuống xe…) phải có trong danh sách quà của cấu hình ĐÃ LƯU:
+// chỉ thêm quà gợi ý cho hành động CHƯA có khoá (streamer đã gán / đã xoá thì giữ nguyên), đổi khoá cũ banhchung → creditor.
+(function migrateDuongVeQueGiftMap() {
+    const c = appConfig.games.duongveque;
+    if (!c) return;
+    const map = c.dvqGiftMap && typeof c.dvqGiftMap === 'object' ? c.dvqGiftMap : (c.dvqGiftMap = {});
+    if (map.banhchung && !map.creditor) map.creditor = map.banhchung;
+    delete map.banhchung;
+    for (const [act, list] of Object.entries(duongVeQueSuggestedGiftMap())) if (!(act in map)) map[act] = list;
+})();
 // Hũ Thủy Tinh — dọn key lạ. App ≤ v1.9.7 có lúc đổ nhầm config của game khác (Vote Bình Luận…)
 // vào engine Hũ rồi lưu ngược lên server → app-config.json của Hũ lẫn title/rows/display… của game
 // đó. Chỉ bỏ key KHÔNG thuộc Hũ mà lại là key mặc định của một game khác; key Hũ hợp lệ giữ nguyên.

@@ -3,6 +3,8 @@
 Ngày: 03/11/2026 · Nhánh `tuongtac/duongveque` (worktree `.claude/worktrees/duongveque`) · chưa release.
 Thuộc nhóm 🎮 Game Tương Tác (1 dòng trong `public/games/gametuongtac/registry.js`).
 
+> Đổi tên 03/11: "Bến xe Cà Mau bốc cháy" → **"Nơi tập kết bốc cháy"** (user: gắn địa danh thật với hoả hoạn gây lo lắng).
+
 ## Ý tưởng (user chốt trong phiên)
 
 - Game kiểu "Tumble Truck" nhưng 2D cuộn ngang, chất Việt: xe chạy **100 km/h** về quê ăn Tết, quãng đường **6 km**.
@@ -32,7 +34,7 @@ Thuộc nhóm 🎮 Game Tương Tác (1 dòng trong `public/games/gametuongtac/r
 
 - `dvqGoal` 0 (mặc định) = tự theo thời gian ván: `goalFor(roundSec)` = 25 m/giây (4 phút → 6 km, 10 phút → 15 km), nên mỗi tỉnh luôn
   ~1/34 thời gian ván (10 phút ≈ 16 giây/tỉnh). Số tình huống dọc đường `roadEventsFor` 3 → 7, cờ mốc `flagEveryFor` = 12 mốc đều.
-- Bị đẩy về bến xe: ván giữ thêm `depotFireSec` 9,5 giây cho bến cháy xong (lan → dữ dội → cháy đen) rồi mới hiện thẻ kết quả.
+- Bị đẩy về nơi tập kết: ván giữ thêm `depotFireSec` 9,5 giây cho bến cháy xong (lan → dữ dội → cháy đen) rồi mới hiện thẻ kết quả.
 - Mô phỏng 200 ván / kịch bản, ván 10 phút tự 15 km, 7 tình huống: ngang xu 52–48 · Cứu 55% 66–34 · Phá 65% 7–93.
   Thử thật trong trình duyệt (demo 10 phút): đủ trạm dừng chân / trạm xăng / CSGT / thủng lốp, người xem ảo tự thả tim cho qua.
 
@@ -43,7 +45,7 @@ Thuộc nhóm 🎮 Game Tương Tác (1 dòng trong `public/games/gametuongtac/r
 - ⚔️ Phá: vỏ chuối · ổ gà (≤ `dodgeMax` xu thì NHẢY né được) · chó rượt · đàn vịt (HÚC dẹp được) · mưa ngập · xe container (HÚC đúng lúc giảm ½) · lốc xoáy (10 giây phe Cứu gom 30% giá lốc thì thoát).
 - Quà chưa gán → phe người tặng đã chọn (bình luận 1/2, mặc định `dvqDefaultSide`) + bậc giá (`min`). Tài xế chỉ chạy khi đã gán (min = ∞).
 - Xăng tụt `fuelBurn` 3 %/giây; hết xăng 10 giây không ai đổ → dắt bộ 3 m/giây. Tim cả phòng (`likePer` 300) / chia sẻ / follow cho chút xăng.
-- Thắng: về tới cổng làng → Cứu. Hết giờ **hoặc bị đẩy lùi về bến xe** (quá vạch xuất phát `backFloor` 0,25 × quãng đường) → Phá. 30 giây cuối mọi quà ×2.
+- Thắng: về tới cổng làng → Cứu. Hết giờ **hoặc bị đẩy lùi về nơi tập kết** (quá vạch xuất phát `backFloor` 0,25 × quãng đường) → Phá. 30 giây cuối mọi quà ×2.
 - Cú đẩy dài chạy theo thời gian (≤ 300 m/giây, tối đa 5 giây) để người xem kịp thấy bị đẩy tuột.
 - Thua là vào thùng rác: HÚC trúng → người tặng bay vào thùng rác; Cứu thắng → top Phá vào thùng; Phá thắng → streamer vào thùng + top Phá chọn hình phạt vui (`dvqPenalties`).
 - Phản bội: đang Cứu mà tặng Phá → băng rôn 🐍.
@@ -61,7 +63,7 @@ Thuộc nhóm 🎮 Game Tương Tác (1 dòng trong `public/games/gametuongtac/r
 | Phá 65% xu | 4 | 36 |
 | Phòng ít quà (0,25 quà/giây) | 11 | 29 → nên chọn đường **3 km** |
 
-Hai lỗi cân bằng đã sửa nhờ đo: (1) quà Phá to bị chặn ở vạch 0 còn quà Cứu to về đích ngay → cho lùi quá vạch + bến xe = Phá thắng; (2) Tự lái né/húc quá giỏi (55%/45%) làm quà rẻ của Phá vô dụng → 30%/25%.
+Hai lỗi cân bằng đã sửa nhờ đo: (1) quà Phá to bị chặn ở vạch 0 còn quà Cứu to về đích ngay → cho lùi quá vạch + nơi tập kết = Phá thắng; (2) Tự lái né/húc quá giỏi (55%/45%) làm quà rẻ của Phá vô dụng → 30%/25%.
 
 ## Trò kinh dị hài phe Phá · trừ tà phe Cứu (đợt 3, 03/11)
 
@@ -75,7 +77,7 @@ tự chọn theo bậc giá). Vẫn giữ **mọi quà quy ra mét theo xu** →
 | 15 | 🦁 Múa lân mở đường | dọn vật cản phía trước rồi đấu đội quan tài / ma | 👻 Ma vẫy xe | ma áo dài trắng tóc xoã giữa đường, phanh gấp 1,5 giây, màn tối + chớp |
 | 30 | 🐃 Trâu húc đít xe | húc văng chó, vịt, rắn, cá sấu, zombie | 🐊 Cá sấu đớp khách | nhảy lên nóc đớp 1 khách kéo xuống ao; khách bơi về sau `crocSec` (12) giây; HÚC / trừ tà cứu ngay |
 | 88 | 🧙 Thầy pháp trừ tà | đứng trên nóc múa kiếm, bùa bay; xoá mọi trò kinh dị + quạ | 👹 Quỷ nhập tài xế | sừng + mắt đỏ, màn viền đỏ, xe đứng 5 giây, **khoá NHẢY/HÚC** |
-| 100 | 🎆 Pháo hoa Tết | xoá mọi trò phe Phá đang chạy (trừ vật cản, container, lốc) | ⚰️ Đội khiêng quan tài | 4 người áo đen kính đen nhảy khiêng quan tài "VỀ BẾN XE", xe đứng 6 giây |
+| 100 | 🎆 Pháo hoa Tết | xoá mọi trò phe Phá đang chạy (trừ vật cản, container, lốc) | ⚰️ Đội khiêng quan tài | 4 người áo đen kính đen nhảy khiêng quan tài "VỀ NƠI TẬP KẾT", xe đứng 6 giây |
 | 199 | 🦸 Siêu nhân vác xe | vác cả đoàn xe bay trên vai | 🧟 Bầy zombie | 9 zombie bám đầu + leo nóc xe, chậm 0,2× 7 giây; HÚC chỉ văng một nửa |
 
 - **Trừ tà theo xu** (`exorcise` trong logic.js, nhóm được xoá ở `COUNTER`): xoá phần đẩy lùi CÒN LẠI của trò đúng loại, cũ trước,
