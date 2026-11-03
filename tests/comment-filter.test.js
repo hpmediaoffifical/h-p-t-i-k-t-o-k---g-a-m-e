@@ -70,6 +70,10 @@ test('bình luận chỉ gồm chữ số là cú pháp game (111, 222, 1-9, mã
   assert.equal(isNumberOnly(' 2 2 2 '), true);
   assert.equal(isNumberOnly('5'), true);
   assert.equal(isNumberOnly('1111'), true);
+  assert.equal(isNumberOnly('#3333'), true, 'mã tù nhân có # (Nhà Tù)');
+  assert.equal(isNumberOnly('4823 #5120'), true, 'nhiều mã trong 1 câu');
+  assert.equal(isNumberOnly('#'), false);
+  assert.equal(isNumberOnly('#18+'), false);
   assert.equal(isNumberOnly('18+'), false, '"18+" có ký hiệu → vẫn lọc');
   assert.equal(isNumberOnly('111 con chó'), false);
   assert.equal(isNumberOnly(''), false);
