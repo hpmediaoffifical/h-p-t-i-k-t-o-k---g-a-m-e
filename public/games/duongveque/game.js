@@ -447,9 +447,10 @@ function drawFoodStalls() {
     const parts = PARTS_OF(pi), seg = goal / NP;
     parts.forEach((p, k) => {
       const F = FOOD[p.name]; if (!F) return;
+      const idols = new Set(idolSpotsInView().map(p => Math.round(p.m)));
       stallSpots(pi, k, parts.length).forEach((ms, j) => {
         const dish = F.food[j], x = xAt(ms);
-        if (x < -260 || x > W + 260) return;
+        if (x < -260 || x > W + 260 || idols.has(Math.round(ms))) return;   // chỗ này nhóm tuyển idol đứng
         foodStall(x, roadTop(ms) + 2, dish, pi * 3 + k + j);
         placeLabel({ x: x - 56 - dish.length * 7, y: roadTop(ms) + 2 - 236, w: 30 + dish.length * 14, h: 38 }, -1, () => {});   // bảng tên món
         const dx = x - SX;
@@ -460,7 +461,7 @@ function drawFoodStalls() {
   if (near && game.phase === 'race' && !idolSpotsInView().some(p => Math.abs(p.x - near.x) < 330)) bubble(near.x, near.y, `🍜 ${near.text}`, 2);   // gần bảng tuyển idol thì quán nhường lượt (khỏi che chữ)   // chỉ người bán gần nhất phía trước gọi mời
 }
 // ---- 📣 lâu lâu vài người đứng ven đường giơ bảng "HP MEDIA – TUYỂN IDOL LIVE" (user yêu cầu) ----
-const IDOL_EVERY = 700;   // mét: mỗi đoạn 700 m có ~50% một nhóm giơ bảng (≈ 1 lần / 40–50 giây ở 100 km/h)
+const IDOL_EVERY = 1000;   // mét: mỗi 1 km một nhóm giơ bảng (đường 6 km ≈ 5 nhóm, 35–40 giây/lần ở 100 km/h)
 const IDOL_SHOUT = ['📣 Tuyển Idol LIVE nè!', '🎤 Bạn ơi làm Idol hông?', '✨ HP Media tuyển Idol LIVE!', '📣 Inbox HP Media nha!'];
 function idolCrew(x, y, k) {
   ctx.save(); ctx.translate(x, y); ctx.scale(0.8, 0.8);
@@ -487,15 +488,19 @@ function idolCrew(x, y, k) {
 }
 /** Chỗ đứng giơ bảng: không đè biển chào tỉnh cũ và 2 quán ăn của đoạn đó. */
 function idolSpot(m0) {
-  const P = partAt(m0, game.cfg.goal), len = game.cfg.goal / NP / P.n, m = P.from + len * 0.58;
-  if (m - P.from < 30 || P.from + len - m < 12) return null;
-  return stallSpots(P.pi, P.k, P.n).some(o => Math.abs(o - m) < 20) ? null : m;   // đoạn chật: bỏ lượt ("lâu lâu" mới có)
+  // đứng vào chỗ quán thứ 2 của đoạn tỉnh cũ (đoạn đó còn 1 quán) → cách biển chào / quán kia / công trình mốc đúng như quán, không chồng
+  for (let t = 0; t < 3; t++) {
+    const P = partAt(m0, game.cfg.goal), sp = stallSpots(P.pi, P.k, P.n);
+    if (sp.length === 2) return sp[1];
+    m0 = P.from + game.cfg.goal / NP / P.n + 1;   // đoạn chỉ có 1 quán: sang đoạn kế
+  }
+  return null;
 }
 /** Các nhóm giơ bảng trong khung hình: [{ m, x, k }]. */
 function idolSpotsInView() {
   const out = [], mL = meterAt(-260), mR = meterAt(W + 260);
   for (let k = Math.floor(mL / IDOL_EVERY); k <= Math.floor(mR / IDOL_EVERY); k++) {
-    if (k < 1 || hash(k, 77) > 0.5) continue;
+    if (k < 1) continue;
     const m = idolSpot((k + 0.15 + hash(k, 78) * 0.1) * IDOL_EVERY);
     if (m == null) continue;
     const x = xAt(m);
