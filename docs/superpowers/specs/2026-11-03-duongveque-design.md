@@ -17,7 +17,7 @@ Thuộc nhóm 🎮 Game Tương Tác (1 dòng trong `public/games/gametuongtac/r
   Mỗi tỉnh 1/34 quãng đường, có `old` (tỉnh cũ đã gộp, hiện trên biển chào), `landmark`, `biome` (delta · fields · city · highland ·
   coast · heritage · karst · mountain → cảnh xa / giữa / ven đường / nền trước), `lm` (công trình mốc vẽ riêng: Landmark 81, Cầu Rồng,
   Đại Nội, Vịnh Hạ Long, Hồ Gươm, Thác Bản Giốc…). Test kiểm 34 + các tỉnh cũ = đúng 63.
-- **Đoàn xe**: mỗi xe `dvqSeats` 14 ghế; đầy thì nối xe sau (tối đa `dvqMaxCars` 3), cả cảnh thu nhỏ (zoom 1 / 0,8 / 0,66). Người ngồi
+- **Đoàn xe**: mỗi xe `dvqSeats` 14 ghế; đầy thì nối xe sau (tối đa `dvqMaxCars` 5), đoàn càng dài cả cảnh càng thu nhỏ (zoom = 1 / (1 + 0,27 × (số xe − 1)): 1 → 0,48). Người ngồi
   thấy **đầu + vai** (ảnh đại diện làm mặt, áo màu theo người).
 - **Lộ trình mỗi ván** (`game.plan`): 🍜 trạm dừng chân (40%, 30 giây, cả đoàn xuống ăn) · ⛽ trạm xăng (70%, 15 giây, đầy bình, đi vệ sinh) ·
   🚓 CSGT (70% ván có, vị trí ngẫu nhiên: thả `dvqPoliceLikes` 2.000 tim mới được đi, quà Cứu 1 xu = 10 tim, quá 45 giây nộp phạt lùi 150 m) ·
@@ -33,6 +33,8 @@ Thuộc nhóm 🎮 Game Tương Tác (1 dòng trong `public/games/gametuongtac/r
 - `dvqGoal` 0 (mặc định) = tự theo thời gian ván: `goalFor(roundSec)` = 25 m/giây (4 phút → 6 km, 10 phút → 15 km), nên mỗi tỉnh luôn
   ~1/34 thời gian ván (10 phút ≈ 16 giây/tỉnh). Số tình huống dọc đường `roadEventsFor` 3 → 7, cờ mốc `flagEveryFor` = 12 mốc đều.
 - Bị đẩy về bến xe: ván giữ thêm `depotFireSec` 9,5 giây cho bến cháy xong (lan → dữ dội → cháy đen) rồi mới hiện thẻ kết quả.
+- Mô phỏng 200 ván / kịch bản, ván 10 phút tự 15 km, 7 tình huống: ngang xu 52–48 · Cứu 55% 66–34 · Phá 65% 7–93.
+  Thử thật trong trình duyệt (demo 10 phút): đủ trạm dừng chân / trạm xăng / CSGT / thủng lốp, người xem ảo tự thả tim cho qua.
 
 ## Luật (thuần, `public/games/duongveque/logic.js`, test `tests/duongveque-logic.test.mjs`)
 
@@ -79,5 +81,6 @@ Hai lỗi cân bằng đã sửa nhờ đo: (1) quà Phá to bị chặn ở v�
 ## Còn lại
 
 - Thử OBS Browser Source 1080×1920 + cửa sổ game thật, phím tắt Electron F7/F8 thật, một buổi LIVE thật.
-- Quà gợi ý Mũ lưỡi trai (6104) trùng quà 👮 Cán Bộ của Nhà Tù — bật cả 2 game thì đổi một bên.
-- Chưa thêm `duongveque` vào danh mục khoá KEY (`lib/license-features.js`) → hiện mở cho mọi KEY.
+- Nhiều quà gợi ý trùng Nhà Tù (6104 Mũ lưỡi trai = 👮 Cán Bộ, 5269, 5509, 5585, 6267…) — mọi overlay đang mở đều nhận quà, nên LIVE chỉ mở 1 game tương tác hoặc đổi bảng gán.
+- Chưa thêm `duongveque` vào danh mục khoá KEY (`lib/license-features.js`) → hiện mở cho mọi KEY (giống mọi game 🎮 Game Tương Tác khác; danh mục phải khớp trang quản trị HP KEY nên thêm cùng lúc cả nhóm).
+- Bản chibi 3D góc nhìn 2.5D: thử ở nhánh riêng (`?r=3d`), chưa thay bản 2D.
