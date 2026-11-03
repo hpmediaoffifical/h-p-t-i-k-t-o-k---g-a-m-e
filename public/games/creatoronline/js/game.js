@@ -21,6 +21,8 @@ import * as S from './screens.js';
 import { LabelLayer, setLabelLayer, attachLabel } from './label-layer.js';
 import { LiveHud } from './live-hud.js';
 import { DirectorCam } from './director-cam.js';
+import { buildDecor } from './decor.js';
+import { GiftDecor } from './gift-decor.js';
 import { stepBody } from './logic/physics.js';
 import { mulberry32, pick, range } from './logic/rng.js';
 import { cleanText } from './logic/format.js';
@@ -187,6 +189,9 @@ const audio = new AudioFx({ files: DATA.audioFiles });
 for (const room of world.rooms) audio.setChannel(room.id, genreSrc(states.get(room.id).genre));
 audio.setChannel('lobby', { style: DATA.lobbyMusic.style, file: DATA.lobbyMusic.file });
 const dcam = new DirectorCam(camera, world);
+// trang trí (spec §20): phố đêm, dây đèn, đạo cụ, biển lightstick ở ô đám đông trống, nhân viên + dấu vết quà của buổi
+const decor = buildDecor(scene, world, { low: LOW, spotsOf: crowdSpots });
+const giftDecor = new GiftDecor(scene, world, { low: LOW });
 let filterText = makeTextFilter(CFG.coBadWords);
 
 // ------------------------------------------------------------------ hệ thống logic (js/logic, có test)
@@ -787,6 +792,8 @@ function onGift(p) {
   st.fansDirty = true;
   if (pk && !pk.isOver(now)) pk.addGift(club, v.id, res.xu, now);
   hud.pushGift({ key: `${v.id}|${p.giftId || p.giftName}`, name: v.name, avatar: v.avatar, giftName: p.giftName || 'Quà', giftImage: p.sheetItem?.image || p.image || p.giftPicture || '', count }, now);
+  giftDecor.onGift({ club, id: v.id, name: v.name, xu: res.xu }, now);
+  decor.pushTicker(`🎁 ${v.name} tặng ${p.giftName || 'quà'}${count > 1 ? ` x${count}` : ''} → ${room.def.name}`);
   if (!reGiftGap) burst(room, TIER_ICON[res.tier], Math.min(8, Math.max(2, count)));
   audio.play(res.tier >= 5 ? 'bigGift' : 'gift', vol(room) * 0.7);
   // GĐ2: mọi quà → Center / thách đấu / bạn bè nhảy theo; quà gán hành động chơi với nhau (không làm được → lên sân)
@@ -1596,6 +1603,7 @@ function tickHud(now, dt) {
   hud.setLegend(hudLegend(), CFG.coShowGiftLegend);
   hud.setTopFans(sessionTop().slice(0, 3));
   hud.setJoinLines(joinLines(), CFG.coShowJoinHint);
+  decor.setTickerLines(['★ CREATOR ONLINE ★', ...joinLines()]);
   hud.tick(now, dt);
   const hint = CFG.coShowJoinHint ? hud.joinLine : '';
   for (const r of groupRooms) {
@@ -1759,6 +1767,8 @@ function frame(now, once = false) {
   social.frame(dt, wall); // món ném bay, bay lên bằng bóng bay (sau syncActor)
   effects.update(dt);
   world.update(dt, t, beats, boosts);
+  decor.update(dt, t, { camera, beats, focus: dcam.room, actors });
+  giftDecor.update(dt, t);
   // màn hình: phòng đang quay 4 lần/giây, LED các sân 1,5 giây, phòng khác chỉ biển cửa
   screensT -= dt;
   if (screensT <= 0) {
@@ -1846,6 +1856,7 @@ function saveSession(now) {
       director: director.toJSON(),
       idle: idleCycle.toJSON(),
       wins, clubXu, totalLikes, lastPair,
+      giftTrace: giftDecor.toJSON(),
       mvp: groupRooms.map((r) => [r.id, states.get(r.id).mvp, states.get(r.id).mvpUntil]),
       idols: groupRooms.map((r) => [r.id, states.get(r.id).idols, states.get(r.id).genre, states.get(r.id).theme]),
     };
@@ -1877,6 +1888,7 @@ function restoreSession() {
     clubXu = snap.clubXu ?? clubXu;
     totalLikes = snap.totalLikes ?? 0;
     lastPair = snap.lastPair ?? null;
+    giftDecor.load(snap.giftTrace);
     for (const [id, name, until] of snap.mvp ?? []) Object.assign(states.get(id), { mvp: name, mvpUntil: until });
     for (const [id, idols, genre, theme] of snap.idols ?? []) {
       const st = states.get(id);
@@ -1936,6 +1948,8 @@ function newSession(roomId) {
   }
   freshSystems();
   social.reset();
+  giftDecor.clear();
+  decor.clearTicker();
   sessionRoomId = roomId ?? null;
   shotNow = null;
   topDirty = true;
@@ -2167,7 +2181,7 @@ function sim({ commentsPerMin = 40, likesPerMin = 60, giftsPerMin = 12, people =
 }
 window.__creator = {
   get CFG() { return CFG; }, world, npcs, states, viewers, get stages() { return stages; }, get roles() { return roles; }, seatHouse,
-  get director() { return director; }, get pk() { return pk; }, dcam, renderer, scene, camera, audio, labelLayer, hud,
+  get director() { return director; }, get pk() { return pk; }, dcam, renderer, scene, camera, audio, labelLayer, hud, decor, giftDecor,
   social, onGift, onChat, onLike, onSocial, onAppCmd, newSession, runScenario, sim: DEBUG || location.hostname === '127.0.0.1' || location.hostname === 'localhost' ? sim : undefined,
   frame: () => frame(performance.now(), true),
 };
