@@ -4316,7 +4316,8 @@ function runAction(a, u) {
   if (!mon.ready) return;
   if (a === 'mystery') {                                                           // TÚI MÙ: ngẫu nhiên 1 quà hành hoặc cứu (trừ WIN/THUA ngay)
     const pool = [...VILLAINS, ...HEROES].filter(g => !['win', 'lose', 'mystery'].includes(g.action));
-    const g = mysteryPick(pool), hero = HEROES.includes(g);                   // 🎲 quay ~0,8s lướt qua vài trò rồi báo trúng trò nào, phe nào
+    const price = ALL_GIFTS.find(x => x.action === 'mystery')?.coins || 10;        // mốc giá = giá quà gán cho Quà ngẫu nhiên
+    const g = mysteryPick(pool, Math.random, price), hero = HEROES.includes(g);                   // 🎲 quay ~0,8s lướt qua vài trò rồi báo trúng trò nào, phe nào
     for (let i = 0; i < 6; i++) later(i * 0.13, () => { const r = pick(pool); popText(new V3(mon.x, mon.y + 3.4, mon.z - 1), `🎲 ${r.emoji}`, 'info', 0.2); sfx('step'); });
     later(0.85, () => {
       if (state.phase !== 'play') return;

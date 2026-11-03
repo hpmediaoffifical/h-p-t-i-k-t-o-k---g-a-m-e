@@ -34,7 +34,14 @@ export function likesPerStone(base, recent, golden = false) {
 
 // Túi mù: món rẻ ra nhiều, món đắt ra hiếm (trọng số ~ 1/giá) → kỳ vọng gần giá túi chứ không ~100 xu như trước
 export function mysteryWeights(pool) { return pool.map(g => 1 / Math.max(1, g.coins || 1)); }
-export function mysteryPick(pool, rnd = Math.random) {
+// Quà ngẫu nhiên theo giá túi: 90% ra trò giá ≤ giá túi (chia đều), 10% ra trò đắt hơn (đắt hơn thì hiếm hơn, trọng số 1/giá)
+export const MYSTERY_DEAR_RATE = 0.1;
+export function mysteryPick(pool, rnd = Math.random, price = 0) {
+  if (price > 0) {
+    const cheap = pool.filter(g => (g.coins || 0) <= price), dear = pool.filter(g => (g.coins || 0) > price);
+    if (dear.length && (!cheap.length || rnd() < MYSTERY_DEAR_RATE)) return mysteryPick(dear, rnd);
+    if (cheap.length) return cheap[Math.min(cheap.length - 1, Math.floor(rnd() * cheap.length))];
+  }
   const w = mysteryWeights(pool), tot = w.reduce((a, b) => a + b, 0);
   let r = rnd() * tot;
   for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) return pool[i]; }

@@ -48,6 +48,16 @@ test('mysteryPick: trọng số 1/giá → kỳ vọng Túi mù gần giá túi 
   assert.equal(mysteryPick(pool, () => 0).action, pool[0].action);
 });
 
+test('mysteryPick_theoGiaQua_90PhanTramRaTroReHonHoacBang', () => {
+  // Arrange: bể có trò 1 / 5 / 10 xu và trò đắt 99 / 299 xu; mốc giá túi 10 xu
+  const pool = [{ action: 'a', coins: 1 }, { action: 'b', coins: 5 }, { action: 'c', coins: 10 }, { action: 'd', coins: 99 }, { action: 'e', coins: 299 }];
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  // Act: quay 20.000 lần
+  let dear = 0, N = 20000; for (let i = 0; i < N; i++) if (mysteryPick(pool, rnd, 10).coins > 10) dear++;
+  // Assert: ~10% ra trò > 10 xu
+  assert.ok(Math.abs(dear / N - 0.1) < 0.015, `tỉ lệ trò đắt ${(dear / N * 100).toFixed(1)}%`);
+});
+
 test('comboCredit: ghi công người góp nhiều nhất, không phải người tặng cuối', () => {
   const A = { id: 'a', name: 'Lan' }, B = { id: 'b', name: 'Minh' };
   const cr = comboCredit([{ u: A, n: 4 }, { u: B, n: 1 }]);
