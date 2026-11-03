@@ -137,7 +137,7 @@
                     <script>
                       // Copy với fallback cho Electron / iframe context (clipboard API có thể fail im lặng)
                       function lqCopyOverlay(btn){
-                        const url = location.origin + '/_prototype/level-quest.html?mode=overlay';
+                        const url = window.buildOverlayURL ? window.buildOverlayURL('/_prototype/level-quest.html?mode=overlay') : location.origin + '/_prototype/level-quest.html?mode=overlay';
                         const label = '📋 Link riêng (đứng yên)';
                         const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(()=>btn.textContent=label, 1500); };
                         const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(()=>btn.textContent=label, 1500); };
@@ -181,7 +181,7 @@
                       // Copy URL overlay vào clipboard — không hiển thị URL ra ngoài.
                       // Fallback execCommand cho Electron / iframe context (clipboard API có thể fail im lặng).
                       function timerCopyOverlay(btn){
-                        const url = location.origin + '/_prototype/timer.html?mode=overlay';
+                        const url = window.buildOverlayURL ? window.buildOverlayURL('/_prototype/timer.html?mode=overlay') : location.origin + '/_prototype/timer.html?mode=overlay';
                         const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(()=>btn.textContent='📋 Link OBS', 1500); };
                         const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(()=>btn.textContent='📋 Link OBS', 1500); };
                         if (navigator.clipboard && navigator.clipboard.writeText) {

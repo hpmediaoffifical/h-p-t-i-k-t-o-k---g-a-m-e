@@ -1434,8 +1434,8 @@ async function setupObsHostMapping() {
             title: 'Đã thiết lập xong',
             message: `Địa chỉ ${obsHost.OBS_HOST} đã sẵn sàng.`,
             detail: `Trong TikTok LIVE Studio, thêm nguồn "Link" và dán địa chỉ overlay dạng:\n\n`
-                + `http://${obsHost.OBS_HOST}:${PORT}/overlay/shared/...\n\n`
-                + 'Bấm nút chia sẻ ở mỗi game để lấy link đầy đủ.'
+                + `http://${obsHost.OBS_HOST}:${PORT}/overlay/<game>\n\n`
+                + 'Bấm nút 📋 Link OBS ở mỗi game để lấy link đầy đủ.'
         });
     } else {
         saveObsHostPrefs({ ...prefs, declinedVersion: version, lastError: result.error });

@@ -5,7 +5,12 @@
 (function () {
     const OVERLAY_PATH = '/overlay/pokemon';
     const GIFTS_PATH = '/overlay/pokemon-gifts';
-    const base = () => location.origin;
+    // Link qua buildOverlayURL của app.js → hpaction.obs (TikTok LIVE Studio chặn "localhost"). Tính lúc bấm,
+    // vì app.js biết domain đã map hay chưa sau khi /api/overlay/share-links trả về.
+    const link = (path, query) => {
+        const u = typeof window.buildOverlayURL === 'function' ? window.buildOverlayURL(path) : location.origin + path;
+        return query ? u + (u.includes('?') ? '&' : '?') + query : u;
+    };
     let mounted = false;
 
     const css = `
@@ -40,21 +45,19 @@
         const style = document.createElement('style');
         style.textContent = css;
         document.head.appendChild(style);
-        const overlay = base() + OVERLAY_PATH;
-        const gifts = base() + GIFTS_PATH;
         host.innerHTML = `
             <div class="pokemon-card">
                 <h3>📺 Link OBS (Browser Source 1080×1920)</h3>
                 <p>Game chạy ngay khi app nối phòng LIVE: tim, bình luận, chia sẻ, quà của người xem tự chảy vào game. Không cần cấu hình thêm trong app.</p>
-                <div class="pokemon-link"><label>Màn chơi chính</label><input readonly value="${overlay}" /><button data-copy="${overlay}">📋 Copy</button><button data-open="${overlay}?panel=1">🪟 Mở</button></div>
-                <div class="pokemon-link"><label>Bảng quà (nguồn riêng)</label><input readonly value="${gifts}" /><button data-copy="${gifts}">📋 Copy</button><button data-open="${gifts}">🪟 Mở</button></div>
+                <div class="pokemon-link"><label>Màn chơi chính</label><input readonly data-path="${OVERLAY_PATH}" value="${link(OVERLAY_PATH)}" /><button data-copy="${OVERLAY_PATH}">📋 Copy</button><button data-open="${OVERLAY_PATH}" data-query="panel=1">🪟 Mở</button></div>
+                <div class="pokemon-link"><label>Bảng quà (nguồn riêng)</label><input readonly data-path="${GIFTS_PATH}" value="${link(GIFTS_PATH)}" /><button data-copy="${GIFTS_PATH}">📋 Copy</button><button data-open="${GIFTS_PATH}">🪟 Mở</button></div>
                 <div class="pokemon-status" id="pokemon-status">Đang kiểm tra trạng thái…</div>
             </div>
             <div class="pokemon-card">
                 <h3>🎛 Bảng điều khiển game</h3>
                 <p>Thử sự kiện (tim · chat 111 / 1-9 · tặng quà theo danh mục quà của app), cấu hình <b>quà → bóng</b> (bậc theo xu, quà đặc biệt, VIP, triệu hồi huyền thoại), link OBS, dọn ghế, xóa thống kê. Cấu hình lưu chung cho mọi overlay.</p>
                 <div class="pokemon-actions">
-                    <button class="primary" data-open="${overlay}?panel=1">🎛 MỞ BẢNG ĐIỀU KHIỂN</button>
+                    <button class="primary" data-open="${OVERLAY_PATH}" data-query="panel=1">🎛 MỞ BẢNG ĐIỀU KHIỂN</button>
                     <button class="ghost" data-test-gift>🎁 Thử tặng quà ngẫu nhiên</button>
                 </div>
             </div>
@@ -69,13 +72,13 @@
                     <li>Gõ <b>1</b>-<b>9</b> để khóa Pokemon muốn bắt. Bảng xếp hạng tuần tính theo điểm Pokemon bắt được.</li>
                 </ol>
             </div>`;
-        host.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => copy(b.dataset.copy, b)));
-        host.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => window.open(b.dataset.open, '_blank', 'width=560,height=996')));
+        host.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => copy(link(b.dataset.copy), b)));
+        host.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => window.open(link(b.dataset.open, b.dataset.query), '_blank', 'width=560,height=996')));
         host.querySelector('[data-test-gift]')?.addEventListener('click', () => {
             fetch('/api/test-gift', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
         });
-        document.getElementById('btn-pokemon-copy')?.addEventListener('click', (e) => copy(overlay, e.currentTarget));
-        document.getElementById('btn-pokemon-pop')?.addEventListener('click', () => window.open(overlay, '_blank', 'width=540,height=960'));
+        document.getElementById('btn-pokemon-copy')?.addEventListener('click', (e) => copy(link(OVERLAY_PATH), e.currentTarget));
+        document.getElementById('btn-pokemon-pop')?.addEventListener('click', () => window.open(link(OVERLAY_PATH), '_blank', 'width=540,height=960'));
     }
 
     function refreshStatus() {
@@ -89,6 +92,10 @@
             el.classList.toggle('on', cfg.enabled !== false);
         }).catch(() => { el.textContent = 'Chưa đọc được cấu hình game.'; });
     }
+
+    window.addEventListener('hp:overlay-links', () => {
+        document.querySelectorAll('#pokemon-panel input[data-path]').forEach((i) => { i.value = link(i.dataset.path); });
+    });
 
     window.HpPokemonPanel = {
         open() { render(); refreshStatus(); }

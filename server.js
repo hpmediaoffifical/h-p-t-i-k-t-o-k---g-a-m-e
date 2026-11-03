@@ -123,6 +123,12 @@ const LeagueCard = require('./lib/league-card');
 // (không suy từ tên máy, để URL giống nhau trên mọi cài đặt HP Action LIVE). Lý do đầy đủ +
 // phần tự thêm vào hosts file nằm ở lib/obs-host.js.
 const { OBS_HOST: OBS_LOCAL_HOST, isHostMapped } = require('./lib/obs-host');
+// Link overlay đưa cho người dùng / tạo nguồn OBS: http://hpaction.obs:<port>/overlay/<id> (TikTok LIVE Studio
+// chặn "localhost"); hosts chưa map thì về localhost. Client có bản tương ứng: buildOverlayURL() trong app.js.
+function overlayPublicUrl(p) {
+    const path = String(p || '').startsWith('/') ? p : '/' + (p || '');
+    return `http://${isHostMapped() ? OBS_LOCAL_HOST : 'localhost'}:${PORT}${path}`;
+}
 // VIP Welcome — thẻ vào phòng: tín hiệu vào phòng (member + barrage), vào/ra/vào lại, bậc, sổ xu, hàng media.
 const vwSignals = require('./lib/vipwelcome/join-signals');
 const vwTiers = require('./lib/vipwelcome/tier-match');
@@ -6908,7 +6914,7 @@ const camObs = createCamObs({
     isHubUrl: url => feedUrlIs(url || '', 'camgames', /\/overlay\/camgames(?:[/?#]|$)/i),
     cameraName: () => String(appConfig.games?.camgames?.source || '') || (Date.now() - camAuto.at < 10000 ? camAuto.source : ''),
     savedScene: () => String(appConfig.games?.camgames?.scene || ''),
-    overlayUrl: () => `http://localhost:${PORT}/overlay/camgames`,
+    overlayUrl: () => overlayPublicUrl('/overlay/camgames'),
     port: PORT
 });
 let camProgCache = { at: 0, data: null };
@@ -7146,7 +7152,7 @@ app.get('/api/games/:id/share-link', (req, res) => {
     res.json({
         ok: true,
         token,
-        url: `http://${OBS_LOCAL_HOST}:${PORT}/overlay/shared/${token}`,
+        url: `http://${OBS_LOCAL_HOST}:${PORT}${GAMES[gameId].overlayPath}`,
         localUrl: `http://localhost:${PORT}${GAMES[gameId].overlayPath}`,
         // false = hosts file chưa map, link .obs sẽ không mở được -> UI nên bảo user dùng
         // localUrl hoặc chạy lại bước thêm hosts.

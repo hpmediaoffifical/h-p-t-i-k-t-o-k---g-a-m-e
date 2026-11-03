@@ -14,18 +14,38 @@
                 inp.value = buildOverlayURL(inp._baseOverlayPath);
             } else if (inp.value && inp.value.includes('/overlay/')) {
                 // Re-apply on existing URL
-                const baseUrl = inp.value.replace(/\?res=[^&]*&?/, '').replace(/[?&]$/, '');
-                inp.value = buildOverlayURL(baseUrl.replace(location.origin, ''));
+                try {
+                    const u = new URL(inp.value);
+                    u.searchParams.delete('res');
+                    inp.value = buildOverlayURL(u.toString());
+                } catch (_) {}
             }
         });
     }
-    // Cache 1 lần lúc load trang — có sẵn token .obs cho từng game trước khi user bấm bất kỳ
-    // nút "📋 Link OBS" nào (buildOverlayURL luôn được gọi đồng bộ từ các panel).
-    // TikTok LIVE Studio chặn thẳng "localhost" ở ô Link nguồn; hpaction.obs trỏ về loopback
-    // qua hosts file (xem lib/obs-host.js) nên qua được bộ lọc mà vẫn chạy nội bộ.
+    // MỌI link overlay (mọi game, kể cả game thêm sau) ra dạng http://hpaction.obs:<port>/overlay/<id>.
+    // TikTok LIVE Studio chặn thẳng "localhost"/"127.0.0.1" ở ô Link nguồn; hpaction.obs trỏ về loopback
+    // qua hosts file (xem lib/obs-host.js) nên qua được bộ lọc mà vẫn chạy nội bộ, OBS cũng dùng được.
+    // Mặc định coi như đã map (link đúng ngay từ lúc mở app, không chờ fetch); server báo hosts CHƯA map
+    // thì mới quay về localhost. Link cũ /overlay/shared/<token> vẫn chạy (server.js redirect).
+    const OBS_HOST = 'hpaction.obs';
     let obsShareInfo = null;
+    const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]', OBS_HOST];
+    function overlayOrigin() {
+        // Mở app từ máy khác trong LAN → hpaction.obs của máy đó không trỏ về server này.
+        if (!LOOPBACK_HOSTS.includes(location.hostname) || !/^https?:$/.test(location.protocol)) return location.origin;
+        if (obsShareInfo && obsShareInfo.mapped === false) return location.origin;
+        const host = (obsShareInfo && obsShareInfo.host) || OBS_HOST;
+        const port = (obsShareInfo && obsShareInfo.port) || location.port;
+        return `http://${host}${port ? ':' + port : ''}`;
+    }
     fetch('/api/overlay/share-links').then(r => r.ok ? r.json() : null).then(j => {
-        if (j && j.ok) obsShareInfo = j;
+        if (!j || !j.ok) return;
+        obsShareInfo = j;
+        // Ô link nào đã điền trước khi biết hosts map hay chưa → điền lại + báo panel tự vẽ lại.
+        document.querySelectorAll('input[id$="-overlay-url"], #overlay-url').forEach(inp => {
+            if (inp._baseOverlayPath) inp.value = buildOverlayURL(inp._baseOverlayPath);
+        });
+        window.dispatchEvent(new CustomEvent('hp:overlay-links', { detail: j }));
     }).catch(() => {});
 
     function buildOverlayURL(pathOrFull) {
@@ -33,12 +53,13 @@
         let url;
         if (pathOrFull.startsWith('http')) {
             url = pathOrFull;
-        } else if (obsShareInfo && obsShareInfo.mapped) {
-            const shared = Object.values(obsShareInfo.links).find(l => l.overlayPath === pathOrFull);
-            const target = shared ? `/overlay/shared/${shared.token}` : pathOrFull;
-            url = `http://${obsShareInfo.host}:${obsShareInfo.port}${target}`;
+            // Link đầy đủ trỏ về chính server này qua localhost/127.0.0.1 → đổi sang hpaction.obs.
+            try {
+                const u = new URL(pathOrFull);
+                if (LOOPBACK_HOSTS.includes(u.hostname) && u.port === location.port) url = overlayOrigin() + u.pathname + u.search + u.hash;
+            } catch (_) {}
         } else {
-            url = location.origin + pathOrFull;
+            url = overlayOrigin() + (pathOrFull.startsWith('/') ? '' : '/') + pathOrFull;
         }
         const res = getOverlayResolution();
         if (res === '4k') {

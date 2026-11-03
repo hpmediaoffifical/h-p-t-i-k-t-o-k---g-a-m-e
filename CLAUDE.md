@@ -51,6 +51,7 @@ Mỗi game mới cần:
 5. Script tags + `openXxx()` handler trong `public/app.js`.
 6. CSS namespace prefix `.<id>-*` trong `public/style.css`.
 7. **Tránh route collision với `/api/games/:id/*`** — generic GET/POST `/state` và `/config` đã giữ chỗ. Đặt route riêng dưới namespace khác (vd `/api/<id>/*`).
+8. **Link OBS / TikTok LIVE Studio:** mọi link đưa cho người dùng đi qua `window.buildOverlayURL(path)` (tính lúc BẤM, không chốt lúc wire panel) → ra `http://hpaction.obs:<port>/overlay/<id>` (TikTok LIVE Studio chặn "localhost"; hosts chưa map mới về localhost). Phía server dùng `overlayPublicUrl(path)`. KHÔNG tự ghép `location.origin`/`localhost` — `tests/overlay-links.test.js` sẽ hỏng. Link cũ `/overlay/shared/<token>` vẫn redirect.
 
 ## Versioning & Release
 
