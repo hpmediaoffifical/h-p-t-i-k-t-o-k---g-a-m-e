@@ -25,6 +25,7 @@
   .itag span { font-size: .72em; font-weight: 800; text-shadow: 0 .1em 0 #000, 0 0 .3em #000; max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
   .ihp { width: 2.8em; height: .35em; background: rgba(0,0,0,.6); border-radius: .2em; overflow: hidden; margin-top: .1em; border: .05em solid #000; }
   .ihp i { display: block; height: 100%; width: 100%; background: linear-gradient(#ffe066, #e0a400); }
+  .ihp.regen i { background: linear-gradient(#9dffb0, #2fbf55); }
   .mlab .mt { display: flex; align-items: center; gap: .25em; background: rgba(0,0,0,.55); padding: .1em .55em .1em .1em; border-radius: 1em; }
   .mlab .mt .av { width: 1.7em; height: 1.7em; }
   .mlab .mt span { font-weight: 800; font-size: .8em; }
@@ -109,9 +110,14 @@
   .fc.out { transition: opacity .5s, transform .5s; opacity: 0; transform: translateX(-30%); }
   @keyframes fin { from { transform: translateX(-60%); opacity: 0; } }
 
-  #gbanner { position: absolute; top: 18.5%; left: 6%; right: 6%; justify-content: center; z-index: 3; display: flex; align-items: center; gap: .4em; background: linear-gradient(90deg, #ff3d7f, #ff7aa8); border-radius: 1em; padding: .15em .6em; font-size: .7em; font-weight: 800; opacity: 0; transform: scale(.7); transition: opacity .25s, transform .3s cubic-bezier(.3,1.6,.6,1); pointer-events: none; box-shadow: 0 .2em .6em rgba(0,0,0,.35); }
-  #gbanner.show { transform: none; opacity: 1; }
-  #gbanner .av { width: 2em; height: 2em; font-size: 1em; }
+  #gbanner { position: absolute; top: 18.5%; left: 50%; z-index: 3; display: flex; align-items: center; gap: .45em; width: max-content; max-width: 86%; padding: .18em .85em .18em .2em; border-radius: 2em; font-size: .7em; font-weight: 800; white-space: nowrap; pointer-events: none;
+    background: linear-gradient(rgba(18,12,30,.86), rgba(18,12,30,.86)) padding-box, linear-gradient(90deg, #ff3d7f, #ffb36b) border-box; border: .1em solid transparent; box-shadow: 0 .25em .8em rgba(0,0,0,.45), 0 0 1em rgba(255,61,127,.25);
+    opacity: 0; transform: translateX(-50%) scale(.7); transition: opacity .25s, transform .3s cubic-bezier(.3,1.6,.6,1); }   /* viên thuốc ôm sát chữ, giữa màn */
+  #gbanner.show { transform: translateX(-50%); opacity: 1; }
+  #gbanner .av { width: 1.9em; height: 1.9em; font-size: 1em; border-width: .08em; }
+  #gbanner b { color: #fff; max-width: 11em; overflow: hidden; text-overflow: ellipsis; }
+  #gbanner em { font-style: normal; color: #1a0a14; background: linear-gradient(90deg, #ffd36b, #ff9f5a); padding: .05em .55em; border-radius: 1em; font-size: .9em; }
+  #gbanner i { font-style: normal; color: #ffb3cf; font-weight: 700; font-size: .85em; }
   #tip { position: absolute; top: 19.5%; left: 10%; right: 10%; text-align: center; font-size: .78em; font-weight: 800; pointer-events: none; opacity: 0; transition: opacity .4s; text-shadow: 0 .08em 0 #000, 0 0 .4em #000; }
   #tip.show { opacity: .95; }
   #tip b { color: #ffd84a; }
