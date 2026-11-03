@@ -4419,6 +4419,7 @@ const SOCIAL_RANDOM = () => [...VILLAINS, ...HEROES].filter(g => g.coins > 0 && 
 function socialAct(a) { if (a === 'random') return pick(SOCIAL_RANDOM()); return a === 'pebble' || a === 'bomb' || ALL_GIFTS.some(g => g.action === a) ? a : 'pebble'; }
 function socialLabel(a) { if (a === 'random') return '🎲 quà ngẫu nhiên'; if (a === 'pebble') return '🪨 ném đá'; if (a === 'bomb') return '🧨 pháo hẹn giờ'; const g = ALL_GIFTS.find(x => x.action === a); return g ? g.emoji + ' ' + g.label.toLowerCase() : a; }
 function socialIcon(a) { if (a === 'random') return '🎲'; if (a === 'pebble') return '🪨'; if (a === 'bomb') return '🧨'; const g = ALL_GIFTS.find(x => x.action === a); return g ? g.emoji : '🎁'; }
+function socialShort(a) { if (a === 'random') return '🎲 Ngẫu nhiên'; if (a === 'pebble') return '🪨 Ném đá'; if (a === 'bomb') return '🧨 Pháo'; const g = ALL_GIFTS.find(x => x.action === a); return g ? g.emoji + ' ' + g.label : '🎁'; }
 let likeHintPop = -9;
 function onFollow(user) { if (!user || followed.has(user.id)) return; followed.add(user.id); addPoints(user, 30); flashChip('follow', user); queueAction('fence', user); }   // follow chỉ tính 1 lần/người
 function onShare(user) { const now = performance.now(); if (!user || now - (shareCd.get(user.id) || -1e9) < 60000) return; shareCd.set(user.id, now); addPoints(user, 30); flashChip('share', user); queueAction(socialAct(CONFIG.shareAct), user); }   // 1 pháo / người / phút
@@ -4905,12 +4906,12 @@ function updateHud(dt) {
   setTxt($('modN'), (state.golden ? '🌟 GIỜ VÀNG ' : '') + (state.mod ? state.mod.name : ''));
   { const goal = CONFIG.likePer * CONFIG.likeGoal, on = CONFIG.likeGoal > 0 && state.phase === 'play' && !state.rainDone && state.likesRound > 0;
     setCss($('likeBar'), 'display', on ? '' : 'none');
-    if (on) { setCss($('likeFill'), 'width', Math.min(100, state.likesRound / goal * 100).toFixed(1) + '%'); setTxt($('likeTx'), `❤ ${state.likesRound.toLocaleString('vi-VN')}/${goal.toLocaleString('vi-VN')} ☄️`); } }
+    if (on) { setCss($('likeFill'), 'width', Math.min(100, state.likesRound / goal * 100).toFixed(1) + '%'); setTxt($('likeTx'), `❤️ Tim cả phòng ${state.likesRound.toLocaleString('vi-VN')}/${goal.toLocaleString('vi-VN')} → ☄️ Mưa đá`); } }
   { const el = $('likeHint'), on = state.phase === 'play';                          // nhắc nhỏ kích người xem thả tim / chia sẻ liên tục
     setCss(el, 'display', on ? '' : 'none');
     if (on) {
       const left = Math.max(1, curLikePer() - likeAcc), share = Math.floor(time / 6) % 3 === 2;
-      setTxt(el, share ? `↗️ → ${socialIcon(CONFIG.shareAct)}` : time - likeHintPop < 1.2 ? `💥 ${socialIcon(CONFIG.likeAct)}` : `❤ ${left.toLocaleString('vi-VN')} → ${socialIcon(CONFIG.likeAct)}`);   // chỉ số + biểu tượng, ít chữ
+      setTxt(el, share ? `↗️ Chia sẻ → ${socialShort(CONFIG.shareAct)}` : time - likeHintPop < 1.2 ? `💥 Đủ tim → ${socialShort(CONFIG.likeAct)}` : `❤️ Thả ${left.toLocaleString('vi-VN')} tim → ${socialShort(CONFIG.likeAct)}`);   // ngắn mà rõ nghĩa
       setCls(el, 'pop', time - likeHintPop < 1.2);
     } }
   { const L = START_Z - HOUSE_FRONT, f = q => clamp((START_Z - q) / L, 0, 1) * 100;   // thanh đường đi: đầu đường → cửa nhà
