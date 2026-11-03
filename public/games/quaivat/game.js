@@ -2878,6 +2878,15 @@ function spawnFromGround(kind, owner, mk, o) {
   return it;
 }
 // zombie đang đứng sát cửa: đồ lăn (khoai/thùng/lốp) ra cửa là lăn về phía đầu đường → ném thẳng vào người thay vì phí quà
+// đồ lăn: zombie còn xa cửa (>22m) thì rơi xuống ngay trước mặt zombie (~11–14m) rồi lăn tới, khỏi chờ lăn cả đoạn đường dài; gần cửa thì lăn ra từ cửa như cũ
+function rollIn(it, y, spin) {
+  const x = rand(-1.2, 1.2);
+  if (mon.z - HOUSE_FRONT > 22) {
+    const lz = Math.max(HOUSE_FRONT + 3, mon.z - rand(11, 14));
+    const ax = clamp(mon.x + rand(-0.5, 0.5), -LANE, LANE);
+    launch(it, new V3(ax + rand(-1, 1), 11, lz - 4), new V3(ax, y, lz), 0.6, spin); sfx('whoosh');
+  } else { launch(it, DOOR_POS(), new V3(x, y, HOUSE_FRONT + 3), 0.6, spin); openDoor(); sfx('whoosh'); }
+}
 function nearDoor() { return mon.z < HOUSE_FRONT + 4.5; }
 function throwAtMon(it, hit, spin = 4) {
   const from = DOOR_POS(), T = flyTime(from, mon.root.position, 16), to = predictMon(T, 1.1);
@@ -2890,10 +2899,10 @@ const SPAWN = {
     const it = newItem('potato', u, mkPotato(), { labelY: mega ? 2.6 : 1.1 });
     if (mega) { it.mega = true; it.R = 0.58 * 2.2; it.g.scale.setScalar(2.2); popText(DOOR_POS().setY(4.5), '🥔 KHOAI KHỔNG LỒ!', 'big', 1.4); camShake = 0.3; }
     if (nearDoor()) return throwAtMon(it, mega ? { dmg: 80, knock: 7, text: 'KHOAI KHỔNG LỒ!', unblockable: true, stun: 0.8 } : { dmg: 18, knock: 2.5, text: 'BỊCH!' }, 5);
-    launch(it, DOOR_POS(), new V3(rand(-1.2, 1.2), mega ? 1.2 : 0.4, HOUSE_FRONT + 3), 0.6, 5); openDoor(); sfx('whoosh');
+    rollIn(it, mega ? 1.2 : 0.4, 5);
   },
   xbarrel: u => spawnObstacleFromDoor('xbarrel', u, mkXBarrel, { labelY: 1.6, minA: 2.5, maxA: 6, onPath: 0.9, spin: 6 }),
-  barrel: u => { const it = newItem('rbarrel', u, mkRollBarrel(), { labelY: 1.5, debrisColor: 0x9a5f2c }); if (nearDoor()) return throwAtMon(it, { dmg: 28, knock: 3.5, text: 'RẦM!' }, 4); launch(it, DOOR_POS(), new V3(rand(-1.2, 1.2), 0.58, HOUSE_FRONT + 3), 0.6, 4); openDoor(); sfx('whoosh'); },
+  barrel: u => { const it = newItem('rbarrel', u, mkRollBarrel(), { labelY: 1.5, debrisColor: 0x9a5f2c }); if (nearDoor()) return throwAtMon(it, { dmg: 28, knock: 3.5, text: 'RẦM!' }, 4); rollIn(it, 0.58, 4); },
   barrelStatic: u => spawnObstacleFromDoor('barrel', u, mkBarrel, { blocker: true, hp: 80, maxHp: 80, halfW: 0.6, halfD: 0.6, labelY: 1.6, debrisColor: 0x9a5f2c }),
   fence: u => spawnObstacleFromDoor('fence', u, mkFence, { blocker: true, hp: 160, maxHp: 160, halfW: 6.4, halfD: 0.3, labelY: 1.9, debrisColor: 0xf4efe4, minA: 5, maxA: 9, spin: 0, onPath: 0 }),
   trap: u => spawnFromGround('trap', u, mkTrap, { labelY: 0.6, minA: 3.5, maxA: 9, onPath: 0.85, spin: 4 }),
@@ -3660,7 +3669,7 @@ function updateShooter2(it, p, dt) {
     if (it.shots >= 2) later(0.6, () => removeItem(it));
   } else if (it.kind === 'bloom') {
     it.cd = 2.4; it.shots = (it.shots || 0) + 1;
-    const b2 = newItem('boomer', it.owner, mkBoomer(), { noLabel: true, noRescale: true }); b2.g.position.set(p.x, 1.2, p.z); b2.state = 'out'; b2.o = p.clone(); b2.hit1 = b2.hit2 = false; sfx('whoosh');
+    const b2 = newItem('boomer', it.owner, mkBoomer(), { noLabel: true, noRescale: true }); b2.g.position.set(p.x, 1.2, p.z); b2.state = 'out'; b2.o = p.clone(); b2.tx = clamp(mon.x, -LANE, LANE);   /* bay thẳng tới chỗ zombie lúc ném */ b2.hit1 = b2.hit2 = false; sfx('whoosh');
     if (it.shots >= 3) later(2.5, () => removeItem(it));
   }
 }
@@ -3672,7 +3681,7 @@ function updateProjectile(it, p, dt) {
     if (p.z > START_Z + 8) removeItem(it);
   } else {                                                                       // boomerang: bay tới chỗ zombie ~9m rồi quay về, trúng cả lượt đi lẫn về
     it.g.rotation.y += dt * 18;
-    if (it.state === 'out') { const tz = Math.min(it.o.z + 9, mon.z), dz2 = tz - p.z; p.z += Math.sign(dz2) * Math.min(Math.abs(dz2), 12 * dt); p.x += (mon.x - p.x) * Math.min(1, dt * 5); if (Math.abs(dz2) < 0.2) it.state = 'back'; }
+    if (it.state === 'out') { const tz = Math.min(it.o.z + 9, mon.z), dz2 = tz - p.z; p.z += Math.sign(dz2) * Math.min(Math.abs(dz2), 12 * dt); p.x += ((it.tx ?? p.x) - p.x) * Math.min(1, dt * 5); if (Math.abs(dz2) < 0.2) it.state = 'back'; }
     else { const d2 = it.o.clone().setY(1.2).sub(p); const L = d2.length(); if (L < 0.3) return removeItem(it); p.addScaledVector(d2.normalize(), Math.min(L, 12 * dt)); }
     if (live && Math.hypot(mon.x - p.x, mon.z - p.z) < 1 && !(it.state === 'out' ? it.hit1 : it.hit2)) { if (it.state === 'out') it.hit1 = true; else it.hit2 = true; hitMonster(10, 0.8, it.owner, { text: '🪃' }); }
     if (it.t > 5) removeItem(it);
@@ -3975,14 +3984,14 @@ function updateItems(dt) {
       if (it.kind === 'fence') it.g.scale.setScalar(Math.min(1, 0.15 + it.ft / it.T));
       if (it.ft >= it.T) { p.copy(it.to); it.g.rotation.set(0, it.kind === 'fence' ? 0 : rand(-0.3, 0.3), 0); it.g.scale.setScalar(1);
         if (it.thrown) onLand(it);
-        else if (it.kind === 'tire') { it.state = 'roll'; it.vz = 11; it.vx = 0; puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
-        else if (it.kind === 'potato' || it.kind === 'rbarrel') { it.endZ = rand(-1.6, 0.6); it.state = 'roll'; it.head = rand(-0.35, 0.35); it.speed = rand(7.5, 9); it.bumpT = 0; it.curv = 0; it.hop = 0; it.g.rotation.set(0, 0, 0); puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
+        else if (it.kind === 'tire') { it.state = 'roll'; it.vz = 11; it.vx = null; puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
+        else if (it.kind === 'potato' || it.kind === 'rbarrel') { it.endZ = Math.min(START_Z + 6, Math.max(rand(-1.6, 0.6), mon.z + 2.5));   /* zombie còn đứng ngoài đường nhựa: lăn qua khỏi zombie mới biến */ it.state = 'roll'; it.head = clamp(Math.atan2(mon.x - p.x, Math.max(2, mon.z - p.z)) + rand(-0.05, 0.05), -1.1, 1.1);   /* nhắm chỗ zombie đứng LÚC BẮT ĐẦU lăn rồi đi thẳng: zombie né được */ it.speed = rand(7.5, 9); it.bumpT = 0; it.curv = 0; it.hop = 0; it.g.rotation.set(0, 0, 0); puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
         else onLand(it);
       }
     }
     else if (it.kind === 'tire' && it.state === 'roll') {
       const dz = mon.z - p.z, tt = Math.max(0.2, dz / it.vz);
-      if (dz > 1) it.vx = clamp((mon.x - p.x) / tt * 0.8, -6, 6);
+      if (it.vx === undefined || it.vx === null) it.vx = dz > 1 ? clamp((mon.x - p.x) / tt * 0.8, -6, 6) : 0;   // nhắm 1 lần lúc bắt đầu lăn, sau đó đi thẳng
       p.z += it.vz * dt; p.x = clamp(p.x + it.vx * dt, -LANE - 0.3, LANE + 0.3);
       p.y = 0.63 + Math.abs(Math.sin(it.t * 7)) * 0.4;
       it.g.userData.roll.rotation.x += it.vz * dt / 0.63;
@@ -3999,7 +4008,7 @@ function updateItems(dt) {
       // khoai tây một đầu nhọn: lăn cong theo vòng quanh đầu nhọn, đổi hướng lung tung, vẫn nhắm về phía quái
       const ud = it.g.userData;
       it.bumpT -= dt;
-      if (it.bumpT <= 0) { it.bumpT = rand(0.25, 0.8); it.curv = rand(-0.6, 0.6) * (isB ? 0.12 : 1); it.hop = Math.random() < (isB ? 0.15 : 0.35) ? rand(0.15, 0.4) : 0; }
+      if (it.bumpT <= 0) { it.bumpT = rand(0.25, 0.8); it.curv = 0; it.hop = Math.random() < (isB ? 0.15 : 0.35) ? rand(0.15, 0.4) : 0; }   // lăn thẳng (chỉ nảy nhẹ), chỉ đổi hướng khi va vào vật khác
       it.head += it.curv * it.speed * 0.35 * dt;                                       // không đuổi người: chỉ cong lung tung do đầu nhọn
       it.head = clamp(Math.atan2(Math.sin(it.head), Math.cos(it.head)), -1.1, 1.1);   // luôn hướng về đầu đường (+z)
       p.x += Math.sin(it.head) * it.speed * dt; p.z += Math.cos(it.head) * it.speed * dt;
