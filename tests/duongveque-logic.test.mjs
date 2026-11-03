@@ -21,11 +21,16 @@ test('mét theo xu: tuyến tính, có tối thiểu', () => {
 
 test('quà chưa gán chọn hành động theo bậc giá của phe', () => {
   assert.equal(pickAction('cuu', 1), 'wind');
-  assert.equal(pickAction('cuu', 5), 'fuel');
-  assert.equal(pickAction('cuu', 100), 'helmet');
-  assert.equal(pickAction('cuu', 5000), 'heli');
+  assert.equal(pickAction('cuu', 4), 'fuel');
+  assert.equal(pickAction('cuu', 5), 'banhchung');
+  assert.equal(pickAction('cuu', 95), 'helmet');
+  assert.equal(pickAction('cuu', 100), 'buffalo');
+  assert.equal(pickAction('cuu', 1500), 'heli');
+  assert.equal(pickAction('cuu', 5000), 'superman');
   assert.equal(pickAction('pha', 1), 'banana');
   assert.equal(pickAction('pha', 30), 'dog');
+  assert.equal(pickAction('pha', 99), 'croc');
+  assert.equal(pickAction('pha', 3000), 'zombie');
   assert.equal(pickAction('pha', 499), 'container');
   assert.equal(pickAction('pha', 1000), 'tornado');
   for (const a of ACTIONS) assert.ok(['cuu', 'pha'].includes(a.side));
@@ -535,4 +540,129 @@ test('bị đẩy về bến xe: ván giữ thêm thời gian cháy bến (depot
   for (let i = 0; i < 20; i++) g.step(0.1);
   assert.notEqual(g.phase, 'result');          // đã sang màn chờ / ván mới
   assert.equal(g.round, 2);
+});
+
+// ---------------- trò kinh dị phe Phá & trừ tà phe Cứu ----------------
+const still = (opts = {}) => race(Object.assign({ fuelBurn: 0, speed: 0.0001 }, opts));   // xe gần đứng yên: dist chỉ do quà
+const riders = (g, n) => { for (let i = 0; i < n; i++) g.comment({ id: `r${i}`, name: `Khách ${i}` }, '1'); };
+
+test('mỗi trò kinh dị phe Phá đẩy lùi đúng số mét theo xu', () => {
+  for (const k of ['crow', 'snake', 'ghost', 'croc', 'possess', 'coffin', 'zombie']) {
+    const g = still();
+    g.gift(B, { action: k, coins: 20 });
+    run(g, 8);
+    assert.ok(Math.abs(g.dist + metersFor(20, M25)) < 1, `${k}: ${g.dist}`);
+  }
+});
+
+test('trò kinh dị chặn / làm chậm xe: ma, quỷ, quan tài đứng hẳn; zombie, rắn, quạ chậm lại', () => {
+  for (const [k, stop] of [['ghost', true], ['possess', true], ['coffin', true], ['zombie', false], ['snake', false], ['crow', false]]) {
+    const g = race({ fuelBurn: 0, speed: 10 });
+    g.gift(B, { action: k, coins: 1 });
+    run(g, 0.5);
+    if (stop) assert.equal(g.speed, 0, k); else assert.ok(g.speed > 0 && g.speed < 10, `${k}: ${g.speed}`);
+  }
+});
+
+test('cá sấu đớp 1 khách khỏi ghế, bơi về sau crocSec giây; HÚC cứu ngay', () => {
+  const g = still({ crocSec: 5 });
+  riders(g, 3);
+  g.gift(B, { action: 'croc', coins: 99 });
+  const ev = g.drainEvents().find(e => e.type === 'snatch');
+  assert.ok(ev && ev.victim, 'có khách bị đớp');
+  assert.equal(g.passengers().total, 2);
+  assert.ok(!g.passengers().seated.some(u => u.id === ev.victim.id));
+  run(g, 5.2);
+  assert.equal(g.passengers().total, 3);
+  assert.ok(g.drainEvents().some(e => e.type === 'victimBack' && e.how === 'swim'));
+  g.gift(B, { action: 'croc', coins: 99 });
+  assert.equal(g.passengers().total, 2);
+  g.input('ram'); run(g, 0.1);
+  assert.equal(g.passengers().total, 3);
+  assert.ok(g.drainEvents().some(e => e.type === 'victimBack' && e.how === 'ram'));
+});
+
+test('quỷ nhập tài xế: không nhảy, không húc được trong lúc bị nhập', () => {
+  const g = race({ fuelBurn: 0, speed: 10 });
+  g.gift(B, { action: 'possess', coins: 199 });
+  run(g, 0.2);
+  assert.equal(g.input('jump'), false);
+  assert.equal(g.input('ram'), false);
+  assert.ok(g.drainEvents().some(e => e.type === 'possessed'));
+  run(g, 5);
+  assert.equal(g.input('jump'), true);
+});
+
+test('trừ tà cùng giá xoá sạch trò kinh dị (cùng giá triệt tiêu), dư mét thành đẩy tới', () => {
+  for (const [cuu, pha] of [['garlic', 'ghost'], ['shaman', 'possess'], ['fireworks', 'coffin'], ['buffalo', 'dog'], ['lion', 'coffin'], ['fireworks', 'zombie']]) {
+    const g = still();
+    g.gift(B, { action: pha, coins: 50 });
+    run(g, 0.5);
+    const back = g.dist;
+    g.gift(A, { action: cuu, coins: 50 });
+    assert.ok(g.drainEvents().some(e => e.type === 'exorcise'), `${cuu} vs ${pha}: có trừ tà`);
+    run(g, 8);
+    // đã bị lùi một ít trước khi trừ tà; phần còn lại bị xoá, dư đúng bằng phần đã lùi được đẩy tới lại
+    assert.ok(Math.abs(g.dist) < 1.5, `${cuu} vs ${pha}: dist=${g.dist} (lùi trước đó ${back})`);
+    assert.equal(g.effects.filter(e => e.kind === pha).length, 0, `${pha} đã tắt`);
+  }
+});
+
+test('trừ tà nhỏ hơn trò kinh dị chỉ xoá được một phần; trừ tà không đúng loại thì thành đẩy tới', () => {
+  const g = still();
+  g.gift(B, { action: 'ghost', coins: 100 });
+  g.gift(A, { action: 'garlic', coins: 40 });
+  run(g, 8);
+  assert.ok(Math.abs(g.dist + metersFor(60, M25)) < 1.5, `dist=${g.dist}`);
+  const g2 = still();
+  g2.gift(B, { action: 'rain', coins: 40 });   // mưa không phải tà → tỏi không xoá, chỉ đẩy tới
+  g2.gift(A, { action: 'garlic', coins: 40 });
+  assert.ok(!g2.drainEvents().some(e => e.type === 'exorcise'));
+  run(g2, 8);
+  assert.ok(Math.abs(g2.dist) < 1.5, `dist=${g2.dist}`);
+  assert.equal(g2.effects.length, 0);
+});
+
+test('trừ tà cứu khách đang bị cá sấu đớp', () => {
+  const g = still();
+  riders(g, 2);
+  g.gift(B, { action: 'croc', coins: 99 });
+  assert.equal(g.passengers().total, 1);
+  g.gift(A, { action: 'shaman', coins: 199 });
+  assert.equal(g.passengers().total, 3);   // 2 khách + người tặng thầy pháp (tặng Cứu là lên xe)
+  assert.ok(g.drainEvents().some(e => e.type === 'victimBack' && e.how === 'saved'));
+});
+
+test('múa lân dọn vật cản phía trước (tính vào mét của quà)', () => {
+  const g = still();
+  g.gift(B, { action: 'banana', coins: 10, count: 3 });
+  assert.equal(g.obstacles.length, 3);
+  g.gift(A, { action: 'lion', coins: 49 });
+  assert.equal(g.obstacles.length, 0);
+  run(g, 20);
+  assert.ok(Math.abs(g.dist - (metersFor(49, M25) - 3 * metersFor(10, M25))) < 1.5, `dist=${g.dist}`);
+});
+
+test('zombie quá đông: HÚC chỉ văng một nửa phần còn lại, zombie vẫn bám', () => {
+  const g = still();
+  g.gift(B, { action: 'zombie', coins: 100 });
+  run(g, 0.1);
+  g.input('ram'); run(g, 0.05);
+  assert.equal(g.effects.filter(e => e.kind === 'zombie').length, 1);
+  run(g, 8);
+  const full = metersFor(100, M25);
+  assert.ok(g.dist > -full * 0.6 && g.dist < -full * 0.45, `dist=${g.dist}`);
+});
+
+test('bánh chưng mẹ gửi: thêm xăng + đẩy tới; siêu nhân vác xe đẩy đủ mét', () => {
+  const g = still();
+  g.fuel = 50;
+  g.gift(A, { action: 'banhchung', coins: 10 });
+  assert.ok(g.fuel > 50);
+  run(g, 4);
+  assert.ok(Math.abs(g.dist - metersFor(10, M25) * 0.75) < 1, `dist=${g.dist}`);
+  const g2 = still();
+  g2.gift(A, { action: 'superman', coins: 1000 });
+  run(g2, 8);
+  assert.ok(Math.abs(g2.dist - metersFor(1000, M25)) < 2, `dist=${g2.dist}`);
 });

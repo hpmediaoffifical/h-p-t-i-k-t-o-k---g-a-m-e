@@ -8,6 +8,9 @@
  *    XU (metersFor) cho mọi hành động → quà giúp và quà phá cùng giá triệt tiêu nhau. Tặng ×N chạy đủ N lần (gộp xu).
  *  - Lốc xoáy: 10 giây phe Cứu gom đủ xu thì thoát, không thì bị hất lùi. Hết xăng: 10 giây không ai đổ → dắt bộ.
  *  - Về tới quê trước khi hết giờ → phe Cứu thắng; hết giờ → phe Phá thắng. 30 giây cuối mọi quà ×2.
+ *  - Trò kinh dị phe Phá (👻 ma, 🐊 cá sấu đớp khách, 👹 quỷ nhập, ⚰️ quan tài, 🧟 zombie…) bị quà TRỪ TÀ phe Cứu
+ *    (🧄 tỏi, 🧙 thầy pháp, 🎆 pháo hoa, 🦁 lân, 🐃 trâu) xoá phần đẩy lùi còn lại — xoá tối đa đúng số mét của quà trừ tà,
+ *    dư bao nhiêu thành đẩy tới. Vẫn giữ "mọi quà quy ra mét theo xu" nên 2 phe cùng giá vẫn triệt tiêu.
  */
 
 import { rangesOf } from './route.js';
@@ -18,20 +21,34 @@ export const SIDES = ['cuu', 'pha'];
 export const ACTIONS = [
   { id: 'wind',      side: 'cuu', emoji: '🌬️', label: 'Gió xuôi',      min: 0 },
   { id: 'fuel',      side: 'cuu', emoji: '⛽', label: 'Đổ xăng',       min: 2 },
+  { id: 'banhchung', side: 'cuu', emoji: '🍙', label: 'Bánh chưng mẹ gửi', min: 5 },
+  { id: 'garlic',    side: 'cuu', emoji: '🧄', label: 'Tỏi trừ tà',    min: 10 },
   { id: 'nitro',     side: 'cuu', emoji: '🚀', label: 'Nitro',         min: 20 },
+  { id: 'lion',      side: 'cuu', emoji: '🦁', label: 'Múa lân mở đường', min: 49 },
   { id: 'helmet',    side: 'cuu', emoji: '⛑️', label: 'Mũ bảo hiểm',   min: 90 },
+  { id: 'buffalo',   side: 'cuu', emoji: '🐃', label: 'Trâu húc đít xe', min: 99 },
   { id: 'convoy',    side: 'cuu', emoji: '🏍️', label: 'Đoàn phượt',    min: 150 },
+  { id: 'shaman',    side: 'cuu', emoji: '🧙', label: 'Thầy pháp trừ tà', min: 199 },
   { id: 'tow',       side: 'cuu', emoji: '🚛', label: 'Xe cứu hộ',     min: 300 },
+  { id: 'fireworks', side: 'cuu', emoji: '🎆', label: 'Pháo hoa Tết',  min: 500 },
   { id: 'heli',      side: 'cuu', emoji: '🚁', label: 'Trực thăng',    min: 1000 },
+  { id: 'superman',  side: 'cuu', emoji: '🦸', label: 'Siêu nhân vác xe', min: 3000 },
   // chỉ chạy khi đã GÁN quà (min vô cực → quà chưa gán không bao giờ rơi vào đây)
   { id: 'driver',    side: 'cuu', emoji: '🧑‍✈️', label: 'Lên làm tài xế', min: Infinity },
   { id: 'banana',    side: 'pha', emoji: '🍌', label: 'Vỏ chuối',      min: 0 },
   { id: 'pothole',   side: 'pha', emoji: '🕳️', label: 'Ổ gà',          min: 2 },
+  { id: 'crow',      side: 'pha', emoji: '🐦‍⬛', label: 'Quạ ỉa kính',   min: 5 },
+  { id: 'snake',     side: 'pha', emoji: '🐍', label: 'Rắn chui gầm xe', min: 10 },
   { id: 'dog',       side: 'pha', emoji: '🐕', label: 'Chó rượt',      min: 20 },
+  { id: 'ghost',     side: 'pha', emoji: '👻', label: 'Ma vẫy xe',     min: 49 },
   { id: 'ducks',     side: 'pha', emoji: '🦆', label: 'Đàn vịt',       min: 90 },
+  { id: 'croc',      side: 'pha', emoji: '🐊', label: 'Cá sấu đớp khách', min: 99 },
   { id: 'rain',      side: 'pha', emoji: '🌧️', label: 'Mưa ngập',      min: 150 },
+  { id: 'possess',   side: 'pha', emoji: '👹', label: 'Quỷ nhập tài xế', min: 199 },
   { id: 'container', side: 'pha', emoji: '🚚', label: 'Xe container',  min: 300 },
+  { id: 'coffin',    side: 'pha', emoji: '⚰️', label: 'Đội khiêng quan tài', min: 500 },
   { id: 'tornado',   side: 'pha', emoji: '🌪️', label: 'Lốc xoáy',      min: 1000 },
+  { id: 'zombie',    side: 'pha', emoji: '🧟', label: 'Bầy zombie',    min: 3000 },
 ];
 export const ACTION_BY_ID = Object.fromEntries(ACTIONS.map(a => [a.id, a]));
 
@@ -84,6 +101,17 @@ export const DEFAULTS = {
   roadEvents: 3,                                // số tình huống đường xá mỗi ván (kẹt xe, chắn tàu, đàn bò, thủng lốp, say xe, check-in, lì xì)
   flatLikes: 600, flatMaxSec: 25,               // 🛞 thủng lốp: thả bấy nhiêu tim để bơm
   maxUsers: 2000,      // quá bấy nhiêu người xem thì đầu ván dọn người không còn trên xe / không lái
+  crocSec: 12,         // 🐊 khách bị cá sấu đớp xuống sông bơi về sau bấy nhiêu giây (húc / trừ tà cứu ngay)
+};
+
+// ---- trò kinh dị & trừ tà: nhóm hiệu ứng mà mỗi quà Cứu được phép xoá ----
+export const HORROR = new Set(['ghost', 'croc', 'possess', 'coffin', 'zombie', 'snake']);
+export const COUNTER = {
+  garlic:    HORROR,
+  shaman:    new Set([...HORROR, 'crow']),
+  buffalo:   new Set(['dog', 'ducks', 'snake', 'croc', 'zombie']),   // trâu húc văng thú + xác sống
+  lion:      new Set(['coffin', 'ghost']),                          // lân đấu đội quan tài (dọn vật cản phía trước trước)
+  fireworks: new Set(['crow', 'snake', 'dog', 'ghost', 'ducks', 'croc', 'rain', 'possess', 'coffin', 'zombie']),
 };
 
 const DODGE_KINDS = new Set(['banana', 'pothole']);
@@ -210,6 +238,38 @@ export function createGame(options = {}, rnd = Math.random) {
   // phần chưa chạy của một cú đẩy (để huỷ / giảm khi bị HÚC)
   const remaining = p => (p ? p.m * Math.max(0, 1 - p.t / p.dur) : 0);
   function cutPush(p, keep) { if (!p) return 0; const rem = remaining(p); const cut = rem * (1 - keep); p.m -= cut; return cut; }
+  /** Bớt đúng `amount` mét trong phần chưa chạy của cú đẩy (phần đã chạy giữ nguyên). */
+  function trimPush(p, amount) {
+    if (!p || amount <= 0) return 0;
+    const left = Math.max(1e-6, 1 - p.t / p.dur), take = Math.min(remaining(p), amount);
+    p.m -= take / left;
+    return take;
+  }
+  /** Trừ tà: xoá phần đẩy lùi còn lại của các hiệu ứng thuộc `kinds` (cũ trước), tối đa `budget` mét. Hết sạch → hiệu ứng tắt. */
+  function exorcise(kinds, budget, by) {
+    let used = 0; const list = [];
+    for (const e of g.effects) {
+      if (used >= budget - 0.01) break;
+      if (!kinds.has(e.kind) || e.t >= e.dur || e.exorcised) continue;
+      const rem = remaining(e.push), take = trimPush(e.push, Math.min(rem, budget - used));
+      used += take;
+      if (take >= rem - 0.01) { e.exorcised = true; e.dur = e.t; if (e.kind === 'croc') release(e.id, 'saved'); }
+      list.push({ kind: e.kind, user: e.user, saved: Math.round(take), done: !!e.exorcised });
+    }
+    if (list.length) emit('exorcise', { by: { id: by.id, name: by.name, avatar: by.avatar }, list, saved: Math.round(used) });
+    return { used, list };
+  }
+  // 🐊 khách bị đớp: rời ghế crocSec giây (không tính chỗ ngồi), bơi về / được cứu thì lên lại
+  g.lost = [];
+  function snatch(id, effId) { g.lost.push({ id, left: cfg.crocSec, eff: effId }); paxTick = -1; }
+  function release(effId, how) {
+    const i = g.lost.findIndex(l => l.eff === effId);
+    if (i < 0) return;
+    const l = g.lost.splice(i, 1)[0]; paxTick = -1;
+    const u = g.users.get(l.id);
+    emit('victimBack', { how, victim: u ? { id: u.id, name: u.name, avatar: u.avatar } : { id: l.id, name: l.id } });
+  }
+  function stepLost(dt) { for (const l of [...g.lost]) { l.left -= dt; if (l.left <= 0) release(l.eff, 'swim'); } }
 
   function applyAction(action, u, coins, count, driverDone = false) {
     const total = coins * count;
@@ -250,6 +310,45 @@ export function createGame(options = {}, rnd = Math.random) {
       case 'dog': g.effects.push({ id: ++SEQ, kind: 'dog', t: 0, dur: 3.5, ...base, ram: true, push: addPush(M, 3.5, 'pha', 'dog') }); break;
       case 'ducks': g.effects.push({ id: ++SEQ, kind: 'ducks', t: 0, dur: 3, ...base, ram: true, block: true, push: addPush(M, 3, 'pha', 'ducks') }); break;
       case 'rain': g.effects.push({ id: ++SEQ, kind: 'rain', t: 0, dur: 6, ...base, slow: 0.55, push: addPush(M, 6, 'pha', 'rain') }); break;
+      // ---- phe Phá: kinh dị hài ----
+      case 'crow': g.effects.push({ id: ++SEQ, kind: 'crow', t: 0, dur: 3, ...base, slow: 0.85, push: addPush(M, 3, 'pha', 'crow') }); break;
+      case 'snake': g.effects.push({ id: ++SEQ, kind: 'snake', t: 0, dur: 3, ...base, ram: true, slow: 0.8, push: addPush(M, 3, 'pha', 'snake') }); break;
+      case 'ghost': g.effects.push({ id: ++SEQ, kind: 'ghost', t: 0, dur: 4, ...base, block: true, blockT: 1.5, push: addPush(M, 4, 'pha', 'ghost') }); break;
+      case 'croc': {
+        const e = { id: ++SEQ, kind: 'croc', t: 0, dur: 3.5, ...base, ram: true, push: addPush(M, 3.5, 'pha', 'croc') };
+        const P = g.passengers().seated;
+        if (P.length) { const v = P[Math.floor(g.rnd() * P.length)]; e.victim = { id: v.id, name: v.name, avatar: v.avatar }; snatch(v.id, e.id); }
+        g.effects.push(e);
+        emit('snatch', { user: base.user, victim: e.victim || null });
+        break;
+      }
+      case 'possess': g.effects.push({ id: ++SEQ, kind: 'possess', t: 0, dur: 5, ...base, block: true, push: addPush(M, 5, 'pha', 'possess') }); break;
+      case 'coffin': g.effects.push({ id: ++SEQ, kind: 'coffin', t: 0, dur: 6, ...base, block: true, push: addPush(M, 6, 'pha', 'coffin') }); break;
+      case 'zombie': g.effects.push({ id: ++SEQ, kind: 'zombie', t: 0, dur: 7, ...base, ram: true, ramKeep: 0.5, slow: 0.2, push: addPush(M, 7, 'pha', 'zombie') }); break;
+      // ---- phe Cứu: Tết + trừ tà ----
+      case 'banhchung': {
+        g.fuel = Math.min(100, g.fuel + Math.max(4, Math.min(40, total * cfg.fuelPerCoin * 0.5)));
+        g.effects.push({ id: ++SEQ, kind: 'banhchung', t: 0, dur: 2.5, ...base, push: addPush(M * 0.75, 2, 'cuu', 'banhchung') });
+        break;
+      }
+      case 'garlic': case 'shaman': case 'buffalo': case 'fireworks': {
+        const hit = exorcise(COUNTER[action], M, u);
+        const dur = { garlic: 1.5, shaman: 3, buffalo: 2.5, fireworks: 3.5 }[action];
+        g.effects.push({ id: ++SEQ, kind: action, t: 0, dur, ...base, hit: hit.list, push: addPush(M - hit.used, dur, 'cuu', action) });
+        break;
+      }
+      case 'lion': {
+        // lân dọn vật cản phía trước (tính vào mét của quà) rồi tới đội quan tài / ma
+        let used = 0; const cleared = [];
+        for (const o of [...g.obstacles].sort((a, b) => a.gap - b.gap)) {
+          if (used + o.meters > M) break;
+          used += o.meters; cleared.push({ kind: o.kind, user: o.user }); g.obstacles.splice(g.obstacles.indexOf(o), 1);
+        }
+        const hit = exorcise(COUNTER.lion, M - used, u);
+        g.effects.push({ id: ++SEQ, kind: 'lion', t: 0, dur: 4, ...base, hit: cleared.concat(hit.list), push: addPush(M - used - hit.used, 4, 'cuu', 'lion') });
+        break;
+      }
+      case 'superman': g.effects.push({ id: ++SEQ, kind: 'superman', t: 0, dur: 6, ...base, push: addPush(M, 6, 'cuu', 'superman') }); break;
       case 'container': case 'tornado': case 'heli':
         g.xqueue.push({ id: ++SEQ, kind: action, t: 0, stage: 'enter', ...base });
         emit('queued', { action, size: g.xqueue.length });
@@ -309,7 +408,7 @@ export function createGame(options = {}, rnd = Math.random) {
   let paxTick = -1, paxCache = null;
   g.passengers = function () {
     if (paxTick === g.tick && paxCache) return paxCache;
-    const list = g.riders.map(id => g.users.get(id)).filter(u => u && u.side !== 'pha' && (!g.driver || u.id !== g.driver.id));
+    const list = g.riders.map(id => g.users.get(id)).filter(u => u && u.side !== 'pha' && (!g.driver || u.id !== g.driver.id) && !g.lost.some(l => l.id === u.id));
     list.sort((a, b) => b.cuu - a.cuu || g.riders.indexOf(a.id) - g.riders.indexOf(b.id));
     paxTick = g.tick;
     const cars = Math.max(1, Math.min(cfg.maxCars, Math.ceil(list.length / cfg.seats)));
@@ -383,6 +482,7 @@ export function createGame(options = {}, rnd = Math.random) {
   g.input = function (what) {
     if (what === 'start') { if (g.phase !== 'race') startRace(); return true; }
     if (g.phase !== 'race') return false;
+    if ((what === 'jump' || what === 'ram') && g.effects.some(e => e.kind === 'possess' && e.t < e.dur)) { emit('possessed'); return false; }   // 👹 quỷ giữ tay lái
     if (what === 'jump') {
       if (g.jumpT > 0 || g.jumpCd > 0 || g.exclusive?.kind === 'heli' || g.exclusive?.kind === 'tornado') return false;
       g.jumpT = 0.75; g.jumpCd = 0.95;
@@ -413,8 +513,10 @@ export function createGame(options = {}, rnd = Math.random) {
     const e = g.effects.find(f => f.ram && !f.rammed && f.t < f.dur);
     if (e) {
       e.rammed = true;
-      const cut = cutPush(e.push, 0);
-      e.dur = e.t;       // kết thúc hiệu ứng ngay
+      const keep = e.ramKeep || 0;
+      const cut = cutPush(e.push, keep);
+      if (!keep) e.dur = e.t;       // kết thúc hiệu ứng ngay (zombie quá đông: húc chỉ văng một nửa, vẫn bám tiếp)
+      if (e.kind === 'croc') release(e.id, 'ram');
       g.ramWindow = 0;
       emit('ramHit', { kind: e.kind, user: e.user, saved: Math.round(cut) });
       return true;
@@ -546,7 +648,7 @@ export function createGame(options = {}, rnd = Math.random) {
     g.timeLeft = cfg.roundSec; g.dist = 0; g.maxDist = 0; g.fuel = 100; g.shield = 0;
     g.walking = false; g.fuelAlarm = null; g.rescue = null; g.exclusive = null; g.xqueue = [];
     g.pushes = []; g.effects = []; g.obstacles = []; g.result = null; g.halt = null; g.kmh = 0; g.peakKmh = 0; g.fastT = 0; g.fastSeen = false; g.policeCaught = false;
-    g.plan = buildPlan();
+    g.plan = buildPlan(); g.lost = [];
     g.jumpT = 0; g.jumpCd = 0; g.ramCd = 0; g.ramWindow = 0; g.aiTimers = [];
     if (g.users.size > cfg.maxUsers) {
       const keep = new Set([...g.riders, ...(g.driver ? [g.driver.id] : []), ...g.driverQueue.map(q => q.user.id), ...g.pending.map(p => p.u.id)]);
@@ -567,7 +669,7 @@ export function createGame(options = {}, rnd = Math.random) {
       betrayers: [...g.users.values()].filter(u => u.betrayed).map(u => ({ id: u.id, name: u.name, avatar: u.avatar })),
     };
     g.phase = 'result'; g.phaseT = 0;
-    g.pushes = []; g.effects = []; g.obstacles = []; g.exclusive = null; g.xqueue = []; g.rescue = null; g.fuelAlarm = null; g.halt = null;
+    g.pushes = []; g.effects = []; g.obstacles = []; g.exclusive = null; g.xqueue = []; g.rescue = null; g.fuelAlarm = null; g.halt = null; g.lost = []; paxTick = -1;
     emit('roundEnd', g.result);
   }
 
@@ -656,11 +758,13 @@ export function createGame(options = {}, rnd = Math.random) {
     g.ramWindow = Math.max(0, g.ramWindow - dt);
     if (g.ramWindow > 0) tryRam();
     stepExclusive(dt);
+    stepLost(dt);
 
     // tốc độ nền
     const x = g.exclusive;
     let mul = 1;
-    for (const e of g.effects) if (e.t < e.dur) { if (e.block) mul = 0; else if (e.slow) mul = Math.min(mul, e.slow); else if (e.kind === 'dog') mul = Math.min(mul, 0.8); }
+    for (const e of g.effects) if (e.t < e.dur) { if (e.block && !(e.blockT && e.t >= e.blockT)) mul = 0;   // 👻 ma: chỉ phanh gấp blockT giây đầu
+      else if (e.slow) mul = Math.min(mul, e.slow); else if (e.kind === 'dog') mul = Math.min(mul, 0.8); }
     const held = x && ((x.kind === 'container' && x.stage !== 'leave') || (x.kind === 'tornado' && x.stage !== 'leave') || (x.kind === 'heli' && x.stage !== 'leave'));
     if (held) mul = 0;
     if (g.fuel > 0) {
@@ -728,7 +832,7 @@ export function createGame(options = {}, rnd = Math.random) {
     g.phase = 'lobby'; g.phaseT = 0; g.result = null; g.pending = []; g.dist = 0; g.maxDist = 0; g.fuel = 100;
     g.pushes = []; g.effects = []; g.obstacles = []; g.exclusive = null; g.xqueue = []; g.rescue = null; g.fuelAlarm = null;
     g.users = new Map(); g.totals = { cuu: 0, pha: 0 };
-    g.driver = null; g.driverQueue = []; g.riders = []; g.halt = null; g.plan = []; paxTick = -1;
+    g.driver = null; g.driverQueue = []; g.riders = []; g.halt = null; g.plan = []; g.lost = []; paxTick = -1;
     emit('lobby');
   };
   return g;

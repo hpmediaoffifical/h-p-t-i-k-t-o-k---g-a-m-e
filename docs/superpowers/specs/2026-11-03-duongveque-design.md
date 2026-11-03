@@ -63,6 +63,39 @@ Thuộc nhóm 🎮 Game Tương Tác (1 dòng trong `public/games/gametuongtac/r
 
 Hai lỗi cân bằng đã sửa nhờ đo: (1) quà Phá to bị chặn ở vạch 0 còn quà Cứu to về đích ngay → cho lùi quá vạch + bến xe = Phá thắng; (2) Tự lái né/húc quá giỏi (55%/45%) làm quà rẻ của Phá vô dụng → 30%/25%.
 
+## Trò kinh dị hài phe Phá · trừ tà phe Cứu (đợt 3, 03/11)
+
+User: "thêm thật nhiều trò hay, hấp dẫn, hài hước và man rợ kinh dị". Mỗi phe thêm 7 trò, chen vào thang giá (quà chưa gán
+tự chọn theo bậc giá). Vẫn giữ **mọi quà quy ra mét theo xu** → 2 phe cùng giá vẫn triệt tiêu.
+
+| Giá | 🛡️ Cứu | Tác dụng | ⚔️ Phá | Tác dụng |
+|---|---|---|---|---|
+| 5 | 🍙 Bánh chưng mẹ gửi | mẹ chạy xe máy ném bánh chưng lên xe: +xăng, đẩy tới 0,75× | 🐦‍⬛ Quạ ỉa kính | bầy quạ ỉa trúng kính, chậm nhẹ 3 giây |
+| 10 | 🧄 Tỏi trừ tà | xoá trò kinh dị | 🐍 Rắn chui gầm xe | khách hoảng nhảy trong xe; HÚC được |
+| 49 | 🦁 Múa lân mở đường | dọn vật cản phía trước rồi đấu đội quan tài / ma | 👻 Ma vẫy xe | ma áo dài trắng tóc xoã giữa đường, phanh gấp 1,5 giây, màn tối + chớp |
+| 99 | 🐃 Trâu húc đít xe | húc văng chó, vịt, rắn, cá sấu, zombie | 🐊 Cá sấu đớp khách | nhảy lên nóc đớp 1 khách kéo xuống ao; khách bơi về sau `crocSec` (12) giây; HÚC / trừ tà cứu ngay |
+| 199 | 🧙 Thầy pháp trừ tà | đứng trên nóc múa kiếm, bùa bay; xoá mọi trò kinh dị + quạ | 👹 Quỷ nhập tài xế | sừng + mắt đỏ, màn viền đỏ, xe đứng 5 giây, **khoá NHẢY/HÚC** |
+| 500 | 🎆 Pháo hoa Tết | xoá mọi trò phe Phá đang chạy (trừ vật cản, container, lốc) | ⚰️ Đội khiêng quan tài | 4 người áo đen kính đen nhảy khiêng quan tài "VỀ BẾN XE", xe đứng 6 giây |
+| 3000 | 🦸 Siêu nhân vác xe | vác cả đoàn xe bay trên vai | 🧟 Bầy zombie | 9 zombie bám đầu + leo nóc xe, chậm 0,2× 7 giây; HÚC chỉ văng một nửa |
+
+- **Trừ tà theo xu** (`exorcise` trong logic.js, nhóm được xoá ở `COUNTER`): xoá phần đẩy lùi CÒN LẠI của trò đúng loại, cũ trước,
+  tối đa đúng số mét của quà trừ tà; dư bao nhiêu thành đẩy tới; xoá sạch thì trò tắt hình. Kẻ phá có trò bị xoá sạch → **bị ném vào thùng rác**.
+  Ví dụ ma 100 xu + tỏi 40 xu → vẫn lùi 60 xu; tỏi khi không có tà → thành đẩy tới như gió.
+- Quạ / rắn / ma đã cân lại để phần làm chậm không "lời" quá giá quà (quạ 3 giây ×0,85, rắn ×0,8, ma chỉ phanh `blockT` 1,5 giây).
+- Quỷ nhập: `input('jump'|'ram')` trả false + sự kiện `possessed`. Cá sấu: `g.lost` (khách rời ghế, `passengers()` không tính),
+  sự kiện `snatch` / `victimBack {how: swim|ram|saved}`.
+- Vẽ: khối "trò kinh dị · trừ tà" trong `game.js` (`FUN_DRAW`, `drawFun`, `drawHorrorVeil`) — canvas 2D theo SX/contactY nên bản 3D
+  (`?r=3d`) cũng vẽ chồng được. Đang có trò kinh dị thì không hiện xe ủi (trò tự có hình). Âm thanh tổng hợp mới: `spooky`, `drum`, `dance`, `chomp`, `boom`.
+- Quà gợi ý (`data.json`): Phản ứng quá lố → quạ · quả đào → bánh chưng · Nhìn là mê → rắn · Chú heo may mắn → tỏi ·
+  Chú ma tinh nghịch (249) → ma · Trống bùng nổ (249) → lân · Bắt cóc bò sữa (99) → cá sấu · Bom kẹo (99) → trâu ·
+  Mũ đội đầu hình con dơi (299) → quỷ · Vị thần phép thuật (200) → thầy pháp · Chú hề nhảy múa (449) → quan tài ·
+  Gấu bắn pháo giấy (399) → pháo hoa · Rock ma quái (2200) → zombie · Cooper bay về nhà (1999) → siêu nhân.
+  Chú giải quà gọn lại 29 px/dòng cho 14 dòng mỗi phe.
+- **Đo cân bằng 200 ván** (`dvq-soak.mjs`, mặc định 4 phút / 6 km, quà chọn bậc cao nhất theo giá nên trò mới được dùng nhiều):
+  2 phe ngang tiền 99/101 → **100/100**; 55% Cứu 123/77 → 120/80; 75% Cứu 182/18 → 182/18; 35% Cứu 30/170 → 30/170; không NaN.
+  Phe Cứu thắng nhanh hơn khi đã thắng (trung bình 77 → 59 giây ở kịch bản ngang).
+- Thử: `?mute=1&lobby=0.3&warp=1&riders=14` rồi `__dvq.sim('gift', {action:'croc', coins:99})`; panel tự có nút thử cho mọi trò.
+
 ## Nối app
 
 - `server.js`: `GAMES.duongveque` (khoá `dvq*`, quà gợi ý từ `data.json`), `/overlay/duongveque`, `/api/duongveque/window/open` (Edge/Chrome --app), `/api/duongveque/key` + socket `duongveque:key` (jump | ram | start), `global.__dvqApplyHotkeys`.

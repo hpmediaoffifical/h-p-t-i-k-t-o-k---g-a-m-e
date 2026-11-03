@@ -22,6 +22,7 @@ const BUS_L = 10.4, GAP = 11.0, LANE_Z = 1.6, ROAD_HALF = 3.4;
 const RIVER_NEAR = -11, RIVER_FAR = -58, WATER_Y = -0.35, POND_Z = 14;
 const BUS_SY = 1.3;   // chibi: xe buýt cao ×1,3 + bánh to ×1,3 (mập, dễ đọc trên điện thoại)
 const TILE = 40;
+const FUN_PHA = new Set(['crow', 'snake', 'ghost', 'croc', 'possess', 'coffin', 'zombie']);
 const SHIRTS = ['#2f6bd8', '#e2557b', '#18b37e', '#f6a21e', '#7b61ff', '#e8322c', '#2fa4e7', '#8a5a3a'];
 const AV_COLORS = ['#f6a21e', '#2fa4e7', '#e2557b', '#7b61ff', '#18b37e', '#ff7a2f'];
 
@@ -619,7 +620,7 @@ export function createRenderer3D({ stage, before, game, VIEW, env }) {
     signs.count = VIEW.vehicle === 'scooter' ? 0 : n; signs.instanceMatrix.needsUpdate = true; signs.geometry.attributes.aCell.needsUpdate = true;
 
     // ---- xe ủi chạy ngược đẩy lùi (giống bản 2D: đang lùi nhanh, không phải container / lốc / điểm dừng) ----
-    const own = x && (x.kind === 'container' || x.kind === 'tornado');
+    const own = (x && (x.kind === 'container' || x.kind === 'tornado')) || game.effects.some(e => FUN_PHA.has(e.kind) && e.t < e.dur);   // trò kinh dị tự có hình (vẽ 2D chồng lên)
     const backing = game.phase === 'race' && !game.halt && !own && vel < -6;
     pushA = lerp(pushA, backing ? 1 : 0, 1 - Math.pow(0.002, dt));
     let pushTag = null;

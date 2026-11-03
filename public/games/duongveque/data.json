@@ -159,6 +159,118 @@
         "coins": 1088,
         "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/9494c8a0bc5c03521ef65368e59cc2b8~tplv-obj.webp"
       }
+    ],
+    "banhchung": [
+      {
+        "giftId": "10961",
+        "giftName": "quả đào",
+        "coins": 5,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/ff861a220649506452e3dc35c58266ea.png~tplv-obj.webp"
+      }
+    ],
+    "crow": [
+      {
+        "giftId": "19447",
+        "giftName": "Phản ứng quá lố",
+        "coins": 5,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/dfd48ef1952b6d315856adda7705d02d.png~tplv-obj.webp"
+      }
+    ],
+    "garlic": [
+      {
+        "giftId": "8825",
+        "giftName": "Chú heo may mắn",
+        "coins": 10,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/d53125bd5416e6f2f6ab61da02ddd302.png~tplv-obj.webp"
+      }
+    ],
+    "snake": [
+      {
+        "giftId": "544253",
+        "giftName": "Nhìn là mê",
+        "coins": 10,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/2e7a07951feb039c2428fa0de0096481.png~tplv-obj.webp"
+      }
+    ],
+    "lion": [
+      {
+        "giftId": "282675",
+        "giftName": "Trống bùng nổ",
+        "coins": 249,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/599381a83e534232acc4b659ba715622.png~tplv-obj.webp"
+      }
+    ],
+    "ghost": [
+      {
+        "giftId": "17821",
+        "giftName": "Chú ma tinh nghịch",
+        "coins": 249,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/fbbe8af4280240dfdb11ad1100be0282.png~tplv-obj.webp"
+      }
+    ],
+    "buffalo": [
+      {
+        "giftId": "985644",
+        "giftName": "Bom kẹo",
+        "coins": 99,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/4586efda80f010da8563955095aa6271.png~tplv-obj.webp"
+      }
+    ],
+    "croc": [
+      {
+        "giftId": "842718",
+        "giftName": "Bắt cóc bò sữa",
+        "coins": 99,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/497609a31393d079b4674d7cc21a8788.png~tplv-obj.webp"
+      }
+    ],
+    "shaman": [
+      {
+        "giftId": "17962",
+        "giftName": "Vị thần phép thuật",
+        "coins": 200,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/3d306be32f7d6d52c4e74df15a063d45.png~tplv-obj.webp"
+      }
+    ],
+    "possess": [
+      {
+        "giftId": "17845",
+        "giftName": "Mũ đội đầu hình con dơi",
+        "coins": 299,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/1ba0996c3dd7db45807fd7f255eb66a4.png~tplv-obj.webp"
+      }
+    ],
+    "fireworks": [
+      {
+        "giftId": "18505",
+        "giftName": "Gấu bắn pháo giấy",
+        "coins": 399,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/6e2944bf91135c52cc8004d9b7ef36ab.png~tplv-obj.webp"
+      }
+    ],
+    "coffin": [
+      {
+        "giftId": "58237",
+        "giftName": "Chú hề nhảy múa",
+        "coins": 449,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/379f132acd166deee7b1db9132b29342.png~tplv-obj.webp"
+      }
+    ],
+    "superman": [
+      {
+        "giftId": "6862",
+        "giftName": "Cooper bay về nhà",
+        "coins": 1999,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/3f1945b0d96e665a759f747e5e0cf7a9~tplv-obj.webp"
+      }
+    ],
+    "zombie": [
+      {
+        "giftId": "1479226",
+        "giftName": "Rock ma quái",
+        "coins": 2200,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/f68adf96e9bbbb68069b2cad0fe79e64.png~tplv-obj.webp"
+      }
     ]
   }
 }

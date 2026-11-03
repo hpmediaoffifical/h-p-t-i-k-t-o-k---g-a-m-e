@@ -4,7 +4,7 @@
  * Thử không cần LIVE: ?demo=1 (người xem ảo tặng quà 2 phe) · bàn phím Space = nhảy, Enter = húc, S = bắt đầu ván.
  * Gỡ lỗi: window.__dvq (game, step(giây), sim(kind,…)).
  */
-import { createGame, ACTIONS, ACTION_BY_ID, PENALTIES, metersFor, goalFor, roadEventsFor, flagEveryFor } from './logic.js';
+import { createGame, ACTIONS, ACTION_BY_ID, PENALTIES, metersFor, goalFor, roadEventsFor, flagEveryFor, COUNTER } from './logic.js';
 import { ROUTE, provinceIndex } from './route.js';
 
 const Q = new URLSearchParams(location.search);
@@ -787,13 +787,13 @@ function bus(x, y, o) {
     const wx = -190 - i * 62;
     ctx.fillStyle = '#bfe3ff'; rrect(wx - 26, -238, 52, 82, 8); ctx.fill();
     const u = P.seated[i];
-    if (u) { ctx.save(); rrect(wx - 26, -238, 52, 82, 8); ctx.clip(); passenger(wx, -212 + Math.sin(T * 9 + i) * 2, 18, u, o.sick === u.id ? 'sick' : ''); ctx.restore(); }
+    if (u) { ctx.save(); rrect(wx - 26, -238, 52, 82, 8); ctx.clip(); passenger(wx, -212 + Math.sin(T * 9 + i) * 2 - PANIC * Math.abs(Math.sin(T * 22 + i * 1.7)) * 34, 18, u, o.sick === u.id ? 'sick' : ''); ctx.restore(); }
     ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(wx - 22, -234, 10, 74);
   }
   // nóc: hành lý + người ngồi trên nóc (thấy đầu + vai)
   const roof = P.seated.slice(6);
   roof.forEach((u, i) => {
-    const rx = -380 + i * 40 - (i % 2) * 4, ry = -312 - (i % 2) * 10 + Math.sin(T * 8 + i) * 2;
+    const rx = -380 + i * 40 - (i % 2) * 4, ry = -312 - (i % 2) * 10 + Math.sin(T * 8 + i) * 2 - PANIC * Math.abs(Math.sin(T * 20 + i * 1.3)) * 40;
     passenger(rx, ry, 15, u);
   });
   ctx.fillStyle = '#5b4632'; ctx.fillRect(-530, -278, 440, 14);
@@ -828,7 +828,7 @@ function oxcart(x, y, o) {
   // khách 2 hàng (hàng sau cao hơn) — vẽ trước thành trước máng để thân bị che
   P.seated.slice(0, 12).forEach((u, i) => {
     const row = i % 2, col = Math.floor(i / 2);
-    passenger(-520 + col * 52 + row * 24, -214 - row * 30 + Math.sin(T * 10 + i) * 3, 19, u, o.sick === u.id ? 'sick' : '');
+    passenger(-520 + col * 52 + row * 24, -214 - row * 30 + Math.sin(T * 10 + i) * 3 - PANIC * Math.abs(Math.sin(T * 22 + i * 1.7)) * 36, 19, u, o.sick === u.id ? 'sick' : '');
   });
   ctx.fillStyle = '#9b6a3a'; rrect(-560, -170, 330, 86, 10); ctx.fill();
   ctx.strokeStyle = '#6b4226'; ctx.lineWidth = 5; for (let k = -540; k < -240; k += 40) { ctx.beginPath(); ctx.moveTo(k, -166); ctx.lineTo(k, -88); ctx.stroke(); }
@@ -1259,6 +1259,11 @@ const SFX = {
   alarm: () => tone(880, 0.12, 'square', 0.05),
   win: () => [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone(f, 0.2, 'triangle', 0.09), i * 140)),
   lose: () => [392, 330, 262].forEach((f, i) => setTimeout(() => tone(f, 0.28, 'sawtooth', 0.06), i * 200)),
+  spooky: () => { tone(440, 0.9, 'sine', 0.07, -260); setTimeout(() => tone(466, 0.9, 'sine', 0.05, -280), 180); },
+  drum: () => [0, 160, 320, 400].forEach(d => setTimeout(() => tone(110, 0.12, 'triangle', 0.12, -40), d)),
+  dance: () => [392, 392, 587, 523, 466, 440, 392].forEach((f, i) => setTimeout(() => tone(f, 0.16, 'square', 0.05), i * 170)),
+  chomp: () => { tone(90, 0.12, 'sawtooth', 0.1, -30); setTimeout(() => tone(70, 0.16, 'sawtooth', 0.1, -20), 140); },
+  boom: () => [0, 260, 520].forEach(d => setTimeout(() => { tone(180, 0.35, 'sawtooth', 0.06, -140); tone(1200, 0.25, 'triangle', 0.03, 600); }, d)),
 };
 
 // ---------------- sự kiện luật → hình / chữ ----------------
@@ -1273,8 +1278,13 @@ function onEvents(list) {
         if (e.action === 'wind') fx.push({ k: 'wind', t: 0, dur: 0.9 });
         if (e.action === 'fuel') { fx.push({ k: 'can', t: 0, dur: 1.2 }); floatText('+⛽', '#ffe27a', SX, contactY(cam) - S(330)); }
         if (e.action === 'helmet') { floatText(`⛑️ +${dtx(e.meters)}`, '#ffe27a'); SFX.good(); }
-        if (['dog', 'ducks', 'rain', 'container'].includes(e.action)) floatText(`-${dtx(e.meters)}`, SIDE_COLOR.pha, SX + S(200), contactY(cam) - S(300), 52);
-        if (['nitro', 'convoy', 'tow', 'wind', 'heli'].includes(e.action)) floatText(`+${dtx(e.meters)}`, SIDE_COLOR.cuu, SX + S(60), contactY(cam) - S(260));
+        if (['dog', 'ducks', 'rain', 'container', 'crow', 'snake', 'ghost', 'croc', 'possess', 'coffin', 'zombie'].includes(e.action)) floatText(`-${dtx(e.meters)}`, SIDE_COLOR.pha, SX + S(200), contactY(cam) - S(300), 52);
+        if (['nitro', 'convoy', 'tow', 'wind', 'heli', 'banhchung', 'superman'].includes(e.action)) floatText(`+${dtx(e.meters)}`, SIDE_COLOR.cuu, SX + S(60), contactY(cam) - S(260));
+        if (['ghost', 'possess', 'coffin', 'zombie'].includes(e.action)) { banner(`${a.emoji} ${esc(a.label).toUpperCase()}!<small>của <b>${esc(e.user.name)}</b> · phe Cứu tặng quà TRỪ TÀ để xua</small>`, 'pha', 2400, 2); SFX.spooky(); shake = Math.max(shake, 8); }
+        if (e.action === 'coffin') SFX.dance();
+        if (e.action === 'lion' || e.action === 'buffalo') SFX.drum();
+        if (e.action === 'fireworks') { SFX.boom(); banner(`🎆 PHÁO HOA TẾT!<small>của <b>${esc(e.user.name)}</b> · xua sạch xui xẻo</small>`, 'gold', 2200, 2); }
+        if (e.action === 'superman') banner(`🦸 SIÊU NHÂN VÁC CẢ ĐOÀN XE!<small>của <b>${esc(e.user.name)}</b></small>`, 'cuu', 2600, 3);
         if (e.action === 'heli' || e.action === 'tornado' || e.action === 'container') banner(`${a.emoji} ${esc(a.label)} của <b>${esc(e.user.name)}</b>!`, e.side, 2400, 2);
         if (e.side === 'cuu' && e.action !== 'helmet') SFX.good();
         break;
@@ -1282,6 +1292,19 @@ function onEvents(list) {
       case 'pending': toast(e.side, e.user, `${ACTION_BY_ID[e.action].emoji} ⏳ chờ ván mới`); break;
       case 'hit': hitWobble = 1; shake = Math.max(shake, e.kind === 'pothole' ? 10 : 6); if (e.kind === 'banana') { skid = 1; floatText('Trượt vỏ chuối!', '#ffd23a', SX + S(140), contactY(cam) - S(330), 40); } else if (e.kind === 'pothole') bump = 1; floatText(`-${dtx(e.meters)}`, SIDE_COLOR.pha); SFX.hit(); break;
       case 'dodge': floatText('NÉ ĐẸP!', '#7cf0a9', SX, contactY(cam) - S(320)); SFX.good(); break;
+      case 'snatch': if (e.victim) { banner(`🐊 CÁ SẤU ĐỚP <b>${esc(e.victim.name)}</b>!<small>bơi về sau ${game.cfg.crocSec || 12} giây · HÚC hoặc TRỪ TÀ để cứu ngay</small>`, 'pha', 2600, 3); shake = 12; } SFX.chomp(); break;
+      case 'victimBack': toast('cuu', e.victim, e.how === 'swim' ? '🏊 bơi về kịp xe!' : e.how === 'ram' ? '💥 được HÚC cứu lên xe!' : '✨ được trừ tà cứu lên xe!'); SFX.good(); break;
+      case 'possessed': floatText('👹 Quỷ giữ tay lái!', '#ff6a5a', SX + S(60), contactY(cam) - S(360), 40); break;
+      case 'exorcise': {
+        const kinds = [...new Set(e.list.map(h => ACTION_BY_ID[h.kind] ? ACTION_BY_ID[h.kind].emoji : FUN_TXT[h.kind] || h.kind))].join(' ');
+        banner(`✨ TRỪ TÀ! ${kinds}<small><b>${esc(e.by.name)}</b> xoá ${dtx(e.saved)} đẩy lùi${e.list.some(h => h.done) ? ' · tà ma chạy mất dép' : ''}</small>`, 'cuu', 2400, 3);
+        floatText(`✨ +${dtx(e.saved)}`, '#ffe27a', SX + S(160), contactY(cam) - S(360), 54);
+        for (let i = 0; i < 26; i++) fx.push({ k: 'conf', x: SX + S(320), y: contactY(cam) - S(200), vx: (Math.random() - 0.5) * 800, vy: -300 - Math.random() * 600, c: i % 2 ? '#ffe27a' : '#fff6c8', t: 0, dur: 1.6, r: 0 });
+        const loser = e.list.find(h => h.done && h.user && h.user.id !== 'road');
+        if (loser) throwToTrash(loser.user, SX + S(300), contactY(cam) - S(200));   // kẻ phá thua → vào thùng rác
+        SFX.good();
+        break;
+      }
       case 'jump': SFX.jump(); break;
       case 'ram': SFX.honk(); break;
       case 'ramCd': break;
@@ -1443,6 +1466,7 @@ function drawHaltScene(cy) {
 }
 function bubble(x, y, text, prio = 2) {
   ctx.font = "800 24px 'Be Vietnam Pro'"; const w = ctx.measureText(text).width + 28;
+  x = clamp(x, w / 2 + 12, W - w / 2 - 12);   // không tràn mép màn
   placeLabel({ x: x - w / 2, y: y - 22, w, h: 58 }, prio, dy => bubbleDraw(x, y + dy, text, w));
 }
 function bubbleDraw(x, y, text, w) {
@@ -1506,6 +1530,326 @@ function drawSpeed(dt, vel) {
   }
   ctx.restore();
 }
+// ---------------- 👻 trò kinh dị phe Phá · 🧄 trừ tà phe Cứu (luật ở logic.js: HORROR / COUNTER) ----------------
+// Vẽ bằng canvas 2D theo SX / contactY như các hiệu ứng khác → dùng được cả bản 3D (vẽ chồng trên canvas nhãn).
+let PANIC = 0, horrorA = 0, possessA = 0;
+const HORROR_DARK = new Set(['ghost', 'possess', 'coffin', 'zombie', 'croc']);
+function busFront() { return SX + S(100); }
+function crowBird(x, y, s, flap) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  ctx.fillStyle = '#1d1b22';
+  ctx.beginPath(); ctx.ellipse(0, 0, 26, 14, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(24, -8, 12, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-6, -4); ctx.lineTo(-30, -26 - flap * 26); ctx.lineTo(10, -6); ctx.fill();     // cánh
+  ctx.beginPath(); ctx.moveTo(-22, 2); ctx.lineTo(-44, -6); ctx.lineTo(-40, 10); ctx.fill();                  // đuôi
+  ctx.fillStyle = '#f0a020'; ctx.beginPath(); ctx.moveTo(34, -10); ctx.lineTo(48, -6); ctx.lineTo(34, -3); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(27, -11, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e8322c'; ctx.beginPath(); ctx.arc(28, -11, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function splat(x, y, r, seed) {
+  ctx.fillStyle = 'rgba(250,250,240,.95)';
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  for (let k = 0; k < 5; k++) { const a = hash(seed, k) * Math.PI * 2; ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 1.1, y + Math.sin(a) * r * 0.9, r * 0.38, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = 'rgba(120,110,60,.6)'; ctx.beginPath(); ctx.arc(x + r * 0.2, y - r * 0.1, r * 0.3, 0, Math.PI * 2); ctx.fill();
+}
+function drawCrows(e, cy) {
+  const V = vehOf(), mid = SX + S(V.mid);
+  for (let k = 0; k < 5; k++) {
+    const x = mid + Math.sin(e.t * 1.7 + k * 1.3) * S(V.rear * 0.55 + 140), y = cy - S(V.top + 170 + (k % 2) * 70) + Math.sin(e.t * 5 + k) * S(14);
+    crowBird(x, y, VS * 1.6, Math.abs(Math.sin(T * 14 + k)));
+    const p = (e.t * 1.3 + k * 0.37) % 1;   // cục phân rơi xuống nóc
+    ctx.fillStyle = '#f4f2e6'; ctx.beginPath(); ctx.ellipse(x, lerp(y + S(10), cy - S(V.top), p), S(7), S(10), 0, 0, Math.PI * 2); ctx.fill();
+  }
+  const n = Math.min(7, 1 + Math.floor(e.t * 2.5));   // kính chắn gió dính bẩn
+  for (let k = 0; k < n; k++) splat(busFront() - S(46) + (hash(e.id, k) - 0.5) * S(60), cy - S(190) + (hash(e.id, k + 9) - 0.5) * S(80), S(12 + hash(k, e.id) * 9), e.id * 7 + k);
+  if (e.t > 0.6 && e.t < 2.6) bubble(busFront() - S(40), cy - S(V.top + 70), '🤮 Ỉa trúng kính rồi!!');
+}
+function drawSnake(e, cy) {
+  const head = lerp(W + 60, busFront() - S(60), ease(e.t / 1.3)), y = cy - S(12);
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#2f8a3a'; ctx.lineWidth = S(42); ctx.beginPath();
+  for (let k = 0; k <= 14; k++) { const x = head + k * S(26), yy = y - Math.sin(T * 9 - k * 0.8) * S(14); k ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); }
+  ctx.stroke();
+  ctx.strokeStyle = '#ffd23a'; ctx.lineWidth = S(8); ctx.setLineDash([S(10), S(16)]); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#2f8a3a'; ctx.beginPath(); ctx.ellipse(head - S(8), y, S(26), S(18), 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffeb3b'; ctx.beginPath(); ctx.arc(head - S(16), y - S(8), S(5), 0, Math.PI * 2); ctx.fill();
+  if (Math.sin(T * 16) > 0) { ctx.strokeStyle = '#e8322c'; ctx.lineWidth = S(4); ctx.beginPath(); ctx.moveTo(head - S(32), y + S(2)); ctx.lineTo(head - S(52), y + S(2)); ctx.lineTo(head - S(60), y - S(6)); ctx.moveTo(head - S(52), y + S(2)); ctx.lineTo(head - S(60), y + S(10)); ctx.stroke(); }
+  ctx.restore();
+  if (e.t > 1) { PANIC = 1; bubble(SX + S(vehOf().mid), cy - S(vehOf().top + 60), '😱 RẮN! RẮN TRONG XE!!'); }
+}
+function ghostLady(x, y, s, t) {
+  ctx.save(); ctx.translate(x, y + Math.sin(t * 2.4) * 10 * s); ctx.scale(s, s);
+  const g = ctx.createLinearGradient(0, -260, 0, 20); g.addColorStop(0, 'rgba(250,252,255,.97)'); g.addColorStop(1, 'rgba(230,240,255,0)');
+  ctx.fillStyle = g;   // áo dài trắng, vạt dưới tan vào sương
+  ctx.beginPath(); ctx.moveTo(-34, -200); ctx.lineTo(34, -200); ctx.quadraticCurveTo(60, -60, 70 + Math.sin(t * 3) * 10, 20);
+  for (let k = 0; k < 6; k++) ctx.lineTo(70 - k * 28, 6 + (k % 2) * 18);
+  ctx.quadraticCurveTo(-60, -60, -34, -200); ctx.fill();
+  const wave = Math.sin(t * 7) * 0.5;   // tay vẫy xe
+  ctx.strokeStyle = '#f2f4fa'; ctx.lineWidth = 16; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-26, -190); ctx.lineTo(-74, -240 + wave * 30); ctx.lineTo(-70 + wave * 40, -300); ctx.stroke();
+  ctx.fillStyle = '#d9dde8'; ctx.beginPath(); ctx.arc(0, -232, 34, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#0b0b10';   // tóc dài xoã che mặt
+  ctx.beginPath(); ctx.moveTo(-40, -250); ctx.quadraticCurveTo(0, -300, 40, -250); ctx.lineTo(46, -120); ctx.lineTo(18, -150); ctx.lineTo(4, -110); ctx.lineTo(-14, -150); ctx.lineTo(-44, -118); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ff2a2a'; ctx.shadowColor = '#ff2a2a'; ctx.shadowBlur = 18;
+  ctx.beginPath(); ctx.arc(12, -228, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawGhost(e, cy) {
+  const flick = e.t < 0.7 ? (Math.random() < 0.5 ? 0.25 : 1) : e.dur - e.t < 0.5 ? (e.dur - e.t) / 0.5 : 1;
+  ctx.save(); ctx.globalAlpha = flick;
+  ghostLady(busFront() + S(300), cy - S(20), VS * 1.6, T);
+  ctx.restore();
+  if (e.t > 0.8) bubble(busFront() + S(300), cy - S(560), '👻 Cho… em… đi nhờ… với…');
+  if (e.t > 1.4 && e.t < 3.4) bubble(SX + S(vehOf().mid), cy - S(vehOf().top + 60), '😱 MAAAA!!!');
+}
+function crocBody(x, y, s, jaw, flip = 1) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s * flip, s);
+  ctx.fillStyle = '#4f7d2f';
+  ctx.beginPath(); ctx.moveTo(-150, 0); ctx.quadraticCurveTo(-60, -40, 40, -26); ctx.lineTo(40, 22); ctx.quadraticCurveTo(-60, 30, -150, 0); ctx.fill();   // thân + đuôi
+  ctx.fillStyle = '#3f6a24'; for (let k = 0; k < 7; k++) { ctx.beginPath(); ctx.moveTo(-120 + k * 22, -14 - k); ctx.lineTo(-110 + k * 22, -30 - k); ctx.lineTo(-100 + k * 22, -16 - k); ctx.fill(); }
+  ctx.save(); ctx.translate(40, -6); ctx.rotate(-jaw);   // hàm trên
+  ctx.fillStyle = '#5a8c34'; ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(110, -6); ctx.lineTo(110, 4); ctx.lineTo(0, 6); ctx.fill();
+  ctx.fillStyle = '#fff'; for (let k = 0; k < 7; k++) { ctx.beginPath(); ctx.moveTo(16 + k * 13, 4); ctx.lineTo(22 + k * 13, 14); ctx.lineTo(28 + k * 13, 4); ctx.fill(); }
+  ctx.fillStyle = '#ffeb3b'; ctx.beginPath(); ctx.arc(20, -16, 7, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#111'; ctx.fillRect(18, -22, 4, 12);
+  ctx.restore();
+  ctx.save(); ctx.translate(40, 8); ctx.rotate(jaw * 0.6);   // hàm dưới
+  ctx.fillStyle = '#6e9b46'; ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(104, 0); ctx.lineTo(100, 10); ctx.lineTo(0, 16); ctx.fill();
+  ctx.fillStyle = '#fff'; for (let k = 0; k < 6; k++) { ctx.beginPath(); ctx.moveTo(18 + k * 14, 0); ctx.lineTo(24 + k * 14, -10); ctx.lineTo(30 + k * 14, 0); ctx.fill(); }
+  ctx.restore();
+  ctx.restore();
+}
+const pondY = () => contactY(cam) + 230;
+function drawCroc(e, cy) {
+  const V = vehOf(), roofX = SX - S(V.rear * 0.45), roofY = cy - S(V.top + 10), wx = roofX + S(160), wy = pondY();
+  let x, y, jaw = 0.5, carry = false;
+  if (e.t < 0.7) { const q = ease(e.t / 0.7); x = lerp(wx, roofX, q); y = lerp(wy, roofY, q) - Math.sin(q * Math.PI) * S(120); jaw = 0.75; }
+  else if (e.t < 1.6) { const q = (e.t - 0.7) / 0.9; x = lerp(roofX, wx + S(80), q); y = lerp(roofY, wy + S(40), q * q) - Math.sin(q * Math.PI) * S(60); jaw = 0.12; carry = true; }
+  else { ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 3; for (let k = 0; k < 3; k++) { const r = ((e.t * 60 + k * 40) % 120) * VS; ctx.beginPath(); ctx.ellipse(wx + S(80), wy + S(40), r * 1.8, r * 0.5, 0, 0, Math.PI * 2); ctx.stroke(); } return; }
+  crocBody(x, y, VS * 2.2, jaw, -1);
+  if (carry && e.victim) { avatar(x - S(250), y + S(8), S(40), e.victim, '#ff5a4a'); }
+  if (e.t > 0.4 && e.victim) bubble(x - S(120), y - S(120), `🐊 Đớp ${String(e.victim.name).slice(0, 12)}!`);
+}
+/** Khách bị đớp bơi về xe trong ao phía trước (chạy suốt crocSec). */
+function drawSwimmers(cy) {
+  game.lost.forEach((l, i) => {
+    const u = game.users.get(l.id); if (!u) return;
+    const q = clamp(1 - l.left / (game.cfg.crocSec || 12), 0, 1), x = lerp(SX + S(520) + i * S(70), SX - S(60), q), y = pondY() + S(40) + Math.sin(T * 4 + i) * S(6);
+    ctx.strokeStyle = '#ffd3ad'; ctx.lineWidth = S(9); ctx.lineCap = 'round';
+    for (const s of [-1, 1]) { const a = T * 9 + (s > 0 ? Math.PI : 0); ctx.beginPath(); ctx.moveTo(x + s * S(18), y + S(4)); ctx.lineTo(x + s * S(18) + Math.cos(a) * S(30), y - Math.abs(Math.sin(a)) * S(26)); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, y + S(18), S(44), S(9), 0, 0, Math.PI * 2); ctx.stroke();
+    avatar(x, y - S(10), S(36), u, '#7cf0a9');
+    if (Math.sin(T * 1.5 + i) > 0.2) bubble(x, y - S(70), '🆘 Đợi tui với!!', 3);
+  });
+}
+function drawPossess(e, cy) {
+  const V = vehOf(), dx = busFront() - S(44), dy = cy - S(196), p = 0.6 + Math.sin(T * 12) * 0.25;
+  ctx.save();
+  ctx.globalAlpha = 0.55 * p; ctx.fillStyle = '#ff1d1d'; ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 40;
+  ctx.beginPath(); ctx.ellipse(SX + S(V.mid), cy - S(V.top * 0.5), S(V.rear * 0.62 + 120), S(V.top * 0.7), 0, 0, Math.PI * 2); ctx.lineWidth = S(14); ctx.strokeStyle = '#ff2a2a'; ctx.stroke();
+  ctx.globalAlpha = 1; ctx.fillStyle = '#c8101a';   // sừng quỷ trên đầu tài xế
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(dx + s * S(14), dy - S(18)); ctx.quadraticCurveTo(dx + s * S(60), dy - S(60), dx + s * S(44), dy - S(120)); ctx.lineTo(dx + s * S(4), dy - S(26)); ctx.fill(); }
+  ctx.fillStyle = '#ff2020'; ctx.shadowBlur = 20;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(dx + s * S(9), dy - S(2), S(5), 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+  if (e.t > 0.5) bubble(dx + S(30), cy - S(V.top + 80), '👹 Khà khà… quay đầu về BẾN XE!!');
+}
+function pallbearer(x, y, s, ph, k) {
+  const b = Math.abs(Math.sin(T * 9 + ph)) * 14, sw = Math.sin(T * 4.5 + ph);
+  ctx.save(); ctx.translate(x, y - b * s); ctx.scale(s, s);
+  ctx.strokeStyle = '#16161c'; ctx.lineWidth = 14; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-8, -60); ctx.lineTo(-14 - sw * 16, 0); ctx.moveTo(8, -60); ctx.lineTo(14 + sw * 16, 0); ctx.stroke();
+  ctx.fillStyle = '#1f2028'; ctx.beginPath(); ctx.roundRect(-24, -140, 48, 86, 10); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(-8, -140); ctx.lineTo(8, -140); ctx.lineTo(0, -104); ctx.fill();
+  ctx.strokeStyle = '#1f2028'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(-18, -130); ctx.lineTo(-24, -186); ctx.moveTo(18, -130); ctx.lineTo(24, -186); ctx.stroke();   // tay đỡ quan tài
+  ctx.fillStyle = k % 2 ? '#7a4a2a' : '#4a2c18'; ctx.beginPath(); ctx.arc(0, -160, 22, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#111'; ctx.fillRect(-18, -166, 36, 10);   // kính đen
+  ctx.restore();
+}
+function drawCoffin(e, cy) {
+  const gx = lerp(W + S(300), busFront() + S(160), ease(e.t / 1.3)), y = cy - S(6), s = VS * 1.3;
+  const bob = Math.abs(Math.sin(T * 9)) * S(14);
+  ctx.save(); ctx.translate(gx + S(130), y - S(196) - bob); ctx.rotate(Math.sin(T * 4.5) * 0.06);
+  ctx.fillStyle = '#5a2e14'; ctx.beginPath(); ctx.moveTo(-S(170), -S(30)); ctx.lineTo(S(170), -S(30)); ctx.lineTo(S(160), S(20)); ctx.lineTo(-S(160), S(20)); ctx.fill();
+  ctx.fillStyle = '#c0261e'; ctx.fillRect(-S(166), -S(46), S(332), S(18));
+  ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = S(5); ctx.strokeRect(-S(150), -S(24), S(300), S(38));
+  ctx.fillStyle = '#f2c14e'; ctx.font = `900 ${Math.round(S(26))}px 'Be Vietnam Pro'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('VỀ BẾN XE', 0, -S(4));
+  ctx.restore();
+  for (let k = 0; k < 4; k++) pallbearer(gx + k * S(86), y, s, k * 0.6, k);
+  if (e.t > 0.9) bubble(gx + S(130), y - S(330), '⚰️♪ Tiễn cả đoàn… lên đường ♪');
+}
+function zombieGuy(x, y, s, ph) {
+  const w = Math.sin(T * 5 + ph);
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.rotate(w * 0.06);
+  ctx.strokeStyle = '#3d4f6b'; ctx.lineWidth = 13; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-6, -56); ctx.lineTo(-12 + w * 10, 0); ctx.moveTo(6, -56); ctx.lineTo(12 - w * 10, 0); ctx.stroke();
+  ctx.fillStyle = '#6b5a8a'; ctx.beginPath(); ctx.moveTo(-22, -126); ctx.lineTo(22, -126); ctx.lineTo(26, -52); ctx.lineTo(10, -60); ctx.lineTo(0, -48); ctx.lineTo(-12, -60); ctx.lineTo(-26, -52); ctx.fill();
+  ctx.strokeStyle = '#8fbf6a'; ctx.lineWidth = 11;   // tay giơ thẳng
+  ctx.beginPath(); ctx.moveTo(-14, -116); ctx.lineTo(-62, -112 + w * 6); ctx.moveTo(14, -112); ctx.lineTo(-56, -100 - w * 6); ctx.stroke();
+  ctx.fillStyle = '#8fbf6a'; ctx.beginPath(); ctx.arc(0, -150, 26, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-10, -154, 9, 0, Math.PI * 2); ctx.arc(8, -152, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#c0161a'; ctx.beginPath(); ctx.arc(-11, -154, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#4a2a2a'; ctx.fillRect(-12, -136, 22, 6);
+  ctx.restore();
+}
+function drawZombies(e, cy) {
+  const V = vehOf(), n = e.rammed ? 5 : 9;
+  for (let k = 0; k < n; k++) {
+    const tgt = k < 4 ? busFront() + S(30 + k * 50) : SX - S(V.rear * (k - 3) / 6) + S(40);
+    const onRoof = k >= 4;
+    const q = ease((e.t - k * 0.12) / 1.4);
+    const x = lerp(W + S(80) + k * S(70), tgt, q), y = onRoof && q > 0.95 ? cy - S(V.top - 10) : cy;
+    zombieGuy(x, y, VS * (onRoof ? 1.1 : 1.35), k);
+  }
+  if (e.t > 1) bubble(busFront() + S(150), cy - S(V.top + 120), '🧟 Nãooo… não người về quê…');
+  if (e.t > 1.6 && e.t < 4) bubble(SX + S(V.mid), cy - S(V.top + 60), '😱 Chạy điiii!!', 3);
+}
+function drawBanhChung(e, cy) {
+  const V = vehOf(), mx = lerp(-S(200), Math.max(S(170), SX - S(V.rear * 0.55)), ease(e.t / 0.9));   // mẹ chạy làn ngoài, song song xe
+  scooter(mx, cy + S(46), { color: '#e2557b', scale: VS * 0.9, rot: wheelRot, gifts: false, shirt: '#e2557b', helmet: '#fff', face: e.user });
+  for (let k = 0; k < 4; k++) {
+    const q = clamp((e.t - 0.5 - k * 0.3) / 0.7, 0, 1); if (q <= 0 || q >= 1) continue;
+    const x = lerp(mx + S(40), SX - S(V.rear * 0.4) + k * S(60), q), y = lerp(cy - S(100), cy - S(V.top + 10), q) - Math.sin(q * Math.PI) * S(160);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(q * 6);
+    ctx.fillStyle = '#2f7a3a'; ctx.fillRect(-S(20), -S(20), S(40), S(40));
+    ctx.strokeStyle = '#e8d9a8'; ctx.lineWidth = S(4); ctx.beginPath(); ctx.moveTo(-S(20), 0); ctx.lineTo(S(20), 0); ctx.moveTo(0, -S(20)); ctx.lineTo(0, S(20)); ctx.stroke();
+    ctx.restore();
+  }
+  if (e.t > 0.4) bubble(mx, cy - S(150), '👩 Mẹ gửi bánh chưng nè con!');
+}
+function lionDance(x, y, s, t) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  const b = Math.abs(Math.sin(t * 8)) * 18;
+  ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = 12; ctx.lineCap = 'round';   // 4 chân 2 người múa
+  for (const [lx, ph] of [[-150, 0], [-110, 1.6], [-20, 0.8], [20, 2.4]]) { ctx.beginPath(); ctx.moveTo(lx, -60); ctx.lineTo(lx + Math.sin(t * 8 + ph) * 14, 0); ctx.stroke(); }
+  ctx.fillStyle = '#e8322c'; ctx.beginPath(); ctx.moveTo(-200, -60); ctx.quadraticCurveTo(-100, -150 - b, 0, -90); ctx.lineTo(0, -56); ctx.lineTo(-200, -56); ctx.fill();   // thân vải
+  ctx.fillStyle = '#ffd23a'; for (let k = 0; k < 6; k++) { ctx.beginPath(); ctx.arc(-180 + k * 32, -64, 10, 0, Math.PI); ctx.fill(); }
+  ctx.save(); ctx.translate(30, -120 - b); ctx.rotate(Math.sin(t * 6) * 0.15);   // đầu lân
+  ctx.fillStyle = '#ffc531'; ctx.beginPath(); ctx.roundRect(-50, -60, 110, 96, 30); ctx.fill();
+  ctx.fillStyle = '#e8322c'; ctx.beginPath(); ctx.roundRect(-40, 10, 100, 30, 12); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-6, -22, 16, 0, Math.PI * 2); ctx.arc(34, -22, 16, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(-2 + Math.sin(t * 5) * 4, -22, 7, 0, Math.PI * 2); ctx.arc(38 + Math.sin(t * 5) * 4, -22, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#35c06b'; ctx.beginPath(); ctx.moveTo(4, -60); ctx.lineTo(14, -96); ctx.lineTo(24, -60); ctx.fill();   // sừng
+  ctx.fillStyle = '#fff'; for (let k = 0; k < 5; k++) { ctx.beginPath(); ctx.arc(-40 + k * 22, -62, 9, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+  ctx.restore();
+}
+function drawLion(e, cy) {
+  const x = lerp(W + S(240), busFront() + S(330), ease(e.t / 1)) + Math.sin(T * 2) * S(30);
+  lionDance(x, cy - S(4), VS * 1.4, T);
+  if (Math.sin(T * 8) > 0.6) { ctx.font = `900 ${Math.round(S(40))}px 'Be Vietnam Pro'`; ctx.fillStyle = '#ffd23a'; ctx.textAlign = 'center'; ctx.fillText('TÙNG! TÙNG!', x - S(60), cy - S(330)); }
+}
+function buffaloBody(x, y, s, t) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  ctx.strokeStyle = '#2b2b30'; ctx.lineWidth = 16; ctx.lineCap = 'round';
+  for (const [lx, ph] of [[-70, 0], [-40, 1.5], [40, 0.7], [64, 2.2]]) { ctx.beginPath(); ctx.moveTo(lx, -50); ctx.lineTo(lx + Math.sin(t * 16 + ph) * 18, 0); ctx.stroke(); }
+  ctx.fillStyle = '#3a3a42'; ctx.beginPath(); ctx.ellipse(0, -80, 100, 50, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(104, -84, 40, 30, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#d9d2c0'; ctx.lineWidth = 11;   // sừng trâu cong
+  ctx.beginPath(); ctx.moveTo(96, -104); ctx.quadraticCurveTo(60, -150, 100, -158); ctx.moveTo(116, -106); ctx.quadraticCurveTo(160, -146, 126, -160); ctx.stroke();
+  ctx.fillStyle = '#ff3a2a'; ctx.beginPath(); ctx.arc(118, -88, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.beginPath(); ctx.arc(146, -74 + Math.sin(t * 20) * 2, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawBuffalo(e, cy) {
+  const V = vehOf(), stop = Math.max(SX - S(V.rear + 170), S(190));   // đuôi xe sát mép: trâu húc từ làn ngoài
+  const x = e.t < 0.6 ? lerp(-S(300), stop, ease(e.t / 0.6)) : stop + Math.abs(Math.sin(e.t * 6)) * S(18);
+  buffaloBody(x, cy + S(40), VS * 1.5, T);
+  if (e.t > 0.5 && e.t < 2) { ctx.font = `900 ${Math.round(S(44))}px 'Be Vietnam Pro'`; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText('ỤM BÒOO!', Math.max(x, S(260)), cy - S(200)); }
+}
+function drawShaman(e, cy) {
+  const V = vehOf(), x = SX - S(V.rear * 0.62), y = cy - S(V.top + 60) - Math.abs(Math.sin(T * 5)) * S(16), sw = Math.sin(T * 10);
+  ctx.save(); ctx.translate(x, y); ctx.scale(VS * 1.8, VS * 1.8);
+  const halo = ctx.createRadialGradient(0, -90, 20, 0, -90, 150); halo.addColorStop(0, 'rgba(255,240,150,.85)'); halo.addColorStop(1, 'rgba(255,200,60,0)');
+  ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, -90, 150 + Math.sin(T * 6) * 12, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#c0261e'; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(-34, -120); ctx.lineTo(34, -120); ctx.lineTo(48, 0); ctx.lineTo(-48, 0); ctx.closePath(); ctx.stroke();
+  ctx.fillStyle = '#ff9a1f'; ctx.beginPath(); ctx.moveTo(-34, -120); ctx.lineTo(34, -120); ctx.lineTo(48, 0); ctx.lineTo(-48, 0); ctx.fill();   // áo vàng
+  ctx.fillStyle = '#ffd3ad'; ctx.beginPath(); ctx.arc(0, -146, 26, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#c0261e'; ctx.fillRect(-28, -164, 56, 10);   // khăn đỏ
+  ctx.fillStyle = '#222'; ctx.fillRect(-12, -150, 7, 4); ctx.fillRect(6, -150, 7, 4);
+  ctx.strokeStyle = '#a0522d'; ctx.lineWidth = 9; ctx.lineCap = 'round';   // kiếm gỗ đào múa
+  ctx.save(); ctx.translate(30, -100); ctx.rotate(-0.8 + sw * 0.9); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -110); ctx.stroke(); ctx.restore();
+  ctx.restore();
+  for (let k = 0; k < 6; k++) {   // bùa vàng bay ra phía trước
+    const q = ((e.t * 0.9 + k / 6) % 1);
+    const bx = x + q * S(700), by = y - S(160) + Math.sin(q * 9 + k) * S(60);
+    ctx.save(); ctx.translate(bx, by); ctx.rotate(q * 8 + k);
+    ctx.fillStyle = '#ffe14a'; ctx.fillRect(-S(14), -S(24), S(28), S(48)); ctx.fillStyle = '#c0261e'; ctx.fillRect(-S(6), -S(18), S(12), S(36));
+    ctx.restore();
+  }
+  if (e.t > 0.3) bubble(x + S(120), cy - S(V.top + 330), '🧙 Tà ma… TRÁNH RAAA!');
+}
+function drawGarlic(e, cy) {
+  for (let k = 0; k < 6; k++) {
+    const q = clamp((e.t - k * 0.1) / 0.9, 0, 1); if (q <= 0 || q >= 1) continue;
+    const x = lerp(SX - S(200), busFront() + S(420), q), y = cy - S(200) - Math.sin(q * Math.PI) * S(180) + k * S(14);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(q * 10);
+    ctx.fillStyle = '#f6f0e2'; ctx.beginPath(); ctx.moveTo(0, -S(22)); ctx.quadraticCurveTo(S(22), -S(4), S(14), S(16)); ctx.lineTo(-S(14), S(16)); ctx.quadraticCurveTo(-S(22), -S(4), 0, -S(22)); ctx.fill();
+    ctx.strokeStyle = '#d6c7a6'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -S(18)); ctx.lineTo(0, S(14)); ctx.stroke();
+    ctx.restore();
+  }
+}
+function drawFireworks(e, cy) {
+  const cols = ['#ffd23a', '#ff5a7a', '#5ee0ff', '#7cf0a9', '#ff9f1c', '#c58bff'];
+  for (let b = 0; b < 9; b++) {
+    const t0 = b * 0.33, q = (e.t - t0) / 1.3; if (q <= 0 || q >= 1) continue;
+    const bx = 160 + hash(e.id, b) * 760, by = 520 + hash(e.id, b + 20) * 300, c = cols[b % cols.length];
+    if (q < 0.25) { ctx.fillStyle = '#fff6c8'; ctx.beginPath(); ctx.arc(bx, lerp(cy, by, q / 0.25), 5, 0, Math.PI * 2); ctx.fill(); continue; }
+    const k = (q - 0.25) / 0.75, r = ease(k) * 150;
+    ctx.save(); ctx.globalAlpha = 1 - k; ctx.fillStyle = c;
+    ctx.shadowColor = c; ctx.shadowBlur = 16;
+    for (let i = 0; i < 30; i++) { const a = i / 30 * Math.PI * 2; for (const rr of [r, r * 0.62]) { ctx.beginPath(); ctx.arc(bx + Math.cos(a) * rr, by + Math.sin(a) * rr + k * k * 40, rr === r ? 8 : 5, 0, Math.PI * 2); ctx.fill(); } }
+    ctx.restore();
+  }
+}
+function superHero(x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  ctx.fillStyle = '#d42a2a'; ctx.beginPath(); ctx.moveTo(-20, -120); ctx.quadraticCurveTo(-90 - Math.sin(T * 12) * 20, -40, -110, 20); ctx.lineTo(20, -120); ctx.fill();   // áo choàng
+  ctx.strokeStyle = '#2f5fd8'; ctx.lineWidth = 16; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-8, -60); ctx.lineTo(-14, 0); ctx.moveTo(8, -60); ctx.lineTo(14, 0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-18, -120); ctx.lineTo(-36, -190); ctx.moveTo(18, -120); ctx.lineTo(36, -190); ctx.stroke();   // 2 tay nâng xe
+  ctx.fillStyle = '#2f5fd8'; ctx.beginPath(); ctx.roundRect(-26, -130, 52, 74, 12); ctx.fill();
+  ctx.fillStyle = '#ffd23a'; ctx.beginPath(); for (let k = 0; k < 5; k++) { const a = -Math.PI / 2 + k * Math.PI * 4 / 5; ctx.lineTo(Math.cos(a) * 16, -96 + Math.sin(a) * 16); } ctx.fill();   // ngôi sao vàng
+  ctx.fillStyle = '#ffd3ad'; ctx.beginPath(); ctx.arc(0, -152, 22, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(0, -160, 22, Math.PI, 0); ctx.fill();
+  ctx.restore();
+}
+function superLift(e) { return S(300) * ease(Math.min(1, e.t / 0.8)) * Math.min(1, (e.dur - e.t) / 0.8); }
+function drawSuperman(e, cy) {
+  const V = vehOf();
+  superHero(SX + S(V.mid), cy + S(230), VS * 1.5);
+  if (e.t > 0.5 && e.t < 4) bubble(SX + S(V.mid) + S(160), cy + S(40), '🦸 Cả đoàn lên vai anh! Về quê thôiii!');
+}
+const FUN_DRAW = { crow: drawCrows, snake: drawSnake, ghost: drawGhost, croc: drawCroc, possess: drawPossess, coffin: drawCoffin, zombie: drawZombies,
+  banhchung: drawBanhChung, garlic: drawGarlic, lion: drawLion, buffalo: drawBuffalo, shaman: drawShaman, fireworks: drawFireworks, superman: drawSuperman };
+/** Vẽ mọi trò mới đang chạy + khách bơi về; cy = mặt đất dưới xe (đã trừ độ nhấc). */
+function drawFun(dt, cy) {
+  PANIC = Math.max(0, PANIC - dt * 2);
+  let horror = 0, poss = 0;
+  for (const e of game.effects) {
+    const f = FUN_DRAW[e.kind]; if (!f || e.t >= e.dur) continue;
+    if (HORROR_DARK.has(e.kind)) horror = 1;
+    if (e.kind === 'possess') poss = 1;
+    f(e, cy);
+  }
+  drawSwimmers(cy);
+  horrorA = lerp(horrorA, horror, 1 - Math.pow(0.03, dt)); possessA = lerp(possessA, poss, 1 - Math.pow(0.03, dt));
+}
+/** Màn tối kinh dị (tím than, chớp sét) + viền đỏ khi bị quỷ nhập — vẽ trước nhãn để chữ vẫn đọc được. */
+function drawHorrorVeil() {
+  if (horrorA < 0.02 && possessA < 0.02) return;
+  const g = ctx.createRadialGradient(W / 2, 1150, 200, W / 2, 1150, 1100);
+  g.addColorStop(0, `rgba(20,8,40,${0.15 * horrorA})`); g.addColorStop(1, `rgba(8,2,20,${0.62 * horrorA})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  if (horrorA > 0.5 && Math.random() < 0.025) { ctx.fillStyle = 'rgba(230,235,255,.35)'; ctx.fillRect(0, 0, W, H); }   // chớp sét
+  if (possessA > 0.02) {
+    const r = ctx.createRadialGradient(W / 2, H / 2, 500, W / 2, H / 2, 1150);
+    r.addColorStop(0, 'rgba(160,0,0,0)'); r.addColorStop(1, `rgba(190,0,0,${0.62 * possessA * (0.75 + Math.sin(T * 10) * 0.25)})`);
+    ctx.fillStyle = r; ctx.fillRect(0, 0, W, H);
+  }
+}
+const FUN_TXT = { crow: 'Quạ', snake: 'Rắn', ghost: 'Ma', croc: 'Cá sấu', possess: 'Quỷ', coffin: 'Quan tài', zombie: 'Zombie', dog: 'Chó', ducks: 'Vịt', rain: 'Mưa' };
+
 let wheelRot = 0, lastDist = 0, vel = 0;
 function render(dt) {
   // camera bám xe, đẩy lùi/tới mượt
@@ -1553,6 +1897,8 @@ function render(dt) {
     if (Math.random() < 0.6) { fx.push({ k: 'skid', x: SX + skidX - S(60), y: contactY(cam) - S(4), len: S(80), t: 0, dur: 1.6 }); fx.push({ k: 'dust', x: SX + skidX - S(vehOf().rear - 40), y: contactY(cam) - S(14), t: 0, dur: 0.8 }); }
   }
   if (bump > 0) { lift += Math.sin(Math.PI * (1 - bump)) * S(110); ang += Math.sin(T * 24) * 0.05 * bump; }
+  const sup = game.effects.find(e => e.kind === 'superman' && e.t < e.dur);
+  if (sup) { lift += superLift(sup) + Math.sin(T * 3) * S(10); }
   if (game.phase === 'race' && vel > 20 && lift < 1) ang -= 0.03 + Math.sin(T * 22) * 0.008;   // chạy nhanh: hơi bốc đầu + rung
   const cy = contactY(cam) - lift;
   // xe container lao tới từ bên phải
@@ -1564,7 +1910,7 @@ function render(dt) {
   }
   // xe ủi chạy ngược chiều đẩy lùi
   {
-    const own = x && (x.kind === 'container' || x.kind === 'tornado');
+    const own = (x && (x.kind === 'container' || x.kind === 'tornado')) || game.effects.some(e => FUN_DRAW[e.kind] && e.t < e.dur && ACTION_BY_ID[e.kind].side === 'pha');   // trò kinh dị tự có hình, không cần xe ủi
     const backing = game.phase === 'race' && !game.halt && !own && vel < -6;
     pushA = lerp(pushA, backing ? 1 : 0, 1 - Math.pow(0.002, dt));
     if (pushA > 0.03) {
@@ -1607,6 +1953,7 @@ function render(dt) {
   const onBoard = hk === 'rest' || hk === 'photo' ? Object.assign({}, PAX, { seated: [], extra: 0 }) : hk === 'gas' ? Object.assign({}, PAX, { seated: PAX.seated.slice(4) }) : PAX;
   drawVehicle(SX + skidX, cy, { color: BIKES[VIEW.bike] || BIKES.green, rot: wheelRot, ang: ang + (hk === 'flat' ? -0.05 : 0), rider: lose ? 'none' : walking ? 'walk' : 'ride', driver: drv, passengers: onBoard, running: game.speed > 0, flat: hk === 'flat', sick: hk === 'carsick' && PAX.seated[0] ? PAX.seated[0].id : '' });
   drawHaltScene(cy);
+  drawFun(dt, cy);
   if (momMsg && momMsg.t > 0 && !game.halt && game.phase === 'race') bubble(SX - S(20), cy - S(vehOf().top + 190), momMsg.text);
   if (lose) { const bx = SX + S(300); trashBin(bx, contactY(meterAt(bx)), 0.6, 1.3); ctx.save(); ctx.translate(bx, contactY(cam) - S(130)); ctx.scale(VS, VS); head(0, -30, '#ffcf33', '#ffd3ad', {}); ctx.restore(); }
   // tài xế (người xem tặng quà lái) + streamer
@@ -1644,6 +1991,7 @@ function render(dt) {
   // bụi bánh xe
   if (game.speed > 0 && Math.random() < 0.6 && lift < 5) fx.push({ k: 'dust', x: SX - S(vehOf().rear - 20), y: contactY(cam) - S(10), t: 0, dur: 0.6 });
   if (game.fuelAlarm && Math.random() < 0.2) fx.push({ k: 'dust', x: SX - S(100), y: cy - S(40), t: 0, dur: 1 });
+  drawHorrorVeil();
   layoutLabels();
   drawFx();
   ctx.restore();
@@ -1674,6 +2022,8 @@ function render3d(dt) {
   if (pushBy && o.push) tag(o.push.x, o.push.y, pushBy, 'rgba(170,30,25,.9)', 20);
   if (o.extra) tag(o.extra.x, o.extra.y, { name: `+${o.extra.n} chờ ghế` }, 'rgba(22,26,36,.86)', 20, 16, 2);
   if (momMsg && momMsg.t > 0 && !game.halt && game.phase === 'race') bubble(o.driver.x + 20, o.driver.y - 70, momMsg.text);
+  drawFun(dt, contactY(cam));
+  drawHorrorVeil();
   layoutLabels();
   drawFx();
 }
