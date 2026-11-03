@@ -5171,6 +5171,13 @@
                     ? '✓ Đang ký kết nối bằng key riêng — hạn mức cao hơn, hết lỗi "HTTP 200". Áp dụng từ lần Kết nối LIVE kế tiếp.'
                     : 'Chưa có key: kết nối ẩn danh giới hạn 5 lượt/phút · 30 lượt/giờ · 100 lượt/ngày (tính theo IP máy). Lấy key miễn phí tại eulerstream.com → dán vào đây.';
             const ar = $id('st-auto-reconnect'); if (ar) ar.checked = s.autoReconnect !== false;
+            const cf = s.commentFilter || null;
+            const cfBox = $id('st-comment-filter'); if (cfBox && cf) cfBox.checked = cf.enabled !== false;
+            const cfHint = $id('st-comment-filter-hint');
+            if (cfHint && cf) cfHint.textContent = (cf.words
+                ? cf.words + ' từ cấm (sheet quy tắc bình luận, cột A — tự cập nhật 5 phút/lần)'
+                : '⚠ Chưa tải được danh sách từ cấm' + (cf.error ? ' (' + cf.error + ')' : ''))
+                + ' · đã chặn ' + (cf.blocked || 0) + ' bình luận từ lúc mở app' + (cf.lastWord ? ' (gần nhất: "' + cf.lastWord + '")' : '');
             const host = $id('st-overlay-host'); if (host) host.textContent = 'http://' + (s.overlay?.host || 'localhost') + ':' + (s.overlay?.port || 3000);
             const mapped = $id('st-overlay-mapped');
             if (mapped) {
@@ -5210,6 +5217,12 @@
             stToast(v ? '✓ Đã lưu API key — áp dụng từ lần kết nối tới' : 'Đã xoá API key');
             loadSettingsPanel();
         } catch (e) { stToast('Lỗi lưu key: ' + e.message, 'error'); }
+    });
+    document.getElementById('st-comment-filter')?.addEventListener('change', async (e) => {
+        try {
+            await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commentFilter: !!e.target.checked }) });
+            stToast(e.target.checked ? '✓ Bình luận có từ cấm sẽ không hiện / không đọc trong mọi game' : 'Đã tắt lọc từ cấm');
+        } catch (err) {}
     });
     document.getElementById('st-auto-reconnect')?.addEventListener('change', async (e) => {
         try {

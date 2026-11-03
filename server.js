@@ -110,6 +110,7 @@ const CamSession = require('./lib/camgames-session');
 const { createCamObs } = require('./lib/camgames-obs');
 const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
 const MusicGifts = require('./lib/music-gifts');
+const CommentFilter = require('./lib/comment-filter');   // 🚫 từ cấm chung cho mọi game
 const { LuaSync } = require('./lib/lua-sync');
 const { OBSSettings } = require('./lib/obs-settings');
 
@@ -440,6 +441,10 @@ const GAMES = {
             ntLikeEvent: 1000,        // ❤️ cả phòng đủ bấy nhiêu tim → 1 sự kiện vui (0 = tắt)
             ntAutoEvents: true,       // trại vắng quà > 3 phút → thỉnh thoảng tự mưa / chuột chạy qua
             ntPkTug: true,            // 🪢 PK (tín hiệu thật pk:state) → kéo co giữa sân, đội thua bị ném vào thùng rác
+            ntTargetSec: 15,          // 🎯 quà chơi khăm (thùng rác, trò đùa, vật tay…): bấy nhiêu giây để bình luận MÃ SỐ tù nhân người muốn nhắm; hết giờ → bốc ngẫu nhiên (0 = ngẫu nhiên ngay)
+            ntRevengeSec: 60,         // ⚔️ bị chơi khăm → trong bấy nhiêu giây tặng quà chơi khăm + gõ mã số kẻ đó = trả thù, +5 điểm (0 = tắt)
+            ntRooms: 6,               // 🏠 phòng = đội: bình luận P1…P6 chọn phòng, cả phòng thi đua theo vòng (0 = tắt)
+            ntRoomRoundMin: 5,        // mỗi vòng thi đua phòng bấy nhiêu phút — phòng nhất được ăn tiệc + mỗi người +10 điểm
             ntGiftMap: nhatuSuggestedGiftMap()   // { [action]: [{ giftId, giftName, giftImage, coins }] } — mặc định = bộ quà gợi ý trong data.json
         }
     },
@@ -2429,6 +2434,15 @@ const COMMENT_RULES_SHEET_ID = '1Fv9Jdno_pPMTx_-tnwSfRObm1r1wKds_gaMBnfCDm4M';
 const COMMENT_RULES_GID = '211090113';
 const COMMENT_RULES_REFRESH_MS = 5 * 60 * 1000;
 let commentSheetRules = { forbiddenWords: [], glossary: [], loadedAt: 0, error: '' };
+// 🚫 Từ cấm CHUNG cho mọi game (cột A sheet trên): bình luận dính từ cấm không phát 'chat' cho overlay nào
+// (không game nào đọc / hiển thị) — xem lib/comment-filter.js. Bật/tắt: ⚙ Cài đặt → appConfig.commentFilter.
+let commentForbidden = null;
+const commentFilterStats = { blocked: 0, lastWord: '', lastAt: 0 };
+const COMMENT_RULES_CACHE_FILE = () => path.join(DATA_DIR, 'comment-rules-cache.json');
+function setCommentForbidden(words) {
+    commentForbidden = CommentFilter.compileForbidden(words);
+}
+function commentFilterOn() { return appConfig.commentFilter?.enabled !== false; }
 const liveTranslateRecentGifts = new Map();
 const liveTranslateRecentMembers = new Map();
 const liveTranslateLastSpoken = new Map();
@@ -2542,6 +2556,9 @@ async function loadCommentRulesSheet() {
         if (from && to) glossary.push(`${from}=${to}`);
     }
     commentSheetRules = { forbiddenWords, glossary, loadedAt: Date.now(), error: '' };
+    setCommentForbidden(forbiddenWords);
+    // nhớ bản tải được gần nhất: mở app lúc mất mạng / Google lỗi vẫn lọc được từ cấm
+    try { fs.writeFileSync(COMMENT_RULES_CACHE_FILE(), JSON.stringify({ forbiddenWords, glossary, loadedAt: commentSheetRules.loadedAt })); } catch (e) {}
     io.emit('translate:rules', getCommentRulesMeta());
     console.log(`[comment-rules] Đã tải ${forbiddenWords.length} từ cấm, ${glossary.length} cụm thay thế.`);
     return commentSheetRules;
@@ -2559,6 +2576,14 @@ function getCommentRulesMeta() {
 async function refreshCommentRulesSheet() {
     try { return await loadCommentRulesSheet(); }
     catch (e) {
+        if (!commentSheetRules.loadedAt) {
+            try {
+                const c = JSON.parse(fs.readFileSync(COMMENT_RULES_CACHE_FILE(), 'utf8'));
+                commentSheetRules = { forbiddenWords: c.forbiddenWords || [], glossary: c.glossary || [], loadedAt: Number(c.loadedAt) || 0, error: '' };
+                setCommentForbidden(commentSheetRules.forbiddenWords);
+                console.warn(`[comment-rules] Dùng bản lưu: ${commentSheetRules.forbiddenWords.length} từ cấm.`);
+            } catch (e2) {}
+        }
         commentSheetRules.error = e.message || 'comment_rules_failed';
         io.emit('translate:rules', getCommentRulesMeta());
         console.warn('[comment-rules] Không tải được quy tắc:', commentSheetRules.error);
@@ -3781,6 +3806,16 @@ function attachConnectionEvents(conn, lib) {
         const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
         const comment = data?.comment ?? data?.content;   // v3 (2.4.4): content
         rememberUserMapping(userId, uniqueId);
+        // 🚫 từ cấm chung: không phát chữ cho game nào; chỉ báo "người này vừa bình luận" (tính tương tác, không hiện / đọc)
+        const blockedWord = commentFilterOn() ? CommentFilter.findForbidden(comment, commentForbidden) : '';
+        if (blockedWord) {
+            commentFilterStats.blocked += 1;
+            commentFilterStats.lastWord = blockedWord;
+            commentFilterStats.lastAt = Date.now();
+            broadcast('chat:blocked', { uniqueId, nickname, userId, profilePicture, createTime: Date.now() });
+            vipHandleActivity(data?.user);
+            return;
+        }
         const chatPayload = {
             uniqueId, nickname,
             userId,
@@ -3879,7 +3914,7 @@ function attachConnectionEvents(conn, lib) {
         const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
         const likeCount = Number(data?.likeCount ?? data?.count) || 1;   // v3 (2.4.4): count
         rememberUserMapping(userId, uniqueId);
-        broadcast('like', { uniqueId, nickname, likeCount });
+        broadcast('like', { uniqueId, nickname, likeCount, profilePicture });   // ảnh đại diện: người chỉ thả tim vào game vẫn có avatar
         liveStats.totalLikes += likeCount; emitLiveStatsThrottled();
         // Chào muộn + trigger 'like' riêng
         vipHandleActivity(data?.user);
@@ -3893,7 +3928,7 @@ function attachConnectionEvents(conn, lib) {
         const dtKey = String(data?.common?.displayText?.key || '').toLowerCase();
         const dtPattern = String(data?.common?.displayText?.defaultPattern || '').replace(/{d+:[a-z_]+}/gi, '').trim();
         const label = dtKey.includes('follow') ? 'đã theo dõi' : (dtKey.includes('share') || dtKey.includes('mt_msg')) ? 'đã chia sẻ LIVE' : dtPattern;
-        broadcast('social', { uniqueId, nickname, label });
+        broadcast('social', { uniqueId, nickname, label, profilePicture });
         vipHandleActivity(data?.user);
     });
     // FOLLOW event
@@ -6161,6 +6196,14 @@ function settingsSnapshot(req) {
         tiktokSignBaseUrl: getTikTokSignBaseUrl(),
         tiktokSignBaseUrlFromEnv: !!(process.env.TIKTOK_SIGN_API_URL || process.env.SIGN_API_URL),
         autoReconnect: appConfig.autoReconnect !== false,
+        commentFilter: {
+            enabled: commentFilterOn(),
+            words: commentForbidden ? commentForbidden.size : 0,
+            loadedAt: commentSheetRules.loadedAt,
+            error: commentSheetRules.error || '',
+            blocked: commentFilterStats.blocked,
+            lastWord: commentFilterStats.lastWord
+        },
         overlay: { host: OBS_LOCAL_HOST, port: PORT, hostMapped: isHostMapped() },
         network: {
             lanAccess: n.lanAccess === true,
@@ -6187,6 +6230,7 @@ app.post('/api/settings', (req, res) => {
         changed = true;
     }
     if (Object.prototype.hasOwnProperty.call(b, 'autoReconnect')) { appConfig.autoReconnect = b.autoReconnect !== false; changed = true; }
+    if (Object.prototype.hasOwnProperty.call(b, 'commentFilter')) { appConfig.commentFilter = { ...(appConfig.commentFilter || {}), enabled: b.commentFilter !== false }; changed = true; }
     if (Object.prototype.hasOwnProperty.call(b, 'lanAccess')) {
         const n = networkConfig();
         const v = b.lanAccess === true;
