@@ -359,7 +359,8 @@ function strandPoints(a, b, sag, step) {
 
 const POST_TOP = 4.55;
 const SOUTH_POST_Z = 25.2;
-const SOUTH_POSTS = [-34, -25.5, -17, -8.5, 0, 8.5, 17, 25.5, 34];
+// không có cột ở x 0: Sàn Giao Lưu quanh logo (0, 19) quay cận từ phía Nam — z 19..28, x −4..4 không có vật cao > 1 m
+const SOUTH_POSTS = [-34, -25.5, -17, -8.5, 8.5, 17, 25.5, 34];
 const NORTH_POSTS = [-38.5, -29.5, 29.5, 38.5];
 const NORTH_POST_Z = -9.6;
 
@@ -381,7 +382,8 @@ function strandDefs() {
   }
   // hành lang Nam: dây nối các cột đèn + tán đèn zigzag trên sảnh (cột ↔ đảo giữa)
   chain([{ x: -42.35, y: 5.4, z: SOUTH_POST_Z }, ...SOUTH_POSTS.map(SP), { x: 42.35, y: 5.4, z: SOUTH_POST_Z }], 0.45);
-  chain([SP(-17), SI(-12.75), SP(-8.5), SI(-4.25), SP(0), SI(4.25), SP(8.5), SI(12.75), SP(17)], 1.2);
+  chain([SP(-17), SI(-12.75), SP(-8.5), SI(-4.25)], 1.2);
+  chain([SI(4.25), SP(8.5), SI(12.75), SP(17)], 1.2);
   return defs;
 }
 
@@ -1015,12 +1017,12 @@ function buildStaff(scene, world, groups, { low, labelKind }) {
     cam.char.root.children[0].add(camMesh);
     staff.push({ a: cam, kind: 'walker', path: [[-17, -17.2], [0, -17.2], [17, -17.2], [0, -17.2]], face: Math.PI, speed: 1.1, pause: 4, i: 0, wait: 2 });
     // lao công: đi chậm qua lại hành lang Nam với cây lau nhà
-    const clean = makeActor(scene, { name: '🧹 Lao công', look: { outfit: 'gamer', hair: 'black', hairStyle: 'bun', hat: 'none' }, kind: labelKind, x: -28, z: 13.2 });
+    const clean = makeActor(scene, { name: '🧹 Lao công', look: { outfit: 'gamer', hair: 'black', hairStyle: 'bun', hat: 'none' }, kind: labelKind, x: -28, z: 11.6 });
     const mop = mergeGeometries([new THREE.CylinderGeometry(0.025, 0.025, 1.25, 6).rotateX(0.55).translate(0, 0.62, 0.17), new THREE.BoxGeometry(0.42, 0.06, 0.16).translate(0, 0.03, 0.5)]);
     const mopMesh = new THREE.Mesh(mop, new THREE.MeshStandardMaterial({ color: 0x5fa8d3, roughness: 0.8 }));
     mopMesh.position.set(0.3, 0, 0.12);
     clean.char.root.children[0].add(mopMesh);
-    staff.push({ a: clean, kind: 'walker', path: [[-28, 13.2], [28, 13.2]], face: null, speed: 0.7, pause: 3, i: 0, wait: 1 });
+    staff.push({ a: clean, kind: 'walker', path: [[-28, 11.6], [28, 11.6]], face: null, speed: 0.7, pause: 3, i: 0, wait: 1 });
   }
   return {
     actors: staff.map((s) => s.a),
