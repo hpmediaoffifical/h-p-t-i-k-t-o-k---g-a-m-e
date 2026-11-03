@@ -78,19 +78,20 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0c16; col
 .co-onair-bar { height: calc(var(--u) * 10); border-radius: calc(var(--u) * 6); background: rgba(255,255,255,.2); overflow: hidden; }
 .co-onair-bar i { display: block; height: 100%; background: #ffd23f; transition: width .3s linear; }
 
-.co-feed { left: calc(var(--u) * 660); top: calc(var(--u) * 432); width: calc(var(--u) * 260); max-height: calc(var(--u) * 300); padding: calc(var(--u) * 14); display: flex; flex-direction: column; gap: calc(var(--u) * 10); overflow: hidden; }
-.co-feed-title { font-size: calc(var(--u) * 30); color: #ffd23f; white-space: nowrap; }
-.co-feed-row { display: flex; align-items: center; gap: calc(var(--u) * 10); min-width: 0; }
+/* ô quà / chú giải: sát mép phải, nhỏ gọn để không che idol giữa sân */
+.co-feed { left: calc(var(--u) * 876); top: calc(var(--u) * 432); width: calc(var(--u) * 192); max-height: calc(var(--u) * 220); padding: calc(var(--u) * 10); display: flex; flex-direction: column; gap: calc(var(--u) * 6); overflow: hidden; }
+.co-feed-title { font-size: calc(var(--u) * 22); color: #ffd23f; white-space: nowrap; }
+.co-feed-row { display: flex; align-items: center; gap: calc(var(--u) * 6); min-width: 0; }
 .co-feed-row div { min-width: 0; display: flex; flex-direction: column; line-height: 1.05; }
-.co-feed-row b { font-size: calc(var(--u) * 32); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.co-feed-row small { font-size: calc(var(--u) * 28); color: #c9cfe6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.co-feed-gift { width: calc(var(--u) * 58); height: calc(var(--u) * 58); object-fit: contain; flex: none; font-size: calc(var(--u) * 44); display: grid; place-items: center; }
-.co-legend { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 8); text-align: center; font-size: calc(var(--u) * 32); line-height: 1.15; }
-.co-legend-gift { width: calc(var(--u) * 96); height: calc(var(--u) * 96); object-fit: contain; }
-.co-legend-icon { font-size: calc(var(--u) * 72); }
+.co-feed-row b { font-size: calc(var(--u) * 24); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.co-feed-row small { font-size: calc(var(--u) * 21); color: #c9cfe6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.co-feed-gift { width: calc(var(--u) * 42); height: calc(var(--u) * 42); object-fit: contain; flex: none; font-size: calc(var(--u) * 32); display: grid; place-items: center; }
+.co-legend { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 4); text-align: center; font-size: calc(var(--u) * 23); line-height: 1.15; }
+.co-legend-gift { width: calc(var(--u) * 60); height: calc(var(--u) * 60); object-fit: contain; }
+.co-legend-icon { font-size: calc(var(--u) * 46); }
 
-.co-chips { position: absolute; left: calc(var(--u) * 660); top: calc(var(--u) * 750); width: calc(var(--u) * 260); display: flex; flex-direction: column; gap: calc(var(--u) * 8); }
-.co-hchip { background: linear-gradient(90deg, #ff4fa3, #9b5cff); font-weight: 900; font-size: calc(var(--u) * 30); padding: calc(var(--u) * 6) calc(var(--u) * 14); border-radius: calc(var(--u) * 24); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 calc(var(--u) * 2) calc(var(--u) * 4) rgba(0,0,0,.5); animation: coPop .25s ease-out; }
+.co-chips { position: absolute; left: calc(var(--u) * 876); top: calc(var(--u) * 668); width: calc(var(--u) * 192); display: flex; flex-direction: column; gap: calc(var(--u) * 8); }
+.co-hchip { background: linear-gradient(90deg, #ff4fa3, #9b5cff); font-weight: 900; font-size: calc(var(--u) * 22); padding: calc(var(--u) * 5) calc(var(--u) * 10); border-radius: calc(var(--u) * 24); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 calc(var(--u) * 2) calc(var(--u) * 4) rgba(0,0,0,.5); animation: coPop .25s ease-out; }
 
 .co-join { left: calc(var(--u) * 120); top: calc(var(--u) * 940); width: calc(var(--u) * 800); height: calc(var(--u) * 84); display: flex; align-items: center; justify-content: center; padding: 0 calc(var(--u) * 24); background: rgba(255, 79, 163, .9); font-size: calc(var(--u) * 38); font-weight: 900; }
 .co-join span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -2,7 +2,7 @@
  * 🏢 Creator Online (bản LIVE) — HUD khung 1080×1920 cho người xem điện thoại.
  * Bố cục vùng an toàn theo spec 2026-11-03-creatoronline-design.md §13 (toạ độ x, y, rộng, cao ở 1080×1920):
  *   tên phòng (120,240,800,96) · thanh PK thay chỗ (120,240,800,180) · người đang được quay (120,432,520,132)
- *   ô quà / chú giải (660,432,260,300) · chip (660,750,260,170) · hướng dẫn (120,940,800,84) · banner (120,600,800,260)
+ *   ô quà / chú giải sát mép phải (876,432,192,≤220) · chip (876,668,192,…) · hướng dẫn (120,940,800,84) · banner (120,600,800,260)
  * Đơn vị --u = min(rộng/1080, cao/1920) px → giữ tỉ lệ ở mọi cỡ cửa sổ. Chỉ ghi DOM khi nội dung đổi.
  */
 
