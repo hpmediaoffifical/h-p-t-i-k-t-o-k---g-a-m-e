@@ -76,6 +76,8 @@
                     <li>Quà triệu hồi Huyền Thoại: con đó khoá 10 giây cho người tặng, bóng của quà tự nhắm vào nó. Huyền Thoại tự nhiên rất hiếm (0,5%).</li>
                     <li>Thời tiết (tự đổi mỗi 2 phút, quà 88-99 xu đổi ngay): hệ hợp trời ra nhiều gấp 3 và dễ bắt hơn — Nắng: Lửa/Cỏ/Đất · Mưa: Nước/Điện/Bọ · Tuyết: Băng/Thép/Tiên.</li>
                     <li>Màn chơi chia theo vùng TikTok không che: dải luật / Top 3 / nhiệm vụ / gợi ý quà xoay vòng trên đầu sân, ghế nổi bật ngay dưới sân, phần dưới cùng để trống cho khung bình luận.</li>
+                    <li><b>⚔️ Tranh Huyền Thoại</b> (mỗi 5 phút, hoặc quà ≥ 300 xu mở ngay): gõ <b>tranh</b> để đăng ký miễn phí (1 vé; tim tối đa 5 vé; chia sẻ/theo dõi 3 vé). <b>Quà mới quyết định: 1 xu = 1 vé, Hoa hồng (quà chỉ định) ×3, 10 giây cuối ×2.</b> Hết giờ quay số theo vé — nhiều vé cơ hội cao nhưng không chắc thắng; ai thua mà đã tặng được 🍀 bùa may mắn cho trận sau.</li>
+                    <li><b>👑 Hạng vinh danh</b> theo xu tặng trong tuần: Đồng 10 · Bạc 100 · Vàng 500 · Bạch Kim 2.000 · Kim Cương 10.000 xu — có khung, chip hạng và được giữ chỗ trên dải ghế lâu hơn.</li>
                     <li>Gõ <b>1</b>-<b>9</b> để khóa Pokemon muốn bắt. Bảng xếp hạng tuần tính theo điểm Pokemon bắt được.</li>
                 </ol>
             </div>`;
