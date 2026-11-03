@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Đường Về Quê – HP Action LIVE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700;800;900&family=Bungee&display=swap" rel="stylesheet">
+<style>
+  /* Đường Về Quê — HUD kiểu bảng tuyến xe khách Tết: sơn mài nâu đỏ, chữ vàng lá, phe Cứu ngọc bích, phe Phá màu quả hồng.
+     Chỉ bảng tuyến (trên cùng) dùng chữ bảng hiệu Bungee; còn lại Be Vietnam Pro, gọn và nhỏ để không che cảnh. */
+  :root {
+    --lacquer: rgba(58, 23, 18, .86);   /* nền sơn mài */
+    --lacquer-solid: #3a1712;
+    --plate: #b3261e;                   /* đỏ bảng tuyến */
+    --gold: #f2c14e;                    /* vàng lá */
+    --gold-dim: #c99a2e;
+    --jade: #1fa36f;                    /* phe Cứu */
+    --jade-hi: #5fe0a6;
+    --persimmon: #e5532e;               /* phe Phá */
+    --persimmon-hi: #ff9a72;
+    --paper: #fff4dc;                   /* chữ */
+    --paper-dim: rgba(255, 244, 220, .72);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #24140f; }
+  #stage { position: absolute; left: 50%; top: 50%; width: 1080px; height: 1920px; transform-origin: 0 0; overflow: hidden;
+    font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: var(--paper); }
+  #c { position: absolute; inset: 0; width: 1080px; height: 1920px; display: block; }
+  #hud { position: absolute; inset: 0; pointer-events: none; }
+  .hidden { display: none !important; }
+  .panel { background: var(--lacquer); border-radius: 18px; box-shadow: 0 6px 16px rgba(30, 8, 4, .35), inset 0 0 0 2px rgba(242, 193, 78, .22); }
+
+  /* ---------- bảng tuyến (điểm nhấn duy nhất) ---------- */
+  #top { position: absolute; left: 22px; right: 22px; top: 24px; padding: 0; background: none; box-shadow: none; }
+  .plate { display: flex; align-items: center; gap: 16px; height: 84px; padding: 0 18px 0 22px; border-radius: 16px;
+    background: linear-gradient(180deg, #c42f25, var(--plate) 60%, #96201a); color: var(--gold);
+    box-shadow: 0 6px 0 #6e1712, 0 10px 22px rgba(40, 6, 2, .45), inset 0 0 0 3px var(--gold-dim), inset 0 0 0 7px #a3231c, inset 0 0 0 8px rgba(242, 193, 78, .5); }
+  .plate .city { font-family: 'Bungee', sans-serif; font-size: 34px; line-height: 1; letter-spacing: .5px; white-space: nowrap; text-shadow: 0 2px 0 #6e1712; }
+  .track { position: relative; flex: 1; margin: 0 26px; height: 14px; border-radius: 7px; background: rgba(40, 6, 2, .55); box-shadow: inset 0 2px 3px rgba(0,0,0,.35); }
+  .track .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 7px; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); }
+  .track .bike { position: absolute; top: 50%; font-size: 40px; transform: translate(-50%, -60%); filter: drop-shadow(0 2px 1px rgba(40,6,2,.6)); transition: left .25s linear; }
+  .track .end { display: none; }
+  .track .flag { position: absolute; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(255, 244, 220, .55); }
+  .timer { font-family: 'Bungee', sans-serif; font-size: 40px; line-height: 1; color: var(--paper); min-width: 132px; text-align: right; text-shadow: 0 2px 0 #6e1712; }
+  .timer.final { color: #ffe9a8; animation: pulse .6s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.08); } }
+  .where { display: flex; align-items: baseline; gap: 14px; margin: 12px 8px 0; white-space: nowrap; }
+  .prov { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 26px; font-weight: 700; color: var(--paper-dim);
+    text-shadow: 0 2px 4px rgba(30, 8, 4, .7); }
+  .prov b { font-family: 'Bungee', sans-serif; font-weight: 400; font-size: 28px; color: var(--paper); margin-right: 10px; }
+  .prov em { font-style: normal; font-weight: 800; color: var(--gold); margin-left: 10px; }
+  .dist { font-size: 24px; font-weight: 700; color: var(--paper-dim); text-shadow: 0 2px 4px rgba(30, 8, 4, .7); }
+  .dist b { font-size: 28px; font-weight: 900; color: var(--paper); }
+  #round { font-size: 22px; font-weight: 800; color: var(--gold); text-shadow: 0 2px 4px rgba(30, 8, 4, .7); }
+
+  /* ---------- kéo co 2 phe ---------- */
+  #tug { position: absolute; left: 22px; right: 22px; top: 172px; padding: 0; background: none; box-shadow: none; }
+  .tugbar { position: relative; height: 46px; border-radius: 23px; overflow: hidden; background: var(--persimmon);
+    box-shadow: 0 4px 12px rgba(30, 8, 4, .4), inset 0 0 0 2px rgba(255, 244, 220, .25); }
+  .tugbar .cuu { position: absolute; left: 0; top: 0; bottom: 0; background: var(--jade); transition: width .35s ease; }
+  .tugbar .lab { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; gap: 8px; font-size: 24px; font-weight: 800; white-space: nowrap; }
+  .tugbar .lab b { font-size: 28px; font-weight: 900; }
+  .tugbar .lab.l { left: 8px; } .tugbar .lab.r { right: 8px; }
+  .tugbar .knot { position: absolute; top: 0; bottom: 0; width: 6px; margin-left: -3px; background: var(--paper); box-shadow: 0 0 10px rgba(255, 244, 220, .9); transition: left .35s ease; }
+  .av { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--paper); object-fit: cover; background: var(--gold-dim); display: inline-grid; place-items: center;
+    font-size: 18px; font-weight: 800; color: var(--lacquer-solid); overflow: hidden; flex: none; }
+  .tugsub { display: flex; justify-content: space-between; margin: 6px 10px 0; font-size: 20px; font-weight: 700; color: var(--paper-dim); text-shadow: 0 2px 4px rgba(30, 8, 4, .75); }
+  .tugsub b { color: var(--gold); font-weight: 800; }
+
+  /* ---------- trạng thái xe: 1 hàng nhỏ ---------- */
+  #status { position: absolute; left: 22px; top: 262px; display: flex; gap: 8px; }
+  #status2 { position: absolute; right: 22px; top: 262px; display: flex; gap: 8px; }
+  .chip { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; font-size: 21px; font-weight: 800; border-radius: 22px; background: var(--lacquer); white-space: nowrap;
+    box-shadow: inset 0 0 0 2px rgba(242, 193, 78, .18); }
+  .chip.speedo { gap: 6px; min-width: 138px; justify-content: center; }
+  .chip.speedo b { font-family: 'Bungee', sans-serif; font-weight: 400; font-size: 26px; color: var(--gold); }
+  .chip.speedo small { font-size: 16px; font-weight: 700; color: var(--paper-dim); }
+  .chip.speedo.back { background: var(--persimmon); } .chip.speedo.back b { color: var(--paper); }
+  .chip.speedo.fast { box-shadow: inset 0 0 0 2px var(--gold); }
+  .fuelbar { width: 92px; height: 12px; border-radius: 6px; background: rgba(255, 244, 220, .18); overflow: hidden; }
+  .fuelbar i { display: block; height: 100%; background: var(--gold); transition: width .2s linear; }
+  .chip.low { background: var(--persimmon); animation: pulse .5s infinite; }
+  .chip.ready { background: var(--jade); }
+  #cdriver span { max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---------- quà 2 phe: 2 dải hẹp sát mép ---------- */
+  .legend { position: absolute; top: 322px; width: 196px; padding: 0 0 8px; overflow: hidden; }
+  .legend.l { left: 14px; } .legend.r { right: 14px; }
+  .legend h4 { margin: 0 0 4px; padding: 5px 12px 6px; font-size: 20px; font-weight: 800; }
+  .legend.l h4 { background: var(--jade); } .legend.r h4 { background: var(--persimmon); }
+  .lg { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; }
+  .lg img { width: 23px; height: 23px; object-fit: contain; flex: none; }
+  .lg .e { width: 26px; text-align: center; font-size: 19px; flex: none; }   /* 14–16 trò mỗi phe: dòng 26 px cho gọn */
+  .lg span { overflow: hidden; text-overflow: ellipsis; }
+  .legend .free { margin: 4px 10px 0; padding-top: 6px; border-top: 1px solid rgba(242, 193, 78, .25); font-size: 17px; font-weight: 700; color: var(--paper-dim); line-height: 1.3; }
+
+  /* ---------- tin nổi ---------- */
+  #feed { position: absolute; left: 228px; right: 228px; top: 330px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .toast { display: flex; align-items: center; gap: 8px; max-width: 100%; height: 46px; padding: 0 16px 0 6px; border-radius: 23px; font-size: 21px; font-weight: 700;
+    background: var(--lacquer); white-space: nowrap; animation: tin .25s ease-out; }
+  .toast.cuu { box-shadow: inset 4px 0 0 var(--jade-hi); } .toast.pha { box-shadow: inset 4px 0 0 var(--persimmon-hi); }
+  .toast .nm { max-width: 190px; overflow: hidden; text-overflow: ellipsis; font-weight: 800; }
+  .toast .x { color: var(--gold); }
+  .toast .av { width: 34px; height: 34px; font-size: 16px; }
+  @keyframes tin { from { transform: translateY(-10px); opacity: 0; } }
+
+  /* ---------- băng rôn sự kiện: dải lụa đỏ viền vàng ---------- */
+  #banner { position: absolute; left: 60px; right: 60px; top: 690px; text-align: center; pointer-events: none; }
+  #banner .b { display: inline-block; max-width: 100%; padding: 14px 40px 16px; border-radius: 6px; font-size: 40px; font-weight: 900; line-height: 1.15;
+    color: var(--paper); background: linear-gradient(180deg, #c42f25, var(--plate)); text-shadow: 0 2px 0 rgba(60, 10, 6, .6);
+    box-shadow: 0 10px 24px rgba(40, 6, 2, .45), inset 0 0 0 3px var(--gold-dim), inset 0 0 0 6px var(--plate), inset 0 0 0 7px rgba(242, 193, 78, .55);
+    animation: pop .3s cubic-bezier(.2, 1.4, .4, 1); }
+  #banner .b small { display: block; margin-top: 4px; font-size: 26px; font-weight: 700; color: var(--gold); text-shadow: none; }
+  #banner .b.cuu { background: linear-gradient(180deg, #24b07a, #168257); box-shadow: 0 10px 24px rgba(4, 40, 20, .45), inset 0 0 0 3px var(--gold-dim), inset 0 0 0 6px #168257, inset 0 0 0 7px rgba(242, 193, 78, .55); }
+  #banner .b.pha { background: linear-gradient(180deg, #ef6a3f, #c8401f); }
+  #banner .b.gold { color: var(--lacquer-solid); text-shadow: none; background: linear-gradient(180deg, #f8d777, var(--gold)); box-shadow: 0 10px 24px rgba(40, 6, 2, .4), inset 0 0 0 3px #b07d1c; }
+  #banner .b.gold small { color: #6e1712; }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } }
+
+  /* ---------- khung dừng xe / cứu nạn ---------- */
+  #rescue { position: absolute; left: 228px; right: 228px; top: 330px; padding: 12px 18px 16px; text-align: center; border-radius: 16px; box-shadow: 0 6px 16px rgba(30, 8, 4, .35), inset 0 0 0 2px var(--gold); }
+  #rescue .t { font-size: 25px !important; font-weight: 800; line-height: 1.25; }
+  #rescue .t small { font-size: 19px !important; color: var(--paper-dim) !important; }
+  #rescue .sec { margin-top: 6px; font-family: 'Bungee', sans-serif; font-size: 48px; line-height: 1; color: var(--gold); }
+  #rescue .bar { height: 14px; margin-top: 10px; border-radius: 7px; background: rgba(255, 244, 220, .16); overflow: hidden; }
+  #rescue .bar i { display: block; height: 100%; background: var(--jade-hi); transition: width .2s; }
+
+  /* ---------- chờ ván / kết quả ---------- */
+  .card { position: absolute; left: 80px; right: 80px; top: 420px; padding: 34px 40px 36px; text-align: center; border-radius: 20px;
+    background: rgba(58, 23, 18, .94); box-shadow: 0 16px 40px rgba(30, 8, 4, .5), inset 0 0 0 3px var(--gold-dim), inset 0 0 0 9px rgba(58, 23, 18, .94), inset 0 0 0 10px rgba(242, 193, 78, .45); }
+  .card h1 { margin: 0; font-family: 'Bungee', sans-serif; font-weight: 400; font-size: 60px; line-height: 1.05; color: var(--gold); text-shadow: 0 4px 0 #6e1712; }
+  .card h2 { margin: 12px 0 0; font-size: 32px; font-weight: 800; color: var(--paper); }
+  .card .cd { margin: 6px 0 2px; font-family: 'Bungee', sans-serif; font-size: 116px; line-height: 1; color: var(--paper); }
+  .card .how { margin: 18px auto 0; max-width: 820px; text-align: left; font-size: 25px; font-weight: 600; line-height: 1.55; color: var(--paper-dim); }
+  .card .how b { font-weight: 800; }
+  .card .how b.g { color: var(--jade-hi); } .card .how b.r { color: var(--persimmon-hi); } .card .how b.y { color: var(--gold); }
+  .card .stat { margin-top: 14px; font-size: 22px; font-weight: 700; color: var(--paper-dim); }
+  .cols { display: flex; gap: 16px; margin-top: 22px; text-align: left; }
+  .col { flex: 1; padding: 14px 16px; border-radius: 14px; background: rgba(255, 244, 220, .06); }
+  .col h3 { margin: 0 0 8px; font-size: 24px; font-weight: 800; }
+  .col.cuu h3 { color: var(--jade-hi); } .col.pha h3 { color: var(--persimmon-hi); }
+  .pr { display: flex; align-items: center; gap: 10px; font-size: 24px; font-weight: 800; margin: 8px 0; }
+  .pr .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pr .xu { color: var(--gold); }
+  .note { margin-top: 16px; padding: 12px 18px; border-radius: 12px; font-size: 26px; font-weight: 800; line-height: 1.3; background: rgba(255, 244, 220, .07); }
+  .note.trash { color: var(--jade-hi); } .note.pen { color: var(--persimmon-hi); }
+  .card.win h1 { color: var(--jade-hi); text-shadow: 0 4px 0 #0b5a37; }
+  .card.lose h1 { color: var(--persimmon-hi); text-shadow: 0 4px 0 #6e1712; }
+  .card.depot { top: 360px; padding: 22px 30px 24px; } .card.depot h1 { font-size: 46px; } .card.depot .cols { margin-top: 12px; } .card.depot .note { margin-top: 10px; padding: 8px 14px; font-size: 22px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c" width="1080" height="1920"></canvas>
+  <div id="hud">
+    <div id="top" class="panel">
+      <div class="plate">
+        <span class="city">CÀ MAU</span>
+        <div class="track" id="track"><span class="end l"></span><div class="fill" id="tfill"></div><span class="bike" id="tbike">🚌</span><span class="end r"></span></div>
+        <span class="city">HÀ GIANG</span>
+        <div class="timer" id="timer">4:00</div>
+      </div>
+      <div class="where"><div class="prov" id="prov"><b>Cà Mau</b>Mũi Cà Mau</div><div class="dist" id="dist"><b>0</b>/6 km</div><div id="round">Ván 1</div></div>
+    </div>
+    <div id="tug" class="panel">
+      <div class="tugbar"><div class="cuu" id="tcuu" style="width:50%"></div><div class="knot" id="tknot" style="left:50%"></div>
+        <div class="lab l" id="tl">Cứu <b>0</b></div><div class="lab r" id="tr"><b>0</b> Phá</div></div>
+      <div class="tugsub"><span id="tsl">Bình luận <b>1</b> để lên xe</span><span id="tsr">Bình luận <b>2</b> để vào phe Phá</span></div>
+    </div>
+    <div id="status">
+      <div class="chip speedo" id="cspeed"><b id="speed">0</b><small>km/h</small></div>
+      <div class="chip" id="cfuel">⛽<div class="fuelbar"><i id="fuel" style="width:100%"></i></div></div>
+      <div class="chip hidden" id="cshield">⛑️ <span id="shield">0</span></div>
+      <div class="chip" id="cram">💥 Húc</div>
+    </div>
+    <div id="status2">
+      <div class="chip" id="cdriver">🧑‍✈️ <span id="driver">Streamer</span></div>
+      <div class="chip" id="cpax">🧳 <span id="pax">0</span></div>
+    </div>
+    <div class="legend panel l" id="lgl"><h4>Quà phe Cứu</h4><div id="lgcuu"></div><div class="free">❤️ Tim, ↗️ chia sẻ: thêm gió và xăng</div></div>
+    <div class="legend panel r" id="lgr"><h4>Quà phe Phá</h4><div id="lgpha"></div></div>
+    <div id="feed"></div>
+    <div id="banner"></div>
+    <div id="rescue" class="panel hidden"><div class="t" id="rtxt">🌪️ Lốc xoáy</div><div class="sec" id="rsec">10</div><div class="bar"><i id="rbar" style="width:0%"></i></div></div>
+    <div id="lobby" class="card hidden"></div>
+    <div id="result" class="card hidden"></div>
+  </div>
+</div>
+<script type="importmap">
+  { "imports": { "three": "/games/quaivat/vendor/three.module.min.js", "three/addons/": "/games/quaivat/vendor/addons/" } }
+</script>
+<script src="/socket.io/socket.io.js"></script>
+<script type="module" src="/games/duongveque/game.js"></script>
+</body>
+</html>

@@ -1,0 +1,234 @@
+# 🛵 Đường Về Quê — xe 2D chở cả đoàn về quê, 2 phe Cứu / Phá
+
+Ngày: 03/11/2026 · Nhánh `tuongtac/duongveque` (worktree `.claude/worktrees/duongveque`) · chưa release.
+Thuộc nhóm 🎮 Game Tương Tác (1 dòng trong `public/games/gametuongtac/registry.js`).
+
+> Đổi tên 03/11: "Bến xe Cà Mau bốc cháy" → **"Nơi tập kết bốc cháy"** (user: gắn địa danh thật với hoả hoạn gây lo lắng).
+
+## Ý tưởng (user chốt trong phiên)
+
+- Game kiểu "Tumble Truck" nhưng 2D cuộn ngang, chất Việt: xe chạy **100 km/h** về quê ăn Tết, quãng đường **6 km**.
+- Bản đồ nhỏ, người nhỏ (VS 0,5 · 26 px/m), xe đứng lệch trái để vật cản / xe container / lốc xoáy **lao tới từ bên phải** thấy rõ.
+- Xe chở **cả đoàn người xem**: 🚌 xe buýt (6 cửa sổ + ngồi trên nóc) hoặc 🐂 xe bò có máng gỗ (2 hàng). 🛵 xe máy vẫn chọn được.
+- Bình luận **1** = phe Cứu + lên xe (ảnh đại diện ngồi trên xe) · **2** = phe Phá (xuống xe).
+- **Quà tài xế** (mặc định Mũ lưỡi trai 99 xu): lên lái `dvqDriverSec` = 180 giây, người sau xếp hàng, hết giờ đổi người; **không ai chờ → người đang lái giữ nguyên**. Tự tặng thêm = cộng giờ, ×N = N lượt. Tặng lúc chờ ván vẫn nhận lái ngay.
+
+## Tuyến Cà Mau → Hà Giang · đoàn xe · dọc đường (đợt 2, 03/11)
+
+- **Tuyến 34 tỉnh, thành sau sắp xếp 2025** (NQ 202/2025/QH15) — `public/games/duongveque/route.js`: Mũi Cà Mau → Cột cờ Lũng Cú.
+  Mỗi tỉnh 1/34 quãng đường, có `old` (tỉnh cũ đã gộp, hiện trên biển chào), `landmark`, `biome` (delta · fields · city · highland ·
+  coast · heritage · karst · mountain → cảnh xa / giữa / ven đường / nền trước), `lm` (công trình mốc vẽ riêng: Landmark 81, Cầu Rồng,
+  Đại Nội, Vịnh Hạ Long, Hồ Gươm, Thác Bản Giốc…). Test kiểm 34 + các tỉnh cũ = đúng 63.
+- **Đoàn xe**: mỗi xe `dvqSeats` 14 ghế; đầy thì nối xe sau (tối đa `dvqMaxCars` 5), đoàn càng dài cả cảnh càng thu nhỏ (zoom = 1 / (1 + 0,27 × (số xe − 1)): 1 → 0,48). Người ngồi
+  thấy **đầu + vai** (ảnh đại diện làm mặt, áo màu theo người).
+- **Lộ trình mỗi ván** (`game.plan`): 🍜 trạm dừng chân (40%, 30 giây, cả đoàn xuống ăn) · ⛽ trạm xăng (70%, 15 giây, đầy bình, đi vệ sinh) ·
+  🚓 CSGT (70% ván có, vị trí ngẫu nhiên: thả `dvqPoliceLikes` 2.000 tim mới được đi, quà Cứu 1 xu = 10 tim, quá 45 giây nộp phạt lùi 150 m) ·
+  3 tình huống đúng nơi: 🚗 kẹt xe (TP.HCM, Hà Nội) · 🚂 chắn tàu (Bắc Trung Bộ, đồng bằng Bắc Bộ) · 🐄 đàn bò (cao nguyên) · 🛞 thủng lốp
+  (thả 600 tim bơm) · 🤢 say xe (đèo núi) · 📸 check-in (Hải Vân, Hạ Long, Sa Pa) · 🧧 lì xì (Cao Bằng, Hà Giang). 📞 Mẹ gọi điện dọc đường (chỉ hình).
+- **Mọi điểm dừng đều dừng đồng hồ ván** và quà tặng lúc dừng **gộp thành 1 cú đẩy ròng** khi xe đi tiếp — cả hai đều do mô phỏng bắt được
+  (đồng hồ chạy lúc dừng → Phá 25/40; quà dồn chạy lần lượt container/lốc xoáy → giữ xe đứng lâu). Bị đẩy vọt qua điểm dừng > 300 m → bỏ qua.
+- Bảng cân bằng sau đợt 2 (lộ trình bật): ngang xu 20–20 · Cứu 55% 26–14 · Phá 65% 6–34 · Cứu 75% 38–2 · phòng ít quà 9–31 (→ đường 3 km).
+- Thử: `?event=rest|gas|police|flat|train|cows|jam|carsick|photo|lixi`, panel có hàng nút "🗺️ Dọc đường".
+
+## Quãng đường theo thời gian ván (03/11)
+
+- `dvqGoal` 0 (mặc định) = tự theo thời gian ván: `goalFor(roundSec)` = 25 m/giây (4 phút → 6 km, 10 phút → 15 km), nên mỗi tỉnh luôn
+  ~1/34 thời gian ván (10 phút ≈ 16 giây/tỉnh). Số tình huống dọc đường `roadEventsFor` 3 → 7, cờ mốc `flagEveryFor` = 12 mốc đều.
+- Bị đẩy về nơi tập kết: ván giữ thêm `depotFireSec` 9,5 giây cho bến cháy xong (lan → dữ dội → cháy đen) rồi mới hiện thẻ kết quả.
+- Mô phỏng 200 ván / kịch bản, ván 10 phút tự 15 km, 7 tình huống: ngang xu 52–48 · Cứu 55% 66–34 · Phá 65% 7–93.
+  Thử thật trong trình duyệt (demo 10 phút): đủ trạm dừng chân / trạm xăng / CSGT / thủng lốp, người xem ảo tự thả tim cho qua.
+
+## Luật (thuần, `public/games/duongveque/logic.js`, test `tests/duongveque-logic.test.mjs`)
+
+- Mọi quà quy ra **mét theo xu** (`meterPerCoin` 5, tối thiểu 15 m) → quà Cứu và quà Phá cùng giá triệt tiêu nhau. Tặng ×N chạy đủ (gộp xu).
+- 🛡️ Cứu: gió xuôi · đổ xăng · nitro · mũ bảo hiểm (lá chắn = số mét) · đoàn phượt · xe cứu hộ · trực thăng · lên làm tài xế.
+- ⚔️ Phá: vỏ chuối · ổ gà (≤ `dodgeMax` xu thì NHẢY né được) · chó rượt · đàn vịt (HÚC dẹp được) · mưa ngập · xe container (HÚC đúng lúc giảm ½) · lốc xoáy (10 giây phe Cứu gom 30% giá lốc thì thoát).
+- Quà chưa gán → phe người tặng đã chọn (bình luận 1/2, mặc định `dvqDefaultSide`) + bậc giá (`min`). Tài xế chỉ chạy khi đã gán (min = ∞).
+- Xăng tụt `fuelBurn` 3 %/giây; hết xăng 10 giây không ai đổ → dắt bộ 3 m/giây. Tim cả phòng (`likePer` 300) / chia sẻ / follow cho chút xăng.
+- Thắng: về tới cổng làng → Cứu. Hết giờ **hoặc bị đẩy lùi về nơi tập kết** (quá vạch xuất phát `backFloor` 0,25 × quãng đường) → Phá. 30 giây cuối mọi quà ×2.
+- Cú đẩy dài chạy theo thời gian (≤ 300 m/giây, tối đa 5 giây) để người xem kịp thấy bị đẩy tuột.
+- Thua là vào thùng rác: HÚC trúng → người tặng bay vào thùng rác; Cứu thắng → top Phá vào thùng; Phá thắng → streamer vào thùng + top Phá chọn hình phạt vui (`dvqPenalties`).
+- Phản bội: đang Cứu mà tặng Phá → băng rôn 🐍.
+- LIVE dài: nhớ tối đa 300 người lên xe, quá 2.000 người xem thì đầu ván dọn người không còn trên xe / không lái.
+
+## Cân bằng (đo, không đoán)
+
+`scratchpad/dvq-soak.mjs` của phiên: 40 ván / kịch bản, 1 quà/giây, Tự lái bật.
+
+| Kịch bản | Cứu | Phá |
+|---|---|---|
+| 2 phe ngang xu | 21 | 19 |
+| Cứu 55% xu | 20 | 20 |
+| Cứu 75% xu | 37 | 3 |
+| Phá 65% xu | 4 | 36 |
+| Phòng ít quà (0,25 quà/giây) | 11 | 29 → nên chọn đường **3 km** |
+
+Hai lỗi cân bằng đã sửa nhờ đo: (1) quà Phá to bị chặn ở vạch 0 còn quà Cứu to về đích ngay → cho lùi quá vạch + nơi tập kết = Phá thắng; (2) Tự lái né/húc quá giỏi (55%/45%) làm quà rẻ của Phá vô dụng → 30%/25%.
+
+## Trò kinh dị hài phe Phá · trừ tà phe Cứu (đợt 3, 03/11)
+
+User: "thêm thật nhiều trò hay, hấp dẫn, hài hước và man rợ kinh dị". Mỗi phe thêm 7 trò, chen vào thang giá (quà chưa gán
+tự chọn theo bậc giá). Vẫn giữ **mọi quà quy ra mét theo xu** → 2 phe cùng giá vẫn triệt tiêu.
+
+| Giá | 🛡️ Cứu | Tác dụng | ⚔️ Phá | Tác dụng |
+|---|---|---|---|---|
+| 5 | 💸 Chủ nợ rượt | chủ nợ chạy xe máy dí theo hét "Mày không trả nợ cho tao à?!" (10 câu ngẫu nhiên), tài xế hoảng đạp ga → đẩy tới (thay "Bánh chưng mẹ gửi": đang từ phố về quê nên vô lý) | 🐦‍⬛ Quạ ỉa kính | bầy quạ ỉa trúng kính, chậm nhẹ 3 giây |
+| 9 | 🧄 Tỏi trừ tà | xoá trò kinh dị | 🐍 Rắn chui gầm xe | khách hoảng nhảy trong xe; HÚC được |
+| 15 | 🦁 Múa lân mở đường | dọn vật cản phía trước rồi đấu đội quan tài / ma | 👻 Ma vẫy xe | ma áo dài trắng tóc xoã giữa đường, phanh gấp 1,5 giây, màn tối + chớp |
+| 30 | 🐃 Trâu húc đít xe | húc văng chó, vịt, rắn, cá sấu, zombie | 🐊 Cá sấu đớp khách | nhảy lên nóc đớp 1 khách kéo xuống ao; khách bơi về sau `crocSec` (12) giây; HÚC / trừ tà cứu ngay |
+| 88 | 🧙 Thầy pháp trừ tà | đứng trên nóc múa kiếm, bùa bay; xoá mọi trò kinh dị + quạ | 👹 Quỷ nhập tài xế | sừng + mắt đỏ, màn viền đỏ, xe đứng 5 giây, **khoá NHẢY/HÚC** |
+| 100 | 🎆 Pháo hoa Tết | xoá mọi trò phe Phá đang chạy (trừ vật cản, container, lốc) | ⚰️ Đội khiêng quan tài | 4 người áo đen kính đen nhảy khiêng quan tài "VỀ NƠI TẬP KẾT", xe đứng 6 giây |
+| 199 | 🦸 Siêu nhân vác xe | vác cả đoàn xe bay trên vai | 🧟 Bầy zombie | 9 zombie bám đầu + leo nóc xe, chậm 0,2× 7 giây; HÚC chỉ văng một nửa |
+
+- **Trừ tà theo xu** (`exorcise` trong logic.js, nhóm được xoá ở `COUNTER`): xoá phần đẩy lùi CÒN LẠI của trò đúng loại, cũ trước,
+  tối đa đúng số mét của quà trừ tà; dư bao nhiêu thành đẩy tới; xoá sạch thì trò tắt hình. Kẻ phá có trò bị xoá sạch → **bị ném vào thùng rác**.
+  Ví dụ ma 100 xu + tỏi 40 xu → vẫn lùi 60 xu; tỏi khi không có tà → thành đẩy tới như gió.
+- Quạ / rắn / ma đã cân lại để phần làm chậm không "lời" quá giá quà (quạ 3 giây ×0,85, rắn ×0,8, ma chỉ phanh `blockT` 1,5 giây).
+- Quỷ nhập: `input('jump'|'ram')` trả false + sự kiện `possessed`. Cá sấu: `g.lost` (khách rời ghế, `passengers()` không tính),
+  sự kiện `snatch` / `victimBack {how: swim|ram|saved}`.
+- Vẽ: khối "trò kinh dị · trừ tà" trong `game.js` (`FUN_DRAW`, `drawFun`, `drawHorrorVeil`) — canvas 2D theo SX/contactY nên bản 3D
+  (`?r=3d`) cũng vẽ chồng được. Đang có trò kinh dị thì không hiện xe ủi (trò tự có hình). Âm thanh tổng hợp mới: `spooky`, `drum`, `dance`, `chomp`, `boom`.
+- **Thang giá 1–199 xu** (user: "quà nhiều xu quá khó ai chịu chơi"): cột Giá ở bảng trên là `min` khi quà chưa gán; trò cũ cũng dồn
+  xuống (gió 0 · xăng 2 · nitro 10 · mũ 20 · phượt 49 · cứu hộ 99 · trực thăng 149 | chuối 0 · ổ gà 2 · chó 10 · vịt 20 · mưa 49 ·
+  container 99 · lốc 149). Test khoá: mọi trò < 200 xu.
+- Quà gợi ý (`data.json`, tất cả ≤ 199 xu, cặp cùng giá 2 phe): 5 quả đào (chủ nợ) ↔ Phản ứng quá lố (quạ) · 10 Chú heo may mắn (tỏi) ↔ Nhìn là mê (rắn) ·
+  15 Hoan hô! (lân) ↔ 20 little kisses (ma) · 99 Bom kẹo (trâu) ↔ Bắt cóc bò sữa (cá sấu) · 100 Tiểu tinh tú (thầy pháp) ↔ 99 Cung thần mê hoặc (quỷ) ·
+  149 Bóng bay trái tim (cứu hộ) ↔ Sâu bướm làm loạn (container) · 149 Bỏng ngô tán gẫu (pháo hoa) ↔ Catrina (quan tài) ·
+  199 Bạch tuộc lững lờ (trực thăng) ↔ Ảo thuật cà phê (lốc) · 199 Nước dừa sảng khoái (siêu nhân) ↔ Nụ hôn chíp chíp (zombie).
+  Quà trùng Nhà Tù còn lại là quà cũ (TikTok, Trái bóng xoáy, Mũ lưỡi trai, Pháo hoa giấy, Kính râm, Sao đêm).
+  Chú giải quà gọn lại 29 px/dòng cho 14 dòng mỗi phe.
+- **Chạm rồi mới đẩy** (user: xe phe Phá phải chạm xe rồi xe mới lùi, không tự lùi trước): cú đẩy có `lead` giây tiếp cận
+  (`PUSH_LEAD` trong logic.js, `p.t < 0` = đang tới): xe ủi chung (quà dồn, nộp phạt, chó, vịt, mưa) 0,4–0,8 · rắn 1,2 · ma 0,8 ·
+  cá sấu 0,7 · quỷ 0,5 · quan tài 1,3 · zombie 1,4; phe Cứu đẩy từ phía sau cũng vậy (cứu hộ 0,5 · trâu 0,6 · siêu nhân 0,8).
+  Xe ủi (2D + 3D) lái vào theo đúng tiến độ `1 + t/lead`, chạm đầu xe lúc cú đẩy bắt đầu; tổng mét không đổi.
+- Cá sấu đớp khách ở vùng không có ao/sông (cao nguyên, núi, thành phố…) → khách chạy bộ đuổi theo xe thay vì bơi.
+- **Đo cân bằng 200 ván** (`dvq-soak.mjs`, mặc định 4 phút / 6 km, quà chọn bậc cao nhất theo giá nên trò mới được dùng nhiều):
+  2 phe ngang tiền 99/101 → **100/100**; 55% Cứu 123/77 → 120/80; 75% Cứu 182/18 → 182/18; 35% Cứu 30/170 → 30/170; không NaN.
+  Phe Cứu thắng nhanh hơn khi đã thắng (trung bình 77 → 59 giây ở kịch bản ngang).
+- **Đo lại với quà rẻ** (người xem ảo chỉ tặng 1–199 xu, 200 ván, `soak-cheap-*.mjs`): cũ → mới 2 phe ngang tiền 135/65 → 134/66 ·
+  55% Cứu 165/35 → 156/44 · 35% Cứu 43/157 → 27/173 · 75% Cứu 191/9 → 198/2; hàng chờ trò độc chiếm tối đa 2; không NaN.
+  ⚠️ Phòng chỉ tặng quà rẻ thì 2 phe ngang tiền phe Cứu vẫn thắng ~2/3 (xe tự chạy tới đích trước giờ, quà nhỏ không đủ lắc) — có từ
+  bản cũ, không do trò mới. Tăng `meterPerCoin` kéo về gần 50% nhưng ván kết thúc quá nhanh (15 m/xu: Cứu thắng sau ~40–50 giây)
+  → GIỮ 5 m/xu, để streamer tự chỉnh ô "mét/xu" trong panel; muốn cân lại thì nên chỉnh đường dài/xe chậm hơn thay vì mét/xu.
+- Thử: `?mute=1&lobby=0.3&warp=1&riders=14` rồi `__dvq.sim('gift', {action:'croc', coins:99})`; panel tự có nút thử cho mọi trò.
+
+## Đợt 4 (03/11, theo yêu cầu user trong phiên)
+
+- **Mỗi xe một tài xế:** `g.drivers[i]` (`g.driver` = xe đầu, giữ tương thích). Quà Tài xế: đang lái → cộng giờ; không thì xe còn trống
+  đầu tiên (trong số xe đang có) → xe có người hết giờ đang giữ lái → xếp hàng chung. Mỗi xe tự đếm giờ, hết giờ người đầu hàng lên đúng xe đó;
+  đoàn thêm xe thì người chờ tự lên xe mới. Tài xế xe sau vẫn tính 1 chỗ của đoàn (xe không biến mất khi họ rời ghế khách).
+  Hình: mặt tài xế ở cửa lái mọi xe, nhãn "🧑‍✈️ XE n · tên · giờ", băng rôn "LÊN LÀM TÀI XẾ XE n", HUD "+N xe".
+- **Ghế + trạm dừng chân đông người:** thả tim cũng lên xe (trừ phe Phá); ghế xếp theo điểm ván này = xu Cứu × coinLikes (10) + tim.
+  Người dùng lưu `likesAll` / `coinsAll` qua các ván. `g.crowd()` = người đang ngồi xe rồi tới người từng thả tim / tặng quà nhiều nhất
+  (cả phe Phá), tối đa `crowdMax` 100. Trạm dừng chân: sân trạm lát gạch, bàn nhựa xanh ghế đỏ dù quán, 40–100 người đứng thành nhóm 4,
+  18% đi dạo; 3 người nói cùng lúc (đổi mỗi 2,5 giây) câu hỏi Tết ("Có người yêu chưa? 😏", "Thưởng Tết nhiều hông?"…); ít người xem thì
+  thêm dân quanh trạm cho đủ 40. Ảnh đại diện vẽ sẵn vào canvas nhỏ (`avatarSprite`, LRU 700) → 100 người không phải cắt tròn từng mặt.
+- **💸 Chủ nợ rượt** thay 🍙 Bánh chưng mẹ gửi (đang từ phố về quê nên vô lý): chủ nợ chạy xe máy dí theo, đòi nợ ĐÍCH DANH 1 người
+  trong top 10 tặng quà + thả tim (`g.topFans(10)`, trừ người tặng) với 10 câu ngẫu nhiên ("Ê {tên}! Mày không trả nợ cho tao à?!"…),
+  khách hoảng nhảy trong xe, tài xế đạp ga → đẩy tới (tiếp cận 0,7 giây). Sự kiện `debt {user, debtor}`.
+- **🏁 Về cổng làng đếm ngược 15 giây** (`finishSec`): đoàn đỗ ở cổng, đồng hồ ván dừng, trạm dừng còn lại bỏ qua; phe Phá đẩy lùi
+  khỏi đích thì huỷ đếm (`finishCancel`) và chạy tiếp; giữ đủ 15 giây mới hiện thắng. Khung đếm ngược dùng khung cứu nạn của HUD.
+- **Cảnh theo 63 tỉnh cũ** (`route.js` `PARTS` + `partAt`): mỗi tỉnh mới chia đều quãng cho các tỉnh cũ đã gộp (đi Nam → Bắc), mỗi
+  đoạn có kiểu cảnh (thành phố / thôn quê / biển / núi / cố đô) + 2–4 nét đặc trưng + biển chào riêng. 74 nét vẽ trong `FEAT` (game.js):
+  rừng đước, quạt gió điện, ruộng muối, nhà công tử, chùa Khmer, thốt nốt, chợ nổi, cầu dây văng, đồng sen, lò gạch Mang Thít, thanh long,
+  Tòa Thánh Cao Đài, cao su, Landmark 81, chợ Bến Thành, KCN, hải đăng, giàn khoan, điều, tiêu, đồi cát, tháp Chăm, cà phê, thác, nhà kính
+  Đà Lạt, nho, cừu, voi, nhà rông, nhà thờ Gỗ, tỏi Lý Sơn, phố Hội An, Ngọ Môn, chùa Thiên Mụ, thuyền rồng, hang, núi đá vôi, đồi chè,
+  nhà thờ đá, đình làng, nhãn, vải, cảng, phượng đỏ, thuyền buồm Hạ Long, quan họ, Tháp Rùa, Chùa Một Cột, cầu Long Biên, nhà ống,
+  thủy điện, bò sữa Mộc Châu, hoa mận/đào, đồi A1, ruộng bậc thang, biển mây, cáp treo Fansipan, hoa tam giác mạch, nhà sàn…
+  Lớp giữa mỗi ô 62% là nét đặc trưng, còn lại là nền kiểu cảnh; màu cảnh pha dần ở 18% cuối mỗi đoạn tỉnh cũ.
+  Sang tỉnh cũ kế: biển xanh nhỏ "BẠC LIÊU · nay thuộc Cà Mau" + băng rôn; HUD ghi "Cà Mau · Bạc Liêu · Cánh đồng điện gió".
+- **🍜 Quán ăn vỉa hè** (`food.js` FOOD, 63 tỉnh cũ × 2 món + câu mời giọng địa phương, soạn bởi agent writer): mỗi tỉnh cũ 2 xe đẩy dù
+  quán, bảng tên món, khói thơm, người bán đội nón lá vẫy; chỉ người bán GẦN NHẤT phía trước đoàn xe gọi mời (bóng thoại).
+  Ví dụ Gia Lai "Mời ăn Bún cua thúi với Phở khô Gia Lai nhé!". Món kém chắc (cần người quê xem lại): Đồng Nai, Bình Phước, Đắk Nông
+  (nông sản thay món quán), Điện Biên / Lai Châu (món chung Tây Bắc), Bình Dương "Bánh bèo bì Bến Cát", Long An "Thanh long".
+- Test mới: tài xế nhiều xe (2), ghế theo tim + quà, đám đông trạm dừng, chủ nợ top 10, đếm ngược cổng làng (+ huỷ khi bị đẩy lùi),
+  không dừng trạm khi đã tới đích (đã thấy fail trước khi sửa), 63 tỉnh cũ đủ + partAt Nam → Bắc, 63 tỉnh có 2 món + câu mời đúng độ dài.
+
+- **📣 HP Media tuyển Idol LIVE:** lâu lâu (mỗi đoạn 700 m ~50%, ≈ 40–50 giây/lần) 2–3 người ven đường giơ bảng "HP MEDIA – TUYỂN IDOL LIVE",
+  nhún theo nhịp, gọi "📣 Tuyển Idol LIVE nè!" khi đoàn tới gần; đứng ở 58% đoạn tỉnh cũ, né quán ăn (đoạn chật thì bỏ lượt).
+  Trạm dừng chân có nhân viên HP Media (áo trắng chữ HP, đeo thẻ, kẹp hồ sơ, kính đen) cứ 3,2 giây đi tới 1 người trong đám đông, gọi tên
+  mời: "{tên} ơi, Chị làm idol không?", "Chị muốn lương 200–5000$ không?", "Chị rất hợp làm idol nhà HP Media đó!", "HP Media đào tạo
+  miễn phí nè!"… người được mời đáp ("Thật hả? 😳", "Để em hỏi mẹ đã…", "Ok chốt! 🤝").
+- **🏠 Quà Xuống xe** (`dropoff`, chỉ chạy khi GÁN quà; gợi ý "Vé hành trình" 10 xu): tặng xong được hỏi `dropAskSec` (45) giây — bình luận
+  tên tỉnh (cũ hoặc mới, có/không dấu, tên quen Sài Gòn / Vũng Tàu / Đà Lạt / Sa Pa…) hoặc BIỂN SỐ XE (`PLATES` 63 tỉnh cũ, VD 43 = Đà Nẵng,
+  29–33/40 = Hà Nội, 41/50–59 = TP.HCM) → `findPlace` (route.js). Tới giữa tỉnh cũ đó (chỗ quán đặc sản) thì thả xuống: đi bộ về làng xách
+  giỏ quà, chúc "🧧 Ăn Tết vui vẻ nha cả nhà!", băng rôn "XUỐNG XE Ở …". Chọn tỉnh đã qua → báo chọn lại (vẫn còn giờ). Bảng gợi ý trên
+  cảnh: tên người đang chọn + giây còn lại + 4 tỉnh sắp tới kèm biển số. Chỉ người vừa tặng quà mới được hiểu bình luận số là biển số.
+- **Không che nhau:** quán đặt cách biển chào ≥ 36 m, cách cuối đoạn ≥ 14 m, né công trình mốc giữa tỉnh ±26 m, 2 quán cách ≥ 28 m (đoạn ngắn
+  chỉ 1 quán); bảng tuyển idol, bảng tên món, biển chào tỉnh cũ đăng ký "vùng chiếm chỗ" trong lớp xếp nhãn → bóng thoại tự dời lên;
+  gần bảng tuyển idol thì quán không gọi mời.
+
+## Nối app
+
+- `server.js`: `GAMES.duongveque` (khoá `dvq*`, quà gợi ý từ `data.json`), `/overlay/duongveque`, `/api/duongveque/window/open` (Edge/Chrome --app), `/api/duongveque/key` + socket `duongveque:key` (jump | ram | start), `global.__dvqApplyHotkeys`.
+- `electron-main.js`: phím tắt toàn cục `dvqKeyJump/Ram/Start` (mặc định F7/F8/F9) → chơi được khi đang mở TikTok Studio.
+- Panel `duongveque-panel.js` (`window.HpDuongVeQuePanel`), view `#view-duongveque`, CSS `.dvq-*`, `app.js` 1 dòng.
+- Lệnh overlay qua `POST /api/games/duongveque/cmd`: `demo {on}` · `start` · `reset` · `end {winner}` · `key {action}` · `test {kind:'gift'|'like'|'share'|'follow'|'comment', action, coins, count, name, text}`.
+
+## Thử không cần LIVE
+
+- `/overlay/duongveque?demo=1` (người xem ảo 2 phe), bàn phím Space = nhảy, Enter = húc, S = bắt đầu.
+- Chụp cảnh: `?lobby=0.3&mute=1&riders=18&warp=1&at=2600&act=driver,tornado:1000&after=2&veh=oxcart&end=pha`
+  (`at` = đặt mét, `act` = quà ảo `hành_động:xu`, `end` = ép kết thúc). `?mute=1` bắt buộc khi chụp bằng Edge headless
+  `--virtual-time-budget` (AudioContext giữ đồng hồ ảo → treo). Đừng `warp` lớn trong headless (mỗi tick vẽ 1 khung).
+- Gỡ lỗi: `window.__dvq` (`game`, `step(giây)`, `sim(kind, opts)`, `freeze = true`).
+
+## Thử 3D (vertical slice, 03/11 — nhánh `tuongtac/duongveque-3d`)
+
+Bật bằng `?r=3d` (bản canvas 2D vẫn mặc định). Chỉ đổi phần VẼ: `render3d.js` (Three.js r160 dùng chung `/games/quaivat/vendor/`
+qua import map trong `overlay.html`); luật `logic.js` + `route.js` không đổi (40/40 test qua); HUD DOM giữ nguyên. Canvas 2D
+nằm trên canvas WebGL, chỉ còn vẽ nhãn tên / bong bóng thoại / chữ nổi theo toạ độ màn hình renderer trả về (lớp xếp nhãn LBL dùng lại).
+
+- **Camera:** phối cảnh FOV 24° đặt xa, chân trời ở y≈640, mặt đường dưới đầu xe ở (sx, 1184). Bề ngang nhìn thấy ở mặt đường
+  = 41,5 m × (1 + 0,27 × (số xe − 1)) — cùng công thức thu nhỏ bản 2D, đầu xe lùi sang phải đủ chỗ cho cả đoàn. `?fov=`, `?hz=` để chỉnh thử.
+- **Cảnh miệt vườn Cà Mau:** đường + vạch, sông phù sa, ao sen tiền cảnh, dừa (2 kiểu), dừa nước, chuối, bụi, nhà sàn mái lá chân cắm sông,
+  xuồng ba lá người đội nón lá (trôi), cột điện, hàng cây xa trong sương, mây. Mỗi loại đồ vật = 1 InstancedMesh màu đỉnh, sinh theo ô 40 m
+  bằng hash (đi lùi lại thấy đúng cảnh cũ), chỉ dựng lại khi đổi ô.
+- **Xe buýt chibi** "VỀ QUÊ ĂN TẾT" (cao ×1,3, bánh to), cửa sổ là hốc sâu nên vai khách bị mép dưới che tự nhiên; xe sau có biển
+  "ĐOÀN VỀ QUÊ · XE n" (1 atlas, 1 lệnh vẽ cho mọi biển); cành mai trên nóc xe đầu.
+- **Hành khách:** đầu cầu, ảnh đại diện chiếu phẳng từ phía trước (rìa ô trắng thành viền như bản 2D), không chịu ánh sáng; vai màu áo theo người.
+  Mọi khách + tài xế + kẻ phá = **2 lệnh vẽ** (atlas 1024×512, 128 ô 64 px, chọn ô qua thuộc tính instance `aCell`, tải lại atlas ≤ 4 lần/giây).
+  Không dùng nhân vật SkinnedMesh của Nhà Tù (`nhatu/js/character.js`): ~5 nghìn tam giác + 1 lệnh vẽ + texture xương mỗi người, trong khi
+  ngồi trong xe chỉ thấy đầu + vai — để dành cho người đi bộ ở trạm dừng nếu làm tiếp (nhớ `disposeCharacter`).
+- **Xe ủi phe Phá:** cùng điều kiện bản 2D (đang chạy, không dừng, không container/lốc, vận tốc trên màn < −6 m/s) → trượt vào từ phải,
+  lưỡi ủi tì đầu đoàn, mặt kẻ phá trong cabin, bụi + khói.
+- **Chưa có ở 3D:** chó, vịt, mưa, container, lốc xoáy, trực thăng, đoàn phượt, xe cứu hộ, vật cản, cảnh trạm dừng/CSGT, 7 vùng cảnh còn lại,
+  34 công trình mốc, xe bò / xe máy. An toàn: mất WebGL (`webglcontextlost`) → tự quay về 2D; bản 3D khoá ~60 khung/giây (`?cap=0` để đo).
+
+### Số đo (03/11, Edge headless 1080×1920, `?mute=1&warp=9&riders=N`, rAF không khoá; script CDP trong scratchpad)
+
+| | GPU RTX 4060 (ANGLE D3D11) | | | Không GPU (SwiftShader) | |
+|---|---|---|---|---|---|
+| Cảnh | khung/giây | lệnh vẽ · tam giác | CPU ms/khung¹ | khung/giây | CPU ms/khung¹ |
+| 2D · 14 khách (1 xe) | 71 | — | 4,3 | 22 | 26,6 |
+| 2D · 70 khách (5 xe) | 37 | — | 20,5 | 15 | 58,2 |
+| 3D · 14 khách | **153** | 27 · 42k | 2,1 | **3,9** | 1,1 |
+| 3D · 70 khách | **136** | 31 · 73k | 2,7 | ~0,1 (treo) | — |
+| 3D · 70 khách, `aa=0` | 145 | 31 · 73k | 2,4 | ~0,1 | — |
+| 3D · xe ủi đang đẩy | 138 | 27 · 41k | — | 2 | — |
+
+¹ chạy 120 khung đồng bộ (luật + vẽ) chia đều — với 3D là phần CPU gửi lệnh, KHÔNG gồm thời gian GPU. Số GPU là thông lượng headless
+(trình duyệt không khoá vsync), chỉ để so tương đối. Bản đầu (trước khi chỉnh theo review) là 28/33 lệnh vẽ, 64k/115k tam giác.
+
+**Kết luận:**
+- Có GPU: 3D nhẹ hơn hẳn 2D (2D tốn CPU theo số khách vì mỗi mặt là clip + drawImage; 3D gần như phẳng theo số khách nhờ instancing).
+  Bản 2D với 70 khách đã chỉ còn ~37 khung/giây ngay cả trên RTX 4060 → đằng nào cũng nên tối ưu bản 2D nếu giữ.
+- **Không GPU thì 3D không dùng được** (4 khung/giây). Electron của app tắt GPU → bản 3D phải chạy trong OBS Browser Source (có GPU)
+  hoặc cửa sổ Edge/Chrome như Zombie Phá Nhà; cần giữ bản 2D làm dự phòng (đã có: mất WebGL → 2D).
+- Chưa đo trên GPU tích hợp và trong OBS thật (render lag khi đang mã hoá) — việc phải làm trước khi quyết.
+- Đọc trên điện thoại: xe, biển, xe ủi rõ hơn 2D; mặt khách 1 xe ≈ ngang 2D, **đoàn 5 xe mặt chỉ ~10–14 px** (2D cũng vậy — do thu nhỏ đã chốt).
+
+**Khuyến nghị: làm tiếp có điều kiện.** Bước kế: (1) đo trên máy GPU tích hợp + OBS thật 1 giờ (`renderer.info.memory` phải đứng yên);
+(2) nếu đạt, làm bộ đồ cảnh dùng chung đổi màu theo vùng (7 vùng còn lại) + công trình mốc bằng ảnh vẽ dán lên tấm phẳng (34 mốc dựng
+low-poly ước 0,5–1 ngày/mốc — quá đắt); (3) chuyển lần lượt các hiệu ứng quà sang 3D, trong lúc đó hiệu ứng chưa chuyển vẫn vẽ 2D chồng lên.
+Góp ý chưa làm: góc nhìn 3/4 (xoay xe ~0,15 rad) cho sinh động; rút xe còn 5 cửa sổ; tối ưu nữa (Basic material cho mặt phẳng lớn +
+`alpha:false` vẽ trời trong WebGL, tự tắt MSAA khi gặp GPU tích hợp, `addUpdateRange`). Review đề xuất chặn thu nhỏ ở 0,65 cho mặt khách
+to hơn — trái ý đã chốt "đoàn dài càng thu nhỏ", để user quyết.
+Ngân sách đề xuất (GPU tích hợp, 60 khung/giây): GPU ≤ 8 ms, CPU ≤ 3 ms, ≤ 60 lệnh vẽ, ≤ 150k tam giác, texture ≤ 48 MB.
+
+## Còn lại
+
+- Thử OBS Browser Source 1080×1920 + cửa sổ game thật, phím tắt Electron F7/F8 thật, một buổi LIVE thật.
+- Nhiều quà gợi ý trùng Nhà Tù (6104 Mũ lưỡi trai = 👮 Cán Bộ, 5269, 5509, 5585, 6267…) — mọi overlay đang mở đều nhận quà, nên LIVE chỉ mở 1 game tương tác hoặc đổi bảng gán.
+- Chưa thêm `duongveque` vào danh mục khoá KEY (`lib/license-features.js`) → hiện mở cho mọi KEY (giống mọi game 🎮 Game Tương Tác khác; danh mục phải khớp trang quản trị HP KEY nên thêm cùng lúc cả nhóm).
+- Bản chibi 3D góc nhìn 2.5D: thử ở nhánh riêng (`?r=3d`), chưa thay bản 2D.

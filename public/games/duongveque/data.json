@@ -1,0 +1,272 @@
+{
+  "_note": "Bộ quà gợi ý 🛵 Đường Về Quê: cặp quà cùng giá cho 2 phe (Cứu ↔ Phá). Khớp giftId trước, rồi tên quà đúng cả chuỗi (names). Mức tác dụng luôn tính theo XU của quà thật nên đổi quà khác vẫn công bằng.",
+  "suggestedGiftMap": {
+    "wind": [
+      {
+        "giftId": "5655",
+        "giftName": "Hoa hồng",
+        "names": [
+          "Rose"
+        ],
+        "coins": 1,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eba3a9bb85c33e017f3648eaf88d7189~tplv-obj.webp"
+      }
+    ],
+    "banana": [
+      {
+        "giftId": "5269",
+        "giftName": "TikTok",
+        "coins": 1,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/802a21ae29f9fae5abe3693de9f874bd~tplv-obj.webp"
+      }
+    ],
+    "fuel": [
+      {
+        "giftId": "5487",
+        "giftName": "Bắn tim",
+        "names": [
+          "Finger Heart",
+          "Tim ngón tay"
+        ],
+        "coins": 5,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/a4c4dc437fd3a6632aba149769491f49.png~tplv-obj.webp"
+      }
+    ],
+    "pothole": [
+      {
+        "giftId": "105781",
+        "giftName": "Trái bóng xoáy",
+        "coins": 5,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/74a30ed3492d3e7d317efe7e10c3ba51.png~tplv-obj.webp"
+      }
+    ],
+    "nitro": [
+      {
+        "giftId": "5879",
+        "giftName": "Bánh vòng",
+        "names": [
+          "Doughnut",
+          "Donut"
+        ],
+        "coins": 30,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp"
+      }
+    ],
+    "dog": [
+      {
+        "giftId": "5658",
+        "giftName": "Nước hoa",
+        "names": [
+          "Perfume"
+        ],
+        "coins": 20,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/20b8f61246c7b6032777bb81bf4ee055~tplv-obj.webp"
+      }
+    ],
+    "helmet": [
+      {
+        "giftId": "5660",
+        "giftName": "Thả tim",
+        "names": [
+          "Hand Hearts",
+          "Tay trái tim"
+        ],
+        "coins": 100,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/374dfe46d5b09ce1db19be06202d34f5.png~tplv-obj.webp"
+      }
+    ],
+    "ducks": [
+      {
+        "giftId": "5585",
+        "giftName": "Pháo hoa giấy",
+        "names": [
+          "Confetti"
+        ],
+        "coins": 100,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/472bf660b0804bb37f616d173edb8a9d.png~tplv-obj.webp"
+      }
+    ],
+    "convoy": [
+      {
+        "giftId": "5509",
+        "giftName": "Kính râm",
+        "names": [
+          "Sunglasses"
+        ],
+        "coins": 199,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/08af67ab13a8053269bf539fd27f3873.png~tplv-obj.webp"
+      }
+    ],
+    "rain": [
+      {
+        "giftId": "13464",
+        "giftName": "Sao đêm",
+        "coins": 199,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/3d136834fe9964927d6b30499a68b741.png~tplv-obj.webp"
+      }
+    ],
+    "tow": [
+      {
+        "giftId": "16552",
+        "giftName": "Bóng bay trái tim",
+        "coins": 149,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/d1cc3f587941bd7af50929aee49ac070.png~tplv-obj.webp"
+      }
+    ],
+    "container": [
+      {
+        "giftId": "17359",
+        "giftName": "Sâu bướm làm loạn",
+        "coins": 149,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/5fc71d8f491568b0e258e2de1718e37c.png~tplv-obj.webp"
+      }
+    ],
+    "heli": [
+      {
+        "giftId": "14382",
+        "giftName": "Bạch tuộc lững lờ",
+        "coins": 199,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/022d496f79aa50d3042f0660d37ed48a.png~tplv-obj.webp"
+      }
+    ],
+    "driver": [
+      {
+        "giftId": "6104",
+        "giftName": "Mũ lưỡi trai",
+        "names": [
+          "Cap"
+        ],
+        "coins": 99,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/6c2ab2da19249ea570a2ece5e3377f04~tplv-obj.webp"
+      }
+    ],
+    "tornado": [
+      {
+        "giftId": "11177",
+        "giftName": "Ảo thuật cà phê",
+        "coins": 199,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/0cb623f44c34f77fe14c2e11bfe4ee62.png~tplv-obj.webp"
+      }
+    ],
+    "crow": [
+      {
+        "giftId": "19447",
+        "giftName": "Phản ứng quá lố",
+        "coins": 5,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/dfd48ef1952b6d315856adda7705d02d.png~tplv-obj.webp"
+      }
+    ],
+    "garlic": [
+      {
+        "giftId": "8825",
+        "giftName": "Chú heo may mắn",
+        "coins": 10,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/d53125bd5416e6f2f6ab61da02ddd302.png~tplv-obj.webp"
+      }
+    ],
+    "snake": [
+      {
+        "giftId": "544253",
+        "giftName": "Nhìn là mê",
+        "coins": 10,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/2e7a07951feb039c2428fa0de0096481.png~tplv-obj.webp"
+      }
+    ],
+    "lion": [
+      {
+        "giftId": "19443",
+        "giftName": "Hoan hô!",
+        "coins": 15,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/075e206d6da035f10ff5f8fecd82abcc.png~tplv-obj.webp"
+      }
+    ],
+    "ghost": [
+      {
+        "giftId": "17465",
+        "giftName": "little kisses",
+        "coins": 20,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/0a5db92508ee667339289b2f87bc3123.png~tplv-obj.webp"
+      }
+    ],
+    "buffalo": [
+      {
+        "giftId": "985644",
+        "giftName": "Bom kẹo",
+        "coins": 99,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/4586efda80f010da8563955095aa6271.png~tplv-obj.webp"
+      }
+    ],
+    "croc": [
+      {
+        "giftId": "842718",
+        "giftName": "Bắt cóc bò sữa",
+        "coins": 99,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/497609a31393d079b4674d7cc21a8788.png~tplv-obj.webp"
+      }
+    ],
+    "shaman": [
+      {
+        "giftId": "13462",
+        "giftName": "Tiểu tinh tú",
+        "coins": 100,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/483fbb7908887e111feb9d68426e33bd.png~tplv-obj.webp"
+      }
+    ],
+    "possess": [
+      {
+        "giftId": "17922",
+        "giftName": "Cung thần mê hoặc",
+        "coins": 99,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/3cbe9384885eab12ace419cc4f28cf4f.png~tplv-obj.webp"
+      }
+    ],
+    "fireworks": [
+      {
+        "giftId": "15189",
+        "giftName": "Bỏng ngô tán gẫu",
+        "coins": 149,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/f4813ddce6a6b3268df01af9fe3764d9.png~tplv-obj.webp"
+      }
+    ],
+    "coffin": [
+      {
+        "giftId": "17844",
+        "giftName": "Catrina",
+        "coins": 149,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/fadb0050e89ad6a1731c1a4742360846.png~tplv-obj.webp"
+      }
+    ],
+    "superman": [
+      {
+        "giftId": "17101",
+        "giftName": "Nước dừa sảng khoái",
+        "coins": 199,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/8157f47f794c8395969034574dd12082.png~tplv-obj.webp"
+      }
+    ],
+    "zombie": [
+      {
+        "giftId": "17360",
+        "giftName": "Nụ hôn chíp chíp",
+        "coins": 199,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/c75ec50c453f5b09e4d25c5c69c30ed5.png~tplv-obj.webp"
+      }
+    ],
+    "creditor": [
+      {
+        "giftId": "10961",
+        "giftName": "quả đào",
+        "coins": 5,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/ff861a220649506452e3dc35c58266ea.png~tplv-obj.webp"
+      }
+    ],
+    "dropoff": [
+      {
+        "giftId": "15063",
+        "giftName": "Vé hành trình",
+        "coins": 10,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/551ecaf639c5e02354f9e7c1a763ec72.png~tplv-obj.webp"
+      }
+    ]
+  }
+}

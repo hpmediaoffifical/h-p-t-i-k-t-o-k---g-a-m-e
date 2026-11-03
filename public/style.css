@@ -9812,3 +9812,46 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .co-help-body b { color: #e8ebf2; }
 .co-help-body ol { margin: 4px 0 8px; padding-left: 20px; display: grid; gap: 2px; }
 .co-url { background: #1c2030; border-radius: 4px; padding: 1px 5px; font-size: 11px; color: #8fd3ff; word-break: break-all; user-select: all; }
+/* ============ 🛵 Đường Về Quê (panel) ============ */
+.duongveque-body { display: flex; flex-direction: column; gap: 12px; padding: 12px; overflow: auto; }
+.dvq-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 1100px) { .dvq-top { grid-template-columns: 1fr; } }
+.dvq-row { display: grid; grid-template-columns: 250px 1fr; align-items: center; gap: 10px; font-size: 13px; color: #cfd3dc; margin-bottom: 6px; }
+.dvq-row-top { align-items: start; }
+.dvq-row small { color: #8a90a0; font-size: 11px; }
+.dvq-row input, .dvq-row select, .dvq-row textarea, .dvq-keys input { background: #11131a; color: #fff; border: 1px solid #2a2e3a; border-radius: 8px; padding: 7px 10px; font-size: 13px; min-width: 0; font-family: inherit; }
+.dvq-row textarea { resize: vertical; }
+.dvq-keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 6px 0 2px; }
+.dvq-keys label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #cfd3dc; }
+.dvq-checks { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #cfd3dc; margin-top: 6px; }
+.dvq-checks label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.dvq-hint { font-size: 12px; color: #8a90a0; line-height: 1.5; margin: 4px 0 8px; }
+.dvq-hint b { color: #e8ebf2; }
+.dvq-bigkeys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+.dvq-big { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 14px 8px; border-radius: 12px; border: 2px solid #2f8f5a; background: #14261c; color: #7cf0a9; font-size: 18px; font-weight: 800; cursor: pointer; }
+.dvq-big small { font-size: 11px; font-weight: 600; color: #8a90a0; }
+.dvq-big.ram { border-color: #b8742a; background: #2a1d10; color: #ffcf7a; }
+.dvq-big.start { border-color: #3b5fa8; background: #121c30; color: #9fc2ff; }
+.dvq-big:active { transform: scale(.97); }
+.dvq-pad { outline: none; border: 2px dashed #2a2e3a; border-radius: 10px; padding: 10px; margin-bottom: 6px; }
+.dvq-pad:focus { border-color: #7dff6a; background: rgba(125, 255, 106, 0.05); }
+.dvq-pad-tip { font-size: 12px; color: #aab0bd; text-align: center; line-height: 1.5; }
+.dvq-cmds { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+.dvq-side { display: inline-block; font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px; }
+.dvq-side.cuu { background: #12391f; color: #7cf0a9; } .dvq-side.pha { background: #3d1513; color: #ff8b80; }
+.dvq-giftcols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.dvq-giftcols > div > .dvq-side { margin: 4px 0 6px; }
+@media (max-width: 1100px) { .dvq-giftcols { grid-template-columns: 1fr; } }
+.dvq-grow { display: grid; grid-template-columns: 170px 1fr auto; gap: 8px; align-items: center; padding: 6px 6px; border-bottom: 1px solid #1f2330; }
+.dvq-actname { display: flex; align-items: center; gap: 8px; }
+.dvq-actname b { display: block; font-size: 13px; color: #e8ebf2; }
+.dvq-actname small { display: block; font-size: 11px; color: #8a90a0; }
+.dvq-emo { font-size: 22px; width: 30px; text-align: center; }
+.dvq-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dvq-chip { display: inline-flex; align-items: center; gap: 4px; background: #1c2030; border: 1px solid #2a2e3a; border-radius: 999px; padding: 2px 4px 2px 6px; font-size: 12px; color: #e8ebf2; }
+.dvq-chip img { width: 20px; height: 20px; object-fit: contain; }
+.dvq-coin { color: #8fd3ff; font-size: 11px; margin-left: 2px; }
+.dvq-x { background: none; border: 0; color: #8a90a0; cursor: pointer; font-size: 11px; padding: 0 2px; }
+.dvq-x:hover { color: #ff4d5e; }
+.dvq-giftbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#dvq-btn-demo.dvq-on { border-color: #7dff6a; color: #7dff6a; }

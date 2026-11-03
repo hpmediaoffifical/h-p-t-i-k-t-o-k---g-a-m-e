@@ -33,6 +33,12 @@
             note: 'Bảng quà có link OBS riêng (trong ⚙ Cài đặt).'
         },
         {
+            id: 'duongveque', name: 'Đường Về Quê', icon: '🛵',
+            desc: 'Đoàn xe buýt / xe bò chở người xem từ Mũi Cà Mau về Hà Giang qua 34 tỉnh: trạm dừng chân, trạm xăng, CSGT thả tim; phe Cứu đẩy xe, phe Phá đẩy lùi.',
+            play: 'Bình luận 1 lên xe / 2 phe Phá · quà 2 phe · quà tài xế lái 3 phút',
+            note: 'Streamer bấm Nhảy / Húc (phím tắt F7 / F8) hoặc để Tự lái.'
+        },
+        {
             id: 'creatoronline', name: 'Creator Online', icon: '🏢',
             desc: 'Tòa nhà LIVE chibi 3D 25 phòng: người xem là fan của 5 nhóm nhảy, quà bất kỳ được lên sân khấu, vé có phòng mang tên, vai MC/Kỹ thuật/Quản lý, PK giữa các nhóm.',
             play: 'Gõ 1–5 chọn nhóm · quà = lên sân khấu / phòng / vai · PK',

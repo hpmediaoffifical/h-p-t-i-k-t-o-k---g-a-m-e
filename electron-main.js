@@ -1764,6 +1764,35 @@ function applyDapMuoiHotkeys(cfg) {
 global.__dapmuoiApplyHotkeys = applyDapMuoiHotkeys;
 
 // ============================================================
+// ĐƯỜNG VỀ QUÊ — phím tắt toàn cục Nhảy / Húc / Bắt đầu ván → POST /api/duongveque/key (streamer chơi khi đang ở TikTok Studio).
+// Server.js gọi global.__dvqApplyHotkeys(cfg) khi lưu cấu hình + lúc khởi động.
+// ============================================================
+let _dvqAccels = [];
+function applyDvqHotkeys(cfg) {
+    for (const a of _dvqAccels) { try { globalShortcut.unregister(a); } catch (_) {} }
+    _dvqAccels = [];
+    if (!cfg || cfg.enabled === false) return;
+    const pairs = [['jump', cfg.dvqKeyJump], ['ram', cfg.dvqKeyRam], ['start', cfg.dvqKeyStart]];
+    for (const [action, key] of pairs) {
+        let accel = String(key || '').trim();
+        if (/^[a-z0-9]$/i.test(accel)) accel = `Control+Shift+${accel.toUpperCase()}`;
+        if (!accel || _dvqAccels.includes(accel)) continue;
+        try {
+            const ok = globalShortcut.register(accel, async () => {
+                try {
+                    const fetch = require('node-fetch');
+                    await fetch(`${APP_URL}/api/duongveque/key`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+                } catch (e) { console.warn('[duongveque-hotkey] api fail:', e.message); }
+            });
+            if (ok) _dvqAccels.push(accel);
+            else console.warn('[duongveque-hotkey] phím đang bị chiếm:', accel);
+        } catch (e) { console.warn('[duongveque-hotkey] register fail:', accel, e.message); }
+    }
+    if (_dvqAccels.length) console.log(`[duongveque] global hotkeys registered: ${_dvqAccels.join(', ')}`);
+}
+global.__dvqApplyHotkeys = applyDvqHotkeys;
+
+// ============================================================
 // PHỤ ĐỀ GIỌNG CREATOR — phím tắt toàn cục Nghe/Tạm dừng: gọi route toggle của server
 // (đang nghe → tạm dừng, cửa sổ Edge/Chrome vẫn mở; đang nghỉ → nghe lại; chưa mở → mở và nghe).
 // ============================================================
