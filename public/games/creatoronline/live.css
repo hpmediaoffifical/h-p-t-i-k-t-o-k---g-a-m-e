@@ -78,8 +78,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0c16; col
 .co-onair-bar { height: calc(var(--u) * 10); border-radius: calc(var(--u) * 6); background: rgba(255,255,255,.2); overflow: hidden; }
 .co-onair-bar i { display: block; height: 100%; background: #ffd23f; transition: width .3s linear; }
 
-/* ô quà / chú giải: sát mép phải, nhỏ gọn để không che idol giữa sân */
-.co-feed { left: calc(var(--u) * 876); top: calc(var(--u) * 432); width: calc(var(--u) * 192); max-height: calc(var(--u) * 220); padding: calc(var(--u) * 10); display: flex; flex-direction: column; gap: calc(var(--u) * 6); overflow: hidden; }
+/* ô quà / chú giải: luôn sát mép phải CỬA SỔ (khung 9:16 nằm giữa cửa sổ ngang thì vẫn bám mép), nhỏ gọn để không che idol */
+.co-feed { left: auto; right: calc(var(--u) * 12 - (100vw - var(--u) * 1080) / 2); top: calc(var(--u) * 432); width: calc(var(--u) * 192); max-height: calc(var(--u) * 220); padding: calc(var(--u) * 10); display: flex; flex-direction: column; gap: calc(var(--u) * 6); overflow: hidden; }
 .co-feed-title { font-size: calc(var(--u) * 22); color: #ffd23f; white-space: nowrap; }
 .co-feed-row { display: flex; align-items: center; gap: calc(var(--u) * 6); min-width: 0; }
 .co-feed-row div { min-width: 0; display: flex; flex-direction: column; line-height: 1.05; }
@@ -90,7 +90,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0c16; col
 .co-legend-gift { width: calc(var(--u) * 60); height: calc(var(--u) * 60); object-fit: contain; }
 .co-legend-icon { font-size: calc(var(--u) * 46); }
 
-.co-chips { position: absolute; left: calc(var(--u) * 876); top: calc(var(--u) * 668); width: calc(var(--u) * 192); display: flex; flex-direction: column; gap: calc(var(--u) * 8); }
+.co-chips { position: absolute; right: calc(var(--u) * 12 - (100vw - var(--u) * 1080) / 2); align-items: flex-end; top: calc(var(--u) * 668); width: calc(var(--u) * 192); display: flex; flex-direction: column; gap: calc(var(--u) * 8); }
 .co-hchip { background: linear-gradient(90deg, #ff4fa3, #9b5cff); font-weight: 900; font-size: calc(var(--u) * 22); padding: calc(var(--u) * 5) calc(var(--u) * 10); border-radius: calc(var(--u) * 24); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 calc(var(--u) * 2) calc(var(--u) * 4) rgba(0,0,0,.5); animation: coPop .25s ease-out; }
 
 .co-join { left: calc(var(--u) * 120); top: calc(var(--u) * 940); width: calc(var(--u) * 800); height: calc(var(--u) * 84); display: flex; align-items: center; justify-content: center; padding: 0 calc(var(--u) * 24); background: rgba(255, 79, 163, .9); font-size: calc(var(--u) * 38); font-weight: 900; }
