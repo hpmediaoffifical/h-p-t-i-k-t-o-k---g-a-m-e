@@ -995,7 +995,7 @@ function updateAmbient(dt) {
     q.y -= C.fall * dt * q.s; q.x += (C.drift * 0.5 + Math.sin(time * 0.7 + q.ph) * C.sway * 0.5) * dt; q.ph += dt; q.r += dt * 2 * q.s;
     if (q.y < 0.1) q.y += 10; if (q.y > 10.5) q.y -= 10;
     if (q.x > 14) q.x -= 28; if (q.x < -14) q.x += 28;
-    let z = cz + q.z; z = cz - 38 + ((((z - (cz - 38)) % 42) + 42) % 42);           // luôn quanh camera (phía trước)
+    let z = cz + q.z; z = cz - 38 + ((((z - (cz - 38)) % 34) + 34) % 34);           // luôn trước camera 4–38m (sát ống kính thì thành đốm to)
     _ambP.set(cx + q.x, q.y, z);
     if (C.spin) _ambQ.setFromEuler(_ambE.set(q.r, q.r * 0.7, q.r * 0.4)); else _ambQ.copy(camera.quaternion);
     const blink = C.blink ? 0.55 + 0.45 * Math.sin(time * 3 + q.ph * 5) : 1;
