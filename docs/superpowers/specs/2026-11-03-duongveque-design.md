@@ -142,6 +142,20 @@ tự chọn theo bậc giá). Vẫn giữ **mọi quà quy ra mét theo xu** →
 - Test mới: tài xế nhiều xe (2), ghế theo tim + quà, đám đông trạm dừng, chủ nợ top 10, đếm ngược cổng làng (+ huỷ khi bị đẩy lùi),
   không dừng trạm khi đã tới đích (đã thấy fail trước khi sửa), 63 tỉnh cũ đủ + partAt Nam → Bắc, 63 tỉnh có 2 món + câu mời đúng độ dài.
 
+- **📣 HP Media tuyển Idol LIVE:** lâu lâu (mỗi đoạn 700 m ~50%, ≈ 40–50 giây/lần) 2–3 người ven đường giơ bảng "HP MEDIA – TUYỂN IDOL LIVE",
+  nhún theo nhịp, gọi "📣 Tuyển Idol LIVE nè!" khi đoàn tới gần; đứng ở 58% đoạn tỉnh cũ, né quán ăn (đoạn chật thì bỏ lượt).
+  Trạm dừng chân có nhân viên HP Media (áo trắng chữ HP, đeo thẻ, kẹp hồ sơ, kính đen) cứ 3,2 giây đi tới 1 người trong đám đông, gọi tên
+  mời: "{tên} ơi, Chị làm idol không?", "Chị muốn lương 200–5000$ không?", "Chị rất hợp làm idol nhà HP Media đó!", "HP Media đào tạo
+  miễn phí nè!"… người được mời đáp ("Thật hả? 😳", "Để em hỏi mẹ đã…", "Ok chốt! 🤝").
+- **🏠 Quà Xuống xe** (`dropoff`, chỉ chạy khi GÁN quà; gợi ý "Vé hành trình" 10 xu): tặng xong được hỏi `dropAskSec` (45) giây — bình luận
+  tên tỉnh (cũ hoặc mới, có/không dấu, tên quen Sài Gòn / Vũng Tàu / Đà Lạt / Sa Pa…) hoặc BIỂN SỐ XE (`PLATES` 63 tỉnh cũ, VD 43 = Đà Nẵng,
+  29–33/40 = Hà Nội, 41/50–59 = TP.HCM) → `findPlace` (route.js). Tới giữa tỉnh cũ đó (chỗ quán đặc sản) thì thả xuống: đi bộ về làng xách
+  giỏ quà, chúc "🧧 Ăn Tết vui vẻ nha cả nhà!", băng rôn "XUỐNG XE Ở …". Chọn tỉnh đã qua → báo chọn lại (vẫn còn giờ). Bảng gợi ý trên
+  cảnh: tên người đang chọn + giây còn lại + 4 tỉnh sắp tới kèm biển số. Chỉ người vừa tặng quà mới được hiểu bình luận số là biển số.
+- **Không che nhau:** quán đặt cách biển chào ≥ 36 m, cách cuối đoạn ≥ 14 m, né công trình mốc giữa tỉnh ±26 m, 2 quán cách ≥ 28 m (đoạn ngắn
+  chỉ 1 quán); bảng tuyển idol, bảng tên món, biển chào tỉnh cũ đăng ký "vùng chiếm chỗ" trong lớp xếp nhãn → bóng thoại tự dời lên;
+  gần bảng tuyển idol thì quán không gọi mời.
+
 ## Nối app
 
 - `server.js`: `GAMES.duongveque` (khoá `dvq*`, quà gợi ý từ `data.json`), `/overlay/duongveque`, `/api/duongveque/window/open` (Edge/Chrome --app), `/api/duongveque/key` + socket `duongveque:key` (jump | ram | start), `global.__dvqApplyHotkeys`.
