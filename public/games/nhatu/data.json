@@ -1,0 +1,977 @@
+{
+ "_note": "⛓️ Nhà Tù Online — dữ liệu game (tên NPC, câu chat, lịch trại, hành động). Cài đặt theo LIVE nằm trong config nt* của server.",
+ "tuning": {
+  "walkSpeed": 3.4,
+  "runSpeed": 6,
+  "npcWalkSpeed": 2.3,
+  "jumpVelocity": 6.2,
+  "gravity": 18,
+  "seed": 1809,
+  "chatIntervalSec": [
+   4,
+   9
+  ],
+  "dirtSpawnSec": 16,
+  "dirtMax": 8,
+  "cleanHoldSec": 1.4
+ },
+ "schedule": [
+  {
+   "start": "00:00",
+   "key": "sleep",
+   "label": "Giờ ngủ"
+  },
+  {
+   "start": "05:30",
+   "key": "rollcall",
+   "label": "Điểm danh"
+  },
+  {
+   "start": "06:30",
+   "key": "exercise",
+   "label": "Thể dục"
+  },
+  {
+   "start": "07:30",
+   "key": "meal",
+   "label": "Ăn sáng"
+  },
+  {
+   "start": "08:30",
+   "key": "work",
+   "label": "Lao động"
+  },
+  {
+   "start": "10:00",
+   "key": "free",
+   "label": "Giờ tự do"
+  },
+  {
+   "start": "11:30",
+   "key": "meal",
+   "label": "Ăn trưa"
+  },
+  {
+   "start": "12:30",
+   "key": "rest",
+   "label": "Nghỉ trưa"
+  },
+  {
+   "start": "14:00",
+   "key": "work",
+   "label": "Lao động"
+  },
+  {
+   "start": "16:00",
+   "key": "free",
+   "label": "Giờ tự do"
+  },
+  {
+   "start": "17:30",
+   "key": "meal",
+   "label": "Ăn tối"
+  },
+  {
+   "start": "18:30",
+   "key": "free",
+   "label": "Giờ tự do"
+  },
+  {
+   "start": "21:00",
+   "key": "sleep",
+   "label": "Giờ ngủ"
+  }
+ ],
+ "hints": {
+  "sleep": "Về phòng của bạn và nhấn E để đi ngủ.",
+  "rollcall": "Ra sân bóng, tới gần cán bộ và nhấn E để báo cáo có mặt.",
+  "exercise": "Ra sân bóng và nhấn E để tập thể dục cùng mọi người.",
+  "meal": "Ngồi vào bàn ăn và nhấn E để ăn cơm.",
+  "work": "Tìm vết bẩn trên sàn, giữ E để lau sạch và nhận xu.",
+  "free": "Tự do! Ném bóng rổ, ngồi chơi hoặc bắt chuyện với bạn tù.",
+  "rest": "Về phòng nghỉ trưa (nhấn E trong phòng)."
+ },
+ "names": [
+  "Lu Bu",
+  "Sửu Ẩu",
+  "Gấu Xám",
+  "Chin Mập",
+  "Thần Khí",
+  "Bin Béo",
+  "Sáo Sậu",
+  "Thìn Rồng",
+  "Mùi Mít",
+  "Nấm Nhót",
+  "Đậu Phộng",
+  "Tôm Hùm",
+  "Mít Ướt",
+  "Tuất Lùn",
+  "Mắc Ke",
+  "Ngo Ngố",
+  "Bé Na",
+  "Hội Lình",
+  "Đậu Gỡ",
+  "Huấn Hoa Hệu",
+  "Cò Ma",
+  "Tí Nị",
+  "Bờm Xờm",
+  "Khoai Lang",
+  "Cu Đen",
+  "Sún Răng",
+  "Bắp Rang",
+  "Mướp Đắng",
+  "Su Hào",
+  "Ốc Bươu",
+  "Cá Rô",
+  "Ếch Ộp",
+  "Tèo Còi",
+  "Lạc Rang",
+  "Bí Đỏ",
+  "Dưa Leo",
+  "Chuột Nhắt",
+  "Sóc Nâu",
+  "Gà Mờ",
+  "Vịt Bầu",
+  "Rùa Già",
+  "Mèo Mướp",
+  "Cún Con",
+  "Tũn Mũn",
+  "Xoăn Tít",
+  "Lùn Tịt",
+  "Hói Đầu",
+  "Kẹo Kéo",
+  "Bánh Bao",
+  "Xôi Gấc",
+  "Chè Đậu",
+  "Mận Hậu",
+  "Bơ Sáp",
+  "Sầu Riêng",
+  "Me Chua",
+  "Thỏ Ngọc",
+  "Khỉ Gió"
+ ],
+ "guards": [
+  "Cán bộ Lan",
+  "Cán bộ Hùng",
+  "Cán bộ Tuấn"
+ ],
+ "chat": {
+  "free": [
+   "Ae tập thể dục chưa?",
+   "Chiều có mỡ thêm muối!",
+   "Ra trại là mở quán phở!",
+   "Ai chơi bóng rổ không?",
+   "Hôm nay trời đẹp ghê.",
+   "Nhớ nhà quá ae ơi...",
+   "Phòng A-07 ngày to quá!",
+   "Ai mượn tui cuộn giấy chưa trả?",
+   "Mai có người thăm nuôi nè!",
+   "Ném trúng 3 quả liền nha!",
+   "Cải tạo tốt, về sớm!",
+   "Đánh cờ tướng không ông?",
+   "Tui gạch được 300 ngày rồi đó.",
+   "Viết thư cho mẹ chưa?",
+   "Bữa nay ăn gì vậy ta?",
+   "Ông nào hát karaoke hay nhất?",
+   "Đội bóng phòng A-03 vô địch!"
+  ],
+  "meal": [
+   "Cơm hôm nay có trứng!",
+   "Cho xin miếng canh.",
+   "Ngon hơn hôm qua đó.",
+   "Ai không ăn rau cho tui.",
+   "Chiều có mỡ thêm muối!",
+   "No căng bụng rồi."
+  ],
+  "work": [
+   "Lau sàn sạch bóng nè!",
+   "Lao động là vinh quang!",
+   "Ai cầm cây chổi của tui?",
+   "Mệt mà vui.",
+   "Chỗ kia còn dơ kìa!",
+   "Làm xong được nghỉ sớm."
+  ],
+  "exercise": [
+   "Một, hai, ba, bốn!",
+   "Hít vào... thở ra...",
+   "Mỏi tay quá!",
+   "Nhảy cao lên ae!"
+  ],
+  "rollcall": [
+   "Có mặt!",
+   "Đứng thẳng hàng vào!",
+   "Báo cáo đủ quân số!",
+   "Ai chưa tới vậy?"
+  ],
+  "rest": [
+   "Trưa rồi, chợp mắt tí.",
+   "Nóng quá ae.",
+   "Ai mở quạt giùm."
+  ],
+  "sleep": [
+   "Ngủ ngon ae.",
+   "Ai ngáy to vậy trời...",
+   "Tắt đèn rồi kìa.",
+   "Mai dậy sớm điểm danh đó."
+  ],
+  "guard": [
+   "Ăn nhẹ nói khẽ nhé!",
+   "Giữ trật tự!",
+   "Đúng giờ điểm danh nha!",
+   "Ai xả rác đó?",
+   "Cải tạo tốt sẽ được giảm án.",
+   "Xếp hàng ngay ngắn!"
+  ],
+  "talk": [
+   "Chào bạn mới!",
+   "Ông ở phòng nào?",
+   "Rảnh không, đánh cờ?",
+   "Đừng để cán bộ thấy nha.",
+   "Nghe nói chiều có mỡ thêm muối.",
+   "Ra trại nhớ ghé quán phở tui.",
+   "Ném bóng với tui không?",
+   "Ở đây lâu rồi, quen hết rồi.",
+   "Cố lên, điểm cao là được khen!"
+  ],
+  "joined": [
+   "Chào cả trại!",
+   "Tui mới nhập trại nè!",
+   "Phòng tui ở đâu vậy?",
+   "Xin chào mọi người!"
+  ],
+  "turn": [
+   "Tới lượt tui!",
+   "Xem tui nè!",
+   "Lên sóng rồi!"
+  ],
+  "boss": [
+   "Đại ca uống nước ạ!",
+   "Để em đấm lưng cho đại ca!",
+   "Đại ca đỉnh nhất trại!",
+   "Mì tôm nóng đây đại ca!",
+   "Chân đại ca thơm quá!",
+   "Đại ca cần gì cứ sai em!",
+   "Em quạt cho đại ca mát nha!",
+   "Đại ca nói gì cũng đúng!"
+  ],
+  "bossSelf": [
+   "Tốt lắm mấy chú!",
+   "Mạnh tay chút coi!",
+   "Trại này ai làm chủ?",
+   "Đại ca đây!",
+   "Ừ, ngoan lắm."
+  ],
+  "salute": [
+   "Chào cán bộ!",
+   "Dạ cán bộ!",
+   "Báo cáo cán bộ, em cải tạo tốt!"
+  ],
+  "party": [
+   "Mì ngon quá!",
+   "Húp sì sụp!",
+   "Khao nữa đi!",
+   "Cảm ơn chủ tiệc!"
+  ],
+  "karaoke": [
+   "🎵 Đêm nay trong trại vui ghê...",
+   "🎵 La la la ~",
+   "🎵 Ngày mai ra trại em về...",
+   "🎵 Hát cho cả trại cùng nghe!"
+  ],
+  "cheer": [
+   "Hay quá!",
+   "Hát nữa đi!",
+   "Đỉnh!",
+   "👏👏👏",
+   "Quá dữ!"
+  ],
+  "jailed": [
+   "Ơ sao tui bị nhốt?",
+   "Zzz...",
+   "Thả tui ra!"
+  ],
+  "freed": [
+   "Được thả rồi!",
+   "Tự do rồi!",
+   "Tui về rồi nè!"
+  ],
+  "visit": [
+   "Mẹ mang đồ ăn cho con nè!",
+   "Con cải tạo tốt nha!",
+   "Cả nhà nhớ con lắm!"
+  ],
+  "dogNear": [
+   "Á chó!",
+   "Đừng cắn tui!",
+   "Ngoan nha cún..."
+  ],
+  "pardon": [
+   "Tôi là tù nhân gương mẫu!",
+   "Cảm ơn cả trại!"
+  ],
+  "chef": [
+   "Cơm nóng đây {name}!",
+   "Ăn no cải tạo tốt nha!",
+   "Thêm miếng trứng cho {name}!",
+   "Xếp hàng lấy cơm nào!"
+  ],
+  "leader": [
+   "Lau kỹ vào!",
+   "Nhanh tay lên tổ ơi!",
+   "Góc kia còn dơ kìa!",
+   "Tổ mình sạch nhất trại!"
+  ],
+  "nurse": [
+   "Uống thuốc nè!",
+   "Khám sức khoẻ định kỳ!",
+   "Há miệng ra nào~",
+   "Nhớ uống nhiều nước nha!"
+  ],
+  "patient": [
+   "Cảm ơn y tá!",
+   "Khoẻ re rồi!",
+   "Thuốc đắng dã tật!",
+   "❤️"
+  ],
+  "poop": [
+   "Rặn… rặn… 💩",
+   "Đau bụng quá, ra đây tí…",
+   "Suỵt, đừng ai thấy nha!"
+  ],
+  "pee": [
+   "Xè xè~ 💦",
+   "Nhịn không nổi nữa rồi!",
+   "Quay mặt vô tường, không ai thấy đâu…"
+  ],
+  "relief": [
+   "Phù~ nhẹ cả người!",
+   "Xong! Chuồn thôi!",
+   "Sướng ghê!"
+  ],
+  "caught": [
+   "❗ Bắt quả tang {name}!",
+   "{name}! Đứng lại! Vi phạm nội quy!",
+   "Lại là {name}! Đi theo tôi!"
+  ],
+  "caughtSelf": [
+   "Toang rồi!",
+   "Ơ… cán bộ ơi em lỡ…",
+   "Em xin lỗi cán bộ!"
+  ],
+  "smell": [
+   "Eo ơi! Thối quá!",
+   "Ai đi bậy ở đây vậy trời?!",
+   "Hôi quá, bịt mũi lại!",
+   "Ruồi bay đầy kìa!"
+  ],
+  "offenseJailed": [
+   "Biết vậy đã không đi bậy…",
+   "Ở trong này hối lỗi vậy…",
+   "Lần sau em đi nhà vệ sinh!"
+  ],
+  "mustClean": [
+   "Phải đi dọn bãi của mình rồi…",
+   "Ra tù rồi, đi dọn thôi!",
+   "Dọn sạch mới được thảnh thơi!"
+  ],
+  "cleanDone": [
+   "Sạch bong rồi nhé!",
+   "Từ nay không đi bậy nữa!",
+   "Thơm tho rồi!"
+  ],
+  "report": [
+   "Báo cáo cán bộ!",
+   "Cán bộ ơi, có người làm bậy!",
+   "Em tố cáo ạ!"
+  ],
+  "trashVictim": [
+   "Ơ… gì vậy?",
+   "Ủa ủa ủa?!",
+   "Đừng mà!!"
+  ],
+  "trashGrab": [
+   "Lên nào!",
+   "Đi chơi với tui nha!",
+   "Hự… nặng ghê!"
+  ],
+  "trashStuck": [
+   "Cứu với!!",
+   "Kéo tui ra đi!",
+   "Hôi quá trời ơi!"
+  ],
+  "trashOut": [
+   "Thoát rồi!",
+   "Nhớ mặt đó nha!",
+   "Hôi rình… đi tắm thôi!"
+  ],
+  "laugh": [
+   "Haha!",
+   "Hahaha!",
+   "Hihi!",
+   "Hô hô hô!",
+   "Haha đáng đời!"
+  ],
+  "prank_shave": [
+   "Tóc tui đâu rồi?!",
+   "Mát đầu ghê!",
+   "Ơ… trọc lóc rồi!"
+  ],
+  "prank_dress": [
+   "Sao tui phải mặc cái này?!",
+   "Đẹp không mọi người?",
+   "Hồng hồng xinh xinh…"
+  ],
+  "prank_cake": [
+   "Ơ! Kem!",
+   "Ngọt ghê… nhưng mà!",
+   "Ai úp tui đó?!"
+  ],
+  "slip": [
+   "Á á á!",
+   "Ui da cái lưng!",
+   "Vỏ chuối của ai vậy?!"
+  ],
+  "birthday": [
+   "Chúc mừng sinh nhật {name}!",
+   "Happy birthday {name}!",
+   "Tuổi mới mau ra tù nha {name}!"
+  ],
+  "drill": [
+   "Chạy mau!",
+   "Ra sân! Ra sân!",
+   "Bình tĩnh, xếp hàng!"
+  ],
+  "rain": [
+   "Mưa rồi!!",
+   "Ướt hết rồi!",
+   "Chạy vô hiên!"
+  ],
+  "mouse": [
+   "Á! Chuột!",
+   "Chuột kìa!!",
+   "Ối mẹ ơi!"
+  ]
+ },
+ "actions": [
+  {
+   "id": "ball",
+   "emoji": "🏀",
+   "label": "Ném bóng",
+   "keys": [
+    "1",
+    "b",
+    "bong",
+    "nem bong"
+   ],
+   "points": 3
+  },
+  {
+   "id": "mop",
+   "emoji": "🧽",
+   "label": "Lau sàn",
+   "keys": [
+    "2",
+    "l",
+    "lau",
+    "lau san"
+   ],
+   "points": 2
+  },
+  {
+   "id": "eat",
+   "emoji": "🍚",
+   "label": "Ăn cơm",
+   "keys": [
+    "3",
+    "a",
+    "an",
+    "an com"
+   ],
+   "points": 1
+  },
+  {
+   "id": "gym",
+   "emoji": "💪",
+   "label": "Tập thể dục",
+   "keys": [
+    "4",
+    "t",
+    "tap",
+    "the duc"
+   ],
+   "points": 1
+  },
+  {
+   "id": "dance",
+   "emoji": "💃",
+   "label": "Nhảy múa",
+   "keys": [
+    "5",
+    "n",
+    "nhay",
+    "nhay mua"
+   ],
+   "points": 1
+  },
+  {
+   "id": "sleep",
+   "emoji": "😴",
+   "label": "Đi ngủ",
+   "keys": [
+    "6",
+    "g",
+    "ngu",
+    "di ngu"
+   ],
+   "points": 1
+  },
+  {
+   "id": "salute",
+   "emoji": "👮",
+   "label": "Chào cán bộ",
+   "keys": [
+    "7",
+    "c",
+    "chao",
+    "chao can bo"
+   ],
+   "points": 1
+  }
+ ],
+ "demoNames": [
+  "Bé Mèo",
+  "Anh Ba Khía",
+  "Cô Út",
+  "Tèo Em",
+  "Bin Bin",
+  "Mập Ú",
+  "Chị Hai",
+  "Bé Bông",
+  "Ông Tư",
+  "Su Su",
+  "Nhóc Kun",
+  "Bà Năm"
+ ],
+ "giftActions": [
+  {
+   "id": "boss",
+   "emoji": "👑",
+   "label": "Lên làm Đại Ca",
+   "group": "role",
+   "desc": "Đội vương miện, đeo kính đen, ngồi ghế đại ca. Đàn em bu lại massa vai, lau chân, quạt mát, che ô, bưng mì. Người khác tặng quà này = cướp ngôi."
+  },
+  {
+   "id": "guard",
+   "emoji": "👮",
+   "label": "Làm Cán Bộ",
+   "group": "role",
+   "desc": "Khoác đồng phục cán bộ đi tuần, tù nhân gặp phải cúi chào."
+  },
+  {
+   "id": "chef",
+   "emoji": "🧑‍🍳",
+   "label": "Làm Đầu Bếp",
+   "group": "role",
+   "desc": "Đội mũ đầu bếp đứng quầy cơm, múc cơm cho phạm nhân xếp hàng lấy rồi ra bàn ăn."
+  },
+  {
+   "id": "leader",
+   "emoji": "🧹",
+   "label": "Làm Tổ Trưởng",
+   "group": "role",
+   "desc": "Đeo băng tay đỏ, dẫn 1 tổ 4 người đi lau sàn và đốc thúc cả tổ."
+  },
+  {
+   "id": "nurse",
+   "emoji": "🩺",
+   "label": "Làm Y Tá",
+   "group": "role",
+   "desc": "Mặc đồ y tá đi khám, cho từng bạn tù uống thuốc."
+  },
+  {
+   "id": "party",
+   "emoji": "🍜",
+   "label": "Tiệc mì tôm",
+   "group": "event",
+   "desc": "Cả trại kéo ra bàn ăn mì tôm, người tặng là chủ tiệc.",
+   "crowd": true
+  },
+  {
+   "id": "karaoke",
+   "emoji": "🎤",
+   "label": "Hát karaoke",
+   "group": "event",
+   "desc": "Người tặng cầm micro ra sân hát, cả trại vây quanh cổ vũ."
+  },
+  {
+   "id": "armwrestle",
+   "emoji": "💪",
+   "label": "Vật tay",
+   "group": "event",
+   "desc": "Người tặng vật tay với một bạn tù — đang vật thì 2 bên tặng quà để gồng sức; người thua bị người thắng vác ném vào thùng rác. 🎯 Bình luận MÃ SỐ để thách đấu đúng người."
+  },
+  {
+   "id": "dog",
+   "emoji": "🐕",
+   "label": "Chó nghiệp vụ",
+   "group": "event",
+   "desc": "Chó cảnh sát đi theo người tặng 90 giây, sủa ai lại gần."
+  },
+  {
+   "id": "cat",
+   "emoji": "🐈",
+   "label": "Mèo trại",
+   "group": "event",
+   "desc": "Mèo cưng đi theo người tặng 2 phút."
+  },
+  {
+   "id": "visit",
+   "emoji": "🧺",
+   "label": "Thăm nuôi",
+   "group": "event",
+   "desc": "Người thân tới cổng mang giỏ quà cho người tặng."
+  },
+  {
+   "id": "inspect",
+   "emoji": "🚨",
+   "label": "Khám phòng",
+   "group": "event",
+   "desc": "Còi báo động: cả trại xếp hàng, cán bộ đi khám từng phòng.",
+   "crowd": true
+  },
+  {
+   "id": "flashmob",
+   "emoji": "🕺",
+   "label": "Flashmob",
+   "group": "event",
+   "desc": "Cả trại nhảy múa tập thể.",
+   "crowd": true
+  },
+  {
+   "id": "lightsout",
+   "emoji": "🌙",
+   "label": "Tắt đèn",
+   "group": "event",
+   "desc": "Tắt đèn 15 giây, cả trại ngủ gật.",
+   "crowd": true
+  },
+  {
+   "id": "pardon",
+   "emoji": "🎆",
+   "label": "Ân xá",
+   "group": "event",
+   "desc": "Người tặng được tuyên dương ra cổng, bắn pháo hoa, nhận danh hiệu ⭐ Gương mẫu."
+  },
+  {
+   "id": "poop",
+   "emoji": "💩",
+   "label": "Đi bậy",
+   "group": "mischief",
+   "desc": "Lén ra góc tường ngồi xổm đi bậy, để lại bãi có ruồi bay. Cán bộ đứng gần là bị bắt quả tang → giam, ra tù phải tự dọn."
+  },
+  {
+   "id": "pee",
+   "emoji": "💦",
+   "label": "Tè bậy",
+   "group": "mischief",
+   "desc": "Quay mặt vào tường tè bậy, để lại vũng nước. Bị cán bộ thấy là bị giam, ra tù phải tự dọn."
+  },
+  {
+   "id": "report",
+   "emoji": "📢",
+   "label": "Tố cáo cán bộ",
+   "group": "mischief",
+   "desc": "Báo cán bộ người vừa đi bậy / tè bậy mà chưa bị bắt (trong 5 phút) — cán bộ tới bắt đi giam. 🎯 Bình luận MÃ SỐ để tố đúng người. Người tố cáo được điểm."
+  },
+  {
+   "id": "bail",
+   "emoji": "🔓",
+   "label": "Bảo lãnh ra tù",
+   "group": "mischief",
+   "desc": "Đang bị giam vì đi bậy → được thả sớm. Không bị giam thì bảo lãnh giúp bạn tù bị giam lâu nhất (🎯 hoặc bình luận MÃ SỐ người muốn bảo lãnh). Ra tù vẫn phải dọn vệ sinh."
+  },
+  {
+   "id": "trash",
+   "emoji": "🗑️",
+   "label": "Ném vào thùng rác",
+   "group": "mischief",
+   "desc": "Chạy tới 1 bạn tù, vác lên đầu, ném cắm đầu vào thùng rác — kẹt (mặc định 60 giây), cả trại cười haha. 🎯 Tặng xong bình luận MÃ SỐ tù nhân để chọn đúng người (gõ không kịp = vác người ngẫu nhiên)."
+  },
+  {
+   "id": "photo",
+   "emoji": "📸",
+   "label": "Chụp ảnh tập thể",
+   "group": "event",
+   "crowd": true,
+   "desc": "Mọi người quanh người tặng tạo dáng chữ V, đèn flash chụp ảnh lưu niệm (khoảng 4 giây)."
+  },
+  {
+   "id": "cleanup",
+   "emoji": "🧼",
+   "label": "Tổng vệ sinh",
+   "group": "event",
+   "crowd": true,
+   "desc": "Cả trại cùng lúc đi lau mọi vết bẩn và bãi đi bậy. Người xem nào dọn được bãi thì nhận điểm cống hiến."
+  },
+  {
+   "id": "lixi",
+   "emoji": "🧧",
+   "label": "Lì xì bạn tù",
+   "group": "event",
+   "desc": "Lì xì điểm cho 3 bạn tù ngẫu nhiên (+5 mỗi người). 🎯 Bình luận MÃ SỐ → cả phong bao (15 điểm) cho đúng người đó."
+  },
+  {
+   "id": "shave",
+   "emoji": "💇",
+   "label": "Cạo đầu trọc",
+   "group": "prank",
+   "desc": "Chạy tới 1 bạn tù, cạo trọc đầu bóng loáng (mặc định 2 phút). Cả trại cười haha. Combo ×5 / ×10 → 2 / 3 người. 🎯 Bình luận MÃ SỐ để chọn người."
+  },
+  {
+   "id": "dress",
+   "emoji": "👗",
+   "label": "Mặc váy hồng",
+   "group": "prank",
+   "desc": "Bắt 1 bạn tù mặc váy hồng + nơ hồng (mặc định 2 phút). 🎯 Bình luận MÃ SỐ để chọn người."
+  },
+  {
+   "id": "cake",
+   "emoji": "🎂",
+   "label": "Úp bánh kem",
+   "group": "prank",
+   "desc": "Bưng bánh kem chạy tới úp vào mặt 1 bạn tù — mặt dính kem 30 giây. 🎯 Bình luận MÃ SỐ để chọn người."
+  },
+  {
+   "id": "banana",
+   "emoji": "🍌",
+   "label": "Vỏ chuối",
+   "group": "prank",
+   "desc": "Ném vỏ chuối trước mặt người đang đi — giẫm trúng là trượt ngã ngửa, cả trại cười. 🎯 Bình luận MÃ SỐ: người đó bị gọi ra giẫm đúng vỏ chuối."
+  },
+  {
+   "id": "pushup",
+   "emoji": "🏋️",
+   "label": "Phạt hít đất",
+   "group": "prank",
+   "desc": "Báo cán bộ phạt 1 bạn tù hít đất 5 cái tại chỗ (đếm 1, 2, 3…). 🎯 Bình luận MÃ SỐ để chọn người."
+  },
+  {
+   "id": "birthday",
+   "emoji": "🎂",
+   "label": "Sinh nhật",
+   "group": "event",
+   "crowd": true,
+   "desc": "Cả trại vây quanh người tặng vỗ tay chúc mừng sinh nhật, bánh kem + pháo hoa."
+  },
+  {
+   "id": "race",
+   "emoji": "🏃",
+   "label": "Thi chạy",
+   "group": "event",
+   "crowd": true,
+   "desc": "4–5 người (ưu tiên người xem) thi chạy dọc sân trước, khán giả cổ vũ. Về nhất +10 điểm, về chót bị người về nhất ném vào thùng rác."
+  },
+  {
+   "id": "firedrill",
+   "emoji": "🚒",
+   "label": "Diễn tập thoát hiểm",
+   "group": "event",
+   "crowd": true,
+   "desc": "Còi báo — cả trại ôm đầu chạy ra sân tập trung."
+  },
+  {
+   "id": "rain",
+   "emoji": "☔",
+   "label": "Mưa rào",
+   "group": "event",
+   "crowd": true,
+   "desc": "Mưa rào bất chợt, mọi người ôm đầu chạy vào hành lang trú mưa. Trại vắng quà lâu cũng tự mưa."
+  },
+  {
+   "id": "mouse",
+   "emoji": "🐀",
+   "label": "Thả chuột",
+   "group": "event",
+   "crowd": true,
+   "desc": "Chuột chạy ngang sân — ai ở gần hét toáng, nhảy dựng."
+  }
+ ],
+ "suggestedGiftMap": {
+  "ball": [
+   {
+    "giftId": "105781",
+    "giftName": "Trái bóng xoáy",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/74a30ed3492d3e7d317efe7e10c3ba51.png~tplv-obj.webp",
+    "coins": 5
+   }
+  ],
+  "mop": [
+   {
+    "giftId": "6788",
+    "giftName": "Que phát sáng",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/8e1a5d66370c5586545e358e37c10d25~tplv-obj.webp",
+    "coins": 1
+   }
+  ],
+  "eat": [
+   {
+    "giftId": "5827",
+    "giftName": "Kem ốc quế",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/968820bc85e274713c795a6aef3f7c67~tplv-obj.webp",
+    "coins": 1
+   }
+  ],
+  "gym": [
+   {
+    "giftId": "15232",
+    "giftName": "Đỉnh",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/e9cafce8279220ed26016a71076d6a8a.png~tplv-obj.webp",
+    "coins": 1
+   }
+  ],
+  "dance": [
+   {
+    "giftId": "5269",
+    "giftName": "TikTok",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/802a21ae29f9fae5abe3693de9f874bd~tplv-obj.webp",
+    "coins": 1
+   }
+  ],
+  "sleep": [
+   {
+    "giftId": "19448",
+    "giftName": "Chuyển động chậm",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/12374117770f779919bf002461fdfac0.png~tplv-obj.webp",
+    "coins": 10
+   }
+  ],
+  "salute": [
+   {
+    "giftId": "6064",
+    "giftName": "GG",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/3f02fa9594bd1495ff4e8aa5ae265eef~tplv-obj.webp",
+    "coins": 1
+   }
+  ],
+  "boss": [
+   {
+    "giftId": "6097",
+    "giftName": "Vương miện nhỏ",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/cf3db11b94a975417043b53401d0afe1~tplv-obj.webp",
+    "coins": 99
+   }
+  ],
+  "guard": [
+   {
+    "giftId": "6104",
+    "giftName": "Mũ lưỡi trai",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/6c2ab2da19249ea570a2ece5e3377f04~tplv-obj.webp",
+    "coins": 99
+   }
+  ],
+  "party": [
+   {
+    "giftId": "17044",
+    "giftName": "Takoyaki",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/b0d9f32b9d4c04afbb0267dcb5b576fa.png~tplv-obj.webp",
+    "coins": 88
+   }
+  ],
+  "karaoke": [
+   {
+    "giftId": "51281",
+    "giftName": "DJ Vinyl",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/0b666a386478756d9988cfa73ab20a71.png~tplv-obj.webp",
+    "coins": 10
+   }
+  ],
+  "armwrestle": [
+   {
+    "giftId": "14046",
+    "giftName": "Đũa thần PK",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/d1ba80bb94f93ac973bc4f30794c6d28.png~tplv-obj.webp",
+    "coins": 100
+   }
+  ],
+  "dog": [
+   {
+    "giftId": "6267",
+    "giftName": "Chó Corgi",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/148eef0884fdb12058d1c6897d1e02b9~tplv-obj.webp",
+    "coins": 299
+   }
+  ],
+  "cat": [
+   {
+    "giftId": "18708",
+    "giftName": "Mèo",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/ed64975b4e809224ec3dffc616840205.png~tplv-obj.webp",
+    "coins": 222
+   }
+  ],
+  "visit": [
+   {
+    "giftId": "17666",
+    "giftName": "Gia đình",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/8821932e2d3fe78e9af0bcf785ca1759.png~tplv-obj.webp",
+    "coins": 90
+   }
+  ],
+  "inspect": [
+   {
+    "giftId": "5509",
+    "giftName": "Kính râm",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/08af67ab13a8053269bf539fd27f3873.png~tplv-obj.webp",
+    "coins": 199
+   }
+  ],
+  "flashmob": [
+   {
+    "giftId": "48225",
+    "giftName": "Chú ngựa tiệc tùng",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/07c5a2297a00cacc94d329d047d045c8.png~tplv-obj.webp",
+    "coins": 199
+   }
+  ],
+  "lightsout": [
+   {
+    "giftId": "13464",
+    "giftName": "Sao đêm",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/3d136834fe9964927d6b30499a68b741.png~tplv-obj.webp",
+    "coins": 199
+   }
+  ],
+  "pardon": [
+   {
+    "giftId": "5585",
+    "giftName": "Pháo hoa giấy",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/472bf660b0804bb37f616d173edb8a9d.png~tplv-obj.webp",
+    "coins": 100
+   }
+  ],
+  "chef": [
+   {
+    "giftId": "17105",
+    "giftName": "Cốc Sundae",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/725ba28c17d775db510ca7b240cdd84e.png~tplv-obj.webp",
+    "coins": 99
+   }
+  ],
+  "leader": [
+   {
+    "giftId": "6427",
+    "giftName": "Mũ và ria mép",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/2f1e4f3f5c728ffbfa35705b480fdc92~tplv-obj.webp",
+    "coins": 99
+   }
+  ],
+  "nurse": [
+   {
+    "giftId": "14656",
+    "giftName": "Trái tim chào mừng",
+    "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/9325524bd9ca181bd8e76eb99b44c042.png~tplv-obj.webp",
+    "coins": 99
+   }
+  ]
+ }
+}

@@ -297,6 +297,21 @@
                 <div id="leaguecard-panel" class="leaguecard-panel"></div>
             </section>
 
+            <!-- GAME VIEW: 🔴 SĂN POKEMON — nội dung do public/games/pokemon/pokemon-panel.js dựng -->
+            <section id="view-pokemon" class="view game-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🔴 Săn Pokemon</h2>
+                        <div class="game-sub">Người xem táp tim / gõ 111 vào ghế · tặng quà nhận bóng · gõ 1-9 chọn Pokemon để ném — overlay 1080×1920</div>
+                    </div>
+                    <div class="overlay-bar">
+                        <button class="obs-link small" id="btn-pokemon-copy" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
+                        <button class="ghost small" id="btn-pokemon-pop" title="Mở overlay thật trong cửa sổ riêng">🪟 Xem overlay</button>
+                    </div>
+                </header>
+                <div id="pokemon-panel" class="pokemon-panel"></div>
+            </section>
+
             <!-- GAME VIEW: Hủ Thủy Tinh -->
             <section id="view-thuytinh" class="view game-view">
                 <header class="game-header">
@@ -1765,6 +1780,42 @@
                 </div>
             </section>
 
+            <!-- GAME VIEW: 🎮 GAME TƯƠNG TÁC — menu nhóm game người xem nhập vai (public/games/gametuongtac/registry.js).
+                 Chỉ là menu: mỗi game con giữ view, panel, link OBS riêng bên dưới. -->
+            <section id="view-gametuongtac" class="view game-view gametuongtac-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🎮 Game Tương Tác</h2>
+                        <div class="game-sub">Game người xem nhập vai vào LIVE · mỗi game một link OBS riêng · bấm ⚙ Cài đặt để vào game</div>
+                    </div>
+                </header>
+                <div class="game-body gametuongtac-body"><div id="gtt-root"></div></div>
+            </section>
+
+            <!-- ============ GAME VIEW: Nhà Tù Online ============ -->
+            <section id="view-nhatu" class="view game-view nhatu-view">
+                <header class="game-header">
+                    <div>
+                        <h2>⛓️ Nhà Tù Online</h2>
+                    </div>
+                    <div class="overlay-bar">
+                        <button id="nt-btn-copy" class="obs-link small" title="OBS: Browser Source 1080×1920">📋 Link OBS</button>
+                        <button id="nt-btn-open" class="ghost small" title="Mở game trong cửa sổ Edge/Chrome (OBS bắt cửa sổ, hoặc chơi thử bằng bàn phím)">🎮 Mở cửa sổ game</button>
+                        <button id="nt-btn-reload" class="ghost small" title="Buộc overlay tải lại">🔄 Reload</button>
+                        <button id="nt-btn-demo" class="ghost small" title="Bật/tắt người xem ảo bình luận, thả tim, tặng quà ngẫu nhiên">▶ Demo</button>
+                        <button id="nt-btn-skip" class="ghost small" title="Chuyển lượt sang người kế tiếp">⏭ Bỏ lượt</button>
+                        <button id="nt-btn-reset" class="danger small" title="Xoá người xem trong trại, hàng chờ và bảng TOP">🧹 Làm mới trại</button>
+                    </div>
+                </header>
+                <div class="game-body nhatu-body">
+                    <div class="nt-top">
+                        <div class="nd-card" id="nt-settings"></div>
+                        <div class="nd-card" id="nt-control"></div>
+                    </div>
+                    <div class="nd-card" id="nt-gifts"></div>
+                </div>
+            </section>
+
             <!-- ============ GAME VIEW: Zombie Phá Nhà ============ -->
             <section id="view-quaivat" class="view game-view quaivat-view">
                 <header class="game-header">
@@ -3003,6 +3054,7 @@
     <script src="/games/caro/game.js"></script>
     <script src="/games/leaguecard/league-card.js"></script>
     <script src="/games/leaguecard/leaguecard-panel.js"></script>
+    <script src="/games/pokemon/pokemon-panel.js"></script>
     <script src="/games/caro/caro-panel.js"></script>
     <script src="/games/pktiktok/game.js"></script>
     <script src="/games/pktiktok/pktiktok-panel.js"></script>
@@ -3013,6 +3065,7 @@
     <script src="/games/nhietdo/game.js"></script>
     <script src="/games/nhietdo/nhietdo-panel.js"></script>
     <script src="/games/quaivat/quaivat-panel.js"></script>
+    <script src="/games/nhatu/nhatu-panel.js"></script>
     <script src="/games/bancung/game.js"></script>
     <script src="/games/bancung/bancung-panel.js"></script>
     <script src="/games/chemtraicay/game.js"></script>
@@ -3026,6 +3079,8 @@
     <script src="/games/body/core.js"></script>
     <script src="/games/body/body-panel.js"></script>
     <script src="/games/camgames/registry.js"></script>
+    <script src="/games/gametuongtac/registry.js"></script>
+    <script src="/games/gametuongtac/gametuongtac-panel.js"></script>
     <script src="/games/camgames/camgames-panel.js"></script>
     <script src="/games/camgames/camgames-trigger.js"></script>
     <script src="/games/trongcay/game.js"></script>

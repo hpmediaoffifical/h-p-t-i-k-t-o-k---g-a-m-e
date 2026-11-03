@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nhà Tù Online – HP Action LIVE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+<script type="importmap">
+  {
+    "imports": {
+      "three": "/games/quaivat/vendor/three.module.min.js",
+      "three/addons/": "/games/quaivat/vendor/addons/"
+    }
+  }
+</script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #dfe6ee; color: #fff;
+    font-family: 'Baloo 2', system-ui, sans-serif; font-size: calc(min(100vw, 56.25vh) / 24); }
+  #c { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  .hidden { display: none !important; }
+
+  /* ---------- bảng tên + bong bóng ---------- */
+  .nt-lab { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; transform-origin: 50% 100%; will-change: transform; white-space: nowrap; }
+  .nt-tag { display: flex; align-items: center; gap: .25em; background: rgba(30, 30, 34, .86); color: #fff; font-weight: 800; font-size: .62em;
+    line-height: 1; padding: .22em .55em .26em; border-radius: .45em; box-shadow: 0 .08em .2em rgba(0,0,0,.25); }
+  .nt-tag img { width: 1.25em; height: 1.25em; border-radius: 50%; object-fit: cover; border: .08em solid #fff; margin-left: -.3em; }
+  .nt-tag.guard { background: rgba(36, 52, 88, .92); font-size: .5em; }
+  .nt-tag.viewer { color: #8fe3ff; }
+  .nt-tag.player { color: #ffcf3f; }
+  /* người đang lên sóng (vừa tặng quà): viền vàng sáng nhấp nháy, chữ to hơn */
+  .nt-tag.spot { color: #fff6c9; background: rgba(150, 70, 0, .95); font-size: .78em; padding: .26em .7em .3em;
+    animation: spotGlow 1.1s ease-in-out infinite; }
+  .nt-tag.spot::before { content: '🎥'; margin-right: .1em; }
+  @keyframes spotGlow {
+    0%, 100% { box-shadow: 0 0 0 .1em #ffcf3f, 0 0 .5em .05em rgba(255,207,63,.7); }
+    50% { box-shadow: 0 0 0 .16em #fff3a8, 0 0 1.3em .35em rgba(255,190,40,.95); }
+  }
+  .nt-badge { font-weight: 800; color: #ffe08a; background: rgba(0,0,0,.35); border-radius: .35em; padding: 0 .3em; margin-left: .15em; font-size: .92em; }
+  .nt-bubble { display: none; max-width: 12em; width: max-content; white-space: normal; text-align: center; background: #fff; color: #222;
+    font-weight: 700; font-size: .52em; line-height: 1.15; padding: .3em .6em; border-radius: .7em; margin-bottom: .4em; position: relative; box-shadow: 0 .1em .3em rgba(0,0,0,.2); }
+  .nt-bubble::after { content: ''; position: absolute; left: 50%; bottom: -.35em; margin-left: -.35em; border: .35em solid transparent; border-top-color: #fff; border-bottom: 0; }
+  .nt-bubble.show { display: block; } /* hiệu ứng nảy: labels.js say() dùng Web Animations */
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  /* ---------- góc trên ---------- */
+  .panel { background: rgba(28, 31, 38, .82); border-radius: .5em; }
+  #tl { position: absolute; top: .5em; left: .5em; display: flex; flex-direction: column; gap: .25em; align-items: flex-start; max-width: 58%; }
+  .nt-brand { display: flex; align-items: center; gap: .3em; background: #fff; color: #1d8f4e; font-weight: 800; font-size: .8em; padding: .1em .6em .1em .35em; border-radius: 1em; box-shadow: 0 .08em .3em rgba(0,0,0,.2); }
+  .nt-brand .dot { width: .45em; height: .45em; border-radius: 50%; background: #3bc26a; box-shadow: 0 0 .3em #3bc26a; }
+  .nt-brand small { color: #555; font-weight: 700; }
+  .nt-info { padding: .3em .55em; font-size: .56em; font-weight: 700; line-height: 1.45; }
+  .nt-info b { color: #ffcf3f; }
+  .nt-info .muted { color: #c9ced8; }
+  #tr { position: absolute; top: .5em; right: .5em; max-width: 42%; display: flex; flex-direction: column; align-items: flex-end; gap: .25em; }
+  #tr .panel { width: max-content; max-width: 100%; }
+  #board-wrap { padding: .3em .4em; }
+  #legend { padding: .3em .4em; }
+  #legend h4 { margin: 0 0 .15em; font-size: .5em; color: #d9f27a; }
+  .nt-lg { display: flex; align-items: center; gap: .25em; font-size: .44em; font-weight: 700; padding: .05em 0; white-space: nowrap; overflow: hidden; }
+  .nt-lg img { width: 1.5em; height: 1.5em; object-fit: contain; flex: none; }
+  .nt-lg .gi { width: 1.5em; text-align: center; }
+  .roles { color: #ffcf3f; font-size: .95em; }
+  .nt-tag.jailed { color: #b9bec8; background: rgba(60, 60, 66, .85); }
+  .nt-tag.job { color: #9dffb0; background: rgba(20, 70, 40, .9); }
+  .nt-tag.jailed::before { content: '🔒'; }
+  #board-wrap h4 { margin: 0 0 .15em; font-size: .52em; color: #ffcf3f; }
+  .nt-br { display: flex; align-items: center; gap: .3em; font-size: .5em; font-weight: 800; padding: .08em 0; }
+  .nt-br .rk { width: 1.3em; text-align: center; }
+  .nt-br .nm { max-width: 7.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nt-br .pt { color: #ffcf3f; margin-left: auto; padding-left: .5em; }
+  .nt-av { position: relative; width: 1.5em; height: 1.5em; border-radius: 50%; flex: none; display: inline-grid; place-items: center; overflow: hidden;
+    background: #f6a21e; color: #fff; font-weight: 800; border: .08em solid #fff; font-size: 1em; }
+  .nt-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .nt-av.big { width: 2.2em; height: 2.2em; font-size: 1.1em; border-width: .1em; border-color: #ffcf3f; }
+
+  #banner { position: absolute; top: 30%; left: 50%; transform: translateX(-50%); font-size: 1.15em; font-weight: 800; white-space: nowrap; opacity: 0;
+    text-shadow: 0 .08em 0 #1e2128, 0 0 .4em rgba(0,0,0,.5); }
+  #banner.show { animation: banner 3.2s ease-out; }
+  @keyframes banner {
+    0% { opacity: 0; transform: translate(-50%, .5em) scale(.8); }
+    12% { opacity: 1; transform: translate(-50%, 0) scale(1.05); }
+    80% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -.3em); }
+  }
+
+  /* ---------- đáy: chat + thẻ lượt chơi ---------- */
+  #bottom { position: absolute; left: .5em; right: .5em; bottom: .5em; display: flex; flex-direction: column; gap: .3em; }
+  #chat { display: flex; flex-direction: column; gap: .15em; align-items: flex-start; max-width: 75%; }
+  .nt-chat { background: rgba(28, 31, 38, .78); border-radius: .4em; padding: .1em .45em; font-size: .5em; font-weight: 700; animation: pop .2s ease-out; max-width: 100%; overflow-wrap: anywhere; }
+  .nt-chat b { color: #ffc83d; }
+  .nt-chat.viewer b { color: #8fe3ff; }
+  .nt-chat.spot b { color: #ffcf3f; }
+  .nt-chat.guard b { color: #8fb8ff; }
+  .nt-chat.system b, .nt-chat.gift b { color: #d9f27a; }
+  #spot { padding: .4em .5em .45em; border: .08em solid rgba(255,255,255,.15); }
+  #spot.live { border-color: #ffcf3f; box-shadow: 0 0 .5em rgba(255,207,63,.45); }
+  #spot-who { display: flex; align-items: center; gap: .4em; }
+  .nt-spot-name { font-size: .8em; font-weight: 800; line-height: 1.1; color: #ffcf3f; }
+  .nt-spot-sub { font-size: .48em; font-weight: 700; color: #e4e8ef; line-height: 1.25; }
+  .nt-track { height: .3em; border-radius: 1em; background: rgba(255,255,255,.15); overflow: hidden; margin: .3em 0 .25em; }
+  #spot-bar { height: 100%; width: 0; background: linear-gradient(90deg, #ffcf3f, #ff7a3c); transition: width .2s linear; }
+  #spot-tip { font-size: .46em; font-weight: 700; color: #d9f27a; margin-bottom: .15em; }
+  #menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.2em, 1fr)); gap: .2em; }
+  .nt-act { display: flex; align-items: center; gap: .3em; background: rgba(255,255,255,.1); border-radius: .35em; padding: .12em .3em; font-size: .46em; font-weight: 800; white-space: nowrap; overflow: hidden; }
+  .nt-act b { background: #fff; color: #1e2128; border-radius: .3em; min-width: 1.35em; text-align: center; padding: 0 .2em; font-size: .95em; }
+  .nt-act i { font-style: normal; font-size: .75em; color: #c9ced8; margin: 0 -.1em; }
+  #queue { display: flex; align-items: center; flex-wrap: wrap; gap: .25em .35em; margin-top: .25em; font-size: .5em; font-weight: 800; color: #c9ced8; }
+  .nt-q { display: inline-flex; align-items: center; gap: .2em; background: rgba(255,255,255,.1); border-radius: 1em; padding: .05em .45em .05em .1em; color: #fff; max-width: 9em; }
+  .nt-q > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nt-q i { font-style: normal; color: #1e2128; background: #ffcf3f; border-radius: 50%; width: 1.25em; height: 1.25em; display: inline-grid; place-items: center; font-size: .85em; }
+  #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  /* 🪢 kéo co PK */
+  #pkbar { display: flex; align-items: center; gap: .4em; padding: .25em .5em; font-size: .52em; font-weight: 800; align-self: center; }
+  #pkbar b { color: #ffcf3f; }
+  .pk-track { width: 12em; height: .55em; border-radius: 1em; background: #e5483d; overflow: hidden; }
+  #pk-fill { height: 100%; width: 50%; background: linear-gradient(90deg, #3bc26a, #8ff0a4); transition: width .4s ease; }
+  #flash.show { animation: flash .55s ease-out; }
+  @keyframes flash { 0% { opacity: .95; } 100% { opacity: 0; } }
+  #queue:empty { display: none; }
+  #queue .nt-av { width: 1.45em; height: 1.45em; font-size: .85em; }
+
+  /* 🎯 mã số tù nhân trên bảng tên — màu theo phòng-đội (P1…P6) */
+  .nt-no { font-style: normal; background: #ffcf3f; color: #1e2128; border-radius: .3em; padding: .05em .28em; font-size: .9em; letter-spacing: .02em; }
+  .nt-tag.guard .nt-no { display: none; }
+  [data-team="1"].nt-no, .nt-rm[data-team="1"] b { background: #ff8a3d; }
+  [data-team="2"].nt-no, .nt-rm[data-team="2"] b { background: #5fd3ff; }
+  [data-team="3"].nt-no, .nt-rm[data-team="3"] b { background: #8ff07a; }
+  [data-team="4"].nt-no, .nt-rm[data-team="4"] b { background: #ff7ac8; }
+  [data-team="5"].nt-no, .nt-rm[data-team="5"] b { background: #c3a2ff; }
+  [data-team="6"].nt-no, .nt-rm[data-team="6"] b { background: #ffe066; }
+  /* 🎯 thẻ "chọn người" sau khi tặng quà chơi khăm */
+  #target { display: flex; flex-direction: column; gap: .25em; }
+  .nt-tg { display: flex; align-items: center; gap: .4em; background: rgba(120, 20, 30, .9); border: .08em solid #ff6b6b; border-radius: .5em; padding: .3em .5em;
+    box-shadow: 0 0 .6em rgba(255, 80, 80, .45); animation: tgPulse 1s ease-in-out infinite; }
+  @keyframes tgPulse { 50% { box-shadow: 0 0 1.1em rgba(255, 110, 90, .8); } }
+  .nt-tg-box { flex: 1; min-width: 0; }
+  .nt-tg-title { font-size: .62em; font-weight: 800; color: #fff3a8; line-height: 1.15; }
+  .nt-tg-sub { font-size: .46em; font-weight: 700; color: #ffe1e1; line-height: 1.25; }
+  .nt-tg-track { height: .25em; border-radius: 1em; background: rgba(255,255,255,.2); overflow: hidden; margin-top: .2em; }
+  .nt-tg-track div { height: 100%; width: 100%; background: linear-gradient(90deg, #ffcf3f, #ff5a3c); transition: width .2s linear; }
+  /* 🏠 thi đua phòng */
+  #rooms-wrap { padding: .3em .4em; }
+  #rooms-wrap h4 { margin: 0 0 .15em; font-size: .52em; color: #8ff07a; }
+  #rooms { display: grid; grid-template-columns: repeat(3, auto); gap: .15em .3em; }
+  .nt-rm { display: flex; align-items: center; gap: .25em; font-size: .46em; font-weight: 800; background: rgba(255,255,255,.08); border-radius: .35em; padding: .05em .3em .05em .1em; }
+  .nt-rm b { color: #1e2128; background: #ffcf3f; border-radius: .3em; padding: 0 .25em; }
+  .nt-rm .ppl { color: #eef1f6; font-size: .9em; }
+  .nt-rm .ppl i { font-style: normal; margin-left: .05em; filter: grayscale(1) brightness(2.6); } /* 👤 mặc định tím đậm, chìm trên nền tối */
+  .nt-rm .pt { color: #ffcf3f; margin-left: auto; }
+  .nt-rm.lead { outline: .1em solid #ffcf3f; }
+  .nt-rooms-tip { font-size: .42em; font-weight: 700; color: #c9ced8; margin-top: .2em; }
+</style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="labels"></div>
+  <div id="hud">
+    <div id="tl">
+      <div class="nt-brand"><span>⛓️ Nhà Tù Online</span><span class="dot"></span><small id="online">0</small></div>
+      <div class="nt-info panel">
+        <div>🕙 <b id="clock">10:00</b> - <span id="phase">Giờ tự do</span></div>
+        <div class="muted">Tiếp theo: <span id="next"></span></div>
+        <div>📅 Toàn trại đã gạch: <b id="camp">0</b> ngày</div>
+        <div>👥 Người xem trong trại: <b id="viewers">0</b></div>
+        <div id="roles" class="roles hidden"></div>
+      </div>
+    </div>
+    <div id="tr">
+      <div id="board-wrap" class="panel hidden"><h4>🏆 Bảng điểm trong trại</h4><div id="board"></div></div>
+      <div id="rooms-wrap" class="panel hidden"><h4>🏠 Thi đua phòng · chốt sau <span id="rooms-left">5:00</span></h4><div id="rooms"></div><div class="nt-rooms-tip">Bình luận P1, P2… để vào phòng · ✋ "tham gia" để chơi thi chạy, kéo co, vật tay</div></div>
+      <div id="legend" class="panel hidden"></div>
+    </div>
+    <div id="banner"></div>
+    <div id="flash"></div>
+    <div id="bottom">
+      <div id="pkbar" class="panel hidden"><span>🪢 Đội mình <b id="pk-host">0</b></span><div class="pk-track"><div id="pk-fill"></div></div><span><b id="pk-opp">0</b> Đội bạn</span></div>
+      <div id="chat"></div>
+      <div id="target" class="hidden"></div>
+      <div id="spot" class="panel">
+        <div id="spot-who"></div>
+        <div class="nt-track"><div id="spot-bar"></div></div>
+        <div id="spot-tip"></div>
+        <div id="menu"></div>
+        <div id="queue"></div>
+      </div>
+    </div>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/games/nhatu/js/game.js"></script>
+</body>
+</html>

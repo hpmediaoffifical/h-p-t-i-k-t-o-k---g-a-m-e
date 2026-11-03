@@ -1,0 +1,234 @@
+{
+  "version": 2,
+  "tiers": [
+    {
+      "id": "t1",
+      "minCoins": 1,
+      "maxLevel": 10,
+      "balls": 1,
+      "labelVi": "Quà 1 - 4 xu"
+    },
+    {
+      "id": "t5",
+      "minCoins": 5,
+      "maxLevel": 20,
+      "balls": 1,
+      "labelVi": "Quà 5 - 9 xu"
+    },
+    {
+      "id": "t10",
+      "minCoins": 10,
+      "maxLevel": 25,
+      "balls": 1,
+      "labelVi": "Quà 10 - 19 xu"
+    },
+    {
+      "id": "t20",
+      "minCoins": 20,
+      "maxLevel": 30,
+      "balls": 1,
+      "labelVi": "Quà 20 - 29 xu"
+    },
+    {
+      "id": "t30",
+      "minCoins": 30,
+      "maxLevel": 35,
+      "balls": 1,
+      "labelVi": "Quà 30 - 49 xu"
+    },
+    {
+      "id": "t50",
+      "minCoins": 50,
+      "maxLevel": 38,
+      "balls": 1,
+      "labelVi": "Quà 50 - 87 xu",
+      "effect": {
+        "kind": "LURE",
+        "seconds": 60
+      }
+    },
+    {
+      "id": "t88",
+      "minCoins": 88,
+      "maxLevel": 40,
+      "balls": 1,
+      "labelVi": "Quà 88 - 99 xu",
+      "effect": {
+        "kind": "WEATHER",
+        "weather": "RANDOM"
+      }
+    },
+    {
+      "id": "t100",
+      "minCoins": 100,
+      "maxLevel": 45,
+      "balls": 1,
+      "labelVi": "Quà 100 - 198 xu",
+      "effect": {
+        "kind": "RESHUFFLE"
+      }
+    },
+    {
+      "id": "t199",
+      "minCoins": 199,
+      "maxLevel": 50,
+      "balls": 1,
+      "labelVi": "Quà 199 - 298 xu",
+      "effect": {
+        "kind": "FREEZE",
+        "seconds": 15
+      }
+    },
+    {
+      "id": "t299",
+      "minCoins": 299,
+      "maxLevel": 60,
+      "balls": 1,
+      "labelVi": "Quà 299 - 499 xu",
+      "effect": {
+        "kind": "DOUBLE_POINTS",
+        "seconds": 120
+      }
+    },
+    {
+      "id": "t500",
+      "minCoins": 500,
+      "maxLevel": 70,
+      "balls": 1,
+      "labelVi": "Quà 500 - 999 xu",
+      "effect": {
+        "kind": "BALL_RAIN",
+        "maxLevel": 20
+      }
+    },
+    {
+      "id": "t1000",
+      "minCoins": 1000,
+      "maxLevel": 85,
+      "balls": 1,
+      "labelVi": "Quà 1000 - 4999 xu",
+      "effect": {
+        "kind": "LEGENDARY"
+      }
+    },
+    {
+      "id": "t5000",
+      "minCoins": 5000,
+      "maxLevel": 100,
+      "balls": 1,
+      "labelVi": "Quà từ 5000 xu",
+      "effect": {
+        "kind": "VIP"
+      }
+    }
+  ],
+  "specials": [
+    {
+      "id": "s_galaxy",
+      "enabled": true,
+      "giftId": "11046",
+      "nameMatch": [
+        "galaxy",
+        "thiên hà"
+      ],
+      "labelVi": "Thiên hà",
+      "maxLevel": 85,
+      "balls": 1,
+      "weather": "SNOW",
+      "legendary": true
+    },
+    {
+      "id": "s_lion",
+      "enabled": true,
+      "giftId": "6369",
+      "nameMatch": [
+        "lion",
+        "sư tử"
+      ],
+      "labelVi": "Sư tử",
+      "maxLevel": 100,
+      "balls": 1,
+      "vip": true,
+      "legendary": true
+    },
+    {
+      "id": "s_universe",
+      "enabled": true,
+      "giftId": "9072",
+      "nameMatch": [
+        "universe",
+        "vũ trụ"
+      ],
+      "labelVi": "TikTok Universe",
+      "maxLevel": 100,
+      "balls": 1,
+      "vip": true,
+      "legendary": true,
+      "effect": {
+        "kind": "DOUBLE_POINTS",
+        "seconds": 300
+      }
+    }
+  ],
+  "social": {
+    "likesPerBall": 10,
+    "likeBallTier": "POKEBALL",
+    "shareBalls": 1,
+    "shareBallTier": "GREAT_BALL",
+    "followBalls": 1,
+    "followBallTier": "GREAT_BALL",
+    "joinCmd": "111",
+    "vipCmd": "222",
+    "vipMinCoins": 100
+  },
+  "maxBallsPerEvent": 20,
+  "seatIdleSeconds": 300,
+  "autoThrowOnReward": true,
+  "bannedWords": [
+    "béo",
+    "gầy",
+    "mập",
+    "ốm",
+    "lùn",
+    "cao",
+    "trắng",
+    "đen",
+    "xấu",
+    "già",
+    "hói",
+    "sẹo",
+    "què",
+    "mù",
+    "điếc",
+    "câm",
+    "ngu",
+    "điên",
+    "khùng",
+    "dở",
+    "đần",
+    "ngốc",
+    "chó",
+    "lợn",
+    "heo",
+    "đĩ",
+    "cave",
+    "đụ",
+    "địt",
+    "lồn",
+    "cặc",
+    "buồi",
+    "cứt",
+    "fat",
+    "ugly",
+    "stupid",
+    "idiot",
+    "fuck",
+    "shit",
+    "bitch",
+    "sex",
+    "sexy",
+    "dick",
+    "pussy"
+  ],
+  "questRewardLevel": 85
+}
