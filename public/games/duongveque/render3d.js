@@ -607,7 +607,8 @@ export function createRenderer3D({ stage, before, game, VIEW, env }) {
       // khách: 6 ô cửa sổ rồi tới nóc; xe đầu có tài xế ở cửa lái
       const mine = seated.slice(i * per, (i + 1) * per);
       const local = (lx, ly, lz) => _p.set(lx, ly, lz).applyMatrix4(m.matrixWorld).clone();
-      if (i === 0) { const q = local(-0.7, 2.47, 1.0); addPerson(drv, q.x, q.y, q.z, 1.3, 0); }
+      const dI = i === 0 ? drv : game.drivers[i];   // 🧑‍✈️ mỗi xe một tài xế
+      if (dI) { const q = local(-0.7, 2.47, 1.0); addPerson(dI, q.x, q.y, q.z, 1.3, 0); }
       mine.forEach((u, k) => {
         const bob = Math.sin(T * 9 + k + i) * 0.03;
         if (k < 6) { const q = local(WIN_X[k], 2.5, 1.0); addPerson(u, q.x, q.y, q.z, 1.35, bob); }   // nhô ra khỏi khung cửa sổ một chút cho rõ mặt
@@ -661,6 +662,7 @@ export function createRenderer3D({ stage, before, game, VIEW, env }) {
     return {
       sx, zoom,
       driver: toScreen(front - 1.2, 6.0 + lift, LANE_Z),
+      carTags: Array.from({ length: Math.max(0, n - 1) }, (_, i) => toScreen(front - (i + 1) * GAP - 1.2, 6.0 + lift, LANE_Z)),
       push: pushTag, pushA, extra,
     };
   }

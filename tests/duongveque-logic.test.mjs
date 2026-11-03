@@ -693,3 +693,65 @@ test('quà dồn lúc dừng + nộp phạt CSGT: xe ủi lái tới chạm rồ
   assert.ok(p && p.t < 0, 'cú đẩy quà dồn đang tiếp cận');
   assert.ok(Math.abs(g.dist - before) < 0.5);
 });
+
+test('cảnh theo tỉnh cũ: đủ 63 tỉnh cũ, mỗi tỉnh đúng 1 đoạn, đúng tỉnh mới đã gộp; kiểu cảnh hợp lệ; partAt đi Nam → Bắc', async () => {
+  const { PARTS, partAt, BIOMES } = await import('../public/games/duongveque/route.js');
+  const names = [];
+  for (const p of ROUTE) {
+    const parts = PARTS[p.name];
+    assert.ok(parts && parts.length, `${p.name} có đoạn cảnh`);
+    assert.deepEqual(parts.map(x => x.name).sort(), [p.name, ...p.old].sort(), `${p.name}: đúng các tỉnh cũ đã gộp`);
+    for (const x of parts) {
+      assert.ok(BIOMES.includes(x.biome), `${x.name}: biome ${x.biome}`);
+      assert.ok(x.feats.length >= 2 && x.sign, `${x.name}: có nét đặc trưng + biển chào`);
+      names.push(x.name);
+    }
+  }
+  assert.equal(names.length, 63);
+  assert.equal(new Set(names).size, 63);
+  const goal = 6000, seen = [];
+  for (let m = 0; m < goal; m += 5) { const n = partAt(m, goal).part.name; if (seen[seen.length - 1] !== n) seen.push(n); }
+  assert.equal(seen.length, 63);
+  assert.equal(seen[0], 'Cà Mau'); assert.equal(seen[1], 'Bạc Liêu'); assert.equal(seen[62], 'Hà Giang');
+  assert.equal(partAt(-50, goal).part.name, 'Cà Mau');
+  assert.equal(partAt(goal + 99, goal).part.name, 'Hà Giang');
+});
+
+test('nhiều xe: quà Tài xế lên lái xe tiếp theo còn trống, mỗi xe cùng thuật toán (giờ lái, hàng chờ, giữ lái)', () => {
+  const g = race({ fuelBurn: 0, roundSec: 9999, driverSec: 5, seats: 4, maxCars: 3 });
+  for (let i = 0; i < 9; i++) g.comment({ id: `r${i}`, name: `R${i}` }, '1');
+  assert.equal(g.passengers().cars, 3);
+  const D = ['d0', 'd1', 'd2', 'd3'].map(id => ({ id, name: id }));
+  g.gift(D[0], { action: 'driver', coins: 99 });
+  g.gift(D[1], { action: 'driver', coins: 99, count: 2 });
+  g.gift(D[2], { action: 'driver', coins: 99 });
+  assert.deepEqual(g.drivers.map(d => d && d.id), ['d0', 'd1', 'd2']);
+  assert.equal(g.driver.id, 'd0');
+  assert.equal(g.passengers().cars, 3, 'tài xế xe sau không làm mất xe');
+  g.gift(D[3], { action: 'driver', coins: 99 });            // hết xe trống → chờ
+  assert.deepEqual(g.driverQueue.map(q => q.user.id), ['d3']);
+  const evs = g.drainEvents().filter(e => e.type === 'driver').map(e => e.car);
+  assert.deepEqual(evs, [0, 1, 2]);
+  run(g, 5.2);                                                // xe 0 và xe 2 hết giờ: d3 lên xe 0, xe 2 giữ lái
+  assert.equal(g.drivers[0].id, 'd3');
+  assert.equal(g.drivers[2].id, 'd2'); assert.equal(g.drivers[2].free, true);
+  assert.equal(g.drivers[1].free, false);                     // xe 1 còn giờ (×2)
+  g.gift(D[0], { action: 'driver', coins: 99 });            // xe có người giữ lái → quà mới thay ngay
+  assert.equal(g.drivers[2].id, 'd0');
+  g.gift(D[0], { action: 'driver', coins: 99 });            // đang lái thì cộng giờ
+  assert.ok(g.drivers[2].left > 9);
+});
+
+test('nhiều xe: đoàn có thêm xe thì người đang chờ tự lên lái xe mới', () => {
+  const g = race({ fuelBurn: 0, roundSec: 9999, seats: 4, maxCars: 3 });
+  for (let i = 0; i < 3; i++) g.comment({ id: `r${i}`, name: `R${i}` }, '1');
+  g.gift({ id: 'd0', name: 'd0' }, { action: 'driver', coins: 99 });
+  g.gift({ id: 'd1', name: 'd1' }, { action: 'driver', coins: 99 });
+  assert.equal(g.passengers().cars, 1);
+  assert.deepEqual(g.driverQueue.map(q => q.user.id), ['d1']);
+  for (let i = 3; i < 7; i++) g.comment({ id: `r${i}`, name: `R${i}` }, '1');
+  run(g, 0.1);
+  assert.equal(g.passengers().cars, 2);
+  assert.equal(g.drivers[1] && g.drivers[1].id, 'd1');
+  assert.equal(g.driverQueue.length, 0);
+});

@@ -62,3 +62,129 @@ export function provinceStart(i, goal) { return (i / ROUTE.length) * goal; }
 export function rangesOf(names) {
   return ROUTE.map((p, i) => (names.includes(p.name) ? [i / ROUTE.length, (i + 1) / ROUTE.length] : null)).filter(Boolean);
 }
+
+/**
+ * Cảnh theo TỈNH CŨ (63 tỉnh trước sắp xếp 2025): mỗi tỉnh mới chia đều quãng của nó cho các tỉnh cũ đã gộp vào,
+ * theo thứ tự xe đi từ Nam ra Bắc. biome = kiểu cảnh nền (màu + lớp giữa + đồ ven đường: city = thành phố,
+ * delta / fields = thôn quê, coast = biển, highland / mountain / karst = núi, heritage = cố đô); feats = nét đặc trưng
+ * vẽ chen vào lớp giữa (game.js FEAT), sign = điều người xem quê đó nhận ra ngay (biển chào nhỏ).
+ */
+export const PARTS = {
+  'Cà Mau': [
+    { name: 'Cà Mau', biome: 'delta', feats: ['mangrove', 'mangrove', 'fishboats'], sign: 'Rừng đước Năm Căn' },
+    { name: 'Bạc Liêu', biome: 'coast', feats: ['wind', 'salt', 'mansion'], sign: 'Cánh đồng điện gió' },
+  ],
+  'Cần Thơ': [
+    { name: 'Sóc Trăng', biome: 'delta', feats: ['khmer', 'rice', 'palmyra'], sign: 'Chùa Dơi · đua ghe ngo' },
+    { name: 'Hậu Giang', biome: 'delta', feats: ['rice', 'coconut', 'floating'], sign: 'Chợ nổi Ngã Bảy' },
+    { name: 'Cần Thơ', biome: 'delta', feats: ['floating', 'bridge', 'fruit'], sign: 'Chợ nổi Cái Răng' },
+  ],
+  'An Giang': [
+    { name: 'Kiên Giang', biome: 'coast', feats: ['island', 'fishboats', 'beach'], sign: 'Đảo ngọc Phú Quốc' },
+    { name: 'An Giang', biome: 'delta', feats: ['palmyra', 'hill', 'khmer'], sign: 'Thốt nốt · Núi Sam' },
+  ],
+  'Đồng Tháp': [
+    { name: 'Đồng Tháp', biome: 'delta', feats: ['lotus', 'lotus', 'rice'], sign: 'Đồng sen Tháp Mười' },
+    { name: 'Tiền Giang', biome: 'delta', feats: ['fruit', 'floating', 'coconut'], sign: 'Vườn trái cây Cái Bè' },
+  ],
+  'Vĩnh Long': [
+    { name: 'Trà Vinh', biome: 'delta', feats: ['khmer', 'coconut', 'rice'], sign: 'Ao Bà Om' },
+    { name: 'Vĩnh Long', biome: 'delta', feats: ['kiln', 'fruit', 'kiln'], sign: 'Lò gạch Mang Thít' },
+    { name: 'Bến Tre', biome: 'delta', feats: ['coconut', 'coconut', 'fruit'], sign: 'Xứ dừa' },
+  ],
+  'Tây Ninh': [
+    { name: 'Long An', biome: 'fields', feats: ['dragonfruit', 'rice', 'village'], sign: 'Thanh long Châu Thành' },
+    { name: 'Tây Ninh', biome: 'fields', feats: ['hill', 'caodai', 'rubber'], sign: 'Núi Bà Đen · Tòa Thánh' },
+  ],
+  'TP. Hồ Chí Minh': [
+    { name: 'TP. Hồ Chí Minh', biome: 'city', feats: ['tower81', 'market', 'skyline', 'skyline'], sign: 'Landmark 81 · Bến Thành' },
+    { name: 'Bình Dương', biome: 'city', feats: ['factory', 'skyline', 'factory'], sign: 'Khu công nghiệp' },
+    { name: 'Bà Rịa – Vũng Tàu', biome: 'coast', feats: ['lighthouse', 'beach', 'oilrig'], sign: 'Biển Vũng Tàu' },
+  ],
+  'Đồng Nai': [
+    { name: 'Đồng Nai', biome: 'highland', feats: ['forest', 'rubber', 'factory'], sign: 'Rừng Nam Cát Tiên' },
+    { name: 'Bình Phước', biome: 'highland', feats: ['rubber', 'cashew', 'pepper'], sign: 'Điều · cao su' },
+  ],
+  'Lâm Đồng': [
+    { name: 'Bình Thuận', biome: 'coast', feats: ['dunes', 'dragonfruit', 'chamtower'], sign: 'Đồi cát Mũi Né' },
+    { name: 'Đắk Nông', biome: 'highland', feats: ['coffee', 'pepper', 'waterfall'], sign: 'Thác Dray Sáp' },
+    { name: 'Lâm Đồng', biome: 'highland', feats: ['pine', 'greenhouse', 'lake'], sign: 'Đà Lạt ngàn hoa' },
+  ],
+  'Khánh Hòa': [
+    { name: 'Ninh Thuận', biome: 'coast', feats: ['grape', 'chamtower', 'wind', 'sheep'], sign: 'Nho · cừu · tháp Chăm' },
+    { name: 'Khánh Hòa', biome: 'coast', feats: ['resort', 'island', 'chamtower'], sign: 'Nha Trang · Tháp Bà' },
+  ],
+  'Đắk Lắk': [
+    { name: 'Phú Yên', biome: 'coast', feats: ['lighthouse', 'fishboats', 'beach'], sign: 'Hoa vàng trên cỏ xanh' },
+    { name: 'Đắk Lắk', biome: 'highland', feats: ['coffee', 'elephant', 'nharong'], sign: 'Cà phê Buôn Ma Thuột' },
+  ],
+  'Gia Lai': [
+    { name: 'Bình Định', biome: 'coast', feats: ['chamtower', 'fishboats', 'beach'], sign: 'Đất võ · tháp Chăm' },
+    { name: 'Gia Lai', biome: 'highland', feats: ['nharong', 'coffee', 'lake'], sign: 'Biển Hồ Pleiku' },
+  ],
+  'Quảng Ngãi': [
+    { name: 'Kon Tum', biome: 'highland', feats: ['woodchurch', 'nharong', 'pine'], sign: 'Nhà thờ Gỗ' },
+    { name: 'Quảng Ngãi', biome: 'coast', feats: ['garlic', 'island', 'lighthouse'], sign: 'Tỏi Lý Sơn' },
+  ],
+  'Đà Nẵng': [
+    { name: 'Quảng Nam', biome: 'heritage', feats: ['oldtown', 'oldtown', 'chamtower'], sign: 'Phố cổ Hội An' },
+    { name: 'Đà Nẵng', biome: 'city', feats: ['bridge', 'skyline', 'beach'], sign: 'Cầu Rồng · biển Mỹ Khê' },
+  ],
+  'Huế': [
+    { name: 'Huế', biome: 'heritage', feats: ['citadel', 'pagoda', 'dragonboat'], sign: 'Đại Nội · chùa Thiên Mụ' },
+  ],
+  'Quảng Trị': [
+    { name: 'Quảng Trị', biome: 'fields', feats: ['rice', 'bridge', 'village'], sign: 'Cầu Hiền Lương' },
+    { name: 'Quảng Bình', biome: 'karst', feats: ['cave', 'dunes', 'karst'], sign: 'Phong Nha – Kẻ Bàng' },
+  ],
+  'Hà Tĩnh': [{ name: 'Hà Tĩnh', biome: 'fields', feats: ['rice', 'village', 'beach'], sign: 'Ngã ba Đồng Lộc' }],
+  'Nghệ An': [{ name: 'Nghệ An', biome: 'fields', feats: ['lotus', 'village', 'tea'], sign: 'Làng Sen quê Bác' }],
+  'Thanh Hóa': [{ name: 'Thanh Hóa', biome: 'coast', feats: ['beach', 'rice', 'citadel'], sign: 'Sầm Sơn · thành nhà Hồ' }],
+  'Ninh Bình': [
+    { name: 'Ninh Bình', biome: 'karst', feats: ['karst', 'pagoda', 'rowboat'], sign: 'Tràng An · Bái Đính' },
+    { name: 'Nam Định', biome: 'fields', feats: ['church', 'rice', 'temple'], sign: 'Nhà thờ · Phủ Dầy' },
+    { name: 'Hà Nam', biome: 'fields', feats: ['pagoda', 'village', 'rice'], sign: 'Chùa Tam Chúc' },
+  ],
+  'Hưng Yên': [
+    { name: 'Thái Bình', biome: 'fields', feats: ['rice', 'church', 'village'], sign: 'Quê lúa' },
+    { name: 'Hưng Yên', biome: 'fields', feats: ['longan', 'temple', 'village'], sign: 'Nhãn lồng · Phố Hiến' },
+  ],
+  'Hải Phòng': [
+    { name: 'Hải Dương', biome: 'fields', feats: ['lychee', 'village', 'temple'], sign: 'Vải Thanh Hà' },
+    { name: 'Hải Phòng', biome: 'city', feats: ['port', 'flamboyant', 'factory'], sign: 'Thành phố hoa phượng đỏ' },
+  ],
+  'Quảng Ninh': [{ name: 'Quảng Ninh', biome: 'karst', feats: ['junk', 'island', 'karst'], sign: 'Vịnh Hạ Long' }],
+  'Bắc Ninh': [
+    { name: 'Bắc Ninh', biome: 'fields', feats: ['temple', 'factory', 'quanho'], sign: 'Quan họ · KCN' },
+    { name: 'Bắc Giang', biome: 'fields', feats: ['lychee', 'lychee', 'village'], sign: 'Vải thiều Lục Ngạn' },
+  ],
+  'Hà Nội': [{ name: 'Hà Nội', biome: 'city', feats: ['turtletower', 'onepillar', 'longbien', 'tubehouse'], sign: 'Hồ Gươm · cầu Long Biên' }],
+  'Phú Thọ': [
+    { name: 'Vĩnh Phúc', biome: 'fields', feats: ['factory', 'hill', 'village'], sign: 'Tam Đảo' },
+    { name: 'Phú Thọ', biome: 'mountain', feats: ['temple', 'tea', 'hill'], sign: 'Đền Hùng' },
+    { name: 'Hòa Bình', biome: 'mountain', feats: ['dam', 'stilt', 'lake'], sign: 'Thủy điện Hòa Bình' },
+  ],
+  'Sơn La': [{ name: 'Sơn La', biome: 'mountain', feats: ['tea', 'cows', 'plum'], sign: 'Mộc Châu' }],
+  'Điện Biên': [{ name: 'Điện Biên', biome: 'mountain', feats: ['rice', 'stilt', 'flaghill'], sign: 'Đồi A1 · cánh đồng Mường Thanh' }],
+  'Lai Châu': [{ name: 'Lai Châu', biome: 'mountain', feats: ['terrace', 'clouds', 'stilt'], sign: 'Đèo Ô Quy Hồ' }],
+  'Lào Cai': [
+    { name: 'Yên Bái', biome: 'mountain', feats: ['terrace', 'terrace', 'stilt'], sign: 'Ruộng bậc thang Mù Cang Chải' },
+    { name: 'Lào Cai', biome: 'mountain', feats: ['cablecar', 'terrace', 'plum'], sign: 'Sa Pa · Fansipan' },
+  ],
+  'Thái Nguyên': [
+    { name: 'Thái Nguyên', biome: 'mountain', feats: ['tea', 'tea', 'factory'], sign: 'Chè Tân Cương' },
+    { name: 'Bắc Kạn', biome: 'mountain', feats: ['lake', 'stilt', 'rowboat'], sign: 'Hồ Ba Bể' },
+  ],
+  'Lạng Sơn': [{ name: 'Lạng Sơn', biome: 'mountain', feats: ['peach', 'pine', 'karst'], sign: 'Hoa đào · Mẫu Sơn' }],
+  'Cao Bằng': [{ name: 'Cao Bằng', biome: 'karst', feats: ['waterfall', 'karst', 'rice'], sign: 'Thác Bản Giốc' }],
+  'Tuyên Quang': [
+    { name: 'Tuyên Quang', biome: 'karst', feats: ['temple', 'karst', 'stilt'], sign: 'Đình Tân Trào' },
+    { name: 'Hà Giang', biome: 'karst', feats: ['buckwheat', 'terrace', 'karst'], sign: 'Hoa tam giác mạch · Mã Pí Lèng' },
+  ],
+};
+/** Đoạn tỉnh cũ ở mét m: { part, pi (tỉnh mới), k (thứ tự trong tỉnh), n (số đoạn), from (mét bắt đầu đoạn) }. */
+export function partAt(m, goal) {
+  const pi = provinceIndex(m, goal), parts = PARTS[ROUTE[pi].name], seg = goal / ROUTE.length;
+  const f = Math.max(0, Math.min(0.99999, (Math.max(0, m) - pi * seg) / seg)), k = Math.floor(f * parts.length);
+  return { part: parts[k], pi, k, n: parts.length, from: pi * seg + (k / parts.length) * seg };
+}

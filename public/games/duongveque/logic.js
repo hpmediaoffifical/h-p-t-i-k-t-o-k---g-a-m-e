@@ -209,8 +209,8 @@ export function createGame(options = {}, rnd = Math.random) {
     jumpT: 0, jumpCd: 0, ramCd: 0, ramWindow: 0,
     users: new Map(), totals: { cuu: 0, pha: 0 },
     likeAcc: 0, pending: [], events: [], result: null, aiTimers: [],
-    driver: null,      // { id, name, avatar, left } — null = streamer tự lái
-    driverQueue: [],   // [{ user, sec }]
+    drivers: [],       // 🧑‍✈️ tài xế theo xe: drivers[i] = { id, name, avatar, left, free } — xe 0 trống = streamer tự lái
+    driverQueue: [],   // [{ user, sec }] chờ tới lượt (mọi xe dùng chung 1 hàng)
     riders: [],        // id người phe Cứu theo thứ tự lên xe
     plan: [],          // lộ trình ván này: [{ kind, at (mét), done }]
     kmh: 0, fastT: 0, fastSeen: false,   // tốc độ thật (gồm cú đẩy), thời gian đang quá tốc độ
@@ -220,6 +220,8 @@ export function createGame(options = {}, rnd = Math.random) {
   };
 
   const emit = (type, data = {}) => { g.events.push(Object.assign({ type }, data)); };
+  // g.driver = tài xế xe đầu (giữ tên cũ cho overlay / test)
+  Object.defineProperty(g, 'driver', { get() { return g.drivers[0] || null; }, set(v) { g.drivers[0] = v || null; }, enumerable: true });
 
   function user(u) {
     const id = String((u && (u.id || u.uniqueId || u.name)) || 'khach');
@@ -368,8 +370,14 @@ export function createGame(options = {}, rnd = Math.random) {
   function assignDriver(u, count) {
     const base = { user: { id: u.id, name: u.name, avatar: u.avatar } };
     const sec = cfg.driverSec * count;
-    if (g.driver && g.driver.id === u.id) { g.driver.left += sec; emit('driverExtend', { user: base.user, left: g.driver.left }); }
-    else if (!g.driver || g.driver.free) setDriver(u, sec);
+    const mine = g.drivers.findIndex(d => d && d.id === u.id);
+    if (mine >= 0) { const d = g.drivers[mine]; d.left += sec; d.free = false; emit('driverExtend', { user: base.user, left: d.left, car: mine }); return; }
+    // xe còn trống trước (theo thứ tự xe), rồi xe có người đã hết giờ đang giữ lái; hết chỗ thì xếp hàng
+    const cars = g.passengers().cars;
+    let slot = -1;
+    for (let i = 0; i < cars && slot < 0; i++) if (!g.drivers[i]) slot = i;
+    for (let i = 0; i < cars && slot < 0; i++) if (g.drivers[i].free) slot = i;
+    if (slot >= 0) setDriver(slot, u, sec);
     else {
       const q = g.driverQueue.find(x => x.user.id === u.id);
       if (q) q.sec += sec; else g.driverQueue.push({ user: base.user, sec });
@@ -396,30 +404,41 @@ export function createGame(options = {}, rnd = Math.random) {
     }
   }
 
-  function setDriver(u, sec) {
+  function setDriver(i, u, sec) {
     paxTick = -1;
-    const prev = g.driver;
-    g.driver = { id: u.id, name: u.name, avatar: u.avatar || '', left: sec, free: false };
-    emit('driver', { user: { id: u.id, name: u.name, avatar: u.avatar }, sec, prev: prev ? { id: prev.id, name: prev.name } : null });
+    const prev = g.drivers[i];
+    g.drivers[i] = { id: u.id, name: u.name, avatar: u.avatar || '', left: sec, free: false };
+    emit('driver', { user: { id: u.id, name: u.name, avatar: u.avatar }, sec, car: i, prev: prev ? { id: prev.id, name: prev.name } : null });
   }
   /** Lượt tài xế chạy theo giờ thật (cả lúc chờ ván). Hết giờ: có người chờ → đổi; không → giữ nguyên người đang lái. */
   function stepDriver(dt) {
-    const d = g.driver;
-    if (!d || d.free) return;
-    d.left -= dt;
-    if (d.left > 0) return;
-    const next = g.driverQueue.shift();
-    if (next) setDriver(next.user, next.sec);
-    else { d.left = 0; d.free = true; emit('driverHold', { user: { id: d.id, name: d.name, avatar: d.avatar } }); }
+    for (let i = 0; i < g.drivers.length; i++) {
+      const d = g.drivers[i];
+      if (!d || d.free) continue;
+      d.left -= dt;
+      if (d.left > 0) continue;
+      const next = g.driverQueue.shift();
+      if (next) setDriver(i, next.user, next.sec);
+      else { d.left = 0; d.free = true; emit('driverHold', { user: { id: d.id, name: d.name, avatar: d.avatar }, car: i }); }
+    }
+    // đoàn có thêm xe: người đang chờ lên lái xe mới còn trống
+    if (g.driverQueue.length) {
+      const cars = g.passengers().cars;
+      for (let i = 0; i < cars && g.driverQueue.length; i++) if (!g.drivers[i]) { const q = g.driverQueue.shift(); setDriver(i, q.user, q.sec); }
+    }
   }
+
   /** Người ngồi trên xe: tài xế không tính, xếp theo xu Cứu ván này rồi tới thứ tự lên xe. */
   let paxTick = -1, paxCache = null;
   g.passengers = function () {
     if (paxTick === g.tick && paxCache) return paxCache;
-    const list = g.riders.map(id => g.users.get(id)).filter(u => u && u.side !== 'pha' && (!g.driver || u.id !== g.driver.id) && !g.lost.some(l => l.id === u.id));
+    const driving = new Set(g.drivers.filter(Boolean).map(d => d.id));
+    const list = g.riders.map(id => g.users.get(id)).filter(u => u && u.side !== 'pha' && !driving.has(u.id) && !g.lost.some(l => l.id === u.id));
     list.sort((a, b) => b.cuu - a.cuu || g.riders.indexOf(a.id) - g.riders.indexOf(b.id));
     paxTick = g.tick;
-    const cars = Math.max(1, Math.min(cfg.maxCars, Math.ceil(list.length / cfg.seats)));
+    // tài xế xe sau vẫn chiếm 1 chỗ của đoàn → xe đó không biến mất khi họ rời ghế khách
+    const extra = g.drivers.filter((d, i) => i > 0 && d).length;
+    const cars = Math.max(1, Math.min(cfg.maxCars, Math.ceil((list.length + extra) / cfg.seats)));
     const cap = cfg.seats * cars;
     return (paxCache = { seated: list.slice(0, cap), extra: Math.max(0, list.length - cap), total: list.length, cars });
   };
@@ -659,7 +678,7 @@ export function createGame(options = {}, rnd = Math.random) {
     g.plan = buildPlan(); g.lost = [];
     g.jumpT = 0; g.jumpCd = 0; g.ramCd = 0; g.ramWindow = 0; g.aiTimers = [];
     if (g.users.size > cfg.maxUsers) {
-      const keep = new Set([...g.riders, ...(g.driver ? [g.driver.id] : []), ...g.driverQueue.map(q => q.user.id), ...g.pending.map(p => p.u.id)]);
+      const keep = new Set([...g.riders, ...g.drivers.filter(Boolean).map(d => d.id), ...g.driverQueue.map(q => q.user.id), ...g.pending.map(p => p.u.id)]);
       for (const id of [...g.users.keys()]) if (!keep.has(id)) g.users.delete(id);
     }
     for (const u of g.users.values()) Object.assign(u, { cuu: 0, pha: 0, betrayed: false });
@@ -840,7 +859,7 @@ export function createGame(options = {}, rnd = Math.random) {
     g.phase = 'lobby'; g.phaseT = 0; g.result = null; g.pending = []; g.dist = 0; g.maxDist = 0; g.fuel = 100;
     g.pushes = []; g.effects = []; g.obstacles = []; g.exclusive = null; g.xqueue = []; g.rescue = null; g.fuelAlarm = null;
     g.users = new Map(); g.totals = { cuu: 0, pha: 0 };
-    g.driver = null; g.driverQueue = []; g.riders = []; g.halt = null; g.plan = []; g.lost = []; paxTick = -1;
+    g.drivers = []; g.driverQueue = []; g.riders = []; g.halt = null; g.plan = []; g.lost = []; paxTick = -1;
     emit('lobby');
   };
   return g;

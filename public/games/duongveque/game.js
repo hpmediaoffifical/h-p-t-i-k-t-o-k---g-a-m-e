@@ -778,8 +778,8 @@ function bus(x, y, o) {
   ctx.fillStyle = '#e8322c'; rrect(-470, -112, 250, 40, 8); ctx.fill();
   ctx.fillStyle = '#ffd23a'; ctx.font = "800 30px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ci ? `ĐOÀN VỀ QUÊ · XE ${ci + 1}` : 'VỀ QUÊ ĂN TẾT', -345, -91);
   ctx.fillStyle = '#bfe3ff'; ctx.beginPath(); ctx.moveTo(-78, -238); ctx.lineTo(-14, -238); ctx.lineTo(-4, -140); ctx.lineTo(-78, -140); ctx.closePath(); ctx.fill();
-  if (ci === 0 && o.driver) { ctx.save(); rrect(-78, -238, 74, 98, 6); ctx.clip(); passenger(-44, -196, 24, o.driver); ctx.restore(); }
-  if (ci > 0) { ctx.fillStyle = '#ffd23a'; rrect(-70, -214, 58, 40, 6); ctx.fill(); ctx.fillStyle = '#222'; ctx.font = "800 24px 'Be Vietnam Pro'"; ctx.fillText(`XE ${ci + 1}`, -41, -193); }
+  if (o.driver) { ctx.save(); rrect(-78, -238, 74, 98, 6); ctx.clip(); passenger(-44, -196, 24, o.driver); ctx.restore(); }
+  if (ci > 0 && !o.driver) { ctx.fillStyle = '#ffd23a'; rrect(-70, -214, 58, 40, 6); ctx.fill(); ctx.fillStyle = '#222'; ctx.font = "800 24px 'Be Vietnam Pro'"; ctx.fillText(`XE ${ci + 1}`, -41, -193); }
   ctx.fillStyle = '#2b2d33'; ctx.fillRect(-120, -238, 34, 194);
   ctx.fillStyle = '#fff6b0'; ctx.beginPath(); ctx.ellipse(-6, -76, 10, 14, 0, 0, Math.PI * 2); ctx.fill();
   // 6 cửa sổ: đầu + vai, vai bị mép dưới cửa sổ che
@@ -852,11 +852,13 @@ function drawVehicle(x, y, o) {
   for (let i = n - 1; i >= 0; i--) {
     const xi = x - S(CAR_GAP) * i;
     const part = { seated: P.seated.slice(i * per, (i + 1) * per), extra: i === n - 1 ? P.extra : 0 };
-    const oi = Object.assign({}, o, { passengers: part, carIndex: i, ang: (o.ang || 0) + (i ? Math.sin(T * 3 + i) * 0.01 : 0) });
+    const dI = i ? game.drivers[i] : null;   // 🧑‍✈️ tài xế riêng của xe sau
+    const oi = Object.assign({}, o, { passengers: part, carIndex: i, ang: (o.ang || 0) + (i ? Math.sin(T * 3 + i) * 0.01 : 0), driver: i ? (dI ? { id: dI.id, name: dI.name, avatar: dI.avatar } : null) : o.driver });
     const yi = i ? contactY(meterAt(xi - S(185))) - (y < contactY(cam) - 1 ? contactY(cam) - y : 0) : y;
     if (VIEW.vehicle === 'oxcart') oxcart(xi, yi, oi); else bus(xi, yi, oi);
   }
 }
+function driverTag(d, i) { return { name: `🧑‍✈️ XE ${i + 1} · ${String(d.name).slice(0, 12)} ${d.free ? '· giữ lái' : fmtClock(d.left)}`, avatar: d.avatar }; }
 function fmtClock(sec) { const s = Math.max(0, Math.ceil(sec)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 
 function container(xFront, m, u, t, mult) {
@@ -1154,10 +1156,10 @@ function updateHud(dt) {
   $('shield').textContent = `${fmt(game.shield)}m`;
   $('cram').textContent = game.ramCd > 0 ? `💥 Húc sau ${Math.ceil(game.ramCd)}s` : '💥 Húc';
   $('cram').classList.toggle('ready', game.ramCd <= 0 && game.phase === 'race');
-  const dv = game.driver, q = game.driverQueue.length;
-  $('driver').textContent = dv ? `${dv.name} ${dv.free ? 'giữ lái' : fmtClock(dv.left)}${q ? `, ${q} người chờ` : ''}` : VIEW.streamerName;
+  const dv = game.driver, q = game.driverQueue.length, more = game.drivers.filter((x, i) => i > 0 && x).length;
+  $('driver').textContent = (dv ? `${dv.name} ${dv.free ? 'giữ lái' : fmtClock(dv.left)}` : VIEW.streamerName) + (more ? ` +${more} xe` : '') + (q ? `, ${q} người chờ` : '');
   const px = game.passengers();
-  $('pax').textContent = fmt(px.total + (dv ? 1 : 0));
+  $('pax').textContent = fmt(px.total + game.drivers.filter(Boolean).length);
   $('cpax').classList.toggle('hidden', VIEW.vehicle === 'scooter');
   // khung cứu nạn
   const rs = $('rescue');
@@ -1341,7 +1343,7 @@ function onEvents(list) {
       case 'fine': pushBy = { name: 'CSGT', id: 'csgt' }; banner(`🧾 NỘP PHẠT!<small>Chưa đủ tim — lùi ${dtx(e.meters)}</small>`, 'pha', 2400, 3); SFX.lose(); break;
       case 'deferred': toast(e.side, e.user, `${ACTION_BY_ID[e.action].emoji} ⏳ chạy khi xe đi`); break;
       case 'roadEvent': if (e.kind === 'jam') banner(`🚗 KẸT XE CỬA NGÕ ${esc(ROUTE[provIdx(game.dist)].name.toUpperCase())}!<small>Chạy chậm 10 giây</small>`, 'pha', 2200, 2); else if (e.kind === 'lixi') { banner('🧧 HỌ HÀNG LÌ XÌ!<small>+30% xăng · đẩy tới</small>', 'cuu', 2200, 2); for (let i = 0; i < 40; i++) fx.push({ k: 'conf', x: SX, y: contactY(cam) - 300, vx: (Math.random() - 0.5) * 700, vy: -400 - Math.random() * 500, c: i % 3 ? '#e8322c' : '#ffd23a', t: 0, dur: 2, r: 0 }); SFX.good(); } break;
-      case 'driver': banner(`🧑‍✈️ <b>${esc(e.user.name)}</b> LÊN LÀM TÀI XẾ!<small>lái ${fmtClock(e.sec)}${e.prev ? ` · thay ${esc(e.prev.name)}` : ''}</small>`, 'cuu', 2600, 3); SFX.honk(); break;
+      case 'driver': banner(`🧑‍✈️ <b>${esc(e.user.name)}</b> LÊN LÀM TÀI XẾ${e.car ? ` XE ${e.car + 1}` : ''}!<small>lái ${fmtClock(e.sec)}${e.prev ? ` · thay ${esc(e.prev.name)}` : ''}</small>`, 'cuu', 2600, 3); SFX.honk(); break;
       case 'driverQueued': toast('cuu', e.user, `🧑‍✈️ chờ lái · thứ ${e.pos}`); break;
       case 'driverExtend': toast('cuu', e.user, `🧑‍✈️ lái thêm · còn ${fmtClock(e.left)}`); break;
       case 'driverHold': toast('cuu', e.user, '🧑‍✈️ hết giờ · vẫn giữ lái'); break;
@@ -1968,6 +1970,7 @@ function render(dt) {
   // tài xế (người xem tặng quà lái) + streamer
   const d = game.driver;
   tag(SX - S(V.rear > 200 ? 20 : 0), cy - S(V.top + 40), { name: d ? `🧑‍✈️ ${String(d.name).slice(0, 14)} ${d.free ? '· giữ lái' : fmtClock(d.left)}` : `🧑‍✈️ ${VIEW.streamerName}`, avatar: d ? d.avatar : '' }, 'rgba(190,110,0,.94)', 24, 30, 0);
+  if (VIEW.vehicle !== 'scooter') for (let i = 1; i < carsNow; i++) { const di = game.drivers[i]; if (di) tag(SX - S(CAR_GAP * i + 20), cy - S(V.top + 40), driverTag(di, i), 'rgba(190,110,0,.88)', 20, 22, 1); }
   // mũ bảo hiểm: lá chắn vàng
   if (game.shield > 0 && game.phase === 'race') {
     ctx.save(); ctx.globalAlpha = 0.35 + Math.sin(T * 5) * 0.1; ctx.strokeStyle = '#ffe27a'; ctx.lineWidth = 6;
@@ -2028,6 +2031,7 @@ function render3d(dt) {
   LBL = [];
   const d = game.driver;
   tag(o.driver.x, o.driver.y, { name: d ? `🧑‍✈️ ${String(d.name).slice(0, 14)} ${d.free ? '· giữ lái' : fmtClock(d.left)}` : `🧑‍✈️ ${VIEW.streamerName}`, avatar: d ? d.avatar : '' }, 'rgba(190,110,0,.94)', 24, 30, 0);
+  (o.carTags || []).forEach((p, i) => { const di = game.drivers[i + 1]; if (di) tag(p.x, p.y, driverTag(di, i + 1), 'rgba(190,110,0,.88)', 20, 22, 1); });
   if (pushBy && o.push) tag(o.push.x, o.push.y, pushBy, 'rgba(170,30,25,.9)', 20);
   if (o.extra) tag(o.extra.x, o.extra.y, { name: `+${o.extra.n} chờ ghế` }, 'rgba(22,26,36,.86)', 20, 16, 2);
   if (momMsg && momMsg.t > 0 && !game.halt && game.phase === 'race') bubble(o.driver.x + 20, o.driver.y - 70, momMsg.text);
