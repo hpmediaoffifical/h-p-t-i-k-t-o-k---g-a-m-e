@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Logo Creator Online</title>
+<style>
+  :root { --ink: #1d1b26; --muted: #6b6680; --card: #ffffff; --bg: #f4f1f7; --peach: #F6C3A8; --pink: #E6A2D0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--ink); padding: 32px 16px 60px; }
+  main { max-width: 1100px; margin: 0 auto; }
+  h1 { font-family: Impact, 'Arial Black', sans-serif; font-weight: 400; font-size: 44px; letter-spacing: 1px; margin: 0 0 6px; }
+  .lead { color: var(--muted); max-width: 760px; line-height: 1.55; margin: 0 0 28px; }
+  .concept { background: var(--card); border-radius: 22px; padding: 22px; margin-bottom: 22px; box-shadow: 0 8px 30px rgba(60, 30, 90, 0.08); }
+  .concept.pick { outline: 3px solid var(--pink); }
+  .head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .head h2 { margin: 0; font-size: 22px; }
+  .tag { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 99px; background: linear-gradient(90deg, var(--peach), var(--pink)); color: #fff; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 16px; }
+  .tile { border-radius: 16px; padding: 18px; display: flex; align-items: center; justify-content: center; min-height: 170px; gap: 14px; }
+  .dark { background: #12101c; }
+  .light { background: #fbf8fc; border: 1px solid #ece6f2; }
+  .sizes { display: flex; align-items: flex-end; gap: 14px; }
+  .note { color: var(--muted); line-height: 1.55; margin: 12px 0 0; font-size: 14.5px; }
+  .note b { color: var(--ink); }
+  svg { display: block; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; margin-top: 10px; }
+  td, th { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+  .sw { display: inline-block; width: 18px; height: 18px; border-radius: 5px; vertical-align: middle; margin-right: 6px; border: 1px solid #0001; }
+  @media (max-width: 600px) { h1 { font-size: 34px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>LOGO CREATOR ONLINE</h1>
+  <p class="lead">Ba hướng logo dựa trên huy hiệu <b>hp</b> của HP Media: ô vuông bo góc, gradient đào → hồng, chữ <b>hp</b> trắng đậm kiểu Impact. Giữ nguyên nhận diện hãng, chỉ thêm một chi tiết kể câu chuyện "LIVE". Phương án B đang được dùng trong game (màn hình bắt đầu, góc HUD, logo sàn sảnh, biểu tượng tab).</p>
+
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#F6C3A8"/><stop offset="1" stop-color="#E6A2D0"/></linearGradient>
+      <linearGradient id="word" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#F6C3A8"/><stop offset=".55" stop-color="#E6A2D0"/><stop offset="1" stop-color="#B78CFF"/></linearGradient>
+      <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+      <symbol id="markA" viewBox="0 0 512 512">
+        <rect x="6" y="6" width="500" height="500" rx="112" fill="url(#bg)"/>
+        <text x="256" y="420" text-anchor="middle" font-family="Impact, 'Arial Black', sans-serif" font-size="330" fill="#fff" letter-spacing="-4">hp</text>
+      </symbol>
+      <symbol id="markB" viewBox="0 0 512 512">
+        <rect x="6" y="6" width="500" height="500" rx="112" fill="url(#bg)"/>
+        <polygon points="236,78 276,78 330,232 182,232" fill="url(#beam)" opacity=".55"/>
+        <polygon points="152,80 176,80 236,214 150,214" fill="url(#beam)" opacity=".45"/>
+        <polygon points="336,80 360,80 362,214 276,214" fill="url(#beam)" opacity=".45"/>
+        <rect x="132" y="58" width="248" height="14" rx="7" fill="#fff"/>
+        <circle cx="164" cy="80" r="15" fill="#fff"/><circle cx="256" cy="80" r="17" fill="#fff"/><circle cx="348" cy="80" r="15" fill="#fff"/>
+        <text x="256" y="432" text-anchor="middle" font-family="Impact, 'Arial Black', sans-serif" font-size="288" fill="#fff" letter-spacing="-4">hp</text>
+        <circle cx="432" cy="86" r="24" fill="#ff2d55" stroke="#fff" stroke-width="7"/>
+      </symbol>
+      <symbol id="markC" viewBox="0 0 512 512">
+        <rect x="6" y="6" width="500" height="500" rx="112" fill="url(#bg)"/>
+        <circle cx="256" cy="256" r="150" fill="none" stroke="#fff" stroke-width="44"/>
+        <path d="M222 182 L338 256 L222 330 Z" fill="#fff" stroke="#fff" stroke-width="18" stroke-linejoin="round"/>
+        <text x="256" y="478" text-anchor="middle" font-family="Impact, 'Arial Black', sans-serif" font-size="70" fill="#fff" letter-spacing="6">hp</text>
+        <circle cx="398" cy="114" r="26" fill="#ff2d55" stroke="#fff" stroke-width="7"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <section class="concept">
+    <div class="head"><h2>A · Huy hiệu hp nguyên bản</h2><span class="tag">An toàn nhất</span></div>
+    <div class="row">
+      <div class="tile dark"><svg width="150" height="150"><use href="#markA"/></svg></div>
+      <div class="tile light"><div class="sizes"><svg width="96" height="96"><use href="#markA"/></svg><svg width="48" height="48"><use href="#markA"/></svg><svg width="24" height="24"><use href="#markA"/></svg></div></div>
+    </div>
+    <p class="note">Dùng y nguyên logo HP Media màu đào–hồng (ảnh mẫu). <b>Ưu:</b> nhận diện hãng mạnh, đồng bộ với HP Action LIVE (bản tím–xanh). <b>Nhược:</b> chưa nói lên "đây là game LIVE nhiều phòng", dễ lẫn với các app HP khác.</p>
+  </section>
+
+  <section class="concept pick">
+    <div class="head"><h2>B · hp dưới giàn 3 đèn</h2><span class="tag">Đề xuất · đang dùng trong game</span></div>
+    <div class="row">
+      <div class="tile dark"><svg width="150" height="150"><use href="#markB"/></svg></div>
+      <div class="tile light"><div class="sizes"><svg width="96" height="96"><use href="#markB"/></svg><svg width="48" height="48"><use href="#markB"/></svg><svg width="24" height="24"><use href="#markB"/></svg></div></div>
+    </div>
+    <div class="row">
+      <div class="tile dark" style="justify-content:flex-start"><img src="../../src/web/assets/logo-full.svg" alt="Creator Online" style="width:100%;max-width:520px"></div>
+    </div>
+    <p class="note">Thêm <b>giàn 3 đèn</b> giống phòng NPC đứng: đèn giữa đánh màu tường, 2 đèn bên chiếu người — chính là "chữ ký" của tòa nhà. Chấm đỏ góc phải = đang LIVE. <b>Ưu:</b> vẫn là huy hiệu hp, nhưng nhìn là biết sân khấu/livestream. <b>Lưu ý:</b> ở 24 px các tia đèn mờ đi, chỉ còn thanh đèn + chấm đỏ — vẫn đọc được.</p>
+  </section>
+
+  <section class="concept">
+    <div class="head"><h2>C · Nút Play LIVE</h2><span class="tag">Hiện đại</span></div>
+    <div class="row">
+      <div class="tile dark"><svg width="150" height="150"><use href="#markC"/></svg></div>
+      <div class="tile light"><div class="sizes"><svg width="96" height="96"><use href="#markC"/></svg><svg width="48" height="48"><use href="#markC"/></svg><svg width="24" height="24"><use href="#markC"/></svg></div></div>
+    </div>
+    <p class="note">Vòng tròn + nút play (chữ O của ONLINE), chữ hp nhỏ phía dưới. <b>Ưu:</b> rõ ý "xem trực tiếp", rất gọn ở cỡ nhỏ. <b>Nhược:</b> chữ hp nhỏ nên nhận diện HP Media yếu hơn; nút play khá phổ biến, dễ giống app video khác.</p>
+  </section>
+
+  <section class="concept">
+    <div class="head"><h2>Thông số nhận diện</h2></div>
+    <table>
+      <tr><th>Thành phần</th><th>Giá trị</th></tr>
+      <tr><td>Gradient huy hiệu</td><td><span class="sw" style="background:#F6C3A8"></span>#F6C3A8 → <span class="sw" style="background:#E6A2D0"></span>#E6A2D0 (trái → phải)</td></tr>
+      <tr><td>Gradient chữ ONLINE</td><td>#F6C3A8 → #E6A2D0 → <span class="sw" style="background:#B78CFF"></span>#B78CFF</td></tr>
+      <tr><td>Đỏ LIVE</td><td><span class="sw" style="background:#ff2d55"></span>#FF2D55</td></tr>
+      <tr><td>Bo góc</td><td>22% cạnh (112/500)</td></tr>
+      <tr><td>Chữ</td><td>Impact (có sẵn trên Windows) — thay thế: Anton (Google Fonts), Arial Black</td></tr>
+      <tr><td>Nền tối trong game</td><td><span class="sw" style="background:#12101c"></span>#12101C</td></tr>
+      <tr><td>File</td><td><code>src/web/assets/logo-mark.svg</code> (biểu tượng), <code>src/web/assets/logo-full.svg</code> (logo ngang, nền tối)</td></tr>
+    </table>
+    <p class="note">Bản SVG dùng phông Impact của máy. Khi in ấn hoặc đưa lên web công khai, nên chuyển chữ sang đường nét (outline) trong Illustrator/Figma để không phụ thuộc phông.</p>
+  </section>
+</main>
+</body>
+</html>

@@ -128,6 +128,7 @@ const vwSignals = require('./lib/vipwelcome/join-signals');
 const vwTiers = require('./lib/vipwelcome/tier-match');
 const { createPresence: createVipPresence, createPendingCards: createVipPendingCards } = require('./lib/vipwelcome/presence');
 const { createGiftLedger: createVipGiftLedger } = require('./lib/vipwelcome/gift-ledger');
+const { createFanLedger: createCoFanLedger, fanKey: coFanKey, stripVN: coStripVN } = require('./lib/creatoronline-fans');
 const { createMediaQueue: createVipMediaQueue } = require('./lib/vipwelcome/media-queue');
 // Giai đoạn 3: sổ ghé phòng theo buổi, gộp thẻ khi đông, câu đọc tên
 const { createVisits: createVipVisits } = require('./lib/vipwelcome/visits');
@@ -310,6 +311,51 @@ const BodyServer = require('./lib/body-server');
 function nhatuSuggestedGiftMap() {
     try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'games', 'nhatu', 'data.json'), 'utf8')).suggestedGiftMap || {}; } catch (e) { return {}; }
 }
+// 🏢 Creator Online — bộ quà gợi ý (vé, vai MC/Kỹ thuật/Quản lý, đổi nhạc, pháo giấy, PK, tâm điểm, Gala) trong data.json
+function creatorOnlineSuggestedGiftMap() {
+    try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'games', 'creatoronline', 'data.json'), 'utf8')).suggestedGiftMap || {}; } catch (e) { return {}; }
+}
+// 🏢 Creator Online — cấp fan trọn đời + club đã chọn (spec §11). Chỉ ghi khi game bật VÀ có overlay đang kết nối
+// (phòng socket 'co-overlay', overlay tự subscribe) → không lưu dữ liệu người xem của streamer chưa từng dùng game.
+const coFans = createCoFanLedger({
+    file: path.join(DATA_DIR, 'creatoronline-fans.json'),
+    ranks: (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'games', 'creatoronline', 'data.json'), 'utf8')).fanRanks; } catch (e) { return undefined; } })()
+});
+process.on('exit', () => { try { coFans.flushSync(); } catch (e) {} });
+function coFansActive() {
+    try { return appConfig.games.creatoronline?.enabled !== false && (io.sockets.adapter.rooms.get('co-overlay')?.size || 0) > 0; } catch (e) { return false; }
+}
+// 🏢 Creator Online GĐ2 — quà gán vipHat/vipGlasses/vipWings trong coGiftMap → đồ VIP giữ trọn đời trong bộ đếm fan.
+const CO_VIP_ACTIONS = [['vipHat', 'hat'], ['vipGlasses', 'glasses'], ['vipWings', 'wings']];
+/** 'hat' | 'glasses' | 'wings' nếu quà khớp 1 mục VIP (so giftId trước, rồi tên quà bỏ dấu/hoa thường); null nếu không. */
+function coVipItemForGift(payload) {
+    const map = appConfig.games.creatoronline?.coGiftMap;
+    if (!map || typeof map !== 'object' || !payload) return null;
+    const entriesOf = (action) => (Array.isArray(map[action]) ? map[action] : []).filter(e => e && typeof e === 'object');
+    const id = payload.giftId != null && String(payload.giftId) !== '' ? String(payload.giftId) : '';
+    if (id) {
+        for (const [action, item] of CO_VIP_ACTIONS) {
+            if (entriesOf(action).some(e => e.giftId != null && String(e.giftId) === id)) return item;
+        }
+    }
+    const name = coStripVN(String(payload.giftName || ''));
+    if (name) {
+        for (const [action, item] of CO_VIP_ACTIONS) {
+            if (entriesOf(action).some(e => e.giftName && coStripVN(String(e.giftName)) === name)) return item;
+        }
+    }
+    return null;
+}
+/** Gắn coFan (cấp + club đã lưu, giá trị TRƯỚC sự kiện này) vào payload; trả về bản cập nhật cần phát 'creatoronline:fan' hoặc null. */
+function coFansTouch(payload, kind) {
+    if (!coFansActive()) return null;
+    try {
+        payload.coFan = coFans.get(coFanKey(payload));
+        if (kind === 'gift') return coFans.onGift(payload, { vip: coVipItemForGift(payload) });
+        if (kind === 'chat') return coFans.onChat(payload, { switchSec: Number(appConfig.games.creatoronline?.coClubSwitchSec ?? 60) });
+    } catch (e) { console.warn('[creatoronline] bộ đếm fan lỗi:', e?.message || e); }
+    return null;
+}
 
 const GAMES = {
     thuytinh: {
@@ -446,6 +492,46 @@ const GAMES = {
             ntRooms: 6,               // 🏠 phòng = đội: bình luận P1…P6 chọn phòng, cả phòng thi đua theo vòng (0 = tắt)
             ntRoomRoundMin: 5,        // mỗi vòng thi đua phòng bấy nhiêu phút — phòng nhất được ăn tiệc + mỗi người +10 điểm
             ntGiftMap: nhatuSuggestedGiftMap()   // { [action]: [{ giftId, giftName, giftImage, coins }] } — mặc định = bộ quà gợi ý trong data.json
+        }
+    },
+    creatoronline: {
+        id: 'creatoronline',
+        name: 'Creator Online',
+        description: 'Tòa nhà LIVE chibi 3D 25 phòng: người xem là fan của 5 nhóm nhảy, quà bất kỳ được lên sân khấu, vé có phòng mang tên, vai MC/Kỹ thuật/Quản lý, PK giữa các nhóm.',
+        icon: '🏢',
+        overlayPath: '/overlay/creatoronline',
+        // Khoá riêng tiền tố co*. Spec docs/superpowers/specs/2026-11-03-creatoronline-design.md §17.3;
+        // thông số phụ (không hiện trong panel) ở public/games/creatoronline/data.json → live.
+        defaultConfig: {
+            enabled: true,
+            coQuality: 'high',        // high | low (overlay tự tải lại ?q=low)
+            coMaxViewers: 40,         // 5–120 (chất lượng thấp tối đa 80); người tặng quà được vượt tạm +20
+            coNpcCount: 20,           // đám đông NPC vô danh khi tòa nhà vắng
+            coViewerIdleMin: 30,      // im lặng bấy nhiêu phút thì rời tòa nhà
+            coClubSwitchSec: 60,      // đổi club (bình luận 1–5) tối đa 1 lần mỗi bấy nhiêu giây
+            coStageBaseSec: 12, coStagePerCoinSec: 3, coStageMaxSec: 120,   // giây trên sân khấu = 12 + 3·(xu−1), trần 120
+            coStageSlots: 12,         // chỗ khách mỗi sân (6 idol + 6 hàng trước)
+            coRoomHoldSec: 60, coRoomQueueMax: 6,                         // 🎟️ phòng mang tên
+            coRoleSec: 180, coRoleLockSec: 45, coRoleMaxSec: 300,          // 🎙️🎛️📋 vai trong nhóm
+            coPkEveryMin: 5,          // PK tự động mỗi bấy nhiêu phút (2–15, 0 = tắt)
+            coPkSec: 90, coPkFinalSec: 30,                                 // trận PK / nước rút (tim bên thua ×2)
+            coMvpMin: 10,             // MVP PK: tên trên LED bấy nhiêu phút
+            coCamMaxPer5Min: 90,      // giây cảnh quay tối đa mỗi người tặng trong 5 phút
+            coTierFallback: true,     // quà chưa gán chạy hành động theo bậc xu
+            coLikeMilestone: 300,     // mỗi bấy nhiêu tim cả tòa nhà → sóng tim
+            coSound: true, coMusic: true, coMusicVol: 0.35,
+            coLiveTv: true,           // TV trực tiếp trong sân khấu nhóm (vẽ cảnh lần 2)
+            coShowGiftLegend: true, coShowJoinHint: true,
+            coBadWords: '',           // từ cấm thêm, cách nhau bằng dấu phẩy
+            coWinSize: '608x1080',    // cửa sổ game cho TikTok Studio bắt: '540x960' | '608x1080' | '720x1280' | '1080x1920'
+            coSocial: true,           // 🤝 bật người xem chơi với nhau (ném / ghép đôi / ôm / thách đấu / cổ vũ)
+            coFanSpotSec: 25,         // mỗi bấy nhiêu giây quay cận 5 giây "fan nổi bật" theo điểm tương tác miễn phí; 0 = tắt
+            coPairSec: 60,            // 💞 ghép đôi kéo dài bấy nhiêu giây
+            coDuelSec: 60,            // 🥊 trận thách đấu kéo dài bấy nhiêu giây
+            coEmoteSec: 10,           // chờ giữa 2 lần biểu cảm miễn phí (bình luận)
+            coLookSec: 60,            // chờ giữa 2 lần đổi áo/tóc (bình luận)
+            coChorusMin: 3,           // 📣 số người tối thiểu cổ vũ đồng thanh
+            coGiftMap: creatorOnlineSuggestedGiftMap()   // { [action]: [{ giftId, giftName, giftImage, coins }] }
         }
     },
     nhietdo: {
@@ -3782,7 +3868,9 @@ function handleTikTokChat(data, { test = false } = {}) {
         comment,
         createTime: Date.now()
     };
+    const coFanChange = test ? null : coFansTouch(chatPayload, 'chat');   // 🏢 Creator Online: mã club 1–5
     broadcast('chat', chatPayload);
+    if (coFanChange) io.emit('creatoronline:fan', coFanChange);
     processLiveTranslateChat(chatPayload);
     if (!test) {
         // Chào muộn (TikTok không gửi tín hiệu vào phòng cho người này) + trigger 'comment' riêng
@@ -3933,7 +4021,10 @@ function attachConnectionEvents(conn, lib) {
         const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
         const likeCount = Number(data?.likeCount ?? data?.count) || 1;   // v3 (2.4.4): count
         rememberUserMapping(userId, uniqueId);
-        broadcast('like', { uniqueId, nickname, likeCount, profilePicture });   // ảnh đại diện: người chỉ thả tim vào game vẫn có avatar
+        // userId + profilePicture: 🏢 Creator Online khoá fan theo userId và cần avatar khi người xem vào bằng thả tim
+        const likePayload = { uniqueId, userId, nickname, profilePicture, likeCount };
+        coFansTouch(likePayload, 'like');
+        broadcast('like', likePayload);
         liveStats.totalLikes += likeCount; emitLiveStatsThrottled();
         // Chào muộn + trigger 'like' riêng
         vipHandleActivity(data?.user);
@@ -3947,7 +4038,9 @@ function attachConnectionEvents(conn, lib) {
         const dtKey = String(data?.common?.displayText?.key || '').toLowerCase();
         const dtPattern = String(data?.common?.displayText?.defaultPattern || '').replace(/{d+:[a-z_]+}/gi, '').trim();
         const label = dtKey.includes('follow') ? 'đã theo dõi' : (dtKey.includes('share') || dtKey.includes('mt_msg')) ? 'đã chia sẻ LIVE' : dtPattern;
-        broadcast('social', { uniqueId, nickname, label, profilePicture });
+        const socialPayload = { uniqueId, userId, nickname, profilePicture, label };
+        coFansTouch(socialPayload, 'social');
+        broadcast('social', socialPayload);
         vipHandleActivity(data?.user);
     });
     // FOLLOW event
@@ -4954,7 +5047,9 @@ function emitGift(g) {
         ts: Date.now()
     };
     console.log(`[gift] emit → ${enriched.nickname || enriched.uniqueId} sent "${enriched.giftName || '?'}" (id=${enriched.giftId}, x${enriched.repeatCount || 1}, ${enriched.coinValue || 0}💎)`);
+    const coFanChange = coFansTouch(enriched, 'gift');   // 🏢 Creator Online: cộng xu trọn đời (bỏ quà thử)
     io.emit('gift', enriched);
+    if (coFanChange) io.emit('creatoronline:fan', coFanChange);
     setLiveDashboardGift(enriched);
     try { leagueOnGift(enriched); } catch (e) { console.warn('[leaguecard] gift lỗi:', e?.message || e); }
     // Push to all game overlays
@@ -7697,6 +7792,49 @@ app.get('/overlay/quaivat', (req, res) => {
 // ⛓️ Nhà Tù Online — overlay OBS (Browser Source 1080×1920) hoặc cửa sổ game Edge/Chrome --app (cần GPU/WebGL như Zombie Phá Nhà).
 app.get('/overlay/nhatu', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'nhatu', 'overlay.html'));
+});
+// 🏢 Creator Online — overlay OBS (Browser Source 1080×1920) hoặc cửa sổ game Edge/Chrome --app.
+app.get('/overlay/creatoronline', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'creatoronline', 'overlay.html'));
+});
+// Cấp fan trọn đời: overlay hỏi gộp theo id khi fan mới vào; panel xem top + làm mới.
+app.get('/api/creatoronline/fans', (req, res) => {
+    const ids = String(req.query.ids || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 200);
+    res.json({ fans: coFans.getMany(ids) });
+});
+app.get('/api/creatoronline/fans/top', (req, res) => {
+    res.json({ top: coFans.top(Math.max(1, Math.min(200, Number(req.query.n) || 20))) });
+});
+app.post('/api/creatoronline/fans/reset', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    coFans.reset();
+    res.json({ ok: true });
+});
+// body { demo: true } → mở Bản đi dạo (WASD, ví trong bộ nhớ) để streamer xem thử; mặc định mở overlay LIVE ?win=1.
+// body { size: '720x1280' } ghi đè coWinSize (cỡ cửa sổ LIVE cho TikTok Studio "Chụp cửa sổ"); sai giá trị → '608x1080'.
+const CO_WIN_SIZES = ['540x960', '608x1080', '720x1280', '1080x1920'];
+function coWinSizeArg(...candidates) {
+    const ok = candidates.map(s => String(s ?? '').trim().toLowerCase()).find(s => CO_WIN_SIZES.includes(s)) || '608x1080';
+    return ok.replace('x', ',');
+}
+app.post('/api/creatoronline/window/open', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    const found = CaptionListener.resolveBrowserExe('edge', { exists: (p) => { try { return fs.existsSync(p); } catch (e) { return false; } } });
+    if (!found) return res.json({ ok: false, error: 'Không tìm thấy Microsoft Edge hoặc Google Chrome trên máy' });
+    const demo = !!(req.body && req.body.demo);
+    const profileDir = path.join(DATA_DIR, 'creatoronline-window', found.browser);
+    try { fs.mkdirSync(profileDir, { recursive: true }); } catch (e) {}
+    const url = demo ? `http://127.0.0.1:${PORT}/games/creatoronline/demo.html` : `http://127.0.0.1:${PORT}/overlay/creatoronline?win=1`;
+    // OBS bắt cửa sổ: Chromium mặc định ngừng vẽ / hãm nhịp khi cửa sổ bị che hoặc thu nhỏ → hình trong OBS đứng
+    const keepDrawing = ['--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling'];
+    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat(demo ? '--window-size=1280,800' : '--window-size=' + coWinSizeArg(req.body && req.body.size, appConfig.games.creatoronline?.coWinSize), ...keepDrawing);
+    try {
+        const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
+        child.on('error', (e) => console.warn('[creatoronline] mở cửa sổ game lỗi:', e.message));
+        child.unref();
+    } catch (e) { return res.json({ ok: false, error: e.message }); }
+    console.log(`[creatoronline] mở ${demo ? 'bản đi dạo' : 'cửa sổ game'} bằng ${found.browser}: ${found.exe}`);
+    res.json({ ok: true, browser: found.browser });
 });
 app.post('/api/nhatu/window/open', (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });

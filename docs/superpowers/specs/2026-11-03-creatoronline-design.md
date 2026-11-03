@@ -1,0 +1,753 @@
+# 🏢 Creator Online (`creatoronline`) — thiết kế bản LIVE
+
+Ngày: 03/11/2026 · Nhánh: `tuongtac/creator-online` · Trạng thái: **GĐ1 đã làm** (03/11/2026, các commit từ 1b31541, chưa release) — còn thử OBS thật + một buổi LIVE thử (mục 18). Những chỗ làm khác bản spec gốc ghi ở mục 20.
+
+Đã qua 2 vòng soát của agent Game Studios: `systems-designer` (luật chơi, con số) và `lead-programmer` (đối chiếu code app). Các lỗi chặn đã sửa vào spec.
+
+Nguồn:
+- Đề xuất 5 agent Game Studios: `docs/superpowers/plans/2026-11-03-creator-online-de-xuat.md`
+- Khảo sát chung: `docs/superpowers/plans/2026-11-03-game-tuong-tac-khao-sat.md`
+- Ý tưởng gốc: `CREATOR ONLINE/docs/Y-TUONG-CREATOR-ONLINE.md`
+- Nhóm menu: `docs/superpowers/specs/2026-11-02-game-tuong-tac-design.md`
+
+## 1. Ý tưởng
+
+Tòa nhà LIVE chibi 3D gồm 25 phòng, giữ nguyên thế giới của bản chạy riêng:
+- 5 sân khấu nhóm **G1–G5**: VITAMIN B, VENUS STAR, LOLLIPOP, BONITA GIRL, BLACKSWAN
+- 10 phòng đứng **N01–N10**
+- 5 phòng hát **S1–S5**
+- 5 phòng game **P1–P5**
+
+Bản chạy riêng cho **một người tự đi bằng WASD và tiêu ví xu**. Bản LIVE đổi thành:
+- **Người xem là fan.** Mỗi người xem là một chibi mang tên + avatar TikTok, thuộc một trong 5 **fan club** (một club ứng với một nhóm G1–G5).
+- **Streamer là đạo diễn tòa nhà**, không có nhân vật. Camera tự cắt cảnh theo sự kiện.
+- **Quà TikTok thật thay cho ví xu.** Quà rẻ nhất cũng được lên sân khấu; quà to chiếm sóng cả tòa nhà.
+- **PK giữa các nhóm** là động lực tặng quà chính.
+
+**Khác Nhà Tù:** Nhà Tù chỉ có 1 người lên sóng mỗi lúc và có luật phạt (biệt giam, cướp ngôi). Creator Online cho **nhiều người lên sân khấu cùng lúc**, thi đấu theo đội, không có luật phạt, và vai bị chiếm thì xếp hàng chứ không cướp.
+
+## 2. Quyết định đã chốt (03/11/2026)
+
+| # | Câu hỏi | Chốt |
+|---|---|---|
+| 1 | Người xem đứng phe nào trong PK | Theo **fan club đã chọn** bằng bình luận `1`–`5` |
+| 2 | Hoa hồng làm gì | **Quà bất kỳ, kể cả Hoa hồng, → fan lên sân khấu nhóm mình** (móc quà đầu tiên) |
+| 3 | Cấp fan | **Giữ trọn đời theo TikTok ID**, lưu ở server của app |
+| 4 | Lật kèo PK | **Chỉ bằng tim miễn phí**: tim của bên đang thua tính gấp đôi trong lúc nước rút. Không có quà Boost |
+| 5 | Quà giả của NPC | **Tắt hẳn** trong bản LIVE. NPC chỉ là đám đông vô danh và nhân vật cư dân |
+| 6 | Nhịp PK | **Mỗi 5 phút**, streamer chỉnh được 2–15 phút (0 = tắt PK tự động) |
+
+## 3. Người xem vào game
+
+- **Vào tòa nhà:** bình luận, thả tim hoặc follow thì fan đi vào. Quà cũng cho vào (nếu chưa vào thì vào trước, xử lý quà sau). Sự kiện "vào phòng LIVE" (join) chỉ tăng bộ đếm, không sinh nhân vật.
+- **Chọn club:**
+  - Bình luận **chỉ gồm** `1`–`5` (hoặc `g1`–`g5`) thì vào club tương ứng. "5 sao", "1 tim nè" không phải mã.
+  - Đổi club tối đa 1 lần mỗi `coClubSwitchSec` (60 giây). Club tự xếp không tính là đã chọn, nên không bắt đầu thời gian chờ.
+  - Fan đang ở một trong 2 phe PK bị khoá phe tới hết trận.
+  - Chưa chọn bao giờ → overlay tự xếp vào club đang có ít fan hoạt động nhất (đang PK thì vào phe PK ít fan hơn), hiện chip "→ ③ LOLLIPOP · gõ 1–5 để đổi". Club tự xếp không được lưu.
+  - Club đã chọn và thời gian chờ đổi club do server quyết định và nhớ trọn đời (mục 11). Overlay đổi club khi nhận `creatoronline:fan`, không tự đổi.
+- **Ngoại hình:**
+  - Đồ theo hash tên như cũ (`lookFromName`, npc.js:155), cộng **một điểm nhấn màu của club** (lightstick + viền áo).
+  - Không mặc đồng phục nhóm: G2–G5 là nhóm nữ, fan nam mặc đồng phục nữ sẽ trông kỳ.
+- **Chỗ đứng:** fan đứng ở khu khán giả trước sân khấu club mình, vẫy lightstick theo nhịp.
+- **Fan và chibi là hai thứ riêng:**
+  - Club, điểm PK, top fan và cấp fan tính theo `fanKey` (mục 11), dù người đó có chibi trong tòa nhà hay không.
+  - Quà và tim của người bị đẩy ra hoặc chưa được sinh nhân vật vẫn được tính.
+- **Dân số:**
+  - Trần `coMaxViewers` (mặc định 40, khoảng 5–120; ở chất lượng thấp tối đa 80). NPC đám đông `coNpcCount` (20) bớt dần khi người xem vào.
+  - Tòa nhà đầy thì đẩy người theo `pickEvictee` / `SwapBudget` (chép `population.js` của Nhà Tù). Không đẩy:
+    - người đang trên sân khấu
+    - người giữ vai
+    - chủ phòng
+    - người đang chờ sân / phòng / vai
+    - người có cảnh quay đang chờ
+    - người tặng quà trong 5 phút qua
+  - **Người tặng quà luôn được vào.** Không đẩy được ai thì vượt trần tạm, tối đa `coMaxViewers + 20`, và không vượt trần cứng của mục 16 (160 thường / 100 thấp).
+  - Khi đầy, bình luận / thả tim / follow không sinh nhân vật mới (vẫn tính như trên).
+  - Im lặng `coViewerIdleMin` (30) phút thì rời tòa nhà.
+- **Nhãn tên** (theo LabelLayer của Nhà Tù):
+  - Cỡ tối thiểu 34 px; 50 px cho người đang được quay.
+  - Tối đa 8 nhãn mỗi khung, 5 nhãn ở cảnh rộng.
+  - Ưu tiên: người đang được quay → người tặng quà trong 60 giây qua (top 3 có avatar) → người vừa bình luận (giữ 10 giây) → NPC (chỉ ở cảnh gần, cỡ 0,7×).
+  - Chồng nhau thì ẩn nhãn ưu tiên thấp. Tên cắt ở 12 ký tự. Biểu tượng cấp fan đứng trước tên.
+
+## 4. Quà
+
+### 4.1 Ba lớp phản hồi
+
+Mỗi quà được tính theo **tổng xu = `coinValue × repeatCount`**:
+- Server chỉ gửi 1 sự kiện khi combo kết thúc (server.js:3796–3805). `repeatCount` là tổng cả combo (`normalizeGiftRepeatCount`, server.js:4590).
+- `coinValue` lấy từ bảng quà trước, rồi tới `diamondCount`. Quà lạ không có giá thì tính 1 xu: có thể xếp bậc thấp hơn thực tế, không bao giờ cao hơn.
+
+| Lớp | Luôn có? | Nội dung |
+|---|---|---|
+| A — cá nhân | Có, không xếp hàng, hiện trong ≤ 2 giây sau khi combo kết thúc | Fan lên sân khấu club (mục 5), một dòng trong ô quà trên HUD (ảnh quà thật + tên), quà bay lên sân, cộng điểm PK nếu club đang PK |
+| B — phòng | Theo hành động | Hiệu ứng tại sân/phòng (pháo giấy, khói, đèn…), hàng chờ riêng mỗi phòng: 1 hiệu ứng mỗi 1,5 giây, tối đa 6 chờ, trùng thì gộp |
+| C — tòa nhà | Bậc 5 trở lên, vé, vai | Cảnh quay của đạo diễn (mục 12), một hàng chờ chung |
+
+Cùng một người tặng liên tục thì cập nhật dòng cũ trên HUD (x5 → x10) và gộp hiệu ứng, mỗi người tối đa 1 lần nhảy lên sân khấu mỗi 1,5 giây.
+
+### 4.2 Bậc xu và hành động mặc định
+
+**Chọn hành động:**
+- Quà đã gán trong `coGiftMap` thì chạy hành động đã gán. Hành động được quyết định lúc quà tới: streamer đổi bảng gán giữa buổi thì quà đang xếp hàng vẫn giữ hành động cũ.
+- Quà đã gán mà tổng xu ≥ 299 thì chạy **thêm** hiệu ứng của bậc tương ứng (5–7). Ví dụ Đũa thần PK x10 = 1.000 xu → vai Quản lý + Tâm điểm.
+- Vé / vai tặng xN chỉ tính 1 lần + gia hạn, không lấy N phòng / N vai.
+- Một quà bị gán cho 2 hành động: chạy hành động đứng trước theo thứ tự `gala > spotlight > pkStart > manager > tech > mc > ticket > confetti > genre`. Panel cảnh báo khi gán trùng.
+- Quà chưa gán thì chạy hành động của bậc nếu `coTierFallback` bật (mặc định bật).
+
+**Mỗi người chỉ một chỗ:**
+- Thứ tự ưu tiên: vai > phòng > sân khấu. Người đang chờ vé hoặc vai thì đứng trên sân khấu trong lúc chờ.
+- Hành động nào không đưa fan đi chỗ khác thì fan **luôn** được lên sân khấu.
+- Sân, hàng chờ sân đều đầy thì fan đứng hàng đầu khu khán giả với lightstick vàng (quyết định 2 vẫn được giữ: quà nào cũng có chỗ đứng nổi bật).
+
+| Bậc | Tổng xu | Hành động mặc định |
+|---|---|---|
+| 1 | 1–4 | Lên sân khấu |
+| 2 | 5–29 | Lên sân khấu + 1 hiệu ứng ngẫu nhiên tại sân (pháo giấy / khói / chớp) + MC NPC gọi tên |
+| 3 | 30–98 | 🎟️ Phòng mang tên (mục 6). Mọi hàng chờ phòng đều đầy thì về bậc 2 |
+| 4 | 99–298 | Người đang giữ vai → gia hạn vai đó. Còn lại: vai còn trống của club theo thứ tự MC → Kỹ thuật → Quản lý; hết chỗ thì vào hàng ngắn nhất; hàng đầy thì về bậc 2 |
+| 5 | 299–999 | **Quà lớn:** banner + pháo hoa, cảnh quay 15 giây; mở PK nếu đang không có (mục 9) |
+| 6 | 1.000–9.999 | **Tâm điểm:** cả tòa nhà đổi sang màu đèn của club, fan NPC kéo về sân đó, cảnh quay 30 giây; mở PK nếu đang không có |
+| 7 | ≥ 10.000 | **Gala:** biển tòa nhà hiện tên người tặng, cả 5 nhóm nhảy chung trên sân club người tặng, cảnh quay 60 giây; mở PK sau Gala nếu đang không có |
+
+### 4.3 Bộ quà gợi ý (`data.json → suggestedGiftMap`, mặc định của `coGiftMap`)
+
+Mã quà lấy từ kho quà của app ngày 03/11/2026. Streamer đổi được trong panel; quà không có ở khu vực của họ thì gán quà khác.
+
+| Hành động | Quà (id, xu) | Ghi chú |
+|---|---|---|
+| `genre` — đổi thể loại nhạc của sân/phòng mình | DJ Vinyl (51281, 10) | Lần lượt qua các thể loại cùng loại phòng |
+| `ticket` — 🎟️ phòng mang tên | Vé hành trình (15063, 10) | Gán riêng nên rẻ hơn bậc 3, để nhiều người có phòng |
+| `mc` — 🎙️ MC | Giai điệu nở hoa (170507, 99) | |
+| `tech` — 🎛️ Kỹ thuật | Bom kẹo (985644, 99) | |
+| `manager` — 📋 Quản lý | Đũa thần PK (14046, 100) | Quản lý được gọi PK |
+| `confetti` — mưa pháo giấy cả sân | Pháo giấy tuyệt đẹp (7121, 100) | |
+| `pkStart` — PK ngay cho club mình | Tiến lên! (130787, 299) | Bậc 5 + mở PK |
+| `spotlight` — tâm điểm | Thiên hà (11046, 1000) | Bậc 6 |
+| `gala` — Gala | Sư tử (6369, 29999) | Bậc 7 (quà ≥ 10.000 chưa gán cũng ra Gala) |
+
+Hoa hồng (5655) cố ý để trống: rơi vào bậc 1, tức là lên sân khấu.
+
+**Bảng chú giải trên overlay** (`coShowGiftLegend`) tối đa 6 dòng:
+1. 🌹 Quà bất kỳ → lên sân khấu
+2. 🎟️ Vé hành trình → phòng LIVE mang tên bạn
+3. 🎙️🎛️📋 Giai điệu nở hoa / Bom kẹo / Đũa thần PK → MC / Kỹ thuật / Quản lý
+4. 🎵 DJ Vinyl → đổi nhạc · 🎉 Pháo giấy tuyệt đẹp → mưa pháo giấy
+5. ⚔️ Tiến lên! → PK ngay
+6. 🌌 Thiên hà → cả tòa nhà về nhóm bạn
+
+Bảng tự sinh từ `coGiftMap`, không viết cứng.
+
+### 4.4 Luật chống kẹt
+
+- **Trần cảnh quay:**
+  - Mỗi người tặng tối đa `coCamMaxPer5Min` (90) giây cảnh quay trong mỗi 5 phút (cửa sổ trượt).
+  - Vượt trần thì **chỉ mất cú cắt cảnh**: hiệu ứng lớp A/B và hiệu ứng toàn tòa nhà của bậc 6–7 vẫn chạy.
+  - Gala (bậc 7) không bị trần này, và giây của Gala không tính vào trần.
+- **Giới hạn giữ chỗ:** không vai, phòng hay cảnh quay nào bị giữ quá 300 giây liên tục bởi cùng một người.
+- **Nhiều Gala:**
+  - Mỗi Gala dài 60 giây. Có Gala khác đang chờ thì Gala hiện tại rút còn 30 giây.
+  - Hai Gala của cùng người liền nhau thì gộp, tối đa 90 giây.
+
+### 4.5 Quà trùng với game khác
+
+GĐ1: panel cảnh báo "⚠ quà này cũng gán ở Nhà Tù / Zombie (đang bật)" bằng cách đọc config các game Tương Tác khác. Mỗi game cần một hàm lấy danh sách quà riêng vì cấu trúc bảng gán khác nhau (ví dụ `qvGiftMap` không có `coins`). Cơ chế giành quà giữa các game (giống `camClaims`) để sang GĐ2.
+
+## 5. Lên sân khấu
+
+- Mỗi sân có `coStageSlots` = 12 chỗ khách: 6 chỗ idol (NPC idol tạm lùi ra hai bên cánh gà) + 6 chỗ hàng trước.
+- **Thời gian trên sân** = `clamp(coStageBaseSec + coStagePerCoinSec × (xu − 1), coStageBaseSec, coStageMaxSec)`, tức 12 + 3 × (xu − 1) giây, trần 120 giây.
+  - Ví dụ: 1 xu = 12 giây · 5 xu = 24 giây · 10 xu = 39 giây · từ 37 xu trở lên = 120 giây.
+  - Người đang trên sân tặng thêm thì cộng giờ, vẫn trong trần.
+- **Sân đầy:** người mới thay người còn ít giờ nhất, nhưng người bị thay phải đã đứng ít nhất 8 giây (bằng độ dài tối thiểu của một cảnh quay, để ai cũng kịp lên hình). Không thay được ai thì xếp hàng (tối đa 10). Hàng đầy thì đứng hàng đầu khán giả với lightstick vàng (mục 4.2).
+- Khách trên sân nhảy đồng bộ với nhóm, nhãn tên to hơn, màn LED chạy "💃 <tên> lên sân khấu".
+
+## 6. Phòng mang tên (🎟️ vé)
+
+Dùng lại `SeatHouse` (logic/seats.js) với `coRoomHoldSec` (60) và `coRoomQueueMax` (6).
+
+- **Mua vé:**
+  - Người mua được một phòng đơn chưa có chủ là người xem, chọn ngẫu nhiên.
+  - Hết phòng thì xếp hàng ở phòng có hàng ngắn nhất. Hàng chờ đứng cạnh cửa phòng.
+- **Khi có chủ:**
+  - Biển phòng đổi thành **"Phòng <tên>"**, chibi của người mua thay NPC làm streamer.
+  - Bình luận của chủ phòng (đã lọc, mục 10) hiện trên TV phòng và trong bong bóng.
+  - Đạo diễn quay phòng đó 30 giây.
+  - Giữ chắc 60 giây đầu. Sau đó có người chờ thì nhường; không ai chờ thì giữ tới khi rời tòa nhà, nhưng tối đa 300 giây liên tục (mục 4.4).
+  - Chủ phòng mua vé nữa thì được giữ chắc thêm 60 giây, không lấy phòng thứ hai.
+  - Chủ phòng rời tòa nhà thì phòng chuyển cho người chờ kế tiếp, không ai chờ thì về NPC cư dân.
+- **Phòng không có chủ là người xem** vẫn do **NPC cư dân** phát sóng như bản cũ. Không còn chữ "PHÒNG TRỐNG". Biển ghi `<tên NPC> · <thể loại>` và dòng phụ "🎟️ <quà vé> → phòng mang tên bạn".
+- **Bỏ hẳn** việc NPC "tặng vé giành phòng" (`seatSim.seed(…, 0.85)`, `NpcSeatSim`): đó là người xem giả.
+
+## 7. Vai trong nhóm: MC, Kỹ thuật, Quản lý
+
+Mỗi sân có 3 vai. Vai thuộc **sân club của người tặng**.
+
+- **Thời gian:** `coRoleSec` (180). Giữ chắc `coRoleLockSec` (45) giây đầu. Người đang giữ tặng lại thì cộng 90 giây, trần `coRoleMaxSec` (300); có người đang chờ thì không được cộng.
+- **Người khác tặng cùng vai:** vào hàng chờ, **không cướp**. Mỗi vai chỉ có 1 chỗ chờ. Hàng đầy thì quà về bậc 2.
+- **Có người chờ:** người đang giữ vai còn tối đa 60 giây nữa (nhưng không trước khi hết 45 giây giữ chắc). Người chờ vì vậy đợi không quá 60 giây, giống phòng.
+- **Người giữ vai hoặc người chờ rời tòa nhà:** vai chuyển cho người chờ, hoặc trả về NPC.
+- Khi nhận vai, đạo diễn quay sân đó 20 giây, cận người giữ vai.
+
+**Mã bình luận** chỉ có tác dụng với người đang giữ vai:
+- So khớp không dấu, viết thường, và **cả câu bình luận phải đúng bằng mã**: `^(phao|khoi|laser|den|chop)$` cho Kỹ thuật, `^(pk [1-5]|them|bot|do)$` cho Quản lý.
+- Câu thường như "đó", "đèn đẹp quá", "khỏi nha" không bị hiểu là lệnh.
+
+| Vai | Người giữ vai làm gì | Khi im lặng |
+|---|---|---|
+| 🎙️ MC | Mọi bình luận được MC NPC nói (bong bóng) và chạy trên dòng LED "🎙️ <tên>: …" | MC NPC tự đọc 1 bình luận thật của khán giả mỗi khoảng 20 giây |
+| 🎛️ Kỹ thuật | `phao` pháo giấy · `khoi` khói · `laser` · `den` đổi màu đèn · `chop` chớp đèn. Mỗi lệnh cách nhau 3 giây | Im lặng 10 giây thì tự bắn 1 hiệu ứng ngẫu nhiên mỗi 8 giây |
+| 📋 Quản lý | `pk 3` gọi PK với club 3 (luật mở PK ở mục 9; gọi chính club mình thì bỏ qua, hiện chip "chọn club khác") · `them` / `bot` thêm hoặc bớt idol (tổng thành viên 5–9) · `do` đổi trang phục idol. Mỗi lệnh cách nhau 3 giây | Không tự làm gì |
+
+Nhịp chớp đèn và laser luôn dưới 3 lần mỗi giây.
+
+## 8. Sự kiện lớn (bậc 5–7)
+
+- **Quà lớn (bậc 5):**
+  - Banner (120, 600, 800, 260) gồm avatar 160 px, tên 72–90 px và ảnh quà.
+  - Pháo hoa + đám đông reo.
+  - Idol quay về phía người tặng; chibi người tặng được nhãn vàng và đèn rọi 30 giây.
+- **Tâm điểm (bậc 6):** như bậc 5, cộng thêm:
+  - đèn cả tòa nhà đổi màu club trong 30 giây
+  - fan NPC và fan người xem ở cảnh đó kéo về sân club người tặng
+  - màn LED mọi sân hiện "🌌 <tên> → <nhóm>"
+- **Gala (bậc 7):**
+  - Biển tòa nhà hiện tên người tặng.
+  - Idol cả 5 nhóm lên sân club người tặng nhảy chung 60 giây.
+  - Cảnh mở toàn tòa nhà 3 giây rồi vào sân.
+  - Đang có PK thì đồng hồ PK tạm dừng trong lúc Gala; quà và tim trong lúc dừng vẫn tính điểm.
+
+## 9. PK giữa các nhóm
+
+- **Toàn tòa nhà chỉ có 1 PK** tại một thời điểm.
+- **Thời gian chờ:** trận mới phải cách trận trước ít nhất 60 giây. Trận nào kết thúc cũng đặt lại đồng hồ PK tự động. Nút trong panel / lệnh `pk` bỏ qua thời gian chờ.
+- **Tự động:** mỗi `coPkEveryMin` (5) phút.
+  - Ghép 2 club có nhiều fan hoạt động nhất (hoạt động = có tương tác trong 3 phút qua). Bỏ cách chọn ngẫu nhiên ở main.js:1940.
+  - **Không ghép lại cặp vừa đấu.** Nếu cặp mạnh nhất trùng trận trước thì lấy club hoạt động thứ ba thay cho club thứ hai.
+  - Có dưới 2 club hoạt động thì bỏ qua, thử lại sau 60 giây.
+- **Mở bằng quà hoặc lệnh:**
+  - Quà `pkStart` hoặc bậc 5–7 khi đang không có PK, hoặc Quản lý bình luận `pk N`.
+  - Đối thủ: với `pk N` là club N; với quà là club hoạt động nhiều nhất khác club người tặng, không có thì club đông fan nhất. PK vẫn chạy dù đối thủ chưa có ai; HUD mời "gõ N để vào phe".
+  - Quà mở PK đến trong thời gian chờ: hiệu ứng bậc 5 chạy ngay, PK tự mở khi hết chờ, chip "⚔️ PK sau 0:42".
+- **Thời lượng:** `coPkSec` (90, khoảng 60–300) giây; `coPkFinalSec` (30) giây cuối là **nước rút**. `coPkFinalSec` không quá nửa `coPkSec`.
+- **Điểm mỗi bên** = `10 × xu + 10 × √L`:
+  - `xu`: tổng xu fan của club đó tặng trong trận.
+  - `L`: số tim có trọng số. Mỗi tim tính 1; tim đến trong lúc nước rút **khi bên đó đang thua** tính 2. Xét "đang thua" tại lúc mỗi đợt tim tới.
+  - Tim có thể lật trận sát nút nhưng không thắng nổi quà to: 10.000 tim = 1.000 điểm = 100 xu; 50.000 tim ≈ 2.236 điểm ≈ 224 xu, vẫn thua một quà 299 xu.
+- **HUD:**
+  - Điểm hiện số nguyên `⌊điểm⌋`.
+  - "cần X xu để lật kèo", với `X = ⌊chênh lệch / 10⌋ + 1`.
+  - Trong nước rút, bên đang thua có chip "❤ ×2" để người xem thấy tim đang được nhân đôi.
+- **Kết thúc:**
+  - Bên nhiều điểm hơn thắng. Hoà điểm thì bên có nhiều người tặng khác nhau hơn thắng; vẫn hoà thì hoà.
+  - MVP (người tặng nhiều nhất bên thắng) đội vương miện, tên lên LED sân đó `coMvpMin` (10) phút.
+  - Club thắng +1 trận thắng trên bảng xếp hạng buổi LIVE. Idol bên thua nhảy phạt 10 giây.
+  - Không có thưởng xu nào: bỏ `earn()` trong `endPk` (main.js:796–799).
+- **Fan của club không PK:** quà vẫn chạy lớp A/B nhưng không tính điểm. HUD nhắc "PK: ① vs ③ — gõ 1 hoặc 3 để vào phe".
+- **Cảnh quay khi PK:** xen kẽ 2 sân, mỗi sân 8 giây. Trong lúc PK, cảnh PK đứng ngay dưới bậc 5 (mục 12): chỉ bậc 5 trở lên được cắt ngang. Cảnh vé và vai chờ PK xong, trừ khi chúng thuộc một trong 2 sân đang PK.
+
+## 10. Bình luận, thả tim, follow
+
+- **Bình luận:**
+  - Bình luận không phải mã → bong bóng trên đầu fan (tối đa 3 bong bóng mỗi khung, mỗi bong bóng tối đa 2 dòng, cỡ 36 px) và một dòng trên bảng bình luận của sân club (`pushComment`, rooms.js:43).
+  - Bình luận mã `1`–`5` → chip "✓ <tên> → ③" ở sân đó.
+  - Lần đầu bình luận trong buổi → NPC chủ sân/phòng chào tên (mỗi sân tối đa 1 lời chào mỗi 5 giây, gộp tên).
+- **Thả tim:**
+  - TikTok gửi tim theo đợt nên cộng dồn mỗi người mỗi 2 giây → tim bay từ chibi kèm chip "+15 ❤ <tên>", một tiếng tick có giới hạn nhịp.
+  - Cả tòa nhà mỗi `coLikeMilestone` (300) tim → sóng tim ở cảnh đang quay + MC cảm ơn người thả nhiều nhất đợt đó.
+  - Mốc tim **không bao giờ** cho vai, phòng hay cảnh quay.
+- **Follow / chia sẻ:** vào tòa nhà + chip "đã follow ❤". MC cảm ơn tối đa 1 lần mỗi 10 giây, gộp tên.
+- **Lọc chữ** (`logic/textfilter.js`):
+  - Chữ người xem lên màn LED, TV phòng hay miệng MC thì phải qua bộ lọc.
+  - Danh sách từ cấm mặc định + `coBadWords` (streamer tự thêm, cách nhau bằng dấu phẩy). So khớp không dấu; từ bị cấm thay bằng `***`.
+  - Giới hạn 60 ký tự.
+
+## 11. Cấp fan trọn đời và club (server)
+
+Lưu ở server thay vì localStorage. Lý do: nguồn OBS và cửa sổ game là 2 trình duyệt khác nhau; nếu overlay tự cộng thì 2 nguồn sẽ cộng trùng. **Server là nơi quyết định `club` và thời gian chờ đổi club.** Overlay chỉ hiện theo `creatoronline:fan`.
+
+- **Khoá người xem:**
+  - Một hàm duy nhất `fanKey(d) = d.userId || lower(d.uniqueId)`, dùng y hệt ở server và overlay.
+  - Hiện `like` và `social` chỉ gửi `uniqueId, nickname` (server.js:3878, 3892). **Phải thêm `userId` + `profilePicture`** vào hai broadcast này. Đây là thay đổi cộng thêm, không làm hỏng game khác.
+  - Không thêm thì fan vào bằng thả tim / follow sẽ lệch khoá với bộ đếm và không có avatar.
+  - `chat` và `gift` đã có đủ (server.js:3780–3787, `emitGift`).
+- **`lib/creatoronline-fans.js`** (CommonJS, logic thuần, test `tests/creatoronline-fans.test.js`):
+  - Lưu `{ [fanKey]: { name, xu, club, clubAt, lastSeen } }`.
+  - Ghi vào `<DATA_DIR>/creatoronline-fans.json` theo kiểu nguyên tử (ghi file tạm rồi đổi tên), debounce 30 giây.
+  - Mọi đường thoát app phải ghi ngay (`app.exit` không bắn `before-quit`).
+  - Chỉ bỏ mục **dưới 100 xu** không gặp quá 180 ngày. Fan đã có cấp (từ Fan cứng trở lên) giữ vĩnh viễn, đúng quyết định 3.
+  - Có `parseClubCode` riêng, nhỏ. Test `import()` `public/games/creatoronline/js/logic/codes.js` theo file URL rồi so 2 bộ phân tích trên cùng bộ mẫu. Không `require()` file ESM lúc chạy.
+- **Khi nào ghi:** chỉ khi game bật **và đang có overlay Creator Online kết nối**, để không lưu dữ liệu người xem của streamer chưa từng dùng game.
+  - Overlay `socket.emit('subscribe', 'co-overlay')` khi kết nối (dùng handler `subscribe` có sẵn của server, không cần sự kiện mới).
+  - Ghi khi phòng `co-overlay` có ít nhất 1 socket và `appConfig.games.creatoronline.enabled !== false`.
+- **Dữ liệu vào** (chạy đúng 1 lần mỗi sự kiện, không lặp theo số overlay):
+  - **Quà:** móc trong `emitGift` ngay trước `io.emit('gift')` (server.js:4889) → cộng `xu`. Bỏ qua quà thử (`g.source === 'test'`) và người xem giả (khoá bắt đầu bằng `sim`/`test_`).
+  - **Bình luận:** móc ngay sau `broadcast('chat')` (server.js:3787). Gặp mã club thì đổi `club`, nếu đã qua `coClubSwitchSec` kể từ `clubAt`.
+  - **Club tự xếp** (người chưa chọn bao giờ) do overlay tự tính để hiện, **không lưu**.
+- **Dữ liệu ra:**
+  - Khi ghi đang bật, server gắn `coFan: { club, xu, rank }` (giá trị **trước** khi cộng quà này) vào sự kiện `gift` và `chat` nó phát ra. Người xem quay lại tặng quà ngay thì overlay vẫn biết club đã lưu, không tính nhầm phe trong lúc chờ `/fans`.
+  - Chỉ khi `xu` hoặc `club` đổi: `io.emit('creatoronline:fan', { id, xu, rank, club })`. Không phát lại khi chỉ `lastSeen` đổi.
+  - `GET /api/creatoronline/fans?ids=a,b`: overlay gọi gộp mỗi 1 giây khi có fan mới vào.
+  - `GET /api/creatoronline/fans/top?n=20`: panel.
+  - `POST /api/creatoronline/fans/reset`: panel, có xác nhận.
+- **Cấp** theo `fanRanks` có sẵn, tính bằng xu thật trọn đời: Fan mới 0 · Fan cứng 100 · Fan VIP 500 · Đại gia 2.000 · Thần tài 10.000. Biểu tượng cấp (từ Fan cứng trở lên) đứng trước tên.
+
+**Một nơi phát duy nhất.** Mỗi overlay tự mô phỏng PK, vai, phòng và đạo diễn từ cùng luồng sự kiện. Vì vậy streamer chỉ dùng **một** trong hai: nguồn trình duyệt OBS **hoặc** cửa sổ game. Mở cả hai thì hai bên chạy độc lập và có thể lệch nhau; panel ghi rõ điều này.
+
+**Buổi LIVE** bắt đầu khi app nối vào một phòng TikTok mới: sự kiện `status {connected: true, roomId}` (server.js:3736) mang `roomId` khác lần trước. Lệnh panel `reset` cũng mở buổi mới. Sang buổi mới thì xoá PK, vai, phòng, khách trên sân và top fan buổi; cấp fan trọn đời không bị ảnh hưởng.
+
+Để tải lại trang (ví dụ đổi chất lượng, OBS làm mới nguồn) không làm mất trận PK đang chạy:
+- Trạng thái buổi LIVE (PK, vai, phòng, khách trên sân, hàng cảnh quay, top fan buổi, `roomId`) lưu localStorage mỗi 2 giây, kèm mốc giờ.
+- Lúc nạp trang thì khôi phục nếu bản lưu chưa quá 5 phút và cùng `roomId`.
+- Đổi cài đặt áp ngay qua `gameConfig`, không tải lại trang. Riêng đổi chất lượng thì tải lại.
+
+## 12. Đạo diễn camera (`logic/director.js`, thay cho camera bám người chơi)
+
+**Hàng cảnh quay**, ưu tiên từ cao xuống:
+
+| Cảnh | Nguồn | Độ dài |
+|---|---|---|
+| Gala | bậc 7 | 60 giây (mở 3 giây toàn tòa nhà) |
+| Tâm điểm | bậc 6 | 30 giây |
+| Quà lớn / mở PK | bậc 5, `pkStart` | 15 giây |
+| PK *(chỉ khi đang PK; lúc đó đứng ở đây)* | đang PK | xen kẽ 2 sân, mỗi sân 8 giây |
+| Phòng mới có chủ | vé | 30 giây |
+| Vai mới | vai | 20 giây |
+| Vòng rảnh | không có gì | xem dưới |
+
+**Luật:**
+- Mỗi cảnh chạy tối thiểu 8 giây trước khi bị cảnh khác thay.
+- Cảnh ưu tiên cao hơn cắt ngang sau mốc 8 giây đó. Cảnh ngang hoặc thấp hơn thì xếp hàng (tối đa 6).
+- Chỉ gộp cảnh **cùng người tặng và cùng mục tiêu** (cùng sân / phòng): khi đó cộng giờ vào cảnh đang chờ, không thêm cảnh mới.
+- Cảnh chờ quá 45 giây, hoặc mục tiêu đã mất (người rời đi, vai / phòng đã chuyển), thì bỏ.
+- Hàng đầy thì bỏ cảnh, chỉ còn lớp A/B.
+- Quà nhỏ không cắt cảnh; quà ở sân đang quay thì bay qua khung.
+- Cảnh bậc 5 trở lên được cắt tới trong ≤ 0,5 giây nếu cảnh hiện tại đã qua mốc 8 giây.
+
+**Vòng rảnh:**
+- sân club có hoạt động gần nhất, tầm trung, 8 giây
+- cận một khách trên sân hoặc idol, 5 giây
+- phòng có chủ là người xem (không có thì bỏ qua), 6 giây
+- bảng xếp hạng, 4 giây
+- sang club kế tiếp
+- Khoảng mỗi 2 phút chèn một cảnh "lát sàn" 3 giây làm chuyển cảnh.
+
+**Khung dọc:**
+- `fov` 60 khi khung dọc (aspect < 1), 50 khi khung ngang.
+- Đầu nhân vật chính ở khoảng y 560–650, chân ≥ y 1040 trên khung 1920.
+
+**Bố cục cảnh có sẵn:**
+
+| Cảnh | Bố cục |
+|---|---|
+| Sân nhóm | Từ phía khán giả, góc 20–25°, cách khoảng 19 m. LED ở trên, idol và fan ở dưới |
+| Phòng hát / phòng đứng | Từ hành lang, cách 5–8 m |
+| Phòng game | Chếch sau vai streamer để thấy TV trận đấu |
+| Lát sàn | Cột 17 × 30 m nhìn nghiêng 60–70°, ví dụ 1 sân G cùng các phòng trước nó |
+| Toàn tòa nhà | Chỉ làm cảnh mở 2–3 giây |
+
+Camera không bao giờ ở sau biển neon cửa phòng (biển che nửa khung khi đứng ở hành lang): tính sẵn điểm đặt camera cho từng cảnh, không dùng orbit + raycast.
+
+**Âm nhạc:** trộn theo **phòng đang được quay** (thay `mixAudio` theo vị trí người chơi, main.js:1955).
+
+## 13. HUD khung 1080 × 1920
+
+Đơn vị gốc giống Nhà Tù: `font-size: calc(min(100vw, 56.25vh) / 24)`, tức 45 px ở bề ngang 1080. Cỡ chữ tối thiểu ở bề ngang 1080: chip 30 px · thân 38–44 px · tên 46–52 px · tiêu đề 72–110 px. Chữ trắng hoặc vàng, đậm 800–900, viền tối 4–6 px hoặc nền ≥ 0,85.
+
+**Vùng tránh** (thuộc giao diện TikTok; ước lượng, phải đối chiếu bằng ảnh chụp điện thoại từ buổi LIVE thử):
+- y < 230
+- x > 930 (y 230–1500)
+- x 0–780, y 1040–1740
+- y > 1740
+
+Giữ chữ trong khoảng x 120–920.
+
+| Ô | (x, y, rộng, cao) | Nội dung |
+|---|---|---|
+| Tên phòng / thể loại | (120, 240, 800, 96) | "G2 · VENUS STAR" 56 px + chip thể loại 34 px |
+| Thanh PK (thay ô trên khi PK) | (120, 240, 800, 180) | Dòng 1: tên 2 nhóm 40 px + đồng hồ 44 px. Dòng 2: điểm 52 px + thanh 28 px. Dòng 3: "cần X xu để lật kèo" / chip "❤ ×2" 30 px + avatar top 3 mỗi bên. Phân biệt bằng tên + vị trí, không chỉ bằng màu |
+| Người đang được quay | (120, 432, 520, 132) | Avatar 112 px viền vàng, tên 50 px, "<vai/phòng> · 0:18" 32 px + thanh thời gian |
+| Ô quà / chú giải | (660, 432, 260, 300) | Có quà trong 20 giây qua: 3 dòng quà mới nhất. Rảnh: xoay vòng **từng mục** của bảng chú giải (mỗi mục 4 giây, ảnh quà + 1 dòng) ↔ top 3 fan buổi LIVE (6 giây). Ẩn khi đang có banner |
+| Hướng dẫn | (120, 940, 800, 84) | 1 dòng 38 px, xoay 3 câu mỗi 6 giây: "💬 Gõ 1–5 chọn nhóm" · "🌹 Quà bất kỳ → lên sân khấu" · "🎟️ <quà vé> → phòng mang tên bạn". Dòng tiêu đề màn LED lặp lại câu đang hiện |
+| Vùng cảnh 3D chính | y 500–1040 | — |
+| Banner quà lớn | (120, 600, 800, 260) | Xuống dòng / cắt `…`, không `nowrap` |
+
+Gỡ ô chat bên trái (vùng đó là bình luận của TikTok) và mọi dòng "Hệ thống: …".
+
+**Chữ trong cảnh:**
+- Màn LED dùng canvas 1024 × 440 (bản cũ 512 × 220); biển phòng tăng gấp đôi tương tự.
+- Bảng bình luận, màn máy tính, tên bài karaoke và dòng chữ chạy quá nhỏ ở khoảng cách quay dọc. Nội dung quan trọng của chúng đã có trên HUD.
+
+## 14. Âm thanh
+
+- Tạo `AudioContext` ngay khi tải trang (OBS cho tự phát), không chờ cú click.
+- `coSound` (hiệu ứng) và `coMusic` (nhạc tự tổng hợp theo thể loại, file mp3 trong `assets/audio/` nếu có).
+- `coMusicVol` (0,35): nhạc nhỏ dưới giọng streamer.
+- Giới hạn số tiếng cùng lúc (tối đa 8 tiếng hiệu ứng).
+
+## 15. Gỡ khỏi bản LIVE, chế độ thử
+
+**Không có trong overlay LIVE:**
+- **Giao diện người chơi:** màn hình bắt đầu, WASD / chuột / cảm ứng, ví xu, hồ sơ, cửa hàng, tủ đồ, vòng quay, thưởng xem live.
+- **Mini game:** bắt nhịp F, đố vui, đoán bài, dự đoán TOP 1 (sang GĐ2 dưới dạng mini show bình luận A/B/C).
+- **Mạng LAN:** `net.js`, `server/server.mjs`, `Choi-game.bat`.
+- **Hoạt động giả:**
+  - NPC tặng quà (main.js:1873–1879)
+  - NPC bình luận dưới tên người xem (main.js:1862–1872)
+  - số người xem tự trôi (main.js:1855–1861)
+  - NPC giành phòng
+  - số 👁/❤ bịa trên biển phòng
+- **Số trên biển phòng (thay thế):**
+  - sân nhóm: "👥 <số fan club> · ❤ <tim buổi này>"
+  - phòng có chủ: "❤ <tim của chủ phòng>"
+
+**`?demo=1`** (nút "🧪 Bản đi dạo" trong panel mở cửa sổ riêng, không dùng cho OBS):
+- Giữ vòng chơi cũ để streamer xem thử và để test: WASD, ví chỉ trong bộ nhớ, NPC tặng quà, `__creator`.
+- Code ví / cửa hàng / hồ sơ chỉ còn ở nhánh demo.
+
+**Các tham số URL khác:**
+- `?win=1`: cửa sổ Edge/Chrome `--app` như Nhà Tù (mất app quá 4 giây thì tự đóng).
+- `?q=low`: chất lượng thấp.
+- `?debug=1`: bộ đếm.
+
+## 16. Hiệu năng và chất lượng
+
+| | Thường (`high`) | Thấp (`?q=low`) |
+|---|---|---|
+| Số điểm ảnh tối đa | 2,2 MP | 1,0 MP |
+| Antialias | bật | tắt |
+| Bóng | 2048 PCFSoft | 1024 PCF hoặc chỉ bóng tròn |
+| Trần NPC + người xem | 160 | 100 (hàng chờ phòng tối đa 3) |
+| TV trực tiếp (`coLiveTv`) | 10 fps | tắt |
+| Trần nhãn | 8 / khung | 5 / khung |
+| FPS | 60 | 30 |
+| Đèn quét | chuyển động | đứng yên |
+
+**Bắt buộc trong GĐ1:**
+- chặn `dt` trong khoảng `[0, 0.05]` (main.js:2163)
+- LabelLayer thay CSS2DRenderer
+- `disposeCharacter` khi gỡ nhân vật (vòng bóng + lightstick đang rò, character.js:104/176)
+- `room.fans` khoá theo userId, chỉ giữ top 50
+- canvas: tắt mipmap, làm mới tối đa 4 lần mỗi giây, bỏ `shadowBlur`
+- tường và sàn tĩnh không đổ bóng
+- cache mảng nhân vật thay vì `concat` mỗi khung
+- chỉ gọi `audio.mix` khi giá trị đổi
+- trần pháo giấy và số `setTimeout` của `giftFx`
+
+**GĐ2:**
+- nhân vật 1 SkinnedMesh + bóng thay thế như Nhà Tù (khoảng 22 → 3 lệnh vẽ mỗi nhân vật)
+- lưới không gian cho tách va chạm
+- LOD
+
+**`?debug=1`** hiện:
+- `renderer.info` (calls, triangles, geometries, textures, programs)
+- thời gian khung trung bình / p95
+- số nhân vật đang vẽ, số nhãn
+- số lần tải canvas mỗi giây
+- heap JS lấy mẫu mỗi phút
+
+**Đạt khi:** `renderer.info.memory` đứng yên qua soak test 1 giờ với luồng sự kiện giả `__creator.sim` (có ở `?demo=1` và ở bản LIVE khi có `?debug=1`; người xem giả có khoá bắt đầu bằng `sim` nên không vào bộ đếm fan).
+
+## 17. Kỹ thuật
+
+### 17.1 Thư mục `public/games/creatoronline/`
+
+```
+overlay.html            bản LIVE: import map /games/quaivat/vendor/ (r160); ?demo=1 → demo.html
+live.css                HUD + bảng tên khung 1080×1920 (đơn vị --u)
+fonts.css               Baloo 2 tự host, dùng chung file có sẵn trong app (games/body/fonts, lib/fonts)
+demo.html demo.css      bản đi dạo (index.html / style.css cũ)
+data.json               game-config.json cũ (giữ ví/shop cho bản đi dạo) + live (thông số phụ), giftActions,
+                        suggestedGiftMap, audioFiles
+creatoronline-panel.js
+audio/DANH-SACH-NHAC.md thả mp3 vào đây rồi khai báo trong data.json → audioFiles
+js/
+  game.js               bản LIVE: socket.io, người xem, quà, PK, đạo diễn, HUD, lưu buổi LIVE
+  world.js screens.js character.js npc.js effects.js audio.js   (chuyển từ bản riêng, dùng chung 2 bản)
+  label-layer.js        LabelLayer (chép/chỉnh từ Nhà Tù) — bản LIVE
+  labels.js             nhãn CSS2D — bản đi dạo
+  director-cam.js       đặt camera theo cảnh của director.js
+  live-hud.js           HUD 9:16 (mục 13) — bản LIVE; hud.js là HUD bản đi dạo
+  demo.js               vòng chơi cũ (WASD, ví trong bộ nhớ) — demo.html
+  net.js                bản ngoại tuyến (giữ giao diện Net cho demo.js), LAN đã gỡ
+  logic/                thuần, có test
+    rooms.js seats.js physics.js rng.js format.js     (có sẵn)
+    population.js       chép từ Nhà Tù
+    codes.js            mã bình luận: club 1–5, lệnh vai
+    textfilter.js       lọc từ cấm
+    events.js           gift / chat / like / social → ý định (bậc, map, lớp A/B/C)
+    stage.js            12 chỗ khách / sân
+    roles.js            vai MC / Kỹ thuật / Quản lý, hàng chờ, giữ chắc
+    pk.js               điểm, nước rút, lật kèo, hoà, ghép cặp
+    director.js         hàng cảnh quay, trần mỗi người, vòng rảnh
+```
+
+Ghi chú:
+- **Three.js:**
+  - Vendor r160 (`public/games/quaivat/vendor/addons/`) có `BufferGeometryUtils` và `SkeletonUtils` nhưng **không có thư mục `renderers/`**, mà code hiện tại import `CSS2DRenderer` ở 2 file.
+  - Bước 1 chép `CSS2DRenderer.js` của bản r160 vào `vendor/addons/renderers/` (cộng thêm, không ảnh hưởng game khác) để `?demo=1` chạy được ngay.
+  - Bản LIVE dùng LabelLayer từ bước 4; khi đó chỉ còn bản demo dùng `CSS2DRenderer`.
+  - Nên so ảnh chụp `CapsuleGeometry` và bóng giữa r170 và r160.
+- **Phụ thuộc Nhà Tù:**
+  - Bản Nhà Tù mới (`population.js`, LabelLayer, nhân vật gộp, `disposeCharacter`) **chưa commit** trên `tuongtac/nhatu`.
+  - **Chép file, không gộp nhánh**: `tuongtac/nhatu` cũng sửa `server.js`, `index.html` và `app.js`, những file mà spec này cũng sửa.
+  - Chép sau khi phiên Nhà Tù commit; đầu file chép ghi mã commit nguồn.
+
+### 17.2 Server (`server.js`)
+
+- **Khai báo game:**
+  - `GAMES.creatoronline`: `overlayPath: '/overlay/creatoronline'`, `defaultConfig` ở 17.3, `coGiftMap: creatorOnlineSuggestedGiftMap()` (đọc `data.json` giống `nhatuSuggestedGiftMap`).
+  - `registry.js` bỏ `soon: true` khi vòng chơi LIVE đã chạy (cuối bước 5), không bỏ sớm hơn.
+  - `/config` (server.js:5909) gộp nông `{...prev, ...incoming}` nên khoá `co*` được giữ. Riêng `coGiftMap` bị thay nguyên khối mỗi lần lưu.
+- **Sửa server có sẵn:** thêm `userId` + `profilePicture` vào broadcast `like` (server.js:3878) và `social` (server.js:3892) — mục 11.
+- **Route:**
+  - `GET /overlay/creatoronline` → `overlay.html`
+  - `POST /api/creatoronline/window/open`: chép route của Nhà Tù, giữ cờ chống ngừng vẽ, thêm tham số `?demo=1` cho Bản đi dạo
+  - `/api/creatoronline/fans*` (mục 11)
+- **Bộ đếm fan:** theo mục 11.
+  - `creatorFans.onGift` trong `emitGift`, `creatorFans.onChat` sau `broadcast('chat')`.
+  - Gắn `coFan` vào `gift` / `chat` khi ghi đang bật.
+  - Phát `io.emit('creatoronline:fan', …)`.
+  - Phòng socket `co-overlay` (overlay tự subscribe).
+- **Lệnh panel** qua route chung có sẵn `POST /api/games/creatoronline/cmd` (server.js:6761, phát `gameCmd {gameId, cmd, payload, seq}`). Body dạng `{ cmd, payload }` như Nhà Tù:
+  - `{cmd:'test', payload:{kind: gift|comment|like|follow, coins?, giftId?, text?, name?}}`
+  - `{cmd:'pk', payload:{a, b}}`, `{cmd:'skip'}` (bỏ cảnh hiện tại), `{cmd:'cut', payload:{target}}`, `{cmd:'reset'}`
+- Route `/api/creatoronline/*` không đụng `/api/games/:id/*`.
+
+### 17.3 Config `co*`
+
+| Khoá | Mặc định | Ý nghĩa |
+|---|---|---|
+| `enabled` | true | |
+| `coQuality` | `'high'` | `high` \| `low` (overlay tự tải lại `?q=low`) |
+| `coMaxViewers` | 40 | 5–120 |
+| `coNpcCount` | 20 | đám đông NPC khi vắng |
+| `coViewerIdleMin` | 30 | |
+| `coClubSwitchSec` | 60 | |
+| `coStageBaseSec` / `coStagePerCoinSec` / `coStageMaxSec` | 12 / 3 / 120 | |
+| `coStageSlots` | 12 | |
+| `coRoomHoldSec` / `coRoomQueueMax` | 60 / 6 | |
+| `coRoleSec` / `coRoleLockSec` / `coRoleMaxSec` | 180 / 45 / 300 | |
+| `coPkEveryMin` | 5 | 2–15, 0 = tắt PK tự động |
+| `coPkSec` / `coPkFinalSec` | 90 / 30 | `coPkSec` 60–300; `coPkFinalSec` ≤ `coPkSec / 2` |
+| `coMvpMin` | 10 | |
+| `coCamMaxPer5Min` | 90 | giây cảnh quay mỗi người mỗi 5 phút |
+| `coTierFallback` | true | quà chưa gán chạy theo bậc xu |
+| `coLikeMilestone` | 300 | |
+| `coSound` / `coMusic` / `coMusicVol` | true / true / 0.35 | |
+| `coLiveTv` | true | |
+| `coShowGiftLegend` / `coShowJoinHint` | true / true | |
+| `coBadWords` | `''` | |
+| `coGiftMap` | bộ gợi ý | `{ [action]: [{ giftId, giftName, giftImage, coins }] }` |
+
+`coMaxViewers` bị chặn ở 80 khi chất lượng thấp.
+
+**Thông số phụ** (không hiện trong panel), đặt trong `data.json → tuning` để test và chỉnh một chỗ:
+
+| Khoá | Giá trị | Mục |
+|---|---|---|
+| `stageQueueMax` / `stageMinStandSec` / `stageReGiftGapSec` | 10 / 8 / 1,5 | 4.1, 5 |
+| `roleQueueMax` / `roleExtendSec` / `roleYieldSec` | 1 / 90 / 60 | 7 |
+| `pkCooldownSec` / `pkRetrySec` / `activeWindowSec` | 60 / 60 / 180 | 9 |
+| `gifterProtectSec` / `overflowViewers` | 300 / 20 | 3 |
+| `galaSec` / `galaShortSec` / `galaMergeMaxSec` | 60 / 30 / 90 | 4.4 |
+| `shotMinSec` / `shotQueueMax` / `shotStaleSec` | 8 / 6 / 45 | 12 |
+| `roomFxGapSec` / `roomFxQueueMax` | 1,5 / 6 | 4.1 |
+| `mcReadEverySec` / `techIdleSec` / `techAutoEverySec` / `cmdGapSec` | 20 / 10 / 8 / 3 | 7 |
+| `fanKeepDays` / `fanKeepMinXu` | 180 / 100 | 11 |
+| `sessionSaveSec` / `sessionRestoreMaxSec` | 2 / 300 | 11 |
+
+### 17.4 Panel (`view-creatoronline`)
+
+- **Liên kết:** copy link OBS (tự thêm `?q=low` khi chất lượng thấp), 🎮 Mở cửa sổ game, 🧪 Bản đi dạo.
+- **Gán quà:** bảng gán quà giống Nhà Tù, nút "🎁 Dùng bộ quà gợi ý", cảnh báo quà trùng (mục 4.5).
+- **Cài đặt:**
+  - PK: nhịp, thời lượng, ⚔️ Mở PK ngay
+  - dân số
+  - chất lượng
+  - âm thanh
+  - TV trực tiếp
+  - từ cấm
+- **Nút thử:**
+  - 🧪 quà 1 / 10 / 99 / 299 / 1.000 / 30.000 xu
+  - bình luận `1`
+  - thả tim
+  - follow
+- **Hỗ trợ buổi LIVE:**
+  - "📌 Câu ghim": sinh câu hướng dẫn để streamer ghim bình luận TikTok
+  - 🏆 Top 20 fan trọn đời + làm mới
+- Ghi rõ trong panel: chỉ dùng nguồn OBS **hoặc** cửa sổ game, không dùng cả hai (mục 11).
+- Gắn vào app theo đúng cách Nhà Tù đang làm:
+  - nhánh mở game ở app.js:964 gọi `window.HpCreatorOnlinePanel?.open(socket)`
+  - `<section id="view-creatoronline">` gần index.html:1796, thẻ script gần index.html:3058
+  - CSS `.creatoronline-*` trong `style.css`
+  - Game tự vào nhóm 🎮 qua `TT_CHILD_GAMES`.
+  - Kiểm `applyLicenseLocks` để game mới khoá KEY giống Nhà Tù.
+
+### 17.5 Test
+
+- **Chuyển từ bản riêng:** `tests/creatoronline-{rooms,seats,physics}.test.mjs`.
+- **Mới:** `tests/creatoronline-{codes,textfilter,events,stage,roles,pk,director,population}.test.mjs`. Kiểm:
+  - bậc xu và hành động gán; quà gán ≥ 299 xu chạy thêm hiệu ứng bậc; gán trùng theo thứ tự ưu tiên
+  - mưa quà x99 không vượt trần
+  - mỗi người một chỗ (vai > phòng > sân); vé → `seats.claim`; mua vé lần 2 chỉ gia hạn
+  - vai xếp hàng, không cướp; người giữ vai nhường sau tối đa 60 giây khi có người chờ
+  - mã bình luận phải khớp cả câu ("đèn đẹp", "5 sao" không phải mã)
+  - công thức PK, nước rút, "đang thua" theo từng đợt tim, hoà, `X = ⌊chênh/10⌋ + 1`, không ghép lại cặp vừa đấu, chỉ 1 PK
+  - trần cảnh quay mỗi người, cảnh tối thiểu 8 giây, cảnh chờ quá 45 giây bị bỏ, Gala rút còn 30 giây khi có Gala chờ
+  - không đẩy người được bảo vệ; người tặng quà vượt trần tạm tới `coMaxViewers + 20`
+- **Server:** `tests/creatoronline-fans.test.js`, trong đó có bài so bộ phân tích mã club của server với `logic/codes.js`.
+- `tests/app-smoke.test.js` phải qua.
+
+## 18. Giai đoạn
+
+### GĐ1: bản LIVE đầu tiên (commit nhỏ, theo thứ tự)
+
+Cỡ việc: S nhỏ · M vừa · L lớn · XL rất lớn.
+
+| Bước | Việc | Cỡ | Thử thế nào / điều kiện xong |
+|---|---|---|---|
+| 1 | **Chuyển code:** vendor r160 + chép `CSS2DRenderer.js` r160, font tự host, chặn `dt`, chuyển test | M | Mở `/games/creatoronline/overlay.html?demo=1` chạy như bản riêng; test cũ qua |
+| 2 | **Gắn vào app:** `GAMES` + route + `data.json`; view + panel khung (link OBS, chất lượng, nút thử). Chưa bỏ `soon` | M | `app-smoke` qua; nút thử chỉ có tác dụng từ bước 4 |
+| 3 | **Server:** bộ đếm fan + `userId`/`profilePicture` cho `like`/`social` + phòng `co-overlay` + API + top fan trong panel | S–M | `tests/creatoronline-fans.test.js` |
+| 4 | **Logic thuần + test:** codes, textfilter, events, stage, roles, pk, director, population | L | Test viết trước code |
+| 5a | **Overlay — người xem:** socket.io (`gameConfig`, `overlay:reload`, `gameDisabled/Enabled`, `gift`, `chat`, `like`, `social`, `gameCmd`, `creatoronline:fan`), người xem + club, LabelLayer, gỡ hoạt động giả | M | Nút thử trong panel; điều kiện xong: LabelLayer thay CSS2DRenderer, `disposeCharacter` |
+| 5b | **Overlay — HUD 9:16** | M | Ảnh chụp 1080×1920 |
+| 5c | **Overlay — đạo diễn camera** | M | `?debug=1` hiện cảnh đang quay |
+| 5d | **Overlay — âm thanh theo cảnh** | S | |
+| 6a | **Quà:** lên sân khấu + bậc 1–2 | M | Điều kiện xong: `room.fans` khoá theo `fanKey`, trần pháo giấy / `giftFx` |
+| 6b | **Phòng mang tên + vé** | M | |
+| 6c | **Vai + lệnh bình luận** | M | |
+| 6d | **Sự kiện lớn bậc 5–7** | M | |
+| 6e | **PK + lưu trạng thái buổi LIVE** (localStorage, mục 11); xong thì bỏ `soon: true` | M | |
+| 7 | **Hiệu năng:** các mục còn lại của mục 16, `?q=low`, `?debug=1` | M | Soak test 1 giờ: `renderer.info.memory` đứng yên |
+| 8 | **Hoàn thiện:** panel đủ (bảng gán quà, cảnh báo trùng, câu ghim), đoạn mô tả trong CLAUDE.md, thử OBS thật + một buổi LIVE thử (chụp ảnh điện thoại để chỉnh vùng an toàn) | L | Phần lớn là thời gian thử thật |
+
+### GĐ2
+
+- **PK:** PK chia đôi màn hình (2 khung 9:8, gắn với chất lượng); chung kết cuối giờ (:55); giờ vàng 3 phút điểm ×2.
+- **Mini show trong phòng của chủ phòng** (bình luận A/B/C): đố vui (phòng đứng), dự đoán TOP 1 (phòng game), đoán bài (phòng hát). Đúng được điểm bảng xếp hạng.
+- **Thử thách sân khấu** khi chỉ có 1 club hoạt động.
+- **Phím tắt đạo diễn** qua relay `creatoronline:key`: cắt sân 1–5, mở PK, bỏ cảnh.
+- **Quà:** sự kiện "tick" cho từng nhịp combo (chỉ hiện hình); giành quà giữa các game Tương Tác.
+- **Hiệu năng:** nhân vật SkinnedMesh gộp, lưới không gian, LOD.
+- **HUD gọn** khi streamer vào PK hoặc multi-guest thật của TikTok.
+
+### GĐ3
+
+- Vòng quay **chỉ làm phần thưởng trang trí cho MVP PK**, không bao giờ để quà → giải ngẫu nhiên.
+- Mốc tim lớn của cả tòa nhà → 5 nhóm cùng nhảy một điệu tại sân của mình. Không cắt cảnh và không phải Gala, vì mốc tim không bao giờ cho cảnh quay (mục 10).
+- Ô hình-trong-hình quay fan của người tặng (dùng lại render target TV trực tiếp).
+- Đại sứ phòng (top fan tuần lên biển).
+
+## 19. Rủi ro và việc cần kiểm
+
+- **Mã quà:** quà khác nhau theo khu vực. Mã trong bộ gợi ý lấy từ kho quà máy dev; panel phải cho đổi dễ.
+- **Vùng an toàn** là ước lượng; chỉnh theo ảnh chụp điện thoại thật.
+- **Âm thanh trong OBS:** kiểm tra tự phát trong nguồn trình duyệt OBS và trong cửa sổ `--app`.
+- **Quá tải cơ chế:** bảng chú giải chỉ 6 dòng. Vai, phòng và PK được giải thích bằng cảnh quay chứ không bằng chữ.
+- **Dữ liệu cá nhân:** bộ đếm fan lưu TikTok ID + tên + xu trên máy streamer; có nút làm mới trong panel.
+- **Quy định TikTok:** không có quà nào đổi lấy giải ngẫu nhiên.
+
+## 20. Khi làm GĐ1 (03/11/2026): chỗ khác spec + việc còn lại
+
+Làm trong worktree `.claude/worktrees/creator-online` (checkout chính đang có code chưa commit của phiên Nhà Tù). 8 module logic thuần (bước 4) do 3 agent `gameplay-programmer` viết song song theo hợp đồng API; overlay soát bởi agent `lead-programmer`.
+
+**Làm khác spec gốc, có lý do:**
+- **Font:** Baloo 2 (app có sẵn file, Nhà Tù cũng dùng) thay Nunito — không phải tải font mới.
+- **Phòng socket:** overlay `subscribe` vào `co-overlay` bằng handler có sẵn, không có sự kiện `creatoronline:hello`.
+- **Tên file:** `label-layer.js` / `live-hud.js` cho bản LIVE vì `labels.js` / `hud.js` vẫn là của bản đi dạo.
+- **`data.json`** giữ cả ví/cửa hàng/giá vì bản đi dạo còn dùng; bản LIVE không đọc các khoá đó.
+- **`CSS2DRenderer.js`** chép từ three r169 (máy dev không có gói r160); file chỉ dùng Matrix4/Object3D/Vector2/Vector3.
+- **Mã lệnh có dấu:** gõ có dấu phải đúng chính tả (pháo, khói, đèn, chớp, thêm, bớt, đồ) để "đó", "đỏ", "khỏi", "thèm" không thành lệnh; gõ không dấu luôn khớp.
+- **Đạo diễn** (3 chỗ spec mâu thuẫn do agent nêu, đã chốt): cảnh vé/vai chờ vì PK thì đồng hồ hạn 45 giây đứng yên; Gala không bị bỏ vì quá hạn; cảnh rảnh bị cảnh sự kiện cắt ngay (không chờ 8 giây).
+- **Ô chú giải HUD** xoay từng hành động một (kèm ảnh quà của nó) vì ô 260 px không chứa nổi dòng gộp; `legendRows` (≤ 6 dòng) vẫn có trong `logic/events.js`.
+- **Quà mở PK** được tính điểm cho phe người tặng.
+- **Bộ lọc chữ** là danh sách riêng của game: danh sách "1025 từ cấm" của app (`/api/comment-rules/list`) là từ TikTok cấm streamer nói (có cả "chó", "bóp", "người tốt"…) nên không dùng để che chữ người xem.
+- **Điểm đặt camera** đo trong khung 1080×1920 (đầu nhân vật ~y 590–630): sân nhóm đặt TRONG phòng (ngoài hành lang thì biển neon che nửa khung), bảng xếp hạng lùi 18 m mới vừa bề ngang khung dọc.
+
+**Đã thử trong trình duyệt** (server worktree, dữ liệu riêng): mọi kiểu cảnh; PK + Gala chạy cùng lúc (PK dừng đồng hồ); 120 người xem giả dồn dập (bình luận/tim/quà mỗi phút 240/300/90) → đúng 60 nhân vật (40 + 20 người tặng), 8 nhãn, geometry/texture đứng yên, không lỗi; đường panel → `/api/games/creatoronline/cmd` → overlay; bản đi dạo vẫn chạy.
+
+### 20.1 Trang trí map cho bớt trống (03/11/2026, nhánh `tuongtac/creator-online-decor`)
+
+`js/decor.js` (`buildDecor(scene, world, {low, spotsOf, staff, labelKind})`, dùng chung bản LIVE + bản đi dạo) và `js/gift-decor.js` (chỉ bản LIVE; logic chọn ô thuần `js/logic/gift-trace.js`, test `tests/creatoronline-gift-trace.test.mjs`). `game.js` chỉ thêm: dựng sau `DirectorCam`, `decor.update(dt, t, {camera, beats, focus: dcam.room, actors})` + `giftDecor.update` mỗi khung, `giftDecor.onGift` + `decor.pushTicker` trong `onGift`, câu hướng dẫn lên dải LED trong `tickHud`, `giftTrace` trong snapshot buổi LIVE, `newSession` xoá sạch.
+
+- **Phố đêm:** sàn phố 480 m (đường vành đai, vạch kẻ, quầng đèn đường), ~300 khối nhà `InstancedMesh` (UV cửa sổ tính theo toạ độ thế giới trong shader → ô cửa không méo), đèn báo không đỏ, 28 xe chạy vành đai, 3 đèn rọi trời quét. Chỉ thấy ở toàn cảnh / lát cắt (trong nhà có trần + tường 9 m) → không làm vòm trời. Sương đổi `Fog(0x10162c, 115, 250)` (cũ 70–140 làm cảnh toàn cảnh xỉn).
+- **Trên cao:** ~550 bóng đèn chạy đuổi + cờ đuôi nheo 5 màu club (hành lang Bắc zigzag tường nhóm ↔ đảo; sảnh Nam theo 8 cột đèn z 25,2 + tán zigzag cột ↔ đảo; **không cột ở x 0** — Sàn Giao Lưu GĐ2 quay cận logo (0, 19) từ phía Nam, giữ trống x −4..4 · z 19..28 khỏi vật cao > 1 m); 2 dải LED chữ chạy (hành lang Bắc z −15,2; giữa sảnh z 19 — để ở z 27 / z 10 thì che cảnh lát cắt phòng đơn).
+- **Sàn:** thảm đỏ + logo club trước cửa mỗi nhóm, 18 vũng đèn màu.
+- **Đạo cụ có va chạm:** 3 máy bán nước (tường Đông đảo), quầy trà sữa/bắp rang (tường Tây), 4 ghế chờ, 12 cột đèn, góc check-in (x 38,6 z 20), thùng loa ở 2 góc trong cửa nhóm.
+- **Sân khấu nhóm:** rào 2 cánh (chừa lối giữa) + 4 bảng cổ vũ, loa kiểm âm, 4 đèn hắt dùng `themeMats` của phòng. **Rào KHÔNG có va chạm:** người rời sân đi thẳng xuống khán giả sẽ kẹt sau rào.
+- **Biển lightstick:** bóng người tối ở mọi ô `crowdSpots` không có người xem / NPC đứng gần (≤ 0,6 m), nhún theo nhịp chỉ ở phòng đang quay; `?q=low` nửa mật độ.
+- **Nhân viên:** 5 bảo vệ cửa nhóm (có hộp va chạm), quay phim (hành lang Bắc), lao công (sảnh Nam); nhãn `crowd` (không hiện tên), tự ẩn khi cách camera > 32 m (~25 lệnh vẽ / người); `?q=low` chỉ bảo vệ.
+- **Dấu vết quà:** kệ hoa mang tên (8 ô / nhóm, ≥ 10 xu cộng dồn, đầy thì thay kệ ít xu nhất), chùm bóng bay trên giàn đèn (quà ≥ 500 xu, 3 chùm / nhóm), hộp quà ở 2 góc sân khấu (√(xu/30), tối đa 12), băng rôn BẢNG VÀNG top 3 trên tường trước cửa. Chỉ vẽ ô đang có (dồn instance).
+- **Đo (khung 1080×1920, lệnh vẽ camera chính):** toàn cảnh 388 → 426, sân khấu 91 → 119, lát cắt 411 → ~470; thêm ~60k tam giác (bóng người + bóng đèn). Không NPC nào kẹt vì đạo cụ khi chạy `sim()`.
+
+**Còn lại (cần máy thật / người):**
+- Thử OBS Browser Source 1080×1920 + cửa sổ `?win=1`: âm thanh tự phát, FPS thật trên máy stream (Browser pane là render phần mềm, chỉ so tương đối).
+- Một buổi LIVE thử: chụp ảnh điện thoại để chỉnh vùng an toàn HUD; kiểm cấp fan được ghi (`/api/creatoronline/fans/top`).
+- Soak test 1 giờ trên máy thật (`?debug=1` + `__creator.sim()`): `renderer.info.memory` phải đứng yên.
+- Sau khi phiên Nhà Tù commit: ghi mã commit nguồn vào đầu `logic/population.js` và `label-layer.js`.
+- GĐ2 (mục 18): PK chia đôi màn hình, mini show A/B/C, phím tắt đạo diễn, nhân vật SkinnedMesh gộp, giành quà giữa các game.
+
+## 21. GĐ2 — người xem chơi với nhau (chốt 03/11/2026, đã làm)
+
+Mục tiêu (lời streamer): người xem chỉ có bình luận / chia sẻ / thả tim / quà; muốn camera quay tới thì phải tương tác, **quà (xu) và quà chỉ định luôn ưu tiên cao nhất**; người xem tự chơi với nhau để tặng nhiều nhất. Gói miễn phí = tương tác chung + đăng ký tham gia.
+
+### 21.1 Số người chơi và nhắm người
+- Mỗi người xem trong tòa nhà có số **#1–#99** (chip màu nhóm trước tên). Số giữ suốt buổi, người rời thì trả số.
+- Bình luận **cả câu**: `ném 12` · `ghép 12` · `ôm 12` · `thách 12` (đặt người nhắm, hiệu lực `live.social.aimSec` 120 giây, chip gợi ý quà cần tặng) · `bạn 12` (kết bạn, miễn phí). Có dấu thì phải đúng chính tả (`bán 12`, `ốm 12` không khớp); `#12` cũng được.
+- Tặng quà nhắm người mà chưa gõ số → nhắm **người đang lên hình**, rồi người vừa bình luận trong 60 giây. Không có ai → quà chạy như quà thường (lên sân) + chip "gõ 'ném 12' trước".
+
+### 21.2 Quà → hành động GĐ2 (`SOCIAL_ACTIONS` / `VIP_ACTIONS` / `SOLO_ACTIONS` trong `logic/events.js`)
+Không lên sân, không sự kiện tòa nhà, không mở PK ở **mọi** bậc (cảnh quay riêng đã là phần thưởng; quà ≥ 299 xu vẫn có banner). Gợi ý mặc định:
+
+| Hành động | Quà gợi ý | Kết quả |
+|---|---|---|
+| `throwCake` | Bánh sinh nhật 1 xu (9340) | bánh bay vòng cung trúng mặt, dính 20 giây, MC + LED đọc tên 2 người; bị ném rồi ném lại trong 60 giây = "trả đũa 🔥" |
+| `throwHeart` | Bắn tim 5 xu (5487) | tim xoay quanh đầu 20 giây |
+| `throwEgg` | Trứng ốp la 199 xu (842726) | trứng dính đầu 20 giây |
+| `pair` | Cánh cung của Thần Tình Yêu 99 xu (13904) | 2 người ra **Sàn Giao Lưu** nhảy đôi `coPairSec` (60), tặng nữa +60 (trần 180); 1 trong 2 đang ghép với người khác → chip 💔, quà lên sân |
+| `hug` | Cái ôm thật chặt 400 xu (60547) | 2 người ôm nhau 10 giây ở Sàn Giao Lưu |
+| `duel` | Găng tay đấm bốc 299 xu (6007) | thách đấu 1–1 `coDuelSec` (60), mục 21.4 |
+| `fireworks` / `fly` / `transform` | Pháo hoa giấy 100 (5585) / Bóng bay trái tim 149 (16552) / Siêu nhân bố 400 (191116) | pháo hoa quanh nhân vật · bay lên 12 giây · khổng lồ ×1,5 + hào quang 60 giây |
+| `vipHat` / `vipGlasses` / `vipWings` | Vương miện lông vũ 149 (17100) / Cặp kính ngôi sao 249 (15752) / Đôi cánh tiên 1000 (14397) | đồ **giữ trọn đời** theo tài khoản TikTok (server `lib/creatoronline-fans.js` → `vip: ['glasses','hat','wings']`, không bao giờ bị dọn) |
+
+Bản cài đã lưu `coGiftMap` từ GĐ1: panel tự thêm 12 hành động một lần (`coGdMigrated = 2`), bỏ quà đã gán chỗ khác.
+
+### 21.3 Sàn Giao Lưu, chỗ đứng
+- Sàn Giao Lưu = vòng logo sảnh Nam (tâm (0, 19)): 1 chỗ thách đấu ở giữa + 4 chỗ cặp (ôm / nhảy đôi). Hết chỗ hoặc 1 người đang **bận** (giữ vai / phòng / chưa có nhân vật) → chỉ hiệu ứng tại chỗ + cảnh cận người được nhắm.
+- Thứ tự chỗ đứng: **vai > phòng > Sàn Giao Lưu > ⭐ Center > sân khấu > khán giả**. Ra sàn xong `reconcile` đưa về chỗ cũ.
+- **⭐ Center** = top quà của nhóm trong 5 phút qua, tối thiểu `centerMinXu` 30 xu: đứng giữa mép trước sân khấu, cầm mic, hào quang vàng; chỗ khách trên sân nhường người khác. Sau mỗi quà người không phải Center thấy chip "cần X xu lên Center".
+- **🎖️ Đội trưởng** = top quà buổi này của nhóm: băng tay màu nhóm; lệnh `pk 1–5` (gọi PK) và `nhạc` (đổi nhạc sân), mỗi lệnh 60 giây 1 lần.
+- Người đã tặng quà buổi này đứng **hàng đầu** khán giả; chưa tặng xếp từ hàng sau lên.
+
+### 21.4 Thách đấu 1–1 (`Duel` trong `logic/social.js`, dùng `PkRound`)
+60 giây, 15 giây cuối nước rút. Người đấu tính quà/tim cho mình; khán giả gõ `A`/`B` (miễn phí, +5 tim cho phe, 5 giây 1 lần) rồi quà/tim của họ tính cho phe đã chọn. Thanh HUD dùng chung ô PK (viền vàng, `setPk({kind:'duel'})`). Thắng: 🏆 sau tên 5 phút + banner; thua: tư thế `cry` 10 giây. Một trận một lúc, nghỉ 20 giây giữa 2 trận. **Không chạy cùng PK nhóm**: đang PK → quà thách đấu lên sân; đang thách đấu → PK nhóm (tự động, quà, đội trưởng, quản lý) chờ tới hết trận. Người đấu rời tòa nhà → người kia thắng.
+
+### 21.5 Miễn phí
+- `áo 1–8`, `tóc 1–6` (`live.social.outfits/hairs`), mỗi loại `coLookSec` 60 giây 1 lần; giữ trong buổi (localStorage), không lưu server.
+- Biểu cảm `nhảy` `vẫy` `tim` `lắc` 4 giây, `coEmoteSec` 10 giây 1 lần.
+- Kết bạn `bạn 12`: cùng nhóm thì đứng cạnh nhau; bạn tặng quà → mình nhảy cổ vũ.
+- **Cổ vũ đồng thanh**: ≥ max(`coChorusMin`, 15 % người đang hoạt động, trần 8) người khác nhau gõ cùng một câu trong 10 giây → biểu tượng trên đầu, chip HUD, cảnh khán giả nhóm đông nhất 6 giây, mỗi người +30 tim cho phe nếu đang PK; nghỉ 30 giây.
+
+### 21.6 Camera
+Bảng `PRIORITY`: gala 70 · spotlight 60 · big 50 · pk 45 · **duel 44** · room 40 · **act 35** (ném/ôm/ghép/đồ VIP/hành động riêng) · role 30 · **chorus 6** · **fan 5** · idle 0. Cảnh dưới `SOFT_PRIO` 10 (miễn phí) bị cảnh quà cắt ngay.
+- **Điểm lên hình** (`CameraScore`): bình luận +3 (10 giây 1 lần), chia sẻ +15, follow +10, mỗi 20 tim +1, giảm nửa sau 60 giây. Mỗi `coFanSpotSec` (25) giây, khi đạo diễn rảnh và hàng chờ trống → cận 5 giây "⭐ fan nổi bật" người điểm cao nhất (≥ 5), rồi điểm về 0.
+- Kiểu nhìn mới ở `director-cam.js`: `duo` (giữa 2 người, lùi theo khoảng cách; đo: đầu ~y 610–640/1920) và `over` (cận người giữa khán giả, cao 3,4 m chúc xuống, hướng theo chỗ đứng khán giả).
+- Ném trúng cùng 1 người trong 8 giây: chỉ hiệu ứng, không xếp thêm cảnh.
+
+### 21.7 Phát nét cho TikTok Studio
+Cửa sổ game mặc định **608×1080** (`coWinSize`: 540×960 · 608×1080 · 720×1280 · 1080×1920; `POST /api/creatoronline/window/open {size}`). Panel có hộp "📺 Phát nét lên TikTok Studio": cách 1 OBS Browser Source 1080×1920 + Virtual Camera; cách 2 TikTok Studio "Chụp cửa sổ" cửa sổ 720×1280 trở lên.
+
+### 21.8 Mã
+- `js/logic/social.js` (thuần, test `tests/creatoronline-social.test.mjs`): `parseSocialCommand`, `chorusKey`, `TagBook`, `CameraScore`, `Chorus`, `CenterBoard`, `Bonds`, `Duel`, `Pranks` — đều có `toJSON/fromJSON`.
+- `js/social-play.js`: phần chạy (Sàn Giao Lưu, món ném bay, ngoại hình, Center/đội trưởng, fan nổi bật, HUD thách đấu), nối với `game.js` qua 1 đối tượng ctx.
+- `character.js setExtras(char, {vipHat, glasses, wings, splat, armband, scale, aura})` (mỗi lần gọi đặt TOÀN BỘ trạng thái; dựng lười, dùng chung material) + tư thế `hug` `fight` `fly` `cry` `heartPose` `shake`.
+- Khoá config mới: `coSocial`, `coFanSpotSec`, `coPairSec`, `coDuelSec`, `coEmoteSec`, `coLookSec`, `coChorusMin`, `coWinSize`. Thông số phụ `data.json → live.social`, `live.shotSec`.
+- Panel: kịch bản thử `cmd('test', {kind:'scenario', scenario})` với `throw|pair|hug|duel|chorus|free|vip|center`.
+
+### 21.9 Chưa kiểm / còn lại
+- Chưa chạy LIVE thật: tên quà Ca khúc / quà id lạ không ảnh hưởng; cần xem người xem thật có hiểu "gõ số trước rồi tặng" không (chip + dòng hướng dẫn xoay).
+- Sàn Giao Lưu dùng vùng logo sảnh — nhánh làm kín bản đồ (`tuongtac/creator-online-decor`) không được đặt vật cản trong bán kính ~5 m quanh (0, 19).
+- Đo khung hình trong Browser pane (software render); cần xem lại trên OBS thật.
