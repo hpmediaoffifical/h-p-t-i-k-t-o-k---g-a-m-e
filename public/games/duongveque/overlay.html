@@ -52,6 +52,9 @@
   .fuelbar i { display: block; height: 100%; background: linear-gradient(90deg, #ffb02e, #ffe27a); transition: width .2s linear; }
   .chip.low { background: #c3261f; animation: pulse .5s infinite; }
   .chip.ready { background: #0f8f4a; }
+  #status2 { position: absolute; left: 20px; top: 412px; display: flex; gap: 10px; }
+  #status2 .chip { font-size: 24px; padding: 4px 14px; }
+  #cdriver span { max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
   .chip.speedo { gap: 4px; min-width: 170px; justify-content: center; }
   .chip.speedo b { font-size: 40px; line-height: 1; color: #ffe27a; }
   .chip.speedo small { font-size: 20px; color: #cfd9ea; }
@@ -59,18 +62,18 @@
   .chip.speedo.fast { background: #b35a00; }
 
   /* ---------- bảng quà 2 phe ---------- */
-  .legend { position: absolute; top: 420px; width: 252px; padding: 10px 10px 12px; }
+  .legend { position: absolute; top: 466px; width: 240px; padding: 8px 8px 10px; }
   .legend.l { left: 14px; } .legend.r { right: 14px; }
-  .legend h4 { margin: 0 0 6px; font-size: 26px; font-weight: 800; text-align: center; padding: 2px 0; border-radius: 12px; }
+  .legend h4 { margin: 0 0 4px; font-size: 24px; font-weight: 800; text-align: center; padding: 2px 0; border-radius: 12px; }
   .legend.l h4 { background: #12a150; } .legend.r h4 { background: #d12a24; }
-  .lg { display: flex; align-items: center; gap: 8px; font-size: 25px; font-weight: 700; padding: 2px 4px; white-space: nowrap; overflow: hidden; }
-  .lg img { width: 44px; height: 44px; object-fit: contain; flex: none; }
-  .lg .e { width: 44px; text-align: center; font-size: 30px; flex: none; }
+  .lg { display: flex; align-items: center; gap: 6px; font-size: 22px; font-weight: 700; padding: 0 4px; line-height: 1.25; white-space: nowrap; overflow: hidden; }
+  .lg img { width: 36px; height: 36px; object-fit: contain; flex: none; }
+  .lg .e { width: 36px; text-align: center; font-size: 26px; flex: none; }
   .lg span { overflow: hidden; text-overflow: ellipsis; }
   .legend .free { margin-top: 4px; font-size: 20px; font-weight: 700; color: #cfd9ea; text-align: center; line-height: 1.25; }
 
   /* ---------- tin nổi + băng rôn ---------- */
-  #feed { position: absolute; left: 280px; right: 280px; top: 430px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  #feed { position: absolute; left: 280px; right: 280px; top: 476px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
   .toast { display: flex; align-items: center; gap: 10px; max-width: 100%; padding: 6px 16px 6px 8px; border-radius: 999px; font-size: 26px; font-weight: 800;
     background: rgba(22,26,36,.82); white-space: nowrap; animation: tin .25s ease-out; }
   .toast.cuu { border: 3px solid #35d07f; } .toast.pha { border: 3px solid #ff5a4f; }
@@ -84,7 +87,8 @@
   #banner .b small { display: block; font-size: 32px; font-weight: 700; color: #ffe27a; margin-top: 4px; }
   #banner .b.cuu { background: rgba(10,120,60,.92); } #banner .b.pha { background: rgba(170,30,25,.92); } #banner .b.gold { background: rgba(190,110,0,.94); }
   @keyframes pop { from { transform: scale(.4); opacity: 0; } }
-  #rescue { position: absolute; left: 140px; right: 140px; top: 910px; padding: 14px 22px; text-align: center; }
+  #rescue { position: absolute; left: 270px; right: 270px; top: 478px; padding: 12px 18px; text-align: center; border: 4px solid #ffd23a; }
+  #rescue .t { font-size: 30px !important; line-height: 1.2; }
   #rescue .t { font-size: 36px; font-weight: 800; }
   #rescue .bar { height: 30px; margin-top: 8px; border-radius: 15px; background: rgba(255,255,255,.2); overflow: hidden; }
   #rescue .bar i { display: block; height: 100%; background: linear-gradient(90deg, #12a150, #7cf0a9); transition: width .2s; }
@@ -130,6 +134,10 @@
       <div class="chip" id="cfuel">⛽<div class="fuelbar"><i id="fuel" style="width:100%"></i></div></div>
       <div class="chip hidden" id="cshield">⛑️ <span id="shield">0</span></div>
       <div class="chip" id="cram">💥 HÚC</div>
+    </div>
+    <div id="status2">
+      <div class="chip" id="cdriver">🧑‍✈️ <span id="driver">Streamer</span></div>
+      <div class="chip" id="cpax">🧳 <span id="pax">0</span> người về quê</div>
     </div>
     <div class="legend panel l" id="lgl"><h4>🛡️ CỨU</h4><div id="lgcuu"></div><div class="free">❤️ Tim · ↗️ Chia sẻ<br>= gió + xăng</div></div>
     <div class="legend panel r" id="lgr"><h4>⚔️ PHÁ</h4><div id="lgpha"></div></div>

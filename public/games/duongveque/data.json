@@ -138,6 +138,17 @@
         "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/79a02148079526539f7599150da9fd28.png~tplv-obj.webp"
       }
     ],
+    "driver": [
+      {
+        "giftId": "6104",
+        "giftName": "Mũ lưỡi trai",
+        "names": [
+          "Cap"
+        ],
+        "coins": 99,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/6c2ab2da19249ea570a2ece5e3377f04~tplv-obj.webp"
+      }
+    ],
     "tornado": [
       {
         "giftId": "6090",

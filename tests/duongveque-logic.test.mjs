@@ -234,3 +234,63 @@ test('tự lái (AI) né được một phần vật cản và tự húc', () =>
   assert.ok(dodge > 8 && hit > 8, `dodge=${dodge} hit=${hit}`);
   assert.ok(ram > 0);
 });
+
+test('tài xế: quà lên lái 3 phút, người sau xếp hàng, hết giờ thì đổi', () => {
+  const g = race({ fuelBurn: 0 });
+  const C = { id: 'c', name: 'Chi' };
+  g.gift(A, { action: 'driver', coins: 99 });
+  assert.equal(g.driver.id, 'a');
+  assert.equal(g.driver.left, 180);
+  g.gift(B, { action: 'driver', coins: 99 });
+  g.gift(C, { action: 'driver', coins: 99 });
+  assert.equal(g.driver.id, 'a');
+  assert.deepEqual(g.driverQueue.map(q => q.user.id), ['b', 'c']);
+  g.step(0.1); for (let i = 0; i < 1800; i++) g.step(0.1);
+  assert.equal(g.driver.id, 'b');
+  assert.deepEqual(g.driverQueue.map(q => q.user.id), ['c']);
+});
+
+test('tài xế: hết giờ mà không ai chờ thì người đang lái giữ nguyên, quà mới thay ngay', () => {
+  const g = race({ fuelBurn: 0, roundSec: 9999, driverSec: 5 });
+  g.gift(A, { action: 'driver', coins: 99 });
+  for (let i = 0; i < 70; i++) g.step(0.1);
+  assert.equal(g.driver.id, 'a');
+  assert.equal(g.driver.free, true);
+  assert.ok(g.drainEvents().some(e => e.type === 'driverHold'));
+  g.gift(B, { action: 'driver', coins: 99 });
+  assert.equal(g.driver.id, 'b');
+  assert.equal(g.driver.free, false);
+});
+
+test('tài xế: chính mình tặng thêm thì cộng giờ; ×2 = 6 phút; quà chưa gán không bao giờ thành tài xế', () => {
+  const g = race({ fuelBurn: 0 });
+  g.gift(A, { action: 'driver', coins: 99, count: 2 });
+  assert.equal(g.driver.left, 360);
+  g.gift(A, { action: 'driver', coins: 99 });
+  assert.equal(g.driver.left, 540);
+  for (const c of [1, 99, 5000, 1e9]) assert.notEqual(pickAction('cuu', c), 'driver');
+});
+
+test('hành khách: phe Cứu lên xe, đổi sang Phá thì xuống, tài xế không chiếm ghế, dư ghế đếm +N', () => {
+  const g = race({ seats: 2 });
+  g.comment(A, '1');
+  g.gift(B, { action: 'wind', coins: 5 });
+  g.comment({ id: 'c', name: 'Chi' }, '1');
+  let p = g.passengers();
+  assert.deepEqual(p.seated.map(u => u.id), ['b', 'a']);   // xu Cứu cao ngồi trước
+  assert.equal(p.extra, 1);
+  g.comment(A, '2');
+  p = g.passengers();
+  assert.ok(!p.seated.some(u => u.id === 'a'));
+  g.gift({ id: 'c', name: 'Chi' }, { action: 'driver', coins: 99 });
+  assert.ok(!g.passengers().seated.some(u => u.id === 'c'));
+});
+
+test('quà có số xu vô hạn/không hợp lệ không làm thắng ngay (lỗi nút thử quà tài xế)', () => {
+  const g = race({ fuelBurn: 0, speed: 0.0001 });
+  g.gift(A, { action: 'driver', coins: Infinity });
+  g.gift(B, { action: 'wind', coins: NaN });
+  for (let i = 0; i < 30; i++) g.step(0.1);
+  assert.equal(g.phase, 'race');
+  assert.ok(Number.isFinite(g.totals.cuu) && g.totals.cuu <= 1e6);
+});

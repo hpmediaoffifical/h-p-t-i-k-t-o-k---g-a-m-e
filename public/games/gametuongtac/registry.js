@@ -34,8 +34,8 @@
         },
         {
             id: 'duongveque', name: 'Đường Về Quê', icon: '🛵',
-            desc: 'Xe máy 2D chạy về quê ăn Tết: phe Cứu đẩy xe, đổ xăng, che chắn; phe Phá thả vỏ chuối, chó rượt, xe container đẩy lùi, lốc xoáy.',
-            play: 'Quà chia 2 phe · bình luận 1/2 chọn phe · tim = gió',
+            desc: 'Xe buýt / xe bò chở cả đoàn người xem về quê ăn Tết (2D, 100 km/h): phe Cứu đẩy xe, đổ xăng; phe Phá thả vỏ chuối, xe container đẩy lùi, lốc xoáy.',
+            play: 'Bình luận 1 lên xe / 2 phe Phá · quà 2 phe · quà tài xế lái 3 phút',
             note: 'Streamer bấm Nhảy / Húc (phím tắt F7 / F8) hoặc để Tự lái.'
         },
         {

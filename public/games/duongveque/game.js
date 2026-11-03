@@ -9,7 +9,8 @@ import { createGame, ACTIONS, ACTION_BY_ID, PENALTIES, metersFor } from './logic
 const Q = new URLSearchParams(location.search);
 // SX = chỗ xe streamer đứng (lệch trái để thấy xa phía trước — vật cản, xe container, lốc xoáy lao tới từ bên phải)
 // PX = điểm ảnh / mét · VS = cỡ xe & vật thể (nhỏ → bản đồ trông rộng) · ROAD_H = bề dày mặt đường
-const W = 1080, H = 1920, SX = 230, PX = 26, ROAD = 1150, ROAD_H = 50, LANE = 34, VS = 0.5;
+let SX = 330;   // đổi theo loại xe: xe dài đứng lùi vào giữa để cả thân xe nằm trong khung
+const W = 1080, H = 1920, PX = 26, ROAD = 1150, ROAD_H = 50, LANE = 34, VS = 0.5;
 const S = v => v * VS;
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -21,7 +22,7 @@ const ease = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
 function hash(i, s = 0) { const x = Math.sin(i * 127.1 + s * 311.7) * 43758.5453; return x - Math.floor(x); }
 
 // ---------------- cấu hình ----------------
-const VIEW = { streamerName: 'Streamer', sound: true, showLegend: true, giftMap: {}, bike: 'red', penalties: PENALTIES.slice() };
+const VIEW = { vehicle: 'bus', streamerName: 'Streamer', sound: true, showLegend: true, giftMap: {}, bike: 'red', penalties: PENALTIES.slice() };
 let gameCfg = {};
 function applyServerConfig(c) {
   if (!c || typeof c !== 'object') return;
@@ -30,16 +31,19 @@ function applyServerConfig(c) {
     goal: n(c.dvqGoal, 6000), roundSec: n(c.dvqRoundSec, 240), finalSec: n(c.dvqFinalSec, 30),
     speed: n(c.dvqSpeed, 100) / 3.6, fuelBurn: n(c.dvqFuelBurn, 1.8), meterPerCoin: n(c.dvqMeterPerCoin, 8),
     likePer: n(c.dvqLikePer, 100), ramCd: n(c.dvqRamCd, 12), dodgeMax: Number(c.dvqDodgeMax ?? 10) || 0,
-    autoPilot: c.dvqControl !== 'streamer', autoNext: c.dvqAutoNext !== false, defaultSide: c.dvqDefaultSide === 'pha' ? 'pha' : 'cuu',
+    autoPilot: c.dvqControl !== 'streamer', driverSec: n(c.dvqDriverSec, 180), seats: n(c.dvqSeats, 14), autoNext: c.dvqAutoNext !== false, defaultSide: c.dvqDefaultSide === 'pha' ? 'pha' : 'cuu',
   };
   if (Q.get('goal')) gameCfg.goal = Number(Q.get('goal'));
   if (Q.get('sec')) gameCfg.roundSec = Number(Q.get('sec'));
   game.setConfig(gameCfg);
   VIEW.streamerName = String(c.dvqStreamerName || '').trim() || 'Streamer';
-  VIEW.sound = c.dvqSound !== false;
+  VIEW.sound = c.dvqSound !== false && Q.get('mute') !== '1';
   VIEW.showLegend = c.dvqShowLegend !== false;
   VIEW.giftMap = c.dvqGiftMap && typeof c.dvqGiftMap === 'object' ? c.dvqGiftMap : {};
-  VIEW.bike = c.dvqBike || 'red';
+  VIEW.bike = c.dvqBike || 'green';
+  VIEW.vehicle = ['bus', 'oxcart', 'scooter'].includes(c.dvqVehicle) ? c.dvqVehicle : 'bus';
+  if (['bus', 'oxcart', 'scooter'].includes(Q.get('veh'))) VIEW.vehicle = Q.get('veh');   // thử nhanh: ?veh=oxcart
+  SX = VIEW.vehicle === 'scooter' ? 230 : 330;
   const pen = String(c.dvqPenalties || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   VIEW.penalties = pen.length ? pen : PENALTIES.slice();
   buildLegend();
@@ -85,8 +89,8 @@ function avatar(x, y, r, u, ring = '#fff') {
   ctx.restore();
 }
 function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
-function tag(x, y, u, color = 'rgba(22,26,36,.86)', size = 26) {
-  const name = String((u && u.name) || '').slice(0, 16);
+function tag(x, y, u, color = 'rgba(22,26,36,.86)', size = 26, max = 16) {
+  const name = String((u && u.name) || '').slice(0, max);
   ctx.font = `800 ${size}px 'Baloo 2', sans-serif`;
   const tw = ctx.measureText(name).width, r = size * 0.7, w = tw + r * 2 + 26, h = size + 14;
   rrect(x - w / 2, y - h, w, h, h / 2); ctx.fillStyle = color; ctx.fill();
@@ -463,6 +467,99 @@ function head(x, y, helm, skin, o) {
   ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(x - 12, y - 26, 12, 5, -0.4, 0, Math.PI * 2); ctx.fill();
   if (o.face) avatar(x - 4, y - 22, 13, o.face, '#fff');
 }
+// ---------------- xe chở cả đoàn: 🚌 xe buýt · 🐂 xe bò có máng ----------------
+// Toạ độ "local" (chưa nhân VS), gốc = mép trước xe chạm đất lệch SX. rear = đuôi xe phía sau SX, mid = giữa xe, top = nóc.
+const VEH = {
+  scooter: { rear: 100, mid: 0, top: 230 },
+  bus:     { rear: 470, mid: -185, top: 330 },
+  oxcart:  { rear: 470, mid: -190, top: 250 },
+};
+const vehOf = () => VEH[VIEW.vehicle] || VEH.bus;
+function seatAvatar(x, y, r, u) { avatar(x, y, r, u, '#fff'); }
+/** Xe buýt về quê: tài xế sau kính lái, hành khách ở 6 cửa sổ, dư thì ngồi trên nóc cạnh hành lý. */
+function bus(x, y, o) {
+  const col = o.color || '#22b35e', P = o.passengers || { seated: [], extra: 0 };
+  ctx.save(); ctx.translate(x - S(185), y); ctx.rotate(o.ang || 0); ctx.translate(S(185), 0); ctx.scale(VS, VS);
+  ctx.translate(100, 0);
+  ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(-280, 4, 300, 16, 0, 0, Math.PI * 2); ctx.fill();
+  // thân
+  ctx.fillStyle = col; rrect(-560, -260, 560, 216, [26, 46, 12, 12]); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.fillRect(-560, -120, 560, 26);                         // sọc trắng
+  ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(-560, -60, 560, 16);
+  ctx.fillStyle = '#e8322c'; rrect(-470, -112, 250, 40, 8); ctx.fill();               // băng rôn Tết
+  ctx.fillStyle = '#ffd23a'; ctx.font = "800 30px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('VỀ QUÊ ĂN TẾT', -345, -91);
+  // kính lái + tài xế
+  ctx.fillStyle = '#bfe3ff'; ctx.beginPath(); ctx.moveTo(-78, -238); ctx.lineTo(-14, -238); ctx.lineTo(-4, -140); ctx.lineTo(-78, -140); ctx.closePath(); ctx.fill();
+  if (o.driver) seatAvatar(-44, -186, 30, o.driver);
+  ctx.fillStyle = '#2b2d33'; ctx.fillRect(-120, -238, 34, 194);                       // cửa
+  ctx.fillStyle = '#fff6b0'; ctx.beginPath(); ctx.ellipse(-6, -76, 10, 14, 0, 0, Math.PI * 2); ctx.fill();
+  // 6 cửa sổ khách
+  for (let i = 0; i < 6; i++) {
+    const wx = -190 - i * 62;
+    ctx.fillStyle = '#bfe3ff'; rrect(wx - 26, -238, 52, 82, 8); ctx.fill();
+    const u = P.seated[i];
+    if (u) seatAvatar(wx, -200 + Math.sin(T * 9 + i) * 2, 22, u);
+  }
+  // nóc: hành lý + người ngồi trên nóc (xe Tết chở quá tải)
+  ctx.fillStyle = '#5b4632'; ctx.fillRect(-530, -278, 440, 14);
+  ctx.fillStyle = '#e8322c'; rrect(-520, -318, 70, 40, 6); ctx.fill(); ctx.fillStyle = '#2f7de2'; rrect(-440, -306, 60, 28, 6); ctx.fill();
+  const roof = P.seated.slice(6);
+  roof.forEach((u, i) => {
+    const rx = -370 + i * 36 - (i % 2) * 4, ry = -296 - (i % 2) * 14 + Math.sin(T * 8 + i) * 2;
+    seatAvatar(rx, ry, 18, u);
+  });
+  mai(-100, -262, 3);
+  if (P.extra > 0) { ctx.fillStyle = '#ffd23a'; rrect(-560, -360, 120, 44, 22); ctx.fill(); ctx.fillStyle = '#222'; ctx.font = "800 30px 'Baloo 2'"; ctx.fillText(`+${P.extra}`, -500, -337); }
+  wheel(-100, -42, 42, o.rot || 0); wheel(-450, -42, 42, o.rot || 0);
+  ctx.restore();
+}
+/** Xe bò: con bò kéo máng gỗ, tài xế cầm dây cương ngồi đầu máng, khách ngồi 2 hàng trong máng. */
+function oxcart(x, y, o) {
+  const P = o.passengers || { seated: [], extra: 0 };
+  const run = T * (o.running ? 16 : 3);
+  ctx.save(); ctx.translate(x - S(190), y); ctx.rotate(o.ang || 0); ctx.translate(S(190), 0); ctx.scale(VS, VS);
+  ctx.translate(100, 0);
+  ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(-260, 4, 300, 14, 0, 0, Math.PI * 2); ctx.fill();
+  // con bò
+  ctx.strokeStyle = '#6b4226'; ctx.lineWidth = 16; ctx.lineCap = 'round';
+  for (const [lx, ph] of [[-150, 0], [-120, 2], [-40, 1], [-12, 3]]) { ctx.beginPath(); ctx.moveTo(lx, -90); ctx.lineTo(lx + Math.sin(run + ph) * 18, -6); ctx.stroke(); }
+  ctx.fillStyle = '#b5713a'; ctx.beginPath(); ctx.ellipse(-80, -120, 100, 52, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f2e6d6'; ctx.beginPath(); ctx.ellipse(-70, -100, 44, 22, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#b5713a'; ctx.beginPath(); ctx.ellipse(28, -160 + Math.sin(run) * 4, 40, 32, 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f0c9a8'; ctx.beginPath(); ctx.ellipse(56, -146 + Math.sin(run) * 4, 20, 16, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#efe6d0'; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(14, -186); ctx.quadraticCurveTo(0, -218, -18, -210); ctx.moveTo(34, -190); ctx.quadraticCurveTo(44, -224, 60, -214); ctx.stroke();
+  ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(36, -168, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#b5713a'; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(-178, -130); ctx.quadraticCurveTo(-200, -100 + Math.sin(run) * 10, -192, -80); ctx.stroke();
+  // càng xe + dây cương
+  ctx.strokeStyle = '#7a5230'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(-10, -150); ctx.lineTo(-250, -110); ctx.stroke();
+  // máng gỗ
+  ctx.fillStyle = '#9b6a3a'; rrect(-560, -170, 330, 86, 10); ctx.fill();
+  ctx.strokeStyle = '#6b4226'; ctx.lineWidth = 5; for (let k = -540; k < -240; k += 40) { ctx.beginPath(); ctx.moveTo(k, -166); ctx.lineTo(k, -88); ctx.stroke(); }
+  ctx.fillStyle = '#c98f55'; ctx.fillRect(-566, -180, 342, 16);
+  // khách: 2 hàng trong máng
+  P.seated.slice(0, 12).forEach((u, i) => {
+    const row = i % 2, col = Math.floor(i / 2);
+    seatAvatar(-520 + col * 52 + row * 24, -196 - row * 34 + Math.sin(T * 10 + i) * 3, 22, u);
+  });
+  if (P.extra > 0) { ctx.fillStyle = '#ffd23a'; rrect(-580, -300, 120, 44, 22); ctx.fill(); ctx.fillStyle = '#222'; ctx.font = "800 30px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`+${P.extra}`, -520, -277); }
+  // tài xế đầu máng cầm dây cương
+  ctx.fillStyle = '#2f6bd8'; rrect(-262, -228, 40, 56, 14); ctx.fill();
+  if (o.driver) seatAvatar(-242, -256, 26, o.driver); else head(-242, -256, '#f1d488', '#ffd3ad', {});
+  ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-226, -200); ctx.quadraticCurveTo(-120, -180, 20, -150); ctx.stroke();
+  // bánh gỗ to
+  ctx.fillStyle = '#6b4226'; ctx.beginPath(); ctx.arc(-395, -56, 56, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#c98f55'; ctx.beginPath(); ctx.arc(-395, -56, 44, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#6b4226'; ctx.lineWidth = 6; for (let k = 0; k < 6; k++) { const a = (o.rot || 0) + k * Math.PI / 3; ctx.beginPath(); ctx.moveTo(-395, -56); ctx.lineTo(-395 + Math.cos(a) * 44, -56 + Math.sin(a) * 44); ctx.stroke(); }
+  ctx.restore();
+}
+/** Vẽ xe đang chọn tại (SX, y). */
+function drawVehicle(x, y, o) {
+  if (VIEW.vehicle === 'scooter') return scooter(x, y, Object.assign({}, o, { face: o.driver && o.driver.avatar ? o.driver : null }));
+  if (VIEW.vehicle === 'oxcart') return oxcart(x, y, o);
+  return bus(x, y, o);
+}
+function fmtClock(sec) { const s = Math.max(0, Math.ceil(sec)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+
 function container(xFront, m, u, t, mult) {
   const y = contactY(m);
   ctx.save(); ctx.translate(xFront, y); ctx.scale(VS, VS);
@@ -560,10 +657,10 @@ function trashBin(x, y, open, s = 1) {
   ctx.restore();
 }
 function tornado(x, y, t, alpha) {
-  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.scale(VS * 1.15, VS * 1.15); x = 0; y = 0;
+  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.scale(VS * 1.9, VS * 1.9); x = 0; y = 0;
   for (let k = 0; k < 14; k++) {
     const yy = y - k * 34, r = 40 + k * 16, w = Math.sin(t * 3 + k * 0.6) * 18;
-    ctx.strokeStyle = `rgba(110,120,135,${0.5 + k * 0.02})`; ctx.lineWidth = 14;
+    ctx.strokeStyle = `rgba(95,105,122,${0.7 + k * 0.02})`; ctx.lineWidth = 18;
     ctx.beginPath(); ctx.ellipse(x + w, yy, r, r * 0.22, 0, t * 6 + k, t * 6 + k + Math.PI * 1.4); ctx.stroke();
   }
   for (let k = 0; k < 6; k++) { const a = t * 5 + k, rr = 120 + k * 20; ctx.fillStyle = k % 2 ? '#8b5e34' : '#5f9e3c'; ctx.fillRect(x + Math.cos(a) * rr, y - 120 - k * 40 + Math.sin(a) * 30, 14, 10); }
@@ -574,7 +671,7 @@ function tornado(x, y, t, alpha) {
 const fx = [];
 const followFlags = [];
 let shake = 0, hitWobble = 0, spin = 0, bin = null;
-function floatText(text, color, x = SX, y = null, size = 46) { fx.push({ k: 'txt', text, color, x, y: y == null ? contactY(cam) - S(300) : y, t: 0, dur: 1.4, size }); }
+function floatText(text, color, x = SX + S(160), y = null, size = 46) { fx.push({ k: 'txt', text, color, x, y: y == null ? contactY(cam) - S(300) : y, t: 0, dur: 1.4, size }); }
 function confetti(n = 80, x = W / 2, y = 700) { for (let i = 0; i < n; i++) fx.push({ k: 'conf', x, y, vx: (Math.random() - 0.5) * 900, vy: -300 - Math.random() * 700, c: ['#ffd23a', '#e8322c', '#35d07f', '#2fa4e7', '#ff6fae'][i % 5], t: 0, dur: 2.6, r: Math.random() * 6 }); }
 function stepFx(dt) {
   for (const f of fx) {
@@ -625,7 +722,7 @@ function drawFx() {
   }
 }
 function throwToTrash(user, fromX, fromY) {
-  const tx = SX - S(210);
+  const tx = SX + S(470);
   bin = { x: tx, t: 0, dur: 2.4 };
   fx.push({ k: 'trash', user, x: fromX, y: fromY, tx, ty: contactY(meterAt(tx)) - S(100), t: 0, dur: 1.1 });
 }
@@ -657,7 +754,7 @@ function giftImage(g) {
   return s ? s.image : '';
 }
 function buildLegend() {
-  const show = VIEW.showLegend;
+  const show = VIEW.showLegend && game.phase === 'race';
   $('lgl').classList.toggle('hidden', !show); $('lgr').classList.toggle('hidden', !show);
   for (const side of ['cuu', 'pha']) {
     const rows = [];
@@ -687,7 +784,7 @@ function updateHud(dt) {
   const km = m => (m / 1000).toFixed(m >= 10000 ? 1 : 2).replace('.', ',');
   $('dist').innerHTML = `<b>${km(game.dist)}</b> / ${km(gl)} km · còn ${km(Math.max(0, gl - game.dist))} km`;
   const kmh = game.phase === 'race' ? Math.round(vel * 3.6) : 0;
-  $('speed').textContent = kmh < -5 ? `◀ ${-kmh}` : String(Math.max(0, kmh));
+  $('speed').textContent = kmh < -5 ? `◀ ${Math.min(999, -kmh)}` : String(Math.min(999, Math.max(0, kmh)));
   $('cspeed').classList.toggle('back', kmh < -5);
   $('cspeed').classList.toggle('fast', kmh > 140);
   const track = $('track');
@@ -710,12 +807,17 @@ function updateHud(dt) {
   $('shield').textContent = `${fmt(game.shield)}m`;
   $('cram').textContent = game.ramCd > 0 ? `💥 HÚC ${Math.ceil(game.ramCd)}s` : '💥 HÚC sẵn sàng';
   $('cram').classList.toggle('ready', game.ramCd <= 0 && game.phase === 'race');
+  const dv = game.driver, q = game.driverQueue.length;
+  $('driver').textContent = dv ? `Tài xế ${dv.name} · ${dv.free ? 'giữ lái' : fmtClock(dv.left)}${q ? ` · chờ ${q}` : ''}` : `Tài xế ${VIEW.streamerName}`;
+  const px = game.passengers();
+  $('pax').textContent = fmt(px.total + (dv ? 1 : 0));
+  $('cpax').classList.toggle('hidden', VIEW.vehicle === 'scooter');
   // khung cứu nạn
   const rs = $('rescue');
   if (game.rescue) {
     const r = game.rescue;
     rs.classList.remove('hidden');
-    $('rtxt').innerHTML = `🌪️ Lốc xoáy của <b>${esc(r.user.name)}</b>! Phe Cứu gom <b>${fmt(r.need)} xu</b>`;
+    $('rtxt').innerHTML = `🌪️ Lốc xoáy của <b>${esc(r.user.name)}</b>!<br>Phe Cứu gom <b>${fmt(r.need)} xu</b> để thoát`;
     $('rsec').textContent = `${Math.max(0, Math.ceil(r.left))}s · ${fmt(r.got)}/${fmt(r.need)}`;
     $('rbar').style.width = `${clamp(r.got / r.need, 0, 1) * 100}%`;
   } else if (game.fuelAlarm) {
@@ -724,6 +826,7 @@ function updateHud(dt) {
     $('rsec').textContent = `${Math.max(0, Math.ceil(game.fuelAlarm.left))}s`;
     $('rbar').style.width = `${(1 - game.fuelAlarm.left / game.cfg.rescueSec) * 100}%`;
   } else rs.classList.add('hidden');
+  $('feed').classList.toggle('hidden', !rs.classList.contains('hidden'));
   // màn chờ
   const lob = $('lobby');
   if (game.phase === 'lobby') {
@@ -732,7 +835,8 @@ function updateHud(dt) {
     const st = loadStats();
     const fame = Object.values(st.fame || {}).sort((a, b) => b.cuu - a.cuu).slice(0, 3);
     lob.innerHTML = `<h1>🛵 ĐƯỜNG VỀ QUÊ</h1><h2>Ván ${game.round + 1} xuất phát sau</h2><div class="cd">${left}</div>
-      <div class="how">🧧 Đưa <b class="y">${esc(VIEW.streamerName)}</b> về quê ăn Tết trong <b class="y">${Math.round(game.cfg.roundSec / 60 * 10) / 10} phút</b>!<br>
+      <div class="how">🧧 Đưa cả đoàn cùng <b class="y">${esc(VIEW.streamerName)}</b> về quê ăn Tết trong <b class="y">${Math.round(game.cfg.roundSec / 60 * 10) / 10} phút</b>!<br>
+      🧑‍✈️ Quà <b class="y">tài xế</b>: lên lái ${fmtClock(game.cfg.driverSec)} · bình luận <b class="g">1</b> là lên xe<br>
       🛡️ Quà <b class="g">CỨU</b>: đẩy xe tới, đổ xăng, che chắn<br>⚔️ Quà <b class="r">PHÁ</b>: vật cản, đẩy lùi, lốc xoáy<br>
       💬 Bình luận <b class="g">1</b> vào phe Cứu · <b class="r">2</b> vào phe Phá<br>🔥 ${game.cfg.finalSec} giây cuối mọi quà <b class="y">×${game.cfg.finalMult}</b></div>
       <div class="stat">📍 Tổng đã chạy ${(st.km || 0).toFixed(1).replace('.', ',')} km · 🛡️ Cứu thắng ${st.wins?.cuu || 0} · ⚔️ Phá thắng ${st.wins?.pha || 0}</div>
@@ -747,8 +851,9 @@ function showResult(r) {
   const topPha = r.topPha[0], topCuu = r.topCuu[0];
   const pen = VIEW.penalties[Math.floor(Math.random() * VIEW.penalties.length)] || '';
   el.className = `card ${win ? 'win' : 'lose'}`;
+  $('banner').innerHTML = ''; bannerT = 0;
   el.innerHTML = `<h1>${win ? '🎉 VỀ TỚI QUÊ!' : '😭 KẸT GIỮA ĐƯỜNG'}</h1>
-    <h2>${win ? `Phe 🛡️ CỨU thắng · ${fmt(r.timeUsed)} giây` : `Phe ⚔️ PHÁ thắng · còn ${fmt(r.goal - r.dist)} m`}</h2>
+    <h2>${win ? `Phe 🛡️ CỨU thắng · ${fmt(r.timeUsed)} giây` : `Phe ⚔️ PHÁ thắng · còn ${dtx(r.goal - r.dist)}`}</h2>
     <div class="cols"><div class="col cuu"><h3>🦸 Ân nhân</h3>${r.topCuu.map(row).join('') || '<div class="pr">—</div>'}</div>
     <div class="col pha"><h3>😈 Kẻ phá</h3>${r.topPha.map(row).join('') || '<div class="pr">—</div>'}</div></div>
     ${win ? (topPha ? `<div class="note trash">🗑️ <b>${esc(topPha.name)}</b> bị ném vào thùng rác!</div>` : '<div class="note trash">🧧 Cả nhà đón ở cổng làng!</div>')
@@ -846,7 +951,11 @@ function onEvents(list) {
       case 'roundStart': $('result').classList.add('hidden'); banner(`🏁 VÁN ${e.round} XUẤT PHÁT!<small>Về quê ${(e.goal / 1000).toLocaleString('vi-VN')} km · 100 km/h</small>`, 'gold', 2000, 3); SFX.honk(); followFlags.length = 0; break;
       case 'roundEnd': saveStats(e); showResult(e); if (e.winner === 'cuu') { confetti(160); SFX.win(); } else SFX.lose(); break;
       case 'lobby': $('result').classList.add('hidden'); break;
-      case 'join': toast(e.side, e.user, e.side === 'cuu' ? '🛡️ vào phe Cứu' : '⚔️ vào phe Phá'); break;
+      case 'join': toast(e.side, e.user, e.side === 'cuu' ? '🛡️ vào phe Cứu · lên xe' : '⚔️ vào phe Phá'); break;
+      case 'driver': banner(`🧑‍✈️ <b>${esc(e.user.name)}</b> LÊN LÀM TÀI XẾ!<small>lái ${fmtClock(e.sec)}${e.prev ? ` · thay ${esc(e.prev.name)}` : ''}</small>`, 'cuu', 2600, 3); SFX.honk(); break;
+      case 'driverQueued': toast('cuu', e.user, `🧑‍✈️ chờ lái · thứ ${e.pos}`); break;
+      case 'driverExtend': toast('cuu', e.user, `🧑‍✈️ lái thêm · còn ${fmtClock(e.left)}`); break;
+      case 'driverHold': toast('cuu', e.user, '🧑‍✈️ hết giờ · vẫn giữ lái'); break;
       case 'likeBurst': if (game.phase === 'race') { fx.push({ k: 'wind', t: 0, dur: 0.7 }); floatText('❤️ +gió', '#ff8fb5', SX - S(80), contactY(cam) - S(250), 36); } break;
       case 'share': toast('cuu', e.user, '↗️ chia sẻ · +⛽'); break;
       case 'follow': toast('cuu', e.user, '➕ follow · cắm cờ'); followFlags.push({ m: game.dist + 14 + Math.random() * 6, user: e.user }); if (followFlags.length > 30) followFlags.shift(); break;
@@ -911,7 +1020,7 @@ function render(dt) {
   }
   // hiệu ứng có thời hạn
   for (const e of game.effects) {
-    if (e.kind === 'dog') { const dx = SX - S(190) + Math.sin(T * 6) * S(20); dog(dx, contactY(meterAt(dx)), T); if (Math.sin(T * 7) > 0.3) { ctx.font = "800 28px 'Baloo 2'"; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText('GÂU!', SX - S(110), contactY(cam) - S(140)); } tag(SX - S(190), contactY(cam) - S(150), e.user, 'rgba(170,30,25,.9)', 20); }
+    if (e.kind === 'dog') { const V = vehOf(), dx = SX - S(V.rear + 30) + Math.sin(T * 6) * S(16); dog(dx, contactY(meterAt(dx)), T); if (Math.sin(T * 7) > 0.3) { ctx.font = "800 28px 'Baloo 2'"; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText('GÂU!', dx + S(60), contactY(cam) - S(140)); } tag(Math.max(110, dx), contactY(cam) - S(150), e.user, 'rgba(170,30,25,.9)', 20); }
     if (e.kind === 'ducks') { for (let k = 0; k < 6; k++) { const qx = SX + S(160) + k * S(52); duck(qx, contactY(meterAt(qx)) - (k % 2) * S(12), T, k); } tag(SX + S(290), contactY(cam) - S(110), e.user, 'rgba(170,30,25,.9)', 20); }
     if (e.kind === 'tow') {
       const a = Math.min(1, e.t / 0.5, (e.dur - e.t) / 0.4);
@@ -921,11 +1030,11 @@ function render(dt) {
     if (e.kind === 'convoy') {
       const a = clamp(Math.min(e.t / 0.6, (e.dur - e.t) / 0.6), 0, 1);
       ctx.save(); ctx.globalAlpha = a;
-      [[-210, '#2f7de2'], [-400, '#22b35e'], [-590, '#ff6fae']].forEach(([ox, c], k) => {
+      (VIEW.vehicle === 'scooter' ? [[-220, '#2f7de2'], [-420, '#22b35e'], [260, '#ff6fae']] : [[260, '#2f7de2'], [470, '#22b35e'], [680, '#ff6fae']]).forEach(([ox, c], k) => {
         const bx = SX + S(ox) + Math.sin(T * 2 + k) * S(24);
         scooter(bx, contactY(meterAt(bx)) - S(16), { color: c, scale: VS * 0.8, rot: wheelRot, gifts: false, shirt: '#333', helmet: '#fff', face: k === 0 ? e.user : null });
       });
-      tag(SX - S(200), contactY(cam) - S(190), e.user, 'rgba(10,120,60,.92)', 20);
+      tag(SX + S(VIEW.vehicle === 'scooter' ? -220 : 260), contactY(cam) - S(190), e.user, 'rgba(10,120,60,.92)', 20);
       ctx.restore();
     }
   }
@@ -933,40 +1042,45 @@ function render(dt) {
   const lose = game.phase === 'result' && game.result && game.result.winner === 'pha';
   // nitro / trực thăng: lửa pô
   if (game.effects.some(e => e.kind === 'nitro') || (x && x.kind === 'heli' && x.stage === 'fly')) {
-    for (let k = 0; k < 3; k++) { ctx.fillStyle = ['#ffd23a', '#ff7a2f', '#e8322c'][k]; ctx.beginPath(); ctx.ellipse(SX - S(120) - k * S(30) - Math.random() * S(24), cy - S(34), S(46 - k * 8), S(13 - k * 2), 0, 0, Math.PI * 2); ctx.fill(); }
+    for (let k = 0; k < 3; k++) { ctx.fillStyle = ['#ffd23a', '#ff7a2f', '#e8322c'][k]; ctx.beginPath(); ctx.ellipse(SX - S(vehOf().rear + 20) - k * S(30) - Math.random() * S(24), cy - S(40), S(46 - k * 8), S(13 - k * 2), 0, 0, Math.PI * 2); ctx.fill(); }
   }
-  scooter(SX, cy, { color: BIKES[VIEW.bike] || BIKES.red, rot: wheelRot, ang, rider: lose ? 'none' : walking ? 'walk' : 'ride' });
-  if (lose) { const bx = SX - S(190); trashBin(bx, contactY(meterAt(bx)), 0.6); ctx.save(); ctx.translate(bx, contactY(cam) - S(100)); ctx.scale(VS, VS); head(0, -30, '#ffcf33', '#ffd3ad', {}); ctx.restore(); }
-  tag(SX, cy - S(260), { name: VIEW.streamerName }, 'rgba(190,110,0,.94)', 24);
+  const V = vehOf();
+  const drv = game.driver ? { name: game.driver.name, avatar: game.driver.avatar } : { name: VIEW.streamerName, avatar: '' };
+  if (walking) for (let k = 0; k < 3; k++) { ctx.save(); ctx.translate(SX - S(V.rear + 40 + k * 70), contactY(cam)); ctx.scale(VS * 0.8, VS * 0.8); rider(0, 0, { shirt: ['#2f6bd8', '#e2557b', '#18b37e'][k] }, 'walk'); ctx.restore(); }
+  drawVehicle(SX, cy, { color: BIKES[VIEW.bike] || BIKES.green, rot: wheelRot, ang, rider: lose ? 'none' : walking ? 'walk' : 'ride', driver: drv, passengers: game.passengers(), running: game.speed > 0 });
+  if (lose) { const bx = SX + S(300); trashBin(bx, contactY(meterAt(bx)), 0.6, 1.3); ctx.save(); ctx.translate(bx, contactY(cam) - S(130)); ctx.scale(VS, VS); head(0, -30, '#ffcf33', '#ffd3ad', {}); ctx.restore(); }
+  // tài xế (người xem tặng quà lái) + streamer
+  const d = game.driver;
+  tag(SX - S(V.rear > 200 ? 20 : 0), cy - S(V.top + 40), { name: d ? `🧑‍✈️ ${String(d.name).slice(0, 14)} ${d.free ? '· giữ lái' : fmtClock(d.left)}` : `🧑‍✈️ ${VIEW.streamerName}`, avatar: d ? d.avatar : '' }, 'rgba(190,110,0,.94)', 24, 30);
   // mũ bảo hiểm: lá chắn vàng
   if (game.shield > 0 && game.phase === 'race') {
     ctx.save(); ctx.globalAlpha = 0.35 + Math.sin(T * 5) * 0.1; ctx.strokeStyle = '#ffe27a'; ctx.lineWidth = 6;
-    ctx.beginPath(); ctx.ellipse(SX, cy - S(110), S(170), S(150), 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    ctx.beginPath(); ctx.ellipse(SX + S(vehOf().mid), cy - S(vehOf().top * 0.45), S(vehOf().rear * 0.65 + 160), S(vehOf().top * 0.62), 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
   // mưa
   const rain = game.effects.find(e => e.kind === 'rain');
   if (rain) {
     ctx.fillStyle = 'rgba(20,30,50,.18)'; ctx.fillRect(0, 0, W, H);
-    cloud(SX, cy - S(460), VS * 1.3, true);
+    cloud(SX + S(vehOf().mid), cy - S(vehOf().top + 230), VS * 1.5, true);
     ctx.strokeStyle = 'rgba(190,215,255,.7)'; ctx.lineWidth = 2;
-    for (let k = 0; k < 50; k++) { const rx = SX - S(280) + hash(k, 80) * S(560), ry = cy - S(420) + ((T * 900 + hash(k, 81) * 500) % S(440)); ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 6, ry + 22); ctx.stroke(); }
-    tag(SX, cy - S(560), rain.user, 'rgba(170,30,25,.9)', 20);
+    for (let k = 0; k < 50; k++) { const rx = SX + S(vehOf().mid - 320) + hash(k, 80) * S(640), ry = cy - S(vehOf().top + 190) + ((T * 900 + hash(k, 81) * 500) % S(440)); ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 6, ry + 22); ctx.stroke(); }
+    tag(SX + S(vehOf().mid), cy - S(vehOf().top + 330), rain.user, 'rgba(170,30,25,.9)', 20);
   }
   // trực thăng + dây
   if (x && x.kind === 'heli') {
     const hx = x.stage === 'enter' ? lerp(W + 200, SX, ease(x.t)) : x.stage === 'leave' ? lerp(SX, W + 300, ease(x.t / 0.8)) : SX + Math.sin(T * 2) * S(24);
     const hy = x.stage === 'leave' ? lerp(cy - S(440), 300, ease(x.t / 0.8)) : cy - S(440);
-    if (x.stage !== 'leave') { ctx.strokeStyle = '#444'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(hx, hy + S(60)); ctx.lineTo(SX, cy - S(230)); ctx.stroke(); }
+    if (x.stage !== 'leave') { ctx.strokeStyle = '#444'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(hx, hy + S(60)); ctx.lineTo(SX + S(vehOf().mid), cy - S(vehOf().top)); ctx.stroke(); }
     heli(hx, hy, x.user, T);
   }
   // lốc xoáy
   if (x && x.kind === 'tornado') {
     const a = x.stage === 'leave' ? 1 - x.t / 0.8 : Math.min(1, x.t * 2);
-    tornado(SX + (x.stage === 'leave' ? x.t * 500 : 0), contactY(cam), T, clamp(a, 0, 1));
+    tornado(SX + S(vehOf().mid) + (x.stage === 'leave' ? x.t * 500 : 0), contactY(cam), T, clamp(a, 0, 1));
     if (x.stage === 'enter') tag(SX, contactY(cam) - S(560), x.user, 'rgba(170,30,25,.9)', 22);
   }
   // bụi bánh xe
-  if (game.speed > 0 && Math.random() < 0.6 && lift < 5) fx.push({ k: 'dust', x: SX - S(80), y: contactY(cam) - S(10), t: 0, dur: 0.6 });
+  if (game.speed > 0 && Math.random() < 0.6 && lift < 5) fx.push({ k: 'dust', x: SX - S(vehOf().rear - 20), y: contactY(cam) - S(10), t: 0, dur: 0.6 });
   if (game.fuelAlarm && Math.random() < 0.2) fx.push({ k: 'dust', x: SX - S(100), y: cy - S(40), t: 0, dur: 1 });
   drawFx();
   ctx.restore();
@@ -976,7 +1090,7 @@ function render(dt) {
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.1, Math.max(0, (now - last) / 1000)); last = now;
-  tick(dt);
+  if (!window.__dvq || !window.__dvq.freeze) tick(dt);   // __dvq.freeze = true: giữ nguyên khung để chụp
   requestAnimationFrame(frame);
 }
 function tick(dt) {
@@ -988,6 +1102,8 @@ function tick(dt) {
   render(dt);
   updateHud(dt);
   if (game.phase !== 'result') $('result').classList.add('hidden');
+  const lg = VIEW.showLegend && game.phase === 'race';
+  if (lg === $('lgl').classList.contains('hidden')) { $('lgl').classList.toggle('hidden', !lg); $('lgr').classList.toggle('hidden', !lg); }
 }
 requestAnimationFrame(frame);
 
@@ -1016,6 +1132,7 @@ function demoTick(dt) {
 
 // ---------------- socket ----------------
 function appUser(d) { return { id: String(d.uniqueId || d.userId || d.nickname || 'khach'), name: String(d.nickname || d.uniqueId || 'Khách').slice(0, 24), avatar: d.profilePicture || '' }; }
+function testCoins(action) { const m = ACTION_BY_ID[action] && ACTION_BY_ID[action].min; return Number.isFinite(m) && m > 0 ? m : (action === 'driver' ? 99 : 1); }
 function onAppCmd(d) {
   if (!d || d.gameId !== 'duongveque') return;
   const p = d.payload || {};
@@ -1027,7 +1144,7 @@ function onAppCmd(d) {
   else if (d.cmd === 'test') {
     const name = p.name || NAMES[Math.floor(Math.random() * NAMES.length)];
     const u = { id: `test_${name}`, name, avatar: '' };
-    if (p.kind === 'gift') game.gift(u, { action: p.action, coins: Number(p.coins) || ACTION_BY_ID[p.action]?.min || 1, count: Number(p.count) || 1, giftId: p.giftId, giftName: p.giftName }, VIEW.giftMap);
+    if (p.kind === 'gift') game.gift(u, { action: p.action, coins: Number(p.coins) || testCoins(p.action), count: Number(p.count) || 1, giftId: p.giftId, giftName: p.giftName }, VIEW.giftMap);
     else if (p.kind === 'like') game.like(u, Number(p.count) || 100);
     else if (p.kind === 'share') game.share(u);
     else if (p.kind === 'follow') game.follow(u);
@@ -1063,12 +1180,15 @@ if (typeof window.io === 'function') {
 loadGiftSheet();
 // thử nhanh qua URL: ?warp=giây (tua) · ?act=container,dog (tặng quà ảo) · ?after=giây (tua sau khi tặng)
 if (Q.get('warp') || Q.get('act')) setTimeout(() => {
+  for (let i = 0; i < (Number(Q.get('riders')) || 0); i++) window.__dvq.sim('comment', { text: '1', name: `${NAMES[i % NAMES.length]}${i >= NAMES.length ? ' ' + i : ''}` });
   window.__dvq.step(Number(Q.get('warp')) || 0);
+  if (Q.get('at') && game.phase === 'race') { game.dist = game.maxDist = Number(Q.get('at')); cam = game.dist; lastDist = game.dist; }
   for (const a of String(Q.get('act') || '').split(',').filter(Boolean)) {
     const [action, coins] = a.split(':');
-    window.__dvq.sim('gift', { action, coins: Number(coins) || ACTION_BY_ID[action]?.min || 1, name: action === 'container' || action === 'tornado' ? 'Út Mập' : 'Minh Anh' });
+    window.__dvq.sim('gift', { action, coins: Number(coins) || testCoins(action), name: action === 'container' || action === 'tornado' ? 'Út Mập' : 'Minh Anh' });
   }
   window.__dvq.step(Number(Q.get('after')) || 0);
+  if (Q.get('end')) { game.forceEnd(Q.get('end')); window.__dvq.step(1.5); }
 }, 1200);
 
 // bàn phím khi mở trong cửa sổ game / trình duyệt

@@ -14,7 +14,7 @@
     const DEFAULTS = {
         enabled: true, dvqControl: 'auto', dvqStreamerName: '', dvqGoal: 6000, dvqRoundSec: 240, dvqFinalSec: 30, dvqSpeed: 100,
         dvqFuelBurn: 1.8, dvqMeterPerCoin: 8, dvqLikePer: 100, dvqRamCd: 12, dvqDodgeMax: 10, dvqDefaultSide: 'cuu',
-        dvqAutoNext: true, dvqBike: 'red', dvqSound: true, dvqShowLegend: true, dvqPenalties: '',
+        dvqAutoNext: true, dvqVehicle: 'bus', dvqDriverSec: 180, dvqSeats: 14, dvqBike: 'green', dvqSound: true, dvqShowLegend: true, dvqPenalties: '',
         dvqKeyJump: 'F7', dvqKeyRam: 'F8', dvqKeyStart: 'F9', dvqGiftMap: {}
     };
     const BIKES = [['red', '🔴 Đỏ'], ['blue', '🔵 Xanh dương'], ['pink', '🩷 Hồng'], ['yellow', '🟡 Vàng'], ['green', '🟢 Xanh lá'], ['black', '⚫ Đen']];
@@ -95,7 +95,10 @@
             <div class="nd-card-title">⚙ Cài đặt</div>
             ${sel('dvqControl', 'Ai lái', [['auto', '🤖 Tự lái: AI nhảy/húc thay, treo máy được (streamer bấm vẫn ăn)'], ['streamer', '🎮 Streamer tự bấm Nhảy / Húc']])}
             <label class="dvq-row"><span>Tên streamer trên xe</span><input type="text" maxlength="20" data-k="dvqStreamerName" placeholder="Streamer" value="${esc(cfg.dvqStreamerName)}"></label>
+            ${sel('dvqVehicle', 'Loại xe', [['bus', '🚌 Xe buýt — chở cả đoàn người xem'], ['oxcart', '🐂 Xe bò có máng — chở cả đoàn'], ['scooter', '🛵 Xe máy — chỉ tài xế']])}
             ${sel('dvqBike', 'Màu xe', BIKES)}
+            ${num('dvqDriverSec', '🧑‍✈️ Mỗi lượt tài xế (giây)', 30, 30, 'Tặng quà Lên làm tài xế → lái bấy nhiêu giây (tặng ×N = N lượt). Có người chờ thì hết giờ đổi người; không ai chờ → người đang lái giữ nguyên')}
+            ${num('dvqSeats', '🧳 Số ghế hiện trên xe', 4, 1, 'Người bình luận 1 / tặng quà Cứu được lên xe (ảnh đại diện ngồi trong xe). Dư ghế hiện +N')}
             ${sel('dvqGoal', 'Đường về quê dài', goalOpts, true)}
             ${num('dvqRoundSec', 'Giây một ván', 60, 30)}
             ${num('dvqFinalSec', '🔥 Nước rút ×2: bấy nhiêu giây cuối', 0, 5)}
@@ -177,7 +180,7 @@
             const list = cfg.dvqGiftMap[a.id] || [];
             const chips = list.map((g, i) => `<span class="dvq-chip">${g.giftImage ? `<img src="${esc(g.giftImage)}">` : '🎁'}${esc(g.giftName || ('#' + g.giftId))}${g.coins ? `<small class="dvq-coin">${esc(g.coins)}💎</small>` : ''}<button class="dvq-x" data-a="${esc(a.id)}" data-i="${i}" title="Bỏ">✕</button></span>`).join('');
             return `<div class="dvq-grow">
-                <div class="dvq-actname"><span class="dvq-emo">${esc(a.emoji)}</span><div><b>${esc(a.label)}</b><small>quà chưa gán ≥ ${a.min} xu</small></div></div>
+                <div class="dvq-actname"><span class="dvq-emo">${esc(a.emoji)}</span><div><b>${esc(a.label)}</b><small>${Number.isFinite(a.min) ? `quà chưa gán ≥ ${a.min} xu` : "chỉ quà đã gán"}</small></div></div>
                 <div class="dvq-chips">${chips}<button class="ghost small dvq-add" data-a="${esc(a.id)}">＋ Chọn quà</button></div>
                 <button class="ghost small dvq-try" data-a="${esc(a.id)}" title="Thử trên overlay với người xem ảo">🧪</button>
             </div>`;

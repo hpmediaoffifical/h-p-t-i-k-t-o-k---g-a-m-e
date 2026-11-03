@@ -454,7 +454,7 @@ const GAMES = {
     duongveque: {
         id: 'duongveque',
         name: 'Đường Về Quê',
-        description: 'Streamer chạy xe máy về quê ăn Tết (2D cuộn ngang): phe Cứu tặng quà đẩy xe tới, đổ xăng, che chắn; phe Phá thả vỏ chuối, chó rượt, xe container đẩy lùi, lốc xoáy. Streamer nhảy né và húc phản đòn.',
+        description: 'Xe buýt / xe bò chở cả đoàn người xem về quê ăn Tết (2D cuộn ngang, 100 km/h): phe Cứu lên xe, đẩy xe tới, đổ xăng, che chắn; phe Phá thả vỏ chuối, chó rượt, xe container đẩy lùi, lốc xoáy. Quà tài xế = lên lái 3 phút. Streamer nhảy né và húc phản đòn.',
         icon: '🛵',
         overlayPath: '/overlay/duongveque',
         // Khoá riêng tiền tố dvq*. Luật ở public/games/duongveque/logic.js, overlay đọc trong game.js → applyServerConfig.
@@ -473,7 +473,10 @@ const GAMES = {
             dvqDodgeMax: 10,          // vật cản giá ≤ bấy nhiêu xu thì nhảy né được
             dvqDefaultSide: 'cuu',    // quà chưa gán của người chưa chọn phe (bình luận 1/2) tính cho phe này
             dvqAutoNext: true,        // hết ván tự sang ván mới
-            dvqBike: 'red',           // màu xe: red | blue | pink | yellow | green | black
+            dvqVehicle: 'bus',        // 🚌 bus (xe buýt chở cả đoàn) | oxcart (🐂 xe bò có máng) | scooter (🛵 xe máy 1 người)
+            dvqDriverSec: 180,        // 🧑‍✈️ quà tài xế: lái bấy nhiêu giây, hết giờ đổi người chờ; không ai chờ → giữ nguyên người đang lái
+            dvqSeats: 14,             // số người phe Cứu hiện ngồi trên xe (dư hiện +N)
+            dvqBike: 'green',         // màu xe: red | blue | pink | yellow | green | black
             dvqSound: true,
             dvqShowLegend: true,      // hiện 2 cột "🛡️ CỨU / ⚔️ PHÁ" quà trên overlay
             dvqPenalties: '',         // hình phạt vui khi phe Phá thắng, mỗi dòng 1 cái ('' = bộ mặc định)

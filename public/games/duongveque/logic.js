@@ -268,7 +268,8 @@ export function createGame(options = {}, rnd = Math.random) {
   /** Quà thật / quà thử. gift = { giftId, giftName, coins (xu 1 cái), count }. giftMap theo resolveGift. */
   g.gift = function (who, gift, giftMap) {
     const u = user(who);
-    const coins = Math.max(1, Number(gift && gift.coins) || 1);
+    const c0 = Number(gift && gift.coins);
+    const coins = Number.isFinite(c0) ? Math.max(1, Math.min(1e6, c0)) : 1;   // quà lỗi/∞ không phá ván
     const count = Math.max(1, Math.min(9999, Number(gift && gift.count) || 1));
     let r;
     if (gift && gift.action && ACTION_BY_ID[gift.action]) r = { action: gift.action, side: ACTION_BY_ID[gift.action].side };
