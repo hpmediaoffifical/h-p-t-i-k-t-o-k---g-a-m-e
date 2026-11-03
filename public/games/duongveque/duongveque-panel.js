@@ -13,12 +13,12 @@
     const GAME_ID = 'duongveque';
     const DEFAULTS = {
         enabled: true, dvqControl: 'auto', dvqStreamerName: '', dvqGoal: 6000, dvqRoundSec: 240, dvqFinalSec: 30, dvqSpeed: 100,
-        dvqFuelBurn: 1.8, dvqMeterPerCoin: 8, dvqLikePer: 100, dvqRamCd: 12, dvqDodgeMax: 10, dvqDefaultSide: 'cuu',
+        dvqFuelBurn: 3, dvqMeterPerCoin: 5, dvqLikePer: 300, dvqRamCd: 12, dvqDodgeMax: 10, dvqDefaultSide: 'cuu',
         dvqAutoNext: true, dvqVehicle: 'bus', dvqDriverSec: 180, dvqSeats: 14, dvqBike: 'green', dvqSound: true, dvqShowLegend: true, dvqPenalties: '',
         dvqKeyJump: 'F7', dvqKeyRam: 'F8', dvqKeyStart: 'F9', dvqGiftMap: {}
     };
     const BIKES = [['red', '🔴 Đỏ'], ['blue', '🔵 Xanh dương'], ['pink', '🩷 Hồng'], ['yellow', '🟡 Vàng'], ['green', '🟢 Xanh lá'], ['black', '⚫ Đen']];
-    const GOALS = [[3000, 'Ngắn · 3 km'], [6000, 'Vừa · 6 km (mặc định)'], [10000, 'Dài · 10 km'], [15000, 'Rất dài · 15 km']];
+    const GOALS = [[3000, 'Ngắn · 3 km (phòng ít quà)'], [6000, 'Vừa · 6 km (mặc định)'], [10000, 'Dài · 10 km'], [15000, 'Rất dài · 15 km']];
 
     let socket = null, cfg = null, actions = [], suggested = {}, initialized = false, pendingSave = null, demoOn = false;
     const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -104,7 +104,7 @@
             ${num('dvqFinalSec', '🔥 Nước rút ×2: bấy nhiêu giây cuối', 0, 5)}
             ${num('dvqMeterPerCoin', '1 xu = bấy nhiêu mét (đẩy tới / lùi)', 1, 1, 'Quà Cứu và quà Phá cùng giá triệt tiêu nhau. Tăng số này → quà tác dụng mạnh hơn, ván ngã ngũ nhanh hơn')}
             ${num('dvqSpeed', 'Tốc độ xe khi còn xăng (km/h)', 20, 10)}
-            ${num('dvqFuelBurn', 'Xăng tụt mỗi giây (%)', 0, 0.2, '1,8 ≈ 55 giây chạy hết bình. Hết xăng 10 giây không ai đổ → dắt bộ')}
+            ${num('dvqFuelBurn', 'Xăng tụt mỗi giây (%)', 0, 0.2, '3 ≈ 33 giây chạy hết bình. Hết xăng 10 giây không ai đổ → dắt bộ')}
             ${num('dvqLikePer', '❤️ Đủ bấy nhiêu tim cả phòng → 1 cơn gió + xăng', 10, 10)}
             ${num('dvqRamCd', '💥 Hồi chiêu HÚC (giây)', 3, 1)}
             ${num('dvqDodgeMax', '⬆️ Vật cản ≤ bấy nhiêu xu thì nhảy né được', 0, 1)}
@@ -143,7 +143,7 @@
                 <button class="dvq-big start" data-key="start">🏁 BẮT ĐẦU<small>khi đang chờ ván</small></button>
             </div>
             <div id="dvq-pad" class="dvq-pad" tabindex="0"><div class="dvq-pad-tip">Bấm vào ô này rồi dùng <b>Space</b> = nhảy · <b>Enter</b> = húc · <b>S</b> = bắt đầu. Hoặc phím tắt toàn cục <b>${esc(cfg.dvqKeyJump || '—')}</b> / <b>${esc(cfg.dvqKeyRam || '—')}</b> / <b>${esc(cfg.dvqKeyStart || '—')}</b>.</div></div>
-            <div class="dvq-hint">Xe tự chạy khi còn xăng. Quà <b>CỨU</b> đẩy xe tới / đổ xăng / che chắn, quà <b>PHÁ</b> thả vật cản / đẩy lùi. Mức tác dụng tính theo <b>xu</b> nên quà 2 phe cùng giá triệt tiêu nhau. Về tới cổng làng trước khi hết giờ → phe Cứu thắng.</div>
+            <div class="dvq-hint">Xe tự chạy khi còn xăng. Quà <b>CỨU</b> đẩy xe tới / đổ xăng / che chắn, quà <b>PHÁ</b> thả vật cản / đẩy lùi. Mức tác dụng tính theo <b>xu</b> nên quà 2 phe cùng giá triệt tiêu nhau. Về tới cổng làng trước khi hết giờ → phe Cứu thắng. Bị đẩy lùi về tận bến xe (quá vạch xuất phát ¼ quãng đường) hoặc hết giờ → phe Phá thắng.</div>
             <div class="nd-card-title" style="margin-top:8px">🧪 Thử nhanh (không cần LIVE)</div>
             <div class="dvq-cmds"><b class="dvq-side cuu">🛡️ Cứu</b>${cuu.map(tbtn).join('')}</div>
             <div class="dvq-cmds"><b class="dvq-side pha">⚔️ Phá</b>${pha.map(tbtn).join('')}</div>

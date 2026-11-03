@@ -12,8 +12,8 @@ test('mét theo xu: tuyến tính, có tối thiểu', () => {
   assert.equal(metersFor(1, M25), 5);
   assert.equal(metersFor(100, M25), 250);
   assert.equal(metersFor(0, M25), 5);
-  assert.equal(metersFor(1), 15);      // mặc định: 8 m/xu, tối thiểu 15 m (xe chạy 100 km/h)
-  assert.equal(metersFor(100), 800);
+  assert.equal(metersFor(1), 15);      // mặc định: 5 m/xu, tối thiểu 15 m (xe chạy 100 km/h)
+  assert.equal(metersFor(100), 500);
 });
 
 test('quà chưa gán chọn hành động theo bậc giá của phe', () => {
@@ -210,7 +210,7 @@ test('phản bội: đang Cứu mà tặng Phá', () => {
 });
 
 test('tim cả phòng: đủ likePer → gió + xăng', () => {
-  const g = race({ fuelBurn: 0, speed: 0.0001, likePer: 100 });
+  const g = race({ fuelBurn: 0, speed: 0.0001, likePer: 100, likeFuel: 6 });
   g.fuel = 50;
   g.like(A, 250);
   run(g, 1);
@@ -293,4 +293,42 @@ test('quà có số xu vô hạn/không hợp lệ không làm thắng ngay (l�
   for (let i = 0; i < 30; i++) g.step(0.1);
   assert.equal(g.phase, 'race');
   assert.ok(Number.isFinite(g.totals.cuu) && g.totals.cuu <= 1e6);
+});
+
+test('tài xế: tặng lúc đang chờ ván thì nhận lái ngay, xu và cú đẩy chạy khi ván bắt đầu (không nhân đôi giờ lái)', () => {
+  const g = createGame({ autoPilot: false, lobbySec: 1, ...M25 }, () => 0.5);
+  g.gift(A, { action: 'driver', coins: 99 });
+  assert.equal(g.phase, 'lobby');
+  assert.equal(g.driver && g.driver.id, 'a');
+  for (let i = 0; i < 12; i++) g.step(0.1);
+  assert.equal(g.phase, 'race');
+  assert.equal(g.totals.cuu, 99);
+  assert.ok(g.driver.left > 178 && g.driver.left <= 180, `left=${g.driver.left}`);
+  assert.equal(g.driverQueue.length, 0);
+});
+
+test('bị đẩy lùi quá vạch xuất phát tới bến xe → phe Phá thắng ngay; lùi chưa tới bến thì vẫn chạy', () => {
+  const g = race({ fuelBurn: 0, speed: 0.0001, goal: 6000, backFloor: 0.25 });   // bến xe ở −1.500 m
+  g.gift(B, { action: 'container', coins: 400 });   // −1.000 m: chưa tới bến
+  for (let i = 0; i < 60; i++) g.step(0.1);
+  assert.equal(g.phase, 'race');
+  assert.ok(g.dist < -900 && g.dist > -1100, `dist=${g.dist}`);
+  g.gift(B, { action: 'container', coins: 400 });   // thêm −1.000 m → quá bến xe
+  for (let i = 0; i < 60; i++) g.step(0.1);
+  assert.equal(g.phase, 'result');
+  assert.equal(g.result.winner, 'pha');
+  assert.equal(g.result.reason, 'depot');
+});
+
+test('LIVE nhiều giờ: danh sách lên xe có trần, người xem cũ được dọn đầu ván, tài xế và người trên xe giữ lại', () => {
+  const g = createGame({ autoPilot: false, lobbySec: 0.05, resultSec: 0.05, maxRiders: 50, maxUsers: 100, ...M25 }, () => 0.5);
+  for (let i = 0; i < 400; i++) g.comment({ id: 'v' + i, name: 'v' + i }, '1');
+  assert.equal(g.riders.length, 50);
+  assert.ok(g.riders.includes('v399') && !g.riders.includes('v0'));
+  g.gift({ id: 'v0', name: 'v0' }, { action: 'driver', coins: 99 });
+  for (let i = 0; i < 3; i++) g.step(0.1);          // vào ván → dọn
+  assert.equal(g.phase, 'race');
+  assert.ok(g.users.size <= 51, `users=${g.users.size}`);
+  assert.ok(g.users.has('v0') && g.users.has('v399'));
+  assert.equal(g.passengers().total, 50 - (g.riders.includes('v0') ? 1 : 0));
 });

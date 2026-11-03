@@ -29,8 +29,8 @@ function applyServerConfig(c) {
   const n = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
   gameCfg = {
     goal: n(c.dvqGoal, 6000), roundSec: n(c.dvqRoundSec, 240), finalSec: n(c.dvqFinalSec, 30),
-    speed: n(c.dvqSpeed, 100) / 3.6, fuelBurn: n(c.dvqFuelBurn, 1.8), meterPerCoin: n(c.dvqMeterPerCoin, 8),
-    likePer: n(c.dvqLikePer, 100), ramCd: n(c.dvqRamCd, 12), dodgeMax: Number(c.dvqDodgeMax ?? 10) || 0,
+    speed: n(c.dvqSpeed, 100) / 3.6, fuelBurn: n(c.dvqFuelBurn, 3), meterPerCoin: n(c.dvqMeterPerCoin, 5),
+    likePer: n(c.dvqLikePer, 300), ramCd: n(c.dvqRamCd, 12), dodgeMax: Number(c.dvqDodgeMax ?? 10) || 0,
     autoPilot: c.dvqControl !== 'streamer', driverSec: n(c.dvqDriverSec, 180), seats: n(c.dvqSeats, 14), autoNext: c.dvqAutoNext !== false, defaultSide: c.dvqDefaultSide === 'pha' ? 'pha' : 'cuu',
   };
   if (Q.get('goal')) gameCfg.goal = Number(Q.get('goal'));
@@ -84,7 +84,7 @@ function avatar(x, y, r, u, ring = '#fff') {
     const name = (u && u.name) || '?';
     ctx.fillStyle = AV_COLORS[(name.charCodeAt(0) || 0) % AV_COLORS.length]; ctx.fillRect(x - r, y - r, r * 2, r * 2);
     ctx.fillStyle = '#fff'; ctx.font = `800 ${Math.round(r * 1.1)}px 'Baloo 2', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(name.trim().charAt(0).toUpperCase() || '?', x, y + r * 0.08);
+    ctx.fillText((name.match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase(), x, y + r * 0.08);   // bỏ emoji đầu tên (🧑‍✈️…)
   }
   ctx.restore();
 }
@@ -371,6 +371,15 @@ function drawRoad() {
   drawGates();
 }
 function drawGates() {
+  const md = -game.cfg.goal * game.cfg.backFloor, xd = xAt(md);
+  if (xd > -260 && xd < W + 260) {
+    const y = roadTop(md);
+    ctx.save(); ctx.translate(xd, y); ctx.scale(0.75, 0.75);
+    ctx.fillStyle = '#888'; ctx.fillRect(-120, -260, 14, 260); ctx.fillRect(106, -260, 14, 260);
+    ctx.fillStyle = '#c3261f'; rrect(-170, -320, 340, 70, 14); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = "800 38px 'Baloo 2'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🚏 BẾN XE · PHÁ THẮNG', 0, -284);
+    ctx.restore();
+  }
   // vạch xuất phát
   const xs = xAt(0);
   if (xs > -260 && xs < W + 260) {
@@ -782,7 +791,9 @@ function updateHud(dt) {
   $('tfill').style.width = `${p * 100}%`;
   $('tbike').style.left = `${p * 100}%`;
   const km = m => (m / 1000).toFixed(m >= 10000 ? 1 : 2).replace('.', ',');
-  $('dist').innerHTML = `<b>${km(game.dist)}</b> / ${km(gl)} km · còn ${km(Math.max(0, gl - game.dist))} km`;
+  const depot = gl * game.cfg.backFloor;
+  $('dist').innerHTML = game.dist >= 0 ? `<b>${km(game.dist)}</b> / ${km(gl)} km · còn ${km(Math.max(0, gl - game.dist))} km`
+    : `<b style="color:#ff7a70">⚠️ lùi ${km(-game.dist)} km</b> · cách bến xe ${km(Math.max(0, depot + game.dist))} km`;
   const kmh = game.phase === 'race' ? Math.round(vel * 3.6) : 0;
   $('speed').textContent = kmh < -5 ? `◀ ${Math.min(999, -kmh)}` : String(Math.min(999, Math.max(0, kmh)));
   $('cspeed').classList.toggle('back', kmh < -5);
@@ -837,7 +848,7 @@ function updateHud(dt) {
     lob.innerHTML = `<h1>🛵 ĐƯỜNG VỀ QUÊ</h1><h2>Ván ${game.round + 1} xuất phát sau</h2><div class="cd">${left}</div>
       <div class="how">🧧 Đưa cả đoàn cùng <b class="y">${esc(VIEW.streamerName)}</b> về quê ăn Tết trong <b class="y">${Math.round(game.cfg.roundSec / 60 * 10) / 10} phút</b>!<br>
       🧑‍✈️ Quà <b class="y">tài xế</b>: lên lái ${fmtClock(game.cfg.driverSec)} · bình luận <b class="g">1</b> là lên xe<br>
-      🛡️ Quà <b class="g">CỨU</b>: đẩy xe tới, đổ xăng, che chắn<br>⚔️ Quà <b class="r">PHÁ</b>: vật cản, đẩy lùi, lốc xoáy<br>
+      🛡️ Quà <b class="g">CỨU</b>: đẩy xe tới, đổ xăng, che chắn<br>⚔️ Quà <b class="r">PHÁ</b>: vật cản, đẩy lùi về <b class="r">bến xe</b> là thắng<br>
       💬 Bình luận <b class="g">1</b> vào phe Cứu · <b class="r">2</b> vào phe Phá<br>🔥 ${game.cfg.finalSec} giây cuối mọi quà <b class="y">×${game.cfg.finalMult}</b></div>
       <div class="stat">📍 Tổng đã chạy ${(st.km || 0).toFixed(1).replace('.', ',')} km · 🛡️ Cứu thắng ${st.wins?.cuu || 0} · ⚔️ Phá thắng ${st.wins?.pha || 0}</div>
       ${fame.length ? `<div class="stat">🦸 Ân nhân tuần: ${fame.map(f => `<b style="color:#5ef09b">${esc(f.name)}</b>`).join(' · ')}</div>` : ''}`;
@@ -852,8 +863,8 @@ function showResult(r) {
   const pen = VIEW.penalties[Math.floor(Math.random() * VIEW.penalties.length)] || '';
   el.className = `card ${win ? 'win' : 'lose'}`;
   $('banner').innerHTML = ''; bannerT = 0;
-  el.innerHTML = `<h1>${win ? '🎉 VỀ TỚI QUÊ!' : '😭 KẸT GIỮA ĐƯỜNG'}</h1>
-    <h2>${win ? `Phe 🛡️ CỨU thắng · ${fmt(r.timeUsed)} giây` : `Phe ⚔️ PHÁ thắng · còn ${dtx(r.goal - r.dist)}`}</h2>
+  el.innerHTML = `<h1>${win ? '🎉 VỀ TỚI QUÊ!' : r.reason === 'depot' ? '🚏 BỊ ĐẨY VỀ BẾN XE!' : '😭 KẸT GIỮA ĐƯỜNG'}</h1>
+    <h2>${win ? `Phe 🛡️ CỨU thắng · ${fmt(r.timeUsed)} giây` : r.reason === 'depot' ? `Phe ⚔️ PHÁ thắng · ${fmt(r.timeUsed)} giây` : `Phe ⚔️ PHÁ thắng · còn ${dtx(r.goal - r.dist)}`}</h2>
     <div class="cols"><div class="col cuu"><h3>🦸 Ân nhân</h3>${r.topCuu.map(row).join('') || '<div class="pr">—</div>'}</div>
     <div class="col pha"><h3>😈 Kẻ phá</h3>${r.topPha.map(row).join('') || '<div class="pr">—</div>'}</div></div>
     ${win ? (topPha ? `<div class="note trash">🗑️ <b>${esc(topPha.name)}</b> bị ném vào thùng rác!</div>` : '<div class="note trash">🧧 Cả nhà đón ở cổng làng!</div>')

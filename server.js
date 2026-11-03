@@ -466,9 +466,9 @@ const GAMES = {
             dvqRoundSec: 240,         // giây một ván
             dvqFinalSec: 30,          // nước rút: bấy nhiêu giây cuối mọi quà ×2
             dvqSpeed: 100,            // km/h khi còn xăng
-            dvqFuelBurn: 1.8,         // % xăng/giây (100% ≈ 55 giây chạy)
-            dvqMeterPerCoin: 8,       // 1 xu = bấy nhiêu mét đẩy tới (Cứu) hoặc lùi (Phá)
-            dvqLikePer: 100,          // đủ bấy nhiêu tim cả phòng → 1 cơn gió + chút xăng
+            dvqFuelBurn: 3,           // % xăng/giây (đầy bình ≈ 33 giây chạy)
+            dvqMeterPerCoin: 5,       // 1 xu = bấy nhiêu mét đẩy tới (Cứu) hoặc lùi (Phá) — đo mô phỏng: 2 phe ngang xu ≈ 50/50
+            dvqLikePer: 300,          // đủ bấy nhiêu tim cả phòng → 1 cơn gió + chút xăng
             dvqRamCd: 12,             // giây hồi chiêu HÚC
             dvqDodgeMax: 10,          // vật cản giá ≤ bấy nhiêu xu thì nhảy né được
             dvqDefaultSide: 'cuu',    // quà chưa gán của người chưa chọn phe (bình luận 1/2) tính cho phe này

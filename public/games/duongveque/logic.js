@@ -40,10 +40,15 @@ export const DEFAULTS = {
   finalMult: 2,
   speed: 27.8,         // m/giây khi còn xăng (≈ 100 km/h)
   walkSpeed: 3,        // m/giây khi dắt bộ (hết xăng quá rescueSec)
-  fuelBurn: 1.8,       // % xăng/giây
-  meterPerCoin: 8,     // mỗi xu = bấy nhiêu mét (đẩy tới hoặc lùi) — ≈ 0,3 giây chạy ở 100 km/h
+  fuelBurn: 3,         // % xăng/giây (đầy bình ≈ 33 giây chạy)
+  fuelPerCoin: 1.5,    // quà Đổ xăng: % xăng mỗi xu (tối thiểu fuelMin)
+  fuelMin: 6,
+  likeFuel: 2,         // % xăng mỗi đợt tim (likePer tim)
+  shareFuel: 12,
+  followFuel: 8,
+  meterPerCoin: 5,     // mỗi xu = bấy nhiêu mét (đẩy tới hoặc lùi)
   minMeters: 15,
-  likePer: 100,        // đủ bấy nhiêu tim cả phòng → 1 cơn gió nhỏ + chút xăng
+  likePer: 300,        // đủ bấy nhiêu tim cả phòng → 1 cơn gió nhỏ + chút xăng
   lobbySec: 8,
   resultSec: 12,
   rescueSec: 10,
@@ -51,13 +56,18 @@ export const DEFAULTS = {
   ramCd: 12,           // giây hồi chiêu HÚC
   dodgeMax: 10,        // vật cản giá ≤ bấy nhiêu xu thì NHẢY né được
   autoPilot: true,     // AI tự nhảy / húc (treo máy)
+  aiDodge: 0.3,        // Tự lái: xác suất nhảy né vật cản rẻ (cao quá thì phe Cứu thắng gần hết)
+  aiRam: 0.25,         // Tự lái: xác suất húc chó / vịt / container
   autoNext: true,      // hết ván tự sang ván mới
   defaultSide: 'cuu',  // quà chưa gán của người chưa chọn phe tính cho phe này
   flagEvery: 500,      // cắm cờ mốc mỗi bấy nhiêu mét
+  backFloor: 0.25,     // bị đẩy lùi quá vạch xuất phát bấy nhiêu phần đường (0,25 × 6 km = 1,5 km) → về lại BẾN XE: phe Phá thắng ngay
   pushRate: 300,       // cú đẩy dài chạy tối đa bấy nhiêu m/giây (quà to = bị đẩy tuột lâu hơn, tối đa pushMax giây)
   pushMax: 5,
   driverSec: 180,      // 🧑‍✈️ mỗi lượt tài xế bấy nhiêu giây; hết giờ không ai chờ → người đang lái giữ nguyên
   seats: 14,           // chỗ ngồi hiện trên xe (người phe Cứu); dư thì chỉ đếm "+N"
+  maxRiders: 300,      // nhớ tối đa bấy nhiêu người đã lên xe (LIVE dài)
+  maxUsers: 2000,      // quá bấy nhiêu người xem thì đầu ván dọn người không còn trên xe / không lái
 };
 
 const DODGE_KINDS = new Set(['banana', 'pothole']);
@@ -127,7 +137,7 @@ export function createGame(options = {}, rnd = Math.random) {
   const cfg = Object.assign({}, DEFAULTS, options);
   const g = {
     cfg, rnd,
-    phase: 'lobby', phaseT: 0, round: 0,
+    phase: 'lobby', phaseT: 0, round: 0, tick: 0,
     timeLeft: cfg.roundSec, dist: 0, maxDist: 0, fuel: 100, shield: 0,
     speed: 0, walking: false, fuelAlarm: null,
     pushes: [],        // { m, dur, t, side, kind }
@@ -173,7 +183,7 @@ export function createGame(options = {}, rnd = Math.random) {
   const remaining = p => (p ? p.m * Math.max(0, 1 - p.t / p.dur) : 0);
   function cutPush(p, keep) { if (!p) return 0; const rem = remaining(p); const cut = rem * (1 - keep); p.m -= cut; return cut; }
 
-  function applyAction(action, u, coins, count) {
+  function applyAction(action, u, coins, count, driverDone = false) {
     const total = coins * count;
     const a = ACTION_BY_ID[action];
     const mult = g.final ? cfg.finalMult : 1;
@@ -184,18 +194,11 @@ export function createGame(options = {}, rnd = Math.random) {
       case 'wind': addPush(M, 0.8, 'cuu', 'wind'); break;
       case 'driver': {
         addPush(M, 1, 'cuu', 'driver');
-        const sec = cfg.driverSec * count;
-        if (g.driver && g.driver.id === u.id) { g.driver.left += sec; emit('driverExtend', { user: base.user, left: g.driver.left }); }
-        else if (!g.driver || g.driver.free) setDriver(u, sec);
-        else {
-          const q = g.driverQueue.find(x => x.user.id === u.id);
-          if (q) q.sec += sec; else g.driverQueue.push({ user: base.user, sec });
-          emit('driverQueued', { user: base.user, pos: g.driverQueue.findIndex(x => x.user.id === u.id) + 1 });
-        }
+        if (!driverDone) assignDriver(u, count);
         break;
       }
       case 'fuel': {
-        g.fuel = Math.min(100, g.fuel + Math.max(15, Math.min(100, total * 4)));
+        g.fuel = Math.min(100, g.fuel + Math.max(cfg.fuelMin, Math.min(100, total * cfg.fuelPerCoin)));
         addPush(M * 0.5, 1, 'cuu', 'fuel');
         break;
       }
@@ -226,13 +229,28 @@ export function createGame(options = {}, rnd = Math.random) {
       default: break;
     }
   }
+  /** Quà tài xế: lên lái ngay (kể cả lúc chờ ván), đang có người lái thì xếp hàng; chính mình tặng thêm = cộng giờ. */
+  function assignDriver(u, count) {
+    const base = { user: { id: u.id, name: u.name, avatar: u.avatar } };
+    const sec = cfg.driverSec * count;
+    if (g.driver && g.driver.id === u.id) { g.driver.left += sec; emit('driverExtend', { user: base.user, left: g.driver.left }); }
+    else if (!g.driver || g.driver.free) setDriver(u, sec);
+    else {
+      const q = g.driverQueue.find(x => x.user.id === u.id);
+      if (q) q.sec += sec; else g.driverQueue.push({ user: base.user, sec });
+      emit('driverQueued', { user: base.user, pos: g.driverQueue.findIndex(x => x.user.id === u.id) + 1 });
+    }
+  }
 
   function board(u) {
     if (u.side === 'pha' || g.riders.includes(u.id)) return;
     g.riders.push(u.id);
+    if (g.riders.length > cfg.maxRiders) g.riders.splice(0, g.riders.length - cfg.maxRiders);   // giữ người lên xe gần nhất
+    paxTick = -1;
     emit('board', { user: { id: u.id, name: u.name, avatar: u.avatar } });
   }
   function giveCoins(u, side, total) {
+    paxTick = -1;   // xu Cứu đổi thứ tự ghế
     if (side === 'cuu') board(u);
     if (side === 'pha' && u.cuu > 0 && !u.betrayed) { u.betrayed = true; emit('betray', { user: { id: u.id, name: u.name, avatar: u.avatar } }); }
     u[side] += total;
@@ -244,6 +262,7 @@ export function createGame(options = {}, rnd = Math.random) {
   }
 
   function setDriver(u, sec) {
+    paxTick = -1;
     const prev = g.driver;
     g.driver = { id: u.id, name: u.name, avatar: u.avatar || '', left: sec, free: false };
     emit('driver', { user: { id: u.id, name: u.name, avatar: u.avatar }, sec, prev: prev ? { id: prev.id, name: prev.name } : null });
@@ -259,10 +278,13 @@ export function createGame(options = {}, rnd = Math.random) {
     else { d.left = 0; d.free = true; emit('driverHold', { user: { id: d.id, name: d.name, avatar: d.avatar } }); }
   }
   /** Người ngồi trên xe: tài xế không tính, xếp theo xu Cứu ván này rồi tới thứ tự lên xe. */
+  let paxTick = -1, paxCache = null;
   g.passengers = function () {
+    if (paxTick === g.tick && paxCache) return paxCache;
     const list = g.riders.map(id => g.users.get(id)).filter(u => u && u.side !== 'pha' && (!g.driver || u.id !== g.driver.id));
     list.sort((a, b) => b.cuu - a.cuu || g.riders.indexOf(a.id) - g.riders.indexOf(b.id));
-    return { seated: list.slice(0, cfg.seats), extra: Math.max(0, list.length - cfg.seats), total: list.length };
+    paxTick = g.tick;
+    return (paxCache = { seated: list.slice(0, cfg.seats), extra: Math.max(0, list.length - cfg.seats), total: list.length });
   };
 
   /** Quà thật / quà thử. gift = { giftId, giftName, coins (xu 1 cái), count }. giftMap theo resolveGift. */
@@ -275,7 +297,9 @@ export function createGame(options = {}, rnd = Math.random) {
     if (gift && gift.action && ACTION_BY_ID[gift.action]) r = { action: gift.action, side: ACTION_BY_ID[gift.action].side };
     else r = resolveGift({ giftId: gift && gift.giftId, giftName: gift && gift.giftName, coins }, giftMap, u.side, cfg.defaultSide);
     if (g.phase !== 'race') {
-      g.pending.push({ u, action: r.action, side: r.side, coins, count });
+      const driverDone = r.action === 'driver';
+      if (driverDone) assignDriver(u, count);
+      g.pending.push({ u, action: r.action, side: r.side, coins, count, driverDone });
       emit('pending', { user: { id: u.id, name: u.name, avatar: u.avatar }, action: r.action, side: r.side, coins: coins * count });
       return r;
     }
@@ -289,18 +313,18 @@ export function createGame(options = {}, rnd = Math.random) {
     g.likeAcc += Math.max(0, Number(n) || 0);
     while (g.likeAcc >= cfg.likePer) {
       g.likeAcc -= cfg.likePer;
-      if (g.phase === 'race') { addPush(metersFor(1, cfg), 0.8, 'cuu', 'like'); g.fuel = Math.min(100, g.fuel + 6); }
+      if (g.phase === 'race') { addPush(metersFor(1, cfg), 0.8, 'cuu', 'like'); g.fuel = Math.min(100, g.fuel + cfg.likeFuel); }
       emit('likeBurst', { user: { id: u.id, name: u.name, avatar: u.avatar } });
     }
   };
   g.share = function (who) {
     const u = user(who);
-    if (g.phase === 'race') g.fuel = Math.min(100, g.fuel + 12);
+    if (g.phase === 'race') g.fuel = Math.min(100, g.fuel + cfg.shareFuel);
     emit('share', { user: { id: u.id, name: u.name, avatar: u.avatar } });
   };
   g.follow = function (who) {
     const u = user(who);
-    if (g.phase === 'race') g.fuel = Math.min(100, g.fuel + 8);
+    if (g.phase === 'race') g.fuel = Math.min(100, g.fuel + cfg.followFuel);
     emit('follow', { user: { id: u.id, name: u.name, avatar: u.avatar } });
   };
   g.comment = function (who, text) {
@@ -309,7 +333,7 @@ export function createGame(options = {}, rnd = Math.random) {
     const u = user(who);
     if (u.side !== side) {
       u.side = side;
-      if (side === 'pha') g.riders = g.riders.filter(id => id !== u.id);   // đổi sang phá → xuống xe
+      if (side === 'pha') { g.riders = g.riders.filter(id => id !== u.id); paxTick = -1; }   // đổi sang phá → xuống xe
       emit('join', { side, user: { id: u.id, name: u.name, avatar: u.avatar } });
       if (side === 'cuu') board(u);
     }
@@ -373,17 +397,21 @@ export function createGame(options = {}, rnd = Math.random) {
     g.walking = false; g.fuelAlarm = null; g.rescue = null; g.exclusive = null; g.xqueue = [];
     g.pushes = []; g.effects = []; g.obstacles = []; g.result = null;
     g.jumpT = 0; g.jumpCd = 0; g.ramCd = 0; g.ramWindow = 0; g.aiTimers = [];
-    g.users = new Map([...g.users].map(([k, u]) => [k, Object.assign(u, { cuu: 0, pha: 0, betrayed: false })]));
+    if (g.users.size > cfg.maxUsers) {
+      const keep = new Set([...g.riders, ...(g.driver ? [g.driver.id] : []), ...g.driverQueue.map(q => q.user.id), ...g.pending.map(p => p.u.id)]);
+      for (const id of [...g.users.keys()]) if (!keep.has(id)) g.users.delete(id);
+    }
+    for (const u of g.users.values()) Object.assign(u, { cuu: 0, pha: 0, betrayed: false });
     g.totals = { cuu: 0, pha: 0 };
     emit('roundStart', { round: g.round, goal: cfg.goal, roundSec: cfg.roundSec });
     const pend = g.pending; g.pending = [];
-    for (const p of pend) { giveCoins(p.u, p.side, p.coins * p.count); applyAction(p.action, p.u, p.coins, p.count); }
+    for (const p of pend) { giveCoins(p.u, p.side, p.coins * p.count); applyAction(p.action, p.u, p.coins, p.count, p.driverDone); }
   }
 
-  function endRace(winner) {
+  function endRace(winner, reason = '') {
     const topCuu = topList(g.users, 'cuu', 3), topPha = topList(g.users, 'pha', 3);
     g.result = {
-      round: g.round, winner, dist: Math.round(g.dist), goal: cfg.goal, timeUsed: Math.round(cfg.roundSec - g.timeLeft),
+      round: g.round, winner, reason: reason || (winner === 'cuu' ? 'home' : 'time'), dist: Math.round(g.dist), goal: cfg.goal, timeUsed: Math.round(cfg.roundSec - g.timeLeft),
       totals: Object.assign({}, g.totals), topCuu, topPha,
       betrayers: [...g.users.values()].filter(u => u.betrayed).map(u => ({ id: u.id, name: u.name, avatar: u.avatar })),
     };
@@ -438,14 +466,14 @@ export function createGame(options = {}, rnd = Math.random) {
     for (const o of g.obstacles) {
       if (!o.decided && o.gap < Math.max(g.speed, 6) * 0.32 + 1.2) {
         o.decided = true;
-        if (o.dodge && g.rnd() < 0.55) g.input('jump');
+        if (o.dodge && g.rnd() < cfg.aiDodge) g.input('jump');
       }
     }
     const target = (g.exclusive && g.exclusive.kind === 'container' && g.exclusive.stage === 'push' && !g.exclusive.aiSeen && g.exclusive)
       || g.effects.find(e => e.ram && !e.aiSeen && !e.rammed);
     if (target) {
       target.aiSeen = true;
-      if (g.ramCd <= 0 && g.rnd() < 0.45) g.aiTimers.push(0.4 + g.rnd() * 0.8);
+      if (g.ramCd <= 0 && g.rnd() < cfg.aiRam) g.aiTimers.push(0.4 + g.rnd() * 0.8);
     }
     g.aiTimers = g.aiTimers.map(t => t - dt);
     if (g.aiTimers.some(t => t <= 0)) { g.aiTimers = g.aiTimers.filter(t => t > 0); g.input('ram'); }
@@ -456,6 +484,7 @@ export function createGame(options = {}, rnd = Math.random) {
     const dt = Math.max(0, Math.min(0.1, Number(dtIn) || 0));
     g.phaseT += dt;
     stepDriver(dt);
+    g.tick++;
     if (g.phase === 'lobby') { if (g.phaseT >= cfg.lobbySec) startRace(); return; }
     if (g.phase === 'result') { if (cfg.autoNext && g.phaseT >= cfg.resultSec) { g.phase = 'lobby'; g.phaseT = 0; emit('lobby'); } return; }
 
@@ -512,7 +541,7 @@ export function createGame(options = {}, rnd = Math.random) {
 
     ai(dt);
 
-    g.dist = Math.max(0, g.dist + dd);
+    g.dist = Math.max(-cfg.goal * cfg.backFloor, g.dist + dd);   // bị đẩy lùi được quá vạch xuất phát (quà Phá to không bị phí)
     if (g.dist > g.maxDist) {
       const before = Math.floor(g.maxDist / cfg.flagEvery), after = Math.floor(g.dist / cfg.flagEvery);
       g.maxDist = g.dist;
@@ -520,6 +549,7 @@ export function createGame(options = {}, rnd = Math.random) {
     }
     if (g.timeLeft <= cfg.finalSec && g.timeLeft + dt > cfg.finalSec) emit('final', { sec: cfg.finalSec, mult: cfg.finalMult });
     if (g.dist >= cfg.goal) { g.dist = cfg.goal; endRace('cuu'); return; }
+    if (g.dist <= -cfg.goal * cfg.backFloor) { endRace('pha', 'depot'); return; }
     if (g.timeLeft <= 0) endRace('pha');
   };
 
@@ -530,7 +560,7 @@ export function createGame(options = {}, rnd = Math.random) {
     g.phase = 'lobby'; g.phaseT = 0; g.result = null; g.pending = []; g.dist = 0; g.maxDist = 0; g.fuel = 100;
     g.pushes = []; g.effects = []; g.obstacles = []; g.exclusive = null; g.xqueue = []; g.rescue = null; g.fuelAlarm = null;
     g.users = new Map(); g.totals = { cuu: 0, pha: 0 };
-    g.driver = null; g.driverQueue = []; g.riders = [];
+    g.driver = null; g.driverQueue = []; g.riders = []; paxTick = -1;
     emit('lobby');
   };
   return g;
