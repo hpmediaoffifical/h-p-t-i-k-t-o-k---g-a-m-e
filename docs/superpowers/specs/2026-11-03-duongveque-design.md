@@ -28,6 +28,12 @@ Thuộc nhóm 🎮 Game Tương Tác (1 dòng trong `public/games/gametuongtac/r
 - Bảng cân bằng sau đợt 2 (lộ trình bật): ngang xu 20–20 · Cứu 55% 26–14 · Phá 65% 6–34 · Cứu 75% 38–2 · phòng ít quà 9–31 (→ đường 3 km).
 - Thử: `?event=rest|gas|police|flat|train|cows|jam|carsick|photo|lixi`, panel có hàng nút "🗺️ Dọc đường".
 
+## Quãng đường theo thời gian ván (03/11)
+
+- `dvqGoal` 0 (mặc định) = tự theo thời gian ván: `goalFor(roundSec)` = 25 m/giây (4 phút → 6 km, 10 phút → 15 km), nên mỗi tỉnh luôn
+  ~1/34 thời gian ván (10 phút ≈ 16 giây/tỉnh). Số tình huống dọc đường `roadEventsFor` 3 → 7, cờ mốc `flagEveryFor` = 12 mốc đều.
+- Bị đẩy về bến xe: ván giữ thêm `depotFireSec` 9,5 giây cho bến cháy xong (lan → dữ dội → cháy đen) rồi mới hiện thẻ kết quả.
+
 ## Luật (thuần, `public/games/duongveque/logic.js`, test `tests/duongveque-logic.test.mjs`)
 
 - Mọi quà quy ra **mét theo xu** (`meterPerCoin` 5, tối thiểu 15 m) → quà Cứu và quà Phá cùng giá triệt tiêu nhau. Tặng ×N chạy đủ (gộp xu).

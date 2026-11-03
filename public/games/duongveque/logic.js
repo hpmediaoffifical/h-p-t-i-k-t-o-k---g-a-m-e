@@ -53,6 +53,7 @@ export const DEFAULTS = {
   likePer: 300,        // đủ bấy nhiêu tim cả phòng → 1 cơn gió nhỏ + chút xăng
   lobbySec: 8,
   resultSec: 12,
+  depotFireSec: 9.5,   // bị đẩy về bến xe: bến cháy bấy nhiêu giây rồi mới hiện kết quả (ván giữ thêm chừng ấy)
   rescueSec: 10,
   tornadoNeed: 0.3,    // lốc xoáy: phe Cứu cần gom đủ bấy nhiêu phần giá lốc trong rescueSec
   ramCd: 12,           // giây hồi chiêu HÚC
@@ -91,6 +92,15 @@ const EXCLUSIVE = new Set(['container', 'tornado', 'heli']);
 export function normName(s) {
   return String(s || '').toLowerCase().normalize('NFC').replace(/\s+/g, ' ').trim();
 }
+
+/** Quãng đường tự theo thời gian ván: 25 m mỗi giây (4 phút = 6 km, 10 phút = 15 km), làm tròn 500 m, tối thiểu 2 km.
+ *  Mỗi tỉnh vì thế luôn chiếm ~1/34 thời gian ván — địa danh chia đều theo thời gian. Mô phỏng: ngang xu vẫn ≈ 50/50. */
+export const METERS_PER_ROUND_SEC = 25;
+export function goalFor(roundSec) { return Math.max(2000, Math.round((Number(roundSec) || 240) * METERS_PER_ROUND_SEC / 500) * 500); }
+/** Số tình huống dọc đường theo độ dài ván: 4 phút 3 cái, 10 phút 7 cái (đủ mọi loại). */
+export function roadEventsFor(roundSec) { return Math.max(3, Math.min(7, Math.round(3 * (Number(roundSec) || 240) / 240))); }
+/** Cờ mốc: 12 mốc đều trên đường, làm tròn 100 m. */
+export function flagEveryFor(goal) { return Math.max(300, Math.round(goal / 12 / 100) * 100); }
 
 /** Mét tác dụng của quà (đẩy tới hoặc lùi) — tuyến tính theo xu, tối thiểu minMeters. */
 export function metersFor(coins, cfg = DEFAULTS) {
@@ -627,7 +637,7 @@ export function createGame(options = {}, rnd = Math.random) {
     stepDriver(dt);
     g.tick++;
     if (g.phase === 'lobby') { if (g.phaseT >= cfg.lobbySec) startRace(); return; }
-    if (g.phase === 'result') { if (cfg.autoNext && g.phaseT >= cfg.resultSec) { g.phase = 'lobby'; g.phaseT = 0; emit('lobby'); } return; }
+    if (g.phase === 'result') { const hold = cfg.resultSec + (g.result && g.result.reason === 'depot' ? cfg.depotFireSec : 0); if (cfg.autoNext && g.phaseT >= hold) { g.phase = 'lobby'; g.phaseT = 0; emit('lobby'); } return; }
 
     // ---- race ----
     if (g.halt) {

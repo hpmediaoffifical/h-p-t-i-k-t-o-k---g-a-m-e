@@ -4,7 +4,7 @@
  * Thử không cần LIVE: ?demo=1 (người xem ảo tặng quà 2 phe) · bàn phím Space = nhảy, Enter = húc, S = bắt đầu ván.
  * Gỡ lỗi: window.__dvq (game, step(giây), sim(kind,…)).
  */
-import { createGame, ACTIONS, ACTION_BY_ID, PENALTIES, metersFor } from './logic.js';
+import { createGame, ACTIONS, ACTION_BY_ID, PENALTIES, metersFor, goalFor, roadEventsFor, flagEveryFor } from './logic.js';
 import { ROUTE, provinceIndex } from './route.js';
 
 const Q = new URLSearchParams(location.search);
@@ -31,14 +31,17 @@ function applyServerConfig(c) {
   if (!c || typeof c !== 'object') return;
   const n = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
   gameCfg = {
-    goal: n(c.dvqGoal, 6000), roundSec: n(c.dvqRoundSec, 240), finalSec: n(c.dvqFinalSec, 30),
+    roundSec: n(c.dvqRoundSec, 240), finalSec: n(c.dvqFinalSec, 30),
     speed: n(c.dvqSpeed, 100) / 3.6, fuelBurn: n(c.dvqFuelBurn, 3), meterPerCoin: n(c.dvqMeterPerCoin, 5),
     likePer: n(c.dvqLikePer, 300), ramCd: n(c.dvqRamCd, 12), dodgeMax: Number(c.dvqDodgeMax ?? 10) || 0,
     autoPilot: c.dvqControl !== 'streamer', driverSec: n(c.dvqDriverSec, 180), seats: n(c.dvqSeats, 14), maxCars: n(c.dvqMaxCars, 3),
-    restStop: c.dvqRestStop !== false, gasStop: c.dvqGasStop !== false, police: c.dvqPolice !== false, policeLikes: n(c.dvqPoliceLikes, 2000), roadEvents: c.dvqRoadEvents === false ? 0 : 3, autoNext: c.dvqAutoNext !== false, defaultSide: c.dvqDefaultSide === 'pha' ? 'pha' : 'cuu',
+    restStop: c.dvqRestStop !== false, gasStop: c.dvqGasStop !== false, police: c.dvqPolice !== false, policeLikes: n(c.dvqPoliceLikes, 2000), autoNext: c.dvqAutoNext !== false, defaultSide: c.dvqDefaultSide === 'pha' ? 'pha' : 'cuu',
   };
-  if (Q.get('goal')) gameCfg.goal = Number(Q.get('goal'));
   if (Q.get('sec')) gameCfg.roundSec = Number(Q.get('sec'));
+  // quãng đường: 0 / trống = tự theo thời gian ván (25 m/giây) → mỗi tỉnh ~1/34 thời gian ván
+  gameCfg.goal = Number(Q.get('goal')) || (Number(c.dvqGoal) > 0 ? Number(c.dvqGoal) : goalFor(gameCfg.roundSec));
+  gameCfg.roadEvents = c.dvqRoadEvents === false ? 0 : roadEventsFor(gameCfg.roundSec);
+  gameCfg.flagEvery = flagEveryFor(gameCfg.goal);
   game.setConfig(gameCfg);
   VIEW.streamerName = String(c.dvqStreamerName || '').trim() || 'Streamer';
   VIEW.sound = c.dvqSound !== false && Q.get('mute') !== '1';
@@ -1000,7 +1003,10 @@ let shake = 0, hitWobble = 0, skid = 0, bump = 0, bin = null, pushA = 0, pushBy 
 function floatText(text, color, x = SX + S(160), y = null, size = 46) { fx.push({ k: 'txt', text, color, x, y: y == null ? contactY(cam) - S(300) : y, t: 0, dur: 1.4, size }); }
 function confetti(n = 80, x = W / 2, y = 700) { for (let i = 0; i < n; i++) fx.push({ k: 'conf', x, y, vx: (Math.random() - 0.5) * 900, vy: -300 - Math.random() * 700, c: ['#ffd23a', '#e8322c', '#35d07f', '#2fa4e7', '#ff6fae'][i % 5], t: 0, dur: 2.6, r: Math.random() * 6 }); }
 function stepFx(dt) {
-  if (depotFire) depotFire.t += dt;
+  if (depotFire) {
+    depotFire.t += dt;
+    if (depotFire.result && depotFire.t >= game.cfg.depotFireSec) { const r = depotFire.result; depotFire.result = null; if (game.phase === 'result') showResult(r); }   // cháy xong mới hiện kết quả
+  }
   skid = Math.max(0, skid - dt / 1.3); bump = Math.max(0, bump - dt / 0.5);
   for (const f of fx) {
     f.t += dt;
@@ -1300,7 +1306,7 @@ function onEvents(list) {
       case 'flag': floatText(`🚩 ${dtx(e.meters)}`, '#ffe27a', SX + S(160), contactY(cam) - S(300), 50); break;
       case 'roundStart': depotFire = null; $('result').classList.add('hidden'); banner(`🏁 VÁN ${e.round} XUẤT PHÁT!<small>Mũi Cà Mau → Lũng Cú · ${NP} tỉnh · 100 km/h</small>`, 'gold', 2000, 3); SFX.honk(); followFlags.length = 0; break;
       case 'roundEnd': saveStats(e);
-        if (e.reason === 'depot') { depotFire = { t: 0 }; banner('🔥 BẾN XE CÀ MAU BỐC CHÁY!<small>Bị đẩy về tận bến — phe Phá thắng</small>', 'pha', 2800, 4); shake = 16; setTimeout(() => showResult(e), 3000); }
+        if (e.reason === 'depot') { depotFire = { t: 0, result: e }; banner('🔥 BẾN XE CÀ MAU BỐC CHÁY!<small>Bị đẩy về tận bến, phe Phá thắng</small>', 'pha', 4200, 4); shake = 16; }
         else showResult(e);
         if (e.winner === 'cuu') { confetti(160); SFX.win(); } else SFX.lose(); break;
       case 'lobby': $('result').classList.add('hidden'); break;

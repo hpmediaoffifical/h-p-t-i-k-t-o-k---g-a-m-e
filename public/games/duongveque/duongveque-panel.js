@@ -12,13 +12,13 @@
 
     const GAME_ID = 'duongveque';
     const DEFAULTS = {
-        enabled: true, dvqControl: 'auto', dvqStreamerName: '', dvqGoal: 6000, dvqRoundSec: 240, dvqFinalSec: 30, dvqSpeed: 100,
+        enabled: true, dvqControl: 'auto', dvqStreamerName: '', dvqGoal: 0, dvqRoundSec: 240, dvqFinalSec: 30, dvqSpeed: 100,
         dvqFuelBurn: 3, dvqMeterPerCoin: 5, dvqLikePer: 300, dvqRamCd: 12, dvqDodgeMax: 10, dvqDefaultSide: 'cuu',
         dvqAutoNext: true, dvqVehicle: 'bus', dvqDriverSec: 180, dvqSeats: 14, dvqMaxCars: 5, dvqRestStop: true, dvqGasStop: true, dvqPolice: true, dvqPoliceLikes: 2000, dvqRoadEvents: true, dvqBike: 'green', dvqSound: true, dvqShowLegend: true, dvqPenalties: '',
         dvqKeyJump: 'F7', dvqKeyRam: 'F8', dvqKeyStart: 'F9', dvqGiftMap: {}
     };
     const BIKES = [['red', '🔴 Đỏ'], ['blue', '🔵 Xanh dương'], ['pink', '🩷 Hồng'], ['yellow', '🟡 Vàng'], ['green', '🟢 Xanh lá'], ['black', '⚫ Đen']];
-    const GOALS = [[3000, 'Ngắn · 3 km (phòng ít quà)'], [6000, 'Vừa · 6 km (mặc định)'], [10000, 'Dài · 10 km'], [15000, 'Rất dài · 15 km']];
+    const GOALS = [[0, 'Tự theo thời gian ván (4 phút = 6 km, 10 phút = 15 km)'], [3000, 'Ngắn · 3 km (phòng ít quà)'], [6000, 'Vừa · 6 km'], [10000, 'Dài · 10 km'], [15000, 'Rất dài · 15 km']];
 
     let socket = null, cfg = null, actions = [], suggested = {}, initialized = false, pendingSave = null, demoOn = false;
     const $ = (sel, ctx = document) => ctx.querySelector(sel);
