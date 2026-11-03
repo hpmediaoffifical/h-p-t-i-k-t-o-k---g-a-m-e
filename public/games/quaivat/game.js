@@ -2184,6 +2184,7 @@ function updateMonster(dt) {
       if (mon.flip) mon.flip.t += dt;
       if (mon.y <= 0) {
         mon.y = 0; mon.vy = 0; puff(new V3(mon.x, 0.2, mon.z), { color: 0xd8c6a0, n: 5, size: 0.9, speed: 2, life: 0.6 });
+        if (mon.pendingDown) { const l = mon.pendingDown; mon.pendingDown = 0; knockDown(l); }
         if (mon.flip) { mon.flip = null; mon.tilt.rotation.x = 0; mon.stun = Math.max(mon.stun, 0.9); sfx('thud'); camShake = Math.max(camShake, 0.35); puff(new V3(mon.x, 0.3, mon.z), { color: 0xd8c6a0, n: 10, size: 1.3, speed: 4, life: 0.9 }); }
       }
     }
@@ -2740,9 +2741,9 @@ function barrelBoom(it) {
   if (d < R && mon.y < 3 && !mon.lift && !mon.carry) {
     const k = 1 - d / R;                      // càng gần → càng đau, văng càng xa
     mon.vy = Math.max(mon.vy, 3 + 9 * k);
-    if (k > 0.7) { mon.flip = { t: 0, dur: 2 * mon.vy / 26 }; mon.cur = ''; }
     mon.x = clamp(mon.x + clamp(mon.x - p.x, -1, 1) * 1.2 * k, -LANE, LANE);
     hitMonster(Math.round(30 + 170 * k), 1 + 4 * k, it.owner, { text: k > 0.6 ? 'ĐÙNG!!!' : 'ĐÙNG!', unblockable: true });
+    if (k > 0.5) mon.pendingDown = 1.1;                                       // nổ sát người: bay lên rồi rơi xuống nằm ngửa (không lộn vòng)
   }
   removeItem(it);
 }
