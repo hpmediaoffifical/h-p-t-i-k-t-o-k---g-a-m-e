@@ -1430,7 +1430,7 @@ function hudLegend() {
 }
 function tickHud(now, dt) {
   const room = dcam.room;
-  hud.setTitle(room ? { title: room.type === 'group' ? `${room.id} · ${room.def.name}` : `${room.id} · ${states.get(room.id).title}`, genre: genreLabel(states.get(room.id).genre), accent: accentOf(room) } : { title: '🏢 CREATOR ONLINE', genre: '', accent: '#ff4fa3' });
+  hud.setTitle(room ? { title: room.type === 'group' ? `${room.id} · ${room.def.name}` : `${room.id} · ${states.get(room.id).title}`, genre: genreLabel(states.get(room.id).genre), accent: accentOf(room) } : { title: 'CREATOR ONLINE', genre: '', accent: '#ff4fa3', logo: true });
   if (pk && !pk.isOver(now)) {
     const sa = pk.score(pk.a);
     const sb = pk.score(pk.b);

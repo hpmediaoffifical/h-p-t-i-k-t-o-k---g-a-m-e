@@ -16,7 +16,7 @@ export class LiveHud {
     this.root = root;
     root.innerHTML = `
       <div class="co-frame">
-        <div class="co-box co-title"><b class="co-title-name"></b><span class="co-chip-genre"></span></div>
+        <div class="co-box co-title"><img class="co-title-logo" src="/games/creatoronline/assets/logo-mark.svg" alt="" hidden><b class="co-title-name"></b><span class="co-chip-genre"></span></div>
         <div class="co-box co-pk" hidden></div>
         <div class="co-box co-onair" hidden></div>
         <div class="co-box co-feed"></div>
@@ -29,6 +29,7 @@ export class LiveHud {
     this.el = {
       title: root.querySelector('.co-title'),
       titleName: root.querySelector('.co-title-name'),
+      titleLogo: root.querySelector('.co-title-logo'),
       genre: root.querySelector('.co-chip-genre'),
       pk: root.querySelector('.co-pk'),
       onair: root.querySelector('.co-onair'),
@@ -66,13 +67,14 @@ export class LiveHud {
     el.innerHTML = html;
   }
 
-  /** Tên phòng đang quay + chip thể loại (ẩn khi đang PK — thanh PK thay chỗ). */
+  /** Tên phòng đang quay + chip thể loại (ẩn khi đang PK — thanh PK thay chỗ). t.logo = hiện logo [hp] trước tên. */
   setTitle(t) {
     if (!t) {
       this.el.title.hidden = true;
       return;
     }
     this.el.title.hidden = !!this._pkOn;
+    if (this.el.titleLogo.hidden !== !t.logo) this.el.titleLogo.hidden = !t.logo;
     if (this._cache.titleName !== t.title) {
       this._cache.titleName = t.title;
       this.el.titleName.textContent = t.title;

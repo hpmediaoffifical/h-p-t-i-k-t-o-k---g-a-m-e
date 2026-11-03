@@ -6,7 +6,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0c16; col
 #game, #game canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
 #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 #hud { position: fixed; inset: 0; pointer-events: none; }
-#loading { position: fixed; inset: 0; display: grid; place-items: center; font-weight: 900; font-size: calc(var(--u) * 64); color: #f6c3a8; background: #0d0c16; }
+#loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; gap: .35em; font-weight: 900; font-size: max(28px, calc(var(--u) * 64)); color: #f6c3a8; background: #0d0c16; }
+#loading img { height: 1.35em; width: auto; }
 [hidden] { display: none !important; }
 
 /* ---------- bảng tên + bong bóng + chip ---------- */
@@ -36,6 +37,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0c16; col
 .co-box { position: absolute; background: rgba(18, 16, 30, .86); border-radius: calc(var(--u) * 26); box-shadow: 0 calc(var(--u) * 6) calc(var(--u) * 24) rgba(0,0,0,.35); font-weight: 800; text-shadow: 0 calc(var(--u) * 2) calc(var(--u) * 4) rgba(0,0,0,.6); }
 
 .co-title { left: calc(var(--u) * 120); top: calc(var(--u) * 240); width: calc(var(--u) * 800); height: calc(var(--u) * 96); display: flex; align-items: center; gap: calc(var(--u) * 18); padding: 0 calc(var(--u) * 30); border-left: calc(var(--u) * 10) solid var(--accent, #ff4fa3); }
+.co-title-logo { height: calc(var(--u) * 62); width: auto; flex: none; }
 .co-title-name { font-size: calc(var(--u) * 52); font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
 .co-chip-genre { font-size: calc(var(--u) * 32); background: var(--accent, #ff4fa3); color: #fff; padding: calc(var(--u) * 4) calc(var(--u) * 18); border-radius: calc(var(--u) * 30); white-space: nowrap; }
 

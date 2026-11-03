@@ -9,6 +9,7 @@
  * otherwise a procedural loop in the genre's style. Sequencers only run for channels
  * that are audible, so 25 rooms cost about as much as 2-3.
  */
+import { assetUrl } from './logic/paths.js';
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const ALL = [...Array(16).keys()];
@@ -139,7 +140,7 @@ export class AudioFx {
         if (this.ctx) this._wireEl(ch);
       }
       // data.json ghi "audio/x.mp3" (tương đối thư mục game) — overlay chạy ở /overlay/creatoronline nên đổi sang tuyệt đối
-      ch.el.src = /^(/|https?:)/.test(src.file) ? src.file : `/games/creatoronline/${src.file}`;
+      ch.el.src = assetUrl(src.file);
     });
     if (this.ctx) this._wire(ch);
     return ch;
