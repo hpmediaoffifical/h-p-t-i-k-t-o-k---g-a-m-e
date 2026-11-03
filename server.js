@@ -1225,7 +1225,7 @@ function makeDefaultTrongCayConfig() {
         butterflyHealPerSecond: 1.6,   // 🦋 bướm đậu cây YẾU (héo) hồi bao nhiêu héo mỗi giây (chia nhau chữa cây yếu)
         predatorChancePerSecond: 0.006,
         carnivoreDamage: 55,
-        maxFlowers: 80,
+        maxFlowers: 30,   // vườn >30 cây làm OBS tụt khung (đo 03/11) — 80 cũ coi như mặc định cũ → 30 (trongCayMaxFlowers)
         maxButterflies: 28,
         display: {
             gardenXPercent: 50,
@@ -7988,6 +7988,12 @@ function trongCayPickPlantX() {
     return Math.round((LO + Math.random() * (HI - LO)) * 10) / 10;
 }
 
+// Số cây/hoa tối đa trong vườn. 80 = mặc định cũ (đã lưu sẵn trong config người dùng) → coi như 30 mới.
+function trongCayMaxFlowers(cfg) {
+    const n = Number(cfg.maxFlowers);
+    return Math.max(10, !n || n === 80 ? 30 : n);
+}
+
 function trongCayGrowGiftPlant({ giftId, giftName, giftImage, nickname, uniqueId, coinValue, repeatCount, growth, owned, ownerUid, ownerAvatar, lockImage, targetPlant }) {
     const cfg = appConfig.games.trongcay || makeDefaultTrongCayConfig();
     const grow = Math.max(0, Number(growth) || 0);
@@ -8070,7 +8076,7 @@ function trongCayGrowGiftPlant({ giftId, giftName, giftImage, nickname, uniqueId
             first: !wasRipe, ts: now
         });
     }
-    const maxFlowers = Math.max(10, Number(cfg.maxFlowers) || 80);
+    const maxFlowers = trongCayMaxFlowers(cfg);
     while (trongCayState.plants.length > maxFlowers) trongCayState.plants.shift();
     trongCayState.height = trongCayClamp(Math.max(0, ...trongCayState.plants.map(p => Number(p.height) || 0)), 0, Number(cfg.maxHeight) || 100);
     trongCayState.updatedAt = now;
@@ -8102,7 +8108,7 @@ function trongCayAddFlower({ giftId, giftName, giftImage, nickname, uniqueId, co
         ts: Date.now()
     };
     trongCayState.flowers.push(flower);
-    const maxFlowers = Math.max(10, Number(cfg.maxFlowers) || 80);
+    const maxFlowers = trongCayMaxFlowers(cfg);
     while (trongCayState.flowers.length > maxFlowers) trongCayState.flowers.shift();
     return flower;
 }

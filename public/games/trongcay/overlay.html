@@ -568,7 +568,7 @@
                 set(v) { v = String(v); if (v === last) return; last = v; desc.set.call(this, v); },
             });
         }
-    })([$flowers, $status, $top, $decorRows]);
+    })([$status, $top, $decorRows]);
     const $pets = document.getElementById('tc-pets');
     const $petList = document.getElementById('tc-pet-list');
     const svgDefs = `<defs><linearGradient id="tc-leaf-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#72e58a"/><stop offset="0.52" stop-color="#41c463"/><stop offset="1" stop-color="#199842"/></linearGradient><radialGradient id="tc-fruit-grad" cx="0.38" cy="0.34" r="0.75"><stop offset="0" stop-color="#ff9a6b"/><stop offset="0.55" stop-color="#ff5a4d"/><stop offset="1" stop-color="#c62828"/></radialGradient><radialGradient id="tc-cat-grad" cx="0.4" cy="0.28" r="0.85"><stop offset="0" stop-color="#f2ffae"/><stop offset="0.45" stop-color="#b6f24f"/><stop offset="1" stop-color="#5fc21f"/></radialGradient><radialGradient id="tc-cat-head" cx="0.4" cy="0.3" r="0.8"><stop offset="0" stop-color="#eaffb0"/><stop offset="1" stop-color="#6fc62a"/></radialGradient><clipPath id="tc-cat-head-clip"><circle cx="0" cy="0" r="18"/></clipPath><linearGradient id="tc-pupa-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#bdf7c8"/><stop offset="0.5" stop-color="#4cc98a"/><stop offset="1" stop-color="#1f8f5f"/></linearGradient></defs>`;
@@ -672,7 +672,9 @@
     }
     function plantMeta(p) {
         const h = clamp(Number(p?.height) || 0, 0, config.maxHeight || 100) / (config.maxHeight || 100);
-        const wilt = clamp(state.wilt || 0, 0, 100) / 100;
+        // ⚡ Héo chung làm tròn 5%: nó nằm trong vị trí ngọn của MỌI cây → nhích 0,1% là cả vườn (30 cây ≈ 2.700 phần tử SVG)
+        // dựng + vẽ lại; đo CDP 03/11 mỗi quà ~20 cây dựng lại. Bậc 5% mắt không thấy khác.
+        const wilt = clamp(Math.round((Number(state.wilt) || 0) / 5) * 5, 0, 100) / 100;
         let baseX = clamp(Number(p?.x) || 50, 0, 100) / 100 * 980;
         const depth = plantDepth(p);
         const ds = depthScale(depth);
@@ -1139,8 +1141,15 @@
         $banner.appendChild(b);
         setTimeout(() => b.remove(), 2800);
     }
+    // ⚡ Trần hạt hiệu ứng đang bay (pháo giấy + hoa bung): quà dồn 4/giây chồng 100+ hạt → mỗi hạt 1 lớp vẽ riêng,
+    // đo CDP 03/11 ~30 khối việc dài/10 giây, 10 khung/giây; giữ ≤ FX_MAX hạt → hết giật mà vẫn thấy bung.
+    const FX_MAX = 40;
+    let fxLive = 0;
+    function fxTake(n) { const k = Math.max(0, Math.min(n, FX_MAX - fxLive)); fxLive += k; return k; }
+    function fxDone() { fxLive = Math.max(0, fxLive - 1); }
     function confettiBurst(n) {
         const colors = ['#ff5fa3', '#ffd54a', '#56d96c', '#42b9ff', '#b57bff', '#ff8b37'];
+        n = fxTake(n);
         for (let i = 0; i < n; i++) {
             const c = document.createElement('i');
             c.className = 'tc-confetti';
@@ -1150,7 +1159,7 @@
             c.style.animationDelay = (Math.random() * .5).toFixed(2) + 's';
             c.style.transform = 'rotate(' + Math.floor(Math.random() * 180) + 'deg)';
             $banner.appendChild(c);
-            setTimeout(() => c.remove(), 4400);
+            setTimeout(() => { c.remove(); fxDone(); }, 4400);
         }
     }
     function bloomBurst() {
@@ -1158,7 +1167,8 @@
         const cx = rect.left + rect.width * 0.5;
         const cy = rect.top + rect.height * 0.22;
         const emojis = ['🌸', '🌺', '🌼', '🌷', '💮', '🏵️'];
-        for (let i = 0; i < 18; i++) {
+        const n = fxTake(18);
+        for (let i = 0; i < n; i++) {
             const el = document.createElement('div');
             el.className = 'tc-bloom';
             el.textContent = emojis[i % emojis.length];
@@ -1168,7 +1178,7 @@
             el.style.setProperty('--s', (34 + Math.random() * 30).toFixed(0) + 'px');
             el.style.animationDelay = (Math.random() * .4).toFixed(2) + 's';
             $banner.appendChild(el);
-            setTimeout(() => el.remove(), 2400);
+            setTimeout(() => { el.remove(); fxDone(); }, 2400);
         }
     }
     function growPop(data) {
@@ -1334,10 +1344,10 @@
     }
     function syncPlantEls(list, groundHtml) {
         const L = svgLayersReady();
-        const keep = new Set();
+        const keep = new Set(list.map((it) => it.key));
+        for (const [k, rec] of plantEls) if (!keep.has(k)) { rec.el.remove(); plantEls.delete(k); }
         let prev = null;
         for (const { key, html } of list) {
-            keep.add(key);
             let rec = plantEls.get(key);
             if (!rec || rec.html !== html) {
                 const tmp = document.createElementNS(SVG_NS, 'g');
@@ -1351,7 +1361,6 @@
             if (rec.el !== want) L.plants.insertBefore(rec.el, want);
             prev = rec.el;
         }
-        for (const [k, rec] of plantEls) if (!keep.has(k)) { rec.el.remove(); plantEls.delete(k); }
         if (L.groundHtml !== groundHtml) { L.groundHtml = groundHtml; L.ground.innerHTML = groundHtml; }
     }
     function renderStems() {
@@ -1444,12 +1453,50 @@
         }
         $svg.innerHTML = svgDefs + html + corpsesSvg() + pupaeSvg() + groundFruitsSvg() + caterpillarsSvg() + protectedZonesSvg();
     }
+    // ⚡ Hoa theo khoá cây: giữ nguyên <img> (không tải/giải mã lại ảnh), chỉ sửa style/title khi đổi. Huy hiệu chủ cây
+    // nằm trong 1 khối display:contents riêng (cùng ngữ cảnh xếp lớp với hoa) và chỉ ghi lại khi chuỗi đổi.
+    const flowerEls = new Map();
+    let $ownerWrap = null, ownersLast = null;
+    function clearFlowerEls() { flowerEls.clear(); $ownerWrap = null; ownersLast = null; }
+    function syncFlowerEls(items, ownersHtml) {
+        if (!$ownerWrap || $ownerWrap.parentNode !== $flowers) {
+            $flowers.innerHTML = '';
+            flowerEls.clear();
+            $ownerWrap = document.createElement('div');
+            $ownerWrap.style.display = 'contents';
+            $flowers.appendChild($ownerWrap);
+            ownersLast = null;
+        }
+        const keep = new Set(items.map((it) => it.key));
+        for (const [k, el] of flowerEls) if (!keep.has(k)) { el.remove(); flowerEls.delete(k); }
+        let prev = null;
+        for (const it of items) {
+            let el = flowerEls.get(it.key);
+            if (!el || el.dataset.src !== it.src) {
+                const img = document.createElement('img');
+                img.className = 'tc-flower';
+                img.onerror = () => { img.style.display = 'none'; };
+                img.dataset.src = it.src;
+                img.src = it.src;
+                if (el) el.replaceWith(img);
+                el = img;
+                flowerEls.set(it.key, el);
+            }
+            if (el.title !== it.title) el.title = it.title;
+            if (el.dataset.css !== it.css) { el.dataset.css = it.css; el.style.cssText = it.css; }
+            const want = prev ? prev.nextSibling : $flowers.firstChild;
+            if (el !== want) $flowers.insertBefore(el, want);
+            prev = el;
+        }
+        if ($ownerWrap !== $flowers.lastChild) $flowers.appendChild($ownerWrap);
+        if (ownersHtml !== ownersLast) { ownersLast = ownersHtml; $ownerWrap.innerHTML = ownersHtml; }
+    }
     function renderFlowers() {
-        if (config.display.showFlowers === false) { $flowers.innerHTML = ''; return; }
+        if (config.display.showFlowers === false) { clearFlowerEls(); $flowers.innerHTML = ''; return; }
         const plants = Array.isArray(state.plants) ? state.plants.filter(p => (Number(p.height) || 0) > 0 && p.giftImage) : [];
         if (plants.length) {
             const sorted = plants.slice().sort((a, b) => plantDepth(a) - plantDepth(b));
-            const flowersHtml = sorted.map((p) => {
+            const items = sorted.map((p) => {
                 const m = plantMeta(p);
                 const sd = plantSeedInt(p);   // nhịp đung đưa hoa theo seed cố định → cây mới mọc không làm hoa cây cũ nhảy nhịp
                 const pt = plantPoint(p, .985);
@@ -1462,19 +1509,25 @@
                 const z = Math.round(m.depth * 100);   // cây gần (depth lớn) đè lên cây xa
                 const wilt = Number(p.wilt) || 0;
                 const wiltStyle = wilt > 38 ? `filter:sepia(${Math.min(.9, wilt / 100).toFixed(2)}) brightness(${Math.max(.62, 1 - wilt / 260).toFixed(2)}) drop-shadow(0 3px 4px rgba(0,0,0,.45));opacity:${Math.max(.58, 1 - wilt / 260).toFixed(2)};` : '';
-                return `<img class="tc-flower" src="${esc(p.giftImage || '')}" title="${esc((p.giftName || '') + ' x' + (p.count || 1))}" style="left:${pt.x.toFixed(1)}px;top:${pt.y.toFixed(1)}px;z-index:${z};--s:${size.toFixed(0)}px;--r:${((Number(p.lean) || 0) / 3).toFixed(2)}deg;--sway-dur:${dur}s;--sway-delay:${delay}s;${wiltStyle}" onerror="this.style.display='none'"/>`;
-            }).join('');
+                return {
+                    key: plantKey(p),
+                    src: String(p.giftImage || ''),
+                    title: (p.giftName || '') + ' x' + (p.count || 1),
+                    css: `left:${pt.x.toFixed(1)}px;top:${pt.y.toFixed(1)}px;z-index:${z};--s:${size.toFixed(0)}px;--r:${((Number(p.lean) || 0) / 3).toFixed(2)}deg;--sway-dur:${dur}s;--sway-delay:${delay}s;${wiltStyle}`,
+                };
+            });
             // 🌱 Dây + avatar chủ cây cho cây CỦA VIEWER đã trưởng thành (có tán lá). Vẽ sau hoa → nổi trên cùng.
             const maxH = config.maxHeight || 100;
             // Cây CỦA VIEWER (owned) đã trưởng thành → luôn hiện dây + huy hiệu (avatar thật, hoặc chữ cái nếu thiếu avatar).
             const ownersHtml = (config.display.showNames === false) ? '' : sorted
                 .filter(p => p.owned && (Number(p.height) || 0) / maxH >= TC_MATURE_FRAC)
                 .map(ownerMedalHtml).join('');
-            $flowers.innerHTML = flowersHtml + ownersHtml;
+            syncFlowerEls(items, ownersHtml);
             return;
         }
         const list = Array.isArray(state.flowers) ? state.flowers : [];
         const hGlobal = clamp(state.height || 0, 0, config.maxHeight || 100) / (config.maxHeight || 100);
+        clearFlowerEls();
         $flowers.innerHTML = list.map((f, i) => {
             const p = flowerPoint(f);
             const baseSize = clamp(f.size || 58, 28, 110);
