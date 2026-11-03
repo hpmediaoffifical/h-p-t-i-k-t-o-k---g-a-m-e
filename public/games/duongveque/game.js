@@ -1643,9 +1643,41 @@ function render(dt) {
   ctx.restore();
 }
 
+// ---------------- bản thử 3D (?r=3d): render3d.js vẽ cảnh + xe; canvas 2D chỉ còn nhãn tên, bong bóng thoại, chữ nổi ----------------
+let R3D = null;
+if (Q.get('r') === '3d') {
+  try {
+    const { createRenderer3D } = await import('./render3d.js');
+    R3D = createRenderer3D({ stage, before: cv, game, VIEW, env: {
+      get pushBy() { return pushBy; }, get shake() { return shake; }, get skid() { return skid; }, get bump() { return bump; }, get wobble() { return hitWobble; },
+      get color() { return BIKES[VIEW.bike] || BIKES.green; }, get streamerName() { return VIEW.streamerName; },
+    } });
+    // driver GPU reset (hay gặp ở GPU tích hợp khi LIVE lâu) → quay về bản 2D thay vì màn đen
+    R3D.canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); console.warn('[dvq] mất WebGL, quay về 2D'); const r = R3D; R3D = null; try { r.dispose(); } catch (er) { /* đã mất */ } });
+  } catch (e) { console.warn('[dvq] không dựng được 3D, quay về 2D', e); R3D = null; }
+}
+let last3d = 0;
+const CAP3D = Q.get('cap') === '0' ? 0 : 1000 / 62;
+function render3d(dt) {
+  const o = R3D.render(dt);
+  SX = o.sx; zoom = o.zoom; PX = PX0 * zoom; VS = VS0 * zoom;   // chữ nổi (floatText) bám đúng chỗ đầu xe
+  ctx.clearRect(0, 0, W, H);
+  LBL = [];
+  const d = game.driver;
+  tag(o.driver.x, o.driver.y, { name: d ? `🧑‍✈️ ${String(d.name).slice(0, 14)} ${d.free ? '· giữ lái' : fmtClock(d.left)}` : `🧑‍✈️ ${VIEW.streamerName}`, avatar: d ? d.avatar : '' }, 'rgba(190,110,0,.94)', 24, 30, 0);
+  if (pushBy && o.push) tag(o.push.x, o.push.y, pushBy, 'rgba(170,30,25,.9)', 20);
+  if (o.extra) tag(o.extra.x, o.extra.y, { name: `+${o.extra.n} chờ ghế` }, 'rgba(22,26,36,.86)', 20, 16, 2);
+  if (momMsg && momMsg.t > 0 && !game.halt && game.phase === 'race') bubble(o.driver.x + 20, o.driver.y - 70, momMsg.text);
+  layoutLabels();
+  drawFx();
+}
+
 // ---------------- vòng lặp ----------------
 let last = performance.now();
 function frame(now) {
+  // bản 3D khoá ~60 khung/giây: màn 144 Hz không vẽ thừa giành GPU với OBS (?cap=0 để đo không khoá)
+  if (R3D && CAP3D && now - last3d < CAP3D) { requestAnimationFrame(frame); return; }
+  last3d = now;
   const dt = Math.min(0.1, Math.max(0, (now - last) / 1000)); last = now;
   if (!window.__dvq || !window.__dvq.freeze) tick(dt);   // __dvq.freeze = true: giữ nguyên khung để chụp
   requestAnimationFrame(frame);
@@ -1663,7 +1695,7 @@ function tick(dt) {
   game.step(dt);
   onEvents(game.drainEvents());
   stepFx(dt);
-  render(dt);
+  if (R3D) render3d(dt); else render(dt);
   updateHud(dt);
   if (game.phase !== 'result') $('result').classList.add('hidden');
   const lg = VIEW.showLegend && game.phase === 'race';
@@ -1787,4 +1819,6 @@ window.__dvq = {
   step(sec = 1) { for (let t = 0; t < sec; t += 1 / 60) tick(1 / 60); return { phase: game.phase, dist: Math.round(game.dist), fuel: Math.round(game.fuel) }; },
   sim(kind, opts = {}) { onAppCmd({ gameId: 'duongveque', cmd: 'test', payload: Object.assign({ kind }, opts) }); },
   applyServerConfig,
+  /** bản 3D: { fps, calls, triangles, passengers, gl } */
+  r3d: () => (R3D ? R3D.stats() : null),
 };

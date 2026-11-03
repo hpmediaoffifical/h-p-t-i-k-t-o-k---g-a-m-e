@@ -70,6 +70,59 @@ Hai lỗi cân bằng đã sửa nhờ đo: (1) quà Phá to bị chặn ở v�
   `--virtual-time-budget` (AudioContext giữ đồng hồ ảo → treo). Đừng `warp` lớn trong headless (mỗi tick vẽ 1 khung).
 - Gỡ lỗi: `window.__dvq` (`game`, `step(giây)`, `sim(kind, opts)`, `freeze = true`).
 
+## Thử 3D (vertical slice, 03/11 — nhánh `tuongtac/duongveque-3d`)
+
+Bật bằng `?r=3d` (bản canvas 2D vẫn mặc định). Chỉ đổi phần VẼ: `render3d.js` (Three.js r160 dùng chung `/games/quaivat/vendor/`
+qua import map trong `overlay.html`); luật `logic.js` + `route.js` không đổi (40/40 test qua); HUD DOM giữ nguyên. Canvas 2D
+nằm trên canvas WebGL, chỉ còn vẽ nhãn tên / bong bóng thoại / chữ nổi theo toạ độ màn hình renderer trả về (lớp xếp nhãn LBL dùng lại).
+
+- **Camera:** phối cảnh FOV 24° đặt xa, chân trời ở y≈640, mặt đường dưới đầu xe ở (sx, 1184). Bề ngang nhìn thấy ở mặt đường
+  = 41,5 m × (1 + 0,27 × (số xe − 1)) — cùng công thức thu nhỏ bản 2D, đầu xe lùi sang phải đủ chỗ cho cả đoàn. `?fov=`, `?hz=` để chỉnh thử.
+- **Cảnh miệt vườn Cà Mau:** đường + vạch, sông phù sa, ao sen tiền cảnh, dừa (2 kiểu), dừa nước, chuối, bụi, nhà sàn mái lá chân cắm sông,
+  xuồng ba lá người đội nón lá (trôi), cột điện, hàng cây xa trong sương, mây. Mỗi loại đồ vật = 1 InstancedMesh màu đỉnh, sinh theo ô 40 m
+  bằng hash (đi lùi lại thấy đúng cảnh cũ), chỉ dựng lại khi đổi ô.
+- **Xe buýt chibi** "VỀ QUÊ ĂN TẾT" (cao ×1,3, bánh to), cửa sổ là hốc sâu nên vai khách bị mép dưới che tự nhiên; xe sau có biển
+  "ĐOÀN VỀ QUÊ · XE n" (1 atlas, 1 lệnh vẽ cho mọi biển); cành mai trên nóc xe đầu.
+- **Hành khách:** đầu cầu, ảnh đại diện chiếu phẳng từ phía trước (rìa ô trắng thành viền như bản 2D), không chịu ánh sáng; vai màu áo theo người.
+  Mọi khách + tài xế + kẻ phá = **2 lệnh vẽ** (atlas 1024×512, 128 ô 64 px, chọn ô qua thuộc tính instance `aCell`, tải lại atlas ≤ 4 lần/giây).
+  Không dùng nhân vật SkinnedMesh của Nhà Tù (`nhatu/js/character.js`): ~5 nghìn tam giác + 1 lệnh vẽ + texture xương mỗi người, trong khi
+  ngồi trong xe chỉ thấy đầu + vai — để dành cho người đi bộ ở trạm dừng nếu làm tiếp (nhớ `disposeCharacter`).
+- **Xe ủi phe Phá:** cùng điều kiện bản 2D (đang chạy, không dừng, không container/lốc, vận tốc trên màn < −6 m/s) → trượt vào từ phải,
+  lưỡi ủi tì đầu đoàn, mặt kẻ phá trong cabin, bụi + khói.
+- **Chưa có ở 3D:** chó, vịt, mưa, container, lốc xoáy, trực thăng, đoàn phượt, xe cứu hộ, vật cản, cảnh trạm dừng/CSGT, 7 vùng cảnh còn lại,
+  34 công trình mốc, xe bò / xe máy. An toàn: mất WebGL (`webglcontextlost`) → tự quay về 2D; bản 3D khoá ~60 khung/giây (`?cap=0` để đo).
+
+### Số đo (03/11, Edge headless 1080×1920, `?mute=1&warp=9&riders=N`, rAF không khoá; script CDP trong scratchpad)
+
+| | GPU RTX 4060 (ANGLE D3D11) | | | Không GPU (SwiftShader) | |
+|---|---|---|---|---|---|
+| Cảnh | khung/giây | lệnh vẽ · tam giác | CPU ms/khung¹ | khung/giây | CPU ms/khung¹ |
+| 2D · 14 khách (1 xe) | 71 | — | 4,3 | 22 | 26,6 |
+| 2D · 70 khách (5 xe) | 37 | — | 20,5 | 15 | 58,2 |
+| 3D · 14 khách | **153** | 27 · 42k | 2,1 | **3,9** | 1,1 |
+| 3D · 70 khách | **136** | 31 · 73k | 2,7 | ~0,1 (treo) | — |
+| 3D · 70 khách, `aa=0` | 145 | 31 · 73k | 2,4 | ~0,1 | — |
+| 3D · xe ủi đang đẩy | 138 | 27 · 41k | — | 2 | — |
+
+¹ chạy 120 khung đồng bộ (luật + vẽ) chia đều — với 3D là phần CPU gửi lệnh, KHÔNG gồm thời gian GPU. Số GPU là thông lượng headless
+(trình duyệt không khoá vsync), chỉ để so tương đối. Bản đầu (trước khi chỉnh theo review) là 28/33 lệnh vẽ, 64k/115k tam giác.
+
+**Kết luận:**
+- Có GPU: 3D nhẹ hơn hẳn 2D (2D tốn CPU theo số khách vì mỗi mặt là clip + drawImage; 3D gần như phẳng theo số khách nhờ instancing).
+  Bản 2D với 70 khách đã chỉ còn ~37 khung/giây ngay cả trên RTX 4060 → đằng nào cũng nên tối ưu bản 2D nếu giữ.
+- **Không GPU thì 3D không dùng được** (4 khung/giây). Electron của app tắt GPU → bản 3D phải chạy trong OBS Browser Source (có GPU)
+  hoặc cửa sổ Edge/Chrome như Zombie Phá Nhà; cần giữ bản 2D làm dự phòng (đã có: mất WebGL → 2D).
+- Chưa đo trên GPU tích hợp và trong OBS thật (render lag khi đang mã hoá) — việc phải làm trước khi quyết.
+- Đọc trên điện thoại: xe, biển, xe ủi rõ hơn 2D; mặt khách 1 xe ≈ ngang 2D, **đoàn 5 xe mặt chỉ ~10–14 px** (2D cũng vậy — do thu nhỏ đã chốt).
+
+**Khuyến nghị: làm tiếp có điều kiện.** Bước kế: (1) đo trên máy GPU tích hợp + OBS thật 1 giờ (`renderer.info.memory` phải đứng yên);
+(2) nếu đạt, làm bộ đồ cảnh dùng chung đổi màu theo vùng (7 vùng còn lại) + công trình mốc bằng ảnh vẽ dán lên tấm phẳng (34 mốc dựng
+low-poly ước 0,5–1 ngày/mốc — quá đắt); (3) chuyển lần lượt các hiệu ứng quà sang 3D, trong lúc đó hiệu ứng chưa chuyển vẫn vẽ 2D chồng lên.
+Góp ý chưa làm: góc nhìn 3/4 (xoay xe ~0,15 rad) cho sinh động; rút xe còn 5 cửa sổ; tối ưu nữa (Basic material cho mặt phẳng lớn +
+`alpha:false` vẽ trời trong WebGL, tự tắt MSAA khi gặp GPU tích hợp, `addUpdateRange`). Review đề xuất chặn thu nhỏ ở 0,65 cho mặt khách
+to hơn — trái ý đã chốt "đoàn dài càng thu nhỏ", để user quyết.
+Ngân sách đề xuất (GPU tích hợp, 60 khung/giây): GPU ≤ 8 ms, CPU ≤ 3 ms, ≤ 60 lệnh vẽ, ≤ 150k tam giác, texture ≤ 48 MB.
+
 ## Còn lại
 
 - Thử OBS Browser Source 1080×1920 + cửa sổ game thật, phím tắt Electron F7/F8 thật, một buổi LIVE thật.
