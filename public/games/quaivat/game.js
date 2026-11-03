@@ -2291,6 +2291,7 @@ function applyMon() {
   mon.root.position.set(mon.x, mon.y + mon.gy, mon.z);
   { const d = Math.atan2(Math.sin((mon.yawT || 0) - (mon.yaw || 0)), Math.cos((mon.yawT || 0) - (mon.yaw || 0))); mon.yaw = (mon.yaw || 0) + d * 0.15; }   // xoay theo đường ngắn nhất
   mon.root.rotation.y = Math.PI - mon.yaw;
+  if (!mon.root.visible && !state.cut && !(mon.carry && mon.carry.kind === 'chomper' && !mon.carry.dead)) mon.root.visible = true;   // cây ăn thịt bị phá giữa lúc nuốt: không để zombie tàng hình
   if (mon.down && (mon.flip || mon.lift || mon.carry || state.phase !== 'play')) { mon.down = null; mon.tilt.position.y = MON_H * 0.45; }
   if (mon.flip) mon.tilt.rotation.x = -Math.PI * 2 * clamp(mon.flip.t / mon.flip.dur, 0, 1); // lộn nhào ra sau
   else if (mon.down) {                                                       // NGÃ NGỬA: đổ ra sau 0,3s → nằm (co giật nhẹ) → chống dậy
@@ -2467,7 +2468,44 @@ function mkSlipper() {
   const s = new THREE.Mesh(geo('strap', () => new THREE.TorusGeometry(0.16, 0.035, 6, 14, Math.PI)), MS(0x2f6fe0, 0.6)); s.rotation.y = Math.PI / 2; put(s, 0, 0.05, 0.12, inner);
   g.userData.inner = inner; return g;
 }
-let foxGltf = null, dogGltf = null, pugGltf = null;
+let foxGltf = null;
+// 🐱 mèo chibi vẽ bằng khối: đầu to, tai nhọn, mắt long lanh, ria, đuôi cong; "mixer" giả để vòng cập nhật chung gọi update(dt)
+function mkCat(coat, h) {
+  const C = coat === 'guard' ? { fur: 0x8a8f99, dark: 0x4a4f58, belly: 0xe8e4dc, eye: 0x9adf3a } : { fur: 0xf2a24a, dark: 0xc8701e, belly: 0xfff1dc, eye: 0x3ab0e8 };
+  const fur = MS(C.fur, 0.85), dark = MS(C.dark, 0.85), belly = MS(C.belly, 0.85), pink = MS(0xff9fb0, 0.6), blk = MS(0x15151a, 0.3), white = MS(0xffffff, 0.2);
+  const root = new THREE.Group(), g = new THREE.Group(); root.add(g);
+  const body = sph(1, fur, 0, 0.42, 0, g); body.scale.set(0.27, 0.25, 0.42);
+  const bl = sph(1, belly, 0, 0.36, 0.06, g); bl.scale.set(0.2, 0.18, 0.34);
+  for (const z of [-0.15, 0.05]) { const st = sph(1, dark, 0, 0.6, z, g); st.scale.set(0.22, 0.06, 0.07); }   // vằn lưng
+  const head = new THREE.Group(); head.position.set(0, 0.72, 0.36); g.add(head);
+  const hd = sph(1, fur, 0, 0, 0, head); hd.scale.set(0.3, 0.27, 0.27);
+  const mz = sph(1, belly, 0, -0.07, 0.2, head); mz.scale.set(0.15, 0.1, 0.09);
+  sph(0.035, pink, 0, -0.02, 0.27, head);
+  for (const sx of [-1, 1]) {
+    const ear = new THREE.Mesh(geo('catEar', () => new THREE.ConeGeometry(0.1, 0.2, 4)), fur); ear.position.set(sx * 0.17, 0.24, -0.02); ear.rotation.set(-0.15, Math.PI / 4, sx * -0.3); head.add(ear);
+    const ein = new THREE.Mesh(geo('catEarIn', () => new THREE.ConeGeometry(0.055, 0.12, 4)), pink); ein.position.set(sx * 0.17, 0.22, 0.02); ein.rotation.set(-0.15, Math.PI / 4, sx * -0.3); head.add(ein);
+    const e = sph(1, MS(C.eye, 0.15, 0, { emissive: C.eye, emissiveIntensity: 0.25 }), sx * 0.11, 0.04, 0.21, head); e.scale.set(0.065, 0.075, 0.04);
+    const pu = sph(1, blk, sx * 0.11, 0.04, 0.245, head); pu.scale.set(0.03, 0.06, 0.02);
+    sph(0.016, white, sx * 0.095, 0.075, 0.255, head);
+    for (const k of [-1, 1]) { const w = box(0.2, 0.008, 0.008, white, sx * 0.2, -0.05 + k * 0.025, 0.2, head); w.rotation.z = sx * k * 0.15; }   // ria
+  }
+  const legs = [];
+  for (const [x, z] of [[-0.13, 0.22], [0.13, 0.22], [-0.13, -0.22], [0.13, -0.22]]) {
+    const pv = new THREE.Group(); pv.position.set(x, 0.36, z); g.add(pv);
+    cyl(0.06, 0.055, 0.3, fur, 0, -0.15, 0, pv, 8); const paw = sph(1, belly, 0, -0.3, 0.02, pv); paw.scale.set(0.07, 0.05, 0.08); legs.push(pv);
+  }
+  const tail = []; let par = g, py = 0.5, pz = -0.4;
+  for (let i = 0; i < 5; i++) { const sg = new THREE.Group(); sg.position.set(0, i ? 0.13 : py, i ? 0 : pz); sg.rotation.x = i ? -0.35 : -0.9; par.add(sg); cyl(0.05 - i * 0.004, 0.055 - i * 0.004, 0.14, i === 4 ? dark : fur, 0, 0.065, 0, sg, 6); tail.push(sg); par = sg; }
+  g.scale.setScalar(h / 0.95);
+  let t = Math.random() * 6;
+  const mixer = { update(dt) {
+    t += dt * 11;
+    legs.forEach((l, i) => { l.rotation.x = Math.sin(t + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.7; });
+    g.position.y = Math.abs(Math.sin(t)) * 0.05 * h; head.rotation.x = Math.sin(t * 2) * 0.05;
+    tail.forEach((sg, i) => { sg.rotation.z = Math.sin(t * 0.5 - i * 0.6) * 0.25; });
+  } };
+  return { g: root, mixer };
+}
 // thú của Zombie Apocalypse Kit: chạy bằng hoạt ảnh "Run" của chính mô hình
 function mkAnimal(gl, h) {
   if (!gl) return null;
@@ -2840,16 +2878,16 @@ const SPAWN = {
     it.g.position.set(mon.x + rand(-1, 1), 8, mon.z + 5); it.state = 'seek'; sfx('whoosh');      // bóng bay từ phía sau tới cứu
     banner('🎈 BÓNG BAY CỨU!', esc(u.name) + ' đưa zombie bay tới', 2);
   },
-  // 🐕 CHÓ GIỮ NHÀ (becgie): như cáo nhưng cắn đẩy mạnh hơn, lì đòn hơn
+  // 🐈 MÈO GIỮ NHÀ (mèo mướp xám to): như cáo nhưng cào đẩy mạnh hơn, lì đòn hơn
   dog: u => {
-    const f = mkAnimal(dogGltf, 1.0) || mkFox(); const it = newItem('fox', u, f.g, { labelY: 1.7, mixer: f.mixer, life: 14, hits: 0, dog: true });
-    it.g.position.set(rand(-0.4, 0.4), 0, HOUSE_FRONT + 0.8); it.state = 'run'; openDoor(); sfx('bite'); popText(new V3(0, 3, HOUSE_FRONT + 1), '🐕 GÂU GÂU!', 'info', 1);
+    const f = mkCat('guard', 0.95); const it = newItem('fox', u, f.g, { labelY: 1.5, mixer: f.mixer, life: 14, hits: 0, dog: true });
+    it.g.position.set(rand(-0.4, 0.4), 0, HOUSE_FRONT + 0.8); it.state = 'run'; openDoor(); sfx('pop'); popText(new V3(0, 3, HOUSE_FRONT + 1), '🐈 MEO MEO!', 'info', 1);
   },
-  // 🐶 CÚN GỠ BẪY (quà fan): pug chạy trước zombie, đánh hơi gỡ bẫy kẹp / bẫy bật / vỏ chuối / keo dính / pháo
+  // 🐱 MÈO GỠ BẪY (quà fan): mèo vàng chạy trước zombie, gỡ bẫy kẹp / bẫy bật / vỏ chuối / keo dính / pháo
   pug: u => {
-    const f = mkAnimal(pugGltf, 0.55); if (!f) return SPAWN.minions(u);
+    const f = mkCat('ginger', 0.6);
     const it = newItem('pug', u, f.g, { labelY: 1.1, mixer: f.mixer, life: 13, noRescale: true });
-    it.g.position.set(clamp(mon.x + 0.8, -LANE, LANE), 0, mon.z + 0.5); it.state = 'run'; sfx('bite'); popText(new V3(mon.x, 2.6, mon.z), '🐶 GÂU!', 'info', 1);
+    it.g.position.set(clamp(mon.x + 0.8, -LANE, LANE), 0, mon.z + 0.5); it.state = 'run'; sfx('pop'); popText(new V3(mon.x, 2.6, mon.z), '🐱 MEO!', 'info', 1);
   },
   fox: u => {
     const f = mkFox(); const it = newItem('fox', u, f.g, { labelY: 1.5, mixer: f.mixer, life: 12, hits: 0 });
@@ -3467,7 +3505,7 @@ function updateVault(it, p, dt) {
   if (f > 0.42 && !it.slow) { it.slow = true; slowT = 0.35; }
   if (f >= 1) { mon.carry = null; mon.y = 0; mon.vy = 0; puff(new V3(mon.x, 0.2, mon.z), { color: T.dust || 0xd8c6a0, n: 8, size: 1, speed: 2.5, life: 0.6 }); sfx('thud'); removeItem(it); }
 }
-// ----- 🐶 cún gỡ bẫy: chạy tới bẫy gần nhất phía trước zombie, gỡ (không nổ), hết giờ thì chạy đi -----
+// ----- 🐱 mèo gỡ bẫy: chạy tới bẫy gần nhất phía trước zombie, gỡ (không nổ), hết giờ thì chạy đi -----
 const PUG_PREY = new Set(['mushroom', 'garlic', 'trap', 'mine', 'banana', 'slime', 'bomb', 'xbarrel', 'chili']);
 function updatePug(it, p, dt) {
   it.life -= dt;
@@ -3477,7 +3515,7 @@ function updatePug(it, p, dt) {
   const tx = tgt ? tgt.g.position.x : clamp(mon.x + 1, -LANE, LANE), tz = tgt ? tgt.g.position.z + 0.6 : mon.z - 2;
   const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
   if (d > 0.3) { const v = Math.min(d, 6.5 * dt); p.x += dx / d * v; p.z += dz / d * v; it.g.rotation.y = Math.atan2(dx, dz); }
-  if (tgt && d < 0.8) { popText(tgt.g.position.clone().setY(1.4), '🐶 GỠ BẪY!', 'heal', 0.8); addPoints(it.owner, 10, 'hero'); sfx('pop'); puff(tgt.g.position.clone().setY(0.4), { color: 0xffffff, n: 5, size: 0.5, speed: 2, life: 0.5, tex: starTex, add: true }); removeItem(tgt); it.tgt = null; }
+  if (tgt && d < 0.8) { popText(tgt.g.position.clone().setY(1.4), '🐱 GỠ BẪY!', 'heal', 0.8); addPoints(it.owner, 10, 'hero'); sfx('pop'); puff(tgt.g.position.clone().setY(0.4), { color: 0xffffff, n: 5, size: 0.5, speed: 2, life: 0.5, tex: starTex, add: true }); removeItem(tgt); it.tgt = null; }
 }
 // ----- nấm phun khói (choáng) / tỏi (hắt sang làn bên kia) khi zombie chạm -----
 function updateTouchPlant(it, p, dt) {
@@ -5020,7 +5058,7 @@ function updateDemo(dt) {
   const n = g.coins <= 1 ? pick([1, 1, 2, 3, 5]) : g.coins <= 10 ? pick([1, 1, 2]) : 1;
   onGift(f.u, g.gift, 1, g.coins); for (let i = 1; i < n; i++) demoQ.push({ u: f.u, g });
   demoLog.push(f.team[0] + ':' + act + (n > 1 ? 'x' + n : '')); if (demoLog.length > 40) demoLog.shift();
-  if (act === 'magnet') demoSay(f, 'hút khiên nè 🧲'); else if (act === 'repair' && S.door < 0.4) demoSay(f, 'sửa cửa gấp!'); else if (act === 'pug') demoSay(f, 'cún gỡ bẫy đi'); else if (act === 'lullaby') demoSay(f, 'ru cây ngủ hết 😴');
+  if (act === 'magnet') demoSay(f, 'hút khiên nè 🧲'); else if (act === 'repair' && S.door < 0.4) demoSay(f, 'sửa cửa gấp!'); else if (act === 'pug') demoSay(f, 'mèo gỡ bẫy đi 🐱'); else if (act === 'lullaby') demoSay(f, 'ru cây ngủ hết 😴');
 }
 
 // =====================================================================
@@ -5086,8 +5124,6 @@ camera.position.copy(camPos); camera.lookAt(camLook);
 requestAnimationFrame(frame);
 try {
   await setupMonster();
-  loadModel('dog', '/games/quaivat/models/animals/shepherd.glb').then(g => { dogGltf = g; g.scene.traverse(o => { if (o.isMesh) { keep(o.geometry); keep(o.material); } }); }).catch(() => {});
-  loadModel('pug', '/games/quaivat/models/animals/pug.glb').then(g => { pugGltf = g; g.scene.traverse(o => { if (o.isMesh) { keep(o.geometry); keep(o.material); } }); }).catch(() => {});
   try { foxGltf = await loadModel('fox', 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/Fox/glTF-Binary/Fox.glb'); foxGltf.scene.traverse(o => { if (o.isMesh) { keep(o.geometry); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { keep(m); TEX_KEYS.forEach(k => keep(m[k])); }); } }); } catch (e) { console.warn('Không tải được cáo', e); }
   $('loading').remove();
   startIntro();
