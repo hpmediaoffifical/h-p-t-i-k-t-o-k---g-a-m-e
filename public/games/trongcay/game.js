@@ -66,7 +66,7 @@
             butterflySunDamagePerSecond: 2.4,
             predatorChancePerSecond: 0.006,
             carnivoreDamage: 55,
-            maxFlowers: 80,
+            maxFlowers: 30,
             maxButterflies: 28,
             display: {
                 gardenXPercent: 50,

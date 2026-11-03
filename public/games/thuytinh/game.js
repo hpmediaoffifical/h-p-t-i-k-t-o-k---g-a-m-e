@@ -455,16 +455,16 @@
         const ctx = canvas.getContext('2d');
         const fxCanvas = opts.fxCanvas || null;
         const fxCtx = fxCanvas ? fxCanvas.getContext('2d') : null;
-        // === HD render (3× supersampling — "nét nhất có thể") ===
-        // Canvas backing-store gấp 3× kích thước hiển thị → text/đường vẽ rasterize ở
-        // 3240×5760 rồi browser downsample 3:1 về 1080×1920 → cực nét, anti-alias chất
-        // lượng cao (oversample 9 pixel/pixel hiển thị).
+        // === HD render (2× supersampling — "nét nhất có thể") ===
+        // Canvas backing-store gấp 2× kích thước hiển thị → text/đường vẽ rasterize ở
+        // 2160×3840 rồi browser downsample 2:1 về 1080×1920 → cực nét, anti-alias chất
+        // lượng cao (oversample 4 pixel/pixel hiển thị).
         // FIX cho user feedback v1.2.0: overlay lên TikTok Live bị mờ vì backing-store
         // cố định 1080×1920 đi qua nhiều lần re-scale (OBS encoder → TikTok server →
         // thiết bị viewer). Drawing logic vẫn dùng coord 1080×1920 logic (CANVAS_W × CANVAS_H);
         // ctx.scale(HD, HD) áp dụng 1 lần — mọi fillText/drawImage không cần đổi.
-        // Memory: 3240×5760×4byte = ~75MB/canvas × 2 (main + fx) = ~150MB. OK với PC modern.
-        const HD = Math.max(window.devicePixelRatio || 1, 3);
+        // Memory: 2160×3840×4byte = ~33MB/canvas × 2 (main + fx) = ~66MB. OK với PC modern.
+        const HD = Math.max(window.devicePixelRatio || 1, 2);
         canvas.width = CANVAS_W * HD;
         canvas.height = CANVAS_H * HD;
         ctx.scale(HD, HD);
@@ -5438,7 +5438,7 @@
 
         // ===== Render =====
         // App preview có thể TẮT render (🙈 Ẩn preview) để giảm lag. Physics (Runner) VẪN chạy nên
-        // app vẫn là authoritative → hiệu ứng gửi sang OBS KHÔNG đổi; chỉ ngừng vẽ canvas HD (3240×5760)
+        // app vẫn là authoritative → hiệu ứng gửi sang OBS KHÔNG đổi; chỉ ngừng vẽ canvas HD (2160×3840)
         // vốn là nguồn tốn CPU nhất trong app. OBS overlay là instance riêng, không gọi hàm này.
         let renderActive = true;
         function setRenderActive(on) {
@@ -5502,7 +5502,7 @@
         function renderFx() {
             if (!renderActive) return;   // preview tắt → dừng vòng vẽ hiệu ứng
             if (!fxCtx) { requestAnimationFrame(renderFx); return; }
-            // không có hiệu ứng nào → khỏi xoá canvas HD (3240×5760) mỗi khung; vẫn xoá 1 lần ngay sau khi hiệu ứng cuối hết
+            // không có hiệu ứng nào → khỏi xoá canvas HD (2160×3840) mỗi khung; vẫn xoá 1 lần ngay sau khi hiệu ứng cuối hết
             const fxBusy = (zigzagLuck.active && zigzagLuck.rect) || fxAnimations.length > 0;
             if (!fxBusy && !fxDrewLast) { requestAnimationFrame(renderFx); return; }
             fxDrewLast = !!fxBusy;
