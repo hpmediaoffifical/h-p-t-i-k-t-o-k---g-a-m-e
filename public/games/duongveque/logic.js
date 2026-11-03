@@ -73,9 +73,10 @@ export const DEFAULTS = {
   // ---- lộ trình về quê (mỗi ván 1 lần, theo phần quãng đường) ----
   restStop: true, restAt: 0.4, restSec: 30,     // 🍜 trạm dừng chân: cả đoàn xuống ăn uống — ĐỒNG HỒ VÁN DỪNG
   gasStop: true, gasAt: 0.7, gasSec: 15,        // ⛽ trạm xăng: đi vệ sinh + đổ đầy bình — đồng hồ dừng
-  police: true, policeChance: 0.7,              // 🚓 CSGT kiểm tra (ngẫu nhiên): thả đủ policeLikes tim mới được đi — đồng hồ VẪN CHẠY
+  police: true, policeChance: 0.7,              // 🚓 CSGT kiểm tra (ngẫu nhiên): thả đủ policeLikes tim mới được đi
   policeLikes: 2000, coinLikes: 10,             // quà Cứu lúc bị giữ: 1 xu = coinLikes tim
-  policeMaxSec: 45,                             // quá bấy nhiêu giây chưa đủ tim → được nhắc nhở cho đi
+  policeMaxSec: 45,                             // quá bấy nhiêu giây chưa đủ tim → nộp phạt (lùi policeFine mét) rồi đi
+  policeFine: 150,
   roadEvents: 3,                                // số tình huống đường xá mỗi ván (kẹt xe, chắn tàu, đàn bò, thủng lốp, say xe, check-in, lì xì)
   flatLikes: 600, flatMaxSec: 25,               // 🛞 thủng lốp: thả bấy nhiêu tim để bơm
   maxUsers: 2000,      // quá bấy nhiêu người xem thì đầu ván dọn người không còn trên xe / không lái
@@ -445,9 +446,10 @@ export function createGame(options = {}, rnd = Math.random) {
     return plan.sort((a, b) => a.at - b.at);
   }
   function startHalt(kind) {
-    const h = { kind, t: 0, got: 0, need: 0, left: 0, maxLeft: 0, pauseClock: false, deferred: [], helpers: new Map() };
-    if (kind === 'rest') { h.left = cfg.restSec; h.pauseClock = true; }
-    else if (kind === 'gas') { h.left = cfg.gasSec; h.pauseClock = true; g.fuel = 100; g.walking = false; g.fuelAlarm = null; }
+    // mọi điểm dừng đều dừng đồng hồ ván: chuyện dọc đường không nghiêng về phe nào (đo bằng mô phỏng)
+    const h = { kind, t: 0, got: 0, need: 0, left: 0, maxLeft: 0, pauseClock: true, deferred: [], helpers: new Map() };
+    if (kind === 'rest') h.left = cfg.restSec;
+    else if (kind === 'gas') { h.left = cfg.gasSec; g.fuel = 100; g.walking = false; g.fuelAlarm = null; }
     else if (kind === 'police') { h.need = cfg.policeLikes; h.maxLeft = cfg.policeMaxSec; }
     else if (kind === 'flat') { h.need = cfg.flatLikes; h.maxLeft = cfg.flatMaxSec; }
     else h.left = TIMED[kind] || 5;
@@ -464,7 +466,21 @@ export function createGame(options = {}, rnd = Math.random) {
     g.halt = null;
     const helpers = [...h.helpers].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, n]) => { const u = g.users.get(id); return { id, name: u ? u.name : id, avatar: u ? u.avatar : '', likes: n }; });
     emit('haltEnd', { kind: h.kind, how, helpers });
-    for (const d of h.deferred) applyAction(d.action, d.u, d.coins, d.count, d.driverDone);
+    // Quà dồn lúc dừng: cộng gọn thành 1 cú đẩy ròng (mét Cứu − mét Phá). Không chạy lần lượt từng container / lốc xoáy
+    // (xếp hàng sẽ giữ xe đứng yên rất lâu sau khi đi tiếp → lệch về phe Phá, đo bằng mô phỏng).
+    if (h.deferred.length) {
+      let net = 0, cuu = 0, pha = 0, shield = 0;
+      for (const d of h.deferred) {
+        const a = ACTION_BY_ID[d.action], m = metersFor(d.coins * d.count, cfg);
+        if (d.action === 'helmet') { shield += m; cuu += m; continue; }
+        if (d.action === 'fuel') g.fuel = Math.min(100, g.fuel + Math.max(cfg.fuelMin, Math.min(100, d.coins * d.count * cfg.fuelPerCoin)));
+        if (a.side === 'cuu') { net += m; cuu += m; } else { net -= m; pha += m; }
+      }
+      g.shield += shield;
+      if (net > 0) addPush(net, 2, 'cuu', 'stash'); else if (net < 0) addPush(-net, 2, 'pha', 'stash');
+      emit('stash', { cuu: Math.round(cuu), pha: Math.round(pha), net: Math.round(net), n: h.deferred.length });
+    }
+    if (h.kind === 'police' && how === 'timeout' && cfg.policeFine > 0) { addPush(cfg.policeFine, 1.2, 'pha', 'fine'); emit('fine', { meters: cfg.policeFine }); }
   }
   /** Tình huống không bắt dừng: kẹt xe (chậm), lì xì (thưởng). */
   function startRoadEffect(kind) {
@@ -481,6 +497,8 @@ export function createGame(options = {}, rnd = Math.random) {
   };
   function stepPlan() {
     if (g.halt || g.exclusive) return;
+    // điểm đã vượt quá 300 m (bị đẩy vọt qua) thì bỏ qua — không dừng sai chỗ
+    for (const x of g.plan) if (!x.done && g.dist - x.at > 300) x.done = true;
     const next = g.plan.find(x => !x.done && g.dist >= x.at);
     if (!next) return;
     next.done = true;

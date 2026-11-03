@@ -385,14 +385,15 @@ test('trạm xăng: đổ đầy bình, dừng 15 giây rồi đi; mỗi trạm 
   assert.equal(g.halt, null);
 });
 
-test('CSGT: đồng hồ vẫn chạy, đủ 2000 tim (hoặc quà Cứu 1 xu = 10 tim) mới được đi; quá giờ thì được nhắc nhở cho đi', () => {
+test('CSGT: đồng hồ ván dừng, đủ 2000 tim (hoặc quà Cứu 1 xu = 10 tim) mới được đi; quá giờ thì nộp phạt lùi 150 m', () => {
   const g = PLAN({ goal: 6000, roundSec: 999 });
+  g.dist = 2000;
   assert.equal(g.triggerEvent('police'), true);
   const t0 = g.timeLeft;
   g.like(A, 1500);
   for (let i = 0; i < 20; i++) g.step(0.1);
   assert.equal(g.halt.kind, 'police');
-  assert.ok(g.timeLeft < t0 - 1.9);
+  assert.equal(g.timeLeft, t0);
   g.gift(B, { action: 'wind', coins: 50 });   // +500 tim
   g.step(0.05);
   assert.equal(g.halt, null);
@@ -401,9 +402,13 @@ test('CSGT: đồng hồ vẫn chạy, đủ 2000 tim (hoặc quà Cứu 1 xu = 
   assert.equal(end.helpers[0].id, 'a');
   // quá giờ
   assert.equal(g.triggerEvent('police'), true);
+  const d1 = g.dist;
   for (let i = 0; i < 460; i++) g.step(0.1);
   assert.equal(g.halt, null);
-  assert.ok(g.drainEvents().some(e => e.type === 'haltEnd' && e.how === 'timeout'));
+  const ev = g.drainEvents();
+  assert.ok(ev.some(e => e.type === 'haltEnd' && e.how === 'timeout') && ev.some(e => e.type === 'fine'));
+  assert.ok(g.pushes.some(p => p.kind === 'fine' && p.side === 'pha' && Math.abs(p.m - 150) < 1e-9));
+  void d1;
 });
 
 test('quà Phá lúc bị CSGT giữ không tính tim, vẫn chạy khi xe đi tiếp', () => {
@@ -416,7 +421,9 @@ test('quà Phá lúc bị CSGT giữ không tính tim, vẫn chạy khi xe đi t
   g.like(A, 90);
   g.step(0.05);
   assert.equal(g.halt, null);
-  assert.equal(g.xqueue.length + (g.exclusive ? 1 : 0), 1);
+  const st = g.drainEvents().find(e => e.type === 'stash');
+  assert.ok(st && st.n === 2 && st.net < 0, JSON.stringify(st));
+  assert.ok(g.pushes.some(p => p.kind === 'stash' && p.side === 'pha'));
 });
 
 test('lộ trình: trạm dừng + trạm xăng + CSGT + tình huống đúng chặng, không chồng nhau, mỗi ván làm lại', () => {
@@ -436,7 +443,7 @@ test('lộ trình: trạm dừng + trạm xăng + CSGT + tình huống đúng ch
   }
 });
 
-test('tình huống: chắn tàu dừng 7 giây (đồng hồ chạy), kẹt xe làm chậm, thủng lốp thả tim bơm, lì xì cho xăng + đẩy tới', () => {
+test('tình huống: chắn tàu dừng 7 giây (đồng hồ dừng), kẹt xe làm chậm, thủng lốp thả tim bơm, lì xì cho xăng + đẩy tới', () => {
   const g = PLAN({ goal: 6000, roundSec: 999, speed: 20 });
   g.triggerEvent('train');
   for (let i = 0; i < 60; i++) g.step(0.1);
@@ -468,4 +475,12 @@ test('tuyến Cà Mau → Hà Giang: đủ 34 tỉnh/thành sau sắp xếp 2025
   assert.equal(provinceAt(6000, 6000).name, 'Tuyên Quang');
   assert.equal(provinceIndex(3000, 6000), 17);
   assert.deepEqual(rangesOf(['Hà Nội']).length, 1);
+});
+
+test('bị đẩy vọt qua điểm dừng quá 300 m (vd quà trực thăng) thì bỏ qua điểm đó, không dừng sai chỗ', () => {
+  const g = PLAN({ restStop: true, restAt: 0.4, gasStop: true, gasAt: 0.7, goal: 6000, speed: 20 });
+  g.dist = 4300;                // đã qua trạm dừng (2.400) và trạm xăng (4.200) ... trạm xăng chỉ qua 100 m
+  g.step(0.05);
+  assert.equal(g.halt && g.halt.kind, 'gas');
+  assert.ok(g.plan.find(x => x.kind === 'rest').done);
 });

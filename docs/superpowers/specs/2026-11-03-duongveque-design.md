@@ -11,6 +11,23 @@ Thuộc nhóm 🎮 Game Tương Tác (1 dòng trong `public/games/gametuongtac/r
 - Bình luận **1** = phe Cứu + lên xe (ảnh đại diện ngồi trên xe) · **2** = phe Phá (xuống xe).
 - **Quà tài xế** (mặc định Mũ lưỡi trai 99 xu): lên lái `dvqDriverSec` = 180 giây, người sau xếp hàng, hết giờ đổi người; **không ai chờ → người đang lái giữ nguyên**. Tự tặng thêm = cộng giờ, ×N = N lượt. Tặng lúc chờ ván vẫn nhận lái ngay.
 
+## Tuyến Cà Mau → Hà Giang · đoàn xe · dọc đường (đợt 2, 03/11)
+
+- **Tuyến 34 tỉnh, thành sau sắp xếp 2025** (NQ 202/2025/QH15) — `public/games/duongveque/route.js`: Mũi Cà Mau → Cột cờ Lũng Cú.
+  Mỗi tỉnh 1/34 quãng đường, có `old` (tỉnh cũ đã gộp, hiện trên biển chào), `landmark`, `biome` (delta · fields · city · highland ·
+  coast · heritage · karst · mountain → cảnh xa / giữa / ven đường / nền trước), `lm` (công trình mốc vẽ riêng: Landmark 81, Cầu Rồng,
+  Đại Nội, Vịnh Hạ Long, Hồ Gươm, Thác Bản Giốc…). Test kiểm 34 + các tỉnh cũ = đúng 63.
+- **Đoàn xe**: mỗi xe `dvqSeats` 14 ghế; đầy thì nối xe sau (tối đa `dvqMaxCars` 3), cả cảnh thu nhỏ (zoom 1 / 0,8 / 0,66). Người ngồi
+  thấy **đầu + vai** (ảnh đại diện làm mặt, áo màu theo người).
+- **Lộ trình mỗi ván** (`game.plan`): 🍜 trạm dừng chân (40%, 30 giây, cả đoàn xuống ăn) · ⛽ trạm xăng (70%, 15 giây, đầy bình, đi vệ sinh) ·
+  🚓 CSGT (70% ván có, vị trí ngẫu nhiên: thả `dvqPoliceLikes` 2.000 tim mới được đi, quà Cứu 1 xu = 10 tim, quá 45 giây nộp phạt lùi 150 m) ·
+  3 tình huống đúng nơi: 🚗 kẹt xe (TP.HCM, Hà Nội) · 🚂 chắn tàu (Bắc Trung Bộ, đồng bằng Bắc Bộ) · 🐄 đàn bò (cao nguyên) · 🛞 thủng lốp
+  (thả 600 tim bơm) · 🤢 say xe (đèo núi) · 📸 check-in (Hải Vân, Hạ Long, Sa Pa) · 🧧 lì xì (Cao Bằng, Hà Giang). 📞 Mẹ gọi điện dọc đường (chỉ hình).
+- **Mọi điểm dừng đều dừng đồng hồ ván** và quà tặng lúc dừng **gộp thành 1 cú đẩy ròng** khi xe đi tiếp — cả hai đều do mô phỏng bắt được
+  (đồng hồ chạy lúc dừng → Phá 25/40; quà dồn chạy lần lượt container/lốc xoáy → giữ xe đứng lâu). Bị đẩy vọt qua điểm dừng > 300 m → bỏ qua.
+- Bảng cân bằng sau đợt 2 (lộ trình bật): ngang xu 20–20 · Cứu 55% 26–14 · Phá 65% 6–34 · Cứu 75% 38–2 · phòng ít quà 9–31 (→ đường 3 km).
+- Thử: `?event=rest|gas|police|flat|train|cows|jam|carsick|photo|lixi`, panel có hàng nút "🗺️ Dọc đường".
+
 ## Luật (thuần, `public/games/duongveque/logic.js`, test `tests/duongveque-logic.test.mjs`)
 
 - Mọi quà quy ra **mét theo xu** (`meterPerCoin` 5, tối thiểu 15 m) → quà Cứu và quà Phá cùng giá triệt tiêu nhau. Tặng ×N chạy đủ (gộp xu).

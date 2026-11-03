@@ -1010,7 +1010,7 @@ function updateHud(dt) {
     $('rsec').textContent = `${Math.max(0, Math.ceil(game.fuelAlarm.left))}s`;
     $('rbar').style.width = `${(1 - game.fuelAlarm.left / game.cfg.rescueSec) * 100}%`;
   } else rs.classList.add('hidden');
-  $('feed').classList.toggle('hidden', !rs.classList.contains('hidden'));
+  $('feed').classList.toggle('hidden', !rs.classList.contains('hidden') || game.phase !== 'race');
   // màn chờ
   const lob = $('lobby');
   if (game.phase === 'lobby') {
@@ -1041,6 +1041,7 @@ function showResult(r) {
     <h2>${win ? `Phe 🛡️ CỨU thắng · ${fmt(r.timeUsed)} giây` : r.reason === 'depot' ? `Phe ⚔️ PHÁ thắng · ${fmt(r.timeUsed)} giây` : `Phe ⚔️ PHÁ thắng · còn ${dtx(r.goal - r.dist)}`}</h2>
     <div class="cols"><div class="col cuu"><h3>🦸 Ân nhân</h3>${r.topCuu.map(row).join('') || '<div class="pr">—</div>'}</div>
     <div class="col pha"><h3>😈 Kẻ phá</h3>${r.topPha.map(row).join('') || '<div class="pr">—</div>'}</div></div>
+    ${win ? '<div class="stat">🚩 Đã tới Cột cờ Lũng Cú · Hà Giang — qua đủ 34 tỉnh</div>' : ''}
     ${win ? (topPha ? `<div class="note trash">🗑️ <b>${esc(topPha.name)}</b> bị ném vào thùng rác!</div>` : '<div class="note trash">🧧 Cả nhà đón ở cổng làng!</div>')
           : `<div class="note trash">🗑️ <b>${esc(VIEW.streamerName)}</b> bị ném vào thùng rác!</div>${topPha ? `<div class="note pen">👑 <b>${esc(topPha.name)}</b> chọn hình phạt: ${esc(pen)}</div>` : ''}`}
     ${r.betrayers.length ? `<div class="stat">🐍 Phản bội: ${r.betrayers.map(b => esc(b.name)).join(', ')}</div>` : ''}
@@ -1137,8 +1138,10 @@ function onEvents(list) {
       case 'roundEnd': saveStats(e); showResult(e); if (e.winner === 'cuu') { confetti(160); SFX.win(); } else SFX.lose(); break;
       case 'lobby': $('result').classList.add('hidden'); break;
       case 'join': toast(e.side, e.user, e.side === 'cuu' ? '🛡️ vào phe Cứu · lên xe' : '⚔️ vào phe Phá'); break;
-      case 'halt': { const tx = HALT_TXT[e.kind]; if (tx) banner(`${tx.icon} ${tx.title.toUpperCase()}${e.need ? `<small>Thả ${fmt(e.need)} tim để đi tiếp</small>` : `<small>${e.pauseClock ? 'Đồng hồ ván tạm dừng' : 'Dừng ' + Math.round(e.sec) + ' giây'}</small>`}`, e.kind === 'police' || e.kind === 'flat' ? 'pha' : 'gold', 2600, 3); if (e.kind === 'police') SFX.alarm(); break; }
-      case 'haltEnd': { const who = e.helpers && e.helpers[0]; banner(`🚌 XUẤT PHÁT TIẾP!${who ? `<small>❤️ Cảm ơn ${esc(who.name)} đã thả tim</small>` : e.how === 'timeout' ? '<small>👮 Được nhắc nhở cho đi</small>' : ''}`, 'cuu', 2000, 2); SFX.honk(); break; }
+      case 'halt': { const tx = HALT_TXT[e.kind]; if (tx) banner(`${tx.icon} ${tx.title.toUpperCase()}${e.need ? `<small>Thả ${fmt(e.need)} tim để đi tiếp</small>` : `<small>Dừng ${Math.round(e.sec)} giây · đồng hồ ván tạm dừng</small>`}`, e.kind === 'police' || e.kind === 'flat' ? 'pha' : 'gold', 2600, 3); if (e.kind === 'police') SFX.alarm(); break; }
+      case 'haltEnd': { const who = e.helpers && e.helpers[0]; banner(`🚌 XUẤT PHÁT TIẾP!${who ? `<small>❤️ Cảm ơn ${esc(who.name)} đã thả tim</small>` : e.how === 'timeout' && e.kind === 'police' ? '<small>🧾 Nộp phạt rồi đi tiếp</small>' : ''}`, 'cuu', 2000, 2); SFX.honk(); break; }
+      case 'stash': banner(`📦 QUÀ DỒN LÚC DỪNG<small>🛡️ +${dtx(e.cuu)} · ⚔️ −${dtx(e.pha)} → ${e.net >= 0 ? 'tiến' : 'lùi'} ${dtx(Math.abs(e.net))}</small>`, e.net >= 0 ? 'cuu' : 'pha', 2600, 3); break;
+      case 'fine': banner(`🧾 NỘP PHẠT!<small>Chưa đủ tim — lùi ${dtx(e.meters)}</small>`, 'pha', 2400, 3); SFX.lose(); break;
       case 'deferred': toast(e.side, e.user, `${ACTION_BY_ID[e.action].emoji} ⏳ chạy khi xe đi`); break;
       case 'roadEvent': if (e.kind === 'jam') banner(`🚗 KẸT XE CỬA NGÕ ${esc(ROUTE[provIdx(game.dist)].name.toUpperCase())}!<small>Chạy chậm 10 giây</small>`, 'pha', 2200, 2); else if (e.kind === 'lixi') { banner('🧧 HỌ HÀNG LÌ XÌ!<small>+30% xăng · đẩy tới</small>', 'cuu', 2200, 2); for (let i = 0; i < 40; i++) fx.push({ k: 'conf', x: SX, y: contactY(cam) - 300, vx: (Math.random() - 0.5) * 700, vy: -400 - Math.random() * 500, c: i % 3 ? '#e8322c' : '#ffd23a', t: 0, dur: 2, r: 0 }); SFX.good(); } break;
       case 'driver': banner(`🧑‍✈️ <b>${esc(e.user.name)}</b> LÊN LÀM TÀI XẾ!<small>lái ${fmtClock(e.sec)}${e.prev ? ` · thay ${esc(e.prev.name)}` : ''}</small>`, 'cuu', 2600, 3); SFX.honk(); break;
@@ -1158,9 +1161,9 @@ function onEvents(list) {
 const HALT_TXT = {
   rest:    { icon: '🍜', title: 'Trạm dừng chân', sub: 'Cả đoàn xuống ăn uống, nghỉ ngơi · đồng hồ ván tạm dừng' },
   gas:     { icon: '⛽', title: 'Trạm xăng', sub: 'Đổ đầy bình · ai cần đi vệ sinh thì xuống · đồng hồ tạm dừng' },
-  police:  { icon: '🚓', title: 'CSGT kiểm tra hành chính!', sub: 'Thả tim để xuất trình giấy tờ · quà Cứu: 1 xu = 10 tim' },
+  police:  { icon: '🚓', title: 'CSGT kiểm tra hành chính!', sub: 'Thả tim để xuất trình giấy tờ · quà Cứu: 1 xu = 10 tim · quá giờ nộp phạt lùi 150 m' },
   flat:    { icon: '🛞', title: 'Thủng lốp!', sub: 'Thả tim để bơm lốp · quà Cứu: 1 xu = 10 tim' },
-  train:   { icon: '🚂', title: 'Chắn tàu', sub: 'Dừng chờ tàu Thống Nhất chạy qua' },
+  train:   { icon: '🚂', title: 'Chắn tàu', sub: 'Dừng chờ tàu Thống Nhất chạy qua · đồng hồ tạm dừng' },
   cows:    { icon: '🐄', title: 'Đàn bò qua đường', sub: 'Chờ bà con lùa bò qua' },
   carsick: { icon: '🤢', title: 'Có người say xe', sub: 'Dừng hóng gió, uống miếng nước' },
   photo:   { icon: '📸', title: 'Dừng check-in', sub: 'Chụp tấm hình kỷ niệm rồi đi tiếp' },
@@ -1169,8 +1172,11 @@ const EAT = ['🍜 Phở ngon!', '🥖 Bánh mì!', '☕ Cà phê sữa đá!', 
 const MOM = ['📞 Mẹ: Tới {p} chưa con?', '📞 Mẹ: Ở nhà gói bánh chưng rồi nè!', '📞 Ba: Chạy chậm thôi con!', '📞 Mẹ: Nhớ mua quà cho ngoại nha!', '📞 Bà: Về tới đâu rồi cháu?', '📞 Mẹ: Đi đường nhớ ăn uống nha!'];
 /** công trình của điểm dừng đặt tại vị trí trên lộ trình (vẽ cả lúc chưa tới, để thấy từ xa) */
 function drawPlanScenery() {
-  const V = vehOf();
-  for (const it of game.plan || []) {
+  const V = vehOf(), list = (game.plan || []).slice();
+  const hk = game.halt && game.halt.kind;
+  // bấm thử tình huống ở chỗ không có trong lộ trình → vẫn dựng công trình tại chỗ xe đang dừng
+  if (['rest', 'gas', 'police', 'train'].includes(hk) && !list.some(it => it.kind === hk && it.done && Math.abs(it.at - game.dist) < 120)) list.push({ kind: hk, at: game.dist, done: true });
+  for (const it of list) {
     if (!['rest', 'gas', 'police', 'train'].includes(it.kind)) continue;
     const m = it.at + S(V.mid) / PX, x = xAt(m);
     if (x < -500 || x > W + 500) continue;
@@ -1225,19 +1231,19 @@ function drawHaltScene(cy) {
   const mid = SX + S(V.mid), gy = contactY(cam) + S(130);         // người xuống đứng ở lề gần (trước đường)
   if (h.kind === 'rest') {
     pax.slice(0, 10).forEach((u, i) => {
-      const x = mid - S(420) + i * S(96), y = gy + (i % 2) * S(30);
-      walker(x, y, u, VS * 0.9, i, true);
-      if ((Math.floor(h.t / 2) + i) % 4 === 0) bubble(x, y - S(170), EAT[(i + Math.floor(h.t / 2)) % EAT.length]);
+      const x = mid - S(460) + i * S(120), y = gy + (i % 2) * S(34);
+      walker(x, y, u, VS * 1.35, i, true);
+      if ((Math.floor(h.t / 2) + i) % 4 === 0) bubble(x, y - S(250), EAT[(i + Math.floor(h.t / 2)) % EAT.length]);
     });
   } else if (h.kind === 'gas') {
     ctx.strokeStyle = '#222'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(mid - S(150), cy - S(120)); ctx.quadraticCurveTo(mid - S(200), cy - S(20), SX - S(V.rear - 40), cy - S(80)); ctx.stroke();
-    pax.slice(0, 4).forEach((u, i) => walker(mid + S(240) + i * S(80), gy, u, VS * 0.85, i));
+    pax.slice(0, 4).forEach((u, i) => walker(mid + S(240) + i * S(110), gy, u, VS * 1.3, i));
     bubble(mid + S(260), gy - S(190), '🚻 Xếp hàng vệ sinh!');
   } else if (h.kind === 'police') {
     const px = SX + S(260), py = contactY(cam);
-    csgt(px, py, VS * 1.15);
+    csgt(px, py, VS * 1.6);
     scooter(px + S(170), py - S(4), { color: '#e9e4d0', rider: 'none', gifts: false, scale: VS * 0.8 });
-    bubble(px, py - S(300), Math.floor(h.t / 3) % 2 ? '👮 Giấy tờ xe đâu?' : '👮 Thả tim mới cho đi nha!');
+    bubble(px, py - S(420), Math.floor(h.t / 3) % 2 ? '👮 Giấy tờ xe đâu?' : '👮 Thả tim mới cho đi nha!');
   } else if (h.kind === 'cows') {
     for (let k = 0; k < 3; k++) { const x = SX + S(220) + k * S(150) - h.t * S(10); cow(x, contactY(meterAt(x)) - S(6), VS * 0.9, k); }
     bubble(SX + S(380), contactY(cam) - S(220), '👨‍🌾 Từ từ cho bò qua!');
@@ -1246,11 +1252,11 @@ function drawHaltScene(cy) {
     bubble(SX, cy - S(V.top + 120), '💨 Xì lốp rồi!');
   } else if (h.kind === 'carsick') {
     const u = pax[0] || { name: 'Khách', id: 'k' };
-    walker(SX + S(200), gy, u, VS * 0.9, 0, true);
-    bubble(SX + S(200), gy - S(190), '🤢 Cho em xuống hóng gió…');
+    walker(SX + S(200), gy, u, VS * 1.35, 0, true);
+    bubble(SX + S(200), gy - S(260), '🤢 Cho em xuống hóng gió…');
   } else if (h.kind === 'photo') {
-    pax.slice(0, 6).forEach((u, i) => walker(mid - S(240) + i * S(110), gy, u, VS * 0.9, i, true));
-    bubble(mid, gy - S(210), `📸 Check-in ${ROUTE[provIdx(cam)].landmark}!`);
+    pax.slice(0, 6).forEach((u, i) => walker(mid - S(300) + i * S(130), gy, u, VS * 1.35, i, true));
+    bubble(mid, gy - S(290), `📸 Check-in ${ROUTE[provIdx(cam)].landmark}!`);
     if ((h.t % 1.2) < 0.12) { ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillRect(0, 0, W, H); }
   }
 }
@@ -1541,6 +1547,7 @@ if (Q.get('warp') || Q.get('act')) setTimeout(() => {
   if (Q.get('event')) game.triggerEvent(Q.get('event'));
   window.__dvq.step(Number(Q.get('after')) || 0);
   if (Q.get('end')) { game.forceEnd(Q.get('end')); window.__dvq.step(1.5); }
+  if (Q.get('freeze') === '1') window.__dvq.freeze = true;   // chụp đúng khoảnh khắc này
 }, 1200);
 
 // bàn phím khi mở trong cửa sổ game / trình duyệt
