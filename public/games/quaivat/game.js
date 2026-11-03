@@ -1346,6 +1346,11 @@ function houseDeco(H, F) {
   if (st === 'volcano') {                                          // gai obsidian dọc nóc, đầu gai ánh dung nham
     const obs = MS(0x15101a, 0.25, 0.4), lv = MS(0x2a0a00, 0.5, 0, { emissive: 0xff5a10, emissiveIntensity: 2 });
     for (let x = -2.8; x <= 2.81; x += 0.7) { const c = new THREE.Mesh(geo('obsSpike', () => new THREE.ConeGeometry(0.22, 1.3, 5)), obs); put(c, x, 11.1, 0, H); c.rotation.z = rand(-0.2, 0.2); sph(0.07, lv, x, 11.75, 0, H); }
+    for (const sx of [-1, 1]) {                                                    // 2 chậu lửa đá 2 bên cửa
+      cyl(0.32, 0.4, 1.3, MS(0x2a2422, 0.9), sx * 2.7, 0.65, F + 1.1, H, 8); cyl(0.55, 0.35, 0.35, MS(0x1a1614, 0.8, 0.3), sx * 2.7, 1.45, F + 1.1, H, 10);
+      const fl = new THREE.Mesh(geo('brazFire', () => new THREE.ConeGeometry(0.36, 0.9, 7)), MS(0xff7a10, 0.4, 0, { emissive: 0xff5a00, emissiveIntensity: 2.6 })); put(fl, sx * 2.7, 2.05, F + 1.1, H, false);
+      const fl2 = new THREE.Mesh(geo('brazFire2', () => new THREE.ConeGeometry(0.2, 0.6, 6)), MS(0xffd040, 0.3, 0, { emissive: 0xffc020, emissiveIntensity: 3 })); put(fl2, sx * 2.7, 1.95, F + 1.1, H, false);
+    }
   }
   if (st === 'snow') {                                            // băng nhũ dưới mái, tuyết đọng
     const snowM = MS(0xf8fbff, 0.6), ice = MS(0xd8f2ff, 0.15, 0.1, { transparent: true, opacity: 0.85 });
@@ -1400,8 +1405,9 @@ function roofHeightAt(prof, x) {                                                
 function buildHouse() {
   const H = new THREE.Group(); H.scale.setScalar(HS); H.position.set(0, 0, HOUSE_FRONT - 5 * HS); world.add(H);
   const F = 5.0;                                   // mặt trước (toạ độ cục bộ)
-  const white = MS(0xf7f4ec, 0.6), whiteD = MS(0xe2ddd0, 0.7), metal = MS(0x8a8f96, 0.45, 0.6), darkM = MS(0x2c2a28, 0.5, 0.5);
-  const shutterCol = { 'Vườn Xanh': 0x3d6f96, 'Mùa Thu': 0x55703a, 'Xứ Tuyết': 0x9a3b2c }[T.name] || 0x3d6f96;
+  const VOL = T.style === 'volcano';                                             // nhà núi lửa: viền đá bazan tối, cửa chớp sắt, không chậu hoa
+  const white = VOL ? MS(0x3a3330, 0.85) : MS(0xf7f4ec, 0.6), whiteD = VOL ? MS(0x241e1c, 0.9) : MS(0xe2ddd0, 0.7), metal = MS(0x8a8f96, 0.45, 0.6), darkM = MS(0x2c2a28, 0.5, 0.5);
+  const shutterCol = { 'Vườn Xanh': 0x3d6f96, 'Mùa Thu': 0x55703a, 'Xứ Tuyết': 0x9a3b2c }[T.name] || (VOL ? 0x2a2426 : 0x3d6f96);
 
   // ---- móng đá + tường vữa (sáng dần lên trên) + đá góc nhà ----
   const stoneTex = ctex(256, 128, (g, w, h) => {
@@ -1492,7 +1498,11 @@ function buildHouse() {
     }
     if (AR === 'chalet') {                                         // tuyết dày 2 mái + ban công gỗ + ống khói đá
       const snowM = MS(0xf8fbff, 0.55), a = Math.atan2(6.6, 9.3), L = Math.hypot(6.6, 9.3);
-      for (const sx of [-1, 1]) { const sn = box(L * 0.92, 0.32, 11.6, snowM, sx * 9.3 / 2 * 0.98, 5.9 + 6.6 / 2 + 0.2, 0, H); sn.rotation.z = -sx * a; }
+      for (const sx of [-1, 1]) {                                     // lớp tuyết dày phủ 2 mái, chồm ra mép hồi trước → nhìn thẳng vẫn thấy
+        const nx = -sx * Math.sin(a) * -1, off = 0.36, sn = box(L * 0.97, 0.55, 12.2, snowM, sx * 9.3 / 2 + sx * Math.sin(a) * off, 5.9 + 6.6 / 2 + Math.cos(a) * off, 0.1, H); sn.rotation.z = -sx * a;
+        for (let i = 0; i < 7; i++) { const t = (i + 0.5) / 7, x = sx * 9.3 * (1 - t), y = 5.9 + 6.6 * t; const lump = sph(1, snowM, x, y + 0.45, 6.15, H); lump.scale.set(0.75, 0.32, 0.4); lump.rotation.z = -sx * a; }   // gờ tuyết tròn dọc mép hồi
+      }
+      for (let x = -5.1; x <= 5.15; x += 1.05) { const c = sph(1, snowM, x, 7.27, F + 1.25, H); c.scale.set(0.55, 0.12, 0.14); }   // tuyết trên lan can
       const wood = MS(0x6a4022, 0.85), woodL = MS(0x8a5a32, 0.8);
       box(10.5, 0.18, 1.3, wood, 0, 6.2, F + 0.65, H); box(10.5, 0.12, 0.12, woodL, 0, 7.15, F + 1.25, H);
       for (let x = -5.1; x <= 5.15; x += 0.42) box(0.1, 0.9, 0.1, woodL, x, 6.7, F + 1.25, H);
@@ -1567,7 +1577,7 @@ function buildHouse() {
       for (let i = 0; i < 9; i++) { const fx = -wdt / 2 + 0.05 + i * (wdt / 8); sph(0.12, MS(0x3f8f2e, 0.8), fx, -hgt / 2 - 0.26, 0.26, Wd); sph(0.1, MS(pick(flowerCols), 0.6), fx + rand(-0.04, 0.04), -hgt / 2 - 0.16, 0.32, Wd); }
     }
   }
-  for (const x of [-4.9, 4.9]) windowAt(x, 3.6, F + 0.06, 0, 2.3, 1.9, true);
+  for (const x of [-4.9, 4.9]) windowAt(x, 3.6, F + 0.06, 0, 2.3, 1.9, !VOL);
   if (houseArchi() === 'chalet') windowAt(0, 5.9 + 3.0, 5.93, 0, 1.6, 1.4, false);   // cửa sổ áp mái trên đầu hồi
   for (const sx of [-1, 1]) windowAt(sx * 8.06, 3.6, 0, sx * Math.PI / 2, 2.0, 1.7, false);       // cửa sổ tường bên
 
