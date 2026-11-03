@@ -4,7 +4,7 @@
     {
       "id": "t1",
       "minCoins": 1,
-      "maxLevel": 10,
+      "maxLevel": 12,
       "balls": 1,
       "labelVi": "Quà 1 - 4 xu"
     },
@@ -171,8 +171,9 @@
     }
   ],
   "social": {
-    "likesPerBall": 10,
+    "likesPerBall": 30,
     "likeBallTier": "POKEBALL",
+    "likeBallLevel": 6,
     "shareBalls": 1,
     "shareBallTier": "GREAT_BALL",
     "followBalls": 1,

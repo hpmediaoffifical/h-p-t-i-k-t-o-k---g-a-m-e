@@ -69,11 +69,13 @@
                 <h3>🎮 Cách chơi (nói cho người xem)</h3>
                 <ol class="pokemon-steps">
                     <li>Gõ <b>111</b> để vào ghế thi đấu (nhận 1 Poké Ball).</li>
-                    <li>Táp tim: mỗi 10 tim = 1 cầu Lv.10, tự ném. Chia sẻ / theo dõi nhận 1 cầu Lv.20.</li>
-                    <li>Mỗi quà = đúng 1 quả cầu; giá quà quyết định cấp cầu (bắt chắc Pokemon tới cấp đó): 1 xu Lv.10 · 5 xu Lv.20 · 10 xu Lv.25 · 20 xu Lv.30 · 30 xu Lv.35 · 99 xu Lv.40 · … · 5000 xu Lv.100 (Master Ball, bắt 100%).</li>
+                    <li>Táp tim: mỗi 30 tim = 1 cầu Lv.6, tự ném. Chia sẻ (mỗi người 2 phút/lần) / theo dõi nhận 1 cầu Lv.20.</li>
+                    <li>Mỗi quà = đúng 1 quả cầu; giá quà quyết định cấp cầu (cầu đủ cấp bắt ≥ 90%): 1 xu Lv.12 · 5 xu Lv.20 · 10 xu Lv.25 · 20 xu Lv.30 · 30 xu Lv.35 · 99 xu Lv.40 · … · 5000 xu Lv.100 (Master Ball, bắt 100%). Bóng quà được ném trước bóng tim.</li>
                     <li>Quà tạo sự kiện cho cả phòng: 50 xu mồi hiếm · 88-99 xu đổi thời tiết · 100 xu đổi lượt Pokemon · 199 xu đóng băng · 299 xu x2 điểm · 500 xu mưa cầu mọi ghế · 1000 xu triệu hồi Huyền Thoại.</li>
                     <li>Cả phòng xong hết nhiệm vụ → top 3 bảng xếp hạng nhận 1 cầu quý Lv.85, hạng 4-20 nhận cầu Lv.40, nhiệm vụ làm lại (tối đa 3 vòng/ngày). Người tặng quà được vinh danh trên màn.</li>
-                    <li>Quà triệu hồi Huyền Thoại: con đó khoá 10 giây cho người tặng, bóng của quà tự nhắm vào nó.</li>
+                    <li>Quà triệu hồi Huyền Thoại: con đó khoá 10 giây cho người tặng, bóng của quà tự nhắm vào nó. Huyền Thoại tự nhiên rất hiếm (0,5%).</li>
+                    <li>Thời tiết (tự đổi mỗi 2 phút, quà 88-99 xu đổi ngay): hệ hợp trời ra nhiều gấp 3 và dễ bắt hơn — Nắng: Lửa/Cỏ/Đất · Mưa: Nước/Điện/Bọ · Tuyết: Băng/Thép/Tiên.</li>
+                    <li>Màn chơi chia theo vùng TikTok không che: dải luật / Top 3 / nhiệm vụ / gợi ý quà xoay vòng trên đầu sân, ghế nổi bật ngay dưới sân, phần dưới cùng để trống cho khung bình luận.</li>
                     <li>Gõ <b>1</b>-<b>9</b> để khóa Pokemon muốn bắt. Bảng xếp hạng tuần tính theo điểm Pokemon bắt được.</li>
                 </ol>
             </div>`;
