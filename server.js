@@ -2372,12 +2372,35 @@ let commentSheetRules = { forbiddenWords: [], glossary: [], loadedAt: 0, error: 
 // 🚫 Từ cấm CHUNG cho mọi game (cột A sheet trên): bình luận dính từ cấm không phát 'chat' cho overlay nào
 // (không game nào đọc / hiển thị) — xem lib/comment-filter.js. Bật/tắt: ⚙ Cài đặt → appConfig.commentFilter.
 let commentForbidden = null;
-const commentFilterStats = { blocked: 0, lastWord: '', lastAt: 0 };
+let commentForbiddenKey = '';
+const commentFilterStats = { blocked: 0, lastWord: '', lastAt: 0, maskedNames: 0 };
 const COMMENT_RULES_CACHE_FILE = () => path.join(DATA_DIR, 'comment-rules-cache.json');
-function setCommentForbidden(words) {
-    commentForbidden = CommentFilter.compileForbidden(words);
+/** Danh sách đổi (tải sheet / dùng bản lưu) → dựng lại bộ so khớp ở lần dùng tới. */
+function setCommentForbidden() { commentForbiddenKey = ''; }
+/**
+ * Bộ so khớp từ cấm DÙNG CHUNG cho mọi game + Dịch Thuật LIVE: cột A sheet + từ người dùng tự thêm ở Dịch Thuật.
+ * Dựng lại khi một trong hai đổi (so đúng dấu — lib/comment-filter.js).
+ */
+function getCommentForbidden() {
+    const ownRaw = appConfig.liveTranslate?.forbiddenWords;
+    const own = Array.isArray(ownRaw) ? ownRaw : (typeof ownRaw === 'string' ? ownRaw.split(/\r?\n|,/) : []);
+    const sheet = commentSheetRules.forbiddenWords || [];
+    const key = `${commentSheetRules.loadedAt}|${sheet.length}|${own.join('\n')}`;
+    if (key !== commentForbiddenKey) {
+        commentForbidden = CommentFilter.compileForbidden([...sheet, ...own]);
+        commentForbiddenKey = key;
+    }
+    return commentForbidden;
 }
 function commentFilterOn() { return appConfig.commentFilter?.enabled !== false; }
+function commentFilterMasksNames() { return commentFilterOn() && appConfig.commentFilter?.maskNames !== false; }
+/** Tên người xem dính từ cấm → che bằng *** ngay khi đọc gói TikTok: mọi game / tính năng nhận tên đã che. */
+function maskViewerName(name) {
+    if (!name || !commentFilterMasksNames()) return name;
+    const masked = CommentFilter.maskForbidden(name, getCommentForbidden());
+    if (masked.includes('***') && !String(name).includes('***')) commentFilterStats.maskedNames += 1;
+    return masked;
+}
 const liveTranslateRecentGifts = new Map();
 const liveTranslateRecentMembers = new Map();
 const liveTranslateLastSpoken = new Map();
@@ -2790,24 +2813,12 @@ function wasLiveTranslateUserRecent(map, user) {
     return liveTranslateUserKeys(user).some(key => (now - (map.get(key) || 0)) <= LIVE_TRANSLATE_PRIORITY_WINDOW_MS);
 }
 
-function liveTranslateForbiddenMatch(haystack, word) {
-    const needle = normalizeModerationText(word).trim();
-    if (!needle) return false;
-    if (!/[a-z0-9]/i.test(needle)) return false;
-    if (needle.length <= 2) return haystack.trim() === needle;
-    if (/\s/.test(needle)) return haystack.includes(needle);
-    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(haystack);
-}
-
-function findLiveTranslateBlockedWord(chat, cfg) {
-    const words = [...(commentSheetRules.forbiddenWords || []), ...(cfg.forbiddenWords || [])];
-    if (!words.length) return '';
-    const haystack = normalizeModerationText(String(chat.comment || ''));
-    for (const word of words) {
-        if (liveTranslateForbiddenMatch(haystack, word)) return String(word || '').trim();
-    }
-    return '';
+/**
+ * Dịch Thuật dùng CHUNG bộ so khớp từ cấm với game (so đúng dấu). Bản cũ bỏ dấu trước khi so nên "chó" chặn nhầm
+ * mọi câu có "cho", "lồn" chặn "lớn", "câm" chặn "cảm ơn".
+ */
+function findLiveTranslateBlockedWord(chat) {
+    return CommentFilter.findForbidden(String(chat.comment || ''), getCommentForbidden());
 }
 
 function detectLiveTranslateToxicText(text) {
@@ -3507,7 +3518,7 @@ function normalizeTikTokUser(u, data) {
     return {
         uniqueId: u.uniqueId || u.displayId || u.display_id || data?.uniqueId || '',
         userId: tiktokIdToString(u.userId) || tiktokIdToString(u.idStr) || tiktokIdToString(u.id_str) || tiktokIdToString(u.id) || tiktokIdToString(data?.userId),
-        nickname: u.nickname || u.nickName || '',
+        nickname: maskViewerName(u.nickname || u.nickName || ''),   // 🚫 tên có từ cấm → *** (mọi game)
         // Cấp người xem: badge USER_GRADE (sceneType 8) + payGrade/userHonor — cùng bộ đọc với Chào Mừng VIP.
         level: vwSignals.readUser(u, vipSignalCtx()).level || Number(u.pay_grade?.level) || 0,
         profilePicture: pickAvatarUrl(u.profilePicture || u.profilePictureUrl || u.avatarThumb || u.avatar_thumb || u.avatarMedium || u.avatarLarge),
@@ -3681,6 +3692,43 @@ try { leagueApplyManual(); } catch (e) {}
 
 // Chống spam toast: lib bắn ERROR cho cả lỗi decode message WebSocket lặp lại giữa buổi live.
 let lastTikTokErrorToast = { message: '', ts: 0 };
+// 💬 Một bình luận (TikTok thật hoặc /api/test-chat): lọc từ cấm → phát cho mọi game + Dịch Thuật + Chào VIP / Bình chọn /
+// Trồng Cây. Tên người đã được che từ cấm trong normalizeTikTokUser. Trả { blocked, nickname } để route thử báo kết quả.
+function handleTikTokChat(data, { test = false } = {}) {
+    if (!test) liveConnected = true;
+    const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
+    const comment = data?.comment ?? data?.content;   // v3 (2.4.4): content
+    if (!test) rememberUserMapping(userId, uniqueId);
+    // 🚫 từ cấm chung: không phát chữ cho game nào; chỉ báo "người này vừa bình luận" (tính tương tác, không hiện / đọc).
+    // Bình luận chỉ gồm chữ số là cú pháp chơi (111, 222, 1-9, mã tù nhân) → không lọc, dù sheet có "111", "1111"…
+    const blockedWord = commentFilterOn() && !CommentFilter.isNumberOnly(comment) ? CommentFilter.findForbidden(comment, getCommentForbidden()) : '';
+    if (blockedWord) {
+        commentFilterStats.blocked += 1;
+        commentFilterStats.lastWord = blockedWord;
+        commentFilterStats.lastAt = Date.now();
+        broadcast('chat:blocked', { uniqueId, nickname, userId, profilePicture, createTime: Date.now() });
+        if (!test) vipHandleActivity(data?.user);
+        return { blocked: blockedWord, nickname };
+    }
+    const chatPayload = {
+        uniqueId, nickname,
+        userId,
+        profilePicture,
+        comment,
+        createTime: Date.now()
+    };
+    broadcast('chat', chatPayload);
+    processLiveTranslateChat(chatPayload);
+    if (!test) {
+        // Chào muộn (TikTok không gửi tín hiệu vào phòng cho người này) + trigger 'comment' riêng
+        vipHandleActivity(data?.user);
+        try { handleVipWelcomeEvent('comment', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified, comment }); } catch (e) {}
+    }
+    try { handleVoteCommentChat({ uniqueId, comment }); } catch (e) {}
+    try { handleTrongCayChat({ uniqueId, nickname, profilePicture, comment }); } catch (e) {}
+    return { blocked: '', nickname };
+}
+
 function attachConnectionEvents(conn, lib) {
     const { WebcastEvent, ControlEvent } = lib;   // từ loadTikTokConnector() — không có biến toàn cục để tránh dùng trước khi nạp
     conn.on(ControlEvent.DECODED_DATA || 'decodedData', (method, data) => {
@@ -3736,36 +3784,7 @@ function attachConnectionEvents(conn, lib) {
         broadcast('error', { message });
     });
 
-    conn.on(WebcastEvent.CHAT, (data) => {
-        liveConnected = true;
-        const { uniqueId, userId, nickname, level, profilePicture, verified } = normalizeTikTokUser(data?.user, data);
-        const comment = data?.comment ?? data?.content;   // v3 (2.4.4): content
-        rememberUserMapping(userId, uniqueId);
-        // 🚫 từ cấm chung: không phát chữ cho game nào; chỉ báo "người này vừa bình luận" (tính tương tác, không hiện / đọc)
-        const blockedWord = commentFilterOn() ? CommentFilter.findForbidden(comment, commentForbidden) : '';
-        if (blockedWord) {
-            commentFilterStats.blocked += 1;
-            commentFilterStats.lastWord = blockedWord;
-            commentFilterStats.lastAt = Date.now();
-            broadcast('chat:blocked', { uniqueId, nickname, userId, profilePicture, createTime: Date.now() });
-            vipHandleActivity(data?.user);
-            return;
-        }
-        const chatPayload = {
-            uniqueId, nickname,
-            userId,
-            profilePicture,
-            comment,
-            createTime: Date.now()
-        };
-        broadcast('chat', chatPayload);
-        processLiveTranslateChat(chatPayload);
-        // Chào muộn (TikTok không gửi tín hiệu vào phòng cho người này) + trigger 'comment' riêng
-        vipHandleActivity(data?.user);
-        try { handleVipWelcomeEvent('comment', { extra: extractTikTokUser(data), uniqueId, nickname, level, profilePicture, verified, comment }); } catch (e) {}
-        try { handleVoteCommentChat({ uniqueId, comment }); } catch (e) {}
-        try { handleTrongCayChat({ uniqueId, nickname, profilePicture, comment }); } catch (e) {}
-    });
+    conn.on(WebcastEvent.CHAT, (data) => handleTikTokChat(data));
 
     conn.on(WebcastEvent.GIFT, (data) => {
         // giftType 1 = quà có combo: TikTok bắn 1 message MỖI lần bấm + 1 message repeatEnd=1 chốt combo.
@@ -6123,11 +6142,13 @@ function settingsSnapshot(req) {
         autoReconnect: appConfig.autoReconnect !== false,
         commentFilter: {
             enabled: commentFilterOn(),
-            words: commentForbidden ? commentForbidden.size : 0,
+            maskNames: commentFilterMasksNames(),
+            words: getCommentForbidden()?.size || 0,
             loadedAt: commentSheetRules.loadedAt,
             error: commentSheetRules.error || '',
             blocked: commentFilterStats.blocked,
-            lastWord: commentFilterStats.lastWord
+            lastWord: commentFilterStats.lastWord,
+            maskedNames: commentFilterStats.maskedNames
         },
         overlay: { host: OBS_LOCAL_HOST, port: PORT, hostMapped: isHostMapped() },
         network: {
@@ -6156,6 +6177,7 @@ app.post('/api/settings', (req, res) => {
     }
     if (Object.prototype.hasOwnProperty.call(b, 'autoReconnect')) { appConfig.autoReconnect = b.autoReconnect !== false; changed = true; }
     if (Object.prototype.hasOwnProperty.call(b, 'commentFilter')) { appConfig.commentFilter = { ...(appConfig.commentFilter || {}), enabled: b.commentFilter !== false }; changed = true; }
+    if (Object.prototype.hasOwnProperty.call(b, 'commentFilterNames')) { appConfig.commentFilter = { ...(appConfig.commentFilter || {}), maskNames: b.commentFilterNames !== false }; changed = true; }
     if (Object.prototype.hasOwnProperty.call(b, 'lanAccess')) {
         const n = networkConfig();
         const v = b.lanAccess === true;
@@ -6874,6 +6896,22 @@ app.post('/api/games/:id/test-gift', (req, res) => {
 });
 // Thả quà thử KHÔNG gắn game (cửa sổ 📦 Danh sách quà): không qua khoá theo game ở middleware vì quà
 // phát chung cho mọi game như quà thật — game bị khoá tự bỏ qua; route này không bật/điều khiển game nào.
+// 🚫 Kiểm 1 câu / 1 tên với bộ lọc từ cấm (ô "thử" trong ⚙ Cài đặt) — không phát gì cho game.
+app.post('/api/comment-filter/check', (req, res) => {
+    const text = String(req.body?.text ?? '').slice(0, 300);
+    const compiled = getCommentForbidden();
+    const command = CommentFilter.isNumberOnly(text);   // giống bình luận thật: chỉ số = cú pháp game, không lọc
+    res.json({ ok: true, enabled: commentFilterOn(), command, blocked: command ? '' : CommentFilter.findForbidden(text, compiled), masked: CommentFilter.maskForbidden(text, compiled), words: compiled ? compiled.size : 0 });
+});
+// 💬 Bình luận thử KHÔNG cần LIVE: đi đúng đường bình luận thật (từ cấm, Dịch Thuật, mọi game) — như /api/test-gift.
+app.post('/api/test-chat', (req, res) => {
+    const b = req.body || {};
+    const comment = String(b.comment ?? b.text ?? '').slice(0, 300);
+    if (!comment.trim()) return res.status(400).json({ ok: false, error: 'missing_comment' });
+    const user = { uniqueId: String(b.uniqueId || 'tester').slice(0, 64), nickname: String(b.nickname || 'HP Media').slice(0, 64), profilePicture: String(b.profilePicture || '') };
+    res.json({ ok: true, ...handleTikTokChat({ user, comment }, { test: true }) });
+});
+
 app.post('/api/test-gift', (req, res) => {
     res.json({ ok: true, gift: emitTestGift(req.body || {}) });
 });
