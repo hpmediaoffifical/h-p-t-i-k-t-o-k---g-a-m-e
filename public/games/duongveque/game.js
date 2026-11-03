@@ -81,19 +81,31 @@ function img(url) {
   return im.complete && !im.bad && im.naturalWidth ? im : null;
 }
 const AV_COLORS = ['#f6a21e', '#2fa4e7', '#e2557b', '#7b61ff', '#18b37e', '#ff7a2f'];
-function avatar(x, y, r, u, ring = '#fff') {
-  ctx.save();
-  ctx.beginPath(); ctx.arc(x, y, r + 3, 0, Math.PI * 2); ctx.fillStyle = ring; ctx.fill();
-  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip();
-  const im = img(u && u.avatar);
-  if (im) ctx.drawImage(im, x - r, y - r, r * 2, r * 2);
+const AV_SPR = new Map();
+function avatarSprite(u, r, ring) {
+  const im = img(u && u.avatar), rr = Math.max(4, Math.round(r));
+  const key = `${(u && (u.id || u.name)) || '?'}|${rr}|${ring}|${im ? 1 : 0}`;
+  let c = AV_SPR.get(key);
+  if (c) return c;
+  const q = 2, R = (rr + 3) * q;   // vẽ gấp đôi cho nét
+  c = document.createElement('canvas'); c.width = c.height = R * 2;
+  const x = c.getContext('2d');
+  x.beginPath(); x.arc(R, R, R, 0, Math.PI * 2); x.fillStyle = ring; x.fill();
+  x.beginPath(); x.arc(R, R, rr * q, 0, Math.PI * 2); x.clip();
+  if (im) x.drawImage(im, R - rr * q, R - rr * q, rr * q * 2, rr * q * 2);
   else {
     const name = (u && u.name) || '?';
-    ctx.fillStyle = AV_COLORS[(name.charCodeAt(0) || 0) % AV_COLORS.length]; ctx.fillRect(x - r, y - r, r * 2, r * 2);
-    ctx.fillStyle = '#fff'; ctx.font = `800 ${Math.round(r * 1.1)}px 'Be Vietnam Pro', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText((name.match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase(), x, y + r * 0.08);   // bỏ emoji đầu tên (🧑‍✈️…)
+    x.fillStyle = AV_COLORS[(name.charCodeAt(0) || 0) % AV_COLORS.length]; x.fillRect(0, 0, R * 2, R * 2);
+    x.fillStyle = '#fff'; x.font = `800 ${Math.round(rr * q * 1.1)}px 'Be Vietnam Pro', sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText((name.match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase(), R, R + rr * q * 0.08);   // bỏ emoji đầu tên (🧑‍✈️…)
   }
-  ctx.restore();
+  AV_SPR.set(key, c);
+  if (AV_SPR.size > 700) AV_SPR.delete(AV_SPR.keys().next().value);
+  return c;
+}
+function avatar(x, y, r, u, ring = '#fff') {
+  const c = avatarSprite(u, r, ring), d = (Math.max(4, Math.round(r)) + 3) * 2;
+  ctx.drawImage(c, x - d / 2, y - d / 2, d, d);
 }
 function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 // ---- lớp xếp nhãn: trong render, nhãn tên + bong bóng thoại được gom vào LBL rồi xếp chống chồng ở cuối khung ----
@@ -1163,7 +1175,13 @@ function updateHud(dt) {
   $('cpax').classList.toggle('hidden', VIEW.vehicle === 'scooter');
   // khung cứu nạn
   const rs = $('rescue');
-  if (game.rescue) {
+  if (game.finish && game.phase === 'race') {   // 🏁 tới cổng làng: đếm ngược, phe Phá còn đẩy lùi được
+    const fl = game.finish.left, tot = game.cfg.finishSec || 15;
+    rs.classList.remove('hidden');
+    $('rtxt').innerHTML = '🏁 <b>VỀ TỚI CỔNG LÀNG!</b><br><small style="font-size:24px;font-weight:700;color:#cfd9ea">Giữ thêm chút nữa là thắng · phe Phá còn đẩy lùi được!</small>';
+    $('rsec').textContent = `${Math.max(0, Math.ceil(fl))}s`;
+    $('rbar').style.width = `${clamp(1 - fl / tot, 0, 1) * 100}%`;
+  } else if (game.rescue) {
     const r = game.rescue;
     rs.classList.remove('hidden');
     $('rtxt').innerHTML = `🌪️ Lốc xoáy của <b>${esc(r.user.name)}</b>!<br>Phe Cứu gom <b>${fmt(r.need)} xu</b> để thoát`;
@@ -1282,7 +1300,7 @@ function onEvents(list) {
         if (e.action === 'fuel') { fx.push({ k: 'can', t: 0, dur: 1.2 }); floatText('+⛽', '#ffe27a', SX, contactY(cam) - S(330)); }
         if (e.action === 'helmet') { floatText(`⛑️ +${dtx(e.meters)}`, '#ffe27a'); SFX.good(); }
         if (['dog', 'ducks', 'rain', 'container', 'crow', 'snake', 'ghost', 'croc', 'possess', 'coffin', 'zombie'].includes(e.action)) floatText(`-${dtx(e.meters)}`, SIDE_COLOR.pha, SX + S(200), contactY(cam) - S(300), 52);
-        if (['nitro', 'convoy', 'tow', 'wind', 'heli', 'banhchung', 'superman'].includes(e.action)) floatText(`+${dtx(e.meters)}`, SIDE_COLOR.cuu, SX + S(60), contactY(cam) - S(260));
+        if (['nitro', 'convoy', 'tow', 'wind', 'heli', 'creditor', 'superman'].includes(e.action)) floatText(`+${dtx(e.meters)}`, SIDE_COLOR.cuu, SX + S(60), contactY(cam) - S(260));
         if (['ghost', 'possess', 'coffin', 'zombie'].includes(e.action)) { banner(`${a.emoji} ${esc(a.label).toUpperCase()}!<small>của <b>${esc(e.user.name)}</b> · phe Cứu tặng quà TRỪ TÀ để xua</small>`, 'pha', 2400, 2); SFX.spooky(); shake = Math.max(shake, 8); }
         if (e.action === 'coffin') SFX.dance();
         if (e.action === 'lion' || e.action === 'buffalo') SFX.drum();
@@ -1297,6 +1315,9 @@ function onEvents(list) {
       case 'dodge': floatText('NÉ ĐẸP!', '#7cf0a9', SX, contactY(cam) - S(320)); SFX.good(); break;
       case 'snatch': if (e.victim) { banner(`🐊 CÁ SẤU ĐỚP <b>${esc(e.victim.name)}</b>!<small>bơi về sau ${game.cfg.crocSec || 12} giây · HÚC hoặc TRỪ TÀ để cứu ngay</small>`, 'pha', 2600, 3); shake = 12; } SFX.chomp(); break;
       case 'victimBack': toast('cuu', e.victim, e.how === 'swim' ? '🏊 bơi về kịp xe!' : e.how === 'ram' ? '💥 được HÚC cứu lên xe!' : '✨ được trừ tà cứu lên xe!'); SFX.good(); break;
+      case 'debt': banner(`💸 <b>${esc(e.user.name)}</b> RƯỢT ĐÒI NỢ!<small>${e.debtor ? `con nợ: <b>${esc(e.debtor.name)}</b> 😱` : 'cả xe bỏ chạy'}</small>`, 'cuu', 2200, 2); SFX.honk(); break;
+      case 'finishStart': banner(`🏁 VỀ TỚI CỔNG LÀNG!<small>Đếm ngược ${e.sec} giây · phe Phá đẩy lùi được thì chạy tiếp</small>`, 'gold', 2600, 4); SFX.honk(); break;
+      case 'finishCancel': banner(`😱 BỊ ĐẨY KHỎI CỔNG LÀNG!<small>lùi ${dtx(e.meters)} · chạy tiếp!</small>`, 'pha', 2400, 4); SFX.lose(); shake = 14; break;
       case 'possessed': floatText('👹 Quỷ giữ tay lái!', '#ff6a5a', SX + S(60), contactY(cam) - S(360), 40); break;
       case 'exorcise': {
         const kinds = [...new Set(e.list.map(h => ACTION_BY_ID[h.kind] ? ACTION_BY_ID[h.kind].emoji : FUN_TXT[h.kind] || h.kind))].join(' ');
@@ -1372,6 +1393,53 @@ function policeTxt(h) {
   if (h.reason === 'overload') return { icon: '🚓', title: `Chở quá số người${h.over ? ' (' + h.over + ' người)' : ''}!`, sub: 'Ngồi trên nóc xe là sai luật · thả tim nộp phạt · quà Cứu: 1 xu = 10 tim' };
   return HALT_TXT.police;
 }
+// ---- 🍜 trạm dừng chân: ai từng thả tim / tặng quà (game.crowd) xuống sân trạm đứng tám chuyện, vài người đi dạo ----
+const TET_TALK = ['Có người yêu chưa? 😏', 'Thưởng Tết nhiều hông?', 'Lương nhiêu rồi?', 'Quê ở đâu dzậy?', 'Bao giờ cưới? 💍', 'Mập lên rồi nha 😂',
+  'Lâu quá mới gặp!', 'Về quê ở mấy ngày?', 'Lì xì đi chứ! 🧧', 'Phở trạm này ngon!', 'Đi vệ sinh cái đã…', 'Selfie cái nào 📸',
+  'Còn xa không tài xế?', 'Nhà có nuôi chó không?', 'Mua quà cho ngoại chưa?', 'Say xe quá trời…', 'Ăn bánh chưng chưa?', 'Ai thả tim nhiều vậy?'];
+const LOCALS = ['Cô bán bánh mì', 'Chú xe ôm', 'Bà bán nước', 'Anh bảo vệ', 'Chị bán vé số', 'Ông bán kẹo kéo', 'Bé bán bong bóng', 'Dì bán bắp'];
+function plasticTable(x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  ctx.strokeStyle = '#7a5a3a'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(0, -150); ctx.stroke();
+  ctx.fillStyle = '#e8322c'; ctx.beginPath(); ctx.moveTo(-90, -130); ctx.quadraticCurveTo(0, -200, 90, -130); ctx.closePath(); ctx.fill();   // dù quán
+  ctx.fillStyle = '#fff'; for (let k = -2; k <= 2; k += 2) { ctx.beginPath(); ctx.moveTo(k * 22 - 8, -135); ctx.lineTo(k * 22, -175); ctx.lineTo(k * 22 + 8, -135); ctx.fill(); }
+  ctx.fillStyle = '#2f7de2'; ctx.fillRect(-46, -52, 92, 10); ctx.fillRect(-40, -44, 8, 44); ctx.fillRect(32, -44, 8, 44);   // bàn nhựa xanh
+  ctx.fillStyle = '#e8322c'; for (const dx of [-70, 70]) { ctx.fillRect(dx - 14, -26, 28, 6); ctx.fillRect(dx - 12, -20, 4, 20); ctx.fillRect(dx + 8, -20, 4, 20); }   // ghế đỏ
+  ctx.fillStyle = '#fff6d6'; ctx.beginPath(); ctx.ellipse(-14, -58, 12, 5, 0, 0, Math.PI * 2); ctx.ellipse(16, -58, 12, 5, 0, 0, Math.PI * 2); ctx.fill();   // tô phở
+  ctx.restore();
+}
+function drawRestCrowd(h) {
+  const people = game.crowd(game.cfg.crowdMax || 100);
+  for (let i = 0; people.length < 40; i++) people.push({ id: `npc${i}`, name: LOCALS[i % LOCALS.length], avatar: '', npc: true });   // ít người xem thì dân quanh trạm cho đủ đông
+  const fade = clamp(Math.min(h.t / 1.2, (h.left || 0) / 1.2), 0, 1);
+  const y0 = contactY(cam) + 36, hh = 400;
+  ctx.save(); ctx.globalAlpha = fade;
+  ctx.fillStyle = '#e9dcc0'; ctx.fillRect(0, y0, W, hh);   // sân trạm lát gạch
+  ctx.strokeStyle = 'rgba(150,120,80,.25)'; ctx.lineWidth = 2;
+  for (let yy = y0 + 40; yy < y0 + hh; yy += 40) { ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(W, yy); ctx.stroke(); }
+  for (let k = 0; k < 4; k++) plasticTable(130 + k * 270 + (k % 2) * 40, y0 + 120 + (k % 2) * 170, 0.62);
+  const n = people.length, G = Math.ceil(n / 4), gx = Math.min(7, Math.max(3, Math.ceil(Math.sqrt(G * 2.4)))), rows = Math.ceil(G / gx);
+  const dots = [];
+  people.forEach((u, i) => {
+    const gi = Math.floor(i / 4), j = i % 4, r = hash(gi, 70);
+    const cx = 70 + (gi % gx + 0.5) * (W - 140) / gx + (r - 0.5) * 50;
+    const cyg = y0 + 70 + (Math.floor(gi / gx) + 0.5) * (hh - 90) / rows;
+    const a = j / 4 * Math.PI * 2 + r * 6;
+    let x = cx + Math.cos(a) * 44, y = cyg + Math.sin(a) * 14;
+    const wander = hash(i, 71) < 0.18;   // vài người đi dạo qua lại
+    if (wander) x += Math.sin(T * 0.4 + i) * 110;
+    dots.push({ u, x, y, still: !wander, i });
+  });
+  dots.sort((p, q) => p.y - q.y);
+  for (const d of dots) walker(d.x, d.y, d.u, 0.58, d.i, d.still);
+  ctx.restore();
+  // 3 người đang nói (đổi người mỗi 2,5 giây)
+  const k0 = Math.floor(h.t / 2.5);
+  for (let k = 0; k < 3 && fade > 0.6; k++) {
+    const d = dots[(k0 * 7 + k * 13) % dots.length], txt = TET_TALK[(k0 * 5 + k * 3) % TET_TALK.length];
+    bubble(d.x, d.y - 120, `${String(d.u.name).slice(0, 10)}: ${txt}`, 3);
+  }
+}
 const EAT = ['🍜 Phở ngon!', '🥖 Bánh mì!', '☕ Cà phê sữa đá!', '🍚 Cơm tấm!', '🥤 Nước mía!', '🍢 Nem nướng!', '🦐 Bánh xèo!'];
 const MOM = ['📞 Mẹ: Tới {p} chưa con?', '📞 Mẹ: Ở nhà gói bánh chưng rồi nè!', '📞 Ba: Chạy chậm thôi con!', '📞 Mẹ: Nhớ mua quà cho ngoại nha!', '📞 Bà: Về tới đâu rồi cháu?', '📞 Mẹ: Đi đường nhớ ăn uống nha!'];
 /** công trình của điểm dừng đặt tại vị trí trên lộ trình (vẽ cả lúc chưa tới, để thấy từ xa) */
@@ -1435,11 +1503,7 @@ function drawHaltScene(cy) {
   const pax = game.passengers().seated;
   const mid = SX + S(V.mid), gy = contactY(cam) + S(130);         // người xuống đứng ở lề gần (trước đường)
   if (h.kind === 'rest') {
-    pax.slice(0, 10).forEach((u, i) => {
-      const x = mid - S(460) + i * S(120), y = gy + (i % 2) * S(34);
-      walker(x, y, u, VS * 1.35, i, true);
-      if ((Math.floor(h.t / 2) + i) % 4 === 0) bubble(x, y - S(250), EAT[(i + Math.floor(h.t / 2)) % EAT.length]);
-    });
+    drawRestCrowd(h);
   } else if (h.kind === 'gas') {
     ctx.strokeStyle = '#222'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(mid - S(150), cy - S(120)); ctx.quadraticCurveTo(mid - S(200), cy - S(20), SX - S(V.rear - 40), cy - S(80)); ctx.stroke();
     pax.slice(0, 4).forEach((u, i) => walker(mid + S(240) + i * S(110), gy, u, VS * 1.3, i));
@@ -1713,18 +1777,17 @@ function drawZombies(e, cy) {
   if (e.t > 1) bubble(busFront() + S(150), cy - S(V.top + 120), '🧟 Nãooo… não người về quê…');
   if (e.t > 1.6 && e.t < 4) bubble(SX + S(V.mid), cy - S(V.top + 60), '😱 Chạy điiii!!', 3);
 }
-function drawBanhChung(e, cy) {
-  const V = vehOf(), mx = lerp(-S(200), Math.max(S(170), SX - S(V.rear * 0.55)), ease(e.t / 0.9));   // mẹ chạy làn ngoài, song song xe
-  scooter(mx, cy + S(46), { color: '#e2557b', scale: VS * 0.9, rot: wheelRot, gifts: false, shirt: '#e2557b', helmet: '#fff', face: e.user });
-  for (let k = 0; k < 4; k++) {
-    const q = clamp((e.t - 0.5 - k * 0.3) / 0.7, 0, 1); if (q <= 0 || q >= 1) continue;
-    const x = lerp(mx + S(40), SX - S(V.rear * 0.4) + k * S(60), q), y = lerp(cy - S(100), cy - S(V.top + 10), q) - Math.sin(q * Math.PI) * S(160);
-    ctx.save(); ctx.translate(x, y); ctx.rotate(q * 6);
-    ctx.fillStyle = '#2f7a3a'; ctx.fillRect(-S(20), -S(20), S(40), S(40));
-    ctx.strokeStyle = '#e8d9a8'; ctx.lineWidth = S(4); ctx.beginPath(); ctx.moveTo(-S(20), 0); ctx.lineTo(S(20), 0); ctx.moveTo(0, -S(20)); ctx.lineTo(0, S(20)); ctx.stroke();
-    ctx.restore();
-  }
-  if (e.t > 0.4) bubble(mx, cy - S(150), '👩 Mẹ gửi bánh chưng nè con!');
+// {n} = tên 1 người trong top 10 tặng quà + thả tim (logic chọn sẵn: e.debtor)
+const DEBT_LINES = ['Ê {n}! Mày không trả nợ cho tao à?!', '{n} ơi, Tết rồi trả nợ đi chứ!', 'Đứng lại {n}! Nợ 5 triệu chưa trả!', '{n} về quê trốn nợ hả?!',
+  '{n}! Trả tiền hụi đây!!', '{n} mượn 2 năm rồi đó nha!', 'Lãi mẹ đẻ lãi con rồi {n} ơi!', '{n} có tiền tặng quà mà không trả tao?!', '{n}! Tao biết nhà ngoại mày ở đâu nha!', 'Trả nợ rồi hẵng ăn Tết nha {n}!'];
+const RUN_LINES = ['😱 {n}: Chạy lẹ tài xế ơiii!', '🙈 {n}: Không phải tui!', '💨 {n}: Đạp ga đi!!', '🫣 {n}: Núp xuống!'];
+const debtName = e => String((e.debtor && e.debtor.name) || 'mấy đứa kia').slice(0, 14);
+function drawCreditor(e, cy) {
+  const V = vehOf(), rear = SX - S(V.rear * 0.55);
+  const mx = e.t < 0.8 ? lerp(-S(200), Math.max(S(170), rear), ease(e.t / 0.8)) : Math.max(S(170), rear) - (e.t - 0.8) * S(120);   // dí kịp rồi bị bỏ lại
+  scooter(mx, cy + S(46), { color: '#30333b', scale: VS * 0.95, rot: wheelRot, gifts: false, shirt: '#8a5a3a', helmet: '#222', face: e.user });
+  if (e.t > 0.3) bubble(mx + S(40), cy - S(130), `💸 ${DEBT_LINES[(e.line || 0) % DEBT_LINES.length].replace('{n}', debtName(e))}`);
+  if (e.t > 1.1) { PANIC = 1; bubble(SX + S(V.mid), cy - S(V.top + 70), RUN_LINES[(e.line || 0) % RUN_LINES.length].replace('{n}', debtName(e)), 3); }
 }
 function lionDance(x, y, s, t) {
   ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
@@ -1830,7 +1893,7 @@ function drawSuperman(e, cy) {
   if (e.t > 0.5 && e.t < 4) bubble(SX + S(V.mid) + S(160), cy + S(40), '🦸 Cả đoàn lên vai anh! Về quê thôiii!');
 }
 const FUN_DRAW = { crow: drawCrows, snake: drawSnake, ghost: drawGhost, croc: drawCroc, possess: drawPossess, coffin: drawCoffin, zombie: drawZombies,
-  banhchung: drawBanhChung, garlic: drawGarlic, lion: drawLion, buffalo: drawBuffalo, shaman: drawShaman, fireworks: drawFireworks, superman: drawSuperman };
+  creditor: drawCreditor, garlic: drawGarlic, lion: drawLion, buffalo: drawBuffalo, shaman: drawShaman, fireworks: drawFireworks, superman: drawSuperman };
 /** Vẽ mọi trò mới đang chạy + khách bơi về; cy = mặt đất dưới xe (đã trừ độ nhấc). */
 function drawFun(dt, cy) {
   PANIC = Math.max(0, PANIC - dt * 2);

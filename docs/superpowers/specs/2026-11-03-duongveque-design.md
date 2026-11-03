@@ -70,7 +70,7 @@ tự chọn theo bậc giá). Vẫn giữ **mọi quà quy ra mét theo xu** →
 
 | Giá | 🛡️ Cứu | Tác dụng | ⚔️ Phá | Tác dụng |
 |---|---|---|---|---|
-| 5 | 🍙 Bánh chưng mẹ gửi | mẹ chạy xe máy ném bánh chưng lên xe: +xăng, đẩy tới 0,75× | 🐦‍⬛ Quạ ỉa kính | bầy quạ ỉa trúng kính, chậm nhẹ 3 giây |
+| 5 | 💸 Chủ nợ rượt | chủ nợ chạy xe máy dí theo hét "Mày không trả nợ cho tao à?!" (10 câu ngẫu nhiên), tài xế hoảng đạp ga → đẩy tới (thay "Bánh chưng mẹ gửi": đang từ phố về quê nên vô lý) | 🐦‍⬛ Quạ ỉa kính | bầy quạ ỉa trúng kính, chậm nhẹ 3 giây |
 | 9 | 🧄 Tỏi trừ tà | xoá trò kinh dị | 🐍 Rắn chui gầm xe | khách hoảng nhảy trong xe; HÚC được |
 | 15 | 🦁 Múa lân mở đường | dọn vật cản phía trước rồi đấu đội quan tài / ma | 👻 Ma vẫy xe | ma áo dài trắng tóc xoã giữa đường, phanh gấp 1,5 giây, màn tối + chớp |
 | 30 | 🐃 Trâu húc đít xe | húc văng chó, vịt, rắn, cá sấu, zombie | 🐊 Cá sấu đớp khách | nhảy lên nóc đớp 1 khách kéo xuống ao; khách bơi về sau `crocSec` (12) giây; HÚC / trừ tà cứu ngay |
@@ -89,7 +89,7 @@ tự chọn theo bậc giá). Vẫn giữ **mọi quà quy ra mét theo xu** →
 - **Thang giá 1–199 xu** (user: "quà nhiều xu quá khó ai chịu chơi"): cột Giá ở bảng trên là `min` khi quà chưa gán; trò cũ cũng dồn
   xuống (gió 0 · xăng 2 · nitro 10 · mũ 20 · phượt 49 · cứu hộ 99 · trực thăng 149 | chuối 0 · ổ gà 2 · chó 10 · vịt 20 · mưa 49 ·
   container 99 · lốc 149). Test khoá: mọi trò < 200 xu.
-- Quà gợi ý (`data.json`, tất cả ≤ 199 xu, cặp cùng giá 2 phe): 5 quả đào ↔ Phản ứng quá lố (quạ) · 10 Chú heo may mắn (tỏi) ↔ Nhìn là mê (rắn) ·
+- Quà gợi ý (`data.json`, tất cả ≤ 199 xu, cặp cùng giá 2 phe): 5 quả đào (chủ nợ) ↔ Phản ứng quá lố (quạ) · 10 Chú heo may mắn (tỏi) ↔ Nhìn là mê (rắn) ·
   15 Hoan hô! (lân) ↔ 20 little kisses (ma) · 99 Bom kẹo (trâu) ↔ Bắt cóc bò sữa (cá sấu) · 100 Tiểu tinh tú (thầy pháp) ↔ 99 Cung thần mê hoặc (quỷ) ·
   149 Bóng bay trái tim (cứu hộ) ↔ Sâu bướm làm loạn (container) · 149 Bỏng ngô tán gẫu (pháo hoa) ↔ Catrina (quan tài) ·
   199 Bạch tuộc lững lờ (trực thăng) ↔ Ảo thuật cà phê (lốc) · 199 Nước dừa sảng khoái (siêu nhân) ↔ Nụ hôn chíp chíp (zombie).

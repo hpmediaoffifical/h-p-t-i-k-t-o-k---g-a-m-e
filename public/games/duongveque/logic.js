@@ -22,7 +22,7 @@ export const SIDES = ['cuu', 'pha'];
 export const ACTIONS = [
   { id: 'wind',      side: 'cuu', emoji: '🌬️', label: 'Gió xuôi',      min: 0 },
   { id: 'fuel',      side: 'cuu', emoji: '⛽', label: 'Đổ xăng',       min: 2 },
-  { id: 'banhchung', side: 'cuu', emoji: '🍙', label: 'Bánh chưng mẹ gửi', min: 5 },
+  { id: 'creditor',  side: 'cuu', emoji: '💸', label: 'Chủ nợ rượt',   min: 5 },
   { id: 'garlic',    side: 'cuu', emoji: '🧄', label: 'Tỏi trừ tà',    min: 9 },
   { id: 'nitro',     side: 'cuu', emoji: '🚀', label: 'Nitro',         min: 10 },
   { id: 'lion',      side: 'cuu', emoji: '🦁', label: 'Múa lân mở đường', min: 15 },
@@ -102,7 +102,9 @@ export const DEFAULTS = {
   roadEvents: 3,                                // số tình huống đường xá mỗi ván (kẹt xe, chắn tàu, đàn bò, thủng lốp, say xe, check-in, lì xì)
   flatLikes: 600, flatMaxSec: 25,               // 🛞 thủng lốp: thả bấy nhiêu tim để bơm
   maxUsers: 2000,      // quá bấy nhiêu người xem thì đầu ván dọn người không còn trên xe / không lái
-  crocSec: 12,         // 🐊 khách bị cá sấu đớp xuống sông bơi về sau bấy nhiêu giây (húc / trừ tà cứu ngay)
+  crocSec: 12,
+  finishSec: 15,       // 🏁 về tới cổng làng: đếm ngược bấy nhiêu giây (đồng hồ ván dừng) — phe Phá còn đẩy lùi được; giữ đủ mới thắng
+  crowdMax: 100,       // 🍜 trạm dừng chân: tối đa bấy nhiêu người (từng thả tim / tặng quà) xuống xe tám chuyện         // 🐊 khách bị cá sấu đớp xuống sông bơi về sau bấy nhiêu giây (húc / trừ tà cứu ngay)
 };
 
 // ---- trò kinh dị & trừ tà: nhóm hiệu ứng mà mỗi quà Cứu được phép xoá ----
@@ -120,7 +122,7 @@ const DODGE_KINDS = new Set(['banana', 'pothole']);
 export const PUSH_LEAD = {
   stash: 0.8, fine: 0.8, dog: 0.5, ducks: 0.6, rain: 0.4,                                   // xe ủi chung lái tới
   crow: 0.6, snake: 1.2, ghost: 0.8, croc: 0.7, possess: 0.5, coffin: 1.3, zombie: 1.4,       // trò kinh dị: lúc diễn viên tới
-  tow: 0.5, buffalo: 0.6, superman: 0.8,                                                     // phe Cứu đẩy từ phía sau cũng phải chạm
+  tow: 0.5, buffalo: 0.6, superman: 0.8, creditor: 0.7,                                                     // phe Cứu đẩy từ phía sau cũng phải chạm
 };
 const EXCLUSIVE = new Set(['container', 'tornado', 'heli']);
 
@@ -226,7 +228,7 @@ export function createGame(options = {}, rnd = Math.random) {
   function user(u) {
     const id = String((u && (u.id || u.uniqueId || u.name)) || 'khach');
     let x = g.users.get(id);
-    if (!x) { x = { id, name: (u && u.name) || 'Khách', avatar: (u && u.avatar) || '', cuu: 0, pha: 0, side: null, betrayed: false, t: g.users.size }; g.users.set(id, x); }
+    if (!x) { x = { id, name: (u && u.name) || 'Khách', avatar: (u && u.avatar) || '', cuu: 0, pha: 0, likes: 0, likesAll: 0, coinsAll: 0, side: null, betrayed: false, t: g.users.size }; g.users.set(id, x); }
     if (u && u.name) x.name = u.name;
     if (u && u.avatar) x.avatar = u.avatar;
     return x;
@@ -336,9 +338,12 @@ export function createGame(options = {}, rnd = Math.random) {
       case 'coffin': g.effects.push({ id: ++SEQ, kind: 'coffin', t: 0, dur: 6, ...base, block: true, push: addPush(M, 6, 'pha', 'coffin') }); break;
       case 'zombie': g.effects.push({ id: ++SEQ, kind: 'zombie', t: 0, dur: 7, ...base, ram: true, ramKeep: 0.5, slow: 0.2, push: addPush(M, 7, 'pha', 'zombie') }); break;
       // ---- phe Cứu: Tết + trừ tà ----
-      case 'banhchung': {
-        g.fuel = Math.min(100, g.fuel + Math.max(4, Math.min(40, total * cfg.fuelPerCoin * 0.5)));
-        g.effects.push({ id: ++SEQ, kind: 'banhchung', t: 0, dur: 2.5, ...base, push: addPush(M * 0.75, 2, 'cuu', 'banhchung') });
+      // 💸 chủ nợ chạy xe máy dí theo đòi nợ → tài xế hoảng đạp ga, cả đoàn vọt lên (phe Cứu đẩy tới)
+      case 'creditor': {
+        const top = g.topFans(10).filter(x => x.id !== u.id);   // đòi nợ đích danh 1 người trong top 10
+        const dv = top.length ? top[Math.floor(g.rnd() * top.length)] : null;
+        g.effects.push({ id: ++SEQ, kind: 'creditor', t: 0, dur: 3.2, ...base, debtor: dv, line: Math.floor(g.rnd() * 1000), push: addPush(M, 2.4, 'cuu', 'creditor') });
+        emit('debt', { user: base.user, debtor: dv });
         break;
       }
       case 'garlic': case 'shaman': case 'buffalo': case 'fireworks': {
@@ -397,6 +402,7 @@ export function createGame(options = {}, rnd = Math.random) {
     if (side === 'cuu') board(u);
     if (side === 'pha' && u.cuu > 0 && !u.betrayed) { u.betrayed = true; emit('betray', { user: { id: u.id, name: u.name, avatar: u.avatar } }); }
     u[side] += total;
+    u.coinsAll = (u.coinsAll || 0) + total;
     g.totals[side] += total;
     if (g.rescue && side === 'cuu') {
       g.rescue.got += total;
@@ -434,13 +440,27 @@ export function createGame(options = {}, rnd = Math.random) {
     if (paxTick === g.tick && paxCache) return paxCache;
     const driving = new Set(g.drivers.filter(Boolean).map(d => d.id));
     const list = g.riders.map(id => g.users.get(id)).filter(u => u && u.side !== 'pha' && !driving.has(u.id) && !g.lost.some(l => l.id === u.id));
-    list.sort((a, b) => b.cuu - a.cuu || g.riders.indexOf(a.id) - g.riders.indexOf(b.id));
+    const score = u => u.cuu * cfg.coinLikes + (u.likes || 0);   // ưu tiên ghế: tặng quà + thả tim nhiều (1 xu = coinLikes tim)
+    list.sort((a, b) => score(b) - score(a) || g.riders.indexOf(a.id) - g.riders.indexOf(b.id));
     paxTick = g.tick;
     // tài xế xe sau vẫn chiếm 1 chỗ của đoàn → xe đó không biến mất khi họ rời ghế khách
     const extra = g.drivers.filter((d, i) => i > 0 && d).length;
     const cars = Math.max(1, Math.min(cfg.maxCars, Math.ceil((list.length + extra) / cfg.seats)));
     const cap = cfg.seats * cars;
     return (paxCache = { seated: list.slice(0, cap), extra: Math.max(0, list.length - cap), total: list.length, cars });
+  };
+
+  const fanScore = u => (u.coinsAll || 0) * cfg.coinLikes + (u.likesAll || 0);
+  const fansSorted = () => [...g.users.values()].filter(u => fanScore(u) > 0).sort((a, b) => fanScore(b) - fanScore(a) || a.t - b.t);
+  /** Top người từng tặng quà + thả tim nhiều nhất (1 xu = coinLikes tim). */
+  g.topFans = n => fansSorted().slice(0, n).map(u => ({ id: u.id, name: u.name, avatar: u.avatar }));
+  /** 🍜 Đám đông trạm dừng chân: người đang ngồi xe trước, rồi người từng thả tim / tặng quà (nhiều nhất trước), tối đa crowdMax. */
+  g.crowd = function (max = cfg.crowdMax) {
+    const out = [], seen = new Set();
+    const add = u => { if (u && !seen.has(u.id) && out.length < max) { seen.add(u.id); out.push(u); } };
+    for (const u of g.passengers().seated) add(u);
+    for (const u of fansSorted()) add(u);
+    return out.map(u => ({ id: u.id, name: u.name, avatar: u.avatar, side: u.side }));
   };
 
   /** Quà thật / quà thử. gift = { giftId, giftName, coins (xu 1 cái), count }. giftMap theo resolveGift. */
@@ -474,6 +494,8 @@ export function createGame(options = {}, rnd = Math.random) {
   g.like = function (who, n) {
     const u = user(who);
     const nl = Math.max(0, Number(n) || 0);
+    u.likes = (u.likes || 0) + nl; u.likesAll = (u.likesAll || 0) + nl; paxTick = -1;
+    if (u.side !== 'pha' && nl > 0) board(u);   // thả tim là lên xe (ghế xếp theo tim + quà)
     if (g.halt && g.halt.need) haltProgress(nl, u);
     g.likeAcc += nl;
     while (g.likeAcc >= cfg.likePer) {
@@ -648,6 +670,7 @@ export function createGame(options = {}, rnd = Math.random) {
   };
   function stepPlan() {
     if (g.halt || g.exclusive) return;
+    if (g.finish || g.dist >= cfg.goal - 1) { for (const x of g.plan) x.done = true; return; }   // tới cổng làng: không dừng trạm nào nữa
     // điểm đã vượt quá 300 m (bị đẩy vọt qua) thì bỏ qua — không dừng sai chỗ
     for (const x of g.plan) if (!x.done && g.dist - x.at > 300) x.done = true;
     const next = g.plan.find(x => !x.done && g.dist >= x.at);
@@ -675,13 +698,13 @@ export function createGame(options = {}, rnd = Math.random) {
     g.timeLeft = cfg.roundSec; g.dist = 0; g.maxDist = 0; g.fuel = 100; g.shield = 0;
     g.walking = false; g.fuelAlarm = null; g.rescue = null; g.exclusive = null; g.xqueue = [];
     g.pushes = []; g.effects = []; g.obstacles = []; g.result = null; g.halt = null; g.kmh = 0; g.peakKmh = 0; g.fastT = 0; g.fastSeen = false; g.policeCaught = false;
-    g.plan = buildPlan(); g.lost = [];
+    g.plan = buildPlan(); g.lost = []; g.finish = null;
     g.jumpT = 0; g.jumpCd = 0; g.ramCd = 0; g.ramWindow = 0; g.aiTimers = [];
     if (g.users.size > cfg.maxUsers) {
-      const keep = new Set([...g.riders, ...g.drivers.filter(Boolean).map(d => d.id), ...g.driverQueue.map(q => q.user.id), ...g.pending.map(p => p.u.id)]);
+      const keep = new Set([...g.riders, ...g.drivers.filter(Boolean).map(d => d.id), ...g.driverQueue.map(q => q.user.id), ...g.pending.map(p => p.u.id), ...g.crowd().map(u => u.id)]);
       for (const id of [...g.users.keys()]) if (!keep.has(id)) g.users.delete(id);
     }
-    for (const u of g.users.values()) Object.assign(u, { cuu: 0, pha: 0, betrayed: false });
+    for (const u of g.users.values()) Object.assign(u, { cuu: 0, pha: 0, likes: 0, betrayed: false });
     g.totals = { cuu: 0, pha: 0 };
     emit('roundStart', { round: g.round, goal: cfg.goal, roundSec: cfg.roundSec });
     const pend = g.pending; g.pending = [];
@@ -696,7 +719,7 @@ export function createGame(options = {}, rnd = Math.random) {
       betrayers: [...g.users.values()].filter(u => u.betrayed).map(u => ({ id: u.id, name: u.name, avatar: u.avatar })),
     };
     g.phase = 'result'; g.phaseT = 0;
-    g.pushes = []; g.effects = []; g.obstacles = []; g.exclusive = null; g.xqueue = []; g.rescue = null; g.fuelAlarm = null; g.halt = null; g.lost = []; paxTick = -1;
+    g.pushes = []; g.effects = []; g.obstacles = []; g.exclusive = null; g.xqueue = []; g.rescue = null; g.fuelAlarm = null; g.halt = null; g.lost = []; g.finish = null; paxTick = -1;
     emit('roundEnd', g.result);
   }
 
@@ -778,7 +801,7 @@ export function createGame(options = {}, rnd = Math.random) {
     }
     stepPlan();
     if (g.halt) return;
-    g.timeLeft = Math.max(0, g.timeLeft - dt);
+    if (!g.finish) g.timeLeft = Math.max(0, g.timeLeft - dt);   // đang đếm ngược ở cổng làng: đồng hồ ván dừng
     g.jumpT = Math.max(0, g.jumpT - dt);
     g.jumpCd = Math.max(0, g.jumpCd - dt);
     g.ramCd = Math.max(0, g.ramCd - dt);
@@ -793,7 +816,7 @@ export function createGame(options = {}, rnd = Math.random) {
     for (const e of g.effects) if (e.t < e.dur) { if (e.block && !(e.blockT && e.t >= e.blockT)) mul = 0;   // 👻 ma: chỉ phanh gấp blockT giây đầu
       else if (e.slow) mul = Math.min(mul, e.slow); else if (e.kind === 'dog') mul = Math.min(mul, 0.8); }
     const held = x && ((x.kind === 'container' && x.stage !== 'leave') || (x.kind === 'tornado' && x.stage !== 'leave') || (x.kind === 'heli' && x.stage !== 'leave'));
-    if (held) mul = 0;
+    if (held || g.finish) mul = 0;   // về cổng làng thì đỗ chờ, chỉ còn cú đẩy
     if (g.fuel > 0) {
       g.walking = false;
       if (g.fuelAlarm) { emit('refueled'); g.fuelAlarm = null; }
@@ -847,9 +870,17 @@ export function createGame(options = {}, rnd = Math.random) {
       if (after > before && g.dist < cfg.goal) emit('flag', { meters: after * cfg.flagEvery });
     }
     if (g.timeLeft <= cfg.finalSec && g.timeLeft + dt > cfg.finalSec) emit('final', { sec: cfg.finalSec, mult: cfg.finalMult });
-    if (g.dist >= cfg.goal) { g.dist = cfg.goal; endRace('cuu'); return; }
+    if (g.dist >= cfg.goal) {
+      g.dist = cfg.goal;
+      if (!(cfg.finishSec > 0)) { endRace('cuu'); return; }
+      if (!g.finish) { g.finish = { left: cfg.finishSec }; emit('finishStart', { sec: cfg.finishSec }); }
+    }
+    if (g.finish) {
+      if (g.dist < cfg.goal - 0.5) { g.finish = null; emit('finishCancel', { meters: Math.round(cfg.goal - g.dist) }); }   // bị đẩy lùi khỏi cổng làng → chạy tiếp
+      else if ((g.finish.left -= dt) <= 0) { g.finish = null; endRace('cuu'); return; }
+    }
     if (g.dist <= -cfg.goal * cfg.backFloor) { endRace('pha', 'depot'); return; }
-    if (g.timeLeft <= 0) endRace('pha');
+    if (g.timeLeft <= 0 && !g.finish) endRace('pha');
   };
 
   g.drainEvents = function () { const e = g.events; g.events = []; return e; };

@@ -148,14 +148,6 @@
         "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/0cb623f44c34f77fe14c2e11bfe4ee62.png~tplv-obj.webp"
       }
     ],
-    "banhchung": [
-      {
-        "giftId": "10961",
-        "giftName": "quả đào",
-        "coins": 5,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/ff861a220649506452e3dc35c58266ea.png~tplv-obj.webp"
-      }
-    ],
     "crow": [
       {
         "giftId": "19447",
@@ -258,6 +250,14 @@
         "giftName": "Nụ hôn chíp chíp",
         "coins": 199,
         "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/c75ec50c453f5b09e4d25c5c69c30ed5.png~tplv-obj.webp"
+      }
+    ],
+    "creditor": [
+      {
+        "giftId": "10961",
+        "giftName": "quả đào",
+        "coins": 5,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/ff861a220649506452e3dc35c58266ea.png~tplv-obj.webp"
       }
     ]
   }

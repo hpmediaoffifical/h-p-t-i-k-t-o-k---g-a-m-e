@@ -23,7 +23,7 @@ test('quà chưa gán chọn hành động theo bậc giá của phe', () => {
   assert.equal(pickAction('cuu', 1), 'wind');
   // thang giá 1–199 xu: trò hoành tráng nhất ở 149–199 xu, quà to hơn vẫn ra trò cao nhất
   assert.equal(pickAction('cuu', 4), 'fuel');
-  assert.equal(pickAction('cuu', 5), 'banhchung');
+  assert.equal(pickAction('cuu', 5), 'creditor');
   assert.equal(pickAction('cuu', 20), 'helmet');
   assert.equal(pickAction('cuu', 99), 'tow');
   assert.equal(pickAction('cuu', 149), 'heli');
@@ -190,6 +190,9 @@ test('về tới quê → Cứu thắng; hết giờ → Phá thắng; 30 giây 
   const g = race({ goal: 300, fuelBurn: 0, speed: 0.0001, roundSec: 60 });
   g.gift(A, { action: 'wind', coins: 200 });
   run(g, 2);
+  assert.equal(g.phase, 'race', 'về cổng làng: đếm ngược 15 giây trước khi thắng');
+  assert.ok(g.finish && g.finish.left > 12);
+  run(g, 14);
   assert.equal(g.phase, 'result');
   assert.equal(g.result.winner, 'cuu');
   assert.equal(g.result.topCuu[0].id, 'a');
@@ -502,7 +505,7 @@ test('CSGT có lý do: chở quá số người (ngồi trên nóc) / kiểm tra
   for (let i = 5; i < 10; i++) g.comment({ id: 'v' + i, name: 'v' + i }, '1');
   g.triggerEvent('police');
   assert.equal(g.halt.reason, 'overload');
-  assert.equal(g.halt.over, 4);
+  assert.equal(g.halt.over, 5);   // 10 người bình luận + A (thả tim cũng lên xe) − 6 ghế cửa sổ
 });
 
 test('bắn tốc độ: được đẩy vọt quá 150 km/h ≥ 1,5 giây thì có thể bị CSGT bắt ngay (1 lần/ván), cú đẩy chỉ tạm dừng', () => {
@@ -657,13 +660,13 @@ test('zombie quá đông: HÚC chỉ văng một nửa phần còn lại, zombie
   assert.ok(g.dist > -full * 0.6 && g.dist < -full * 0.45, `dist=${g.dist}`);
 });
 
-test('bánh chưng mẹ gửi: thêm xăng + đẩy tới; siêu nhân vác xe đẩy đủ mét', () => {
+test('chủ nợ rượt: đuổi kịp xe rồi cả đoàn mới vọt lên đủ mét; siêu nhân vác xe đẩy đủ mét', () => {
   const g = still();
-  g.fuel = 50;
-  g.gift(A, { action: 'banhchung', coins: 10 });
-  assert.ok(g.fuel > 50);
+  g.gift(A, { action: 'creditor', coins: 10 });
+  run(g, 0.5);
+  assert.ok(Math.abs(g.dist) < 0.01, 'chủ nợ chưa tới thì xe chưa vọt');
   run(g, 4);
-  assert.ok(Math.abs(g.dist - metersFor(10, M25) * 0.75) < 1, `dist=${g.dist}`);
+  assert.ok(Math.abs(g.dist - metersFor(10, M25)) < 1, `dist=${g.dist}`);
   const g2 = still();
   g2.gift(A, { action: 'superman', coins: 1000 });
   run(g2, 8);
@@ -754,4 +757,68 @@ test('nhiều xe: đoàn có thêm xe thì người đang chờ tự lên lái x
   assert.equal(g.passengers().cars, 2);
   assert.equal(g.drivers[1] && g.drivers[1].id, 'd1');
   assert.equal(g.driverQueue.length, 0);
+});
+
+test('ghế trên xe ưu tiên người thả tim + tặng quà nhiều (1 xu = coinLikes tim); thả tim là lên xe', () => {
+  const g = race({ fuelBurn: 0, roundSec: 9999, seats: 2, maxCars: 1 });
+  g.comment({ id: 'c1', name: 'Chỉ bình luận' }, '1');
+  g.like({ id: 'l1', name: 'Tim 50' }, 50);
+  g.gift({ id: 'g1', name: 'Quà 3 xu' }, { action: 'wind', coins: 3 });   // 30 điểm
+  g.like({ id: 'g1', name: 'Quà 3 xu' }, 25);                             // 55 điểm
+  const P = g.passengers();
+  assert.deepEqual(P.seated.map(u => u.id), ['g1', 'l1']);
+  assert.equal(P.extra, 1);
+  g.comment({ id: 'p1', name: 'Phá' }, '2');
+  g.like({ id: 'p1', name: 'Phá' }, 999);
+  assert.ok(!g.passengers().seated.some(u => u.id === 'p1'), 'phe Phá thả tim không lên xe');
+});
+
+test('trạm dừng chân: đám đông = người trên xe + mọi người từng thả tim / tặng quà, tối đa crowdMax, giữ qua các ván', () => {
+  const g = race({ fuelBurn: 0, roundSec: 9999, seats: 3, maxCars: 1, crowdMax: 10 });
+  for (let i = 0; i < 6; i++) g.like({ id: `l${i}`, name: `L${i}` }, 10 + i);
+  g.comment({ id: 'p', name: 'Phá' }, '2'); g.gift({ id: 'p', name: 'Phá' }, { action: 'banana', coins: 1 });
+  g.comment({ id: 'quiet', name: 'Im lặng' }, '2');
+  const c = g.crowd();
+  assert.ok(c.length <= 10);
+  assert.ok(c.some(u => u.id === 'p'), 'phe Phá cũng xuống tám chuyện');
+  assert.ok(!c.some(u => u.id === 'quiet'), 'chưa thả tim / tặng quà thì không có');
+  assert.deepEqual(c.slice(0, 3).map(u => u.id), g.passengers().seated.map(u => u.id));
+  g.forceEnd('cuu'); run(g, 30);
+  assert.ok(g.crowd().length >= 7, 'sang ván mới vẫn nhớ người từng tương tác');
+});
+
+test('về cổng làng: 15 giây đếm ngược (đồng hồ ván dừng), phe Phá đẩy lùi khỏi đích thì huỷ đếm và chạy tiếp', () => {
+  const g = race({ goal: 300, fuelBurn: 0, speed: 0.0001, roundSec: 60 });
+  g.gift(A, { action: 'wind', coins: 200 });
+  run(g, 2);
+  assert.ok(g.drainEvents().some(e => e.type === 'finishStart' && e.sec === 15));
+  const clock = g.timeLeft;
+  run(g, 5);
+  assert.equal(g.timeLeft, clock, 'đồng hồ ván dừng lúc đếm ngược');
+  g.gift(B, { action: 'rain', coins: 20 });
+  run(g, 8);
+  assert.equal(g.finish, null);
+  assert.ok(g.drainEvents().some(e => e.type === 'finishCancel'));
+  assert.equal(g.phase, 'race');
+  assert.ok(g.dist < 300 && g.timeLeft < clock, 'chạy tiếp, đồng hồ chạy lại');
+});
+
+test('chủ nợ rượt: đòi nợ đích danh 1 người trong top 10 tặng quà + thả tim, không phải chính mình', () => {
+  const g = still();
+  for (let i = 0; i < 12; i++) g.like({ id: `f${i}`, name: `Fan ${i}` }, 100 - i);
+  g.gift(A, { action: 'creditor', coins: 5 });
+  const ev = g.drainEvents().find(e => e.type === 'debt');
+  const top = g.topFans(10).map(u => u.id);
+  assert.ok(ev.debtor && top.includes(ev.debtor.id) && ev.debtor.id !== 'a', JSON.stringify(ev.debtor));
+  assert.ok(!['f10', 'f11'].includes(ev.debtor.id));
+});
+
+test('bị đẩy vọt tới cổng làng thì không dừng trạm xăng / trạm dừng còn lại nữa', () => {
+  let s = 5; const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  const g = createGame({ autoPilot: false, lobbySec: 0.05, goal: 900, fuelBurn: 0, speed: 0.0001, ...M25 }, rnd);
+  run(g, 0.1);
+  g.gift(A, { action: 'heli', coins: 400 });
+  run(g, 8);
+  assert.ok(g.finish || g.phase === 'result');
+  assert.equal(g.halt, null);
 });
