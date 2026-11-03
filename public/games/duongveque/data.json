@@ -107,35 +107,26 @@
     ],
     "tow": [
       {
-        "giftId": "7168",
-        "giftName": "Súng bắn tiền",
-        "names": [
-          "Money Gun"
-        ],
-        "coins": 500,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/e0589e95a2b41970f0f30f6202f5fce6~tplv-obj.webp"
+        "giftId": "16552",
+        "giftName": "Bóng bay trái tim",
+        "coins": 149,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/d1cc3f587941bd7af50929aee49ac070.png~tplv-obj.webp"
       }
     ],
     "container": [
       {
-        "giftId": "6267",
-        "giftName": "Chó Corgi",
-        "names": [
-          "Corgi"
-        ],
-        "coins": 299,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/148eef0884fdb12058d1c6897d1e02b9~tplv-obj.webp"
+        "giftId": "17359",
+        "giftName": "Sâu bướm làm loạn",
+        "coins": 149,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/5fc71d8f491568b0e258e2de1718e37c.png~tplv-obj.webp"
       }
     ],
     "heli": [
       {
-        "giftId": "11046",
-        "giftName": "Thiên hà",
-        "names": [
-          "Galaxy"
-        ],
-        "coins": 1000,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/79a02148079526539f7599150da9fd28.png~tplv-obj.webp"
+        "giftId": "14382",
+        "giftName": "Bạch tuộc lững lờ",
+        "coins": 199,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/022d496f79aa50d3042f0660d37ed48a.png~tplv-obj.webp"
       }
     ],
     "driver": [
@@ -151,13 +142,10 @@
     ],
     "tornado": [
       {
-        "giftId": "6090",
-        "giftName": "Pháo hoa",
-        "names": [
-          "Fireworks"
-        ],
-        "coins": 1088,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/9494c8a0bc5c03521ef65368e59cc2b8~tplv-obj.webp"
+        "giftId": "11177",
+        "giftName": "Ảo thuật cà phê",
+        "coins": 199,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/0cb623f44c34f77fe14c2e11bfe4ee62.png~tplv-obj.webp"
       }
     ],
     "banhchung": [
@@ -194,18 +182,18 @@
     ],
     "lion": [
       {
-        "giftId": "282675",
-        "giftName": "Trống bùng nổ",
-        "coins": 249,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/599381a83e534232acc4b659ba715622.png~tplv-obj.webp"
+        "giftId": "19443",
+        "giftName": "Hoan hô!",
+        "coins": 15,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/075e206d6da035f10ff5f8fecd82abcc.png~tplv-obj.webp"
       }
     ],
     "ghost": [
       {
-        "giftId": "17821",
-        "giftName": "Chú ma tinh nghịch",
-        "coins": 249,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/fbbe8af4280240dfdb11ad1100be0282.png~tplv-obj.webp"
+        "giftId": "17465",
+        "giftName": "little kisses",
+        "coins": 20,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/0a5db92508ee667339289b2f87bc3123.png~tplv-obj.webp"
       }
     ],
     "buffalo": [
@@ -226,50 +214,50 @@
     ],
     "shaman": [
       {
-        "giftId": "17962",
-        "giftName": "Vị thần phép thuật",
-        "coins": 200,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/3d306be32f7d6d52c4e74df15a063d45.png~tplv-obj.webp"
+        "giftId": "13462",
+        "giftName": "Tiểu tinh tú",
+        "coins": 100,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/483fbb7908887e111feb9d68426e33bd.png~tplv-obj.webp"
       }
     ],
     "possess": [
       {
-        "giftId": "17845",
-        "giftName": "Mũ đội đầu hình con dơi",
-        "coins": 299,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/1ba0996c3dd7db45807fd7f255eb66a4.png~tplv-obj.webp"
+        "giftId": "17922",
+        "giftName": "Cung thần mê hoặc",
+        "coins": 99,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/3cbe9384885eab12ace419cc4f28cf4f.png~tplv-obj.webp"
       }
     ],
     "fireworks": [
       {
-        "giftId": "18505",
-        "giftName": "Gấu bắn pháo giấy",
-        "coins": 399,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/6e2944bf91135c52cc8004d9b7ef36ab.png~tplv-obj.webp"
+        "giftId": "15189",
+        "giftName": "Bỏng ngô tán gẫu",
+        "coins": 149,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/f4813ddce6a6b3268df01af9fe3764d9.png~tplv-obj.webp"
       }
     ],
     "coffin": [
       {
-        "giftId": "58237",
-        "giftName": "Chú hề nhảy múa",
-        "coins": 449,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/379f132acd166deee7b1db9132b29342.png~tplv-obj.webp"
+        "giftId": "17844",
+        "giftName": "Catrina",
+        "coins": 149,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/fadb0050e89ad6a1731c1a4742360846.png~tplv-obj.webp"
       }
     ],
     "superman": [
       {
-        "giftId": "6862",
-        "giftName": "Cooper bay về nhà",
-        "coins": 1999,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/3f1945b0d96e665a759f747e5e0cf7a9~tplv-obj.webp"
+        "giftId": "17101",
+        "giftName": "Nước dừa sảng khoái",
+        "coins": 199,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/8157f47f794c8395969034574dd12082.png~tplv-obj.webp"
       }
     ],
     "zombie": [
       {
-        "giftId": "1479226",
-        "giftName": "Rock ma quái",
-        "coins": 2200,
-        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/f68adf96e9bbbb68069b2cad0fe79e64.png~tplv-obj.webp"
+        "giftId": "17360",
+        "giftName": "Nụ hôn chíp chíp",
+        "coins": 199,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/c75ec50c453f5b09e4d25c5c69c30ed5.png~tplv-obj.webp"
       }
     ]
   }

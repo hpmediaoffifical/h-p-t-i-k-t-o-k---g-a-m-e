@@ -71,12 +71,12 @@ tự chọn theo bậc giá). Vẫn giữ **mọi quà quy ra mét theo xu** →
 | Giá | 🛡️ Cứu | Tác dụng | ⚔️ Phá | Tác dụng |
 |---|---|---|---|---|
 | 5 | 🍙 Bánh chưng mẹ gửi | mẹ chạy xe máy ném bánh chưng lên xe: +xăng, đẩy tới 0,75× | 🐦‍⬛ Quạ ỉa kính | bầy quạ ỉa trúng kính, chậm nhẹ 3 giây |
-| 10 | 🧄 Tỏi trừ tà | xoá trò kinh dị | 🐍 Rắn chui gầm xe | khách hoảng nhảy trong xe; HÚC được |
-| 49 | 🦁 Múa lân mở đường | dọn vật cản phía trước rồi đấu đội quan tài / ma | 👻 Ma vẫy xe | ma áo dài trắng tóc xoã giữa đường, phanh gấp 1,5 giây, màn tối + chớp |
-| 99 | 🐃 Trâu húc đít xe | húc văng chó, vịt, rắn, cá sấu, zombie | 🐊 Cá sấu đớp khách | nhảy lên nóc đớp 1 khách kéo xuống ao; khách bơi về sau `crocSec` (12) giây; HÚC / trừ tà cứu ngay |
-| 199 | 🧙 Thầy pháp trừ tà | đứng trên nóc múa kiếm, bùa bay; xoá mọi trò kinh dị + quạ | 👹 Quỷ nhập tài xế | sừng + mắt đỏ, màn viền đỏ, xe đứng 5 giây, **khoá NHẢY/HÚC** |
-| 500 | 🎆 Pháo hoa Tết | xoá mọi trò phe Phá đang chạy (trừ vật cản, container, lốc) | ⚰️ Đội khiêng quan tài | 4 người áo đen kính đen nhảy khiêng quan tài "VỀ BẾN XE", xe đứng 6 giây |
-| 3000 | 🦸 Siêu nhân vác xe | vác cả đoàn xe bay trên vai | 🧟 Bầy zombie | 9 zombie bám đầu + leo nóc xe, chậm 0,2× 7 giây; HÚC chỉ văng một nửa |
+| 9 | 🧄 Tỏi trừ tà | xoá trò kinh dị | 🐍 Rắn chui gầm xe | khách hoảng nhảy trong xe; HÚC được |
+| 15 | 🦁 Múa lân mở đường | dọn vật cản phía trước rồi đấu đội quan tài / ma | 👻 Ma vẫy xe | ma áo dài trắng tóc xoã giữa đường, phanh gấp 1,5 giây, màn tối + chớp |
+| 30 | 🐃 Trâu húc đít xe | húc văng chó, vịt, rắn, cá sấu, zombie | 🐊 Cá sấu đớp khách | nhảy lên nóc đớp 1 khách kéo xuống ao; khách bơi về sau `crocSec` (12) giây; HÚC / trừ tà cứu ngay |
+| 88 | 🧙 Thầy pháp trừ tà | đứng trên nóc múa kiếm, bùa bay; xoá mọi trò kinh dị + quạ | 👹 Quỷ nhập tài xế | sừng + mắt đỏ, màn viền đỏ, xe đứng 5 giây, **khoá NHẢY/HÚC** |
+| 100 | 🎆 Pháo hoa Tết | xoá mọi trò phe Phá đang chạy (trừ vật cản, container, lốc) | ⚰️ Đội khiêng quan tài | 4 người áo đen kính đen nhảy khiêng quan tài "VỀ BẾN XE", xe đứng 6 giây |
+| 199 | 🦸 Siêu nhân vác xe | vác cả đoàn xe bay trên vai | 🧟 Bầy zombie | 9 zombie bám đầu + leo nóc xe, chậm 0,2× 7 giây; HÚC chỉ văng một nửa |
 
 - **Trừ tà theo xu** (`exorcise` trong logic.js, nhóm được xoá ở `COUNTER`): xoá phần đẩy lùi CÒN LẠI của trò đúng loại, cũ trước,
   tối đa đúng số mét của quà trừ tà; dư bao nhiêu thành đẩy tới; xoá sạch thì trò tắt hình. Kẻ phá có trò bị xoá sạch → **bị ném vào thùng rác**.
@@ -86,14 +86,28 @@ tự chọn theo bậc giá). Vẫn giữ **mọi quà quy ra mét theo xu** →
   sự kiện `snatch` / `victimBack {how: swim|ram|saved}`.
 - Vẽ: khối "trò kinh dị · trừ tà" trong `game.js` (`FUN_DRAW`, `drawFun`, `drawHorrorVeil`) — canvas 2D theo SX/contactY nên bản 3D
   (`?r=3d`) cũng vẽ chồng được. Đang có trò kinh dị thì không hiện xe ủi (trò tự có hình). Âm thanh tổng hợp mới: `spooky`, `drum`, `dance`, `chomp`, `boom`.
-- Quà gợi ý (`data.json`): Phản ứng quá lố → quạ · quả đào → bánh chưng · Nhìn là mê → rắn · Chú heo may mắn → tỏi ·
-  Chú ma tinh nghịch (249) → ma · Trống bùng nổ (249) → lân · Bắt cóc bò sữa (99) → cá sấu · Bom kẹo (99) → trâu ·
-  Mũ đội đầu hình con dơi (299) → quỷ · Vị thần phép thuật (200) → thầy pháp · Chú hề nhảy múa (449) → quan tài ·
-  Gấu bắn pháo giấy (399) → pháo hoa · Rock ma quái (2200) → zombie · Cooper bay về nhà (1999) → siêu nhân.
+- **Thang giá 1–199 xu** (user: "quà nhiều xu quá khó ai chịu chơi"): cột Giá ở bảng trên là `min` khi quà chưa gán; trò cũ cũng dồn
+  xuống (gió 0 · xăng 2 · nitro 10 · mũ 20 · phượt 49 · cứu hộ 99 · trực thăng 149 | chuối 0 · ổ gà 2 · chó 10 · vịt 20 · mưa 49 ·
+  container 99 · lốc 149). Test khoá: mọi trò < 200 xu.
+- Quà gợi ý (`data.json`, tất cả ≤ 199 xu, cặp cùng giá 2 phe): 5 quả đào ↔ Phản ứng quá lố (quạ) · 10 Chú heo may mắn (tỏi) ↔ Nhìn là mê (rắn) ·
+  15 Hoan hô! (lân) ↔ 20 little kisses (ma) · 99 Bom kẹo (trâu) ↔ Bắt cóc bò sữa (cá sấu) · 100 Tiểu tinh tú (thầy pháp) ↔ 99 Cung thần mê hoặc (quỷ) ·
+  149 Bóng bay trái tim (cứu hộ) ↔ Sâu bướm làm loạn (container) · 149 Bỏng ngô tán gẫu (pháo hoa) ↔ Catrina (quan tài) ·
+  199 Bạch tuộc lững lờ (trực thăng) ↔ Ảo thuật cà phê (lốc) · 199 Nước dừa sảng khoái (siêu nhân) ↔ Nụ hôn chíp chíp (zombie).
+  Quà trùng Nhà Tù còn lại là quà cũ (TikTok, Trái bóng xoáy, Mũ lưỡi trai, Pháo hoa giấy, Kính râm, Sao đêm).
   Chú giải quà gọn lại 29 px/dòng cho 14 dòng mỗi phe.
+- **Chạm rồi mới đẩy** (user: xe phe Phá phải chạm xe rồi xe mới lùi, không tự lùi trước): cú đẩy có `lead` giây tiếp cận
+  (`PUSH_LEAD` trong logic.js, `p.t < 0` = đang tới): xe ủi chung (quà dồn, nộp phạt, chó, vịt, mưa) 0,4–0,8 · rắn 1,2 · ma 0,8 ·
+  cá sấu 0,7 · quỷ 0,5 · quan tài 1,3 · zombie 1,4; phe Cứu đẩy từ phía sau cũng vậy (cứu hộ 0,5 · trâu 0,6 · siêu nhân 0,8).
+  Xe ủi (2D + 3D) lái vào theo đúng tiến độ `1 + t/lead`, chạm đầu xe lúc cú đẩy bắt đầu; tổng mét không đổi.
+- Cá sấu đớp khách ở vùng không có ao/sông (cao nguyên, núi, thành phố…) → khách chạy bộ đuổi theo xe thay vì bơi.
 - **Đo cân bằng 200 ván** (`dvq-soak.mjs`, mặc định 4 phút / 6 km, quà chọn bậc cao nhất theo giá nên trò mới được dùng nhiều):
   2 phe ngang tiền 99/101 → **100/100**; 55% Cứu 123/77 → 120/80; 75% Cứu 182/18 → 182/18; 35% Cứu 30/170 → 30/170; không NaN.
   Phe Cứu thắng nhanh hơn khi đã thắng (trung bình 77 → 59 giây ở kịch bản ngang).
+- **Đo lại với quà rẻ** (người xem ảo chỉ tặng 1–199 xu, 200 ván, `soak-cheap-*.mjs`): cũ → mới 2 phe ngang tiền 135/65 → 134/66 ·
+  55% Cứu 165/35 → 156/44 · 35% Cứu 43/157 → 27/173 · 75% Cứu 191/9 → 198/2; hàng chờ trò độc chiếm tối đa 2; không NaN.
+  ⚠️ Phòng chỉ tặng quà rẻ thì 2 phe ngang tiền phe Cứu vẫn thắng ~2/3 (xe tự chạy tới đích trước giờ, quà nhỏ không đủ lắc) — có từ
+  bản cũ, không do trò mới. Tăng `meterPerCoin` kéo về gần 50% nhưng ván kết thúc quá nhanh (15 m/xu: Cứu thắng sau ~40–50 giây)
+  → GIỮ 5 m/xu, để streamer tự chỉnh ô "mét/xu" trong panel; muốn cân lại thì nên chỉnh đường dài/xe chậm hơn thay vì mét/xu.
 - Thử: `?mute=1&lobby=0.3&warp=1&riders=14` rồi `__dvq.sim('gift', {action:'croc', coins:99})`; panel tự có nút thử cho mọi trò.
 
 ## Nối app

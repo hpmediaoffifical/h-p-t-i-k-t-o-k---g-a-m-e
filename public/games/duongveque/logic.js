@@ -18,37 +18,38 @@ import { rangesOf } from './route.js';
 export const SIDES = ['cuu', 'pha'];
 
 // min = giá xu tối thiểu khi quà CHƯA GÁN tự chọn hành động theo giá (quà đã gán thì giá nào cũng chạy đúng hành động đó).
+// Cả thang nằm trong 1–199 xu (user: quà to quá không ai chịu chơi) — trò hoành tráng nhất ở 149–199 xu.
 export const ACTIONS = [
   { id: 'wind',      side: 'cuu', emoji: '🌬️', label: 'Gió xuôi',      min: 0 },
   { id: 'fuel',      side: 'cuu', emoji: '⛽', label: 'Đổ xăng',       min: 2 },
   { id: 'banhchung', side: 'cuu', emoji: '🍙', label: 'Bánh chưng mẹ gửi', min: 5 },
-  { id: 'garlic',    side: 'cuu', emoji: '🧄', label: 'Tỏi trừ tà',    min: 10 },
-  { id: 'nitro',     side: 'cuu', emoji: '🚀', label: 'Nitro',         min: 20 },
-  { id: 'lion',      side: 'cuu', emoji: '🦁', label: 'Múa lân mở đường', min: 49 },
-  { id: 'helmet',    side: 'cuu', emoji: '⛑️', label: 'Mũ bảo hiểm',   min: 90 },
-  { id: 'buffalo',   side: 'cuu', emoji: '🐃', label: 'Trâu húc đít xe', min: 99 },
-  { id: 'convoy',    side: 'cuu', emoji: '🏍️', label: 'Đoàn phượt',    min: 150 },
-  { id: 'shaman',    side: 'cuu', emoji: '🧙', label: 'Thầy pháp trừ tà', min: 199 },
-  { id: 'tow',       side: 'cuu', emoji: '🚛', label: 'Xe cứu hộ',     min: 300 },
-  { id: 'fireworks', side: 'cuu', emoji: '🎆', label: 'Pháo hoa Tết',  min: 500 },
-  { id: 'heli',      side: 'cuu', emoji: '🚁', label: 'Trực thăng',    min: 1000 },
-  { id: 'superman',  side: 'cuu', emoji: '🦸', label: 'Siêu nhân vác xe', min: 3000 },
+  { id: 'garlic',    side: 'cuu', emoji: '🧄', label: 'Tỏi trừ tà',    min: 9 },
+  { id: 'nitro',     side: 'cuu', emoji: '🚀', label: 'Nitro',         min: 10 },
+  { id: 'lion',      side: 'cuu', emoji: '🦁', label: 'Múa lân mở đường', min: 15 },
+  { id: 'helmet',    side: 'cuu', emoji: '⛑️', label: 'Mũ bảo hiểm',   min: 20 },
+  { id: 'buffalo',   side: 'cuu', emoji: '🐃', label: 'Trâu húc đít xe', min: 30 },
+  { id: 'convoy',    side: 'cuu', emoji: '🏍️', label: 'Đoàn phượt',    min: 49 },
+  { id: 'shaman',    side: 'cuu', emoji: '🧙', label: 'Thầy pháp trừ tà', min: 88 },
+  { id: 'tow',       side: 'cuu', emoji: '🚛', label: 'Xe cứu hộ',     min: 99 },
+  { id: 'fireworks', side: 'cuu', emoji: '🎆', label: 'Pháo hoa Tết',  min: 100 },
+  { id: 'heli',      side: 'cuu', emoji: '🚁', label: 'Trực thăng',    min: 149 },
+  { id: 'superman',  side: 'cuu', emoji: '🦸', label: 'Siêu nhân vác xe', min: 199 },
   // chỉ chạy khi đã GÁN quà (min vô cực → quà chưa gán không bao giờ rơi vào đây)
   { id: 'driver',    side: 'cuu', emoji: '🧑‍✈️', label: 'Lên làm tài xế', min: Infinity },
   { id: 'banana',    side: 'pha', emoji: '🍌', label: 'Vỏ chuối',      min: 0 },
   { id: 'pothole',   side: 'pha', emoji: '🕳️', label: 'Ổ gà',          min: 2 },
   { id: 'crow',      side: 'pha', emoji: '🐦‍⬛', label: 'Quạ ỉa kính',   min: 5 },
-  { id: 'snake',     side: 'pha', emoji: '🐍', label: 'Rắn chui gầm xe', min: 10 },
-  { id: 'dog',       side: 'pha', emoji: '🐕', label: 'Chó rượt',      min: 20 },
-  { id: 'ghost',     side: 'pha', emoji: '👻', label: 'Ma vẫy xe',     min: 49 },
-  { id: 'ducks',     side: 'pha', emoji: '🦆', label: 'Đàn vịt',       min: 90 },
-  { id: 'croc',      side: 'pha', emoji: '🐊', label: 'Cá sấu đớp khách', min: 99 },
-  { id: 'rain',      side: 'pha', emoji: '🌧️', label: 'Mưa ngập',      min: 150 },
-  { id: 'possess',   side: 'pha', emoji: '👹', label: 'Quỷ nhập tài xế', min: 199 },
-  { id: 'container', side: 'pha', emoji: '🚚', label: 'Xe container',  min: 300 },
-  { id: 'coffin',    side: 'pha', emoji: '⚰️', label: 'Đội khiêng quan tài', min: 500 },
-  { id: 'tornado',   side: 'pha', emoji: '🌪️', label: 'Lốc xoáy',      min: 1000 },
-  { id: 'zombie',    side: 'pha', emoji: '🧟', label: 'Bầy zombie',    min: 3000 },
+  { id: 'snake',     side: 'pha', emoji: '🐍', label: 'Rắn chui gầm xe', min: 9 },
+  { id: 'dog',       side: 'pha', emoji: '🐕', label: 'Chó rượt',      min: 10 },
+  { id: 'ghost',     side: 'pha', emoji: '👻', label: 'Ma vẫy xe',     min: 15 },
+  { id: 'ducks',     side: 'pha', emoji: '🦆', label: 'Đàn vịt',       min: 20 },
+  { id: 'croc',      side: 'pha', emoji: '🐊', label: 'Cá sấu đớp khách', min: 30 },
+  { id: 'rain',      side: 'pha', emoji: '🌧️', label: 'Mưa ngập',      min: 49 },
+  { id: 'possess',   side: 'pha', emoji: '👹', label: 'Quỷ nhập tài xế', min: 88 },
+  { id: 'container', side: 'pha', emoji: '🚚', label: 'Xe container',  min: 99 },
+  { id: 'coffin',    side: 'pha', emoji: '⚰️', label: 'Đội khiêng quan tài', min: 100 },
+  { id: 'tornado',   side: 'pha', emoji: '🌪️', label: 'Lốc xoáy',      min: 149 },
+  { id: 'zombie',    side: 'pha', emoji: '🧟', label: 'Bầy zombie',    min: 199 },
 ];
 export const ACTION_BY_ID = Object.fromEntries(ACTIONS.map(a => [a.id, a]));
 
@@ -115,6 +116,12 @@ export const COUNTER = {
 };
 
 const DODGE_KINDS = new Set(['banana', 'pothole']);
+/** Giây "tiếp cận" trước khi cú đẩy chạy: kẻ đẩy phải CHẠM xe rồi xe mới lùi / tiến (user chốt). Vật cản, container, lốc đã có pha tiếp cận riêng. */
+export const PUSH_LEAD = {
+  stash: 0.8, fine: 0.8, dog: 0.5, ducks: 0.6, rain: 0.4,                                   // xe ủi chung lái tới
+  crow: 0.6, snake: 1.2, ghost: 0.8, croc: 0.7, possess: 0.5, coffin: 1.3, zombie: 1.4,       // trò kinh dị: lúc diễn viên tới
+  tow: 0.5, buffalo: 0.6, superman: 0.8,                                                     // phe Cứu đẩy từ phía sau cũng phải chạm
+};
 const EXCLUSIVE = new Set(['container', 'tornado', 'heli']);
 
 export function normName(s) {
@@ -231,17 +238,18 @@ export function createGame(options = {}, rnd = Math.random) {
       emit('shieldBlock', { meters: ab, kind, left: g.shield });
       if (m <= 0) return null;
     }
-    const p = { m, dur: Math.max(0.05, dur, Math.min(cfg.pushMax, m / cfg.pushRate)), t: 0, side, kind };
+    const lead = PUSH_LEAD[kind] || 0;
+    const p = { m, dur: Math.max(0.05, dur, Math.min(cfg.pushMax, m / cfg.pushRate)), t: -lead, lead, side, kind };   // t < 0: đang tiếp cận
     g.pushes.push(p);
     return p;
   }
   // phần chưa chạy của một cú đẩy (để huỷ / giảm khi bị HÚC)
-  const remaining = p => (p ? p.m * Math.max(0, 1 - p.t / p.dur) : 0);
+  const remaining = p => (p ? p.m * Math.max(0, 1 - Math.max(0, p.t) / p.dur) : 0);
   function cutPush(p, keep) { if (!p) return 0; const rem = remaining(p); const cut = rem * (1 - keep); p.m -= cut; return cut; }
   /** Bớt đúng `amount` mét trong phần chưa chạy của cú đẩy (phần đã chạy giữ nguyên). */
   function trimPush(p, amount) {
     if (!p || amount <= 0) return 0;
-    const left = Math.max(1e-6, 1 - p.t / p.dur), take = Math.min(remaining(p), amount);
+    const left = Math.max(1e-6, 1 - Math.max(0, p.t) / p.dur), take = Math.min(remaining(p), amount);
     p.m -= take / left;
     return take;
   }
@@ -781,7 +789,7 @@ export function createGame(options = {}, rnd = Math.random) {
 
     // cú đẩy
     for (const p of g.pushes) {
-      const k = Math.min(dt, p.dur - p.t) / p.dur;
+      const k = Math.max(0, Math.min(p.dur, p.t + dt) - Math.max(0, p.t)) / p.dur;   // chỉ phần sau khi đã chạm (t ≥ 0)
       if (k > 0) dd += (p.side === 'pha' ? -1 : 1) * p.m * k;
       p.t += dt;
     }

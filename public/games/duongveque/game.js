@@ -1000,6 +1000,7 @@ function tornado(x, y, t, alpha) {
 const fx = [];
 const followFlags = [];
 let shake = 0, hitWobble = 0, skid = 0, bump = 0, bin = null, pushA = 0, pushBy = null;
+const DOZER_KINDS = new Set(['stash', 'fine', 'dog', 'ducks', 'rain']);   // cú đẩy Phá không có "diễn viên" riêng → xe ủi lái tới chạm rồi mới đẩy
 function floatText(text, color, x = SX + S(160), y = null, size = 46) { fx.push({ k: 'txt', text, color, x, y: y == null ? contactY(cam) - S(300) : y, t: 0, dur: 1.4, size }); }
 function confetti(n = 80, x = W / 2, y = 700) { for (let i = 0; i < n; i++) fx.push({ k: 'conf', x, y, vx: (Math.random() - 0.5) * 900, vy: -300 - Math.random() * 700, c: ['#ffd23a', '#e8322c', '#35d07f', '#2fa4e7', '#ff6fae'][i % 5], t: 0, dur: 2.6, r: Math.random() * 6 }); }
 function stepFx(dt) {
@@ -1620,6 +1621,7 @@ function crocBody(x, y, s, jaw, flip = 1) {
   ctx.restore();
 }
 const pondY = () => contactY(cam) + 230;
+const WET = new Set(['delta', 'coast', 'karst']);   // vùng có ao / sông / biển phía trước
 function drawCroc(e, cy) {
   const V = vehOf(), roofX = SX - S(V.rear * 0.45), roofY = cy - S(V.top + 10), wx = roofX + S(160), wy = pondY();
   let x, y, jaw = 0.5, carry = false;
@@ -1635,6 +1637,11 @@ function drawSwimmers(cy) {
   game.lost.forEach((l, i) => {
     const u = game.users.get(l.id); if (!u) return;
     const q = clamp(1 - l.left / (game.cfg.crocSec || 12), 0, 1), x = lerp(SX + S(520) + i * S(70), SX - S(60), q), y = pondY() + S(40) + Math.sin(T * 4 + i) * S(6);
+    if (!WET.has(biomeAt(cam))) {   // vùng không có ao/sông: chạy bộ đuổi theo xe trên lề đường
+      walker(x, contactY(meterAt(x)) + S(70), u, VS * 1.3, i * 2);
+      if (Math.sin(T * 1.5 + i) > 0.2) bubble(x, contactY(cam) - S(60), '🏃 Chờ tui với!!', 3);
+      return;
+    }
     ctx.strokeStyle = '#ffd3ad'; ctx.lineWidth = S(9); ctx.lineCap = 'round';
     for (const s of [-1, 1]) { const a = T * 9 + (s > 0 ? Math.PI : 0); ctx.beginPath(); ctx.moveTo(x + s * S(18), y + S(4)); ctx.lineTo(x + s * S(18) + Math.cos(a) * S(30), y - Math.abs(Math.sin(a)) * S(26)); ctx.stroke(); }
     ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, y + S(18), S(44), S(9), 0, 0, Math.PI * 2); ctx.stroke();
@@ -1911,10 +1918,12 @@ function render(dt) {
   // xe ủi chạy ngược chiều đẩy lùi
   {
     const own = (x && (x.kind === 'container' || x.kind === 'tornado')) || game.effects.some(e => FUN_DRAW[e.kind] && e.t < e.dur && ACTION_BY_ID[e.kind].side === 'pha');   // trò kinh dị tự có hình, không cần xe ủi
-    const backing = game.phase === 'race' && !game.halt && !own && vel < -6;
-    pushA = lerp(pushA, backing ? 1 : 0, 1 - Math.pow(0.002, dt));
+    // xe ủi lái tới theo cú đẩy Phá đang TIẾP CẬN (logic: p.t < 0) — chạm đầu xe đúng lúc cú đẩy bắt đầu, không để xe tự lùi trước
+    let near = 0;
+    if (game.phase === 'race' && !game.halt && !own) for (const p of game.pushes) if (p.side === 'pha' && DOZER_KINDS.has(p.kind) && p.t < p.dur) near = Math.max(near, p.t < 0 && p.lead ? 1 + p.t / p.lead : 1);
+    pushA = near > 0 ? Math.max(near, Math.min(pushA, 1)) : lerp(pushA, 0, 1 - Math.pow(0.002, dt));   // tới: bám đúng tiến độ · đi: lùi ra từ từ
     if (pushA > 0.03) {
-      const xf = SX + S(108) + (1 - pushA) * S(500);
+      const xf = SX + S(108) + (1 - ease(pushA)) * S(720);
       bulldozer(xf, meterAt(xf + S(200)), clamp(pushA * 1.4, 0, 1));
       if (pushBy && pushA > 0.5) tag(xf + S(220), contactY(cam) - S(330), pushBy, 'rgba(170,30,25,.9)', 20);
       if (pushA > 0.6) fx.push({ k: 'dust', x: SX + S(100), y: contactY(cam) - S(8), t: 0, dur: 0.5 });

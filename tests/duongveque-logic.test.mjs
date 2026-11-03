@@ -21,18 +21,21 @@ test('mét theo xu: tuyến tính, có tối thiểu', () => {
 
 test('quà chưa gán chọn hành động theo bậc giá của phe', () => {
   assert.equal(pickAction('cuu', 1), 'wind');
+  // thang giá 1–199 xu: trò hoành tráng nhất ở 149–199 xu, quà to hơn vẫn ra trò cao nhất
   assert.equal(pickAction('cuu', 4), 'fuel');
   assert.equal(pickAction('cuu', 5), 'banhchung');
-  assert.equal(pickAction('cuu', 95), 'helmet');
-  assert.equal(pickAction('cuu', 100), 'buffalo');
-  assert.equal(pickAction('cuu', 1500), 'heli');
+  assert.equal(pickAction('cuu', 20), 'helmet');
+  assert.equal(pickAction('cuu', 99), 'tow');
+  assert.equal(pickAction('cuu', 149), 'heli');
+  assert.equal(pickAction('cuu', 199), 'superman');
   assert.equal(pickAction('cuu', 5000), 'superman');
   assert.equal(pickAction('pha', 1), 'banana');
-  assert.equal(pickAction('pha', 30), 'dog');
-  assert.equal(pickAction('pha', 99), 'croc');
-  assert.equal(pickAction('pha', 3000), 'zombie');
-  assert.equal(pickAction('pha', 499), 'container');
-  assert.equal(pickAction('pha', 1000), 'tornado');
+  assert.equal(pickAction('pha', 10), 'dog');
+  assert.equal(pickAction('pha', 30), 'croc');
+  assert.equal(pickAction('pha', 99), 'container');
+  assert.equal(pickAction('pha', 149), 'tornado');
+  assert.equal(pickAction('pha', 199), 'zombie');
+  for (const a of ACTIONS) assert.ok(a.min < 200 || a.min === Infinity, `${a.id} phải dưới 200 xu`);
   for (const a of ACTIONS) assert.ok(['cuu', 'pha'].includes(a.side));
 });
 
@@ -40,8 +43,8 @@ test('gán quà: khớp id trước, rồi tên đúng cả chuỗi; không kh�
   const map = { nitro: [{ giftId: '5879', giftName: 'Doughnut' }], ducks: [{ giftId: '5585', giftName: 'Confetti', names: ['Pháo hoa giấy'] }] };
   assert.deepEqual(resolveGift({ giftId: 5879, coins: 30 }, map, null), { action: 'nitro', side: 'cuu', mapped: true });
   assert.equal(resolveGift({ giftName: 'pháo hoa giấy', coins: 100 }, map, null).action, 'ducks');
-  assert.equal(resolveGift({ giftName: 'Pháo hoa', coins: 1088 }, map, null).action, 'heli'); // không "chứa" là khớp
-  assert.equal(resolveGift({ giftId: 1, coins: 1088 }, map, 'pha').action, 'tornado');
+  assert.equal(resolveGift({ giftName: 'Pháo hoa', coins: 149 }, map, null).action, 'heli'); // không "chứa" là khớp
+  assert.equal(resolveGift({ giftId: 1, coins: 149 }, map, 'pha').action, 'tornado');
 });
 
 test('bình luận chọn phe', () => {
@@ -550,7 +553,7 @@ test('mỗi trò kinh dị phe Phá đẩy lùi đúng số mét theo xu', () =>
   for (const k of ['crow', 'snake', 'ghost', 'croc', 'possess', 'coffin', 'zombie']) {
     const g = still();
     g.gift(B, { action: k, coins: 20 });
-    run(g, 8);
+    run(g, 10);
     assert.ok(Math.abs(g.dist + metersFor(20, M25)) < 1, `${k}: ${g.dist}`);
   }
 });
@@ -649,7 +652,7 @@ test('zombie quá đông: HÚC chỉ văng một nửa phần còn lại, zombie
   run(g, 0.1);
   g.input('ram'); run(g, 0.05);
   assert.equal(g.effects.filter(e => e.kind === 'zombie').length, 1);
-  run(g, 8);
+  run(g, 10);
   const full = metersFor(100, M25);
   assert.ok(g.dist > -full * 0.6 && g.dist < -full * 0.45, `dist=${g.dist}`);
 });
@@ -665,4 +668,28 @@ test('bánh chưng mẹ gửi: thêm xăng + đẩy tới; siêu nhân vác xe �
   g2.gift(A, { action: 'superman', coins: 1000 });
   run(g2, 8);
   assert.ok(Math.abs(g2.dist - metersFor(1000, M25)) < 2, `dist=${g2.dist}`);
+});
+
+test('kẻ đẩy phải CHẠM xe rồi xe mới lùi / tiến: trong lúc tiếp cận xe chưa bị đẩy', () => {
+  for (const [k, side] of [['zombie', 'pha'], ['coffin', 'pha'], ['ghost', 'pha'], ['dog', 'pha'], ['tow', 'cuu'], ['buffalo', 'cuu']]) {
+    const g = still();
+    g.gift(side === 'pha' ? B : A, { action: k, coins: 40 });
+    const lead = g.pushes[0].lead;
+    assert.ok(lead > 0, `${k} có thời gian tiếp cận`);
+    run(g, lead - 0.1);
+    assert.ok(Math.abs(g.dist) < 0.01, `${k}: chưa chạm mà đã đi ${g.dist}`);
+    run(g, 10);
+    assert.ok(Math.abs(Math.abs(g.dist) - metersFor(40, M25)) < 1, `${k}: ${g.dist}`);
+  }
+});
+
+test('quà dồn lúc dừng + nộp phạt CSGT: xe ủi lái tới chạm rồi mới đẩy', () => {
+  const g = still();
+  g.gift(A, { action: 'wind', coins: 1 });
+  run(g, 3);
+  const before = g.dist;
+  g.triggerEvent('rest'); g.gift(B, { action: 'rain', coins: 40 }); run(g, 30.3);
+  const p = g.pushes.find(x => x.kind === 'stash');
+  assert.ok(p && p.t < 0, 'cú đẩy quà dồn đang tiếp cận');
+  assert.ok(Math.abs(g.dist - before) < 0.5);
 });
