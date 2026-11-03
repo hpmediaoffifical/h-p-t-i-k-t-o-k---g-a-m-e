@@ -448,19 +448,20 @@ function buildStrands(scene, wires, clubColors, low) {
 const TICKER_H = 64; // px trên 1 m chiều cao dải
 function buildTickers(scene, batch, M, wires) {
   const PANELS = [
-    { x: 0, y: 6.5, z: -15.2, w: 24, h: 1.0 },
-    { x: 0, y: 6.6, z: 27.4, w: 24, h: 1.0 },
+    { x: 0, y: 6.5, z: -15.2, w: 24, h: 1.0, tilt: -0.34 }, // ngửa lên cho camera toàn cảnh đọc được
+    // sảnh: treo giữa (trên logo) — đặt sát dãy phòng Nam / đảo giữa thì che cảnh lát cắt của phòng đơn
+    // gần đứng: camera lát cắt phòng đơn ở phía Bắc nhìn từ sau lưng thì mặt sau bị bỏ (không thấy chữ ngược)
+    { x: 0, y: 7.2, z: 19, w: 24, h: 1.0, tilt: -0.15 },
   ];
-  const TILT = -0.34; // ngửa lên cho camera toàn cảnh đọc được
   const mat = new THREE.MeshBasicMaterial({ toneMapped: false });
-  const geos = PANELS.map((p) => quad(p.w, p.h, p.x, p.y, p.z, 0, TILT));
+  const geos = PANELS.map((p) => quad(p.w, p.h, p.x, p.y, p.z, 0, p.tilt));
   const mesh = new THREE.Mesh(mergeGeometries(geos), mat);
   geos.forEach((g) => g.dispose());
   mesh.renderOrder = 1;
   scene.add(mesh);
   for (const p of PANELS) {
     // vỏ đen phía sau + 2 dây treo lên trần
-    batch.add(xform(new THREE.BoxGeometry(p.w + 0.3, p.h + 0.24, 0.14), p.x, p.y, p.z - 0.09, 0, TILT), M.black);
+    batch.add(xform(new THREE.BoxGeometry(p.w + 0.3, p.h + 0.24, 0.14), p.x, p.y, p.z - 0.09, 0, p.tilt), M.black);
     for (const sx of [-1, 1]) wires.push(p.x + sx * (p.w / 2 - 0.5), p.y + 0.55, p.z - 0.2, p.x + sx * (p.w / 2 - 0.5), HALL.height, p.z - 0.2);
   }
   const panelPx = PANELS[0].w * TICKER_H;
@@ -794,10 +795,11 @@ function buildProps(scene, world, batch, M, groups, low) {
     batch.add(quad(2.9, 1.45, x0 + 0.06, 2.05, (z0 + z1) / 2, Math.PI / 2), menuMat);
     batch.add(boxGeo(x0 + 1.25, x0 + 1.9, 0, 1.02, z0 + 0.1, z1 - 0.1), M.pinkBody);
     batch.add(boxGeo(x0 + 1.18, x0 + 1.98, 1.02, 1.08, z0 + 0.05, z1 - 0.05), M.wood);
-    for (const z of [z0, z1]) batch.add(boxGeo(x0, x0 + 1.9, 0, 2.75, z - 0.06, z + 0.06), M.white);
+    // vách hai bên chỉ sâu tới quầy (không che menu khi nhìn chéo)
+    for (const z of [z0, z1]) batch.add(boxGeo(x0, x0 + 1.15, 0, 2.75, z - 0.06, z + 0.06), M.white);
     const aw = awningTex();
     const awMat = new THREE.MeshStandardMaterial({ map: aw.tex, roughness: 0.8, side: THREE.DoubleSide });
-    batch.add(xform(new THREE.PlaneGeometry(3.2, 2.5), x0 + 1.15, 2.95, (z0 + z1) / 2, Math.PI / 2, -Math.PI / 2 + 0.28), awMat);
+    batch.add(xform(new THREE.PlaneGeometry(3.2, 2.2), x0 + 1.05, 2.95, (z0 + z1) / 2, Math.PI / 2, -Math.PI / 2 + 0.28), awMat);
     // máy bắp rang (hộp kính vàng) + ly trà sữa trên quầy
     batch.add(boxGeo(x0 + 1.3, x0 + 1.8, 1.08, 1.62, z1 - 0.75, z1 - 0.25), M.glowYellow);
     for (let k = 0; k < 4; k++) batch.add(xform(new THREE.CylinderGeometry(0.06, 0.045, 0.18, 8), x0 + 1.55, 1.17, z0 + 0.45 + k * 0.28), k % 2 ? M.white : M.pinkBody);

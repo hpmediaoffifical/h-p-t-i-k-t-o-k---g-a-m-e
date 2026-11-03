@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { buildWorld, HALL } from './world.js';
+import { buildDecor } from './decor.js';
 import { animateCharacter, setLook, setProps, drawAvatar, HAIR_COLORS, HAT_COLORS, OUTFITS } from './character.js';
 import { NpcManager, makeActor, syncActor, turnToward, separateActors, angleDelta } from './npc.js';
 import { Effects } from './effects.js';
@@ -76,6 +77,8 @@ const rng = mulberry32(T.seed);
   for (const g of cfg.groupRooms) if (!g.name) g.name = pool.shift() ?? `Nhóm ${g.id}`;
 }
 const world = buildWorld(scene, cfg);
+// trang trí dùng chung với bản LIVE (spec §20); dấu vết quà chỉ có ở bản LIVE
+const decor = buildDecor(scene, world, { labelKind: 'guard' });
 const states = new Map();
 for (const room of world.rooms) {
   const pool = genresFor(room.type);
@@ -2204,6 +2207,7 @@ function frame(now, once = false) {
   for (const a of actors) syncActor(a);
   effects.update(dt);
   world.update(dt, t, beats, boosts);
+  decor.update(dt, t, { camera, beats, focus: focusRoom, actors });
   if (world.wheel.spinning) world.wheel.tick?.();
 
   // screens: nearby rooms refresh often, far ones only their door signs
@@ -2222,6 +2226,7 @@ function frame(now, once = false) {
   if (player) world.followShadow(player.body.pos.x, player.body.pos.z);
   updateCamera(dt, t);
   for (const a of actors) if (!a.hidden && !a.far) a.label.update(dt, camera.position.distanceTo(a.char.root.position), 30);
+  for (const a of decor.staff) a.label.update(dt, a.char.root.visible ? camera.position.distanceTo(a.char.root.position) : 1e9, 30);
 
   hudT -= dt;
   if (hudT <= 0) {
