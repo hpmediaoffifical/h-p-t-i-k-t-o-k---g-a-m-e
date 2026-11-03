@@ -2206,16 +2206,16 @@ function updateMonster(dt) {
       } else {
         mon.aiT -= dt;
         if (mon.aiT <= 0 && !mon.avoid) { mon.aiT = rand(1.8, 4); mon.aiX = mon.z < HOUSE_FRONT + 9 ? 0 : rand(-3, 3); }
-        if (mon.z < HOUSE_FRONT + 7 && !mon.avoid) mon.aiX = 0;
-        const gap = mon.aiX - mon.x; side = Math.abs(gap) < 0.06 ? 0 : clamp(gap * 1.6, -1, 1);
-        fwd = 1;
+        if (mon.z < HOUSE_FRONT + 7 && !mon.avoid && !(mon.dodgeT > 0)) mon.aiX = 0;
+        fwd = aiDodge(dt);                                                        // né đồ lăn/đạn/chỗ đồ rơi, vòng qua bẫy
+        const gap = mon.aiX - mon.x; side = Math.abs(gap) < 0.06 ? 0 : clamp(gap * (mon.dodgeT > 0 ? 3 : 1.6), -1, 1);
       }
       const sprint = manual && !CONFIG.lockForward && fwd > 0 && (keys.ShiftLeft || keys.ShiftRight) && !mon.tired;
       if (sprint) mon.stamina = Math.max(0, mon.stamina - dt * 0.35); else mon.stamina = Math.min(1, mon.stamina + dt * 0.15);
       if (mon.stamina <= 0.02) mon.tired = true; else if (mon.stamina >= 0.35) mon.tired = false;
       const base = CONFIG.monsterSpeed * slimeFactor() * terrainFactor() * (1 - 0.6 * wind) * (mon.boost > 0 ? 1.7 : 1) * (mon.rage > 0 ? 1.6 : 1) * (state.mod && state.mod.id === 'wind' ? 0.8 : 1) * (mon.iceT > 0 ? 0.5 : 1) * (onIce() ? 1.8 : 1) * (state.mod && state.mod.id === 'giant' ? 0.85 : 1);
       let vF = fwd > 0 ? base * (sprint ? 1.6 : 1) : fwd < 0 ? -base * 0.85 : 0;   // + = tiến về nhà, − = quay lại đi về đầu đường
-      let vX = side * base * 1.1;
+      let vX = side * base * 1.1 * (!manual && mon.dodgeT > 0 ? 2.2 : 1);   // AI bước né nhanh
       let punching = false;
       if (vF > 0 && b && !(mon.avoid === b && !manual)) {
         if (mon.avoid !== b || manual) { vF = 0; punching = true; punchAt(b, dt); }
@@ -2269,6 +2269,47 @@ function airPunch() {
 function punchMul() { return Math.min(3, (mon.fist > 0 ? 2 : 1) * (mon.rage > 0 ? 2 : 1) * (state.mod && state.mod.id === 'giant' ? 1.5 : 1)); }
 function autoPilot() { return (demo || CONFIG.autoplay) && time - lastInput > 3; }
 // tự chạy: thấy khoai / thùng / lốp lăn tới thì (thường) nhảy qua — như người chơi thật, không phải lúc nào cũng né được
+// AI né: đồ đi THẲNG nên đoán được chỗ nó cắt ngang hàng zombie → bước sang bên; ~75% phản xạ kịp (không hoàn hảo cho vui)
+const AI_TRAPS = new Set(['trap', 'mine', 'banana', 'slime', 'bomb', 'xbarrel', 'cactus', 'chomper', 'squash', 'garlic', 'mushroom']);
+function aiPickSide(dangerX, need) {
+  const L = clamp(dangerX - need, -LANE + 0.4, LANE - 0.4), R = clamp(dangerX + need, -LANE + 0.4, LANE - 0.4);
+  const okL = dangerX - L >= need * 0.9, okR = R - dangerX >= need * 0.9;
+  if (okL && okR) return Math.abs(L - mon.x) < Math.abs(R - mon.x) ? L : R;
+  return okL ? L : R;
+}
+function aiDodge(dt) {
+  mon.dodgeT = Math.max(0, (mon.dodgeT || 0) - dt);
+  if (mon.dodgeT > 0) return 1;
+  const react = it => { if (it.aiSeen === undefined) it.aiSeen = Math.random() < 0.75; return it.aiSeen; };
+  const dodge = (x, need, hold) => { mon.aiX = aiPickSide(x, need); mon.dodgeT = hold; mon.aiT = Math.max(mon.aiT, hold); };
+  for (const it of items) {
+    if (it.dead) continue; const p = it.g.position;
+    // đồ lăn / dừa: đang lăn thẳng về phía zombie
+    if ((it.state === 'roll' && ['potato', 'rbarrel', 'tire'].includes(it.kind)) || it.kind === 'cocoball') {
+      const dz = mon.z - p.z; if (dz < 0.5 || dz > 24) continue;
+      const vz = it.kind === 'cocoball' ? it.vz : it.kind === 'tire' ? it.vz : it.speed * Math.cos(it.head || 0);
+      const vx = it.kind === 'cocoball' ? it.vx : it.kind === 'tire' ? (it.vx || 0) : it.speed * Math.sin(it.head || 0);
+      if (!(vz > 0.5)) continue; const tt = dz / vz, xAt = p.x + vx * tt;
+      if (tt < 2.6 && Math.abs(xAt - mon.x) < 1.5 && react(it)) { dodge(xAt, 1.9 + (it.mega ? 1 : 0), Math.min(1.6, tt + 0.4)); return 1; }
+    }
+    // chỗ đồ ném sắp rơi / thiên thạch / bàn tay khổng lồ
+    let spot = null, r = 0;
+    if (it.state === 'fly' && it.to && it.thrown) { spot = it.to; r = 1.4; }
+    else if (it.kind === 'meteor') { spot = p; r = 2.6; }
+    else if (it.kind === 'hand' && it.state === 'aim' && it.spot) { spot = it.spot; r = 2.0; }
+    if (spot && Math.hypot(spot.x - mon.x, spot.z - mon.z) < r + 0.3 && react(it)) { dodge(spot.x, r + 0.5, it.kind === 'meteor' ? 1.2 : 0.8); return it.kind === 'meteor' && spot.z < mon.z ? 0.3 : 1; }
+    // bẫy nằm trên đường phía trước: vòng qua
+    if (it.state === 'set' && AI_TRAPS.has(it.kind)) {
+      const dz = mon.z - p.z; if (dz > 0.6 && dz < 6 && Math.abs(p.x - mon.x) < 1.2 && react(it)) { dodge(p.x, 1.7, 0.7); return 1; }
+    }
+  }
+  for (const pe of peas) {                                                          // đạn đậu bay thẳng tới
+    const p = pe.m.position, dz = mon.z - p.z; if (dz < 0.3 || dz > 9 || pe.v.z <= 0) continue;
+    const tt = dz / pe.v.z, xAt = p.x + pe.v.x * tt;
+    if (tt < 0.9 && Math.abs(xAt - mon.x) < 0.7) { if (pe.aiSeen === undefined) pe.aiSeen = Math.random() < 0.55; if (pe.aiSeen) { dodge(xAt, 1.2, 0.5); return 1; } }
+  }
+  return 1;
+}
 function autoJump() {
   if (!autoPilot() || mon.y > 0 || mon.stun > 0) return;
   for (const it of items) {
