@@ -2413,7 +2413,8 @@ function aheadSpot(minA = 4, maxA = 13, onPath = 0.75) {
 }
 function predictMon(T, y = 1.3) {
   const z = mon.lift || mon.carry ? mon.z : mon.z + mon.vz * T * 0.9;
-  return new V3(clamp(mon.x + mon.vx * T * 0.9, -LANE, LANE), mon.y + mon.gy + y, clamp(z, HOUSE_FRONT + 1, Math.max(mon.z, restZ())));
+  return new V3(clamp(mon.x, -LANE, LANE), mon.y + mon.gy + y,   // ngang: nhắm đúng chỗ đang đứng (bước sang bên là né được); dọc: đón theo bước đi tới
+     clamp(z, HOUSE_FRONT + 1, Math.max(mon.z, restZ())));
 }
 function obstacleCount() { return items.filter(i => !i.dead && i.blocker).length; }
 
