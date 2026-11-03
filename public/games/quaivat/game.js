@@ -2955,12 +2955,15 @@ function spawnFromGround(kind, owner, mk, o) {
   return it;
 }
 // zombie đang đứng sát cửa: đồ lăn (khoai/thùng/lốp) ra cửa là lăn về phía đầu đường → ném thẳng vào người thay vì phí quà
-// đồ lăn: zombie còn xa cửa (>22m) thì rơi xuống ngay trước mặt zombie (~11–14m) rồi lăn tới, khỏi chờ lăn cả đoạn đường dài; gần cửa thì lăn ra từ cửa như cũ
+// đồ lăn: zombie còn xa cửa (>28m) thì rơi xuống ngay trước mặt zombie (~11–14m) rồi lăn tới, khỏi chờ lăn cả đoạn đường dài; gần cửa thì lăn ra từ cửa như cũ
 function rollIn(it, y, spin) {
   const x = rand(-1.2, 1.2);
-  if (mon.z - HOUSE_FRONT > 22) {
-    const lz = Math.max(HOUSE_FRONT + 3, mon.z - rand(11, 14));
-    const ax = clamp(mon.x + rand(-0.5, 0.5), -LANE, LANE);
+  // nhiều món cùng lúc: chỉ món đầu (và ~1/4 số còn lại) nhắm zombie, còn lại rải đều các làn và lăn thẳng → luôn có khe để né
+  const busy = items.filter(o => !o.dead && o !== it && (o.kind === 'potato' || o.kind === 'rbarrel') && (o.state === 'fly' || (o.state === 'roll' && o.g.position.z < mon.z - 3))).length;
+  it.aimAt = busy === 0 || Math.random() < 0.25;
+  if (mon.z - HOUSE_FRONT > 28) {
+    const lz = Math.max(HOUSE_FRONT + 3, mon.z - rand(18, 24));                   // rơi xa: đủ đoạn lăn để thấy và né
+    const ax = it.aimAt ? clamp(mon.x + rand(-0.4, 0.4), -LANE, LANE) : rand(-LANE + 0.6, LANE - 0.6);
     launch(it, new V3(ax + rand(-1, 1), 11, lz - 4), new V3(ax, y, lz), 0.6, spin); sfx('whoosh');
   } else { launch(it, DOOR_POS(), new V3(x, y, HOUSE_FRONT + 3), 0.6, spin); openDoor(); sfx('whoosh'); }
 }
@@ -4115,7 +4118,7 @@ function updateItems(dt) {
       if (it.ft >= it.T) { p.copy(it.to); it.g.rotation.set(0, it.kind === 'fence' ? 0 : rand(-0.3, 0.3), 0); it.g.scale.setScalar(1);
         if (it.thrown) onLand(it);
         else if (it.kind === 'tire') { it.state = 'roll'; it.vz = 11; it.vx = null; puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
-        else if (it.kind === 'potato' || it.kind === 'rbarrel') { it.endZ = Math.min(START_Z + 6, Math.max(rand(-1.6, 0.6), mon.z + 2.5));   /* zombie còn đứng ngoài đường nhựa: lăn qua khỏi zombie mới biến */ it.state = 'roll'; it.head = clamp(Math.atan2(mon.x - p.x, Math.max(2, mon.z - p.z)) + rand(-0.05, 0.05), -1.1, 1.1);   /* nhắm chỗ zombie đứng LÚC BẮT ĐẦU lăn rồi đi thẳng: zombie né được */ it.speed = rand(7.5, 9); it.bumpT = 0; it.curv = 0; it.hop = 0; it.g.rotation.set(0, 0, 0); puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
+        else if (it.kind === 'potato' || it.kind === 'rbarrel') { it.endZ = Math.min(START_Z + 6, Math.max(rand(-1.6, 0.6), mon.z + 2.5));   /* zombie còn đứng ngoài đường nhựa: lăn qua khỏi zombie mới biến */ it.state = 'roll'; it.head = it.aimAt === false ? rand(-0.06, 0.06) : clamp(Math.atan2(mon.x - p.x, Math.max(2, mon.z - p.z)) + rand(-0.05, 0.05), -1.1, 1.1);   /* nhắm chỗ zombie đứng LÚC BẮT ĐẦU lăn rồi đi thẳng: zombie né được */ it.speed = rand(7.5, 9); it.bumpT = 0; it.curv = 0; it.hop = 0; it.g.rotation.set(0, 0, 0); puff(p.clone().setY(0.2), { color: 0xd8c6a0, n: 4 }); sfx('thud'); }
         else onLand(it);
       }
     }
