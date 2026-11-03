@@ -3214,6 +3214,7 @@ function quakeSendBack(u) {
 }
 // ----- cột mốc giữa đường -----
 let cpZ = 0; const cp = { g: null, tex: null };
+const cpLogo = new Image(); cpLogo.src = '/hp-logo-pink.svg';
 function restZ() { return state.cp ? cpZ : START_Z; }   // bị đẩy lùi / bị ném về tối đa tới đây
 function drawCp(ok) {
   if (!cp.tex) return; const c = cp.tex.image, g = c.getContext('2d');
@@ -3221,6 +3222,9 @@ function drawCp(ok) {
   g.fillStyle = 'rgba(255,255,255,.16)'; for (let x = 0; x < c.width; x += 48) g.fillRect(x, 0, 24, c.height);
   g.font = 'bold 46px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 7; g.strokeStyle = 'rgba(0,0,0,.45)'; g.fillStyle = '#fff';
   const t = ok ? '✅ ĐÃ QUA CỘT MỐC' : '🚩 CỘT MỐC'; g.strokeText(t, c.width / 2, c.height / 2 + 3); g.fillText(t, c.width / 2, c.height / 2 + 3);
+  const L = c.height * 0.78, pad = (c.height - L) / 2;                                // logo hp 2 đầu băng rôn
+  const drawLogo = () => { for (const x of [pad * 2, c.width - pad * 2 - L]) g.drawImage(cpLogo, x, pad, L, L); cp.tex.needsUpdate = true; };
+  if (cpLogo.complete && cpLogo.naturalWidth) drawLogo(); else cpLogo.addEventListener('load', () => drawCp(state.cp), { once: true });
   cp.tex.needsUpdate = true; if (cp.ban && !ok) cp.ban.visible = true;
 }
 function buildCheckpoint() {
@@ -3884,9 +3888,9 @@ function updateNewItem(it, p, dt) {
   if (it.kind === 'dozer') { updateDozer(it, p, dt); return true; }
   const k = it.kind, live = state.phase === 'play' && !mon.lift && !mon.carry;
   if (it.state === 'rise') {                                         // trồi lên khỏi mặt đất
-    const f = Math.min(1, it.t / 0.45), e = 1 - (1 - f) ** 3; p.y = -1.2 * (1 - e); it.g.scale.setScalar(0.4 + 0.6 * e);
+    const f = Math.min(1, it.t / 0.45), e = 1 - (1 - f) ** 3, gy = Math.max(0, groundY(p.x, p.z)); p.y = gy - 1.2 * (1 - e); it.g.scale.setScalar(0.4 + 0.6 * e);   // vỉa hè cao hơn đất: mọc lên tới mặt vỉa hè
     if (Math.random() < dt * 25) puff(new V3(p.x + rand(-0.4, 0.4), 0.1, p.z + rand(-0.4, 0.4)), { color: T.dust || 0x8a6a40, n: 1, size: 0.5, speed: 1, life: 0.5 });
-    if (f >= 1) { p.y = 0; it.g.scale.setScalar(1); it.noRescale = it.noRescale0; onLand(it); }
+    if (f >= 1) { p.y = gy; it.g.scale.setScalar(1); it.noRescale = it.noRescale0; onLand(it); }
     return true;
   }
   if (k === 'netwrap') {
@@ -4092,6 +4096,7 @@ function onLand(it) {
   }
   sfx('thud');
   it.squash = 0.25;
+  if (p.y < 0.35) p.y = Math.max(p.y, groundY(p.x, p.z));                       // đứng trên vỉa hè / bậc: không lún xuống dưới mặt
   if (it.onMon && Math.hypot(p.x - mon.x, p.z - mon.z) < 1.6) {                 // sát cửa hết chỗ: rơi cộc đầu (choáng nhẹ, KHÔNG văng ra) rồi lăn sang bên cạnh
     hitMonster(25, 0, it.owner, { text: 'BỊCH!', stun: 0.5 });
     const side = mon.x > 0 ? -1 : 1; p.x = clamp(mon.x + side * (1.3 + (it.halfW || 0.5)), -LANE, LANE);
@@ -4155,7 +4160,7 @@ function updateItems(dt) {
       it.head = clamp(Math.atan2(Math.sin(it.head), Math.cos(it.head)), -1.1, 1.1);   // luôn hướng về đầu đường (+z)
       p.x += Math.sin(it.head) * it.speed * dt; p.z += Math.cos(it.head) * it.speed * dt;
       if (Math.abs(p.x) > LANE + 0.4) { p.x = Math.sign(p.x) * (LANE + 0.4); it.head = -it.head; sfx('bonk'); }
-      p.y = (it.R || 0.58) + Math.abs(Math.sin(it.t * 9)) * it.hop * Math.min(1, it.speed / 6);
+      p.y = Math.max(0, groundY(p.x, p.z)) + (it.R || 0.58) + Math.abs(Math.sin(it.t * 9)) * it.hop * Math.min(1, it.speed / 6);
       ud.yaw.rotation.y = it.head;
       ud.yaw.rotation.z = isB ? 0 : Math.sin(it.t * 11) * 0.28;
       ud.roll.rotation.x += it.speed * dt / (it.R || 0.58);
