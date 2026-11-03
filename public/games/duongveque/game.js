@@ -984,7 +984,7 @@ function updateHud(dt) {
   if (hudT < 0.1) return;
   hudT = 0;
   const gl = game.cfg.goal, p = game.progress;
-  const sec = Math.ceil(game.phase === 'race' ? game.timeLeft : game.cfg.roundSec);
+  const sec = Math.ceil(game.phase === 'lobby' ? game.cfg.roundSec : game.timeLeft);
   $('timer').textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
   $('timer').classList.toggle('final', game.final);
   $('round').textContent = `Ván ${Math.max(1, game.round + (game.phase === 'lobby' ? 1 : 0))}`;
@@ -1005,7 +1005,7 @@ function updateHud(dt) {
     track.querySelectorAll('.flag').forEach(e => e.remove());
     for (let m = game.cfg.flagEvery; m < gl; m += game.cfg.flagEvery) { const f = document.createElement('i'); f.className = 'flag'; f.style.left = `${(m / gl) * 100}%`; track.appendChild(f); }
   }
-  const tc = game.totals.cuu, tp = game.totals.pha, share = tc + tp > 0 ? tc / (tc + tp) : 0.5;
+  const tc = game.totals.cuu, tp = game.totals.pha, share = clamp(tc + tp > 0 ? tc / (tc + tp) : 0.5, 0.2, 0.8);   // chừa chỗ đọc số phe yếu
   $('tcuu').style.width = `${share * 100}%`; $('tknot').style.left = `${share * 100}%`;
   const topC = [...game.users.values()].filter(u => u.cuu > 0).sort((a, b) => b.cuu - a.cuu)[0];
   const topP = [...game.users.values()].filter(u => u.pha > 0).sort((a, b) => b.pha - a.pha)[0];
@@ -1054,7 +1054,8 @@ function updateHud(dt) {
     const fame = Object.values(st.fame || {}).sort((a, b) => b.cuu - a.cuu).slice(0, 3);
     lob.innerHTML = `<h1>🛵 ĐƯỜNG VỀ QUÊ</h1><h2>Ván ${game.round + 1} xuất phát sau</h2><div class="cd">${left}</div>
       <div class="how">🧧 Đưa cả đoàn cùng <b class="y">${esc(VIEW.streamerName)}</b> về quê ăn Tết trong <b class="y">${Math.round(game.cfg.roundSec / 60 * 10) / 10} phút</b>!<br>
-      🗺️ <b class="y">Mũi Cà Mau → Cột cờ Lũng Cú</b> qua ${NP} tỉnh · 🍜 trạm dừng · ⛽ trạm xăng · 🚓 CSGT<br>
+      🗺️ <b class="y">Mũi Cà Mau → Cột cờ Lũng Cú</b>, qua ${NP} tỉnh<br>
+      🍜 Trạm dừng chân, ⛽ trạm xăng, 🚓 CSGT dọc đường<br>
       🧑‍✈️ Quà <b class="y">tài xế</b>: lên lái ${fmtClock(game.cfg.driverSec)} · bình luận <b class="g">1</b> là lên xe<br>
       🛡️ Quà <b class="g">CỨU</b>: đẩy xe tới, đổ xăng, che chắn<br>⚔️ Quà <b class="r">PHÁ</b>: vật cản, đẩy lùi về <b class="r">bến xe</b> là thắng<br>
       💬 Bình luận <b class="g">1</b> vào phe Cứu · <b class="r">2</b> vào phe Phá<br>🔥 ${game.cfg.finalSec} giây cuối mọi quà <b class="y">×${game.cfg.finalMult}</b></div>
@@ -1075,7 +1076,7 @@ function showResult(r) {
     <h2>${win ? `Phe 🛡️ CỨU thắng · ${fmt(r.timeUsed)} giây` : r.reason === 'depot' ? `Phe ⚔️ PHÁ thắng · ${fmt(r.timeUsed)} giây` : `Phe ⚔️ PHÁ thắng · còn ${dtx(r.goal - r.dist)}`}</h2>
     <div class="cols"><div class="col cuu"><h3>🦸 Ân nhân</h3>${r.topCuu.map(row).join('') || '<div class="pr">—</div>'}</div>
     <div class="col pha"><h3>😈 Kẻ phá</h3>${r.topPha.map(row).join('') || '<div class="pr">—</div>'}</div></div>
-    ${win ? '<div class="stat">🚩 Đã tới Cột cờ Lũng Cú · Hà Giang — qua đủ 34 tỉnh</div>' : ''}
+    ${win && r.reason === 'home' ? `<div class="stat">🚩 Đã tới Cột cờ Lũng Cú, qua đủ ${NP} tỉnh</div>` : ''}
     ${win ? (topPha ? `<div class="note trash">🗑️ <b>${esc(topPha.name)}</b> bị ném vào thùng rác!</div>` : '<div class="note trash">🧧 Cả nhà đón ở cổng làng!</div>')
           : `<div class="note trash">🗑️ <b>${esc(VIEW.streamerName)}</b> bị ném vào thùng rác!</div>${topPha ? `<div class="note pen">👑 <b>${esc(topPha.name)}</b> chọn hình phạt: ${esc(pen)}</div>` : ''}`}
     ${r.betrayers.length ? `<div class="stat">🐍 Phản bội: ${r.betrayers.map(b => esc(b.name)).join(', ')}</div>` : ''}
