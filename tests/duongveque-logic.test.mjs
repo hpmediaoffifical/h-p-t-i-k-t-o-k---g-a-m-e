@@ -867,6 +867,9 @@ test('xuống xe: tặng quà → được hỏi, bình luận biển số → t
   g.dist = 150; run(g, 0.1);
   const off = g.drainEvents().find(e => e.type === 'dropOff');
   assert.ok(off && off.place === 'Bạc Liêu');
+  assert.equal(g.halt && g.halt.kind, 'drop', 'tấp lề cho khách xuống');
+  run(g, 3.2);
+  assert.equal(g.halt, null);
   assert.ok(!g.passengers().seated.some(u => u.id === 'a'), 'đã xuống xe');
   g.gift(B, { action: 'dropoff', coins: 10 });
   g.comment(B, '69');                          // Cà Mau đã qua → báo chọn lại, vẫn còn hỏi

@@ -1577,7 +1577,7 @@ function onEvents(list) {
         if (e.winner === 'cuu') { confetti(160); SFX.win(); } else SFX.lose(); break;
       case 'lobby': $('result').classList.add('hidden'); break;
       case 'join': toast(e.side, e.user, e.side === 'cuu' ? '🛡️ vào phe Cứu · lên xe' : '⚔️ vào phe Phá'); break;
-      case 'halt': { const tx = e.kind === 'police' ? policeTxt(e) : HALT_TXT[e.kind]; if (tx) banner(`${tx.icon} ${tx.title.toUpperCase()}${e.need ? `<small>Thả ${fmt(e.need)} tim để đi tiếp</small>` : `<small>Dừng ${Math.round(e.sec)} giây · đồng hồ ván tạm dừng</small>`}`, e.kind === 'police' || e.kind === 'flat' ? 'pha' : 'gold', 2600, 3); if (e.kind === 'police') SFX.alarm(); break; }
+      case 'halt': if (e.kind === 'drop') { SFX.honk(); break; } /* xuống xe: băng rôn có tên người đã hiện ở dropOff */ { const tx = e.kind === 'police' ? policeTxt(e) : HALT_TXT[e.kind]; if (tx) banner(`${tx.icon} ${tx.title.toUpperCase()}${e.need ? `<small>Thả ${fmt(e.need)} tim để đi tiếp</small>` : `<small>Dừng ${Math.round(e.sec)} giây · đồng hồ ván tạm dừng</small>`}`, e.kind === 'police' || e.kind === 'flat' ? 'pha' : 'gold', 2600, 3); if (e.kind === 'police') SFX.alarm(); break; }
       case 'haltEnd': { const who = e.helpers && e.helpers[0]; banner(`🚌 XUẤT PHÁT TIẾP!${who ? `<small>❤️ Cảm ơn ${esc(who.name)} đã thả tim</small>` : e.how === 'timeout' && e.kind === 'police' ? '<small>🧾 Nộp phạt rồi đi tiếp</small>' : ''}`, 'cuu', 2000, 2); SFX.honk(); break; }
       case 'stash': banner(`📦 QUÀ DỒN LÚC DỪNG<small>🛡️ +${dtx(e.cuu)} · ⚔️ −${dtx(e.pha)} → ${e.net >= 0 ? 'tiến' : 'lùi'} ${dtx(Math.abs(e.net))}</small>`, e.net >= 0 ? 'cuu' : 'pha', 2600, 3); break;
       case 'fine': pushBy = { name: 'CSGT', id: 'csgt' }; banner(`🧾 NỘP PHẠT!<small>Chưa đủ tim — lùi ${dtx(e.meters)}</small>`, 'pha', 2400, 3); SFX.lose(); break;
@@ -1606,6 +1606,7 @@ const HALT_TXT = {
   cows:    { icon: '🐄', title: 'Đàn bò qua đường', sub: 'Chờ bà con lùa bò qua' },
   carsick: { icon: '🤢', title: 'Có người say xe', sub: 'Dừng hóng gió, uống miếng nước' },
   photo:   { icon: '📸', title: 'Dừng check-in', sub: 'Chụp tấm hình kỷ niệm rồi đi tiếp' },
+  drop:    { icon: '🏠', title: 'Cho khách xuống xe', sub: 'Tấp lề 3 giây · đồng hồ ván tạm dừng' },
 };
 function policeTxt(h) {
   if (h.reason === 'speed') return { icon: '🚓', title: `Chạy quá tốc độ ${h.kmh ? h.kmh + ' km/h' : ''}!`, sub: 'CSGT bắn tốc độ · thả tim nộp phạt · quà Cứu: 1 xu = 10 tim' };
@@ -2174,10 +2175,10 @@ function drawDropBoard() {
 function drawLeavers(dt, cy) {
   for (let i = leavers.length - 1; i >= 0; i--) {
     const L = leavers[i]; L.t += dt;
-    const x = xAt(L.m) - L.t * S(60), y = contactY(cam) + S(90);   // đi bộ ra phía sau, về làng
+    const x = xAt(L.m) - S(150) - L.t * S(55), y = contactY(cam) + S(60) + Math.min(L.t, 2) * S(26);   // bước ra cửa xe rồi đi về làng
     if (L.t > 7 || x < -120) { leavers.splice(i, 1); continue; }
-    walker(x, y, L.user, VS * 1.3, i, false);
-    ctx.fillStyle = '#c98f55'; ctx.fillRect(x + S(26), y - S(70), S(26), S(22));   // giỏ quà Tết
+    walker(x, y, L.user, VS * 1.6, i, false);
+    ctx.fillStyle = '#c98f55'; ctx.fillRect(x + S(32), y - S(86), S(32), S(26)); ctx.fillStyle = '#e8322c'; ctx.fillRect(x + S(32), y - S(92), S(32), S(8));   // giỏ quà Tết
     if (L.t < 5) bubble(x, y - S(210), BYE[(L.user.name || '').length % BYE.length]);
   }
   void cy;

@@ -460,6 +460,7 @@ export function createGame(options = {}, rnd = Math.random) {
     for (const [id, a] of g.dropAsk) if ((a.left -= dt) <= 0) { g.dropAsk.delete(id); const u = g.users.get(id); emit('dropAskEnd', { user: u ? { id, name: u.name, avatar: u.avatar } : { id, name: id } }); }
   }
   function checkDrops() {
+    let any = false;
     for (const id of [...g.riders]) {
       const u = g.users.get(id);
       if (!u || !u.dropTo || g.dist < u.dropTo.at) continue;
@@ -467,8 +468,10 @@ export function createGame(options = {}, rnd = Math.random) {
       const di = g.drivers.findIndex(d => d && d.id === id);
       if (di >= 0) { const q = g.driverQueue.shift(); if (q) setDriver(di, q.user, q.sec); else g.drivers[di] = null; }
       emit('dropOff', { user: { id, name: u.name, avatar: u.avatar }, place: u.dropTo.name, province: u.dropTo.province, at: Math.round(u.dropTo.at) });
-      u.dropTo = null;
+      u.dropTo = null; any = true;
     }
+    if (any && !g.halt && !g.finish) { startHalt('drop'); return true; }   // tấp vào lề cho khách xuống (đồng hồ ván dừng như mọi điểm dừng)
+    return false;
   }
 
   /** Người ngồi trên xe: tài xế không tính, xếp theo xu Cứu ván này rồi tới thứ tự lên xe. */
@@ -630,7 +633,7 @@ export function createGame(options = {}, rnd = Math.random) {
     { kind: 'photo',   ranges: rangesOf(['Đà Nẵng', 'Huế', 'Quảng Ninh', 'Lào Cai']) },                    // 📸 Hải Vân · Hạ Long · Sa Pa
     { kind: 'lixi',    ranges: rangesOf(['Cao Bằng', 'Tuyên Quang']) },                                    // 🧧 họ hàng lì xì gần tới quê
   ];
-  const TIMED = { train: 7, cows: 5, carsick: 5, photo: 5 };
+  const TIMED = { train: 7, cows: 5, carsick: 5, photo: 5, drop: 3 };   // drop: tấp lề 3 giây cho khách xuống (quà Xuống xe)
   function buildPlan() {
     const L = cfg.goal, plan = [];
     const free = m => plan.every(x => Math.abs(x.at - m) > Math.max(250, L * 0.05));
@@ -905,7 +908,7 @@ export function createGame(options = {}, rnd = Math.random) {
       const done = g.plan.some(x => x.kind === 'police' && x.done) || g.policeCaught;
       if (!done && g.rnd() < cfg.speedTrap) { g.policeCaught = true; startHalt('police', 'speed'); return; }
     }   // bị đẩy lùi được quá vạch xuất phát (quà Phá to không bị phí)
-    checkDrops();
+    if (checkDrops()) return;
     if (g.dist > g.maxDist) {
       const before = Math.floor(g.maxDist / cfg.flagEvery), after = Math.floor(g.dist / cfg.flagEvery);
       g.maxDist = g.dist;
