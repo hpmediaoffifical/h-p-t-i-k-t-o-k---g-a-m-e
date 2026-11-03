@@ -188,3 +188,56 @@ export function partAt(m, goal) {
   const f = Math.max(0, Math.min(0.99999, (Math.max(0, m) - pi * seg) / seg)), k = Math.floor(f * parts.length);
   return { part: parts[k], pi, k, n: parts.length, from: pi * seg + (k / parts.length) * seg };
 }
+
+// ---- 🏠 quà "Xuống xe": người tặng bình luận tên tỉnh hoặc BIỂN SỐ XE (gõ nhanh, khỏi lo dấu) → tới đúng tỉnh cũ đó thì xuống ----
+/** Biển số xe theo 63 tỉnh cũ (đầu số đăng ký xe). */
+export const PLATES = {
+  'Cao Bằng': [11], 'Lạng Sơn': [12], 'Quảng Ninh': [14], 'Hải Phòng': [15, 16], 'Thái Bình': [17], 'Nam Định': [18], 'Phú Thọ': [19],
+  'Thái Nguyên': [20], 'Yên Bái': [21], 'Tuyên Quang': [22], 'Hà Giang': [23], 'Lào Cai': [24], 'Lai Châu': [25], 'Sơn La': [26],
+  'Điện Biên': [27], 'Hòa Bình': [28], 'Hà Nội': [29, 30, 31, 32, 33, 40], 'Hải Dương': [34], 'Ninh Bình': [35], 'Thanh Hóa': [36],
+  'Nghệ An': [37], 'Hà Tĩnh': [38], 'Đồng Nai': [39, 60], 'TP. Hồ Chí Minh': [41, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59], 'Đà Nẵng': [43],
+  'Đắk Lắk': [47], 'Đắk Nông': [48], 'Lâm Đồng': [49], 'Bình Dương': [61], 'Long An': [62], 'Tiền Giang': [63], 'Vĩnh Long': [64],
+  'Cần Thơ': [65], 'Đồng Tháp': [66], 'An Giang': [67], 'Kiên Giang': [68], 'Cà Mau': [69], 'Tây Ninh': [70], 'Bến Tre': [71],
+  'Bà Rịa – Vũng Tàu': [72], 'Quảng Bình': [73], 'Quảng Trị': [74], 'Huế': [75], 'Quảng Ngãi': [76], 'Bình Định': [77], 'Phú Yên': [78],
+  'Khánh Hòa': [79], 'Gia Lai': [81], 'Kon Tum': [82], 'Sóc Trăng': [83], 'Trà Vinh': [84], 'Ninh Thuận': [85], 'Bình Thuận': [86],
+  'Vĩnh Phúc': [88], 'Hưng Yên': [89], 'Hà Nam': [90], 'Quảng Nam': [92], 'Bình Phước': [93], 'Bạc Liêu': [94], 'Hậu Giang': [95],
+  'Bắc Kạn': [97], 'Bắc Giang': [98], 'Bắc Ninh': [99],
+};
+/** Tên quen gọi → tỉnh cũ. */
+const PLACE_ALIAS = {
+  'sai gon': 'TP. Hồ Chí Minh', 'sg': 'TP. Hồ Chí Minh', 'hcm': 'TP. Hồ Chí Minh', 'tp hcm': 'TP. Hồ Chí Minh', 'tphcm': 'TP. Hồ Chí Minh', 'ho chi minh': 'TP. Hồ Chí Minh',
+  'vung tau': 'Bà Rịa – Vũng Tàu', 'ba ria': 'Bà Rịa – Vũng Tàu', 'brvt': 'Bà Rịa – Vũng Tàu', 'thua thien hue': 'Huế', 'da lat': 'Lâm Đồng',
+  'nha trang': 'Khánh Hòa', 'phu quoc': 'Kiên Giang', 'buon ma thuot': 'Đắk Lắk', 'bmt': 'Đắk Lắk', 'pleiku': 'Gia Lai', 'sa pa': 'Lào Cai',
+  'sapa': 'Lào Cai', 'ha long': 'Quảng Ninh', 'hoi an': 'Quảng Nam', 'quy nhon': 'Bình Định', 'phan thiet': 'Bình Thuận', 'mui ne': 'Bình Thuận',
+  'phan rang': 'Ninh Thuận', 'chau doc': 'An Giang', 'my tho': 'Tiền Giang', 'tuy hoa': 'Phú Yên', 'dong hoi': 'Quảng Bình', 'vinh': 'Nghệ An',
+  'moc chau': 'Sơn La', 'tam dao': 'Vĩnh Phúc', 'ha noi': 'Hà Nội', 'hn': 'Hà Nội', 'hp': 'Hải Phòng', 'dn': 'Đà Nẵng', 'ct': 'Cần Thơ',
+};
+export function placeKey(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+const OLD_NAMES = Object.values(PARTS).flat().map(p => p.name);
+const BY_KEY = new Map(OLD_NAMES.map(n => [placeKey(n), n]));
+/** Bình luận → tỉnh cũ muốn xuống: biển số (2 chữ số), tên tỉnh cũ / mới (có hoặc không dấu), tên quen. null = không hiểu. */
+export function findPlace(text) {
+  const t = placeKey(text);
+  if (!t) return null;
+  const num = t.match(/^(?:[a-z ]*?)(\d{2})(?: [a-z ]*)?$/);
+  if (num) {
+    const p = Number(num[1]);
+    for (const [name, list] of Object.entries(PLATES)) if (list.includes(p)) return { name, plate: p };
+    return null;
+  }
+  const has = k => (` ${t} `).includes(` ${k} `);
+  const cands = [...BY_KEY.keys(), ...Object.keys(PLACE_ALIAS)].sort((a, b) => b.length - a.length);   // tên dài trước: "quang nam" trước "nam"
+  for (const k of cands) if (has(k)) { const name = BY_KEY.get(k) || PLACE_ALIAS[k]; return { name, plate: (PLATES[name] || [])[0] || null }; }
+  return null;
+}
+/** Quãng [from, from+len) mét của tỉnh cũ trên đường dài goal. */
+export function partRange(name, goal) {
+  const seg = goal / ROUTE.length;
+  for (let pi = 0; pi < ROUTE.length; pi++) {
+    const parts = PARTS[ROUTE[pi].name], k = parts.findIndex(p => p.name === name);
+    if (k >= 0) return { pi, k, from: (pi + k / parts.length) * seg, len: seg / parts.length, province: ROUTE[pi].name };
+  }
+  return null;
+}

@@ -5,7 +5,7 @@
  * Gỡ lỗi: window.__dvq (game, step(giây), sim(kind,…)).
  */
 import { createGame, ACTIONS, ACTION_BY_ID, PENALTIES, metersFor, goalFor, roadEventsFor, flagEveryFor, COUNTER } from './logic.js';
-import { ROUTE, provinceIndex, partAt } from './route.js';
+import { ROUTE, provinceIndex, partAt, PLATES } from './route.js';
 import { FOOD } from './food.js';
 
 const Q = new URLSearchParams(location.search);
@@ -428,6 +428,18 @@ function foodStall(x, y, dish, k) {
   fcirc('#ffd3ad', 54, -126, 17); fpoly('#eedfaa', 24, -128, 84, -128, 54, -162);
   ctx.restore();
 }
+/** Mét đặt quán của đoạn tỉnh cũ (k trong tỉnh pi): cách biển chào ≥ 36 m, cách cuối đoạn ≥ 14 m, né công trình mốc, quán cách quán ≥ 28 m. */
+function stallSpots(pi, k, n) {
+  const seg = game.cfg.goal / NP, from = (pi + k / n) * seg, len = seg / n, lmAt = ROUTE[pi].lm !== 'none' && ROUTE[pi].lm !== 'flagtower' ? (pi + 0.55) * seg : null;
+  const out = [];
+  for (const q of [0.36, 0.8]) {
+    let m = Math.max(from + len * q, from + 36);
+    if (lmAt != null && Math.abs(m - lmAt) < 26) m = lmAt + 26;
+    if (m > from + len - 14 || out.some(o => m - o < 28)) continue;
+    out.push(m);
+  }
+  return out;
+}
 function drawFoodStalls() {
   const goal = game.cfg.goal, mL = meterAt(-260), mR = meterAt(W + 260);
   let near = null;
@@ -435,17 +447,17 @@ function drawFoodStalls() {
     const parts = PARTS_OF(pi), seg = goal / NP;
     parts.forEach((p, k) => {
       const F = FOOD[p.name]; if (!F) return;
-      const from = (pi + k / parts.length) * seg, len = seg / parts.length;
-      F.food.forEach((dish, j) => {
-        const ms = from + len * (0.32 + j * 0.42), x = xAt(ms);
+      stallSpots(pi, k, parts.length).forEach((ms, j) => {
+        const dish = F.food[j], x = xAt(ms);
         if (x < -260 || x > W + 260) return;
         foodStall(x, roadTop(ms) + 2, dish, pi * 3 + k + j);
+        placeLabel({ x: x - 56 - dish.length * 7, y: roadTop(ms) + 2 - 236, w: 30 + dish.length * 14, h: 38 }, -1, () => {});   // bảng tên món
         const dx = x - SX;
         if (dx > 60 && dx < 640 && x < W - 60 && (!near || dx < near.dx)) near = { dx, x, y: roadTop(ms) - 250, text: F.invite };
       });
     });
   }
-  if (near && game.phase === 'race') bubble(near.x, near.y, `🍜 ${near.text}`, 2);   // chỉ người bán gần nhất phía trước gọi mời
+  if (near && game.phase === 'race' && !idolSpotsInView().some(p => Math.abs(p.x - near.x) < 330)) bubble(near.x, near.y, `🍜 ${near.text}`, 2);   // gần bảng tuyển idol thì quán nhường lượt (khỏi che chữ)   // chỉ người bán gần nhất phía trước gọi mời
 }
 // ---- 📣 lâu lâu vài người đứng ven đường giơ bảng "HP MEDIA – TUYỂN IDOL LIVE" (user yêu cầu) ----
 const IDOL_EVERY = 700;   // mét: mỗi đoạn 700 m có ~50% một nhóm giơ bảng (≈ 1 lần / 40–50 giây ở 100 km/h)
@@ -475,19 +487,28 @@ function idolCrew(x, y, k) {
 }
 /** Chỗ đứng giơ bảng: không đè biển chào tỉnh cũ và 2 quán ăn của đoạn đó. */
 function idolSpot(m0) {
-  const P = partAt(m0, game.cfg.goal), len = game.cfg.goal / NP / P.n;
-  return P.from + len * 0.53;   // giữa 2 quán ăn (0,32 · 0,74) của đoạn tỉnh cũ, xa biển chào
+  const P = partAt(m0, game.cfg.goal), len = game.cfg.goal / NP / P.n, m = P.from + len * 0.58;
+  if (m - P.from < 30 || P.from + len - m < 12) return null;
+  return stallSpots(P.pi, P.k, P.n).some(o => Math.abs(o - m) < 20) ? null : m;   // đoạn chật: bỏ lượt ("lâu lâu" mới có)
 }
-function drawIdolCrews() {
-  const mL = meterAt(-260), mR = meterAt(W + 260);
-  let near = null;
+/** Các nhóm giơ bảng trong khung hình: [{ m, x, k }]. */
+function idolSpotsInView() {
+  const out = [], mL = meterAt(-260), mR = meterAt(W + 260);
   for (let k = Math.floor(mL / IDOL_EVERY); k <= Math.floor(mR / IDOL_EVERY); k++) {
     if (k < 1 || hash(k, 77) > 0.5) continue;
     const m = idolSpot((k + 0.15 + hash(k, 78) * 0.1) * IDOL_EVERY);
     if (m == null) continue;
     const x = xAt(m);
     if (m > game.cfg.goal - 200 || x < -260 || x > W + 260) continue;
+    out.push({ m, x, k });
+  }
+  return out;
+}
+function drawIdolCrews() {
+  let near = null;
+  for (const { m, x, k } of idolSpotsInView()) {
     idolCrew(x, roadTop(m) + 2, k);
+    placeLabel({ x: x - 132, y: roadTop(m) + 2 - 360, w: 264, h: 108 }, -1, () => {});   // bảng chiếm chỗ: bóng thoại tự dời, không che chữ HP MEDIA
     const dx = x - SX;
     if (dx > 40 && dx < 520 && x < W - 80) near = { x, y: roadTop(m) - 330, k };
   }
@@ -554,6 +575,7 @@ function drawProvinceMarks() {
     for (let k = 1; k < parts.length; k++) {           // biển nhỏ khi sang tỉnh cũ kế tiếp (63 tỉnh trước 2025)
       const mk = (i + k / parts.length) * seg + 4, xk = xAt(mk);
       if (xk < -260 || xk > W + 260) continue;
+      placeLabel({ x: xk - 112, y: roadTop(mk) + 2 - 194, w: 224, h: 70 }, -1, () => {});
       ctx.save(); ctx.translate(xk, roadTop(mk) + 2); ctx.scale(0.62, 0.62);
       ctx.fillStyle = '#7a7a7a'; ctx.fillRect(-6, -230, 12, 230);
       ctx.fillStyle = '#1f5fbf'; rrect(-180, -310, 360, 92, 14); ctx.fill();
@@ -1510,6 +1532,11 @@ function onEvents(list) {
       case 'debt': banner(`💸 <b>${esc(e.user.name)}</b> RƯỢT ĐÒI NỢ!<small>${e.debtor ? `con nợ: <b>${esc(e.debtor.name)}</b> 😱` : 'cả xe bỏ chạy'}</small>`, 'cuu', 2200, 2); SFX.honk(); break;
       case 'finishStart': banner(`🏁 VỀ TỚI CỔNG LÀNG!<small>Đếm ngược ${e.sec} giây · phe Phá đẩy lùi được thì chạy tiếp</small>`, 'gold', 2600, 4); SFX.honk(); break;
       case 'finishCancel': banner(`😱 BỊ ĐẨY KHỎI CỔNG LÀNG!<small>lùi ${dtx(e.meters)} · chạy tiếp!</small>`, 'pha', 2400, 4); SFX.lose(); shake = 14; break;
+      case 'dropAsk': toast('cuu', e.user, `🏠 muốn xuống xe · bình luận tên tỉnh / biển số (${e.sec}s)`); SFX.good(); break;
+      case 'dropSet': banner(`🏠 <b>${esc(e.user.name)}</b> sẽ xuống ở ${esc(e.place.toUpperCase())}${e.plate ? ` (${e.plate})` : ''}<small>${e.province !== e.place ? `nay thuộc ${esc(e.province)} · ` : ''}tới nơi tự thả xuống</small>`, 'cuu', 2200, 2); break;
+      case 'dropPassed': toast('cuu', e.user, `🏠 đã qua ${e.place} rồi · chọn tỉnh phía trước nha`); break;
+      case 'dropAskEnd': toast('cuu', e.user, '🏠 hết giờ chọn nơi xuống'); break;
+      case 'dropOff': leavers.push({ user: e.user, m: e.at, t: 0, place: e.place }); banner(`🏠 <b>${esc(e.user.name)}</b> XUỐNG XE Ở ${esc(e.place.toUpperCase())}!<small>🧧 Chúc cả nhà ăn Tết vui vẻ!</small>`, 'gold', 2600, 3); SFX.win(); break;
       case 'possessed': floatText('👹 Quỷ giữ tay lái!', '#ff6a5a', SX + S(60), contactY(cam) - S(360), 40); break;
       case 'exorcise': {
         const kinds = [...new Set(e.list.map(h => ACTION_BY_ID[h.kind] ? ACTION_BY_ID[h.kind].emoji : FUN_TXT[h.kind] || h.kind))].join(' ');
@@ -2115,6 +2142,46 @@ function drawSuperman(e, cy) {
 }
 const FUN_DRAW = { crow: drawCrows, snake: drawSnake, ghost: drawGhost, croc: drawCroc, possess: drawPossess, coffin: drawCoffin, zombie: drawZombies,
   creditor: drawCreditor, garlic: drawGarlic, lion: drawLion, buffalo: drawBuffalo, shaman: drawShaman, fireworks: drawFireworks, superman: drawSuperman };
+// ---- 🏠 quà Xuống xe: bảng gợi ý (tên người + tỉnh sắp tới kèm biển số) · người xuống xe đi bộ về nhà chúc Tết ----
+const leavers = [];   // { user, m (mét chỗ xuống), t, place }
+const BYE = ['🧧 Ăn Tết vui vẻ nha cả nhà!', '🏠 Về tới nhà rồi! Chúc mọi người bình an!', '🧧 Năm mới phát tài nha!', '👋 Tạm biệt đoàn xe, hẹn năm sau!'];
+function drawDropBoard() {
+  if (!game.dropAsk || !game.dropAsk.size || game.phase === 'result') return;
+  const asks = [...game.dropAsk].slice(0, 3).map(([id, a]) => ({ u: game.users.get(id), left: a.left })).filter(x => x.u);
+  if (!asks.length) return;
+  const goal = game.cfg.goal, seen = new Set(), next = [];
+  for (let m = Math.max(0, game.dist) + 30; m < goal && next.length < 6; m += 25) {   // tỉnh cũ sắp tới + biển số
+    const p = partAt(m, goal).part; if (seen.has(p.name)) continue; seen.add(p.name);
+    next.push(`${(PLATES[p.name] || [''])[0]} ${p.name}`);
+  }
+  const x = W / 2, y = 810, w = 640, h = 118 + asks.length * 40;   // dưới băng rôn, vừa khe giữa 2 cột chú giải quà
+  ctx.save();
+  ctx.fillStyle = 'rgba(58,23,18,.92)'; rrect(x - w / 2, y, w, h, 18); ctx.fill();
+  ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = 3; rrect(x - w / 2 + 5, y + 5, w - 10, h - 10, 14); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f2c14e'; ctx.font = "900 30px 'Be Vietnam Pro'"; ctx.fillText('🏠 XUỐNG XE Ở ĐÂU?', x, y + 30);
+  ctx.fillStyle = '#fff4dc'; ctx.font = "700 20px 'Be Vietnam Pro'"; ctx.fillText('Bình luận tên tỉnh hoặc biển số xe · VD: Đà Nẵng hoặc 43', x, y + 60);
+  asks.forEach((a, i) => {
+    const yy = y + 96 + i * 40;
+    avatar(x - w / 2 + 40, yy, 15, a.u);
+    ctx.textAlign = 'left'; ctx.fillStyle = '#fff4dc'; ctx.font = "800 24px 'Be Vietnam Pro'";
+    ctx.fillText(`${String(a.u.name).slice(0, 16)} · còn ${Math.ceil(a.left)}s`, x - w / 2 + 64, yy);
+  });
+  ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,244,220,.8)'; ctx.font = "700 21px 'Be Vietnam Pro'";
+  ctx.fillText(`Sắp tới: ${next.slice(0, 4).join(' · ')}`.slice(0, 60), x, y + h - 22);
+  ctx.restore();
+}
+function drawLeavers(dt, cy) {
+  for (let i = leavers.length - 1; i >= 0; i--) {
+    const L = leavers[i]; L.t += dt;
+    const x = xAt(L.m) - L.t * S(60), y = contactY(cam) + S(90);   // đi bộ ra phía sau, về làng
+    if (L.t > 7 || x < -120) { leavers.splice(i, 1); continue; }
+    walker(x, y, L.user, VS * 1.3, i, false);
+    ctx.fillStyle = '#c98f55'; ctx.fillRect(x + S(26), y - S(70), S(26), S(22));   // giỏ quà Tết
+    if (L.t < 5) bubble(x, y - S(210), BYE[(L.user.name || '').length % BYE.length]);
+  }
+  void cy;
+}
 /** Vẽ mọi trò mới đang chạy + khách bơi về; cy = mặt đất dưới xe (đã trừ độ nhấc). */
 function drawFun(dt, cy) {
   PANIC = Math.max(0, PANIC - dt * 2);
@@ -2126,6 +2193,8 @@ function drawFun(dt, cy) {
     f(e, cy);
   }
   drawSwimmers(cy);
+  drawLeavers(dt, cy);
+  drawDropBoard();
   horrorA = lerp(horrorA, horror, 1 - Math.pow(0.03, dt)); possessA = lerp(possessA, poss, 1 - Math.pow(0.03, dt));
 }
 /** Màn tối kinh dị (tím than, chớp sét) + viền đỏ khi bị quỷ nhập — vẽ trước nhãn để chữ vẫn đọc được. */

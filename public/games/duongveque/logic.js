@@ -13,7 +13,7 @@
  *    dư bao nhiêu thành đẩy tới. Vẫn giữ "mọi quà quy ra mét theo xu" nên 2 phe cùng giá vẫn triệt tiêu.
  */
 
-import { rangesOf } from './route.js';
+import { rangesOf, findPlace, partRange } from './route.js';
 
 export const SIDES = ['cuu', 'pha'];
 
@@ -36,6 +36,7 @@ export const ACTIONS = [
   { id: 'superman',  side: 'cuu', emoji: '🦸', label: 'Siêu nhân vác xe', min: 199 },
   // chỉ chạy khi đã GÁN quà (min vô cực → quà chưa gán không bao giờ rơi vào đây)
   { id: 'driver',    side: 'cuu', emoji: '🧑‍✈️', label: 'Lên làm tài xế', min: Infinity },
+  { id: 'dropoff',   side: 'cuu', emoji: '🏠', label: 'Xuống xe về nhà', min: Infinity },   // tặng xong bình luận tên tỉnh / biển số
   { id: 'banana',    side: 'pha', emoji: '🍌', label: 'Vỏ chuối',      min: 0 },
   { id: 'pothole',   side: 'pha', emoji: '🕳️', label: 'Ổ gà',          min: 2 },
   { id: 'crow',      side: 'pha', emoji: '🐦‍⬛', label: 'Quạ ỉa kính',   min: 5 },
@@ -103,7 +104,8 @@ export const DEFAULTS = {
   flatLikes: 600, flatMaxSec: 25,               // 🛞 thủng lốp: thả bấy nhiêu tim để bơm
   maxUsers: 2000,      // quá bấy nhiêu người xem thì đầu ván dọn người không còn trên xe / không lái
   crocSec: 12,
-  finishSec: 15,       // 🏁 về tới cổng làng: đếm ngược bấy nhiêu giây (đồng hồ ván dừng) — phe Phá còn đẩy lùi được; giữ đủ mới thắng
+  finishSec: 15,
+  dropAskSec: 45,      // 🏠 quà Xuống xe: bấy nhiêu giây để bình luận nơi muốn xuống (tên tỉnh hoặc biển số)       // 🏁 về tới cổng làng: đếm ngược bấy nhiêu giây (đồng hồ ván dừng) — phe Phá còn đẩy lùi được; giữ đủ mới thắng
   crowdMax: 100,       // 🍜 trạm dừng chân: tối đa bấy nhiêu người (từng thả tim / tặng quà) xuống xe tám chuyện         // 🐊 khách bị cá sấu đớp xuống sông bơi về sau bấy nhiêu giây (húc / trừ tà cứu ngay)
 };
 
@@ -363,6 +365,7 @@ export function createGame(options = {}, rnd = Math.random) {
         g.effects.push({ id: ++SEQ, kind: 'lion', t: 0, dur: 4, ...base, hit: cleared.concat(hit.list), push: addPush(M - used - hit.used, 4, 'cuu', 'lion') });
         break;
       }
+      case 'dropoff': addPush(M, 1, 'cuu', 'dropoff'); break;   // hỏi nơi xuống chạy ngay lúc tặng (g.gift)
       case 'superman': g.effects.push({ id: ++SEQ, kind: 'superman', t: 0, dur: 6, ...base, push: addPush(M, 6, 'cuu', 'superman') }); break;
       case 'container': case 'tornado': case 'heli':
         g.xqueue.push({ id: ++SEQ, kind: action, t: 0, stage: 'enter', ...base });
@@ -434,6 +437,40 @@ export function createGame(options = {}, rnd = Math.random) {
     }
   }
 
+  // ---- 🏠 Xuống xe: hỏi nơi → bình luận tên tỉnh / biển số → tới tỉnh cũ đó thì thả xuống ----
+  g.dropAsk = new Map();   // id → { left }
+  function askDrop(u) {
+    if (u.side !== 'pha') board(u);
+    g.dropAsk.set(u.id, { left: cfg.dropAskSec });
+    emit('dropAsk', { user: { id: u.id, name: u.name, avatar: u.avatar }, sec: cfg.dropAskSec });
+  }
+  function setDrop(u, place) {
+    const R = partRange(place.name, cfg.goal);
+    if (!R) return false;
+    const at = R.from + R.len * 0.5;   // giữa tỉnh cũ (chỗ quán đặc sản)
+    const info = { user: { id: u.id, name: u.name, avatar: u.avatar }, place: place.name, plate: place.plate, province: R.province };
+    if (g.phase === 'race' && at <= g.dist + 5) { emit('dropPassed', info); return true; }   // đã qua: chọn nơi khác (vẫn còn giờ hỏi)
+    u.dropTo = { name: place.name, at, plate: place.plate, province: R.province };
+    g.dropAsk.delete(u.id);
+    if (u.side !== 'pha') board(u);
+    emit('dropSet', info);
+    return true;
+  }
+  function stepDrop(dt) {
+    for (const [id, a] of g.dropAsk) if ((a.left -= dt) <= 0) { g.dropAsk.delete(id); const u = g.users.get(id); emit('dropAskEnd', { user: u ? { id, name: u.name, avatar: u.avatar } : { id, name: id } }); }
+  }
+  function checkDrops() {
+    for (const id of [...g.riders]) {
+      const u = g.users.get(id);
+      if (!u || !u.dropTo || g.dist < u.dropTo.at) continue;
+      g.riders = g.riders.filter(x => x !== id); paxTick = -1;
+      const di = g.drivers.findIndex(d => d && d.id === id);
+      if (di >= 0) { const q = g.driverQueue.shift(); if (q) setDriver(di, q.user, q.sec); else g.drivers[di] = null; }
+      emit('dropOff', { user: { id, name: u.name, avatar: u.avatar }, place: u.dropTo.name, province: u.dropTo.province, at: Math.round(u.dropTo.at) });
+      u.dropTo = null;
+    }
+  }
+
   /** Người ngồi trên xe: tài xế không tính, xếp theo xu Cứu ván này rồi tới thứ tự lên xe. */
   let paxTick = -1, paxCache = null;
   g.passengers = function () {
@@ -472,6 +509,7 @@ export function createGame(options = {}, rnd = Math.random) {
     let r;
     if (gift && gift.action && ACTION_BY_ID[gift.action]) r = { action: gift.action, side: ACTION_BY_ID[gift.action].side };
     else r = resolveGift({ giftId: gift && gift.giftId, giftName: gift && gift.giftName, coins }, giftMap, u.side, cfg.defaultSide);
+    if (r.action === 'dropoff') askDrop(u);
     if (g.phase !== 'race') {
       const driverDone = r.action === 'driver';
       if (driverDone) assignDriver(u, count);
@@ -515,6 +553,8 @@ export function createGame(options = {}, rnd = Math.random) {
     emit('follow', { user: { id: u.id, name: u.name, avatar: u.avatar } });
   };
   g.comment = function (who, text) {
+    const asked = g.dropAsk.get(String((who && (who.id || who.uniqueId || who.name)) || 'khach'));
+    if (asked) { const place = findPlace(text); if (place && setDrop(user(who), place)) return 'drop'; }
     const side = sideFromComment(text);
     if (!side) return null;
     const u = user(who);
@@ -787,6 +827,7 @@ export function createGame(options = {}, rnd = Math.random) {
     const dt = Math.max(0, Math.min(0.1, Number(dtIn) || 0));
     g.phaseT += dt;
     stepDriver(dt);
+    stepDrop(dt);
     g.tick++;
     if (g.phase === 'lobby') { if (g.phaseT >= cfg.lobbySec) startRace(); return; }
     if (g.phase === 'result') { const hold = cfg.resultSec + (g.result && g.result.reason === 'depot' ? cfg.depotFireSec : 0); if (cfg.autoNext && g.phaseT >= hold) { g.phase = 'lobby'; g.phaseT = 0; emit('lobby'); } return; }
@@ -864,6 +905,7 @@ export function createGame(options = {}, rnd = Math.random) {
       const done = g.plan.some(x => x.kind === 'police' && x.done) || g.policeCaught;
       if (!done && g.rnd() < cfg.speedTrap) { g.policeCaught = true; startHalt('police', 'speed'); return; }
     }   // bị đẩy lùi được quá vạch xuất phát (quà Phá to không bị phí)
+    checkDrops();
     if (g.dist > g.maxDist) {
       const before = Math.floor(g.maxDist / cfg.flagEvery), after = Math.floor(g.dist / cfg.flagEvery);
       g.maxDist = g.dist;
@@ -890,7 +932,7 @@ export function createGame(options = {}, rnd = Math.random) {
     g.phase = 'lobby'; g.phaseT = 0; g.result = null; g.pending = []; g.dist = 0; g.maxDist = 0; g.fuel = 100;
     g.pushes = []; g.effects = []; g.obstacles = []; g.exclusive = null; g.xqueue = []; g.rescue = null; g.fuelAlarm = null;
     g.users = new Map(); g.totals = { cuu: 0, pha: 0 };
-    g.drivers = []; g.driverQueue = []; g.riders = []; g.halt = null; g.plan = []; g.lost = []; paxTick = -1;
+    g.drivers = []; g.driverQueue = []; g.riders = []; g.dropAsk = new Map(); g.halt = null; g.plan = []; g.lost = []; paxTick = -1;
     emit('lobby');
   };
   return g;

@@ -834,3 +834,45 @@ test('quán ăn vỉa hè: đủ 63 tỉnh cũ, mỗi tỉnh 2 món ≤ 22 ký t
     assert.ok(v.invite.length <= 60, `${k}: câu mời dài ${v.invite.length}`);
   }
 });
+
+test('xuống xe: hiểu biển số, tên tỉnh có / không dấu, tên quen; đủ 63 tỉnh cũ có biển số, không trùng', async () => {
+  const { findPlace, PLATES, PARTS } = await import('../public/games/duongveque/route.js');
+  const names = Object.values(PARTS).flat().map(p => p.name);
+  assert.deepEqual(Object.keys(PLATES).sort(), [...names].sort());
+  const all = Object.values(PLATES).flat();
+  assert.equal(new Set(all).size, all.length, 'biển số không trùng');
+  assert.equal(findPlace('43').name, 'Đà Nẵng');
+  assert.equal(findPlace('xuống 75 nha').name, 'Huế');
+  assert.equal(findPlace('Đà Nẵng').name, 'Đà Nẵng');
+  assert.equal(findPlace('da nang').name, 'Đà Nẵng');
+  assert.equal(findPlace('cho em xuống quảng nam').name, 'Quảng Nam');
+  assert.equal(findPlace('Sài Gòn').name, 'TP. Hồ Chí Minh');
+  assert.equal(findPlace('59').name, 'TP. Hồ Chí Minh');
+  assert.equal(findPlace('vung tau').name, 'Bà Rịa – Vũng Tàu');
+  assert.equal(findPlace('Hà Nam').name, 'Hà Nam');
+  assert.equal(findPlace('vinh long').name, 'Vĩnh Long');
+  assert.equal(findPlace('1'), null);
+  assert.equal(findPlace('hello'), null);
+  assert.equal(findPlace('80'), null);
+});
+
+test('xuống xe: tặng quà → được hỏi, bình luận biển số → tới đúng tỉnh cũ thì xuống, chúc Tết; đã qua thì chọn lại', () => {
+  const g = still({ goal: 6000 });
+  g.gift(A, { action: 'dropoff', coins: 10 });
+  assert.ok(g.drainEvents().some(e => e.type === 'dropAsk'));
+  assert.ok(g.passengers().seated.some(u => u.id === 'a'), 'người tặng lên xe');
+  assert.equal(g.comment(A, '94'), 'drop');   // Bạc Liêu: đoạn thứ 2 của Cà Mau
+  const set = g.drainEvents().find(e => e.type === 'dropSet');
+  assert.equal(set.place, 'Bạc Liêu'); assert.equal(set.province, 'Cà Mau');
+  g.dist = 150; run(g, 0.1);
+  const off = g.drainEvents().find(e => e.type === 'dropOff');
+  assert.ok(off && off.place === 'Bạc Liêu');
+  assert.ok(!g.passengers().seated.some(u => u.id === 'a'), 'đã xuống xe');
+  g.gift(B, { action: 'dropoff', coins: 10 });
+  g.comment(B, '69');                          // Cà Mau đã qua → báo chọn lại, vẫn còn hỏi
+  assert.ok(g.drainEvents().some(e => e.type === 'dropPassed'));
+  assert.ok(g.dropAsk.has('b'));
+  g.comment(B, 'Huế');
+  assert.ok(!g.dropAsk.has('b'));
+  assert.equal(g.comment({ id: 'z', name: 'Z' }, '43'), null, 'không tặng quà thì bình luận số không bị hiểu là xuống xe');
+});

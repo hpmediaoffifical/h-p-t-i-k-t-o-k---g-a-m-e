@@ -259,6 +259,14 @@
         "coins": 5,
         "giftImage": "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/ff861a220649506452e3dc35c58266ea.png~tplv-obj.webp"
       }
+    ],
+    "dropoff": [
+      {
+        "giftId": "15063",
+        "giftName": "Vé hành trình",
+        "coins": 10,
+        "giftImage": "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/551ecaf639c5e02354f9e7c1a763ec72.png~tplv-obj.webp"
+      }
     ]
   }
 }
