@@ -530,16 +530,103 @@ function drawRoad() {
   }
   drawGates();
 }
-function drawGates() {
-  const md = -game.cfg.goal * game.cfg.backFloor, xd = xAt(md);
-  if (xd > -260 && xd < W + 260) {
-    const y = roadTop(md);
-    ctx.save(); ctx.translate(xd, y); ctx.scale(0.75, 0.75);
-    ctx.fillStyle = '#888'; ctx.fillRect(-120, -260, 14, 260); ctx.fillRect(106, -260, 14, 260);
-    ctx.fillStyle = '#c3261f'; rrect(-170, -320, 340, 70, 14); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = "800 38px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🚏 BẾN XE CÀ MAU · PHÁ THẮNG', 0, -284);
+// 🚏 Bến xe Cà Mau bằng lá dừa (sau vạch xuất phát ¼ quãng đường). Bị đẩy về tới đây → phe Phá thắng → cả bến bốc cháy.
+let depotFire = null;   // { t } khi đang cháy
+function frond(x, y, len, ang, col) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  ctx.strokeStyle = col; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(len * 0.5, -len * 0.08, len, len * 0.12); ctx.stroke();
+  ctx.lineWidth = 4;
+  for (let k = 1; k < 9; k++) { const u = k / 9, px = len * u, py = -len * 0.08 * 4 * u * (1 - u) + len * 0.12 * u * u; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + len * 0.07, py + len * 0.16); ctx.moveTo(px, py); ctx.lineTo(px + len * 0.08, py - len * 0.1); ctx.stroke(); }
+  ctx.restore();
+}
+// giai đoạn cháy: lan (0–2 giây) → dữ dội (tới 6 giây) → tàn dần (6–9 giây), cháy đen dần từ giây 1,5
+function fireStage(t) { return { spread: clamp(t / 2, 0, 1), blaze: t < 6 ? clamp(t / 1.2, 0, 1) : clamp(1 - (t - 6) / 3, 0, 1), char: clamp((t - 1.5) / 4.5, 0, 1) }; }
+const CHAR = '#1a1210';
+function depot(x, y) {
+  const fire = depotFire, F = fire ? fireStage(fire.t) : { spread: 0, blaze: 0, char: 0 }, burn = F.spread;
+  ctx.save(); ctx.translate(x, y); ctx.scale(VS * 1.3, VS * 1.3);
+  // nền gạch + ghế chờ + võng
+  ctx.fillStyle = '#c9a26a'; ctx.fillRect(-720, -30, 1440, 30);
+  ctx.strokeStyle = mix('#6b4226', CHAR, F.char); ctx.lineWidth = 16;
+  for (let k = -6; k <= 6; k++) { const px = k * 115; ctx.beginPath(); ctx.moveTo(px, -30); ctx.lineTo(px, -360); ctx.stroke(); }      // cột tre
+  ctx.strokeStyle = mix('#8a5a2a', CHAR, F.char); ctx.lineWidth = 6;
+  for (const px of F.char > 0.7 ? [] : [-520, 180]) { ctx.beginPath(); ctx.moveTo(px, -250); ctx.quadraticCurveTo(px + 57, -150, px + 115, -250); ctx.stroke(); }  // võng
+  ctx.fillStyle = mix('#2f7de2', CHAR, F.char); for (const px of [-300, -60, 420]) { ctx.fillRect(px, -96, 150, 14); ctx.fillRect(px + 10, -82, 10, 52); ctx.fillRect(px + 130, -82, 10, 52); }
+  // mái lá dừa: nhiều lớp tàu lá, lớp sau đậm hơn
+  const cols = ['#7a8f3a', '#93a84a', '#b8b25a', '#a89345'];
+  for (let row = 0; row < 4; row++) {
+    for (let k = -14; k <= 14; k++) {
+      const px = k * 52 + (row % 2) * 26, py = -470 + row * 34 + Math.abs(k) * 6;
+      const sway = Math.sin(T * 1.6 + k + row) * 0.04;
+      const lit = burn > 0 && Math.abs(k) / 14 < burn;
+      if (lit && F.char > 0.85 && hash(k * 7 + row, 41) < (F.char - 0.85) * 4) continue;   // lá cháy rụi, mái thủng lỗ chỗ
+      const ca = lit ? mix(cols[(k + row + 20) % 4], CHAR, Math.min(1, F.char * 1.3)) : cols[(k + row + 20) % 4];
+      const cb = lit ? mix(cols[(k + row + 21) % 4], CHAR, Math.min(1, F.char * 1.3)) : cols[(k + row + 21) % 4];
+      frond(px, py, 120, 0.9 + sway * (lit ? 3 : 1), ca);
+      frond(px, py, 120, Math.PI - 0.9 - sway * (lit ? 3 : 1), cb);
+    }
+  }
+  ctx.fillStyle = mix('#6b4226', CHAR, F.char); ctx.fillRect(-760, -360, 1520, 18);                     // xà ngang
+  // biển bến xe
+  ctx.fillStyle = mix('#b3261e', CHAR, F.char * 0.9); rrect(-330, -640, 660, 120, 18); ctx.fill();
+  ctx.strokeStyle = mix('#f2c14e', '#3a2a1a', F.char); ctx.lineWidth = 8; rrect(-318, -628, 636, 96, 12); ctx.stroke();
+  ctx.fillStyle = mix('#f2c14e', '#4a3a2a', F.char * 0.8); ctx.font = "64px 'Bungee', 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('BẾN XE CÀ MAU', 0, -578);
+  ctx.strokeStyle = '#6b4226'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(-260, -520); ctx.lineTo(-240, -470); ctx.moveTo(260, -520); ctx.lineTo(240, -470); ctx.stroke();
+  if (!fire) { ctx.fillStyle = 'rgba(255,244,220,.92)'; ctx.font = "800 30px 'Be Vietnam Pro'"; ctx.fillText('Bị đẩy về tới đây là phe Phá thắng', 0, -400); }
+  // lửa dày đặc: 3 tầng lưỡi lửa lởm chởm (đỏ thẫm ở gốc → cam → vàng ở ngọn) + lõi sáng; cộng sáng chỉ cho ánh lửa
+  if (fire && F.blaze > 0.01) {
+    ctx.save();
+    for (let row = 0; row < 3; row++) for (let k = -30; k <= 30; k++) {
+      if (Math.abs(k) / 30 > burn) continue;
+      const px = k * 24 + row * 9 + (hash(k, 9 + row) - 0.5) * 14, base = -392 + Math.abs(k) * 3 - row * 30;
+      const flick = Math.sin(T * (9 + (k & 3)) + k * 1.9) * 0.22 + Math.sin(T * 23 + k) * 0.08;
+      const h = (190 + hash(k + row * 50, 7) * 190) * (1 + flick) * F.blaze * [1, 0.8, 0.55][row];
+      const w = 26 + hash(k, 8) * 18, sw = Math.sin(T * 5 + k * 0.7) * 22;
+      const g = ctx.createLinearGradient(0, base, 0, base - h);
+      g.addColorStop(0, 'rgba(150,20,8,.95)'); g.addColorStop(0.25, 'rgba(230,60,12,.95)'); g.addColorStop(0.55, 'rgba(255,140,20,.9)'); g.addColorStop(0.85, 'rgba(255,210,70,.7)'); g.addColorStop(1, 'rgba(255,235,160,0)');
+      ctx.fillStyle = g; ctx.beginPath();
+      ctx.moveTo(px - w, base);
+      ctx.bezierCurveTo(px - w * 1.15, base - h * 0.4, px - w * 0.35 + sw, base - h * 0.72, px + sw * 1.5, base - h);
+      ctx.bezierCurveTo(px + w * 0.25 + sw, base - h * 0.62, px + w * 1.15, base - h * 0.38, px + w, base);
+      ctx.fill();
+      if (row === 0) {                                                  // lõi sáng
+        const hc = h * 0.45;
+        ctx.fillStyle = 'rgba(255,236,170,.75)'; ctx.beginPath();
+        ctx.moveTo(px - w * 0.4, base); ctx.quadraticCurveTo(px - w * 0.3 + sw * 0.5, base - hc * 0.7, px + sw * 0.7, base - hc); ctx.quadraticCurveTo(px + w * 0.3 + sw * 0.5, base - hc * 0.7, px + w * 0.4, base); ctx.fill();
+      }
+    }
+    for (let k = -6; k <= 6; k++) {                                     // cột tre bốc cháy
+      if (Math.abs(k) / 6 > burn) continue;
+      const px = k * 115, h = (110 + Math.sin(T * 11 + k) * 40) * F.blaze;
+      const g = ctx.createLinearGradient(0, -60, 0, -60 - h); g.addColorStop(0, 'rgba(255,110,20,.9)'); g.addColorStop(1, 'rgba(255,210,80,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(px, -60 - h / 2, 26, h / 2, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    const glow = ctx.createRadialGradient(0, -380, 60, 0, -380, 900);    // ánh lửa hắt ra xung quanh
+    glow.addColorStop(0, `rgba(255,140,40,${0.35 * F.blaze + Math.sin(T * 13) * 0.04})`); glow.addColorStop(1, 'rgba(255,90,20,0)');
+    ctx.fillStyle = glow; ctx.fillRect(-1000, -1100, 2000, 1150);
     ctx.restore();
   }
+  // tàn: than đỏ lập loè trên đống đen
+  if (fire && F.char > 0.5) {
+    for (let k = -20; k <= 20; k++) {
+      const a = 0.35 + 0.35 * Math.sin(T * 5 + k * 2.3);
+      ctx.fillStyle = `rgba(255,${70 + (k & 3) * 20},20,${a * F.char})`;
+      ctx.beginPath(); ctx.arc(k * 36, -380 + hash(k, 44) * 50, 6 + hash(k, 45) * 6, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.restore();
+  if (fire) {
+    // khói: vừa đủ dày để thấy cột khói đen, không che lửa (tối đa ~40 cụm cùng lúc)
+    const smokes = fx.reduce((n, f) => n + (f.k === 'smoke'), 0);
+    if (smokes < 36 && Math.random() < 0.3 + 0.3 * F.blaze) fx.push({ k: 'smoke', x: x + (Math.random() - 0.5) * S(1100) * Math.max(0.3, burn), y: y - S(760 + Math.random() * 120), t: 0, dur: 3 + Math.random(), r: S(60 + Math.random() * 50), dark: 0.5 + 0.25 * F.char });
+    if (F.blaze > 0.2) for (let i = 0; i < 2; i++) fx.push({ k: 'ember', x: x + (Math.random() - 0.5) * S(1400) * burn, y: y - S(450), vx: (Math.random() - 0.5) * 60, vy: -120 - Math.random() * 200, t: 0, dur: 1.6 + Math.random() });
+  }
+}
+function drawGates() {
+  const md = -game.cfg.goal * game.cfg.backFloor, xd = xAt(md + S(vehOf().mid) / PX);
+  if (xd > -900 && xd < W + 900) depot(xd, roadTop(md) + 2);
   // vạch xuất phát
   const xs = xAt(0);
   if (xs > -260 && xs < W + 260) {
@@ -787,6 +874,24 @@ function container(xFront, m, u, t, mult) {
   ctx.restore();
   void t;
 }
+/** xe ủi quay đầu về bên trái, lưỡi ủi tì vào đầu đoàn xe (xFront = mép lưỡi ủi) */
+function bulldozer(xFront, m, alpha) {
+  const y = contactY(m);
+  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(xFront, y); ctx.scale(VS, VS);
+  ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(200, 4, 230, 14, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#4a4d55'; rrect(0, -150, 34, 150, 6); ctx.fill();                      // lưỡi ủi
+  ctx.strokeStyle = '#6d7079'; ctx.lineWidth = 5; for (let k = 1; k < 5; k++) { ctx.beginPath(); ctx.moveTo(4, -k * 30); ctx.lineTo(30, -k * 30); ctx.stroke(); }
+  ctx.strokeStyle = '#3a3d45'; ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(30, -70); ctx.lineTo(110, -90); ctx.stroke();
+  ctx.fillStyle = '#2b2d33'; rrect(90, -62, 300, 62, 31); ctx.fill();                      // xích
+  ctx.fillStyle = '#55585f'; for (let k = 0; k < 6; k++) { ctx.beginPath(); ctx.arc(122 + k * 47, -31, 18, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = '#ffc531'; rrect(100, -170, 280, 110, 14); ctx.fill();                   // thân
+  ctx.fillStyle = '#e0a81c'; ctx.fillRect(100, -86, 280, 14);
+  ctx.fillStyle = '#ffc531'; rrect(240, -290, 130, 124, 12); ctx.fill();                   // cabin
+  ctx.fillStyle = '#bfe3ff'; rrect(256, -276, 98, 64, 8); ctx.fill();
+  ctx.fillStyle = '#3a3d45'; ctx.fillRect(160, -230, 18, 62);                              // ống khói
+  ctx.restore();
+  if (Math.random() < 0.3 * alpha) fx.push({ k: 'smoke', x: xFront + S(169), y: y - S(240), t: 0, dur: 1.4, r: S(18) });
+}
 function towTruck(xBack, m, u, alpha) {
   const y = contactY(m);
   ctx.save(); ctx.globalAlpha = alpha; ctx.translate(xBack, y); ctx.scale(VS, VS);
@@ -865,9 +970,21 @@ function trashBin(x, y, open, s = 1) {
   ctx.fillStyle = '#fff'; ctx.font = "800 34px 'Be Vietnam Pro'"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('♻', 0, -56);
   ctx.restore();
 }
+/** cây bị nhổ bật gốc, tàu dừa, ngói bay vòng quanh phễu lốc */
+function tornadoDebris(x, y, t, alpha) {
+  ctx.save(); ctx.globalAlpha = alpha;
+  for (let k = 0; k < 9; k++) {
+    const a = t * (2.2 + k * 0.15) + k * 0.9, rr = S(220 + (k % 3) * 120), hy = y - S(200 + k * 95) + Math.sin(t * 2 + k) * S(30);
+    const px = x + Math.cos(a) * rr, front = Math.sin(a) > 0;
+    ctx.save(); ctx.translate(px, hy); ctx.rotate(t * (3 + k % 4) + k); ctx.scale(VS * (front ? 0.95 : 0.7), VS * (front ? 0.95 : 0.7));
+    if (k % 3 === 0) tree(0, 60, '#4f9a2c', 0.8); else if (k % 3 === 1) palm(0, 120); else { ctx.fillStyle = '#b8432f'; ctx.fillRect(-40, -20, 80, 40); }
+    ctx.restore();
+  }
+  ctx.restore();
+}
 function tornado(x, y, t, alpha) {
   ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.scale(VS * 1.9, VS * 1.9); x = 0; y = 0;
-  for (let k = 0; k < 14; k++) {
+  for (let k = 0; k < 22; k++) {
     const yy = y - k * 34, r = 40 + k * 16, w = Math.sin(t * 3 + k * 0.6) * 18;
     ctx.strokeStyle = `rgba(95,105,122,${0.7 + k * 0.02})`; ctx.lineWidth = 18;
     ctx.beginPath(); ctx.ellipse(x + w, yy, r, r * 0.22, 0, t * 6 + k, t * 6 + k + Math.PI * 1.4); ctx.stroke();
@@ -879,14 +996,18 @@ function tornado(x, y, t, alpha) {
 // ---------------- hiệu ứng nổi ----------------
 const fx = [];
 const followFlags = [];
-let shake = 0, hitWobble = 0, spin = 0, bin = null;
+let shake = 0, hitWobble = 0, skid = 0, bump = 0, bin = null, pushA = 0, pushBy = null;
 function floatText(text, color, x = SX + S(160), y = null, size = 46) { fx.push({ k: 'txt', text, color, x, y: y == null ? contactY(cam) - S(300) : y, t: 0, dur: 1.4, size }); }
 function confetti(n = 80, x = W / 2, y = 700) { for (let i = 0; i < n; i++) fx.push({ k: 'conf', x, y, vx: (Math.random() - 0.5) * 900, vy: -300 - Math.random() * 700, c: ['#ffd23a', '#e8322c', '#35d07f', '#2fa4e7', '#ff6fae'][i % 5], t: 0, dur: 2.6, r: Math.random() * 6 }); }
 function stepFx(dt) {
+  if (depotFire) depotFire.t += dt;
+  skid = Math.max(0, skid - dt / 1.3); bump = Math.max(0, bump - dt / 0.5);
   for (const f of fx) {
     f.t += dt;
     if (f.k === 'conf') { f.vy += 1200 * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.r += dt * 8; }
     if (f.k === 'dust') { f.x -= (game.speed * PX * 0.6 + 40) * dt; f.y -= 30 * dt; }
+    if (f.k === 'skid') f.x -= game.speed * PX * dt;
+    if (f.k === 'ember') { f.x += f.vx * dt + Math.sin(f.t * 7) * 30 * dt; f.y += f.vy * dt; }
   }
   for (let i = fx.length - 1; i >= 0; i--) if (fx[i].t >= fx[i].dur) fx.splice(i, 1);
   shake = Math.max(0, shake - dt * 30);
@@ -903,6 +1024,13 @@ function drawFx() {
       ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y - p * 120); ctx.restore();
     } else if (f.k === 'conf') {
       ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(f.r); ctx.fillStyle = f.c; ctx.fillRect(-7, -4, 14, 8); ctx.restore();
+    } else if (f.k === 'smoke') {
+      const dk = f.dark || 0.45, c = Math.round(60 - dk * 40);
+      ctx.fillStyle = `rgba(${c},${c - 4},${c - 6},${dk * (1 - p) * (p < 0.1 ? p * 10 : 1)})`; ctx.beginPath(); ctx.arc(f.x + Math.sin(p * 5 + f.r) * 30 + p * 160, f.y - p * 700, f.r * (1 + p * 2.4), 0, Math.PI * 2); ctx.fill();
+    } else if (f.k === 'ember') {
+      ctx.fillStyle = `rgba(255,${150 + Math.round(Math.sin(f.t * 20) * 60)},40,${1 - p})`; ctx.beginPath(); ctx.arc(f.x, f.y, 4, 0, Math.PI * 2); ctx.fill();
+    } else if (f.k === 'skid') {
+      ctx.strokeStyle = `rgba(30,30,30,${0.55 * (1 - p)})`; ctx.lineWidth = S(10); ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x - f.len, f.y + Math.sin(f.x) * 4); ctx.stroke();
     } else if (f.k === 'dust') {
       ctx.fillStyle = `rgba(220,210,190,${0.5 * (1 - p)})`; ctx.beginPath(); ctx.arc(f.x, f.y, 10 + p * 22, 0, Math.PI * 2); ctx.fill();
     } else if (f.k === 'trash') {
@@ -1070,7 +1198,7 @@ function showResult(r) {
   const row = (u, i) => `<div class="pr">${['🥇', '🥈', '🥉'][i]} ${avHtml(u)}<span class="nm">${esc(u.name)}</span><span class="xu">${fmt(u.coins)}</span></div>`;
   const topPha = r.topPha[0], topCuu = r.topCuu[0];
   const pen = VIEW.penalties[Math.floor(Math.random() * VIEW.penalties.length)] || '';
-  el.className = `card ${win ? 'win' : 'lose'}`;
+  el.className = `card ${win ? 'win' : 'lose'}${r.reason === 'depot' ? ' depot' : ''}`;
   $('banner').innerHTML = ''; bannerT = 0;
   el.innerHTML = `<h1>${win ? '🎉 VỀ TỚI QUÊ!' : r.reason === 'depot' ? '🚏 BỊ ĐẨY VỀ BẾN XE!' : '😭 KẸT GIỮA ĐƯỜNG'}</h1>
     <h2>${win ? `Phe 🛡️ CỨU thắng · ${fmt(r.timeUsed)} giây` : r.reason === 'depot' ? `Phe ⚔️ PHÁ thắng · ${fmt(r.timeUsed)} giây` : `Phe ⚔️ PHÁ thắng · còn ${dtx(r.goal - r.dist)}`}</h2>
@@ -1133,6 +1261,7 @@ function onEvents(list) {
   for (const e of list) {
     switch (e.type) {
       case 'action': {
+        if (e.side === 'pha') pushBy = e.user;
         const a = ACTION_BY_ID[e.action];
         toast(e.side, e.user, `${a.emoji} ${a.label}${e.count > 1 ? ` ×${e.count}` : ''}${e.final ? ' 🔥×2' : ''}`);
         if (e.action === 'wind') fx.push({ k: 'wind', t: 0, dur: 0.9 });
@@ -1145,7 +1274,7 @@ function onEvents(list) {
         break;
       }
       case 'pending': toast(e.side, e.user, `${ACTION_BY_ID[e.action].emoji} ⏳ chờ ván mới`); break;
-      case 'hit': hitWobble = 1; shake = Math.max(shake, e.kind === 'pothole' ? 10 : 6); if (e.kind === 'banana') spin = 1; floatText(`-${dtx(e.meters)}`, SIDE_COLOR.pha); SFX.hit(); break;
+      case 'hit': hitWobble = 1; shake = Math.max(shake, e.kind === 'pothole' ? 10 : 6); if (e.kind === 'banana') { skid = 1; floatText('Trượt vỏ chuối!', '#ffd23a', SX + S(140), contactY(cam) - S(330), 40); } else if (e.kind === 'pothole') bump = 1; floatText(`-${dtx(e.meters)}`, SIDE_COLOR.pha); SFX.hit(); break;
       case 'dodge': floatText('NÉ ĐẸP!', '#7cf0a9', SX, contactY(cam) - S(320)); SFX.good(); break;
       case 'jump': SFX.jump(); break;
       case 'ram': SFX.honk(); break;
@@ -1169,14 +1298,17 @@ function onEvents(list) {
       case 'walking': banner('🚶 Dắt bộ…<small>chờ phe Cứu đổ xăng</small>', '', 2000, 1); break;
       case 'final': banner(`🔥 NƯỚC RÚT ×${e.mult}!<small>${e.sec} giây cuối mọi quà nhân đôi</small>`, 'gold', 2600, 3); SFX.alarm(); break;
       case 'flag': floatText(`🚩 ${dtx(e.meters)}`, '#ffe27a', SX + S(160), contactY(cam) - S(300), 50); break;
-      case 'roundStart': $('result').classList.add('hidden'); banner(`🏁 VÁN ${e.round} XUẤT PHÁT!<small>Mũi Cà Mau → Lũng Cú · ${NP} tỉnh · 100 km/h</small>`, 'gold', 2000, 3); SFX.honk(); followFlags.length = 0; break;
-      case 'roundEnd': saveStats(e); showResult(e); if (e.winner === 'cuu') { confetti(160); SFX.win(); } else SFX.lose(); break;
+      case 'roundStart': depotFire = null; $('result').classList.add('hidden'); banner(`🏁 VÁN ${e.round} XUẤT PHÁT!<small>Mũi Cà Mau → Lũng Cú · ${NP} tỉnh · 100 km/h</small>`, 'gold', 2000, 3); SFX.honk(); followFlags.length = 0; break;
+      case 'roundEnd': saveStats(e);
+        if (e.reason === 'depot') { depotFire = { t: 0 }; banner('🔥 BẾN XE CÀ MAU BỐC CHÁY!<small>Bị đẩy về tận bến — phe Phá thắng</small>', 'pha', 2800, 4); shake = 16; setTimeout(() => showResult(e), 3000); }
+        else showResult(e);
+        if (e.winner === 'cuu') { confetti(160); SFX.win(); } else SFX.lose(); break;
       case 'lobby': $('result').classList.add('hidden'); break;
       case 'join': toast(e.side, e.user, e.side === 'cuu' ? '🛡️ vào phe Cứu · lên xe' : '⚔️ vào phe Phá'); break;
       case 'halt': { const tx = e.kind === 'police' ? policeTxt(e) : HALT_TXT[e.kind]; if (tx) banner(`${tx.icon} ${tx.title.toUpperCase()}${e.need ? `<small>Thả ${fmt(e.need)} tim để đi tiếp</small>` : `<small>Dừng ${Math.round(e.sec)} giây · đồng hồ ván tạm dừng</small>`}`, e.kind === 'police' || e.kind === 'flat' ? 'pha' : 'gold', 2600, 3); if (e.kind === 'police') SFX.alarm(); break; }
       case 'haltEnd': { const who = e.helpers && e.helpers[0]; banner(`🚌 XUẤT PHÁT TIẾP!${who ? `<small>❤️ Cảm ơn ${esc(who.name)} đã thả tim</small>` : e.how === 'timeout' && e.kind === 'police' ? '<small>🧾 Nộp phạt rồi đi tiếp</small>' : ''}`, 'cuu', 2000, 2); SFX.honk(); break; }
       case 'stash': banner(`📦 QUÀ DỒN LÚC DỪNG<small>🛡️ +${dtx(e.cuu)} · ⚔️ −${dtx(e.pha)} → ${e.net >= 0 ? 'tiến' : 'lùi'} ${dtx(Math.abs(e.net))}</small>`, e.net >= 0 ? 'cuu' : 'pha', 2600, 3); break;
-      case 'fine': banner(`🧾 NỘP PHẠT!<small>Chưa đủ tim — lùi ${dtx(e.meters)}</small>`, 'pha', 2400, 3); SFX.lose(); break;
+      case 'fine': pushBy = { name: 'CSGT', id: 'csgt' }; banner(`🧾 NỘP PHẠT!<small>Chưa đủ tim — lùi ${dtx(e.meters)}</small>`, 'pha', 2400, 3); SFX.lose(); break;
       case 'deferred': toast(e.side, e.user, `${ACTION_BY_ID[e.action].emoji} ⏳ chạy khi xe đi`); break;
       case 'roadEvent': if (e.kind === 'jam') banner(`🚗 KẸT XE CỬA NGÕ ${esc(ROUTE[provIdx(game.dist)].name.toUpperCase())}!<small>Chạy chậm 10 giây</small>`, 'pha', 2200, 2); else if (e.kind === 'lixi') { banner('🧧 HỌ HÀNG LÌ XÌ!<small>+30% xăng · đẩy tới</small>', 'cuu', 2200, 2); for (let i = 0; i < 40; i++) fx.push({ k: 'conf', x: SX, y: contactY(cam) - 300, vx: (Math.random() - 0.5) * 700, vy: -400 - Math.random() * 500, c: i % 3 ? '#e8322c' : '#ffd23a', t: 0, dur: 2, r: 0 }); SFX.good(); } break;
       case 'driver': banner(`🧑‍✈️ <b>${esc(e.user.name)}</b> LÊN LÀM TÀI XẾ!<small>lái ${fmtClock(e.sec)}${e.prev ? ` · thay ${esc(e.prev.name)}` : ''}</small>`, 'cuu', 2600, 3); SFX.honk(); break;
@@ -1401,9 +1533,20 @@ function render(dt) {
   let lift = 0, ang = Math.atan2(roadTop(cam + 1) - roadTop(cam - 1), 2 * PX);
   if (game.jumpT > 0) lift = Math.sin(Math.PI * (1 - game.jumpT / 0.75)) * S(170);
   if (x && x.kind === 'heli') lift = S(x.stage === 'enter' ? ease(x.t / 1) * 40 : x.stage === 'fly' ? 40 + ease(x.t / 0.6) * 220 + Math.sin(T * 3) * 12 : 260 * (1 - ease(x.t / 0.8)));
-  if (x && x.kind === 'tornado') { if (x.stage === 'enter') { lift = S(70 + Math.sin(T * 4) * 20); ang += T * 6; } else if (x.stage === 'throw') { lift = Math.sin(Math.min(1, x.t / (x.push ? x.push.dur : 1.6)) * Math.PI) * S(420); ang += T * 14; } }
+  const SKY_LIFT = S(900);   // lốc xoáy nhấc cả đoàn lên trời
+  if (x && x.kind === 'tornado') {
+    if (x.stage === 'enter') { lift = ease(Math.min(1, x.t / 1.4)) * SKY_LIFT + Math.sin(T * 3) * S(30); ang += T * 5; }
+    else if (x.stage === 'throw') { const q = Math.min(1, x.t / (x.push ? x.push.dur : 1.6)); lift = SKY_LIFT * (1 - ease(q)) + Math.sin(q * Math.PI) * S(260); ang += T * 12; }
+    else if (x.stage === 'leave') { lift = SKY_LIFT * (1 - ease(Math.min(1, x.t / 0.8))); ang += T * 5 * (1 - Math.min(1, x.t / 0.8)); }
+  }
   if (hitWobble > 0) ang += Math.sin(T * 30) * 0.12 * hitWobble;
-  if (spin > 0) { ang += (1 - spin) * Math.PI * 2; spin = Math.max(0, spin - dt * 1.4); }
+  // vỏ chuối: lạng đuôi qua lại, bánh để lại vệt trượt + khói lốp; ổ gà: nảy bật lên
+  let skidX = 0;
+  if (skid > 0) {
+    ang += Math.sin(T * 16) * 0.07 * skid; skidX = Math.sin(T * 8) * S(36) * skid;
+    if (Math.random() < 0.6) { fx.push({ k: 'skid', x: SX + skidX - S(60), y: contactY(cam) - S(4), len: S(80), t: 0, dur: 1.6 }); fx.push({ k: 'dust', x: SX + skidX - S(vehOf().rear - 40), y: contactY(cam) - S(14), t: 0, dur: 0.8 }); }
+  }
+  if (bump > 0) { lift += Math.sin(Math.PI * (1 - bump)) * S(110); ang += Math.sin(T * 24) * 0.05 * bump; }
   if (game.phase === 'race' && vel > 20 && lift < 1) ang -= 0.03 + Math.sin(T * 22) * 0.008;   // chạy nhanh: hơi bốc đầu + rung
   const cy = contactY(cam) - lift;
   // xe container lao tới từ bên phải
@@ -1412,6 +1555,18 @@ function render(dt) {
     const xf = x.stage === 'enter' ? lerp(W + 80, front, ease(x.t)) : x.stage === 'leave' ? lerp(front, W + 500, ease(x.t)) : x.stage === 'bounce' ? front + Math.sin(Math.min(1, x.t) * Math.PI) * S(140) : front;
     container(xf, meterAt(xf + S(200)), x.user, x.t, x.count);
     if (x.stage === 'push') for (let k = 0; k < 2; k++) fx.push({ k: 'dust', x: front + S(20), y: contactY(cam) - S(10), t: 0, dur: 0.5 });
+  }
+  // xe ủi chạy ngược chiều đẩy lùi
+  {
+    const own = x && (x.kind === 'container' || x.kind === 'tornado');
+    const backing = game.phase === 'race' && !game.halt && !own && vel < -6;
+    pushA = lerp(pushA, backing ? 1 : 0, 1 - Math.pow(0.002, dt));
+    if (pushA > 0.03) {
+      const xf = SX + S(108) + (1 - pushA) * S(500);
+      bulldozer(xf, meterAt(xf + S(200)), clamp(pushA * 1.4, 0, 1));
+      if (pushBy && pushA > 0.5) tag(xf + S(220), contactY(cam) - S(330), pushBy, 'rgba(170,30,25,.9)', 20);
+      if (pushA > 0.6) fx.push({ k: 'dust', x: SX + S(100), y: contactY(cam) - S(8), t: 0, dur: 0.5 });
+    }
   }
   // hiệu ứng có thời hạn
   for (const e of game.effects) {
@@ -1444,7 +1599,7 @@ function render(dt) {
   if (walking) for (let k = 0; k < 3; k++) { ctx.save(); ctx.translate(SX - S(V.rear + 40 + k * 70), contactY(cam)); ctx.scale(VS * 0.8, VS * 0.8); rider(0, 0, { shirt: ['#2f6bd8', '#e2557b', '#18b37e'][k] }, 'walk'); ctx.restore(); }
   const hk = game.halt && game.halt.kind;
   const onBoard = hk === 'rest' || hk === 'photo' ? Object.assign({}, PAX, { seated: [], extra: 0 }) : hk === 'gas' ? Object.assign({}, PAX, { seated: PAX.seated.slice(4) }) : PAX;
-  drawVehicle(SX, cy, { color: BIKES[VIEW.bike] || BIKES.green, rot: wheelRot, ang: ang + (hk === 'flat' ? -0.05 : 0), rider: lose ? 'none' : walking ? 'walk' : 'ride', driver: drv, passengers: onBoard, running: game.speed > 0, flat: hk === 'flat', sick: hk === 'carsick' && PAX.seated[0] ? PAX.seated[0].id : '' });
+  drawVehicle(SX + skidX, cy, { color: BIKES[VIEW.bike] || BIKES.green, rot: wheelRot, ang: ang + (hk === 'flat' ? -0.05 : 0), rider: lose ? 'none' : walking ? 'walk' : 'ride', driver: drv, passengers: onBoard, running: game.speed > 0, flat: hk === 'flat', sick: hk === 'carsick' && PAX.seated[0] ? PAX.seated[0].id : '' });
   drawHaltScene(cy);
   if (momMsg && momMsg.t > 0 && !game.halt && game.phase === 'race') bubble(SX - S(20), cy - S(vehOf().top + 190), momMsg.text);
   if (lose) { const bx = SX + S(300); trashBin(bx, contactY(meterAt(bx)), 0.6, 1.3); ctx.save(); ctx.translate(bx, contactY(cam) - S(130)); ctx.scale(VS, VS); head(0, -30, '#ffcf33', '#ffd3ad', {}); ctx.restore(); }
@@ -1475,7 +1630,9 @@ function render(dt) {
   // lốc xoáy
   if (x && x.kind === 'tornado') {
     const a = x.stage === 'leave' ? 1 - x.t / 0.8 : Math.min(1, x.t * 2);
-    tornado(SX + S(vehOf().mid) + (x.stage === 'leave' ? x.t * 500 : 0), contactY(cam), T, clamp(a, 0, 1));
+    const tx = SX + S(vehOf().mid) + (x.stage === 'leave' ? x.t * 500 : 0);
+    tornado(tx, contactY(cam), T, clamp(a, 0, 1) * 0.85);
+    tornadoDebris(tx, contactY(cam), T, clamp(a, 0, 1));
     if (x.stage === 'enter') tag(SX, contactY(cam) - S(560), x.user, 'rgba(170,30,25,.9)', 22);
   }
   // bụi bánh xe
@@ -1610,6 +1767,7 @@ if (Q.get('warp') || Q.get('act')) setTimeout(() => {
   if (Q.get('event') && game.triggerEvent(Q.get('event')) && game.halt && Q.get('autolike') !== '0') game.halt.testAuto = Q.get('autolike') === '1';
   window.__dvq.step(Number(Q.get('after')) || 0);
   if (Q.get('end')) { game.forceEnd(Q.get('end')); window.__dvq.step(1.5); }
+  if (Q.get('nocard') === '1') { $('result').style.visibility = 'hidden'; $('banner').style.visibility = 'hidden'; }   // chụp cảnh không có thẻ
   if (Q.get('freeze') === '1') window.__dvq.freeze = true;   // chụp đúng khoảnh khắc này
 }, 1200);
 
