@@ -8,6 +8,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; }
+  /* bấm chuột nhiều lần vào game không bôi đen chữ / kéo ảnh (bảng ⚙ có ô nhập vẫn chọn được) */
+  html, body, #game, #game * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  #game img { -webkit-user-drag: none; pointer-events: none; }
+  #panel, #panel * { -webkit-user-select: text; user-select: text; }
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: 'Baloo 2', system-ui, sans-serif; }
   #game { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); overflow: hidden; color: #fff; }
   #c { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }

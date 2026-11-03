@@ -3997,6 +3997,12 @@ function saveCam() { lsSet('qv_camUp', camAdj.up.toFixed(2)); lsSet('qv_camBack'
 {
   const cv = renderer.domElement;
   cv.addEventListener('contextmenu', e => e.preventDefault());
+  // chặn bôi đen khi bấm chuột trái liên tục (nháy đúp / ba lần) + kéo nhầm ảnh — trừ bảng ⚙ có ô nhập
+  const inPanel = e => e.target && e.target.closest && e.target.closest('#panel, input, textarea, select');
+  addEventListener('selectstart', e => { if (!inPanel(e)) e.preventDefault(); });
+  addEventListener('dragstart', e => { if (!inPanel(e)) e.preventDefault(); });
+  addEventListener('mousedown', e => { if (e.detail > 1 && !inPanel(e)) e.preventDefault(); });
+  addEventListener('contextmenu', e => { if (!inPanel(e)) e.preventDefault(); });
   cv.addEventListener('pointerdown', e => { if (e.button === 2) { rDrag = { y: e.clientY }; cv.setPointerCapture(e.pointerId); } });
   cv.addEventListener('pointermove', e => {
     if (!rDrag) return;
