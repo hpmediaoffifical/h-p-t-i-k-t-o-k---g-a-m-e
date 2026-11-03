@@ -309,7 +309,7 @@
         .tc-pets { position: absolute; inset: 0; z-index: 13; pointer-events: none; overflow: visible; }
         .tc-pets.off { display: none; }
         #tc-pet-list { position: absolute; inset: 0; }
-        .tc-pet { position: absolute; transform: translate(-50%, -100%); will-change: left; }
+        .tc-pet { position: absolute; left: 0; transform: translate(-50%, -100%); will-change: transform; }
         .tc-pet-shadow { position: absolute; left: 50%; bottom: -3px; width: calc(var(--pw, 100px) * .62); height: calc(var(--pw, 100px) * .15); transform: translate(-50%, 0); background: radial-gradient(ellipse at center, rgba(0,0,0,.34), rgba(0,0,0,0) 70%); }
         .tc-pet-face { transform-origin: 50% 100%; transition: transform .14s ease; }
         .tc-pet-walk { transform-origin: 50% 100%; }
@@ -885,7 +885,7 @@
         if (defs && window.HpTrongCayPets) { defs.innerHTML = window.HpTrongCayPets.DEFS; tcPetDefsInjected = true; }
     }
     const TC_PETS = [];
-    let tcPetRAF = 0, tcPetLast = 0, tcPetSig = '';
+    let tcPetRAF = 0, tcPetLast = 0, tcPetSig = '', tcPetW = 0;   // tcPetW: bề ngang #tc-pet-list (px) cho petPlace
     const TC_PET_MEDALS = ['🥇', '🥈', '🥉'];
     function petMediaHtml(media) {
         return /\.(webm|mp4)(\?|#|$)/i.test(media)
@@ -940,7 +940,7 @@
     function buildPets() {
         if (!$petList || !window.HpTrongCayPets) return;
         if (tcPetRAF) { cancelAnimationFrame(tcPetRAF); tcPetRAF = 0; }
-        TC_PETS.length = 0;
+        TC_PETS.length = 0; tcPetW = 0;   // đo lại bề ngang (đổi cỡ/bố cục vườn → dựng lại thú)
         $petList.innerHTML = '';
         const d = config.display || {};
         tcPetSig = petSignature();
@@ -971,9 +971,9 @@
             el.innerHTML = (isTop ? '<div class="tc-pet-name"></div>' : '') + `<div class="tc-pet-shadow"></div><div class="tc-pet-face"><div class="tc-pet-walk">${inner}</div></div>`;
             const home = (spec.homeX != null && isFinite(spec.homeX)) ? clamp(spec.homeX, 6, 94) : null;
             const x = home != null ? clamp(home + (Math.random() * 16 - 8), 6, 94) : (12 + Math.random() * 76);
-            el.style.left = x.toFixed(2) + '%';
             el.style.top = baseY + '%';
             $petList.appendChild(el);
+            petPlace(el, x);
             TC_PETS.push({ el, face: el.querySelector('.tc-pet-face'), nameEl: el.querySelector('.tc-pet-name'), x, tx: x, homeX: home, dir: 1, speed, moving: false, paused: 500 + Math.random() * 2000, topRank: isTop ? spec.topRank : null, flyer });
         };
         // Mỗi con chim 1 độ cao riêng → đàn chim nhiều user trông tự nhiên (không xếp 1 hàng ngang).
@@ -1014,6 +1014,19 @@
             }
         });
     }
+    // ⚡ Thú đi bằng transform thay vì style.left: đổi left mỗi khung = tính lại bố cục cả trang ~60 lần/giây
+    // (đo CDP 03/11: thú cưng ăn ~8–10 khung/giây). x vẫn là % bề ngang #tc-pet-list → đổi sang px theo bề ngang đã đo.
+    function petListW() {
+        if (!tcPetW && $petList) tcPetW = $petList.offsetWidth || 0;
+        return tcPetW || 980;
+    }
+    window.addEventListener('resize', () => {
+        tcPetW = 0;
+        for (const pet of TC_PETS) petPlace(pet.el, pet.x);
+    });
+    function petPlace(el, x) {
+        el.style.transform = `translate3d(${(x / 100 * petListW()).toFixed(1)}px,0,0) translate(-50%,-100%)`;
+    }
     function petTick(ts) {
         const dt = Math.min(60, ts - tcPetLast) / 1000; tcPetLast = ts;
         for (const pet of TC_PETS) {
@@ -1042,7 +1055,7 @@
             if (ndir !== pet.dir) { pet.dir = ndir; pet.face.style.transform = 'scaleX(' + ndir + ')'; }
             const step = pet.speed * dt;
             pet.x += step > adx ? dx : step * ndir;
-            pet.el.style.left = pet.x.toFixed(2) + '%';
+            petPlace(pet.el, pet.x);
         }
         tcPetRAF = requestAnimationFrame(petTick);
     }
