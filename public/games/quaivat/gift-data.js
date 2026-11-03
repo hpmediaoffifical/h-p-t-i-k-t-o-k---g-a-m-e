@@ -20,6 +20,7 @@ export const VILLAINS = [
   { ids: [8825],  names: ['chú heo may mắn', 'lucky pig'],                   action: 'mystery',   emoji: '🎁', gift: 'Chú heo may mắn', label: 'Túi mù',        coins: 10 },
   { ids: [10138], names: ['cà phê phin', 'vietnamese coffee'],               action: 'bees',      emoji: '🐝', gift: 'Cà phê phin',   label: 'Đàn ong',         coins: 10 },
   { ids: [19443], names: ['hoan hô!', 'hoan hô', 'cheer you up'],            action: 'crows',     emoji: '🐦', gift: 'Hoan hô!',      label: 'Đàn quạ',         coins: 15 },
+  { ids: [17465], names: ['little kisses', 'nụ hôn nhỏ'],                  action: 'dog',       emoji: '🐕', gift: 'little kisses', label: 'Chó giữ nhà',     coins: 20 },
   { ids: [5658],  names: ['nước hoa', 'perfume'],                            action: 'fox',       emoji: '🦊', gift: 'Nước hoa',      label: 'Cáo đuổi',        coins: 20 },
   { ids: [5879],  names: ['bánh vòng', 'doughnut', 'donut'],                 action: 'mine',      emoji: '🍩', gift: 'Bánh vòng',     label: 'Bẫy bật',         coins: 30 },
   { ids: [17044], names: ['takoyaki'],                                      action: 'squash',    emoji: '🎃', gift: 'Takoyaki',      label: 'Bí đỏ đè',        coins: 88 },
@@ -35,6 +36,7 @@ export const VILLAINS = [
 // Quà giúp zombie (fan của streamer)
 export const HEROES = [
   { ids: [7934],  names: ['thả tim cho tôi', 'heart me'],                    action: 'shoes',     emoji: '👟', gift: 'Thả tim cho tôi', label: 'Tăng tốc',      coins: 1 },
+  { ids: [544253], names: ['nhìn là mê'],                                  action: 'pug',       emoji: '🐶', gift: 'Nhìn là mê',    label: 'Cún gỡ bẫy',      coins: 10 },
   { ids: [9947],  names: ['vòng cổ tình bạn', 'friendship necklace', 'vòng cổ'], action: 'shield', emoji: '🚪', gift: 'Vòng cổ tình bạn', label: 'Khiên chắn',   coins: 10 },
   { ids: [8913],  names: ['rosa', 'hoa hồng nhung'],                         action: 'time',      emoji: '⏳', gift: 'Rosa',          label: '+20 giây',        coins: 10 },
   { ids: [19448], names: ['chuyển động chậm', 'slow motion'],               action: 'vault',     emoji: '🤸', gift: 'Chuyển động chậm', label: 'Nhảy sào',     coins: 10 },

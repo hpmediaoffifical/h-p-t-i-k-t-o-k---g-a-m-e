@@ -33,6 +33,7 @@
         { id: 'mystery',   emoji: '🎁', label: 'Túi mù (ngẫu nhiên)', def: 'Chú heo may mắn', side: 'viewer' },
         { id: 'bees',      emoji: '🐝', label: 'Đàn ong',            def: 'Cà phê phin',     side: 'viewer' },
         { id: 'crows',     emoji: '🐦', label: 'Đàn quạ',            def: 'Hoan hô!',        side: 'viewer' },
+        { id: 'dog',       emoji: '🐕', label: 'Chó giữ nhà',        def: 'little kisses',   side: 'viewer' },
         { id: 'fox',       emoji: '🦊', label: 'Cáo đuổi',           def: 'Nước hoa',        side: 'viewer' },
         { id: 'mine',      emoji: '🍩', label: 'Bẫy bật',            def: 'Bánh vòng',       side: 'viewer' },
         { id: 'lightning', emoji: '⚡', label: 'Sấm sét',            def: 'Hạc giấy',        side: 'viewer' },
@@ -43,6 +44,7 @@
         { id: 'bomb',      emoji: '💣', label: 'Pháo hẹn giờ',       def: '(Chia sẻ)',       side: 'viewer' },
         { id: 'lose',      emoji: '💀', label: 'THUA NGAY',          def: '',                side: 'viewer' },
         { id: 'shoes',     emoji: '👟', label: 'Tăng tốc',           def: 'Thả tim cho tôi', side: 'hero' },
+        { id: 'pug',       emoji: '🐶', label: 'Cún gỡ bẫy',         def: 'Nhìn là mê',      side: 'hero' },
         { id: 'shield',    emoji: '🚪', label: 'Khiên chắn',         def: 'Vòng cổ tình bạn', side: 'hero' },
         { id: 'time',      emoji: '⏳', label: '+20 giây',           def: 'Rosa',            side: 'hero' },
         { id: 'vault',     emoji: '🤸', label: 'Nhảy sào qua vật cản', def: 'Chuyển động chậm', side: 'hero' },
@@ -63,7 +65,7 @@
     const MAPS = ['Vườn Xanh (90m)', 'Mùa Thu (110m)', 'Xứ Tuyết (130m)', 'Nghĩa Trang Đêm (140m)', 'Sa Mạc (150m)', 'Núi Lửa (165m)', 'Lâu Đài Hoang (180m) 🏰 BOSS', 'Đầm Sen (125m) 🦆 lội nước'];
     // Phải khớp SKINS trong public/games/quaivat/skins.js (test tests/quaivat-logic.test.mjs kiểm)
     const SKINS = [['', '🧟 Zombie gốc'], ['sieunhan', '🦸 Siêu Nhân Zombie'], ['quyong', '🧸 Quý Ông Vụng Về'], ['caibang', '🥢 Cái Bang'], ['nonla', '👒 Nón Lá Áo Bà Ba'], ['noicom', '🍚 Đội Nồi Cơm Điện'], ['baohiem', '🛵 Mũ Bảo Hiểm'], ['daubep', '👨‍🍳 Đầu Bếp'], ['docbao', '📰 Ông Đọc Báo'], ['camco', '🚩 Zombie Cầm Cờ'], ['phihanh', '🧑‍🚀 Phi Hành Gia']];
-    const ZOMBIES = [['basic', '🧟 Zombie thường'], ['chubby', '🧟 Zombie béo'], ['arm', '🧟 Zombie cụt tay'], ['ribcage', '💀 Zombie lộ sườn'], ['classic', '🧩 Zombie tự dựng (bản cũ)']];
+    const ZOMBIES = [['basic', '🧟 Zombie thường'], ['chubby', '🧟 Zombie béo'], ['arm', '🧟 Zombie cụt tay'], ['ribcage', '💀 Zombie lộ sườn'], ['classic', '🧩 Zombie tự dựng (bản cũ)'], ['lis', '🧑‍🎤 Lis (người, tóc mohawk)'], ['matt', '🧔 Matt (người, áo cam)'], ['sam', '👩 Sam (người, mũ len)'], ['shaun', '🎒 Shaun (người, ba lô)']];   // người: thắng thì ăn bánh kem thay não
     const KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyF', 'KeyJ', 'ShiftLeft', 'ShiftRight'];
 
     let socket = null, cfg = null, initialized = false, pendingSave = null, demoOn = false;
