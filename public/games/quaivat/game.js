@@ -2149,7 +2149,7 @@ function updateMonster(dt) {
       const sprint = manual && !CONFIG.lockForward && fwd > 0 && (keys.ShiftLeft || keys.ShiftRight) && !mon.tired;
       if (sprint) mon.stamina = Math.max(0, mon.stamina - dt * 0.35); else mon.stamina = Math.min(1, mon.stamina + dt * 0.15);
       if (mon.stamina <= 0.02) mon.tired = true; else if (mon.stamina >= 0.35) mon.tired = false;
-      const base = CONFIG.monsterSpeed * slimeFactor() * terrainFactor() * (1 - 0.6 * wind) * (mon.boost > 0 ? 1.7 : 1) * (mon.rage > 0 ? 1.6 : 1) * (state.mod && state.mod.id === 'wind' ? 0.8 : 1) * (mon.iceT > 0 ? 0.5 : 1);
+      const base = CONFIG.monsterSpeed * slimeFactor() * terrainFactor() * (1 - 0.6 * wind) * (mon.boost > 0 ? 1.7 : 1) * (mon.rage > 0 ? 1.6 : 1) * (state.mod && state.mod.id === 'wind' ? 0.8 : 1) * (mon.iceT > 0 ? 0.5 : 1) * (onIce() ? 1.8 : 1) * (state.mod && state.mod.id === 'giant' ? 0.85 : 1);
       let vF = fwd > 0 ? base * (sprint ? 1.6 : 1) : fwd < 0 ? -base * 0.85 : 0;   // + = tiến về nhà, − = quay lại đi về đầu đường
       let vX = side * base * 1.1;
       let punching = false;
@@ -2202,7 +2202,7 @@ function airPunch() {
   sfx('whoosh');
 }
 // đấm mạnh: Nắm đấm vàng ×2, lên cơn ×2 (tối đa ×3)
-function punchMul() { return Math.min(3, (mon.fist > 0 ? 2 : 1) * (mon.rage > 0 ? 2 : 1)); }
+function punchMul() { return Math.min(3, (mon.fist > 0 ? 2 : 1) * (mon.rage > 0 ? 2 : 1) * (state.mod && state.mod.id === 'giant' ? 1.5 : 1)); }
 function autoPilot() { return (demo || CONFIG.autoplay) && time - lastInput > 3; }
 // tự chạy: thấy khoai / thùng / lốp lăn tới thì (thường) nhảy qua — như người chơi thật, không phải lúc nào cũng né được
 function autoJump() {
@@ -2879,6 +2879,37 @@ const SPAWN = {
   chili: u => { const it = spawnFromGround('chili', u, mkChili, { labelY: 1.6, minA: 2.5, maxA: 6, onPath: 1, spin: 0 }); it.g.position.set(clamp(mon.x + rand(-1, 1), -LANE, LANE), it.g.position.y, Math.max(HOUSE_FRONT + 1, mon.z - rand(1.2, 2.6))); },   // mọc sát trước mặt zombie
   squash: u => spawnFromGround('squash', u, mkSquash, { labelY: 1.7, minA: 3, maxA: 8, onPath: 0.9, spin: 0 }),
   chomper: u => spawnFromGround('chomper', u, mkChomper, { labelY: 2.2, minA: 3, maxA: 9, onPath: 0.95, spin: 0 }),
+  // 🥬 bắp cải ném vòng cầu từ cửa — rơi xuống đầu nên khiên không đỡ được
+  cabbage: u => {
+    const it = newItem('cabbage', u, mkCabbage(), { labelY: 1.0 });
+    const from = DOOR_POS().setY(3), T2 = flyTime(from, mon.root.position, 12) + 0.3, to = predictMon(T2, 1.6);
+    launch(it, from, to, T2, 5); it.thrown = { dmg: 20, knock: 2, text: '🥬 BẮP CẢI!', unblockable: true }; openDoor(0.5); sfx('whoosh');
+  },
+  mushroom: u => spawnFromGround('mushroom', u, mkMushroom, { labelY: 1.2, minA: 3, maxA: 9, onPath: 0.95, spin: 0 }),
+  garlic: u => spawnFromGround('garlic', u, mkGarlic, { labelY: 1.0, minA: 3, maxA: 9, onPath: 1, spin: 0 }),
+  cactus: u => spawnFromGround('cactus', u, mkCactus, { blocker: true, hp: 160, maxHp: 160, halfW: 0.6, halfD: 0.5, labelY: 2.0, debrisColor: 0x3a8a3a, spiky: true, minA: 4, maxA: 10, onPath: 0.9, spin: 0 }),
+  // 🌻 hoa hướng dương mọc trước cửa, hồi máu cửa 10 giây
+  sunflower: u => {
+    const it = spawnFromGround('sunflower2', u, mkSunflower, { labelY: 2.4, minA: 3, maxA: 6, onPath: 0, spin: 0 });
+    it.g.position.set(pick([-1, 1]) * rand(2.2, 3.4), it.g.position.y, HOUSE_FRONT + rand(1.6, 2.8)); it.life = 10;
+  },
+  // 🦍 zombie khổng lồ (quà fan): hiện sau lưng, túm zombie ném bay 12m tới trước
+  thrower: u => {
+    const g = mkMinion(1); g.scale.setScalar(2.7);
+    const it = newItem('thrower', u, g, { labelY: 3.2, noRescale: true });
+    it.g.position.set(clamp(mon.x + 0.6, -LANE, LANE), 0, mon.z + 2.2); it.state = 'grab'; it.t = 0; it.z0 = mon.z; it.z1 = Math.max(HOUSE_FRONT + 1.6, mon.z - 12); it.x0 = mon.x;
+    mon.carry = it; mon.kv = 0; mon.stun = 0; sfx('rumble'); camShake = Math.max(camShake, 0.3); banner('🦍 ZOMBIE KHỔNG LỒ!', esc(u.name) + ' ném zombie bay tới', 2);
+  },
+  // 🧊 xe đá bào (quà fan): trải vệt băng 15m phía trước, zombie trên băng đi ×1,8 trong 8 giây
+  icecart: u => {
+    const len = Math.min(15, mon.z - HOUSE_FRONT - 1); if (len < 2) return;
+    const m = new THREE.Mesh(geo('icetrack', () => new THREE.PlaneGeometry(1, 1)), new THREE.MeshStandardMaterial({ color: 0xbfefff, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.8, emissive: 0x1a4a60 }));
+    m.rotation.x = -Math.PI / 2; m.scale.set(2.4, len, 1); m.position.set(mon.x, 0.04, mon.z - len / 2);
+    const g = new THREE.Group(); g.add(m); const it = newItem('icetrack', u, g, { noLabel: true, noRescale: true, life: 8 });
+    it.g.position.set(0, 0, 0); it.state = 'ice'; it.x = mon.x; it.z0 = mon.z + 0.5; it.z1 = mon.z - len;
+    const cart = mkIceCart(); cart.position.set(mon.x, 0, mon.z); scene.add(cart); it.cart = cart; it.cz = mon.z;
+    sfx('whoosh'); popText(new V3(mon.x, 2.6, mon.z - 2), '🧊 ĐƯỜNG BĂNG!', 'info', 1.2);
+  },
   // ⛏️ ĐÀO HẦM (quà fan): zombie chui xuống đất, đi ngầm 16m (bẫy không chạm được), trồi lên
   digger: u => {
     const it = newItem('digger', u, mkDirtMound(), { noLabel: true, noRescale: true });
@@ -3069,6 +3100,12 @@ function mkChomper() {
 // ⛏️ ụ đất di chuyển (đào hầm) + 🤸 cây sào
 function mkDirtMound() { const g = new THREE.Group(); const m = sph(0.7, MS(0x6a4a2a, 1), 0, 0, 0, g); m.scale.set(1, 0.35, 1.2); for (let i = 0; i < 5; i++) sph(0.12, MS(0x5a3a1a, 1), rand(-0.6, 0.6), 0.1, rand(-0.7, 0.7), g); return g; }
 function mkPole() { const g = new THREE.Group(), b = MS(0xc9a46a, 0.7); cyl(0.04, 0.04, 4.2, b, 0, 2.1, 0, g, 8); for (let y = 0.4; y < 4.2; y += 0.6) cyl(0.05, 0.05, 0.04, MS(0x8a6a3a, 0.8), 0, y, 0, g, 8); return g; }
+function mkCabbage() { const g = new THREE.Group(); for (let i = 0; i < 6; i++) { const l = sph(0.32 - i * 0.03, MS(i % 2 ? 0x7ec84a : 0x5aa83a, 0.6), rand(-0.04, 0.04), rand(-0.04, 0.04), rand(-0.04, 0.04), g); l.scale.y *= 0.85; l.rotation.set(rand(0, 3), rand(0, 3), 0); } return g; }
+function mkMushroom() { const g = new THREE.Group(); cyl(0.14, 0.2, 0.6, MS(0xf2ead8, 0.7), 0, 0.3, 0, g, 12); const cap = sph(0.45, MS(0x8a4ac8, 0.5, 0, { emissive: 0x200838 }), 0, 0.65, 0, g); cap.scale.y = 0.6; for (let i = 0; i < 7; i++) { const a = i * 0.9; sph(0.07, MS(0xffffff, 0.6), Math.cos(a) * 0.3, 0.78, Math.sin(a) * 0.3, g); } for (const sx of [-1, 1]) { sph(0.05, MS(0x111111, 0.3), sx * 0.07, 0.42, 0.17, g); } return g; }
+function mkGarlic() { const g = new THREE.Group(), w = MS(0xf4f0e2, 0.6); for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283; const c = sph(0.2, w, Math.cos(a) * 0.14, 0.32, Math.sin(a) * 0.14, g); c.scale.y = 1.4; } sph(0.22, w, 0, 0.36, 0, g).scale.y = 1.4; const t = new THREE.Mesh(geo('garlictip', () => new THREE.ConeGeometry(0.1, 0.35, 8)), MS(0xe0d8b8, 0.7)); t.position.y = 0.75; g.add(t); for (const sx of [-1, 1]) { sph(0.04, MS(0x111111, 0.3), sx * 0.08, 0.42, 0.2, g); } return g; }
+function mkCactus() { const g = new THREE.Group(), gr = MS(0x3a9a4a, 0.6); cyl(0.3, 0.34, 1.6, gr, 0, 0.8, 0, g, 10); sph(0.3, gr, 0, 1.6, 0, g); for (const sx of [-1, 1]) { const a = cyl(0.14, 0.14, 0.5, gr, sx * 0.45, 1.0, 0, g, 8); a.rotation.z = sx * 1.2; cyl(0.13, 0.13, 0.45, gr, sx * 0.62, 1.3, 0, g, 8); } for (let i = 0; i < 26; i++) { const sp = new THREE.Mesh(geo('cspike', () => new THREE.ConeGeometry(0.025, 0.14, 4)), MS(0xfff2c0, 0.5)); const a = rand(0, 6.28), y = rand(0.2, 1.7); sp.position.set(Math.cos(a) * 0.33, y, Math.sin(a) * 0.33); sp.rotation.set(Math.PI / 2, 0, -a + Math.PI / 2); g.add(sp); } sph(0.12, MS(0xff6aa8, 0.5), 0, 1.92, 0, g); cyl(0.4, 0.34, 0.3, MS(0xb8643a, 0.8), 0, 0.15, 0, g, 12); return g; }
+function mkSunflower() { const g = new THREE.Group(); cyl(0.05, 0.07, 1.8, MS(0x3a8a2a, 0.7), 0, 0.9, 0, g, 6); for (const sx of [-1, 1]) { const l = sph(0.3, MS(0x4aa83a, 0.6), sx * 0.25, 0.8, 0, g); l.scale.set(1, 0.12, 0.5); } const head = new THREE.Group(); head.position.set(0, 1.9, 0.05); g.add(head); for (let i = 0; i < 14; i++) { const a = i / 14 * 6.283; const pe = sph(0.2, MS(0xffd21f, 0.5), Math.cos(a) * 0.32, Math.sin(a) * 0.32, 0, head); pe.scale.set(0.5, 1, 0.15); pe.rotation.z = a - Math.PI / 2; } const c = sph(0.24, MS(0x6a3a1a, 0.8), 0, 0, 0.04, head); c.scale.z = 0.4; for (const sx of [-1, 1]) sph(0.035, MS(0x111111, 0.3), sx * 0.08, 0.04, 0.14, head); g.userData.head = head; return g; }
+function mkIceCart() { const g = new THREE.Group(); box(1.0, 0.6, 1.3, MS(0x6ad0f0, 0.4), 0, 0.55, 0, g); box(1.1, 0.12, 1.4, MS(0xffffff, 0.3), 0, 0.9, 0, g); for (const sx of [-1, 1]) for (const z of [-0.45, 0.45]) { const w = cyl(0.16, 0.16, 0.1, MS(0x2a2a2a, 0.7), sx * 0.55, 0.16, z, g, 12); w.rotation.z = Math.PI / 2; } sph(0.3, MS(0xff8ec4, 0.4), 0, 1.15, 0, g).scale.y = 0.7; return g; }
 function mkBanana() {
   const g = new THREE.Group(), y = MS(0xffd23a, 0.55), br = MS(0x6a4a1a, 0.8);
   for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + 0.4; const p = sph(1, y, Math.cos(a) * 0.2, 0.05, Math.sin(a) * 0.2, g); p.scale.set(0.24, 0.045, 0.1); p.rotation.y = -a; }
@@ -3245,7 +3282,7 @@ function terrainPush(dt) {
   }
 }
 // ----- 🧟 zombie con: chạy tới vật cản / bẫy gần nhất phía trước, đấm vỡ; hết giờ thì biến mất -----
-const MINION_PREY = new Set(['trap', 'mine', 'banana', 'slime', 'plant', 'bomb', 'xbarrel', 'barrel', 'fence', 'prop', 'flower', 'jackfruit', 'chili', 'squash', 'chomper']);
+const MINION_PREY = new Set(['mushroom', 'garlic', 'cactus', 'trap', 'mine', 'banana', 'slime', 'plant', 'bomb', 'xbarrel', 'barrel', 'fence', 'prop', 'flower', 'jackfruit', 'chili', 'squash', 'chomper']);
 function updateMinion(it, p, dt) {
   const ud = it.g.userData; it.life -= dt;
   if (it.life <= 0 || state.phase !== 'play') { puff(p.clone().setY(0.5), { color: 0x9ad06a, n: 8, size: 0.8, speed: 2, life: 0.6 }); removeItem(it); return; }
@@ -3350,7 +3387,7 @@ function updateVault(it, p, dt) {
   if (f >= 1) { mon.carry = null; mon.y = 0; mon.vy = 0; puff(new V3(mon.x, 0.2, mon.z), { color: T.dust || 0xd8c6a0, n: 8, size: 1, speed: 2.5, life: 0.6 }); sfx('thud'); removeItem(it); }
 }
 // ----- 🐶 cún gỡ bẫy: chạy tới bẫy gần nhất phía trước zombie, gỡ (không nổ), hết giờ thì chạy đi -----
-const PUG_PREY = new Set(['trap', 'mine', 'banana', 'slime', 'bomb', 'xbarrel', 'chili']);
+const PUG_PREY = new Set(['mushroom', 'garlic', 'trap', 'mine', 'banana', 'slime', 'bomb', 'xbarrel', 'chili']);
 function updatePug(it, p, dt) {
   it.life -= dt;
   if (it.life <= 0 || state.phase !== 'play') { p.z += 6 * dt; it.g.rotation.y = 0; if (it.life < -1.5 || state.phase !== 'play') removeItem(it); return; }
@@ -3361,6 +3398,43 @@ function updatePug(it, p, dt) {
   if (d > 0.3) { const v = Math.min(d, 6.5 * dt); p.x += dx / d * v; p.z += dz / d * v; it.g.rotation.y = Math.atan2(dx, dz); }
   if (tgt && d < 0.8) { popText(tgt.g.position.clone().setY(1.4), '🐶 GỠ BẪY!', 'heal', 0.8); addPoints(it.owner, 10, 'hero'); sfx('pop'); puff(tgt.g.position.clone().setY(0.4), { color: 0xffffff, n: 5, size: 0.5, speed: 2, life: 0.5, tex: starTex, add: true }); removeItem(tgt); it.tgt = null; }
 }
+// ----- nấm phun khói (choáng) / tỏi (hắt sang làn bên kia) khi zombie chạm -----
+function updateTouchPlant(it, p, dt) {
+  it.g.scale.setScalar(1 + Math.sin(time * 4 + p.x) * 0.04);
+  const live = state.phase === 'play' && !mon.lift && !mon.carry, dx = mon.x - p.x, dz = mon.z - p.z;
+  if (!live || Math.abs(dx) > 1.1 || dz < -0.6 || dz > 1.3 || mon.y > 0.6) return;
+  if (it.kind === 'mushroom') {
+    for (let i = 0; i < 16; i++) puff(new V3(p.x + rand(-1, 1), rand(0.4, 2), p.z + rand(-1, 1)), { color: pick([0xb07ad8, 0x8a5ab8, 0xd0a0ff]), n: 1, size: 1.4, speed: 1.5, life: 1.6, opacity: 0.7 });
+    hitMonster(10, 0, it.owner, { stun: 1.5, text: '🍄 CHOÁNG KHÓI!', unblockable: true }); sfx('hiss');
+  } else {
+    const tx = mon.x > 0 ? -3.6 : 3.6; mon.x = clamp(tx, -LANE, LANE); mon.vx = 0;
+    puff(new V3(p.x, 1, p.z), { color: 0xe8f0c0, n: 10, size: 1, speed: 3, life: 0.8, opacity: 0.6 });
+    hitMonster(8, 0.8, it.owner, { stun: 0.6, text: '🧄 HÔI QUÁ!', unblockable: true }); sfx('whoosh');
+  }
+  removeItem(it);
+}
+// ----- 🦍 zombie khổng lồ ném -----
+function updateThrower(it, p, dt) {
+  const end = () => { if (mon.carry === it) mon.carry = null; mon.y = 0; };
+  if (state.phase !== 'play') { end(); return removeItem(it); }
+  const ud = it.g.userData;
+  if (it.state === 'grab') {
+    ud.armL.rotation.x = ud.armR.rotation.x = -1.2 - it.t * 2; mon.y = Math.min(1.6, it.t * 3); mon.z = it.z0 + 0.6;
+    if (it.t > 0.6) { it.state = 'throw'; it.t = 0; sfx('whoosh'); popText(new V3(mon.x, 3.5, mon.z), 'VÈOOO!', 'big', 1); }
+  } else if (it.state === 'throw') {
+    const f = Math.min(1, it.t / 1.2); mon.z = it.z0 + (it.z1 - it.z0) * f; mon.x = it.x0 * (1 - f); mon.y = 1.6 + Math.sin(f * Math.PI) * 4;
+    ud.armL.rotation.x = ud.armR.rotation.x = -3.2;
+    if (f >= 1) { end(); mon.stun = 0.4; camShake = Math.max(camShake, 0.4); sfx('thud'); puff(new V3(mon.x, 0.2, mon.z), { color: T.dust || 0xd8c6a0, n: 10, size: 1.2, speed: 3, life: 0.7 }); it.state = 'leave'; it.t = 0; }
+  } else { it.g.scale.setScalar(Math.max(0.01, 2.7 * (1 - it.t / 0.8))); if (it.t > 0.8) removeItem(it); }
+}
+// ----- 🧊 đường băng: xe đá bào chạy trước, zombie trên băng đi nhanh -----
+function updateIceTrack(it, p, dt) {
+  it.life -= dt;
+  if (it.cart) { it.cz -= 10 * dt; it.cart.position.z = it.cz; if (it.cz < it.z1 - 2) { scene.remove(it.cart); disposeTree(it.cart); it.cart = null; } }
+  const m = it.g.children[0]; m.material.opacity = Math.min(0.8, it.life / 1.5);
+  if (it.life <= 0 || state.phase !== 'play') { if (it.cart) { scene.remove(it.cart); disposeTree(it.cart); } removeItem(it); }
+}
+function onIce() { for (const it of items) if (!it.dead && it.kind === 'icetrack' && Math.abs(mon.x - it.x) < 1.3 && mon.z < it.z0 && mon.z > it.z1) return true; return false; }
 // ----- 🚜 xe ủi -----
 function updateDozer(it, p, dt) {
   const ud = it.g.userData; ud.tr = (ud.tr || 0) + dt;
@@ -3390,6 +3464,10 @@ function updateNewItem(it, p, dt) {
   if (it.kind === 'minion') { updateMinion(it, p, dt); return true; }
   if (it.kind === 'pug') { updatePug(it, p, dt); return true; }
   if (it.kind === 'digger') { updateDigger(it, p, dt); return true; }
+  if (it.kind === 'thrower') { updateThrower(it, p, dt); return true; }
+  if (it.kind === 'icetrack') { updateIceTrack(it, p, dt); return true; }
+  if (it.kind === 'sunflower2' && it.state === 'set') { it.life -= dt; if (door.hp < door.maxHp && !door.broken && state.phase === 'play') { door.hp = Math.min(door.maxHp, door.hp + 30 * dt); if (Math.random() < dt * 5) puff(new V3(p.x, 2.2, p.z), { color: 0xffd84a, n: 1, size: 0.4, speed: 1.5, add: true, tex: starTex, vel: new V3((0 - p.x) * 0.6, 0.3, (HOUSE_FRONT - p.z) * 0.6), life: 0.9 }); } it.g.userData.head.rotation.z = Math.sin(time * 2) * 0.15; if (it.life <= 0) removeItem(it); return true; }
+  if (it.state === 'set' && (it.kind === 'mushroom' || it.kind === 'garlic')) { updateTouchPlant(it, p, dt); return true; }
   if (it.kind === 'vault') { updateVault(it, p, dt); return true; }
   if (it.state === 'set' && (it.kind === 'chili' || it.kind === 'squash' || it.kind === 'chomper')) { updatePvzPlant(it, p, dt); return true; }
   if (it.kind === 'dozer') { updateDozer(it, p, dt); return true; }
@@ -3577,7 +3655,7 @@ function foxPunched(f) {
 }
 // ----- vòng sáng dưới bẫy: trên điện thoại vẫn thấy rõ chỗ có bẫy (đỏ = gây choáng/đẩy, tím = làm chậm, xanh = gió, vàng = vật cản) -----
 const GLOW_COL = { red: 0xff4a3a, purple: 0xe455ff, cyan: 0x6fe8ff, yellow: 0xffc23a };
-const GLOW_KIND = { jackfruit: ['yellow', 1.1], chili: ['red', 0.8], squash: ['red', 0.95], chomper: ['purple', 1.0], trap: ['red', 0.75], mine: ['red', 0.85], plant: ['red', 0.9], banana: ['yellow', 0.65], bomb: ['red', 0.95], xbarrel: ['red', 1.05],
+const GLOW_KIND = { mushroom: ['purple', 0.8], garlic: ['yellow', 0.7], cactus: ['yellow', 0.9], jackfruit: ['yellow', 1.1], chili: ['red', 0.8], squash: ['red', 0.95], chomper: ['purple', 1.0], trap: ['red', 0.75], mine: ['red', 0.85], plant: ['red', 0.9], banana: ['yellow', 0.65], bomb: ['red', 0.95], xbarrel: ['red', 1.05],
   slime: ['purple', 2.15], flower: ['cyan', 1.0], barrel: ['yellow', 0.95] };
 const glowMats = {};
 function glowMat(c) { return glowMats[c] || (glowMats[c] = keep(new THREE.MeshBasicMaterial({ color: GLOW_COL[c], transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }))); }
@@ -3818,7 +3896,7 @@ function canRunNow(a) {
   if (SEND_BACK[a]) return !mon.lift && !mon.carry && !items.some(i => !i.dead && i.kind === 'boulder') && sendBackRoom(SEND_BACK[a]);
   if (a === 'quake') return !mon.lift && !mon.carry && mon.z <= START_Z - Math.min(25, (START_Z - HOUSE_FRONT) * 0.4);
   if (a === 'dozer') return !mon.lift && !mon.carry && !items.some(i => !i.dead && (i.kind === 'dozer' || i.kind === 'boulder')) && mon.z > HOUSE_FRONT + 12;
-  if (a === 'digger' || a === 'vault') return !mon.lift && !mon.carry && mon.y <= 0.05 && mon.z > HOUSE_FRONT + 4;
+  if (a === 'digger' || a === 'vault' || a === 'thrower') return !mon.lift && !mon.carry && mon.y <= 0.05 && mon.z > HOUSE_FRONT + 4;
   return true;
 }
 function runAction(a, u) {
@@ -3836,6 +3914,7 @@ function runAction(a, u) {
     puff(dp, { color: 0x7dff6a, n: 10, size: 0.7, speed: 3, add: true, life: 0.8, tex: starTex }); popText(dp.clone().setY(4.4), `+${fix} 🔧`, 'heal');
     return;
   }
+  if (a === 'outfit') { if (mon.z3 && mon.z3.glb) { setSkin(pick(SKINS.filter(x => x.id && x.id !== (mon.skin && mon.skin.id))).id); puff(new V3(mon.x, 1.2, mon.z), { color: 0xffffff, n: 14, size: 0.5, speed: 3, add: true, tex: starTex, life: 0.8 }); popText(new V3(mon.x, 3, mon.z), '👕 ĐỔI ĐỒ!', 'heal', 1.2); sfx('power'); } return; }
   if (a === 'armor') { mon.armor += 8; sfx('power'); popText(new V3(mon.x, mon.y + 3, mon.z), '🛡️ GIÁP VÀNG +8s', 'heal', 1.2); return; }   // miễn mọi đòn, cộng dồn
   if (a === 'fist') { mon.fist += 30; sfx('power'); popText(new V3(mon.x, mon.y + 3, mon.z), '👊 ĐẤM ×2 +30s', 'heal', 1.2); return; }
   if (a === 'shoes') { mon.boost += 5; sfx('power'); return; }                     // tăng tốc CỘNG DỒN 5 giây/quà (tặng 10 = 50 giây), còn dư giữ sang ván sau
@@ -3897,7 +3976,7 @@ function onGift(user, giftName, count, coins, forced, img) {
 }
 // COMBO: cùng 1 loại bẫy được tặng ≥5 lần trong 10 giây → bản SIÊU (khoai khổng lồ / thêm 3 cái)
 const comboLog = new Map(), comboCd = new Map();
-const NO_COMBO = new Set(['win', 'lose', 'boulder', 'balloon', 'lightning', 'meteor', 'hand', 'quake', 'repair', 'shoes', 'shield', 'time', 'armor', 'fist', 'minions', 'dozer', 'mystery', 'digger', 'vault', 'chili', 'squash', 'chomper']);
+const NO_COMBO = new Set(['thrower', 'icecart', 'outfit', 'sunflower', 'win', 'lose', 'boulder', 'balloon', 'lightning', 'meteor', 'hand', 'quake', 'repair', 'shoes', 'shield', 'time', 'armor', 'fist', 'minions', 'dozer', 'mystery', 'digger', 'vault', 'chili', 'squash', 'chomper']);
 function trackCombo(action, user, n) {
   if (NO_COMBO.has(action) || state.phase !== 'play') return;
   const L = (comboLog.get(action) || []).filter(e => time - e.t < 10); L.push({ t: time, n, u: user }); comboLog.set(action, L);
@@ -4008,6 +4087,7 @@ function startIntro() {
   state.mod = CONFIG.mods && state.loop >= 1 ? pick(ROUND_MODS) : null;          // từ vòng map thứ 2: mỗi ván 1 luật biến thể
   state.golden = !!(CONFIG.golden && goldenDue()); if (state.golden) lastGolden = performance.now();
   door.maxHp = door.hp = mapDoorHp(); state.modT = 0;
+  mon.root.scale.setScalar(state.mod && state.mod.id === 'giant' ? 1.35 : 1);
   if (scene.fog && state.fogBase) { scene.fog.near = state.fogBase[0] * (state.mod && state.mod.id === 'fog' ? 0.5 : 1); scene.fog.far = state.fogBase[1] * (state.mod && state.mod.id === 'fog' ? 0.62 : 1); }
   buildLegends();
   mon.cur = ''; playAnim('Idle');
@@ -4020,6 +4100,7 @@ const ROUND_MODS = [
   { id: 'crows', name: '🐦 Trời đầy quạ', sub: 'Quạ bay tới liên tục' },
   { id: 'steel', name: '🛡️ Cửa thép', sub: 'Cửa trâu hơn 40%' },
   { id: 'hungry', name: '😡 Zombie đói', sub: 'Cơn đói đầy nhanh gấp đôi' },
+  { id: 'giant', name: '🦍 Zombie khổng lồ', sub: 'To hơn, đấm mạnh hơn, đi chậm' },
 ];
 // 🌟 giờ vàng: cứ CONFIG.goldenEvery phút (giờ thật) có 1 ván
 let lastGolden = performance.now();
@@ -4682,7 +4763,7 @@ function updateDemo(dt) {
   else if (r < 0.4) onComment(u, CONFIG.commentKey || 'hay quá');
   else if (r < 0.44) onFollow(u);
   else {
-    const pool = [['rose', 24], ['xbarrel', 8], ['trap', 12], ['barrel', 10], ['slime', 8], ['repair', 6], ['fox', 5], ['mine', 4], ['flower', 5], ['lightning', 2.5], ['balloon', 1.5], ['boulder', 0.7], ['shoes', 3], ['shield', 1.5], ['armor', 0.8], ['fist', 0.6], ['minions', 1], ['dozer', 0.3], ['mystery', 2], ['icepea', 4], ['jackfruit', 3], ['chili', 1], ['squash', 1], ['chomper', 1], ['digger', 0.6], ['vault', 1], ['dog', 2], ['pug', 1.2], ['shield', 2], ['time', 2], ['plant', 8],
+    const pool = [['rose', 24], ['xbarrel', 8], ['trap', 12], ['barrel', 10], ['slime', 8], ['repair', 6], ['fox', 5], ['mine', 4], ['flower', 5], ['lightning', 2.5], ['balloon', 1.5], ['boulder', 0.7], ['shoes', 3], ['shield', 1.5], ['armor', 0.8], ['fist', 0.6], ['minions', 1], ['dozer', 0.3], ['mystery', 2], ['icepea', 4], ['jackfruit', 3], ['chili', 1], ['squash', 1], ['chomper', 1], ['digger', 0.6], ['vault', 1], ['dog', 2], ['pug', 1.2], ['cabbage', 4], ['mushroom', 2], ['garlic', 2], ['cactus', 1.5], ['sunflower', 1.5], ['thrower', 0.5], ['icecart', 1], ['outfit', 1], ['shield', 2], ['time', 2], ['plant', 8],
       ['banana', 6], ['net', 3], ['bees', 3], ['crows', 2], ['meteor', 0.6], ['hand', 0.4], ['quake', 0.15]];
     let x = Math.random() * pool.reduce((s, p) => s + p[1], 0), k = 0; while (x > pool[k][1]) { x -= pool[k][1]; k++; }
     const g = ALL_GIFTS.find(a => a.action === pool[k][0]); if (g) onGift(u, g.gift, k < 4 ? pick([1, 1, 2, 3]) : 1, g.coins);
