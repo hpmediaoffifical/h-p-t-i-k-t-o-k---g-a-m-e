@@ -1,0 +1,15 @@
+Nhân vật người (lis.glb, matt.glb, sam.glb, shaun.glb) + thú (../animals/pug.glb, ../animals/shepherd.glb)
+Nguồn: "Zombie Apocalypse Kit" của Quaternius — https://quaternius.com/packs/zombieapocalypsekit.html
+Tải ngày 03/11/2026 qua kho asset công khai của GDevelop (asset-resources.gdevelop.io, mục "3D Zombie Apocalypse"),
+nơi ghi giấy phép: CC0 1.0 (public domain) — https://creativecommons.org/publicdomain/zero/1.0/
+Trang pack Quaternius cũng ghi CC0. Ghi chú: Quaternius có "Quaternius Asset License (QAL) v1.0" cập nhật 28/08/2026
+(https://quaternius.com/license.html) — được dùng trong sản phẩm (kể cả thương mại), KHÔNG phát tán lại file mô hình rời.
+Cùng bộ xương với zombie (Root/Hips/Torso/Head/...), 20 hoạt ảnh: Death, Duck, HitReact, Idle, Idle_Gun, Jump, Jump_Idle,
+Jump_Land, No, Punch, Run, Run_Gun, Run_Slash, Run_Stab, Slash, Stab, Walk, Walk_Gun, Wave, Yes.
+
+Characters Lis.glb   https://asset-resources.gdevelop.io/public-resources/3D Zombie Apocalypse/Character/a1d0a73cf12e50796a6478b8ff4c3eac58e67d815d6b0088471c8df10766c55b_Characters Lis.glb
+Characters Matt.glb  https://asset-resources.gdevelop.io/public-resources/3D Zombie Apocalypse/Character/b1509998f3e6cd220d7a241ee55d18f0fc946ccd994e7b2a1f4122b3f8a12960_Characters Matt.glb
+Characters Sam.glb   https://asset-resources.gdevelop.io/public-resources/3D Zombie Apocalypse/Character/6e393cb770840214b9a0068938eeaa17444081d03a0cd8549c01fd89d8c2ca2f_Characters Sam.glb
+Characters Shaun.glb https://asset-resources.gdevelop.io/public-resources/3D Zombie Apocalypse/Character/b619fd58df141ef0f942241ab8c93f4723bdba56f4d20b919968abbe5d8464a8_Characters Shaun.glb
+Characters Pug.glb   https://asset-resources.gdevelop.io/public-resources/3D Zombie Apocalypse/Animal/4b3bc3171a52281c0fc2f707c8fd8d207c52d39d22588bb7b7fcd77679c41c9a_Characters Pug.glb
+Characters German Shepherd.glb https://asset-resources.gdevelop.io/public-resources/3D Zombie Apocalypse/Animal/9c0c738020b8bae3682ffc5804cddb64f3428bc815061547b16890f148f3291e_Characters German Shepherd.glb

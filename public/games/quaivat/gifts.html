@@ -47,20 +47,25 @@ if (Q.get('bg') === '1') document.body.classList.add('bg');
 if (side === 'hero') { $('hV').classList.add('hidden'); $('gV').classList.add('hidden'); }
 if (side === 'viewer') { $('hH').classList.add('hidden'); $('gH').classList.add('hidden'); }
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-let cfg = {};
+let cfg = {}, sheet = [];   // sheet: /api/gifts — ảnh quà TikTok thật theo giftId (gift-data ids)
 function render() {
   const gm = cfg.qvGiftMap && typeof cfg.qvGiftMap === 'object' ? cfg.qvGiftMap : {};
   const mapped = g => (gm[g.action] || []).filter(x => x && (x.giftName || x.giftId != null));
   const card = (g, cls) => {
-    const m = mapped(g), names = m.map(x => x.giftName).filter(Boolean), img = (m.find(x => x.giftImage) || {}).giftImage;
+    const m = mapped(g), names = m.map(x => x.giftName).filter(Boolean), byId = sheet.find(x => (g.ids || []).includes(Number(x.id)));
+    const img = (m.find(x => x.giftImage) || {}).giftImage || (!names.length && byId ? byId.image : '');
     const name = names.length ? names.slice(0, 2).join(', ') : g.gift;
     return `<div class="card ${cls || ''}"><div class="ic">${img ? `<img src="${esc(img)}" alt="">` : `<span>${g.emoji}</span>`}</div><div class="tx"><div class="nm">${esc(name)}</div><div class="lb">${esc(g.label)}</div></div></div>`;
   };
-  const timerOn = !!cfg.qvTimerOn;
+  const timerOn = !!cfg.qvTimerOn || cfg.qvHold !== false;
   $('gV').innerHTML = VILLAINS.filter(g => !g.opt || mapped(g).length).map(g => card(g)).join('') + SOCIAL.map(g => card(g, 'social')).join('');
   $('gH').innerHTML = HEROES.filter(g => (g.action !== 'time' || timerOn) && (!g.opt || mapped(g).length)).map(g => card(g, 'hero')).join('');
 }
-async function load() { try { const r = await fetch('/api/games/quaivat/config'); if (r.ok) cfg = await r.json(); } catch {} render(); }
+async function load() {
+  try { const r = await fetch('/api/games/quaivat/config'); if (r.ok) cfg = await r.json(); } catch {}
+  try { const r = await fetch('/api/gifts'); if (r.ok) sheet = await r.json(); } catch {}
+  render();
+}
 render(); load();
 if (typeof window.io === 'function') {
   const socket = window.io({ reconnection: true });
