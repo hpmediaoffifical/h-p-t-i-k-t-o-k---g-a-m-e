@@ -1553,7 +1553,7 @@ const mon = {
   root: new THREE.Group(), tilt: new THREE.Group(), ready: false, actions: {}, cur: '',
   x: 0, y: 0, gy: 0, z: START_Z, vy: 0, kv: 0, charT: 0, flip: null, windLean: 0,
   stun: 0, lastHurt: -99, flash: 0, lift: null, carry: null, attackT: 0, avoid: null,
-  aiX: 0, aiT: 0, vx: 0, vz: 0, boost: 0, armor: 0, fist: 0, hunger: 0, rage: 0, armorUntil: 0, stamina: 1, punchBoost: 0, mats: [], blocker: null,
+  aiX: 0, aiT: 0, vx: 0, vz: 0, iceT: 0, boost: 0, armor: 0, fist: 0, hunger: 0, rage: 0, armorUntil: 0, stamina: 1, punchBoost: 0, mats: [], blocker: null,
 };
 mon.root.add(mon.tilt); scene.add(mon.root);
 // ----- ZOMBIE (streamer): dựng bằng khối bo tròn, chuyển động lê bước khập khiễng -----
@@ -2086,7 +2086,8 @@ function updateMonster(dt) {
   mon.flash -= dt;
   const fl = mon.flash > 0 ? 0.7 : 0;
   const rg = mon.rage > 0 ? 0.35 + 0.25 * Math.sin(time * 14) : 0;                   // lên cơn: đỏ rực nhấp nháy
-  for (const m of mon.mats) m.emissive.setRGB(Math.max(fl, rg), fl * 0.12 + rg * 0.05, fl * 0.08);
+  const ic = mon.iceT > 0 ? 0.3 : 0;                                                   // đóng băng: ánh xanh lạnh
+  for (const m of mon.mats) m.emissive.setRGB(Math.max(fl, rg), fl * 0.12 + rg * 0.05 + ic * 0.6, fl * 0.08 + ic);
   // bị sét đánh: cháy đen người rồi hồi màu dần
   mon.charT = Math.max(0, mon.charT - dt);
   const ck = Math.min(1, mon.charT / 1.5);
@@ -2099,6 +2100,7 @@ function updateMonster(dt) {
   if (state.phase !== 'play') { applyMon(); return; }
   if (mon.boost > 0) mon.boost = Math.max(0, mon.boost - dt);              // tăng tốc: chỉ trừ giờ khi đang chơi
   if (mon.armor > 0) mon.armor = Math.max(0, mon.armor - dt);
+  if (mon.iceT > 0) mon.iceT = Math.max(0, mon.iceT - dt);
   if (mon.fist > 0) { mon.fist = Math.max(0, mon.fist - dt); if (Math.random() < dt * 8) puff(new V3(mon.x + rand(-0.4, 0.4), mon.gy + 1.2, mon.z - 0.4), { color: 0xffd84a, n: 1, size: 0.35, add: true, tex: starTex, life: 0.5 }); }
   if (mon.rage > 0) { mon.rage = Math.max(0, mon.rage - dt); if (Math.random() < dt * 10) puff(new V3(mon.x + rand(-0.3, 0.3), mon.gy + MON_H, mon.z), { color: 0xeeeeee, n: 1, size: 0.5, up: 2.5, speed: 1, life: 0.7, opacity: 0.5 }); }
   autoJump();
@@ -2145,7 +2147,7 @@ function updateMonster(dt) {
       const sprint = manual && !CONFIG.lockForward && fwd > 0 && (keys.ShiftLeft || keys.ShiftRight) && !mon.tired;
       if (sprint) mon.stamina = Math.max(0, mon.stamina - dt * 0.35); else mon.stamina = Math.min(1, mon.stamina + dt * 0.15);
       if (mon.stamina <= 0.02) mon.tired = true; else if (mon.stamina >= 0.35) mon.tired = false;
-      const base = CONFIG.monsterSpeed * slimeFactor() * terrainFactor() * (1 - 0.6 * wind) * (mon.boost > 0 ? 1.7 : 1) * (mon.rage > 0 ? 1.6 : 1) * (state.mod && state.mod.id === 'wind' ? 0.8 : 1);
+      const base = CONFIG.monsterSpeed * slimeFactor() * terrainFactor() * (1 - 0.6 * wind) * (mon.boost > 0 ? 1.7 : 1) * (mon.rage > 0 ? 1.6 : 1) * (state.mod && state.mod.id === 'wind' ? 0.8 : 1) * (mon.iceT > 0 ? 0.5 : 1);
       let vF = fwd > 0 ? base * (sprint ? 1.6 : 1) : fwd < 0 ? -base * 0.85 : 0;   // + = tiến về nhà, − = quay lại đi về đầu đường
       let vX = side * base * 1.1;
       let punching = false;
@@ -2440,27 +2442,28 @@ function mkFox() {
 }
 
 // ----- cây bắn đậu: cắm trên đường, bắn liên tục đẩy zombie lùi -----
-function mkShooter() {
+function mkShooter(ice) {
   const g = new THREE.Group();
   cyl(0.32, 0.24, 0.4, MS(0x9a5a2c, 0.85), 0, 0.2, 0, g, 14);
   cyl(0.3, 0.3, 0.04, MS(0x4a2e1c, 1), 0, 0.4, 0, g, 14);
-  cyl(0.06, 0.08, 0.9, MS(0x2f8a2a), 0, 0.85, 0, g, 8);
-  for (const sx of [-1, 1]) { const l = sph(0.35, MS(0x3aa832), sx * 0.28, 0.6, 0, g); l.scale.set(0.35, 0.07, 0.18); l.rotation.z = sx * 0.5; }
+  cyl(0.06, 0.08, 0.9, MS(ice ? 0x3a9ab8 : 0x2f8a2a), 0, 0.85, 0, g, 8);
+  for (const sx of [-1, 1]) { const l = sph(0.35, MS(ice ? 0x5ec8e8 : 0x3aa832), sx * 0.28, 0.6, 0, g); l.scale.set(0.35, 0.07, 0.18); l.rotation.z = sx * 0.5; }
   const head = new THREE.Group(); head.position.y = 1.38; g.add(head);
-  sph(0.34, MS(0x5ccf3e, 0.55), 0, 0, 0, head);
-  const tube = cyl(0.13, 0.17, 0.42, MS(0x5ccf3e, 0.55), 0, 0.02, 0.35, head, 14); tube.rotation.x = Math.PI / 2;
+  sph(0.34, MS(ice ? 0x9fe4ff : 0x5ccf3e, 0.45, 0, ice ? { emissive: 0x0a3a50 } : undefined), 0, 0, 0, head);
+  const tube = cyl(0.13, 0.17, 0.42, MS(ice ? 0x9fe4ff : 0x5ccf3e, 0.45, 0, ice ? { emissive: 0x0a3a50 } : undefined), 0, 0.02, 0.35, head, 14); tube.rotation.x = Math.PI / 2;
   cyl(0.1, 0.1, 0.03, MS(0x103010, 1), 0, 0.02, 0.57, head, 12).rotation.x = Math.PI / 2;
   for (const sx of [-1, 1]) { sph(0.08, MS(0xffffff, 0.4), sx * 0.14, 0.14, 0.24, head); sph(0.04, MS(0x111111, 0.3), sx * 0.14, 0.15, 0.31, head); }
-  const crest = sph(0.2, MS(0x3aa832), 0, 0.18, -0.3, head); crest.scale.set(0.12, 0.2, 0.3);
+  const crest = sph(0.2, MS(ice ? 0x5ec8e8 : 0x3aa832), 0, 0.18, -0.3, head); crest.scale.set(0.12, 0.2, 0.3);
   g.userData.head = head; return g;
+  if (ice) for (let k = 0; k < 5; k++) { const cr = new THREE.Mesh(geo('icecrys', () => new THREE.ConeGeometry(0.07, 0.3, 5)), MS(0xe8fbff, 0.1, 0.1, { emissive: 0x2a7090, transparent: true, opacity: 0.85 })); cr.position.set(rand(-0.15, 0.15), 0.3 + rand(0, 0.08), -0.15 + k * 0.03); cr.rotation.set(rand(-0.5, 0.2), 0, rand(-0.5, 0.5)); g.userData.head.add(cr); }   // tinh thể băng trên đầu
 }
 const peas = [];
 function firePea(it) {
   const h = it.g.userData.head; h.updateMatrixWorld(true);
   const from = new V3(0, 0.02, 0.6).applyMatrix4(h.matrixWorld);
-  const m = sph(0.12, MS(0x7ee04a, 0.3, 0, { emissive: 0x2a6a10 }), from.x, from.y, from.z, scene); m.castShadow = false;
+  const m = sph(it.ice ? 0.14 : 0.12, it.ice ? MS(0xbff4ff, 0.15, 0, { emissive: 0x3aa8d8 }) : MS(0x7ee04a, 0.3, 0, { emissive: 0x2a6a10 }), from.x, from.y, from.z, scene); m.castShadow = false;
   const aim = new V3(mon.x, from.y, mon.z).sub(from); aim.y = 0;                  // nhắm chỗ zombie đứng lúc bắn
-  peas.push({ m, owner: it.owner, t: 0, v: aim.normalize().multiplyScalar(14) }); it.recoil = 1; sfx('pea');
+  peas.push({ m, owner: it.owner, t: 0, v: aim.normalize().multiplyScalar(14), ice: !!it.ice }); it.recoil = 1; sfx('pea');
 }
 function updatePeas(dt) {
   for (let i = peas.length - 1; i >= 0; i--) {
@@ -2469,7 +2472,8 @@ function updatePeas(dt) {
     const dx = p.x - mon.x, dz = p.z - mon.z, dy = p.y - (mon.y + mon.gy + MON_H * 0.55);
     if (Math.hypot(dx, dz) < 0.42 && Math.abs(dy) < MON_H * 0.55 && state.phase === 'play' && !mon.lift && !mon.carry) {
       puff(p.clone(), { color: 0x9cf06a, n: 7, size: 0.35, speed: 3, life: 0.4, add: true }); sfx('splat');
-      hitMonster(6, 1.3, pe.owner, Math.random() < 0.25 ? { text: 'PẰNG!' } : {});
+      if (pe.ice) { if (hitMonster(5, 0.6, pe.owner, mon.iceT > 0 ? {} : { text: '❄️ ĐÓNG BĂNG!' })) mon.iceT = Math.max(mon.iceT || 0, 2.4); puff(p.clone(), { color: 0xd8f6ff, n: 6, size: 0.4, speed: 2, life: 0.6, add: true, tex: starTex }); }
+      else hitMonster(6, 1.3, pe.owner, Math.random() < 0.25 ? { text: 'PẰNG!' } : {});
       scene.remove(pe.m); peas.splice(i, 1); continue;
     }
     if (pe.t > 3 || Math.abs(p.x) > 8 || state.phase !== 'play') { puff(p.clone(), { color: 0x9cf06a, n: 2, size: 0.2, speed: 1, life: 0.3 }); scene.remove(pe.m); peas.splice(i, 1); }
@@ -2846,6 +2850,24 @@ const SPAWN = {
     it.g.position.set(sd * (LANE + 1.5), 0, Math.max(HOUSE_FRONT + 4, mon.z - rand(4, 8))); it.vx = -sd * rand(2.4, 3.2); it.state = 'spin';
     popText(new V3(it.g.position.x, 4.5, it.g.position.z), '🌪️ LỐC XOÁY!', 'big', 1.4); sfx('wind');
   },
+  // ===== cây lấy khuôn từ thể loại "cây chặn zombie" — tên + tạo hình riêng =====
+  icepea: u => spawnFromGround('plant', u, () => mkShooter(true), { blocker: true, hp: 80, maxHp: 80, halfW: 0.45, halfD: 0.45, labelY: 2.0, debrisColor: 0x8fe0ff, minA: 6, maxA: 14, onPath: 0.35, spin: 0, ice: true }),
+  jackfruit: u => spawnFromGround('jackfruit', u, mkJackfruit, { blocker: true, hp: 320, maxHp: 320, halfW: 0.75, halfD: 0.65, labelY: 2.1, debrisColor: 0x8ab83a, spiky: true, minA: 4, maxA: 10, onPath: 0.9, spin: 0 }),
+  chili: u => { const it = spawnFromGround('chili', u, mkChili, { labelY: 1.6, minA: 2.5, maxA: 6, onPath: 1, spin: 0 }); it.g.position.set(clamp(mon.x + rand(-1, 1), -LANE, LANE), it.g.position.y, Math.max(HOUSE_FRONT + 1, mon.z - rand(1.2, 2.6))); },   // mọc sát trước mặt zombie
+  squash: u => spawnFromGround('squash', u, mkSquash, { labelY: 1.7, minA: 3, maxA: 8, onPath: 0.9, spin: 0 }),
+  chomper: u => spawnFromGround('chomper', u, mkChomper, { labelY: 2.2, minA: 3, maxA: 9, onPath: 0.95, spin: 0 }),
+  // ⛏️ ĐÀO HẦM (quà fan): zombie chui xuống đất, đi ngầm 16m (bẫy không chạm được), trồi lên
+  digger: u => {
+    const it = newItem('digger', u, mkDirtMound(), { noLabel: true, noRescale: true });
+    it.g.position.set(mon.x, 0, mon.z); it.state = 'down'; it.t = 0; it.z1 = Math.max(HOUSE_FRONT + 1.6, mon.z - 16);
+    mon.carry = it; mon.kv = 0; mon.stun = 0; sfx('rumble'); banner('⛏️ ZOMBIE ĐÀO HẦM!', esc(u.name) + ' giúp zombie chui qua bẫy', 2);
+  },
+  // 🤸 NHẢY SÀO (quà fan): chống sào phóng qua vật cản ~7,5m (quay chậm lúc lên đỉnh)
+  vault: u => {
+    const it = newItem('vault', u, mkPole(), { noLabel: true, noRescale: true });
+    it.state = 'fly2'; it.t = 0; it.z0 = mon.z; it.z1 = Math.max(HOUSE_FRONT + 1.6, mon.z - 7.5); it.x0 = mon.x;
+    mon.carry = it; mon.kv = 0; mon.stun = 0; sfx('whoosh'); popText(new V3(mon.x, 3, mon.z), '🤸 NHẢY SÀO!', 'big', 1.2);
+  },
   // 🧟 ZOMBIE CON (quà fan): 3 zombie nhỏ chạy lên trước đập vật cản / gỡ bẫy cho zombie lớn
   minions: u => {
     banner('🧟 ZOMBIE CON DỌN ĐƯỜNG!', esc(u.name) + ' gọi cả nhà zombie', 2); sfx('power');
@@ -2978,6 +3000,52 @@ function mkDozer() {
   g.userData.treads = treads;
   return g;
 }
+// 🍈 trái mít chắn: quả to gai sần, mặt cau có (tường chắn kiểu "cây chắn"), cuống + lá
+let jackTex = null;
+function mkJackfruit() {
+  if (!jackTex) jackTex = keep(ctex(128, 128, (q, w, h) => { q.fillStyle = '#9bbf3a'; q.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 9) for (let x = (y / 9 % 2) * 5; x < w; x += 10) { q.fillStyle = '#6f9420'; q.beginPath(); q.moveTo(x, y + 8); q.lineTo(x + 5, y); q.lineTo(x + 10, y + 8); q.fill(); q.fillStyle = 'rgba(230,240,140,.5)'; q.fillRect(x + 4, y + 2, 2, 2); } }, [3, 3]));
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(geo('jack', () => blobGeo(2, 0.06, 3.1)), new THREE.MeshStandardMaterial({ map: jackTex, roughness: 0.8 }));
+  body.scale.set(0.78, 0.98, 0.7); put(body, 0, 0.98, 0, g);
+  cyl(0.06, 0.08, 0.25, MS(0x5a3a1a, 0.9), 0, 2.0, 0, g, 6); const lf = sph(0.3, MS(0x3a8a2a, 0.6), 0.2, 2.05, 0, g); lf.scale.set(0.9, 0.12, 0.4); lf.rotation.z = -0.4;
+  for (const sx of [-1, 1]) { sph(0.12, MS(0xffffff, 0.3), sx * 0.22, 1.2, 0.62, g); sph(0.06, MS(0x111111, 0.3), sx * 0.22, 1.2, 0.71, g); const br = box(0.24, 0.05, 0.05, MS(0x3a2a10, 0.8), sx * 0.22, 1.38, 0.64, g); br.rotation.z = sx * 0.35; }
+  box(0.26, 0.05, 0.05, MS(0x3a2a10, 0.8), 0, 0.88, 0.66, g);
+  return g;
+}
+// 🌶️ ớt hiểm: quả ớt đỏ cong, mặt giận dữ
+function mkChili() {
+  const g = new THREE.Group(), red = MS(0xe0261a, 0.35, 0, { emissive: 0x3a0604 });
+  const segs = 6; for (let i = 0; i < segs; i++) { const t = i / (segs - 1), r = 0.3 * (1 - t * 0.75); const s0 = sph(r, red, Math.sin(t * 1.4) * 0.25, 0.25 + t * 1.0, 0, g); s0.scale.y = 1.2; }
+  cyl(0.18, 0.22, 0.12, MS(0x2f8a2a, 0.6), 0.02, 0.05 + 0.02, 0, g, 8); cyl(0.04, 0.05, 0.2, MS(0x2f8a2a, 0.6), 0, -0.05, 0, g, 6);
+  for (const sx of [-1, 1]) { sph(0.07, MS(0xffffff, 0.3), sx * 0.11, 0.55, 0.26, g); sph(0.035, MS(0x111111, 0.3), sx * 0.11, 0.55, 0.32, g); const br = box(0.13, 0.03, 0.03, MS(0x2a0a0a, 0.8), sx * 0.11, 0.65, 0.27, g); br.rotation.z = -sx * 0.5; }
+  g.position.y = 0.05; const w = new THREE.Group(); w.add(g);
+  return w;
+}
+// 🎃 bí đỏ đè: quả bí múi cam, mặt hung, cuống xanh
+function mkSquash() {
+  const g = new THREE.Group(), face = new THREE.Group(); g.add(face);
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; const m = sph(0.42, MS(i % 2 ? 0xe8761e : 0xd8661a, 0.55), Math.cos(a) * 0.28, 0.55, Math.sin(a) * 0.28, face); m.scale.set(0.7, 1.1, 0.7); }
+  cyl(0.06, 0.09, 0.3, MS(0x3a7a2a, 0.7), 0, 1.15, 0, face, 6).rotation.z = 0.3;
+  for (const sx of [-1, 1]) { const e = box(0.16, 0.08, 0.05, MS(0x2a1206, 0.8), sx * 0.17, 0.7, 0.66, face); e.rotation.z = -sx * 0.4; }
+  box(0.36, 0.06, 0.05, MS(0x2a1206, 0.8), 0, 0.42, 0.68, face);
+  g.userData.face = face; return g;
+}
+// 🪴 cây nắp ấm: thân leo + đầu bẫy kẹp 2 hàm tím có răng (há miệng chờ)
+function mkChomper() {
+  const g = new THREE.Group(), stem = MS(0x3a8a2a, 0.7), purp = MS(0x8a3ad8, 0.45, 0, { emissive: 0x1a0430 }), inner = MS(0xff6a8a, 0.6);
+  cyl(0.07, 0.1, 1.2, stem, 0, 0.6, 0, g, 8); for (const sx of [-1, 1]) { const l = sph(0.4, MS(0x4aa83a, 0.6), sx * 0.35, 0.15, 0, g); l.scale.set(0.9, 0.12, 0.45); }
+  const head = new THREE.Group(); head.position.set(0, 1.3, 0.1); g.add(head);
+  const lower = new THREE.Mesh(geo('chompL', () => new THREE.SphereGeometry(0.45, 18, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2)), purp); head.add(lower);
+  const lin = new THREE.Mesh(geo('chompI', () => new THREE.CircleGeometry(0.43, 18)), inner); lin.rotation.x = -Math.PI / 2; lin.position.y = 0.01; head.add(lin);
+  const jaw = new THREE.Group(); jaw.position.set(0, 0, -0.4); head.add(jaw);
+  const upper = new THREE.Mesh(geo('chompU', () => new THREE.SphereGeometry(0.45, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2)), purp); upper.position.z = 0.4; jaw.add(upper);
+  for (let i = 0; i < 9; i++) { const a = (i / 8 - 0.5) * 2.4; const t = new THREE.Mesh(geo('ctooth', () => new THREE.ConeGeometry(0.05, 0.14, 5)), MS(0xffffff, 0.3)); t.position.set(Math.sin(a) * 0.4, 0.04, Math.cos(a) * 0.4 - 0.0); head.add(t); const t2 = t.clone(); t2.rotation.x = Math.PI; t2.position.set(Math.sin(a) * 0.4, -0.04, Math.cos(a) * 0.4 + 0.4); jaw.add(t2); }
+  for (let i = 0; i < 6; i++) sph(0.06, MS(0xffd84a, 0.5), rand(-0.3, 0.3), 0.3 + rand(0, 0.1), rand(-0.2, 0.3), jaw);
+  g.userData.head = head; g.userData.jaw = jaw; return g;
+}
+// ⛏️ ụ đất di chuyển (đào hầm) + 🤸 cây sào
+function mkDirtMound() { const g = new THREE.Group(); const m = sph(0.7, MS(0x6a4a2a, 1), 0, 0, 0, g); m.scale.set(1, 0.35, 1.2); for (let i = 0; i < 5; i++) sph(0.12, MS(0x5a3a1a, 1), rand(-0.6, 0.6), 0.1, rand(-0.7, 0.7), g); return g; }
+function mkPole() { const g = new THREE.Group(), b = MS(0xc9a46a, 0.7); cyl(0.04, 0.04, 4.2, b, 0, 2.1, 0, g, 8); for (let y = 0.4; y < 4.2; y += 0.6) cyl(0.05, 0.05, 0.04, MS(0x8a6a3a, 0.8), 0, y, 0, g, 8); return g; }
 function mkBanana() {
   const g = new THREE.Group(), y = MS(0xffd23a, 0.55), br = MS(0x6a4a1a, 0.8);
   for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + 0.4; const p = sph(1, y, Math.cos(a) * 0.2, 0.05, Math.sin(a) * 0.2, g); p.scale.set(0.24, 0.045, 0.1); p.rotation.y = -a; }
@@ -3154,7 +3222,7 @@ function terrainPush(dt) {
   }
 }
 // ----- 🧟 zombie con: chạy tới vật cản / bẫy gần nhất phía trước, đấm vỡ; hết giờ thì biến mất -----
-const MINION_PREY = new Set(['trap', 'mine', 'banana', 'slime', 'plant', 'bomb', 'xbarrel', 'barrel', 'fence', 'prop', 'flower']);
+const MINION_PREY = new Set(['trap', 'mine', 'banana', 'slime', 'plant', 'bomb', 'xbarrel', 'barrel', 'fence', 'prop', 'flower', 'jackfruit', 'chili', 'squash', 'chomper']);
 function updateMinion(it, p, dt) {
   const ud = it.g.userData; it.life -= dt;
   if (it.life <= 0 || state.phase !== 'play') { puff(p.clone().setY(0.5), { color: 0x9ad06a, n: 8, size: 0.8, speed: 2, life: 0.6 }); removeItem(it); return; }
@@ -3185,6 +3253,79 @@ function updateMinion(it, p, dt) {
     }
   } else { ud.armL.rotation.x = ud.armR.rotation.x = -1.2 + Math.sin(ud.ph) * 0.15; }
 }
+// ----- cây mới: ớt hiểm (bùng lửa cả hàng), bí đỏ đè (nhảy đè), cây nắp ấm (nuốt rồi nhả) -----
+function updatePvzPlant(it, p, dt) {
+  const ud = it.g.userData, live = state.phase === 'play' && !mon.lift && (!mon.carry || mon.carry === it);
+  const dx = mon.x - p.x, dz = mon.z - p.z;
+  if (it.kind === 'chili') {
+    it.g.scale.setScalar(1 + Math.sin(it.t * 30) * 0.04 * Math.min(1, it.t)); it.g.rotation.z = Math.sin(it.t * 40) * 0.05;
+    if (it.t > 0.75) {                                                          // BÙNG: lửa phụt dọc làn đường về phía zombie (~5m, rộng cả làn)
+      for (let k2 = 0; k2 < 26; k2++) later(k2 * 0.012, () => puff(new V3(rand(-LANE, LANE), 0.4, p.z + rand(-0.6, 5.2)), { color: pick([0xff5a10, 0xffa020, 0xffd040]), n: 2, size: 1.3, speed: 2.5, up: 2, life: 0.7, add: true }));
+      camShake = Math.max(camShake, 0.35); sfx('boom'); crackDecal(new V3(p.x, 0, p.z + 1.5), 3, 4);
+      if (live && dz > -1.5 && dz < 5.5 && mon.y < 2) { hitMonster(110, 5, it.owner, { stun: 0.8, text: '🌶️ CAY XÈ!', unblockable: true }); mon.charT = 2.5; }
+      removeItem(it);
+    }
+    return;
+  }
+  if (it.kind === 'squash') {
+    if (it.phase2 === 'jump') {
+      const f = Math.min(1, (it.t - it.j0) / 0.5);
+      p.x = it.sx + (it.tx - it.sx) * f; p.z = it.sz + (it.tz - it.sz) * f; p.y = Math.sin(f * Math.PI) * 2.6;
+      it.g.scale.set(1 - 0.15 * Math.sin(f * Math.PI), 1 + 0.25 * Math.sin(f * Math.PI), 1 - 0.15 * Math.sin(f * Math.PI));
+      if (f >= 1) {
+        p.y = 0; it.g.scale.set(1.35, 0.45, 1.35); it.phase2 = 'flat'; it.j0 = it.t;
+        camShake = Math.max(camShake, 0.5); sfx('thud'); crackDecal(p, 2.2, 4);
+        puff(p.clone().setY(0.3), { color: 0xe8761e, n: 10, size: 0.8, speed: 4, life: 0.6 });
+        if (live && Math.hypot(mon.x - p.x, mon.z - p.z) < 1.6) hitMonster(150, 6, it.owner, { stun: 1.4, text: '🎃 ĐÈ BẸP!', unblockable: true });
+      }
+    } else if (it.phase2 === 'flat') { if (it.t - it.j0 > 0.7) removeItem(it); }
+    else {
+      ud.face.rotation.y = Math.atan2(dx, dz) * 0.3;
+      if (live && dz > -1 && dz < 3.6 && Math.abs(dx) < 1.6) { it.phase2 = 'jump'; it.j0 = it.t; it.sx = p.x; it.sz = p.z; it.tx = mon.x; it.tz = mon.z - Math.max(0, mon.vz) * 0.3; sfx('whoosh'); popText(p.clone().setY(2), 'HỰ!', 'info', 0.6); }
+    }
+    return;
+  }
+  if (it.kind === 'chomper') {
+    const jaw = ud.jaw;
+    if (it.phase2 === 'eat') {
+      jaw.rotation.x = -0.05 + Math.abs(Math.sin(it.t * 9)) * 0.15; ud.head.scale.setScalar(1.15 + Math.sin(it.t * 9) * 0.05);
+      mon.x = p.x; mon.z = p.z + 0.2; mon.y = 0;
+      if (it.t - it.j0 > 2.2 || state.phase !== 'play') {                      // nhả ra: văng lùi về sau
+        mon.carry = null; mon.root.visible = true; it.phase2 = 'done'; it.j0 = it.t;
+        mon.z = Math.min(restZ(), p.z + 1.2); mon.kv = 4; mon.stun = 0.9; mon.vy = 4; sfx('splat');
+        popText(new V3(mon.x, 2.8, mon.z), 'PHÌ!', 'big', 1); puff(new V3(mon.x, 1.2, mon.z), { color: 0x9a5ad8, n: 10, size: 0.7, speed: 3, life: 0.6 });
+      }
+    } else if (it.phase2 === 'done') { jaw.rotation.x = -0.9; it.g.scale.setScalar(Math.max(0.01, 1 - (it.t - it.j0) / 1.2)); if (it.t - it.j0 > 1.2) removeItem(it); }
+    else {
+      jaw.rotation.x = -0.75 - Math.sin(it.t * 3) * 0.12; ud.head.rotation.y = Math.atan2(dx, dz) * 0.4;
+      if (live && !mon.carry && dz > -0.6 && dz < 1.7 && Math.abs(dx) < 1.2 && mon.y < 0.5) {
+        it.phase2 = 'eat'; it.j0 = it.t; mon.carry = it; mon.kv = 0; mon.root.visible = false; sfx('bite'); camShake = Math.max(camShake, 0.3);
+        hitMonster(40, 0, it.owner, { text: '🪴 NUỐT CHỬNG!', unblockable: true });
+      }
+    }
+  }
+}
+// ----- ⛏️ đào hầm: chui xuống → đi ngầm → trồi lên -----
+function updateDigger(it, p, dt) {
+  const end = () => { if (mon.carry === it) mon.carry = null; mon.y = 0; removeItem(it); };
+  if (state.phase !== 'play') return end();
+  if (it.state === 'down') { mon.y = -2 * Math.min(1, it.t / 0.4); if (Math.random() < dt * 30) puff(new V3(mon.x, 0.2, mon.z), { color: T.dust || 0x8a6a40, n: 2, size: 0.8, speed: 2, life: 0.6 }); if (it.t > 0.4) { it.state = 'move'; it.t = 0; } }
+  else if (it.state === 'move') {
+    mon.z = Math.max(it.z1, mon.z - 7 * dt); mon.y = -2; p.set(mon.x, 0, mon.z);
+    if (Math.random() < dt * 25) puff(new V3(mon.x + rand(-0.3, 0.3), 0.15, mon.z), { color: T.dust || 0x8a6a40, n: 1, size: 0.9, speed: 1, life: 0.8 });
+    camShake = Math.max(camShake, 0.08);
+    if (mon.z <= it.z1 + 0.01) { it.state = 'up'; it.t = 0; sfx('thud'); debris(new V3(mon.x, 0.3, mon.z), 0x6a4a2a, 10, 0.18, 6); }
+  } else { mon.y = -2 * (1 - Math.min(1, it.t / 0.35)); if (it.t > 0.35) { popText(new V3(mon.x, 2.8, mon.z), '⛏️ TRỒI LÊN!', 'big', 1); end(); } }
+}
+// ----- 🤸 nhảy sào -----
+function updateVault(it, p, dt) {
+  const D = 1.0, f = Math.min(1, it.t / D);
+  if (state.phase !== 'play') { if (mon.carry === it) mon.carry = null; mon.y = 0; return removeItem(it); }
+  mon.z = it.z0 + (it.z1 - it.z0) * f; mon.y = Math.sin(f * Math.PI) * 3.2;
+  p.set(it.x0 + 0.35, 0, it.z0 - 1.6); it.g.rotation.x = -0.9 + f * 1.8;     // sào cắm đất phía trước, xoay theo người
+  if (f > 0.42 && !it.slow) { it.slow = true; slowT = 0.35; }
+  if (f >= 1) { mon.carry = null; mon.y = 0; mon.vy = 0; puff(new V3(mon.x, 0.2, mon.z), { color: T.dust || 0xd8c6a0, n: 8, size: 1, speed: 2.5, life: 0.6 }); sfx('thud'); removeItem(it); }
+}
 // ----- 🚜 xe ủi -----
 function updateDozer(it, p, dt) {
   const ud = it.g.userData; ud.tr = (ud.tr || 0) + dt;
@@ -3212,6 +3353,9 @@ function updateDozer(it, p, dt) {
 // ----- cập nhật bẫy mới mỗi khung hình (trả về true nếu đã xử lý) -----
 function updateNewItem(it, p, dt) {
   if (it.kind === 'minion') { updateMinion(it, p, dt); return true; }
+  if (it.kind === 'digger') { updateDigger(it, p, dt); return true; }
+  if (it.kind === 'vault') { updateVault(it, p, dt); return true; }
+  if (it.state === 'set' && (it.kind === 'chili' || it.kind === 'squash' || it.kind === 'chomper')) { updatePvzPlant(it, p, dt); return true; }
   if (it.kind === 'dozer') { updateDozer(it, p, dt); return true; }
   const k = it.kind, live = state.phase === 'play' && !mon.lift && !mon.carry;
   if (it.state === 'rise') {                                         // trồi lên khỏi mặt đất
@@ -3397,7 +3541,7 @@ function foxPunched(f) {
 }
 // ----- vòng sáng dưới bẫy: trên điện thoại vẫn thấy rõ chỗ có bẫy (đỏ = gây choáng/đẩy, tím = làm chậm, xanh = gió, vàng = vật cản) -----
 const GLOW_COL = { red: 0xff4a3a, purple: 0xe455ff, cyan: 0x6fe8ff, yellow: 0xffc23a };
-const GLOW_KIND = { trap: ['red', 0.75], mine: ['red', 0.85], plant: ['red', 0.9], banana: ['yellow', 0.65], bomb: ['red', 0.95], xbarrel: ['red', 1.05],
+const GLOW_KIND = { jackfruit: ['yellow', 1.1], chili: ['red', 0.8], squash: ['red', 0.95], chomper: ['purple', 1.0], trap: ['red', 0.75], mine: ['red', 0.85], plant: ['red', 0.9], banana: ['yellow', 0.65], bomb: ['red', 0.95], xbarrel: ['red', 1.05],
   slime: ['purple', 2.15], flower: ['cyan', 1.0], barrel: ['yellow', 0.95] };
 const glowMats = {};
 function glowMat(c) { return glowMats[c] || (glowMats[c] = keep(new THREE.MeshBasicMaterial({ color: GLOW_COL[c], transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }))); }
@@ -3638,6 +3782,7 @@ function canRunNow(a) {
   if (SEND_BACK[a]) return !mon.lift && !mon.carry && !items.some(i => !i.dead && i.kind === 'boulder') && sendBackRoom(SEND_BACK[a]);
   if (a === 'quake') return !mon.lift && !mon.carry && mon.z <= START_Z - Math.min(25, (START_Z - HOUSE_FRONT) * 0.4);
   if (a === 'dozer') return !mon.lift && !mon.carry && !items.some(i => !i.dead && (i.kind === 'dozer' || i.kind === 'boulder')) && mon.z > HOUSE_FRONT + 12;
+  if (a === 'digger' || a === 'vault') return !mon.lift && !mon.carry && mon.y <= 0.05 && mon.z > HOUSE_FRONT + 4;
   return true;
 }
 function runAction(a, u) {
@@ -3716,7 +3861,7 @@ function onGift(user, giftName, count, coins, forced, img) {
 }
 // COMBO: cùng 1 loại bẫy được tặng ≥5 lần trong 10 giây → bản SIÊU (khoai khổng lồ / thêm 3 cái)
 const comboLog = new Map(), comboCd = new Map();
-const NO_COMBO = new Set(['win', 'lose', 'boulder', 'balloon', 'lightning', 'meteor', 'hand', 'quake', 'repair', 'shoes', 'shield', 'time', 'armor', 'fist', 'minions', 'dozer', 'mystery']);
+const NO_COMBO = new Set(['win', 'lose', 'boulder', 'balloon', 'lightning', 'meteor', 'hand', 'quake', 'repair', 'shoes', 'shield', 'time', 'armor', 'fist', 'minions', 'dozer', 'mystery', 'digger', 'vault', 'chili', 'squash', 'chomper']);
 function trackCombo(action, user, n) {
   if (NO_COMBO.has(action) || state.phase !== 'play') return;
   const L = (comboLog.get(action) || []).filter(e => time - e.t < 10); L.push({ t: time, n, u: user }); comboLog.set(action, L);
@@ -3881,7 +4026,7 @@ function resetRound() {
   Object.assign(mon, { charT: 0, flip: null, windLean: 0, x: 0, y: 0, gy: 0, z: START_Z, vy: 0, kv: 0, stun: 0, lift: null, carry: null, avoid: null, armorUntil: 0, stamina: 1, yaw: 0, yawT: 0, jerk: 0, shieldHp: 0 });
   if (mon.shieldMesh) mon.shieldMesh.visible = false; mon.shieldStock = Math.max(0, shields - 1);
   if (shields > 0 && mon.shieldMesh) equipShield();
-  door.broken = false; door.pivot.visible = true;
+  door.broken = false; door.pivot.visible = true; mon.root.visible = true; mon.iceT = 0;   // lỡ hết ván lúc đang bị cây nắp ấm nuốt
   roundDef.clear(); roundHero.clear(); state.likesRound = 0; state.rainDone = false; state.hold = null; mon.hunger = 0; mon.rage = 0;
   // KHÔNG xoá hàng chờ quà: quà chưa chạy giữ sang ván mới
   for (const L of bolts) { scene.remove(L.cloud); if (L.bolt) scene.remove(L.bolt); } bolts.length = 0;
@@ -4436,7 +4581,7 @@ function updateDemo(dt) {
   else if (r < 0.4) onComment(u, CONFIG.commentKey || 'hay quá');
   else if (r < 0.44) onFollow(u);
   else {
-    const pool = [['rose', 24], ['xbarrel', 8], ['trap', 12], ['barrel', 10], ['slime', 8], ['repair', 6], ['fox', 5], ['mine', 4], ['flower', 5], ['lightning', 2.5], ['balloon', 1.5], ['boulder', 0.7], ['shoes', 3], ['shield', 1.5], ['armor', 0.8], ['fist', 0.6], ['minions', 1], ['dozer', 0.3], ['mystery', 2], ['shield', 2], ['time', 2], ['plant', 8],
+    const pool = [['rose', 24], ['xbarrel', 8], ['trap', 12], ['barrel', 10], ['slime', 8], ['repair', 6], ['fox', 5], ['mine', 4], ['flower', 5], ['lightning', 2.5], ['balloon', 1.5], ['boulder', 0.7], ['shoes', 3], ['shield', 1.5], ['armor', 0.8], ['fist', 0.6], ['minions', 1], ['dozer', 0.3], ['mystery', 2], ['icepea', 4], ['jackfruit', 3], ['chili', 1], ['squash', 1], ['chomper', 1], ['digger', 0.6], ['vault', 1], ['shield', 2], ['time', 2], ['plant', 8],
       ['banana', 6], ['net', 3], ['bees', 3], ['crows', 2], ['meteor', 0.6], ['hand', 0.4], ['quake', 0.15]];
     let x = Math.random() * pool.reduce((s, p) => s + p[1], 0), k = 0; while (x > pool[k][1]) { x -= pool[k][1]; k++; }
     const g = ALL_GIFTS.find(a => a.action === pool[k][0]); if (g) onGift(u, g.gift, k < 4 ? pick([1, 1, 2, 3]) : 1, g.coins);
