@@ -147,7 +147,7 @@ tự chọn theo bậc giá). Vẫn giữ **mọi quà quy ra mét theo xu** →
 - **📣 HP Media tuyển Idol LIVE:** lâu lâu (mỗi đoạn 700 m ~50%, ≈ 40–50 giây/lần) 2–3 người ven đường giơ bảng "HP MEDIA – TUYỂN IDOL LIVE",
   nhún theo nhịp, gọi "📣 Tuyển Idol LIVE nè!" khi đoàn tới gần; đứng ở 58% đoạn tỉnh cũ, né quán ăn (đoạn chật thì bỏ lượt).
   Trạm dừng chân có nhân viên HP Media (áo trắng chữ HP, đeo thẻ, kẹp hồ sơ, kính đen) cứ 3,2 giây đi tới 1 người trong đám đông, gọi tên
-  mời: "{tên} ơi, Chị làm idol không?", "Chị muốn lương 200–5000$ không?", "Chị rất hợp làm idol nhà HP Media đó!", "HP Media đào tạo
+  mời (đã bỏ câu hứa lương bằng tiền — user: nhạy cảm): "{tên} ơi, Chị làm idol không?", "Chị rất hợp làm idol nhà HP Media đó!", "HP Media đào tạo
   miễn phí nè!"… người được mời đáp ("Thật hả? 😳", "Để em hỏi mẹ đã…", "Ok chốt! 🤝").
 - **🏠 Quà Xuống xe** (`dropoff`, chỉ chạy khi GÁN quà; gợi ý "Vé hành trình" 10 xu): tặng xong được hỏi `dropAskSec` (45) giây — bình luận
   tên tỉnh (cũ hoặc mới, có/không dấu, tên quen Sài Gòn / Vũng Tàu / Đà Lạt / Sa Pa…) hoặc BIỂN SỐ XE (`PLATES` 63 tỉnh cũ, VD 43 = Đà Nẵng,

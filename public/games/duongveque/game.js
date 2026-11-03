@@ -1634,10 +1634,10 @@ function plasticTable(x, y, s) {
   ctx.restore();
 }
 // 🎤 nhân viên HP Media đi giữa đám đông mời làm idol (user yêu cầu) — {n} = tên người được mời
-const RECRUIT_LINES = ['{n} ơi, Chị làm idol không?', 'Chị muốn lương 200–5000$ không?', 'Chị rất hợp làm idol nhà HP Media đó!',
+const RECRUIT_LINES = ['{n} ơi, Chị làm idol không?', 'Chị rất hợp làm idol nhà HP Media đó!',
   '{n} ơi, mặt sáng thế này phải lên LIVE thôi!', 'HP Media đào tạo miễn phí nè {n}!', 'Giọng hay vậy, làm idol hát LIVE đi {n}!',
   'Có ekip, có kịch bản, {n} chỉ cần tới!', '{n} thử LIVE 1 buổi tối nay nha?', 'Idol HP Media về quê cũng LIVE được nè!'];
-const RECRUIT_REPLY = ['Thật hả? 😳', 'Để em hỏi mẹ đã…', 'Lương bao nhiêu nữa? 🤑', 'Em ngại lắm 🙈', 'Ok chốt! 🤝', 'Anh xin số đi!', 'Em hát dở lắm á 😂'];
+const RECRUIT_REPLY = ['Thật hả? 😳', 'Để em hỏi mẹ đã…', 'Em ngại lắm 🙈', 'Ok chốt! 🤝', 'Anh xin số đi!', 'Em hát dở lắm á 😂'];
 function hpRecruiter(x, y, walking) {
   const k = walking ? Math.sin(T * 8) : 0;
   ctx.save(); ctx.translate(x, y); ctx.scale(0.66, 0.66);
