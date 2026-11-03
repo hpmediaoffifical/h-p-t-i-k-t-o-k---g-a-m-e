@@ -4,7 +4,7 @@
     {
       "id": "t1",
       "minCoins": 1,
-      "maxLevel": 10,
+      "maxLevel": 12,
       "balls": 1,
       "labelVi": "Quà 1 - 4 xu"
     },
@@ -171,8 +171,9 @@
     }
   ],
   "social": {
-    "likesPerBall": 10,
+    "likesPerBall": 30,
     "likeBallTier": "POKEBALL",
+    "likeBallLevel": 6,
     "shareBalls": 1,
     "shareBallTier": "GREAT_BALL",
     "followBalls": 1,
@@ -230,5 +231,26 @@
     "dick",
     "pussy"
   ],
-  "questRewardLevel": 85
+  "questRewardLevel": 85,
+  "contest": {
+    "enabled": true,
+    "everyMinutes": 5,
+    "openSeconds": 10,
+    "joinCmd": "tranh",
+    "triggerCoins": 300,
+    "ticketsPerCoin": 1,
+    "designatedGiftIds": [],
+    "designatedNames": [
+      "rose",
+      "hoa hồng"
+    ],
+    "designatedMult": 3,
+    "finalSeconds": 3,
+    "finalMult": 2,
+    "likesPerTicket": 50,
+    "likeCap": 5,
+    "shareTickets": 3,
+    "luckTickets": 10,
+    "luckMax": 3
+  }
 }
