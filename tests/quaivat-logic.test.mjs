@@ -114,3 +114,15 @@ test('gift-data: mỗi giftId TikTok chỉ gắn 1 hành động, mọi món kh�
   const names = all.flatMap(g => g.names);
   assert.equal(new Set(names).size, names.length, 'tên quà trùng giữa 2 hành động');
 });
+
+test('trang phục: danh sách trong panel khớp SKINS của game (id không trùng)', async () => {
+  const fs = await import('node:fs');
+  const { SKINS } = await import('../public/games/quaivat/skins.js');
+  const ids = SKINS.map(x => x.id);
+  assert.equal(new Set(ids).size, ids.length);
+  const panel = fs.readFileSync(new URL('../public/games/quaivat/quaivat-panel.js', import.meta.url), 'utf8');
+  const m = panel.match(/const SKINS = (\[.*\]);/);
+  assert.ok(m, 'panel thiếu SKINS');
+  const pids = JSON.parse(m[1].replace(/'/g, '"')).map(x => x[0]);
+  assert.deepEqual(pids, ids);
+});

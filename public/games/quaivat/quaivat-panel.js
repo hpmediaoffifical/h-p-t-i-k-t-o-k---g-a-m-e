@@ -54,6 +54,8 @@
         { id: 'share', emoji: '↗️', label: 'Chia sẻ → pháo hẹn giờ' },
     ];
     const MAPS = ['Vườn Xanh (90m)', 'Mùa Thu (110m)', 'Xứ Tuyết (130m)', 'Nghĩa Trang Đêm (140m)', 'Sa Mạc (150m)', 'Núi Lửa (165m)', 'Lâu Đài Hoang (180m) 🏰 BOSS', 'Đầm Sen (125m) 🦆 lội nước'];
+    // Phải khớp SKINS trong public/games/quaivat/skins.js (test tests/quaivat-logic.test.mjs kiểm)
+    const SKINS = [['', '🧟 Zombie gốc'], ['sieunhan', '🦸 Siêu Nhân Zombie'], ['quyong', '🧸 Quý Ông Vụng Về'], ['caibang', '🥢 Cái Bang'], ['nonla', '👒 Nón Lá Áo Bà Ba'], ['noicom', '🍚 Đội Nồi Cơm Điện'], ['baohiem', '🛵 Mũ Bảo Hiểm'], ['daubep', '👨‍🍳 Đầu Bếp'], ['docbao', '📰 Ông Đọc Báo'], ['camco', '🚩 Zombie Cầm Cờ'], ['phihanh', '🧑‍🚀 Phi Hành Gia']];
     const ZOMBIES = [['basic', '🧟 Zombie thường'], ['chubby', '🧟 Zombie béo'], ['arm', '🧟 Zombie cụt tay'], ['ribcage', '💀 Zombie lộ sườn'], ['classic', '🧩 Zombie tự dựng (bản cũ)']];
     const KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyF', 'KeyJ', 'ShiftLeft', 'ShiftRight'];
 
@@ -155,6 +157,7 @@
             <label class="qv-row"><span title="Máy yếu / OBS giật: chọn Nhẹ rồi mở lại cửa sổ game">Chất lượng hình</span><select data-k="qvQuality">${[['high', '✨ Đẹp'], ['low', '⚡ Nhẹ (máy yếu)']].map(([v, n]) => `<option value="${v}"${(cfg.qvQuality || 'high') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
             <label class="qv-row"><span title="Đồ trang trí theo mùa: tự bật Noel (10/12–2/1) và Tết (2 tuần quanh mùng 1)">Trang trí mùa</span><select data-k="qvSeason">${[['auto', '📅 Tự theo ngày'], ['off', 'Tắt'], ['noel', '🎄 Noel'], ['tet', '🧧 Tết']].map(([v, n]) => `<option value="${v}"${(cfg.qvSeason || 'auto') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
             <label class="qv-row"><span>Nhân vật zombie</span><select data-k="qvZombieModel">${ZOMBIES.map(([v, n]) => `<option value="${v}"${cfg.qvZombieModel === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+            <label class="qv-row"><span title="Đổi ngay trên game, không cần tải lại">Trang phục</span><select data-k="qvSkin">${SKINS.map(([v, n]) => `<option value="${v}"${(cfg.qvSkin || '') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
             <label class="qv-row"><span>Tên streamer (zombie)</span><input type="text" data-k="qvStreamerName" placeholder="Streamer" value="${esc(cfg.qvStreamerName)}"></label>
             <label class="qv-row"><span>Link avatar</span><input type="text" data-k="qvStreamerAvatar" placeholder="https://… (không bắt buộc)" value="${esc(cfg.qvStreamerAvatar)}"></label>
             <label class="qv-row"><span title="Cửa tự hồi máu sau 3 giây không bị đấm">Máu cửa nhà</span><input type="number" min="100" step="100" data-k="qvDoorHp" data-num="1" value="${esc(cfg.qvDoorHp)}"></label>
@@ -169,6 +172,7 @@
                 <label><input type="checkbox" data-k="qvLockJump"${cfg.qvLockJump ? ' checked' : ''}> 🔒 Khóa nhảy (Space)</label>
                 <label><input type="checkbox" data-k="qvLockForward"${cfg.qvLockForward ? ' checked' : ''}> 🔒 Khóa tiến/lùi</label>
                 <label><input type="checkbox" data-k="qvSound"${cfg.qvSound ? ' checked' : ''}> 🔊 Âm thanh</label>
+                <label title="Mỗi ván zombie mặc 1 bộ ngẫu nhiên"><input type="checkbox" data-k="qvSkinRandom"${cfg.qvSkinRandom ? ' checked' : ''}> 🎲 Đổi trang phục mỗi ván</label>
                 <label title="Zombie qua cột mốc → đếm ngược; hết giờ mà cửa còn = khán giả thắng"><input type="checkbox" data-k="qvHold"${cfg.qvHold !== false ? ' checked' : ''}> ⏳ Giữ nhà</label>
                 <label title="Bị đẩy lùi nhiều → zombie lên cơn vài giây (đi nhanh, đấm mạnh)"><input type="checkbox" data-k="qvHunger"${cfg.qvHunger !== false ? ' checked' : ''}> 🧠 Cơn đói</label>
                 <label title="Khoảng 30 phút có 1 ván chỉ cần nửa số tim để ném đá"><input type="checkbox" data-k="qvGolden"${cfg.qvGolden !== false ? ' checked' : ''}> 🌟 Giờ vàng</label>

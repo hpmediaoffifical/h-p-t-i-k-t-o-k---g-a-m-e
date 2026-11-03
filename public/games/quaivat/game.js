@@ -16,6 +16,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { VILLAINS, HEROES, SOCIAL } from './gift-data.js';
+import { SKINS, applySkin } from './skins.js';
 import { actionByCoins as coinAction, giftRuns as runsFor, NoteQueue, pageCount, pageOf, mysteryPick, likesPerStone, comboCredit, holdSeconds, hungerAdd, HUNGER_FULL, RAGE_SEC, winMilestone } from './logic.js';
 
 const V3 = THREE.Vector3;
@@ -51,6 +52,8 @@ const CONFIG = {
   commentKey: '111',      // bình luận có chứa từ khóa này mới ném dép ('' = mọi bình luận)
   timerOn: Q.get('timer') === '1' || lsGet('qv_timer') === '1',   // đồng hồ mỗi ván — mặc định TẮT: chơi tới khi zombie phá được cửa
   checkpoint: lsGet('qv_cp') !== '0',      // cột mốc giữa đường: zombie qua mốc rồi thì không bị đẩy lùi quá mốc
+  skin: Q.get('skin') ?? lsGet('qv_skin') ?? '',         // trang phục zombie (skins.js): '' | sieunhan | quyong | caibang | nonla | noicom | …
+  skinRandom: Q.get('skinrnd') === '1',                  // mỗi ván 1 trang phục ngẫu nhiên
   zombieModel: Q.get('zm') || lsGet('qv_zm') || 'basic',   // basic | chubby | arm | ribcage | classic (zombie dựng tay)
   shieldHits: 8,          // khiên cửa chịu được bấy nhiêu đòn rồi vỡ
   lockJump: Q.get('nojump') === '1' || lsGet('qv_lockJump') === '1',      // khóa nhảy (Space)
@@ -995,7 +998,7 @@ function updateAmbient(dt) {
     q.y -= C.fall * dt * q.s; q.x += (C.drift * 0.5 + Math.sin(time * 0.7 + q.ph) * C.sway * 0.5) * dt; q.ph += dt; q.r += dt * 2 * q.s;
     if (q.y < 0.1) q.y += 10; if (q.y > 10.5) q.y -= 10;
     if (q.x > 14) q.x -= 28; if (q.x < -14) q.x += 28;
-    let z = cz + q.z; z = cz - 38 + ((((z - (cz - 38)) % 34) + 34) % 34);           // luôn trước camera 4–38m (sát ống kính thì thành đốm to)
+    let z = cz + q.z; z = cz - 42 + ((((z - (cz - 42)) % 34) + 34) % 34);           // luôn trước camera 8–42m (gần hơn thì thành đốm to)
     _ambP.set(cx + q.x, q.y, z);
     if (C.spin) _ambQ.setFromEuler(_ambE.set(q.r, q.r * 0.7, q.r * 0.4)); else _ambQ.copy(camera.quaternion);
     const blink = C.blink ? 0.55 + 0.45 * Math.sin(time * 3 + q.ph * 5) : 1;
@@ -1875,9 +1878,17 @@ function glbAnimate(dt) {
   a.setEffectiveTimeScale(ts);
   if (state.phase === 'play' && (mon.cur === 'Walking' || mon.cur === 'Punch' || mon.cur === 'Idle')) { mon.groanT -= dt; if (mon.groanT <= 0) { mon.groanT = rand(4, 8); sfx('groan'); } }
 }
+// trang phục zombie: gắn / gỡ lúc đang chơi được (chỉ mô hình GLB)
+function setSkin(id) {
+  const z = mon.z3; if (!z || !z.glb) return;
+  if (mon.skin) { mon.skin.remove(); mon.skin = null; }
+  mon.skin = applySkin(SKINS.some(x => x.id === id) ? id : '', { THREE, model: z.model, MS, sph, box, cyl, geo, dispose: disposeTree, speed: () => Math.abs(mon.moveSpeed || 0) });
+  z.model.traverse(o => { if (o.isMesh && !o.userData.isOutline && o.material && o.material.map) o.material.needsUpdate = true; });
+}
 async function setupMonster() {
   const gl = CONFIG.zombieModel !== 'classic' ? await loadZombieGLB() : null;
   const z = gl ? setupZombieGLB(gl) : buildZombie(); mon.z3 = z;
+  setSkin(CONFIG.skin);
   const model = z.root; mon.mats.push(...z.mats); mon.mats.forEach(addRim);
   mon.tilt.add(model);
   mon.tilt.position.y = MON_H * 0.45; model.position.y = -MON_H * 0.45; // xoay/lộn nhào quanh hông
@@ -3812,6 +3823,7 @@ function startIntro() {
   state.cp = false; drawCp(false); state.dynT = T.dynEvery || 0; state.quakeT = 0;
   for (let i = 0; i < (T.props || 0); i++) placeProp(T.prop);
   for (let i = 0; i < (T.hazN || 0); i++) placeHazard(Array.isArray(T.haz) ? pick(T.haz) : T.haz);
+  if (CONFIG.skinRandom && mon.z3 && mon.z3.glb) setSkin(pick(SKINS.filter(x => x.id && x.id !== (mon.skin && mon.skin.id))).id);   // trang phục mới mỗi ván
   state.mod = CONFIG.mods && state.loop >= 1 ? pick(ROUND_MODS) : null;          // từ vòng map thứ 2: mỗi ván 1 luật biến thể
   state.golden = !!(CONFIG.golden && goldenDue()); if (state.golden) lastGolden = performance.now();
   door.maxHp = door.hp = mapDoorHp(); state.modT = 0;
@@ -4246,6 +4258,8 @@ function applyServerConfig(c) {
   CONFIG.lockJump = !!c.qvLockJump; CONFIG.lockForward = !!c.qvLockForward;
   CONFIG.timerOn = !!c.qvTimerOn; CONFIG.checkpoint = c.qvCheckpoint !== false; if (cp.g) cp.g.visible = CONFIG.checkpoint;
   soundOn = c.qvSound !== false;
+  if (typeof c.qvSkin === 'string' && !Q.has('skin') && c.qvSkin !== CONFIG.skin) { CONFIG.skin = c.qvSkin; lsSet('qv_skin', c.qvSkin); if (!CONFIG.skinRandom) setSkin(c.qvSkin); }
+  if (!Q.has('skinrnd')) { const r = !!c.qvSkinRandom; if (r !== CONFIG.skinRandom) { CONFIG.skinRandom = r; if (!r) setSkin(CONFIG.skin); } }
   CONFIG.hold = c.qvHold !== false; CONFIG.hunger = c.qvHunger !== false; CONFIG.tips = c.qvTips !== false;
   if (['auto', 'off', 'noel', 'tet'].includes(c.qvSeason) && !Q.get('season')) { const ch = CONFIG.season !== c.qvSeason; CONFIG.season = c.qvSeason; if (ch && state.phase !== 'loading') seasonDeco(); }
   CONFIG.golden = c.qvGolden !== false; CONFIG.mods = c.qvMods !== false; CONFIG.cues = c.qvCues !== false;
@@ -4473,7 +4487,7 @@ function tick(dt) {
     let gdt = dt; if (hitStop > 0) { hitStop -= dt; gdt = 0; }               // khựng hình khi trúng đòn mạnh
     if (slowT > 0) { slowT -= dt; gdt *= 0.3; }                                  // quay chậm: phá cửa, đá lăn trúng
     const px = mon.x, pz = mon.z;
-    updateDemo(gdt); updateQueue(gdt); updatePhase(gdt); updateMonster(gdt);
+    updateDemo(gdt); updateQueue(gdt); updatePhase(gdt); updateMonster(gdt); if (mon.skin) mon.skin.update(gdt, time);
     if (gdt > 0) { const dx = mon.x - px, dz = mon.z - pz, k = Math.min(1, gdt * 6);
       if (Math.abs(dx) + Math.abs(dz) > 2) mon.vx = mon.vz = 0;                       // dịch chuyển tức thời (về đầu đường) — không tính là chạy
       else { mon.vx += (dx / gdt - mon.vx) * k; mon.vz += (dz / gdt - mon.vz) * k; } }   // vận tốc thật (làm mượt) cho việc ném đón đầu
@@ -4495,4 +4509,4 @@ try {
   console.error(e);
   $('loading').textContent = '❌ Không tải được mô hình 3D (models.js).';
 }
-window.__game = { step: (n = 1, dt = 1 / 30) => { for (let i = 0; i < n; i++) tick(dt); }, get foxGltf() { return foxGltf; }, zombieAnimate, renderer, THREE, scene, camera, state, mon, door, items, onGift, onLike, onFollow, onShare, onComment, onLiveMessage, actionQueue, runAction };
+window.__game = { step: (n = 1, dt = 1 / 30) => { for (let i = 0; i < n; i++) tick(dt); }, setSkin, get foxGltf() { return foxGltf; }, zombieAnimate, renderer, THREE, scene, camera, state, mon, door, items, onGift, onLike, onFollow, onShare, onComment, onLiveMessage, actionQueue, runAction };

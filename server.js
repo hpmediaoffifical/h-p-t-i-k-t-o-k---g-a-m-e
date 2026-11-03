@@ -390,6 +390,7 @@ const GAMES = {
             qvHold: true, qvHunger: true, qvTips: true, qvGolden: true, qvMods: true, qvCues: true,   // giữ nhà · cơn đói · hướng dẫn · giờ vàng · biến thể ván · nhắc lời dẫn
             qvWinTarget: 20, qvLikeGoal: 20, qvQuality: 'high',   // chất lượng hình cửa sổ game: high | low (máy yếu)   // mục tiêu WIN mỗi chặng · thanh tim cả phòng (× ngưỡng tim) → mưa đá
             qvZombieModel: 'basic',   // basic | chubby | arm | ribcage | classic — mô hình Quaternius CC0 trong public/games/quaivat/models/zombie
+            qvSkin: '', qvSkinRandom: false,   // trang phục zombie (public/games/quaivat/skins.js) · đổi ngẫu nhiên mỗi ván
             qvTimerOn: false,         // đồng hồ mỗi ván: mặc định tắt (chơi tới khi phá được cửa)
             qvCheckpoint: true,       // cột mốc giữa đường
             qvShowLegend: true,
