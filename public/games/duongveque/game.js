@@ -1331,7 +1331,7 @@ function giftImage(g) {
   return s ? s.image : '';
 }
 function buildLegend() {
-  const show = VIEW.showLegend && game.phase === 'race';
+  const show = VIEW.showLegend && game.phase === 'race' && window.__hpGiftboardActive !== true;   // 📋 Bảng Quà Tổng mở → ẩn
   $('lgl').classList.toggle('hidden', !show); $('lgr').classList.toggle('hidden', !show);
   for (const side of ['cuu', 'pha']) {
     const rows = [];
@@ -2429,7 +2429,7 @@ function tick(dt) {
   if (R3D) render3d(dt); else render(dt);
   updateHud(dt);
   if (game.phase !== 'result') $('result').classList.add('hidden');
-  const lg = VIEW.showLegend && game.phase === 'race';
+  const lg = VIEW.showLegend && game.phase === 'race' && window.__hpGiftboardActive !== true;
   if (lg === $('lgl').classList.contains('hidden')) { $('lgl').classList.toggle('hidden', !lg); $('lgr').classList.toggle('hidden', !lg); }
 }
 requestAnimationFrame(frame);

@@ -13,6 +13,8 @@
         /* Sân khấu neo góc trên-trái rồi scale — y hệt #nl-root của overlay chính, nên
            đặt hai browser source chồng nhau là toạ độ % của bảng khớp đúng với đống lá. */
         #nlb-stage { position: fixed; left: 0; top: 0; }
+      /* 📋 Bảng Quà Tổng đang mở trên OBS → ẩn bảng quà riêng (html.gb-active do /lib/overlay-hello.js) */
+      html.gb-active #nlb-board { display: none !important; }
     </style>
 </head>
 <body>
@@ -21,6 +23,7 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/lib/overlay-hello.js" data-game="nhatla" data-presence="0"></script>
     <script src="/games/nhatla/game.js"></script>
     <script>
     (function () {

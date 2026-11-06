@@ -25,6 +25,8 @@
   .nm { font-weight: 800; font-size: .8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .lb { font-weight: 600; font-size: .66em; opacity: .85; }
   .hidden { display: none; }
+  /* 📋 Bảng Quà Tổng đang mở trên OBS → ẩn bảng quà riêng (html.gb-active do /lib/overlay-hello.js) */
+  html.gb-active #wrap { display: none !important; }
 </style>
 </head>
 <body>
@@ -36,6 +38,7 @@
   <div class="grid" id="gH"></div>
 </div>
 <script src="/socket.io/socket.io.js"></script>
+<script src="/lib/overlay-hello.js" data-game="quaivat" data-presence="0"></script>
 <script type="module">
 import { VILLAINS, HEROES, SOCIAL } from '/games/quaivat/gift-data.js';
 const Q = new URLSearchParams(location.search), $ = id => document.getElementById(id);

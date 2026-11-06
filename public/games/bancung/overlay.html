@@ -1088,6 +1088,8 @@
     body.bc-stopped .bc-combo,
     body.bc-stopped .bc-killing-blow,
     body.bc-stopped .bc-podium { display: none !important; }
+  /* 📋 Bảng Quà Tổng đang mở trên OBS → ẩn bảng quà riêng (html.gb-active do /lib/overlay-hello.js) */
+  html.gb-active #bc-giftlist { display: none !important; }
 </style>
 </head>
 <body class="bc-heart-pixel">

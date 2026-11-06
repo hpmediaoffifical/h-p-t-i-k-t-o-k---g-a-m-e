@@ -2,13 +2,15 @@
 <html lang="vi">
   <head>
     <script src="/lib/overlay-resolution.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/lib/overlay-hello.js" data-game="pokemon" data-presence="0"></script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bảng quà · Pokemon LIVE (OBS)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <style>html,body{margin:0;background:0 0!important}</style>
+    <style>html,body{margin:0;background:0 0!important}/* 📋 Bảng Quà Tổng đang mở trên OBS → ẩn bảng quà riêng (html.gb-active do /lib/overlay-hello.js) */html.gb-active #root{display:none!important}</style>
     <script type="module" crossorigin src="/games/pokemon/assets/gifts-Bhcfkgkt.js"></script>
     <link rel="modulepreload" crossorigin href="/games/pokemon/assets/src-CioH71s6.js">
     <link rel="stylesheet" crossorigin href="/games/pokemon/assets/src-CNLgjrOc.css">

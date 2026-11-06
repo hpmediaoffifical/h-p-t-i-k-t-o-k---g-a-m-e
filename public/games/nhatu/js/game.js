@@ -1115,13 +1115,16 @@ function updateHud() {
 }
 
 /** Bảng "🎁 Tặng quà để…" trên overlay — chỉ hiện các quà đã gán trong panel. */
+// 📋 Bảng Quà Tổng mở/đóng trên OBS → vẽ lại bảng quà riêng (ẩn/hiện).
+window.addEventListener('hp:giftboard-active', () => buildLegend());
 function buildLegend() {
   const host = $('legend');
   if (!host) return;
   host.replaceChildren();
   const rows = [];
   for (const a of allGiftActions) for (const g of CFG.giftMap?.[a.id] || []) rows.push({ a, g });
-  host.classList.toggle('hidden', !CFG.showGiftLegend || rows.length === 0);
+  // 📋 Bảng Quà Tổng đang mở trên OBS → ẩn bảng quà riêng (window.__hpGiftboardActive do /lib/overlay-hello.js)
+  host.classList.toggle('hidden', !CFG.showGiftLegend || rows.length === 0 || window.__hpGiftboardActive === true);
   const h = document.createElement('h4');
   h.textContent = '🎁 Tặng quà để…';
   host.append(h);

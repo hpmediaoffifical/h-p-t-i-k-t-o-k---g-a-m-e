@@ -76,6 +76,8 @@
   .cgs-intro .dur { font-size: 3.4vmin; font-weight: 800; padding: .6vmin 2.4vmin; border-radius: 99vmin; background: rgba(255, 214, 90, .2); }
   .cgs.intro .cgs-top, .cgs.intro .cgs-gifts { opacity: 0; }
   .cgs-top, .cgs-gifts { transition: opacity .35s ease; }
+  /* 📋 Bảng Quà Tổng đang mở trên OBS → ẩn bảng quà riêng (html.gb-active do /lib/overlay-hello.js) */
+  html.gb-active #cgsGifts { display: none !important; }
 </style>
 </head>
 <body>

@@ -2157,7 +2157,7 @@
             const assignedTo = currentTriggers[String(g.id)];
             const isTakenByOther = assignedTo && assignedTo !== editingEffect.key;
             const alreadyInDraft = isMulti && draftMultiIds.has(String(g.id));
-            const pg = document.createElement('div'); pg.className = 'pg';
+            const pg = document.createElement('div'); pg.className = 'pg'; pg.dataset.gid = String(g.id);   // 📋 nhãn "đang dùng ở"
             if (isTakenByOther) {
                 const otherEf = EFFECTS.find(e => e.key === assignedTo);
                 pg.classList.add('pg-disabled');
@@ -6919,7 +6919,7 @@
             const frag = document.createDocumentFragment();
             list.slice(0, 500).forEach(g => {
                 const c = document.createElement('div');
-                c.className = 'obse-gp-card';
+                c.className = 'obse-gp-card'; c.dataset.gid = String(g.id);   // 📋 nhãn "đang dùng ở"
                 c.innerHTML = `
                     <img src="${g.image || ''}" onerror="this.style.display='none'"/>
                     <div class="obse-gp-nm">${escapeHtml(g.name || '')}</div>

@@ -659,6 +659,7 @@
             items.forEach(g => {
                 const row = document.createElement('div');
                 row.className = 'cgp-row' + (selectedId === String(g.id) ? ' active' : '');
+                row.dataset.gid = String(g.id);   // 📋 nhãn "đang dùng ở" (public/lib/gift-usage.js)
                 const img = g.image ? `<img class="cgp-icon" src="${escapeHtml(g.image)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'cgp-icon none',textContent:'🎁'}))" alt="" />`
                     : `<span class="cgp-icon none">🎁</span>`;
                 row.innerHTML = `${img}<span class="cgp-name">${escapeHtml(g.name || g.id)}</span><span class="cgp-dia">${g.diamond || 0}💎</span>`;

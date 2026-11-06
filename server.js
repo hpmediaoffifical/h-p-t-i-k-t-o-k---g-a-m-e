@@ -108,6 +108,7 @@ const { ObsCameraFeed } = require('./lib/touchplay-obs-feed');
 const CamRules = require('./lib/camgames');
 const OverlayPresence = require('./lib/overlay-presence');
 const GiftboardTT = require('./lib/giftboard-tt');
+const { addOverlayToScene } = require('./lib/obs-add-overlay');
 const CamSession = require('./lib/camgames-session');
 const { createCamObs } = require('./lib/camgames-obs');
 const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
@@ -842,9 +843,23 @@ function overlayPresenceSnapshot() {
 }
 function overlayPresenceBroadcast(force) {
     const snap = overlayPresenceSnapshot();
+    giftboardActiveSync(snap);
     if (!force && OverlayPresence.sameSnapshot(snap, overlayPresenceLast)) return;
     overlayPresenceLast = snap;
     io.emit('overlay:presence', snap);
+}
+// Bảng Quà Tổng đang mở trên OBS (+ đang bật, + "Ẩn bảng quà riêng của game" bật) → mọi overlay game ẩn bảng quà
+// riêng (overlay-hello.js thêm html.gb-active). Không đổi config đã lưu của game.
+let giftboardActiveLast = false;
+function giftboardActiveNow(snap) {
+    const cfg = appConfig.games?.giftboard || {};
+    return !!(snap.giftboard && snap.giftboard.open > 0) && cfg.enabled !== false && cfg.rules?.hideGameBoards !== false;
+}
+function giftboardActiveSync(snap) {
+    const on = giftboardActiveNow(snap || overlayPresenceSnapshot());
+    if (on === giftboardActiveLast) return;
+    giftboardActiveLast = on;
+    io.emit('giftboard:active', { on });
 }
 let lqHubOwnedLast = null;
 setInterval(() => {
@@ -1352,7 +1367,8 @@ function makeDefaultGiftBoardConfig() {
             touchplay: true, chemtraicay: true, dapmuoi: true, dacau: true, body: true,
             quaivat: true, nhatu: true, pokemon: true, creatoronline: true, duongveque: true, obsEffects: true },
         rules: { mergeSameGift: true, groupByGame: false, sort: 'game', showGeneric: true, onlyRunning: false, hideBirdGifts: true,
-            requireOverlay: true },  // chỉ game có overlay đang mở (OBS / LIVE Studio) mới lên bảng
+            requireOverlay: true,    // chỉ game có overlay đang mở (OBS / LIVE Studio) mới lên bảng
+            hideGameBoards: true },  // bảng đang mở trên OBS → ẩn bảng quà riêng của từng game (khỏi 2 bảng)
         visibility: {},              // gameId → 'always' | 'never' (thiếu = tự động: game bật / overlay đang mở)
         overrides: {}                // key "<game>|<nguồn>|<giftId>" → { hidden, label } — chỉ tác động lên bảng này
     };
@@ -7146,6 +7162,31 @@ app.post('/api/camgames/obs/add-overlay', async (req, res) => {
         res.json({ ok: true, ...r, check: await camObs.sceneCheck(await touchplayFeed.listScenes(), true) });
     } catch (e) { res.status(500).json({ ok: false, error: e?.message || String(e) }); }
 });
+// 📋 ➕ Thêm Bảng Quà Tổng vào Scene OBS (Scene chọn, không thì Scene đang phát) — lib/obs-add-overlay.js.
+// Link của mình = đúng cổng app + /_prototype/giftboard.html?mode=overlay (hoặc link chia sẻ /overlay/shared/<token>).
+function giftboardObsUrlIsMine(url) {
+    try {
+        const u = new URL(String(url || ''));
+        if (String(u.port || (u.protocol === 'https:' ? 443 : 80)) !== String(PORT)) return false;
+        if (/^\/_prototype\/giftboard\.html$/i.test(u.pathname)) return u.searchParams.get('mode') === 'overlay';
+        const tok = appConfig.shareTokens?.giftboard;
+        return !!tok && u.pathname === '/overlay/shared/' + tok;
+    } catch (_) { return false; }
+}
+app.post('/api/giftboard/obs/add', async (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'Chỉ bấm được trên máy chạy app' });
+    if (!obsBridge.isConnected()) return res.status(409).json({ ok: false, error: 'Chưa kết nối OBS WebSocket - vào ⚙ Cài đặt / Hiệu ứng OBS → Kết nối' });
+    try {
+        const r = await addOverlayToScene((type, data) => obsBridge.obs.call(type, data), {
+            url: `http://localhost:${PORT}/_prototype/giftboard.html?mode=overlay`,
+            isMine: giftboardObsUrlIsMine,
+            inputName: 'HP Bảng Quà Tổng',
+            scene: typeof req.body?.scene === 'string' ? req.body.scene.slice(0, 200) : ''
+        });
+        setTimeout(() => overlayObsScan(), 500);
+        res.json(r);
+    } catch (e) { res.status(500).json({ ok: false, error: e?.message || String(e) }); }
+});
 app.get('/api/touchplay/obs-sources', async (req, res) => {
     try {
         const r = await touchplayFeed.listSources();
@@ -12538,6 +12579,7 @@ io.on('connection', (socket) => {
     socket.data.trusted = socketIsTrusted(socket);
     const onTrusted = (event, handler) => socket.on(event, (...args) => { if (socket.data.trusted === true) handler(...args); });
     touchplayFeed.attach(socket);
+    socket.emit('giftboard:active', { on: giftboardActiveLast });   // 📋 overlay mới mở biết ngay có ẩn bảng quà riêng không
     // Default emits
     socket.emit('giftSheet', giftList);
     socket.emit('status', { connected: isTikTokLiveConnected(), username: currentUsername, roomId: currentRoomId });

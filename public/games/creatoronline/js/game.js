@@ -1600,7 +1600,7 @@ function tickHud(now, dt) {
     const where = social.onAirLabel(v, s, now) ?? (v.place?.kind === 'role' ? `${ROLE_INFO[v.place.role].icon} ${ROLE_INFO[v.place.role].label} ${clubRoom(v.place.club).def.name}` : v.place?.kind === 'room' ? `🎟️ ${states.get(v.place.roomId).title}` : v.place?.kind === 'stage' ? `💃 trên sân ${clubRoom(v.place.club).def.name}` : `${CLUB_NO[v.club]} ${clubRoom(v.club).def.name}`);
     hud.setOnAir({ name: v.name, avatar: v.avatar, label: where, remainSec: (s.endAt - now) / 1000, progress: (s.endAt - now) / Math.max(1, s.endAt - s.startAt) });
   } else hud.setOnAir(null);
-  hud.setLegend(hudLegend(), CFG.coShowGiftLegend);
+  hud.setLegend(hudLegend(), CFG.coShowGiftLegend && window.__hpGiftboardActive !== true);   // 📋 Bảng Quà Tổng mở → ẩn
   hud.setTopFans(sessionTop().slice(0, 3));
   hud.setJoinLines(joinLines(), CFG.coShowJoinHint);
   decor.setTickerLines(['★ CREATOR ONLINE ★', ...joinLines()]);

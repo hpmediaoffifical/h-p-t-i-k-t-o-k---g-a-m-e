@@ -183,6 +183,8 @@
   .dlab.regen .dt::after { content: ' ⟳ tự hồi'; color: #9dff7a; }
   @keyframes rg { to { filter: brightness(1.35); } }
   body.inapp #hint, body.inapp #conn { display: none; }
+  /* 📋 Bảng Quà Tổng đang mở trên OBS → ẩn bảng quà riêng (html.gb-active do /lib/overlay-hello.js) */
+  html.gb-active .colL, html.gb-active .colR { display: none !important; }
 </style>
 <script type="importmap">{ "imports": {
   "three": "/games/quaivat/vendor/three.module.min.js",

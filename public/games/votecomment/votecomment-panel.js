@@ -497,6 +497,7 @@
             const sel = pickerTargetRow?.giftId === String(g.id);
             const row = document.createElement('div');
             row.className = 'vc-giftpicker-row' + (sel ? ' active' : '');
+            row.dataset.gid = String(g.id);   // 📋 nhãn "đang dùng ở" (public/lib/gift-usage.js)
             const img = g.image
                 ? `<img class="vc-gp-icon-img" src="${escapeHtml(g.image)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'vc-gp-icon',textContent:'🎁'}))" alt="" />`
                 : `<span class="vc-gp-icon">🎁</span>`;

@@ -79,6 +79,8 @@
     body.offline #content { display: none; }
     body.offline #stage { background: transparent; }
     body.offline .debug-pill { display: none !important; }
+  /* 📋 Bảng Quà Tổng đang mở trên OBS → ẩn bảng quà riêng (html.gb-active do /lib/overlay-hello.js) */
+  html.gb-active .tt-badges { display: none !important; }
 </style>
 </head>
 <body>
