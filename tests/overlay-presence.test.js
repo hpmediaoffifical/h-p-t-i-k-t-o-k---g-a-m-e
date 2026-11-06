@@ -53,3 +53,24 @@ test('withHub: hub Game Camera mở → game đang chọn coi như mở', () => 
     assert.strictEqual(out.dacau.open, 1);
     assert.strictEqual(P.withHub(snap, false, ['chemtraicay']), snap);
 });
+
+test('gameIdFromOverlayUrl: link OBS → id game, bỏ link lạ / cổng khác / Bảng Quà Tổng', () => {
+    assert.strictEqual(P.gameIdFromOverlayUrl('http://hpaction.obs:3000/overlay/caro'), 'caro');
+    assert.strictEqual(P.gameIdFromOverlayUrl('http://localhost:3000/overlay/bancung?cam=1'), 'bancung');
+    assert.strictEqual(P.gameIdFromOverlayUrl('http://localhost:3000/_prototype/timer.html?mode=overlay'), 'timer');
+    assert.strictEqual(P.gameIdFromOverlayUrl('http://localhost:3000/_prototype/timer.html'), null);
+    assert.strictEqual(P.gameIdFromOverlayUrl('http://localhost:3000/_prototype/giftboard.html?mode=overlay'), null);
+    assert.strictEqual(P.gameIdFromOverlayUrl('http://localhost:3000/overlay/shared/abc'), null);
+    assert.strictEqual(P.gameIdFromOverlayUrl('https://www.youtube.com/watch?v=1'), null);
+    assert.strictEqual(P.gameIdFromOverlayUrl('file:///C:/x/overlay/caro'), null);
+    assert.strictEqual(P.gameIdFromOverlayUrl('rác'), null);
+    assert.strictEqual(P.gameIdFromOverlayUrl('http://localhost:3001/overlay/caro', 3000), null);
+    assert.strictEqual(P.gameIdFromOverlayUrl('http://localhost:3000/overlay/caro', 3000), 'caro');
+});
+
+test('withObsSources: chỉ chú thích inObs, không đổi open', () => {
+    const out = P.withObsSources({ caro: { open: 1, onAir: false, obs: true } }, ['caro', 'nhatla']);
+    assert.deepStrictEqual(out.caro, { open: 1, onAir: false, obs: true, inObs: true });
+    assert.deepStrictEqual(out.nhatla, { open: 0, onAir: false, obs: false, inObs: true });
+    assert.ok(!P.sameSnapshot(out, { ...out, nhatla: { open: 0, onAir: false, obs: false } }));
+});

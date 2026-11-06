@@ -53,7 +53,7 @@ Ghi đè tay trong app, theo game: **Tự động** (mặc định) / **Luôn hi
 - Server: `Map<gameId, Map<socketId, {lastSeen, onAir, obs}>>`. Xoá khi `disconnect` hoặc quá **20 s** không heartbeat. Hàm thuần: `touch(state, gameId, socketId, info, now)`, `drop(state, socketId)`, `snapshot(state, now)` → `{gameId: {open: n, onAir: bool}}`.
 - Server phát `overlay:presence` khi snapshot đổi (so sánh nông), kèm `GET /api/overlay-presence`.
 - **Game Camera**: hub `/overlay/camgames` đang mở ⇒ mọi game trong `camActives()` coi là mở (hub dùng `camHubOverlayOnline()` sẵn có). Link riêng cũ (vd `/overlay/bancung`) tự gửi hello như game thường. Overlay con trong iframe của hub KHÔNG gửi hello (tránh đếm đôi).
-- *(Chưa làm đợt này)* Đối chiếu obs-websocket (tuỳ chọn, chỉ khi OBS Bridge đang nối): tái dùng `refreshBrowserSources` (`lib/obs-bridge.js`) để biết link `/overlay/<id>` có trong OBS dù trang đang bị Shutdown → đánh dấu `inObs: true` (chỉ hiện chú thích trong app, không đổi trạng thái).
+- *(Đã làm 07/11)* Đối chiếu obs-websocket (chỉ khi OBS Bridge đang nối, 15s/lần + ngay khi nối; `listBrowserSourceUrls` + `gameIdFromOverlayUrl` đúng cổng app): tái dùng `refreshBrowserSources` (`lib/obs-bridge.js`) để biết link `/overlay/<id>` có trong OBS dù trang đang bị Shutdown → đánh dấu `inObs: true` (chỉ hiện chú thích trong app, không đổi trạng thái).
 - Bản thân bảng quà (`/overlay/giftboard`) không tính.
 
 ### 3.3 Chống nhấp nháy
@@ -134,3 +134,7 @@ Không đổi: luật `emitGift`, `camClaims`, config các game.
 - Overlay bị Shutdown khi ẩn → không có presence → game không vào `linked`. Giảm bằng ghi đè "Luôn hiện" + chú thích `inObs` từ obs-websocket.
 - Overlay cũ khách dán sẵn chưa có helper hello → chỉ hết khi cập nhật app (overlay phục vụ từ server nên cập nhật app là đủ).
 - Đếm nhầm preview trong app: helper tự bỏ qua `preview/review/demo` và iframe panel; kiểm thêm khi E2E.
+
+## 8. Thẻ chỉ hiện tên hành động (07/11/2026)
+
+User: bỏ tên quà gốc và số 💎 dưới thẻ — chỉ hiện tên trong cài đặt game hoặc tên tuỳ chỉnh. Dòng `.gb-gift` không vẽ nữa, bỏ ô "Tên quà + giá 💎", mặc định `showDiamond: false`. Tên quà gốc vẫn có trong bảng "Thẻ đang lên bảng" của app (để biết quà nào).

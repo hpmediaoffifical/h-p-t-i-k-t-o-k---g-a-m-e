@@ -290,7 +290,6 @@
           <div class="row"><label>Màu nhấn</label><div class="rng"><input type="color" data-cfg="display.accent"><span class="hint">viền thẻ, tag, tiêu đề</span></div></div>
           <div class="row"><label>Tiêu đề bảng</label><input type="text" maxlength="40" placeholder="vd: TẶNG QUÀ ĐỂ CHƠI (để trống = ẩn)" data-cfg="display.title"></div>
           <div class="chks">
-            <label class="chk"><input type="checkbox" data-cfg="display.showDiamond"> Tên quà + giá 💎</label>
             <label class="chk"><input type="checkbox" data-cfg="display.showGameIcon"> Icon game trước tên hiệu ứng</label>
             <label class="chk"><input type="checkbox" data-cfg="display.showCounter"> Viên đếm số thẻ</label>
             <label class="chk"><input type="checkbox" data-cfg="display.showTag"> Tag số (+5°, ×3, 30s…)</label>
@@ -410,7 +409,7 @@
           scale: 100,                                     // cỡ MẶC ĐỊNH cho khối mới (mỗi khối có scale riêng trong panels)
           iconScale: 100, nameScale: 100, gap: 80,
           layout: 'vertical', columns: 2, namePos: 'right', theme: 'dark', accent: '#ffb054', title: '',
-          showDiamond: true, showGameIcon: true, showCounter: true, showTag: true, pulseOnGift: true, showPanelTitle: true,
+          showDiamond: false, showGameIcon: true, showCounter: true, showTag: true, pulseOnGift: true, showPanelTitle: true,
           autoScroll: { enabled: false, visibleCount: 8, direction: 'up', speed: 2 }
         },
         panels: {},                                       // id → { xPercent, yPercent, scale, hidden } — nhớ riêng từng khối
@@ -732,7 +731,8 @@
       const ico = c.generic
         ? `<div class="gb-ico-emoji">${esc(gameMeta(c.gameId).icon)}</div>`
         : `<img class="gb-ico" src="${esc(c.image || FALLBACK_ICON)}" alt="" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_ICON}'">`;
-      const sub = d.showDiamond && !c.generic ? `<div class="gb-gift">${esc(c.giftName)}${c.diamond > 0 ? ` · 💎 ${Math.round(c.diamond)}` : ''}</div>` : '';
+      // Chỉ hiện tên hành động (cài đặt game / tên tuỳ chỉnh) — không hiện tên quà gốc + giá 💎 (user 07/11/2026).
+      const sub = '';
       return `<div class="gb-card name-${d.namePos}" data-gift="${esc(c.giftId)}" title="${esc(c.giftName)}">
         <div class="gb-ico-wrap">${ico}${tag ? `<span class="gb-tag">${esc(tag)}</span>` : ''}</div>
         <div class="gb-text"><div class="gb-name">${lines}</div>${sub}${warn}</div>
@@ -1012,6 +1012,7 @@
           : st === 'linked' ? `<span class="chip link" title="Game không bật nhưng overlay đang mở">🔗 ${esc(where)}</span>`
           : vis === 'never' ? '<span class="chip off">⚪ không hiện</span>'
           : !cfg.sources[id] ? '<span class="chip">⚪ bỏ chọn</span>'
+          : p && p.inObs ? '<span class="chip" title="Link có trong OBS nhưng trang chưa tải (nguồn đang ẩn / bật Shutdown source when not visible). Muốn luôn có trên bảng: chọn Luôn hiện.">⚪ có trong OBS, chưa tải</span>'
           : CAM_IDS.has(id) ? '<span class="chip off" title="Chưa chọn trong 🎥 Game Camera (Bắn Cung: chưa ▶ BẮT ĐẦU)">⚪ chưa chơi</span>'
           : run === false && gameEnabled(id) ? '<span class="chip">⚪ chưa chạy phiên</span>' : '<span class="chip off">⚪ TẮT ở Thư viện</span>';
         const sel = `<select data-vis="${id}" title="Tự động: theo game bật / overlay mở">${VIS_VALUES.map(v => `<option value="${v}" ${v === vis ? 'selected' : ''}>${{ auto: 'Tự động', always: 'Luôn hiện', never: 'Không hiện' }[v]}</option>`).join('')}</select>`;

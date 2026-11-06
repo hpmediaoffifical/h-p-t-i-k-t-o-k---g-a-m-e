@@ -87,3 +87,29 @@ test('urlOnPort', () => {
     assert.equal(urlOnPort('không phải url', 3000), false);
     assert.equal(urlOnPort('', 3000), false);
 });
+
+// 📋 Bảng Quà Tổng: đọc URL mọi Browser Source → id game (lib/overlay-presence gameIdFromOverlayUrl, đúng cổng app).
+test('listBrowserSourceUrls + gameIdFromOverlayUrl: link game nào nằm trong OBS', async () => {
+    const { gameIdFromOverlayUrl } = require('../lib/overlay-presence');
+    const { bridge, pressed } = fakeBridge({
+        'Caro': { url: 'http://hpaction.obs:3000/overlay/caro' },
+        'Hub': { url: 'http://localhost:3000/overlay/camgames' },
+        'Giờ': { url: 'http://localhost:3000/_prototype/timer.html?mode=overlay' },
+        'Bảng quà': { url: 'http://localhost:3000/_prototype/giftboard.html?mode=overlay' },
+        'NPC hub': { url: 'http://hpnpc.obs:3001/overlay/camgames' },
+        'Lỗi đọc': { url: 'http://localhost:3000/overlay/nhatla', fail: true },
+        'Camera': { kind: 'dshow_input', url: 'x' },
+    });
+    const r = await bridge.listBrowserSourceUrls();
+    assert.equal(r.ok, true);
+    assert.deepEqual(pressed, []);                                    // chỉ đọc, không bấm gì
+    assert.equal(r.sources.length, 5);
+    const ids = r.sources.map(s => gameIdFromOverlayUrl(s.url, PORT)).filter(Boolean);
+    assert.deepEqual(ids, ['caro', 'camgames', 'timer']);
+});
+
+test('listBrowserSourceUrls: chưa nối OBS → ok:false, danh sách rỗng', async () => {
+    const { bridge } = fakeBridge({});
+    bridge.connected = false;
+    assert.deepEqual(await bridge.listBrowserSourceUrls(), { ok: false, reason: 'disconnected', sources: [] });
+});

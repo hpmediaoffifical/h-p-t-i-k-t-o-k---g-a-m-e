@@ -833,8 +833,11 @@ function levelQuestHubOwned() { return camGameInHub('level-quest') && camHubOver
 // Hub 🎥 Game Camera đang mở → game camera đang chọn tính là mở. Phát `overlay:presence` khi đổi.
 const overlayPresence = OverlayPresence.createPresence();
 let overlayPresenceLast = {};
+let overlayObsIds = [];              // game có Browser Source trong OBS (đọc qua OBS WebSocket, 15s/lần) — chỉ chú thích
 function overlayPresenceSnapshot() {
-    return OverlayPresence.withHub(OverlayPresence.snapshot(overlayPresence, Date.now()), camHubOverlayOnline(), camActives());
+    const snap = OverlayPresence.withHub(OverlayPresence.snapshot(overlayPresence, Date.now()), camHubOverlayOnline(), camActives());
+    const ids = overlayObsIds.includes('camgames') ? [...new Set([...overlayObsIds, ...camActives()])] : overlayObsIds;
+    return OverlayPresence.withObsSources(snap, ids);
 }
 function overlayPresenceBroadcast(force) {
     const snap = overlayPresenceSnapshot();
@@ -1337,7 +1340,7 @@ function makeDefaultGiftBoardConfig() {
             theme: 'dark',           // dark | glass | neon | light
             accent: '#ffb054',
             title: '',               // '' = không hiện tiêu đề
-            showDiamond: true, showGameIcon: true, showCounter: true, showTag: true, pulseOnGift: true, showPanelTitle: true,
+            showDiamond: false, showGameIcon: true, showCounter: true, showTag: true, pulseOnGift: true, showPanelTitle: true,
             autoScroll: { enabled: false, visibleCount: 8, direction: 'up', speed: 2 }
         },
         // Mỗi khối nhớ vị trí/cỡ/ẩn-hiện RIÊNG: 'main' | 'col1'.. | 'g:<gameId>'. Client tự điền khi khối xuất hiện.
@@ -1868,6 +1871,8 @@ function obsBridgeAutoRefreshOverlays(reason) {
 // obs-websocket-js phát 'Identified' sau khi kết nối + xác thực xong (đủ điều kiện gọi request).
 // Bắt ở đây để cover cả 2 case: app mở khi OBS đã chạy, VÀ OBS mở sau app (reconnect thành công).
 try { obsBridge.obs.on('Identified', () => obsBridgeAutoRefreshOverlays('OBS connected')); } catch (e) {}
+// 📋 Bảng Quà Tổng: vừa nối OBS → đọc ngay link game nào nằm trong OBS (không chờ 15s).
+try { obsBridge.obs.on('Identified', () => setTimeout(() => overlayObsScan(), 2000)); } catch (e) {}
 // TOUCH & PLAY: chụp nguồn camera TRONG scene OBS (không mở webcam riêng) gửi overlay nhận diện.
 // Chỉ chạy khi có overlay đăng ký 'touchplay:feed'. Cấu hình lấy từ tpCfg mà lab lưu.
 // 📷 Tự nhận camera: Scene đang phát có "Thiết bị quay video" (dshow…) → dùng khi streamer chưa chọn nguồn camera.
@@ -12895,6 +12900,26 @@ setInterval(() => {
     OverlayPresence.prune(overlayPresence, Date.now());
     overlayPresenceBroadcast();
 }, 3000).unref();
+// Đối chiếu OBS WebSocket: link game nào nằm trong OBS, kể cả nguồn bật "Shutdown when not visible" (trang chưa tải).
+let overlayObsScanBusy = false;
+async function overlayObsScan() {
+    if (overlayObsScanBusy) return;
+    if (!obsBridge.connected) { if (overlayObsIds.length) { overlayObsIds = []; overlayPresenceBroadcast(); } return; }
+    overlayObsScanBusy = true;
+    try {
+        const r = await obsBridge.listBrowserSourceUrls();
+        if (!r.ok) return;
+        const ids = new Set();
+        for (const s of r.sources) {
+            const id = OverlayPresence.gameIdFromOverlayUrl(s.url, PORT);
+            if (id && GAMES[id]) ids.add(id);
+        }
+        overlayObsIds = [...ids].sort();
+        overlayPresenceBroadcast();
+    } catch (_) {
+    } finally { overlayObsScanBusy = false; }
+}
+setInterval(overlayObsScan, 15000).unref();
 
 httpServer.on('error', (e) => {
     const hint = e.code === 'EADDRINUSE' ? ' — port đang bận (HP Action LIVE khác đang chạy?)'
