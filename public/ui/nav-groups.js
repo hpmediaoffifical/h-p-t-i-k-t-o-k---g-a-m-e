@@ -3,14 +3,13 @@
 (function (root) {
     const GROUPS = [
         { id: 'gift', label: 'Game quà' },
-        { id: 'camera', label: 'Game Camera' },
-        { id: 'tuongtac', label: 'Game Tương Tác' },
+        { id: 'hubs', label: 'Nhóm game' },   // 🎥 Game Camera + 🎮 Game Tương Tác (mỗi mục mở menu game con)
         { id: 'fx', label: 'Hiệu ứng & PK' },
         { id: 'tools', label: 'Công cụ' }
     ];
     const BY_ID = {
-        camgames: 'camera',
-        gametuongtac: 'tuongtac',
+        camgames: 'hubs',
+        gametuongtac: 'hubs',
         pktiktok: 'fx', vipwelcome: 'fx', leaguecard: 'fx', 'obs-effects': 'fx',
         liveTranslate: 'tools', timer: 'tools', giftboard: 'tools'
     };

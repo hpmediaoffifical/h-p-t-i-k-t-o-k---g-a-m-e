@@ -5,8 +5,9 @@ const NG = require('../public/ui/nav-groups.js');
 
 test('groupOf xếp đúng nhóm, id lạ về Game quà', () => {
     assert.strictEqual(NG.groupOf('thuytinh'), 'gift');
-    assert.strictEqual(NG.groupOf('camgames'), 'camera');
-    assert.strictEqual(NG.groupOf('gametuongtac'), 'tuongtac');
+    // 2 mục nhóm (Game Camera, Game Tương Tác) chung 1 tiêu đề — tránh "GAME CAMERA / Game Camera" lặp chữ
+    assert.strictEqual(NG.groupOf('camgames'), 'hubs');
+    assert.strictEqual(NG.groupOf('gametuongtac'), 'hubs');
     assert.strictEqual(NG.groupOf('pktiktok'), 'fx');
     assert.strictEqual(NG.groupOf('obs-effects'), 'fx');
     assert.strictEqual(NG.groupOf('liveTranslate'), 'tools');
@@ -22,6 +23,6 @@ test('group() theo thứ tự GROUPS, giữ thứ tự game trong nhóm, bỏ nh
     assert.ok(out[0].label.length > 0);
 });
 
-test('GROUPS có đủ 5 nhóm theo thứ tự', () => {
-    assert.deepStrictEqual(NG.GROUPS.map(g => g.id), ['gift', 'camera', 'tuongtac', 'fx', 'tools']);
+test('GROUPS có đủ 4 nhóm theo thứ tự', () => {
+    assert.deepStrictEqual(NG.GROUPS.map(g => g.id), ['gift', 'hubs', 'fx', 'tools']);
 });

@@ -586,6 +586,8 @@
             const div = document.createElement('div');
             div.className = 'game-item' + (g.locked ? ' locked' : '') + (paused ? ' paused' : '');
             div.dataset.id = g.id;
+            // 🎨 Thanh bên 1 dòng/mục: dòng phụ (tóm tắt nhóm / "Đang phát triển") hiện ở tooltip
+            div.title = g.hub ? ttHubSummary() : (!paused && !g.locked && !STABLE_GAMES.has(g.id) ? GAME_DEVELOPMENT_NOTICE : '');
             // Determine if game has 'enabled' field in its config (pktiktok + vipwelcome)
             const cfg = g.config || {};
             const hasEnabledField = ('enabled' in cfg);
@@ -680,7 +682,7 @@
     function syncSideToggle(gameId) {
         if (TT_CHILD_GAMES.has(gameId)) {
             const sum = document.querySelector('[data-hub-sum]');
-            if (sum) sum.textContent = ttHubSummary();
+            if (sum) { sum.textContent = ttHubSummary(); sum.closest('.game-item')?.setAttribute('title', sum.textContent); }
         }
         const g = games.find(x => x.id === gameId);
         const btn = document.querySelector(`[data-game-toggle="${gameId}"]`);
