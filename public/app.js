@@ -384,7 +384,11 @@
         const sbDot = document.getElementById('sb-dot');
         if (sbDot) { sbDot.className = 'dot' + (state ? ' ' + state : ''); }
         const sbText = document.getElementById('sb-tiktok');
-        if (sbText) sbText.textContent = 'TikTok · ' + text;
+        if (sbText) {
+            sbText.textContent = 'TikTok · ' + text;
+            // Gợi ý 8: rớt LIVE giữa buổi (đang tự nối lại) hoặc lỗi → statusbar báo đỏ cho dễ thấy
+            sbText.parentElement?.classList.toggle('sb-alert', state === 'error' || (state === 'connecting' && /mất kết nối|nối lại/i.test(text)));
+        }
     }
     function showView(viewId) {
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -717,11 +721,12 @@
         set('hr-games', on ? 'ok' : 'warn', `${on}/${list.length} game & công cụ đang bật`);
         const sbGames = document.getElementById('sb-games');
         if (sbGames) sbGames.textContent = `${on} game đang bật`;
+        window.HpHomeLive?.renderGames?.();   // Trang chủ "Game đang bật" theo công tắc mới nhất
     }
     // Ctrl K (public/ui/cmdk.js) đọc danh sách game đang hiện + link OBS
     window.hpGameIndex = () => (games || [])
         .filter(g => !LIBRARY_HIDDEN.has(g.id) && g.lstate !== 'hidden')
-        .map(g => ({ id: g.id, name: g.name, icon: g.icon, overlayPath: g.overlayPath || '', on: isGameEnabled(g), locked: !!g.locked }));
+        .map(g => ({ id: g.id, name: g.name, icon: g.icon, overlayPath: g.overlayPath || '', on: isGameEnabled(g), locked: !!g.locked, camChild: CAM_CHILD_GAMES.has(g.id) }));
     // Host overlay ở statusbar: tính lại khi /api/overlay/share-links trả về (máy chưa map hosts → localhost)
     function renderSbHost() {
         try {
@@ -4113,6 +4118,8 @@
         // tin từ server đẩy cho preview/overlay — preview cũng đã xử lý qua 'gift' event
     });
     socket.on('member', (m) => appendSystem(`👋 ${m.nickname || m.uniqueId} đã vào LIVE`));
+    // 🎨 Trang chủ "Hoạt động LIVE" (public/ui/home-live.js) nghe cùng socket
+    window.HpHomeLive?.bind?.(socket);
     socket.on('social', (s) => appendSystem(`💗 ${s.nickname || s.uniqueId} ${s.label || ''}`));
     socket.on('roomUser', (r) => {
         if (typeof r.viewerCount === 'number' && dom.lstatViewer) dom.lstatViewer.textContent = fmtNum(r.viewerCount);

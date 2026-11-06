@@ -133,6 +133,11 @@
                         <div class="hr-card idle" id="hr-license"><span class="hr-ico"><svg class="ui-i" aria-hidden="true"><use href="#ui-shield"/></svg></span><div class="hr-txt"><b>Bản quyền</b><span class="hr-sub">Đang kiểm tra…</span></div></div>
                         <div class="hr-card idle" id="hr-games"><span class="hr-ico"><svg class="ui-i" aria-hidden="true"><use href="#ui-play"/></svg></span><div class="hr-txt"><b>Game</b><span class="hr-sub">—</span></div></div>
                     </div>
+                    <!-- 🎨 Gợi ý 1/2: game đang bật (link OBS + Copy + công tắc) & hoạt động LIVE — public/ui/home-live.js -->
+                    <div class="home-duo">
+                        <section class="hl-card"><div class="hl-head"><h2>Game đang bật</h2><span class="hl-count" id="home-games-count">0</span></div><div class="hl-games" id="home-games-list"></div></section>
+                        <section class="hl-card"><div class="hl-head"><h2>Hoạt động LIVE</h2></div><div class="hl-feed" id="home-feed-list"></div></section>
+                    </div>
                     <div class="home-head">
                         <div class="home-head-txt">
                             <h2>🚀 Khởi động nhanh</h2>
@@ -2485,6 +2490,7 @@
         <footer class="statusbar">
             <span class="sb-item"><span class="dot" id="sb-dot"></span><span id="sb-tiktok">TikTok chưa kết nối</span></span>
             <span class="sb-item" id="sb-games"></span>
+            <span class="sb-item" id="sb-obs" hidden><span class="dot"></span><span>OBS</span></span>
             <span class="sb-grow"></span>
             <span class="sb-item">Máy chủ overlay <b id="sb-host">—</b></span>
             <span class="sb-item" id="sb-version"></span>
@@ -3127,6 +3133,8 @@
     <script src="/ui/nav-groups.js"></script>
     <script src="/ui/cmdk.js"></script>
     <script src="/ui/ui-text.js"></script>
+    <script src="/ui/header-bar.js"></script>
+    <script src="/ui/home-live.js"></script>
     <script src="/app.js"></script>
 </body>
 </html>
