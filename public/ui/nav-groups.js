@@ -10,7 +10,7 @@
     const BY_ID = {
         camgames: 'hubs',
         gametuongtac: 'hubs',
-        pktiktok: 'fx', vipwelcome: 'fx', leaguecard: 'fx', 'obs-effects': 'fx',
+        pktiktok: 'fx', vipwelcome: 'fx', leaguecard: 'fx',
         liveTranslate: 'tools', timer: 'tools', giftboard: 'tools'
     };
     function groupOf(id) { return BY_ID[id] || 'gift'; }

@@ -1646,10 +1646,10 @@ if (!appConfig.obsBridge) {
 if (!Array.isArray(appConfig.obsBridge.groupsDisabled)) {
     appConfig.obsBridge.groupsDisabled = [];
 }
-// Backward-compat: config cũ chưa có cờ master → mặc định BẬT
-if (typeof appConfig.obsBridge.enabled !== 'boolean') {
-    appConfig.obsBridge.enabled = true;
-}
+// 🎬 Hiệu ứng OBS (quà → Scene/hotkey) ĐÃ GỠ khỏi app (06/11/2026). Kết nối OBS WebSocket vẫn giữ —
+// Game Camera / Chém Trái Cây lấy hình nguồn camera qua nó (⚙ Cài đặt → OBS & Overlay).
+const OBS_EFFECTS_REMOVED = true;
+appConfig.obsBridge.enabled = false;
 
 // ====== LUA Duration Registry ======
 // Map hotkey name → suggested duration ms (auto-fill khi user pick effect).
@@ -1844,7 +1844,7 @@ function obsBridgeEnqueueForGift(giftId, repeatCount, opts = {}) {
     if (!giftId) return { enqueued: 0, reason: 'no-gift-id' };
     // ⛔ Master OFF: "Hiệu ứng OBS" đã TẮT trong 🎮 Thư viện Game → KHÔNG nhận quà, không trigger
     // bất kỳ effect nào (kể cả quà test). Đây là cổng chặn chính ở server.
-    if (appConfig.obsBridge && appConfig.obsBridge.enabled === false) {
+    if (OBS_EFFECTS_REMOVED || (appConfig.obsBridge && appConfig.obsBridge.enabled === false)) {
         return { enqueued: 0, reason: 'obs-effects-disabled' };
     }
     const mapping = (appConfig.obsBridge && appConfig.obsBridge.mapping) || [];
@@ -12088,7 +12088,8 @@ app.put('/api/obs-bridge/config', express.json(), (req, res) => {
     if (typeof body.enabled === 'boolean') {
         // Tính năng theo KEY: Hiệu ứng OBS bị khoá thì không bật được (nhớ ý muốn bật để mở khoá thì tự bật).
         const L = licenseLocks();
-        if (body.enabled && !featureOn('obs-effects')) { appConfig.obsBridge.enabled = false; L.obsBridge = true; }
+        if (OBS_EFFECTS_REMOVED) appConfig.obsBridge.enabled = false;   // đã gỡ: không bật lại được
+        else if (body.enabled && !featureOn('obs-effects')) { appConfig.obsBridge.enabled = false; L.obsBridge = true; }
         else { appConfig.obsBridge.enabled = body.enabled; delete L.obsBridge; }
     }
     if (typeof body.url === 'string') appConfig.obsBridge.url = body.url.trim();
@@ -12193,6 +12194,18 @@ app.post('/api/obs-bridge/trigger', express.json(), async (req, res) => {
 // ====== 🚀 Quick Launch — cửa sổ điều khiển nhanh tách rời, always-on-top ======
 app.get('/quick-launch', (req, res) =>
     res.sendFile(path.join(__dirname, 'public', 'quick-launch.html')));
+// 🎨 Trang chủ: công tắc tự mở cửa sổ Khởi động nhanh khi khởi động app (Electron giữ prefs; chạy server
+// riêng không có Electron thì báo available:false để trang ẩn công tắc).
+app.get('/api/quick-launch/auto-open', (req, res) => {
+    const h = global.__qlAutoOpen;
+    res.json(h ? { available: true, on: !!h.get() } : { available: false, on: false });
+});
+app.put('/api/quick-launch/auto-open', express.json(), (req, res) => {
+    const h = global.__qlAutoOpen;
+    if (!h) return res.status(409).json({ ok: false, available: false });
+    h.set(!!(req.body && req.body.on));
+    res.json({ ok: true, on: !!h.get() });
+});
 
 // ====== 📦 Danh sách quà — cửa sổ tách rời, ghim trên cùng (test quà mọi game) ======
 app.get('/gift-list', (req, res) =>

@@ -9,7 +9,6 @@ test('groupOf xếp đúng nhóm, id lạ về Game quà', () => {
     assert.strictEqual(NG.groupOf('camgames'), 'hubs');
     assert.strictEqual(NG.groupOf('gametuongtac'), 'hubs');
     assert.strictEqual(NG.groupOf('pktiktok'), 'fx');
-    assert.strictEqual(NG.groupOf('obs-effects'), 'fx');
     assert.strictEqual(NG.groupOf('liveTranslate'), 'tools');
     assert.strictEqual(NG.groupOf('timer'), 'tools');
     assert.strictEqual(NG.groupOf('game-moi-chua-biet'), 'gift');

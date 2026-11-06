@@ -56,15 +56,24 @@
                     cp.addEventListener('click', (e) => { e.stopPropagation(); copy(it); });
                     row.appendChild(cp);
                 }
-                row.addEventListener('mousemove', () => { if (sel !== i) { sel = i; render(); } });
+                row.addEventListener('mousemove', () => { if (sel !== i) setSel(i, false); });
                 row.addEventListener('click', () => open(it));
                 list.appendChild(row);
             });
         }
+        // Đổi dòng chọn KHÔNG dựng lại danh sách (dựng lại = mất vị trí cuộn); phím ↑↓ cuộn theo
+        function setSel(i, scroll) {
+            const rows = list.querySelectorAll('.cmdk-opt');
+            if (!rows.length) return;
+            sel = Math.max(0, Math.min(rows.length - 1, i));
+            rows.forEach((r, k) => r.classList.toggle('sel', k === sel));
+            if (scroll) rows[sel].scrollIntoView({ block: 'nearest' });
+        }
         function open(it) { close(); if (it && root.hpOpenGame) root.hpOpenGame(it.id); }
         function copy(it) {
             const url = root.buildOverlayURL(it.overlayPath);
-            const done = () => { if (root.hpToast) root.hpToast('Đã copy link OBS: ' + it.name); };
+            const say = root.toast || root.hpToast;   // window.toast do app.js xuất
+            const done = () => { if (say) say('Đã copy link OBS: ' + it.name, 'success'); };
             (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(done).catch(() => { root.prompt && root.prompt('Link OBS', url); });
         }
         function show() {
@@ -78,8 +87,8 @@
                 box.addEventListener('mousedown', (e) => { if (e.target === box) close(); });
                 input.addEventListener('input', () => { sel = 0; render(); });
                 input.addEventListener('keydown', (e) => {
-                    if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(items.length - 1, sel + 1); render(); }
-                    else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(0, sel - 1); render(); }
+                    if (e.key === 'ArrowDown') { e.preventDefault(); setSel(sel + 1, true); }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); setSel(sel - 1, true); }
                     else if (e.key === 'Enter') { e.preventDefault(); open(items[sel]); }
                     else if (e.key === 'Escape') { e.preventDefault(); close(); }
                 });

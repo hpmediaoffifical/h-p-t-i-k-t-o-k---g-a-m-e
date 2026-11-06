@@ -152,7 +152,7 @@ body.ui-v2 .topbar .conn-row {
     background: var(--ui-surface); border: 1px solid var(--ui-line-strong); border-radius: 10px;
 }
 body.ui-v2 .topbar .conn-row:focus-within { border-color: var(--ui-brand); box-shadow: 0 0 0 3px rgba(255, 45, 111, .12); }
-body.ui-v2 .topbar .conn-row .at { color: var(--ui-muted); font-weight: 600; }
+body.ui-v2 .topbar .conn-row .at { display: none; }   /* ID TikTok không có @ */
 body.ui-v2 .topbar .conn-row input { font-weight: 600; color: var(--ui-ink); font-size: 13.5px; }
 body.ui-v2 .topbar .conn-actions { display: flex; }
 body.ui-v2 .topbar #btn-connect { height: 38px; padding: 0 16px; border-radius: 10px; white-space: nowrap; }
@@ -286,6 +286,28 @@ body.ui-v2 #pokemon-panel .pokemon-status { color: var(--ui-muted); }
 body.ui-v2 #pokemon-panel .pokemon-status.on { color: var(--ui-ok-ink); }
 body.ui-v2 .cgt-switch { color: var(--ui-ink-2); }
 
+/* ⚙ Cài đặt → Kết nối OBS WebSocket (chuyển từ màn Hiệu ứng OBS đã gỡ) */
+body.ui-v2 .st-obs-ws { margin: 10px 0; padding: 12px; border: 1px solid var(--ui-line); border-radius: 12px; background: var(--ui-subtle); }
+body.ui-v2 .st-obs-ws-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+body.ui-v2 .st-obs-ws .obse-form { display: flex; flex-direction: column; gap: 8px; }
+body.ui-v2 .st-obs-ws .obse-label { display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ui-ink-2); }
+body.ui-v2 .st-obs-ws .obse-input { height: 32px; padding: 0 10px; border: 1px solid var(--ui-line-strong); border-radius: 8px; background: var(--ui-surface); color: var(--ui-ink); }
+body.ui-v2 .st-obs-ws .obse-actions { display: flex; gap: 8px; }
+
+/* ===== Form gọn: nhãn 1 dòng (đủ chữ ở tooltip — ui-text.js), ô số hẹp sát phải, hàng thấp ===== */
+body.ui-v2 .main input[type="number"] { max-width: 110px; }
+body.ui-v2 .main :is(.nt-row > span, .qv-row > span, .ctc-row > label, .cfg-row > label) {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+body.ui-v2 .nt-row { grid-template-columns: minmax(0, 1fr) minmax(96px, 260px); gap: 12px; margin-bottom: 2px; min-height: 34px; }
+body.ui-v2 .nt-row input, body.ui-v2 .nt-row select { padding: 5px 9px; height: 30px; }
+body.ui-v2 .nt-row input[type="number"] { width: 96px; justify-self: end; text-align: right; }
+body.ui-v2 .qv-row { grid-template-columns: minmax(0, 1fr) minmax(96px, 260px); }
+body.ui-v2 .qv-row input[type="number"] { width: 96px; justify-self: end; text-align: right; }
+body.ui-v2 .ctc-row { grid-template-columns: minmax(0, 200px) minmax(0, 1fr) 72px 48px; padding: 3px 0; }
+body.ui-v2 .ctc-row input[type="number"] { width: 72px; text-align: right; }
+body.ui-v2 .main select { max-width: 100%; text-overflow: ellipsis; }
+
 /* ===== Trang chủ ===== */
 body.ui-v2 .home-hero { padding: 24px 28px 28px; }
 body.ui-v2 .home-welcome h1 { font-size: 24px; font-weight: 700; letter-spacing: -.02em; color: var(--ui-ink); margin: 0 0 4px; }
@@ -303,6 +325,13 @@ body.ui-v2 .hr-txt b { display: block; font-size: 14px; font-weight: 600; color:
 body.ui-v2 .hr-sub { display: block; font-size: 12.5px; color: var(--ui-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 body.ui-v2 .home-head h2 { font-size: 17px; font-weight: 700; color: var(--ui-ink); margin: 0 0 2px; }
 body.ui-v2 .home-head .hero-sub, body.ui-v2 .home-hint { display: none; }
+body.ui-v2 .home-ql-auto { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 500; color: var(--ui-ink-2); cursor: pointer; margin-right: 4px; }
+body.ui-v2 .home-ql-auto[hidden] { display: none; }
+/* Công tắc gạt chung */
+body.ui-v2 input.ui-switch { appearance: none; -webkit-appearance: none; width: 36px; height: 20px; margin: 0; border-radius: 999px; background: var(--ui-line-strong); position: relative; cursor: pointer; transition: background .15s; flex: none; }
+body.ui-v2 input.ui-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .2); transition: left .15s; }
+body.ui-v2 input.ui-switch:checked { background: #1FB357; }
+body.ui-v2 input.ui-switch:checked::after { left: 18px; }
 
 /* Gọn: dòng giải thích dài trong panel → 1 dòng (thẻ game 2 dòng), đủ chữ ở tooltip (ui-text.js đặt title) */
 body.ui-v2 .main :is(.hint, .nd-hint, .nd-help, .nt-hint, .qv-hint, .cg-sec-hint, .lcp-note, .caro-music-hint,

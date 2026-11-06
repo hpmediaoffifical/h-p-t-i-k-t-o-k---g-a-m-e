@@ -2,7 +2,7 @@
 // gạch dài "—"/"–" → "-", chính tả mặc định TikTok / LIVE / Creator; không đụng URL, id, tên file.
 const test = require('node:test');
 const assert = require('node:assert');
-const { normalizeText } = require('../public/ui/ui-text.js');
+const { normalizeText, sanitizeTiktokId } = require('../public/ui/ui-text.js');
 
 test('gạch ngang dài → "-"', () => {
     assert.strictEqual(normalizeText('Hũ Thủy Tinh — quà rơi'), 'Hũ Thủy Tinh - quà rơi');
@@ -21,6 +21,13 @@ test('chính tả mặc định TikTok / LIVE / Creator', () => {
 test('không đụng URL, đường dẫn, tên có gạch nối hay gạch dưới', () => {
     const keep = ['http://hpaction.obs:3000/overlay/live-translate', 'hp-live-kit', 'tiktok_fan', '/listen/caption.live', 'livestream', 'liveTranslate'];
     for (const s of keep) assert.strictEqual(normalizeText(s), s);
+});
+
+test('ô ID TikTok: chữ hoa → thường, bỏ @ và ký tự đặc biệt (chỉ a-z 0-9 . _)', () => {
+    assert.strictEqual(sanitizeTiktokId('@HP.Media_Official'), 'hp.media_official');
+    assert.strictEqual(sanitizeTiktokId(' anh hang! #1 '), 'anhhang1');
+    assert.strictEqual(sanitizeTiktokId('Tiến'), 'tin');
+    assert.strictEqual(sanitizeTiktokId(''), '');
 });
 
 test('chuỗi rỗng / không phải chuỗi trả nguyên', () => {

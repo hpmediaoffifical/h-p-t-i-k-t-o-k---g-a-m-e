@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="vi">
+<html lang="vi" data-ui-text="1">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -431,6 +431,8 @@
         --blue: #2F6FEB;
     }
     html.embed.ui-v2, html.embed.ui-v2 body { font-family: "Be Vietnam Pro", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+    /* Gọn: mô tả dài trong ⚙ Cài đặt → tooltip trên dòng (script cuối trang) */
+    .stg-desc, .stg-note { display: none !important; }
     </style>
 </head>
 <body>
@@ -1460,6 +1462,11 @@
         if (!EMBED) fetchLastUsername();
         updateConnUi();
     })();
+    </script>
+    <script src="/ui/ui-text.js"></script>
+    <script>
+        // Mô tả dài của từng dòng cài đặt → tooltip (chữ vẫn đọc được khi rê chuột)
+        document.querySelectorAll('.stg-desc').forEach((d) => { const row = d.closest('.stg-row'); if (row && !row.title) row.title = d.textContent.trim(); });
     </script>
 </body>
 </html>

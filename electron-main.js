@@ -708,6 +708,12 @@ function saveQuickLaunchPrefs(patch) {
     if (qlSaveTimer) clearTimeout(qlSaveTimer);
     qlSaveTimer = setTimeout(() => { qlSaveTimer = null; writeQuickLaunchPrefsNow(); }, 250);
 }
+// 🎨 Công tắc "Tự mở Khởi động nhanh khi khởi động" ở Trang chủ app chính → server gọi qua hook này
+// (cùng tiến trình; đi qua cache prefs nên không bị ghi đè bởi lần lưu vị trí cửa sổ sau đó).
+global.__qlAutoOpen = {
+    get: () => loadQuickLaunchPrefs().autoOpen !== false,
+    set: (on) => saveQuickLaunchPrefs({ autoOpen: !!on })
+};
 // qlLayout = bố cục đang dùng → mọi lần lưu bounds ghi vào đúng slot này.
 let qlLayout = 'doc';
 const QL_MIN_W = 240;   // khớp W_MIN trong public/quick-launch.html (Dọc ôm sát ~260px)

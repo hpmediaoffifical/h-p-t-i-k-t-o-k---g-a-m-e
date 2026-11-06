@@ -88,7 +88,7 @@
             <div class="topbar-conn">
                 <div class="conn-row" id="conn-row">
                     <span class="at">@</span>
-                    <input id="username" type="text" placeholder="username đang LIVE" autocomplete="off" />
+                    <input id="username" type="text" placeholder="ID TikTok" autocomplete="off" spellcheck="false" autocapitalize="none" maxlength="40" />
                     <!-- Lịch sử ID đã từng connect thành công (chia sẻ localStorage với cửa sổ Khởi động nhanh) -->
                     <div id="username-sugg" class="user-sugg" role="listbox"></div>
                 </div>
@@ -111,7 +111,6 @@
                     <div class="side-fab"><button id="comments-fab" class="comments-fab" title="Bình luận LIVE"><svg class="ui-i" aria-hidden="true"><use href="#ui-chat"/></svg><span class="badge" id="comments-badge" hidden>0</span></button><span class="side-fab-lbl">Bình luận</span></div>
                     <div class="side-fab"><button id="unknown-fab" class="comments-fab unknown-fab" title="Quà mới — quà chưa có trong danh sách"><svg class="ui-i" aria-hidden="true"><use href="#ui-gift-new"/></svg><span class="badge" id="unknown-badge" hidden>0</span></button><span class="side-fab-lbl">Quà mới</span></div>
                     <div class="side-fab"><button id="btn-open-soundfx" class="side-soundfx-circle" title="Sound Effects — app hiệu ứng âm thanh"><svg class="ui-i" aria-hidden="true"><use href="#ui-sound"/></svg></button><span class="side-fab-lbl">Âm thanh</span></div>
-                    <div class="side-fab"><button id="quick-launch-fab" class="quick-launch-fab" title="Khởi động nhanh — cửa sổ nổi luôn trên cùng"><svg class="ui-i" aria-hidden="true"><use href="#ui-rocket"/></svg></button><span class="side-fab-lbl">Khởi động</span></div>
                     <div class="side-fab"><button id="btn-open-settings" class="side-settings-circle" title="Cài đặt"><svg class="ui-i" aria-hidden="true"><use href="#ui-gear"/></svg></button><span class="side-fab-lbl">Cài đặt</span></div>
                 </div>
         </header>
@@ -141,6 +140,7 @@
                         </div>
                         <div class="home-actions">
                             <button id="home-ql-sort" class="ghost small" type="button" title="Sắp xếp thứ tự và ẩn/hiện game">⇅ Sắp xếp &amp; ẩn game</button>
+                            <label class="home-ql-auto" id="home-ql-auto-wrap" hidden title="Tự mở cửa sổ Khởi động nhanh mỗi lần mở app"><input type="checkbox" id="home-ql-auto" class="ui-switch" /><span>Tự mở khi khởi động</span></label>
                             <button id="home-ql-popout" class="ghost small" type="button" title="Mở cửa sổ Khởi động nhanh nổi luôn trên cùng — tiện điều khiển khi đang LIVE">🚀 Cửa sổ nổi</button>
                         </div>
                     </div>
@@ -2134,7 +2134,7 @@
             </section>
 
             <!-- GAME VIEW: HIỆU ỨNG OBS — quà chỉ định → chuyển Scene hiệu ứng (LUA tự chạy) → quay về Scene cũ -->
-            <section id="view-obs-effects" class="view game-view">
+            <section id="view-obs-effects" class="view game-view" hidden data-removed="1">
                 <header class="game-header">
                     <div>
                         <h2>🎬 Hiệu ứng OBS</h2>
@@ -2145,38 +2145,13 @@
                             🕐 <b id="obse-queue-count">0</b> đợi
                             <button id="btn-obse-queue-clear" class="obse-queue-clear" title="Xóa hàng đợi">✕</button>
                         </span>
-                        <span class="obse-status-pill" id="obse-status-pill">
-                            <span class="obse-dot" id="obse-dot"></span>
-                            <span id="obse-status-text">Chưa kết nối</span>
-                        </span>
                     </div>
                 </header>
 
                 <div class="game-body obse-body">
                     <!-- LEFT: Kết nối + Hướng dẫn -->
                     <aside class="obse-col-left">
-                        <div class="card">
-                            <h3 class="obse-card-title">⚙ Kết nối OBS WebSocket</h3>
-                            <div class="obse-form">
-                                <label class="obse-label">
-                                    <span>URL</span>
-                                    <input type="text" id="obse-url" placeholder="ws://localhost:4455" class="obse-input">
-                                </label>
-                                <label class="obse-label">
-                                    <span>Password</span>
-                                    <input type="password" id="obse-password" placeholder="(trống nếu OBS không bật auth)" class="obse-input">
-                                </label>
-                                <label class="obse-check">
-                                    <input type="checkbox" id="obse-autoconnect">
-                                    <span>Tự kết nối khi mở app</span>
-                                </label>
-                                <div class="obse-actions">
-                                    <button id="btn-obse-connect" class="obse-btn primary">Kết nối</button>
-                                    <button id="btn-obse-disconnect" class="obse-btn">Ngắt</button>
-                                </div>
-                                <div class="obse-error" id="obse-error" hidden></div>
-                            </div>
-                        </div>
+                        
 
                         <!-- 📖 Cách dùng — luồng Scene, không cần hotkey -->
                         <details class="card obse-guide-card" id="obse-guide-details" open>
@@ -2996,6 +2971,29 @@
                         <div class="st-row"><span class="st-k">Độ phân giải</span><span class="st-v"><select id="st-overlay-res" class="st-select"><option value="hd">HD 1080×1920</option><option value="4k">4K 2160×3840</option></select></span></div>
                         <div class="st-row"><span class="st-k">Địa chỉ</span><span class="st-v mono" id="st-overlay-host">—</span></div>
                         <div class="st-row"><span class="st-k">LIVE Studio</span><span class="st-v" id="st-overlay-mapped">—</span></div>
+                    </div>
+                    <!-- 🔌 Kết nối OBS WebSocket — Game Camera / Chém Trái Cây lấy hình nguồn camera qua đây (ids giữ từ màn Hiệu ứng OBS đã gỡ; app.js setupOBSEffectsView) -->
+                    <div class="st-obs-ws">
+                        <div class="st-obs-ws-head"><b>Kết nối OBS WebSocket</b><span class="obse-status-pill" id="obse-status-pill"><span class="obse-dot" id="obse-dot"></span><span id="obse-status-text">Chưa kết nối</span></span></div>
+                        <div class="obse-form">
+                                <label class="obse-label">
+                                    <span>URL</span>
+                                    <input type="text" id="obse-url" placeholder="ws://localhost:4455" class="obse-input">
+                                </label>
+                                <label class="obse-label">
+                                    <span>Password</span>
+                                    <input type="password" id="obse-password" placeholder="(trống nếu OBS không bật auth)" class="obse-input">
+                                </label>
+                                <label class="obse-check">
+                                    <input type="checkbox" id="obse-autoconnect">
+                                    <span>Tự kết nối khi mở app</span>
+                                </label>
+                                <div class="obse-actions">
+                                    <button id="btn-obse-connect" class="obse-btn primary">Kết nối</button>
+                                    <button id="btn-obse-disconnect" class="obse-btn">Ngắt</button>
+                                </div>
+                                <div class="obse-error" id="obse-error" hidden></div>
+                        </div>
                     </div>
                     <label class="st-toggle"><input type="checkbox" id="st-lan-access" /> <span>Cho máy khác trong mạng LAN mở overlay <span class="hint-inline">(cần khởi động lại app)</span></span></label>
                     <div class="hint" id="st-lan-hint"></div>

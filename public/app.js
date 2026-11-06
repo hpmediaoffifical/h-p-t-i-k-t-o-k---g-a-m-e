@@ -498,24 +498,7 @@
             virtual: true,
             config: { enabled: localStorage.getItem('hp-live-translate-tool-enabled') !== 'false' }
         });
-        games.push({
-            id: 'obs-effects',
-            name: 'Hiệu ứng OBS',
-            description: 'Bridge WebSocket → OBS Studio. Trigger Lua effects khi nhận gift TikTok.',
-            icon: '🎬',
-            virtual: true,
-            config: { enabled: localStorage.getItem('hp-obs-effects-enabled') !== 'false' }
-        });
-        // ★ Đẩy trạng thái master obs-effects (theo UI/localStorage) lên server NGAY khi khởi động —
-        // server là nơi gate quà. Sửa drift của user đã tắt từ trước (localStorage=false nhưng server
-        // mặc định true → trước đây vẫn nhận quà dù UI hiện tắt).
-        try {
-            const obsOn = localStorage.getItem('hp-obs-effects-enabled') !== 'false';
-            fetch('/api/obs-bridge/config', {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: obsOn })
-            }).catch(() => {});
-        } catch (e) {}
+        // 🎬 Hiệu ứng OBS đã gỡ khỏi app (06/11/2026) — không còn mục trong Thư viện; kết nối OBS WebSocket ở ⚙ Cài đặt.
         try {
             const lf = await (await fetch('/api/license/features')).json();
             licenseLocked = new Set(Array.isArray(lf.locked) ? lf.locked : []);
@@ -717,7 +700,7 @@
 
     // ===== 🎨 Giao diện mới: dải sẵn sàng ở Trang chủ + statusbar =====
     // Gọi lại mỗi khi kết nối / bản quyền / bật-tắt game đổi. Thiếu phần tử (app-smoke, bản cũ) → bỏ qua.
-    let homeLicenseText = '';
+    let homeLicenseText = '', homeLicenseOk = false;
     function renderHomeReady() {
         const set = (id, cls, sub) => {
             const el = document.getElementById(id);
@@ -728,7 +711,7 @@
             if (s) s.textContent = sub;
         };
         set('hr-tiktok', isLiveConnected ? 'ok' : 'idle', isLiveConnected ? `Đã kết nối @${liveUsername}` : 'Chưa kết nối — nhập @ID ở thanh trên');
-        set('hr-license', homeLicenseText ? 'ok' : 'idle', homeLicenseText || 'Đang kiểm tra…');
+        set('hr-license', homeLicenseOk ? 'ok' : homeLicenseText ? 'warn' : 'idle', homeLicenseText || 'Đang kiểm tra…');
         const list = (games || []).filter(g => !LIBRARY_HIDDEN.has(g.id) && !g.hub && !g.locked && g.lstate !== 'hidden' && g.lstate !== 'off');
         const on = list.filter(isGameEnabled).length;
         set('hr-games', on ? 'ok' : 'warn', `${on}/${list.length} game & công cụ đang bật`);
@@ -739,10 +722,15 @@
     window.hpGameIndex = () => (games || [])
         .filter(g => !LIBRARY_HIDDEN.has(g.id) && g.lstate !== 'hidden')
         .map(g => ({ id: g.id, name: g.name, icon: g.icon, overlayPath: g.overlayPath || '', on: isGameEnabled(g), locked: !!g.locked }));
-    try {
-        const host = document.getElementById('sb-host');
-        if (host) host.textContent = new URL(buildOverlayURL('/')).host;
-    } catch (_) {}
+    // Host overlay ở statusbar: tính lại khi /api/overlay/share-links trả về (máy chưa map hosts → localhost)
+    function renderSbHost() {
+        try {
+            const host = document.getElementById('sb-host');
+            if (host) host.textContent = new URL(buildOverlayURL('/')).host;
+        } catch (_) {}
+    }
+    renderSbHost();
+    window.addEventListener('hp:overlay-links', renderSbHost);
     // Khung nhúng báo chiều cao nội dung (iframe tự cao theo) + bấm ⚙ trên thẻ → mở game ở app chính
     window.addEventListener('message', (e) => {
         const frame = dom.homeQlFrame;
@@ -755,6 +743,22 @@
     document.getElementById('home-ql-sort')?.addEventListener('click', () => {
         try { dom.homeQlFrame?.contentWindow?.postMessage({ type: 'hp-ql:settings' }, location.origin); } catch (_) {}
     });
+    // 🎨 Công tắc "Tự mở khi khởi động" (cửa sổ Khởi động nhanh) — chỉ hiện trong app Electron
+    (function bindQlAutoOpen() {
+        const wrap = document.getElementById('home-ql-auto-wrap'), box = document.getElementById('home-ql-auto');
+        if (!wrap || !box) return;
+        fetch('/api/quick-launch/auto-open').then(r => r.json()).then(d => {
+            if (!d || !d.available) return;
+            box.checked = !!d.on;
+            wrap.hidden = false;
+        }).catch(() => {});
+        box.addEventListener('change', () => {
+            fetch('/api/quick-launch/auto-open', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ on: box.checked })
+            }).then(r => r.json()).then(d => { if (d && 'on' in d) box.checked = !!d.on; }).catch(() => {});
+        });
+    })();
     document.getElementById('home-ql-popout')?.addEventListener('click', () => {
         window.open('/quick-launch', '_blank', 'width=380,height=560,resizable=yes,scrollbars=no');
     });
@@ -2678,7 +2682,17 @@
         const sugg = document.getElementById('username-sugg');
         if (!sugg) return;
         dom.usernameInput.addEventListener('focus', () => renderTiktokSuggestions(dom.usernameInput.value));
-        dom.usernameInput.addEventListener('input', () => renderTiktokSuggestions(dom.usernameInput.value));
+        dom.usernameInput.addEventListener('input', () => {
+            // ID TikTok: tự đổi chữ thường, không nhận @ / dấu / ký tự đặc biệt (chỉ a-z 0-9 . _)
+            const el = dom.usernameInput, v = el.value;
+            const clean = window.HpUiText ? window.HpUiText.sanitizeTiktokId(v) : v;
+            if (clean !== v) {
+                const pos = window.HpUiText.sanitizeTiktokId(v.slice(0, el.selectionStart || 0)).length;
+                el.value = clean;
+                try { el.setSelectionRange(pos, pos); } catch (_) {}
+            }
+            renderTiktokSuggestions(el.value);
+        });
         // Click ngoài conn-row → ẩn
         document.addEventListener('click', (e) => {
             const row = document.getElementById('conn-row');
@@ -7300,7 +7314,8 @@
         const keyEl = $id('st-lic-key');
         if (keyEl) keyEl.textContent = isCreator ? '@' + (info.key || '') : (info.key ? info.key.slice(0, 4) + '••••' + info.key.slice(-4) : '—');
         const days = daysUntilDmy(info.expiry);
-        homeLicenseText = !activated ? '' : (isCreator ? 'CREATOR' : isAdmin ? 'ADMIN' : isVip ? 'VIP' : 'Đã kích hoạt')
+        homeLicenseOk = activated;
+        homeLicenseText = !activated ? 'Chưa kích hoạt' : (isCreator ? 'CREATOR' : isAdmin ? 'ADMIN' : isVip ? 'VIP' : 'Đã kích hoạt')
             + (info.expiry ? (days == null ? '' : days < 0 ? ' · đã hết hạn' : ' · còn ' + days + ' ngày') : ' · vĩnh viễn');
         renderHomeReady();
         const expEl = $id('st-lic-expiry');
