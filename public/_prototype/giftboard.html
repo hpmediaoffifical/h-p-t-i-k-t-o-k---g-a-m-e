@@ -119,6 +119,11 @@
   .gb-warn { display:inline-block; align-self:flex-start; margin-top:calc(2px * var(--s)); padding:0 calc(7px * var(--s)); border-radius:calc(999px * var(--s));
     background:#ffb020; color:#2b1600; font-size:calc(15px * var(--s) * var(--ns)); font-weight:900; line-height:1.5; white-space:nowrap; }
   .gb-name .lk { margin-right:calc(4px * var(--s)); opacity:.85; }
+  .gb-card.pg-off, .gb-group.pg-off { display:none; }
+  .gb-track.pg-flip { animation:gb-flip .45s ease; }
+  @keyframes gb-flip { from { opacity:0; transform:translateY(calc(12px * var(--s))); } to { opacity:1; transform:none; } }
+  .gb-pager { flex:0 0 auto; padding:calc(4px * var(--s)) calc(10px * var(--s)); border-radius:calc(999px * var(--s)); background:rgba(0,0,0,.55); color:#fff;
+    font-size:calc(16px * var(--s)); font-weight:800; }
   /* Chip khối: chọn khối để chỉnh, 👁 ẩn/hiện, ↺ về vị trí mặc định */
   .pchips { display:flex; flex-wrap:wrap; gap:6px; }
   .pchip { display:inline-flex; align-items:center; gap:4px; border:1px solid #cfd6e2; border-radius:999px; padding:3px 4px 3px 10px; font-size:12px; font-weight:700; background:#fff; cursor:pointer; user-select:none; }
@@ -269,6 +274,7 @@
             <label class="chk"><input type="checkbox" data-cfg="rules.mergeSameGift"> Gộp quà trùng (1 quà nhiều game → 1 thẻ)</label>
             <label class="chk" id="chk-group"><input type="checkbox" data-cfg="rules.groupByGame"> Nhóm theo game trong khối (có tiêu đề nhóm)</label>
             <label class="chk"><input type="checkbox" data-cfg="rules.showGeneric"> Hiện dòng “Mọi quà …” (chế độ theo xu)</label>
+            <label class="chk" title="Game bật nhưng không có overlay đang mở trong OBS / LIVE Studio thì không lên bảng — bảng tự gọn theo scene đang LIVE"><input type="checkbox" data-cfg="rules.requireOverlay"> Chỉ game đang mở trên OBS (overlay đang mở)</label>
             <label class="chk"><input type="checkbox" data-cfg="rules.onlyRunning"> Chỉ game đang chạy phiên (Nhiệt / Bắn Cung / Trồng Cây / Vote)</label>
             <label class="chk"><input type="checkbox" data-cfg="rules.hideBirdGifts"> Ẩn 10 quà “chim bay” mặc định của Trồng Cây</label>
           </div>
@@ -326,6 +332,10 @@
           <div class="row"><label>Hướng</label><div class="seg" data-seg="display.autoScroll.direction"><button data-v="up">↑</button><button data-v="down">↓</button><button data-v="left">←</button><button data-v="right">→</button></div></div>
           <div class="row"><label>Giây / thẻ</label><div class="rng"><input type="range" min="0.5" max="20" step="0.5" data-cfg="display.autoScroll.speed"><span class="val" data-val="display.autoScroll.speed">s</span></div></div>
           <div class="hint">Ít thẻ hơn số “nhìn thấy” thì khối đứng yên. Cuộn là CSS animation → OBS gần như không tốn CPU.</div>
+          <label class="chk"><input type="checkbox" data-cfg="display.paging.enabled"> 📄 Lật trang thay cho cuộn (dễ đọc hơn trên màn dọc; bật thì cuộn tắt)</label>
+          <div class="row"><label>Thẻ mỗi trang</label><div class="rng"><input type="range" min="2" max="30" step="1" data-cfg="display.paging.perPage"><span class="val" data-val="display.paging.perPage"></span></div></div>
+          <div class="row"><label>Giây / trang</label><div class="rng"><input type="range" min="2" max="60" step="1" data-cfg="display.paging.seconds"><span class="val" data-val="display.paging.seconds">s</span></div></div>
+          <div class="row" title="Có người tặng quà → nhảy tới trang có thẻ quà đó và giữ lâu hơn"><label>Giữ khi có quà</label><div class="rng"><input type="range" min="0" max="120" step="1" data-cfg="display.paging.holdSeconds"><span class="val" data-val="display.paging.holdSeconds">s</span></div></div>
         </div>
       </details>
 
@@ -368,6 +378,7 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/lib/overlay-hello.js" data-game="giftboard"></script>
   <!-- Nhặt Lá: dùng ĐÚNG giftBoardEntries() của game (một nguồn sự thật) thay vì chép lại luật. -->
   <script src="/games/nhatla/game.js"></script>
   <script src="/lib/giftboard-merge.js"></script>
@@ -391,12 +402,16 @@
 
     // Thứ tự nguồn = thứ tự Thư viện Game. obsEffects là tool ảo (Hiệu ứng OBS) không nằm trong /api/games.
     const SOURCE_ORDER = ['thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung', 'trongcay', 'nhatla', 'timer',
-      'touchplay', 'chemtraicay', 'dapmuoi', 'dacau', 'body', 'obsEffects'];
+      'touchplay', 'chemtraicay', 'dapmuoi', 'dacau', 'body', 'quaivat', 'nhatu', 'pokemon', 'creatoronline', 'duongveque', 'obsEffects'];
     const VIRTUAL_META = { obsEffects: { icon: '🎬', name: 'Hiệu ứng OBS' } };
     const HAS_SESSION = new Set(['nhietdo', 'bancung', 'trongcay', 'votecomment']);
     // 🎥 Game Camera: "đang chạy" do server tính (/api/giftboard/cam-gifts → running). Bắn Cung giữ bộ đọc quà riêng ở dưới.
     const CAM_IDS = new Set(['touchplay', 'chemtraicay', 'dapmuoi', 'dacau', 'body', 'bancung']);
+    // 🎮 Game Tương Tác: quà + "đang chạy" do server dựng (/api/giftboard/tt-gifts, lib/giftboard-tt.js).
+    const TT_IDS = new Set(['quaivat', 'nhatu', 'pokemon', 'creatoronline', 'duongveque']);
     const VIS_VALUES = ['auto', 'always', 'never'];
+    // Không có overlay riêng (chạy bằng Scene OBS) → chế độ "Chỉ game đang mở trên OBS" không áp.
+    const NO_OVERLAY = new Set(['obsEffects']);
     const Merge = window.HpGiftboardMerge;
 
     // ===== CONFIG =====
@@ -410,11 +425,12 @@
           iconScale: 100, nameScale: 100, gap: 80,
           layout: 'vertical', columns: 2, namePos: 'right', theme: 'dark', accent: '#ffb054', title: '',
           showDiamond: false, showGameIcon: true, showCounter: true, showTag: true, pulseOnGift: true, showPanelTitle: true,
-          autoScroll: { enabled: false, visibleCount: 8, direction: 'up', speed: 2 }
+          autoScroll: { enabled: false, visibleCount: 8, direction: 'up', speed: 2 },
+          paging: { enabled: false, perPage: 6, seconds: 6, holdSeconds: 12 }   // lật trang (thắng cuộn khi bật)
         },
         panels: {},                                       // id → { xPercent, yPercent, scale, hidden } — nhớ riêng từng khối
         sources: Object.fromEntries(SOURCE_ORDER.map(k => [k, true])),
-        rules: { mergeSameGift: true, groupByGame: false, sort: 'game', showGeneric: true, onlyRunning: false, hideBirdGifts: true },
+        rules: { mergeSameGift: true, groupByGame: false, sort: 'game', showGeneric: true, onlyRunning: false, hideBirdGifts: true, requireOverlay: true },
         visibility: {},                                   // gameId → 'auto' (mặc định) | 'always' | 'never'
         overrides: {}
       };
@@ -443,7 +459,7 @@
         enabled: c.enabled !== false,
         mode: ['single', 'split', 'perGame'].includes(c.mode) ? c.mode : 'perGame',
         split: { ...d.split, ...obj(c.split) },
-        display: { ...d.display, ...disp, autoScroll: { ...d.display.autoScroll, ...obj(disp.autoScroll) } },
+        display: { ...d.display, ...disp, autoScroll: { ...d.display.autoScroll, ...obj(disp.autoScroll) }, paging: { ...d.display.paging, ...obj(disp.paging) } },
         panels: {},
         sources: { ...d.sources, ...obj(c.sources) },
         rules: { ...d.rules, ...obj(c.rules) },
@@ -462,6 +478,8 @@
       o.autoScroll.visibleCount = clamp(o.autoScroll.visibleCount, 2, 30);
       o.autoScroll.speed = clamp(o.autoScroll.speed, 0.5, 20);
       if (!['up', 'down', 'left', 'right'].includes(o.autoScroll.direction)) o.autoScroll.direction = 'up';
+      o.paging.enabled = o.paging.enabled === true;
+      o.paging.perPage = clamp(o.paging.perPage, 2, 30); o.paging.seconds = clamp(o.paging.seconds, 2, 60); o.paging.holdSeconds = clamp(o.paging.holdSeconds, 0, 120);
       out.split.by = out.split.by === 'rows' ? 'rows' : 'count';
       out.split.count = clamp(out.split.count, 1, 6); out.split.rows = clamp(out.split.rows, 2, 30);
       if (!['game', 'diamondAsc', 'diamondDesc'].includes(out.rules.sort)) out.rules.sort = 'game';
@@ -483,6 +501,7 @@
     let licStates = {};      // HP KEY gs (/api/license/features → states): mục 'hidden' (Ẩn) không hiện ở đây
     const running = {};      // gameId → phiên đang chạy?
     let camData = null;      // /api/giftboard/cam-gifts → { actives, running, games }
+    let ttData = null;       // /api/giftboard/tt-gifts → { running, games }
     let presence = {};       // overlay:presence → { gameId: { open, onAir, obs, viaHub } }
     const lastOpenAt = {};   // gameId → lúc overlay vừa đóng (giữ 🔗 thêm 30s chống nhấp nháy)
     let lastStatusSig = '';
@@ -599,8 +618,11 @@
           if (t.triggers?.enabled !== false) for (const tr of t.triggers?.list || []) if (tr?.enabled !== false && tr.gift?.giftId) push('timer', 'trg:' + tr.id, tr.gift.giftId, tr.gift, tr.name || 'Kích hoạt đếm ngược', fmtSec(tr.durationSec));
         } }
       // 🎥 Game Camera (trừ Bắn Cung — đã đọc ở trên): server dựng sẵn nhãn. Mục không có giftId = dòng "mọi quà/theo xu".
-      if (camData && camData.games) for (const id of ['touchplay', 'chemtraicay', 'dapmuoi', 'dacau', 'body']) {
-        (camData.games[id] || []).forEach((g, i) => {
+      const srvLists = [['touchplay', camData], ['chemtraicay', camData], ['dapmuoi', camData], ['dacau', camData], ['body', camData],
+        ...[...TT_IDS].map(id => [id, ttData])];
+      for (const [id, src] of srvLists) {
+        if (!src || !src.games) continue;
+        (src.games[id] || []).forEach((g, i) => {
           if (!g) return;
           if (g.giftId) push(id, 'cam' + i, g.giftId, { giftName: g.name, giftImage: g.image, diamond: g.diamonds }, g.label, '');
           else out.push({ key: `${id}|generic|${i}`, gameId: id, source: 'generic', giftId: '', generic: true, giftName: g.name || 'Mọi quà', image: '', diamond: 0,
@@ -624,6 +646,7 @@
       if (srcHidden(id)) return false;
       if (id === 'obsEffects') return !!obsCfg && obsCfg.enabled !== false;
       if (CAM_IDS.has(id)) return !!camData?.running?.[id];
+      if (TT_IDS.has(id)) return !!ttData?.running?.[id];
       return !!games[id] && games[id].config?.enabled !== false;
     }
     // Game đang thật sự chạy (danh sách chính): bật + (tuỳ chọn "chỉ game đang chạy phiên").
@@ -636,7 +659,8 @@
     function statusOf(id) {
       if (srcHidden(id) || !cfg.sources[id]) return 'off';
       const p = presence[id];
-      return Merge.gameStatus({ visibility: cfg.visibility[id], running: isRunning(id), open: !!(p && p.open > 0), lastOpenAt: lastOpenAt[id] || 0, now: Date.now() });
+      return Merge.gameStatus({ visibility: cfg.visibility[id], running: isRunning(id), open: !!(p && p.open > 0), lastOpenAt: lastOpenAt[id] || 0, now: Date.now(),
+        needOverlay: cfg.rules.requireOverlay && !NO_OVERLAY.has(id) });
     }
     function statusMap() { const m = {}; for (const id of SOURCE_ORDER) m[id] = statusOf(id); return m; }
     function gameMeta(id) { return games[id] ? { icon: games[id].icon, name: games[id].name } : (VIRTUAL_META[id] || { icon: '🎁', name: id }); }
@@ -760,15 +784,39 @@
       } else inner = p.cards.map(cardHtml).join('');
 
       const total = p.cards.length; const scroll = d.autoScroll;
-      const scrolling = scroll.enabled && d.layout !== 'grid' && total > scroll.visibleCount;
+      const paged = d.paging.enabled && total > d.paging.perPage;
+      const scrolling = !paged && scroll.enabled && d.layout !== 'grid' && total > scroll.visibleCount;
       const titleText = p.id === 'linked' ? panelLabel(p) : (index === 0 && d.title) ? d.title : (d.showPanelTitle && cfg.mode === 'perGame' ? panelLabel(p) : '');
-      const head = (titleText ? `<div class="gb-title">${esc(titleText)}</div>` : '') + (d.showCounter && total >= 2 ? `<div class="gb-counter">${total}</div>` : '');
+      const head = (titleText ? `<div class="gb-title">${esc(titleText)}</div>` : '') + (d.showCounter && total >= 2 ? `<div class="gb-counter">${total}</div>` : '') + (paged ? '<div class="gb-pager"></div>' : '');
       let html = head ? `<div class="gb-head">${head}</div>` : '';
       if (scrolling) html += `<div class="gb-list is-scrolling dir-${scroll.direction}" style="--scroll-duration:${total * scroll.speed}s"><div class="gb-track">${inner}${inner}</div></div>`;
       else html += `<div class="gb-list"><div class="gb-track">${inner}</div></div>`;
       el.innerHTML = html;
       if (scrolling) { measureScroll(el); const t = el.querySelector('.gb-track'); if (t && scrollRO) scrollRO.observe(t); }
+      el.dataset.paged = paged ? '1' : '';
+      if (paged) { pageState.set(p.id, Merge.pagerTick(pageState.get(p.id), total, d.paging.perPage, Date.now(), d.paging.seconds)); applyPage(el, p.id, false); }
+      else pageState.delete(p.id);
     }
+    // ===== LẬT TRANG: mỗi khối hiện perPage thẻ, tự sang trang sau; có quà → nhảy tới thẻ đó và giữ lâu hơn =====
+    const pageState = new Map();   // panel id → { page, until }
+    function applyPage(el, id, flip) {
+      const per = cfg.display.paging.perPage; const st = pageState.get(id) || { page: 0 };
+      const cards = [...el.querySelectorAll('.gb-card')]; const pages = Merge.pageCount(cards.length, per);
+      cards.forEach((c, i) => c.classList.toggle('pg-off', Math.floor(i / per) !== st.page));
+      el.querySelectorAll('.gb-group').forEach(g => g.classList.toggle('pg-off', !g.querySelector('.gb-card:not(.pg-off)')));
+      const pg = el.querySelector('.gb-pager'); if (pg) pg.textContent = (st.page + 1) + '/' + pages;
+      if (flip) { const t = el.querySelector('.gb-track'); if (t) { t.classList.remove('pg-flip'); void t.offsetWidth; t.classList.add('pg-flip'); } }
+    }
+    setInterval(() => {
+      if (!cfg.display.paging.enabled) return;
+      const now = Date.now();
+      boards.forEach((el, id) => {
+        if (el.dataset.paged !== '1') return;
+        const prev = pageState.get(id); const total = el.querySelectorAll('.gb-card').length;
+        const next = Merge.pagerTick(prev, total, cfg.display.paging.perPage, now, cfg.display.paging.seconds);
+        pageState.set(id, next); if (!prev || next.page !== prev.page) applyPage(el, id, true);
+      });
+    }, 500);
     // Chặn vùng nhìn thấy = đúng visibleCount thẻ. Đo thẻ thật; nếu khối chưa được vẽ (view đang ẩn,
     // ảnh/chữ chưa xong) thì số đo = 0 → KHÔNG ghi, ResizeObserver gọi lại khi track có kích thước.
     function measureScroll(el) {
@@ -811,6 +859,12 @@
 
     function pulse(giftId) {
       if (!cfg.display.pulseOnGift || !giftId) return;
+      if (cfg.display.paging.enabled) boards.forEach((b, id) => {
+        if (b.dataset.paged !== '1') return;
+        const i = [...b.querySelectorAll('.gb-card')].findIndex(c => c.dataset.gift === String(giftId)); if (i < 0) return;
+        const prev = pageState.get(id); const next = Merge.pagerHold(i, cfg.display.paging.perPage, Date.now(), cfg.display.paging.holdSeconds);
+        pageState.set(id, next); if (!prev || prev.page !== next.page) applyPage(b, id, true);
+      });
       stage.querySelectorAll(`.gb-card[data-gift="${CSS.escape(String(giftId))}"]`).forEach(el => {
         el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
         setTimeout(() => el.classList.remove('hit'), 1000);
@@ -899,7 +953,7 @@
     // ===== LAB: BIND INPUT ↔ CFG =====
     const getPath = p => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), cfg);
     const setPath = (p, v) => { const ks = p.split('.'); let o = cfg; for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = v; };
-    const unitOf = p => p.endsWith('speed') ? 's' : (p.includes('Count') || p.endsWith('columns') || p.startsWith('split.') ? '' : '%');
+    const unitOf = p => p.endsWith('speed') || p.endsWith('econds') ? 's' : (p.includes('Count') || p.endsWith('columns') || p.endsWith('perPage') || p.startsWith('split.') ? '' : '%');
     function syncInputs(paths) {
       document.querySelectorAll('[data-cfg]').forEach(el => {
         const p = el.dataset.cfg; if (paths && !paths.includes(p)) return;
@@ -1013,6 +1067,7 @@
           : vis === 'never' ? '<span class="chip off">⚪ không hiện</span>'
           : !cfg.sources[id] ? '<span class="chip">⚪ bỏ chọn</span>'
           : p && p.inObs ? '<span class="chip" title="Link có trong OBS nhưng trang chưa tải (nguồn đang ẩn / bật Shutdown source when not visible). Muốn luôn có trên bảng: chọn Luôn hiện.">⚪ có trong OBS, chưa tải</span>'
+          : isRunning(id) && cfg.rules.requireOverlay && !NO_OVERLAY.has(id) ? '<span class="chip" title="Game đang bật nhưng chưa thấy overlay mở trong OBS / LIVE Studio (đang bật &quot;Chỉ game đang mở trên OBS&quot;)">⚪ bật, chưa mở overlay</span>'
           : CAM_IDS.has(id) ? '<span class="chip off" title="Chưa chọn trong 🎥 Game Camera (Bắn Cung: chưa ▶ BẮT ĐẦU)">⚪ chưa chơi</span>'
           : run === false && gameEnabled(id) ? '<span class="chip">⚪ chưa chạy phiên</span>' : '<span class="chip off">⚪ TẮT ở Thư viện</span>';
         const sel = `<select data-vis="${id}" title="Tự động: theo game bật / overlay mở">${VIS_VALUES.map(v => `<option value="${v}" ${v === vis ? 'selected' : ''}>${{ auto: 'Tự động', always: 'Luôn hiện', never: 'Không hiện' }[v]}</option>`).join('')}</select>`;
@@ -1041,15 +1096,17 @@
     // ===== TẢI DỮ LIỆU =====
     async function loadAll() {
       try {
-        const [gl, gifts, ob, own, lf, cam, pres] = await Promise.all([
+        const [gl, gifts, ob, own, lf, cam, pres, tt] = await Promise.all([
           fetch('/api/games').then(r => r.json()),
           fetch('/api/gifts').then(r => r.json()).catch(() => []),
           fetch('/api/obs-bridge/config').then(r => r.ok ? r.json() : null).catch(() => null),
           fetch(`/api/games/${GAME_ID}/config`).then(r => r.ok ? r.json() : null).catch(() => null),
           fetch('/api/license/features', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
           fetch('/api/giftboard/cam-gifts', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
-          fetch('/api/overlay-presence', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)
+          fetch('/api/overlay-presence', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/giftboard/tt-gifts', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)
         ]);
+        if (tt) ttData = tt;
         if (cam) camData = cam;
         if (pres) setPresence(pres);
         games = {}; for (const g of Array.isArray(gl) ? gl : []) games[g.id] = g;
@@ -1073,6 +1130,13 @@
     // Chỉ vẽ lại khi trạng thái game thật sự đổi — vẽ lại làm chạy lại hoạt ảnh cuộn.
     function repaintIfStatusChanged() { if (JSON.stringify(statusMap()) !== lastStatusSig) schedulePaint(); }
     setInterval(repaintIfStatusChanged, 5000);   // hết 30s chờ của game vừa đóng overlay
+    let ttFetchT = null;
+    function refreshTtGifts() {
+      clearTimeout(ttFetchT);
+      ttFetchT = setTimeout(async () => {
+        try { const r = await fetch('/api/giftboard/tt-gifts', { cache: 'no-store' }); if (r.ok) { ttData = await r.json(); schedulePaint(); } } catch (_) {}
+      }, 300);
+    }
     let camFetchT = null;
     function refreshCamGifts() {
       clearTimeout(camFetchT);
@@ -1097,6 +1161,7 @@
         else games[gameId].config = config;
         if (HAS_SESSION.has(gameId) && typeof config?.sessionActive === 'boolean') running[gameId] = config.sessionActive;
         if (CAM_IDS.has(gameId) || gameId === 'camgames') refreshCamGifts();
+        if (TT_IDS.has(gameId)) refreshTtGifts();
         schedulePaint();
       });
       socket.on('overlay:presence', snap => { setPresence(snap); repaintIfStatusChanged(); });

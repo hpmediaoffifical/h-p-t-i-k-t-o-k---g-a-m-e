@@ -41,6 +41,7 @@ const FILES = [
     ['public/games/vipwelcome/board.html', 'overlay BXH khách quen'],
     ['public/_prototype/giftboard.html', 'Bảng Quà Tổng — nút ở đáy sidebar + link OBS'],
     ['lib/overlay-presence.js', 'overlay nào đang mở (thiếu = server không khởi động)'],
+    ['lib/giftboard-tt.js', 'Bảng Quà Tổng: quà Game Tương Tác (thiếu = server không khởi động)'],
     ['public/lib/giftboard-merge.js', 'Bảng Quà Tổng: game đang chạy / đang mở kèm / quà trùng'],
     ['public/lib/overlay-hello.js', 'overlay báo đang mở cho Bảng Quà Tổng'],
     // 🎥 Game Camera: overlay mẹ nhúng game con (Touch & Play / Chém Trái Cây) + feed camera dùng chung

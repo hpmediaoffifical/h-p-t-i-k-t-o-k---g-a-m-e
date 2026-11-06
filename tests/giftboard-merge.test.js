@@ -22,6 +22,16 @@ test('gameStatus: mất tín hiệu overlay vẫn giữ linked 30s rồi mới o
     assert.strictEqual(M.gameStatus({ open: false, lastOpenAt: 1000, now: 1000 + 31000 }), 'off');
 });
 
+test('gameStatus needOverlay: game bật nhưng overlay không mở → off; mở (hoặc vừa đóng <30s) → running', () => {
+    assert.strictEqual(M.gameStatus({ running: true, open: false, needOverlay: true }), 'off');
+    assert.strictEqual(M.gameStatus({ running: true, open: true, needOverlay: true }), 'running');
+    assert.strictEqual(M.gameStatus({ running: true, open: false, lastOpenAt: 1000, now: 20000, needOverlay: true }), 'running');
+    assert.strictEqual(M.gameStatus({ running: true, open: false, lastOpenAt: 1000, now: 40000, needOverlay: true }), 'off');
+    // game tắt mà overlay mở vẫn là 🔗; "Luôn hiện" thắng
+    assert.strictEqual(M.gameStatus({ running: false, open: true, needOverlay: true }), 'linked');
+    assert.strictEqual(M.gameStatus({ visibility: 'always', running: false, open: false, needOverlay: true }), 'running');
+});
+
 test('mergeBoard: game off bị bỏ', () => {
     const r = M.mergeBoard([E('thuytinh', '1'), E('caro', '2')], { thuytinh: 'running' });
     assert.deepStrictEqual(r.main.map(e => e.gameId), ['thuytinh']);
@@ -58,4 +68,26 @@ test('mergeBoard: dòng "mọi quà" không bao giờ tính trùng; trùng trong
         { nhietdo: 'running', bancung: 'linked', trongcay: 'running' });
     assert.deepStrictEqual(r.overlaps, []);
     assert.deepStrictEqual(r.linked, []);
+});
+
+test('pagerTick: lật trang sau mỗi `sec` giây, vòng lại trang đầu', () => {
+    let st = M.pagerTick(null, 14, 6, 0, 5);                 // lần đầu: trang 0, hết hạn sau 5s
+    assert.deepStrictEqual(st, { page: 0, until: 5000 });
+    st = M.pagerTick(st, 14, 6, 4000, 5);                    // chưa hết giờ → giữ
+    assert.strictEqual(st.page, 0);
+    st = M.pagerTick(st, 14, 6, 5000, 5); assert.strictEqual(st.page, 1);
+    st = M.pagerTick(st, 14, 6, 10000, 5); assert.strictEqual(st.page, 2);
+    st = M.pagerTick(st, 14, 6, 15000, 5); assert.strictEqual(st.page, 0);
+});
+
+test('pagerTick: ít thẻ hơn 1 trang → luôn trang 0; bớt thẻ → kẹp trang', () => {
+    assert.strictEqual(M.pagerTick({ page: 2, until: 1 }, 4, 6, 9, 5).page, 0);
+    assert.strictEqual(M.pageCount(0, 6), 1);
+    assert.strictEqual(M.pageCount(13, 6), 3);
+    assert.strictEqual(M.pagerTick({ page: 2, until: 99999 }, 8, 6, 0, 5).page, 1);
+});
+
+test('pagerHold: có quà → nhảy tới trang chứa thẻ và giữ lâu hơn', () => {
+    assert.deepStrictEqual(M.pagerHold(13, 6, 1000, 12), { page: 2, until: 13000 });
+    assert.deepStrictEqual(M.pagerHold(0, 6, 0, 12), { page: 0, until: 12000 });
 });

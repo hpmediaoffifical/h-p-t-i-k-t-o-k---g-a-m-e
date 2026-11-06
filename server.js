@@ -107,6 +107,7 @@ const { OBSBridge } = require('./lib/obs-bridge');
 const { ObsCameraFeed } = require('./lib/touchplay-obs-feed');
 const CamRules = require('./lib/camgames');
 const OverlayPresence = require('./lib/overlay-presence');
+const GiftboardTT = require('./lib/giftboard-tt');
 const CamSession = require('./lib/camgames-session');
 const { createCamObs } = require('./lib/camgames-obs');
 const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
@@ -1341,14 +1342,17 @@ function makeDefaultGiftBoardConfig() {
             accent: '#ffb054',
             title: '',               // '' = không hiện tiêu đề
             showDiamond: false, showGameIcon: true, showCounter: true, showTag: true, pulseOnGift: true, showPanelTitle: true,
-            autoScroll: { enabled: false, visibleCount: 8, direction: 'up', speed: 2 }
+            autoScroll: { enabled: false, visibleCount: 8, direction: 'up', speed: 2 },
+            paging: { enabled: false, perPage: 6, seconds: 6, holdSeconds: 12 }   // 📄 lật trang (thắng cuộn khi bật)
         },
         // Mỗi khối nhớ vị trí/cỡ/ẩn-hiện RIÊNG: 'main' | 'col1'.. | 'g:<gameId>'. Client tự điền khi khối xuất hiện.
         panels: {},
         // Game nào được lên bảng (game TẮT ở Thư viện luôn bị loại bất kể cờ này)
         sources: { thuytinh: true, caro: true, votecomment: true, nhietdo: true, bancung: true, trongcay: true, nhatla: true, timer: true,
-            touchplay: true, chemtraicay: true, dapmuoi: true, dacau: true, body: true, obsEffects: true },
-        rules: { mergeSameGift: true, groupByGame: false, sort: 'game', showGeneric: true, onlyRunning: false, hideBirdGifts: true },
+            touchplay: true, chemtraicay: true, dapmuoi: true, dacau: true, body: true,
+            quaivat: true, nhatu: true, pokemon: true, creatoronline: true, duongveque: true, obsEffects: true },
+        rules: { mergeSameGift: true, groupByGame: false, sort: 'game', showGeneric: true, onlyRunning: false, hideBirdGifts: true,
+            requireOverlay: true },  // chỉ game có overlay đang mở (OBS / LIVE Studio) mới lên bảng
         visibility: {},              // gameId → 'always' | 'never' (thiếu = tự động: game bật / overlay đang mở)
         overrides: {}                // key "<game>|<nguồn>|<giftId>" → { hidden, label } — chỉ tác động lên bảng này
     };
@@ -6086,6 +6090,16 @@ app.get('/api/giftboard/cam-gifts', (req, res) => {
             : CamSession.gameGiftList(id, cfg, catalog, 200);
     }
     res.json({ actives, running, games });
+});
+// 📋 Bảng Quà Tổng: quà 🎮 Game Tương Tác (lib/giftboard-tt.js) — nhãn hành động nạp 1 lần từ data.json / ES module game.
+let giftboardTtLabels = null;
+app.get('/api/giftboard/tt-gifts', async (req, res) => {
+    try {
+        if (!giftboardTtLabels) giftboardTtLabels = GiftboardTT.loadLabels(path.join(__dirname, 'public', 'games'));
+        const labels = await giftboardTtLabels;
+        const catalog = new Map(camGiftCatalog().map(g => [g.id, g]));
+        res.json(GiftboardTT.buildTtGifts(appConfig.games, labels, catalog));
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.get('/api/games', (req, res) => {
     const list = Object.values(GAMES).map(g => ({
