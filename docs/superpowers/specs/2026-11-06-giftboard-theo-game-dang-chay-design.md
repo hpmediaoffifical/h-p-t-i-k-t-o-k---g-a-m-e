@@ -1,6 +1,6 @@
 # 📋 Bảng Quà Tổng — chỉ hiện quà game đang chạy + game đang mở link
 
-Ngày: 06/11/2026 · Trạng thái: chờ duyệt · Liên quan: `public/_prototype/giftboard.html`, `lib/camgames.js`, `server.js`
+Ngày: 06/11/2026 · Trạng thái: đã duyệt, đã làm (nhánh `feature/giftboard-theo-game`); chưa thử OBS thật · Liên quan: `public/_prototype/giftboard.html`, `lib/camgames.js`, `server.js`
 
 ## 1. Mục tiêu
 
@@ -53,7 +53,7 @@ Ghi đè tay trong app, theo game: **Tự động** (mặc định) / **Luôn hi
 - Server: `Map<gameId, Map<socketId, {lastSeen, onAir, obs}>>`. Xoá khi `disconnect` hoặc quá **20 s** không heartbeat. Hàm thuần: `touch(state, gameId, socketId, info, now)`, `drop(state, socketId)`, `snapshot(state, now)` → `{gameId: {open: n, onAir: bool}}`.
 - Server phát `overlay:presence` khi snapshot đổi (so sánh nông), kèm `GET /api/overlay-presence`.
 - **Game Camera**: hub `/overlay/camgames` đang mở ⇒ mọi game trong `camActives()` coi là mở (hub dùng `camHubOverlayOnline()` sẵn có). Link riêng cũ (vd `/overlay/bancung`) tự gửi hello như game thường. Overlay con trong iframe của hub KHÔNG gửi hello (tránh đếm đôi).
-- Đối chiếu obs-websocket (tuỳ chọn, chỉ khi OBS Bridge đang nối): tái dùng `refreshBrowserSources` (`lib/obs-bridge.js`) để biết link `/overlay/<id>` có trong OBS dù trang đang bị Shutdown → đánh dấu `inObs: true` (chỉ hiện chú thích trong app, không đổi trạng thái).
+- *(Chưa làm đợt này)* Đối chiếu obs-websocket (tuỳ chọn, chỉ khi OBS Bridge đang nối): tái dùng `refreshBrowserSources` (`lib/obs-bridge.js`) để biết link `/overlay/<id>` có trong OBS dù trang đang bị Shutdown → đánh dấu `inObs: true` (chỉ hiện chú thích trong app, không đổi trạng thái).
 - Bản thân bảng quà (`/overlay/giftboard`) không tính.
 
 ### 3.3 Chống nhấp nháy
@@ -71,17 +71,19 @@ mergeBoard(entries, status, opts) → { main: Entry[], linked: Entry[], overlaps
   opts    : { mergeSameGift, perGame }
 ```
 
-Luật:
+Luật (đã làm, 06/11/2026):
 
 1. Bỏ entry của game `off`.
 2. Khoá trùng = `giftId` (entry `generic` — "mọi quà/mỗi xu" — không bao giờ tính trùng).
-3. Entry của game `linked`: nếu `giftId` **không** xuất hiện ở bất kỳ game `running` nào → vào `main` (tag 🔗 tên game); nếu có → vào `linked` (mục "Đang mở kèm").
-4. Quà trùng giữa ≥2 game hiện ra (running–running hoặc running–linked) → thêm vào `overlaps {giftId, games[]}`; thẻ trong `main` có huy hiệu **"⚠ 2 game"** và liệt kê hành động từng game (đúng thực tế: cả hai cùng chạy). Đây chỉ là cảnh báo, không đổi thứ tự xử lý.
-5. Giữ thứ tự `SOURCE_ORDER` hiện có; Game Camera theo thứ tự `camActives()`.
+3. **Theo cả game** (không tách lẻ từng quà — một game nằm hai nơi khó đọc): game `linked` không có quà nào trùng game `running` → toàn bộ vào `main` (🔗 trên tiêu đề khối / trước dòng); có ≥1 quà trùng → cả game sang `linked` (khối "🔗 Đang mở kèm").
+4. `overlaps` / `overlapOf`: quà gán ở **≥2 game đang chạy** → thẻ của game đang chạy có huy hiệu **"⚠ N game"** (đúng thực tế: nhận quà là cả hai cùng chạy).
+5. `clashOf`: quà của game `linked` trùng game đang chạy → thẻ trong khối "Đang mở kèm" có **"⚠ trùng quà"** (game mở kèm đang tắt nên chưa chạy — chỉ báo "bật lên là chạy cùng"). Không tính vào "N game".
+6. Chỉ cảnh báo, không đổi thứ tự xử lý quà. Giữ thứ tự `SOURCE_ORDER`.
 
 ### 3.5 Game Camera vào bảng
 
-- Server thêm `GET /api/giftboard/cam-gifts` → `{ [id]: [{giftId, giftName, image?, diamond?, label}] }` cho 6 game camera, dựng từ `explicitGifts(id, cfg)` trong `lib/camgames.js` + nhãn hành động từng game (`action`/`label` của touchplay, `giftRules[].action` chemtraicay, `actions[]` dapmuoi, `gifts[]` dacau, `explicitGifts` body, các list Bắn Cung). Nhãn tiếng Việt lấy theo bảng tên hành động sẵn có trong panel từng game — gom vào map `CAM_ACTION_LABELS` trong lib, có test.
+- Server thêm `GET /api/giftboard/cam-gifts` → `{ actives, running: {id: bool}, games: {id: [{giftId, name, image, diamonds, emoji, label}]} }`. Danh sách quà dùng lại `gameGiftList()` (`lib/camgames-session.js`, đã có nhãn — chính là danh sách hiện trên overlay khi chạy phiên game theo quà); Bộ Tách Người dùng `giftBoardList()` mới trong `lib/body-server.js` (tên kịch bản, thiếu thì tên loại). Mục không có `giftId` (mốc xu Touch & Play, "x xu = 1 muỗi") lên bảng như dòng "mọi quà".
+- `running[id]` = `actsOnGifts` (Bắn Cung phải `sessionActive === true`) và (đang chọn trong hub hoặc là link riêng cũ `CAM_STANDALONE_IDS`). Bảng tải lại khi có `gameConfig` của game camera / `camgames` hoặc Bắn Cung đổi phiên.
 - Bắn Cung hiện đã có extractor riêng trong `collectRaw` → giữ extractor cũ, chỉ đổi cách tính trạng thái theo §3.1 (Game Camera).
 - Bắt-mọi-quà của Bắn Cung/Đập Muỗi/Đá Cầu: entry `generic`, và nếu `claimedElsewhere` thì ghi chú "nhường quà gán đích danh".
 - Thêm vào `SOURCE_ORDER` và danh sách nguồn tích chọn của bảng; giữ cơ chế ẩn theo bản quyền.
@@ -89,7 +91,7 @@ Luật:
 ### 3.6 Bố cục overlay 1080×1920
 
 - Mục chính như hiện nay (single / split / perGame).
-- Mục **"🔗 Đang mở kèm"**: tiêu đề 1 dòng + chip game; panel riêng id `linked` trong `panels` (kéo thả, scale, ẩn như các panel khác). Ở chế độ `single` thì là nhóm cuối danh sách.
+- Mục **"🔗 Đang mở kèm"**: panel riêng id `linked` trong `panels` (kéo thả, scale, ẩn như các panel khác), mọi chế độ bố trí, luôn có tiêu đề; vị trí mặc định trái-dưới (2%, 80%).
 - Thẻ ở `main` đến từ game `linked` có tag nhỏ 🔗 + tên game.
 - Không game nào `running`/`linked` → bảng trống (không hiện khung rỗng).
 

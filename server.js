@@ -106,6 +106,7 @@ loadTikTokConnector().catch((e) => console.error('[tiktok] KHÔNG nạp được
 const { OBSBridge } = require('./lib/obs-bridge');
 const { ObsCameraFeed } = require('./lib/touchplay-obs-feed');
 const CamRules = require('./lib/camgames');
+const OverlayPresence = require('./lib/overlay-presence');
 const CamSession = require('./lib/camgames-session');
 const { createCamObs } = require('./lib/camgames-obs');
 const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
@@ -828,6 +829,19 @@ function camHubOverlayOnline() {
 // 🎯 LEVEL QUEST đang chọn trong Game Camera VÀ overlay mẹ đang mở trên OBS → link riêng
 // /_prototype/level-quest.html?mode=overlay (không cam=1) tự ẩn, OBS khỏi hiện 2 thanh (port HP LIVE NPC).
 function levelQuestHubOwned() { return camGameInHub('level-quest') && camHubOverlayOnline(); }
+// 📋 Bảng Quà Tổng: overlay game nào đang MỞ (overlay gửi `overlay:hello`, xem lib/overlay-presence.js).
+// Hub 🎥 Game Camera đang mở → game camera đang chọn tính là mở. Phát `overlay:presence` khi đổi.
+const overlayPresence = OverlayPresence.createPresence();
+let overlayPresenceLast = {};
+function overlayPresenceSnapshot() {
+    return OverlayPresence.withHub(OverlayPresence.snapshot(overlayPresence, Date.now()), camHubOverlayOnline(), camActives());
+}
+function overlayPresenceBroadcast(force) {
+    const snap = overlayPresenceSnapshot();
+    if (!force && OverlayPresence.sameSnapshot(snap, overlayPresenceLast)) return;
+    overlayPresenceLast = snap;
+    io.emit('overlay:presence', snap);
+}
 let lqHubOwnedLast = null;
 setInterval(() => {
     try {
@@ -1329,8 +1343,10 @@ function makeDefaultGiftBoardConfig() {
         // Mỗi khối nhớ vị trí/cỡ/ẩn-hiện RIÊNG: 'main' | 'col1'.. | 'g:<gameId>'. Client tự điền khi khối xuất hiện.
         panels: {},
         // Game nào được lên bảng (game TẮT ở Thư viện luôn bị loại bất kể cờ này)
-        sources: { thuytinh: true, caro: true, votecomment: true, nhietdo: true, bancung: true, trongcay: true, nhatla: true, timer: true, obsEffects: true },
+        sources: { thuytinh: true, caro: true, votecomment: true, nhietdo: true, bancung: true, trongcay: true, nhatla: true, timer: true,
+            touchplay: true, chemtraicay: true, dapmuoi: true, dacau: true, body: true, obsEffects: true },
         rules: { mergeSameGift: true, groupByGame: false, sort: 'game', showGeneric: true, onlyRunning: false, hideBirdGifts: true },
+        visibility: {},              // gameId → 'always' | 'never' (thiếu = tự động: game bật / overlay đang mở)
         overrides: {}                // key "<game>|<nguồn>|<giftId>" → { hidden, label } — chỉ tác động lên bảng này
     };
 }
@@ -6048,6 +6064,24 @@ app.get('/api/unknown-gifts/:id/image', async (req, res) => {
     }
 });
 
+app.get('/api/overlay-presence', (req, res) => res.json(overlayPresenceSnapshot()));
+// 📋 Bảng Quà Tổng: quà các game 🎥 Game Camera + game nào đang THẬT SỰ nhận quà (đang chọn trong hub, hoặc
+// link riêng cũ của Bắn Cung; Bắn Cung còn phải ▶ BẮT ĐẦU). Mục không có giftId = dòng "mọi quà/theo xu".
+app.get('/api/giftboard/cam-gifts', (req, res) => {
+    const actives = camActives();
+    const catalog = camGiftCatalog();
+    const games = {}, running = {};
+    for (const id of CAM_GAME_IDS) {
+        if (id === 'level-quest') continue;              // không có quà chỉ định
+        const cfg = appConfig.games?.[id] || {};
+        running[id] = CamRules.actsOnGifts(id, cfg) && (id === 'bancung' ? cfg.sessionActive === true : true)
+            && (actives.includes(id) || CAM_STANDALONE_IDS.has(id));
+        games[id] = id === 'body'
+            ? BodyServer.giftBoardList(cfg).map(g => ({ giftId: g.giftId, name: g.giftName, image: g.giftImage, diamonds: 0, emoji: '', label: g.label }))
+            : CamSession.gameGiftList(id, cfg, catalog, 200);
+    }
+    res.json({ actives, running, games });
+});
 app.get('/api/games', (req, res) => {
     const list = Object.values(GAMES).map(g => ({
         id: g.id, name: g.name, description: g.description, icon: g.icon,
@@ -12841,13 +12875,26 @@ io.on('connection', (socket) => {
     // Dịch Thuật LIVE: speaker đóng OBS → bầu lại instance kế tiếp làm speaker.
     // Lúc 'disconnect' socket đã rời mọi room nên assignTranslateSpeaker() chỉ tính các
     // overlay còn lại. Gọi vô điều kiện cũng an toàn (room rỗng → no-op).
+    // 📋 Bảng Quà Tổng: overlay game báo "tôi đang mở" (lúc nối + nhắc lại ~8s, public/lib/overlay-hello.js).
+    socket.on('overlay:hello', (raw) => {
+        const info = OverlayPresence.normalizeHello(raw, id => !!GAMES[id]);
+        if (!info) return;
+        OverlayPresence.touch(overlayPresence, socket.id, info, Date.now());
+        overlayPresenceBroadcast();
+    });
     socket.on('disconnect', () => {
+        if (OverlayPresence.drop(overlayPresence, socket.id)) overlayPresenceBroadcast();
         assignTranslateSpeaker();
         // Overlay cuối cùng rời đi giữa lúc đang chờ ack → đừng treo 20s, chuyển lượt ngay
         // (không còn overlay để phát → flush nhanh phần còn lại).
         if (vipWelcomePlaying && vipOverlayCount() === 0) vipWelcomeOnItemDone(vipWelcomePlaySeq);
     });
 });
+// Overlay hết nhắc (rớt mạng ngầm) / hub Game Camera mở-đóng / đổi game camera → phát lại presence khi có thay đổi.
+setInterval(() => {
+    OverlayPresence.prune(overlayPresence, Date.now());
+    overlayPresenceBroadcast();
+}, 3000).unref();
 
 httpServer.on('error', (e) => {
     const hint = e.code === 'EADDRINUSE' ? ' — port đang bận (HP Action LIVE khác đang chạy?)'

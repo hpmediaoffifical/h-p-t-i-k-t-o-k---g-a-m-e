@@ -40,6 +40,9 @@ const FILES = [
     ['lib/vipwelcome/tts-text.js', 'câu đọc tên (thiếu = server không khởi động)'],
     ['public/games/vipwelcome/board.html', 'overlay BXH khách quen'],
     ['public/_prototype/giftboard.html', 'Bảng Quà Tổng — nút ở đáy sidebar + link OBS'],
+    ['lib/overlay-presence.js', 'overlay nào đang mở (thiếu = server không khởi động)'],
+    ['public/lib/giftboard-merge.js', 'Bảng Quà Tổng: game đang chạy / đang mở kèm / quà trùng'],
+    ['public/lib/overlay-hello.js', 'overlay báo đang mở cho Bảng Quà Tổng'],
     // 🎥 Game Camera: overlay mẹ nhúng game con (Touch & Play / Chém Trái Cây) + feed camera dùng chung
     ['public/games/camgames/overlay.html', 'overlay Game Camera (1 link OBS cho mọi game camera)'],
     ['public/games/camgames/registry.js', 'danh sách game con của Game Camera (thiếu = menu rỗng)'],

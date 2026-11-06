@@ -104,7 +104,7 @@
   .anchors button:hover { background:#fff1ea; border-color:var(--accent); }
   .hint { font-size:11.5px; color:var(--muted); line-height:1.45; }
   .src-list { display:grid; gap:6px; }
-  .src { display:grid; grid-template-columns:22px 26px 1fr auto auto; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; font-size:12.5px; background:#fafbfc; }
+  .src { display:grid; grid-template-columns:22px 26px 1fr auto auto auto; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; font-size:12.5px; background:#fafbfc; }
   .src.off { opacity:.55; }
   .src .nm { font-weight:700; }
   .src .chip { font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; background:#e9edf4; color:#4b5468; }
@@ -112,6 +112,13 @@
   .src .chip.run { background:#ffe9d9; color:#b34a10; }
   .src .chip.off { background:#f6dfe3; color:#a3233a; }
   .src .n { font-size:11px; color:var(--muted); min-width:34px; text-align:right; }
+  .src .chip.link { background:#e3eeff; color:#1d4fb0; }
+  .src select { font-size:11px; padding:1px 4px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  .ovl-list { display:grid; gap:4px; margin-top:8px; font-size:12px; }
+  .ovl-list .ovl { padding:5px 8px; border-radius:8px; background:#fff4e0; border:1px solid #ffd59a; color:#7a4a00; }
+  .gb-warn { display:inline-block; align-self:flex-start; margin-top:calc(2px * var(--s)); padding:0 calc(7px * var(--s)); border-radius:calc(999px * var(--s));
+    background:#ffb020; color:#2b1600; font-size:calc(15px * var(--s) * var(--ns)); font-weight:900; line-height:1.5; white-space:nowrap; }
+  .gb-name .lk { margin-right:calc(4px * var(--s)); opacity:.85; }
   /* Chip khối: chọn khối để chỉnh, 👁 ẩn/hiện, ↺ về vị trí mặc định */
   .pchips { display:flex; flex-wrap:wrap; gap:6px; }
   .pchip { display:inline-flex; align-items:center; gap:4px; border:1px solid #cfd6e2; border-radius:999px; padding:3px 4px 3px 10px; font-size:12px; font-weight:700; background:#fff; cursor:pointer; user-select:none; }
@@ -256,6 +263,8 @@
         <summary>🎮 Game lên bảng <span class="cnt" id="src-cnt"></span></summary>
         <div class="body">
           <div class="src-list" id="src-list"></div>
+          <div class="hint">🟢 <b>đang chạy</b> = game đang bật · 🔗 <b>đang mở kèm</b> = game không bật nhưng overlay đang mở trong OBS / LIVE Studio (không trùng quà thì gộp vào bảng, trùng thì lên khối “Đang mở kèm”) · ⚪ ẩn. Ô chọn bên phải: Tự động / Luôn hiện / Không hiện.</div>
+          <div class="ovl-list" id="ovl-list"></div>
           <div class="chks">
             <label class="chk"><input type="checkbox" data-cfg="rules.mergeSameGift"> Gộp quà trùng (1 quà nhiều game → 1 thẻ)</label>
             <label class="chk" id="chk-group"><input type="checkbox" data-cfg="rules.groupByGame"> Nhóm theo game trong khối (có tiêu đề nhóm)</label>
@@ -362,6 +371,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <!-- Nhặt Lá: dùng ĐÚNG giftBoardEntries() của game (một nguồn sự thật) thay vì chép lại luật. -->
   <script src="/games/nhatla/game.js"></script>
+  <script src="/lib/giftboard-merge.js"></script>
   <script>
   (function () {
     'use strict';
@@ -381,9 +391,14 @@
     const PANEL_ID_RE = /^[\w:-]{1,40}$/;
 
     // Thứ tự nguồn = thứ tự Thư viện Game. obsEffects là tool ảo (Hiệu ứng OBS) không nằm trong /api/games.
-    const SOURCE_ORDER = ['thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung', 'trongcay', 'nhatla', 'timer', 'obsEffects'];
+    const SOURCE_ORDER = ['thuytinh', 'caro', 'votecomment', 'nhietdo', 'bancung', 'trongcay', 'nhatla', 'timer',
+      'touchplay', 'chemtraicay', 'dapmuoi', 'dacau', 'body', 'obsEffects'];
     const VIRTUAL_META = { obsEffects: { icon: '🎬', name: 'Hiệu ứng OBS' } };
     const HAS_SESSION = new Set(['nhietdo', 'bancung', 'trongcay', 'votecomment']);
+    // 🎥 Game Camera: "đang chạy" do server tính (/api/giftboard/cam-gifts → running). Bắn Cung giữ bộ đọc quà riêng ở dưới.
+    const CAM_IDS = new Set(['touchplay', 'chemtraicay', 'dapmuoi', 'dacau', 'body', 'bancung']);
+    const VIS_VALUES = ['auto', 'always', 'never'];
+    const Merge = window.HpGiftboardMerge;
 
     // ===== CONFIG =====
     function defaultConfig() {
@@ -401,6 +416,7 @@
         panels: {},                                       // id → { xPercent, yPercent, scale, hidden } — nhớ riêng từng khối
         sources: Object.fromEntries(SOURCE_ORDER.map(k => [k, true])),
         rules: { mergeSameGift: true, groupByGame: false, sort: 'game', showGeneric: true, onlyRunning: false, hideBirdGifts: true },
+        visibility: {},                                   // gameId → 'auto' (mặc định) | 'always' | 'never'
         overrides: {}
       };
     }
@@ -409,7 +425,8 @@
       if (id === 'main') return { x: 2, y: 20 };
       const col = /^col(\d+)$/.exec(id);
       if (col) { const i = Math.max(1, parseInt(col[1], 10)) - 1; const xs = [2, 72, 37]; return { x: xs[i % 3], y: 16 + Math.floor(i / 3) * 42 }; }
-      if (id.startsWith('g:')) { const i = Math.max(0, SOURCE_ORDER.indexOf(id.slice(2))); return { x: i % 2 ? 62 : 2, y: 8 + Math.floor(i / 2) * 18 }; }
+      if (id === 'linked') return { x: 2, y: 80 };
+      if (id.startsWith('g:')) { const i = Math.max(0, SOURCE_ORDER.indexOf(id.slice(2))); return { x: i % 2 ? 62 : 2, y: 8 + (Math.floor(i / 2) % 5) * 18 }; }
       return { x: 2, y: 20 };
     }
     function normPanel(p, id, defScale) {
@@ -431,6 +448,7 @@
         panels: {},
         sources: { ...d.sources, ...obj(c.sources) },
         rules: { ...d.rules, ...obj(c.rules) },
+        visibility: Object.fromEntries(Object.entries(obj(c.visibility)).filter(([k, v]) => SOURCE_ORDER.includes(k) && VIS_VALUES.includes(v) && v !== 'auto')),
         overrides: obj(c.overrides)
       };
       const o = out.display;
@@ -465,6 +483,12 @@
     let obsCfg = null;       // /api/obs-bridge/config
     let licStates = {};      // HP KEY gs (/api/license/features → states): mục 'hidden' (Ẩn) không hiện ở đây
     const running = {};      // gameId → phiên đang chạy?
+    let camData = null;      // /api/giftboard/cam-gifts → { actives, running, games }
+    let presence = {};       // overlay:presence → { gameId: { open, onAir, obs, viaHub } }
+    const lastOpenAt = {};   // gameId → lúc overlay vừa đóng (giữ 🔗 thêm 30s chống nhấp nháy)
+    let lastStatusSig = '';
+    let lastOverlaps = [];   // quà gán ở ≥2 game đang chạy (cùng chạy khi nhận)
+    let lastClashes = [];    // quà của game 🔗 đang mở kèm trùng game đang chạy
     let rawEntries = [];     // trước khi gộp (bảng danh sách trong lab)
     let lastPanels = [];     // kết quả buildPanels() gần nhất (cả khối ẩn)
     let selectedPanel = null;
@@ -575,6 +599,15 @@
           }
           if (t.triggers?.enabled !== false) for (const tr of t.triggers?.list || []) if (tr?.enabled !== false && tr.gift?.giftId) push('timer', 'trg:' + tr.id, tr.gift.giftId, tr.gift, tr.name || 'Kích hoạt đếm ngược', fmtSec(tr.durationSec));
         } }
+      // 🎥 Game Camera (trừ Bắn Cung — đã đọc ở trên): server dựng sẵn nhãn. Mục không có giftId = dòng "mọi quà/theo xu".
+      if (camData && camData.games) for (const id of ['touchplay', 'chemtraicay', 'dapmuoi', 'dacau', 'body']) {
+        (camData.games[id] || []).forEach((g, i) => {
+          if (!g) return;
+          if (g.giftId) push(id, 'cam' + i, g.giftId, { giftName: g.name, giftImage: g.image, diamond: g.diamonds }, g.label, '');
+          else out.push({ key: `${id}|generic|${i}`, gameId: id, source: 'generic', giftId: '', generic: true, giftName: g.name || 'Mọi quà', image: '', diamond: 0,
+            label: `${g.emoji ? g.emoji + ' ' : ''}${g.name ? g.name + ': ' : ''}${g.label || ''}`.trim(), tag: '' });
+        });
+      }
       { if (obsCfg && obsCfg.enabled !== false) {
           const dis = new Set(obsCfg.groupsDisabled || []);
           for (const m of obsCfg.mapping || []) {
@@ -591,37 +624,56 @@
     function gameEnabled(id) {
       if (srcHidden(id)) return false;
       if (id === 'obsEffects') return !!obsCfg && obsCfg.enabled !== false;
+      if (CAM_IDS.has(id)) return !!camData?.running?.[id];
       return !!games[id] && games[id].config?.enabled !== false;
     }
+    // Game đang thật sự chạy (danh sách chính): bật + (tuỳ chọn "chỉ game đang chạy phiên").
+    function isRunning(id) {
+      if (!gameEnabled(id)) return false;
+      if (cfg.rules.onlyRunning && HAS_SESSION.has(id) && !CAM_IDS.has(id) && !running[id]) return false;
+      return true;
+    }
+    // 🟢 running | 🔗 linked (overlay đang mở) | ⚪ off — luật ở public/lib/giftboard-merge.js
+    function statusOf(id) {
+      if (srcHidden(id) || !cfg.sources[id]) return 'off';
+      const p = presence[id];
+      return Merge.gameStatus({ visibility: cfg.visibility[id], running: isRunning(id), open: !!(p && p.open > 0), lastOpenAt: lastOpenAt[id] || 0, now: Date.now() });
+    }
+    function statusMap() { const m = {}; for (const id of SOURCE_ORDER) m[id] = statusOf(id); return m; }
     function gameMeta(id) { return games[id] ? { icon: games[id].icon, name: games[id].name } : (VIRTUAL_META[id] || { icon: '🎁', name: id }); }
     const gIdx = id => { const i = SOURCE_ORDER.indexOf(id); return i < 0 ? 99 : i; };
     // Tách theo game hoặc nhóm theo game → chỉ gộp quà trùng TRONG một game.
     const mergePerGame = () => cfg.mode === 'perGame' || cfg.rules.groupByGame;
 
-    // Lọc → gộp → sắp xếp. Trả về danh sách thẻ phẳng.
+    // Lọc → chia chính / "đang mở kèm" → gộp → sắp xếp. Trả về { cards, linkedCards, overlaps, status }.
     function buildCards() {
       rawEntries = collectRaw();
+      const status = statusMap();
       const visible = rawEntries.filter(e => {
-        if (!cfg.sources[e.gameId]) return false;
-        if (!gameEnabled(e.gameId)) return false;
-        if (cfg.rules.onlyRunning && HAS_SESSION.has(e.gameId) && !running[e.gameId]) return false;
         if (e.generic && !cfg.rules.showGeneric) return false;
         const ov = cfg.overrides[e.key];
         if (ov?.hidden) return false;
         return true;
       }).map(e => { const ov = cfg.overrides[e.key]; return ov?.label ? { ...e, label: String(ov.label).slice(0, 60) } : e; });
-
+      const m = Merge.mergeBoard(visible, status);
+      lastOverlaps = m.overlaps;
+      lastClashes = Object.entries(m.clashOf).map(([giftId, run]) => ({ giftId, run, linked: [...new Set(m.linked.concat(m.main).filter(e => e.giftId === giftId && status[e.gameId] === 'linked').map(e => e.gameId))] }));
+      return { cards: cardsOf(m.main, status, m.overlapOf, m.clashOf), linkedCards: cardsOf(m.linked, status, m.overlapOf, m.clashOf), overlaps: m.overlaps, status };
+    }
+    function cardsOf(entries, status, overlapOf, clashOf) {
       const cards = []; const byGift = new Map();
-      for (const e of visible) {
+      for (const e of entries) {
         const meta = gameMeta(e.gameId);
-        const line = { gameId: e.gameId, icon: meta.icon, label: e.label, tag: e.tag };
+        const line = { gameId: e.gameId, icon: meta.icon, label: e.label, tag: e.tag, linked: status[e.gameId] === 'linked' };
         const mergeKey = mergePerGame() ? e.gameId + '|' + e.giftId : e.giftId;
         if (cfg.rules.mergeSameGift && !e.generic && byGift.has(mergeKey)) {
           const c = byGift.get(mergeKey); c.lines.push(line);
           if (!c.image && e.image) c.image = e.image; if (!c.diamond && e.diamond) c.diamond = e.diamond;
           continue;
         }
-        const card = { key: e.key, gameId: e.gameId, giftId: e.giftId, giftName: e.giftName, image: e.image, diamond: e.diamond, generic: e.generic, lines: [line], order: cards.length };
+        const card = { key: e.key, gameId: e.gameId, giftId: e.giftId, giftName: e.giftName, image: e.image, diamond: e.diamond, generic: e.generic, lines: [line], order: cards.length,
+          overlap: (!e.generic && status[e.gameId] === 'running' && overlapOf[e.giftId]) || null,
+          clash: (!e.generic && status[e.gameId] === 'linked' && clashOf[e.giftId]) || null };
         cards.push(card); if (!e.generic) byGift.set(mergeKey, card);
       }
       cards.sort((a, b) => {
@@ -638,21 +690,25 @@
 
     // Chia thẻ thành KHỐI theo cfg.mode. Trả về [{ id, title, icon, cards }] — kể cả khối ẩn (để lab liệt kê).
     function buildPanels() {
-      const cards = buildCards();
+      const { cards, linkedCards, status } = buildCards();
+      lastStatusSig = JSON.stringify(status);
+      // Game "đang mở kèm" trùng quà game đang chạy → khối riêng 🔗 (kéo/ẩn/cỡ như khối khác).
+      const linkedPanel = linkedCards.length ? [{ id: 'linked', title: 'Đang mở kèm', icon: '🔗', cards: linkedCards }] : [];
       if (cfg.mode === 'perGame') {
         const map = new Map();
         for (const c of cards) { if (!map.has(c.gameId)) map.set(c.gameId, []); map.get(c.gameId).push(c); }
         return [...map.entries()].sort((a, b) => gIdx(a[0]) - gIdx(b[0]))
-          .map(([gid, list]) => { const m = gameMeta(gid); return { id: 'g:' + gid, title: m.name, icon: m.icon, cards: list }; });
+          .map(([gid, list]) => { const m = gameMeta(gid); return { id: 'g:' + gid, title: m.name, icon: status[gid] === 'linked' ? '🔗 ' + m.icon : m.icon, cards: list }; })
+          .concat(linkedPanel);
       }
       if (cfg.mode === 'split' && cards.length) {
         const n = cfg.split.by === 'rows' ? Math.max(1, Math.ceil(cards.length / cfg.split.rows)) : cfg.split.count;
         const per = Math.max(1, Math.ceil(cards.length / n));
         const out = [];
         for (let i = 0; i < n && i * per < cards.length; i++) out.push({ id: 'col' + (i + 1), title: 'Cột ' + (i + 1), icon: '', cards: cards.slice(i * per, (i + 1) * per) });
-        return out;
+        return out.concat(linkedPanel);
       }
-      return cards.length ? [{ id: 'main', title: '', icon: '', cards }] : [];
+      return (cards.length ? [{ id: 'main', title: '', icon: '', cards }] : []).concat(linkedPanel);
     }
     const panelCfg = id => cfg.panels[id] || (cfg.panels[id] = normPanel({}, id, cfg.display.scale));
     const panelLabel = p => p.title ? `${p.icon ? p.icon + ' ' : ''}${p.title}` : 'Bảng';
@@ -664,7 +720,14 @@
       const d = cfg.display;
       // Icon game trước mỗi dòng. Đã tách/nhóm theo game thì tiêu đề nói rồi — chỉ giữ cho thẻ gộp nhiều dòng.
       const showIcon = d.showGameIcon && !(mergePerGame() && c.lines.length === 1);
-      const lines = c.lines.map(l => `<span class="ln">${showIcon ? `<span class="gi">${esc(l.icon)}</span>` : ''}${esc(l.label)}</span>`).join('');
+      // 🔗 = game không bật nhưng overlay đang mở (đã tách theo game thì tiêu đề khối có 🔗 rồi).
+      const lk = l => l.linked && !mergePerGame() ? '<span class="lk">🔗</span>' : '';
+      const lines = c.lines.map(l => `<span class="ln">${lk(l)}${showIcon ? `<span class="gi">${esc(l.icon)}</span>` : ''}${esc(l.label)}</span>`).join('');
+      // Quà trùng nhiều game: chỉ CẢNH BÁO — server phát quà cho mọi game, cả hai cùng chạy.
+      const names = ids => esc(ids.map(id => gameMeta(id).name).join(' + '));
+      const warn = c.overlap && c.overlap.length >= 2
+        ? `<span class="gb-warn" title="${names(c.overlap)} cùng chạy khi nhận quà này">⚠ ${c.overlap.length} game</span>`
+        : c.clash ? `<span class="gb-warn" title="Trùng quà với ${names(c.clash)} (đang chạy)">⚠ trùng quà</span>` : '';
       const tag = d.showTag ? (c.lines.find(l => l.tag)?.tag || '') : '';
       const ico = c.generic
         ? `<div class="gb-ico-emoji">${esc(gameMeta(c.gameId).icon)}</div>`
@@ -672,7 +735,7 @@
       const sub = d.showDiamond && !c.generic ? `<div class="gb-gift">${esc(c.giftName)}${c.diamond > 0 ? ` · 💎 ${Math.round(c.diamond)}` : ''}</div>` : '';
       return `<div class="gb-card name-${d.namePos}" data-gift="${esc(c.giftId)}" title="${esc(c.giftName)}">
         <div class="gb-ico-wrap">${ico}${tag ? `<span class="gb-tag">${esc(tag)}</span>` : ''}</div>
-        <div class="gb-text"><div class="gb-name">${lines}</div>${sub}</div>
+        <div class="gb-text"><div class="gb-name">${lines}</div>${sub}${warn}</div>
       </div>`;
     }
     function applyPanelPos(id) {
@@ -698,7 +761,7 @@
 
       const total = p.cards.length; const scroll = d.autoScroll;
       const scrolling = scroll.enabled && d.layout !== 'grid' && total > scroll.visibleCount;
-      const titleText = (index === 0 && d.title) ? d.title : (d.showPanelTitle && cfg.mode === 'perGame' ? panelLabel(p) : '');
+      const titleText = p.id === 'linked' ? panelLabel(p) : (index === 0 && d.title) ? d.title : (d.showPanelTitle && cfg.mode === 'perGame' ? panelLabel(p) : '');
       const head = (titleText ? `<div class="gb-title">${esc(titleText)}</div>` : '') + (d.showCounter && total >= 2 ? `<div class="gb-counter">${total}</div>` : '');
       let html = head ? `<div class="gb-head">${head}</div>` : '';
       if (scrolling) html += `<div class="gb-list is-scrolling dir-${scroll.direction}" style="--scroll-duration:${total * scroll.speed}s"><div class="gb-track">${inner}${inner}</div></div>`;
@@ -934,20 +997,37 @@
     function updateLabInfo(panels, visiblePanels) {
       if (IS_OVERLAY) return;
       const total = visiblePanels.reduce((n, p) => n + p.cards.length, 0);
-      $('gb-count').textContent = `${total} thẻ · ${visiblePanels.length} khối · ${new Set(rawEntries.filter(e => cfg.sources[e.gameId] && gameEnabled(e.gameId)).map(e => e.gameId)).size} game`;
+      const status = statusMap();
+      $('gb-count').textContent = `${total} thẻ · ${visiblePanels.length} khối · ${new Set(rawEntries.filter(e => status[e.gameId] !== 'off').map(e => e.gameId)).size} game`;
       renderPanelChips(); syncPanelInputs();
       const counts = {}; for (const e of rawEntries) counts[e.gameId] = (counts[e.gameId] || 0) + 1;
       const known = SOURCE_ORDER.filter(id => (games[id] || id === 'obsEffects') && !srcHidden(id));
       $('src-cnt').textContent = known.length + ' nguồn';
       $('src-list').innerHTML = known.map(id => {
-        const m = gameMeta(id); const en = gameEnabled(id); const run = HAS_SESSION.has(id) ? running[id] : null;
+        const m = gameMeta(id); const st = status[id]; const vis = cfg.visibility[id] || 'auto';
+        const run = HAS_SESSION.has(id) && !CAM_IDS.has(id) ? running[id] : null; const p = presence[id];
+        const where = p && p.open > 0 ? (p.viaHub ? 'mở qua Game Camera' : p.onAir ? 'đang lên sóng OBS' : p.obs ? 'mở trong OBS' : 'overlay đang mở') : 'overlay vừa đóng';
         const chip = srcState(id) === 'off' ? '<span class="chip off" title="Đang tạm bảo trì — HP Media sẽ mở lại sớm">⏸ Tạm bảo trì</span>'
-          : !en ? '<span class="chip off">TẮT ở Thư viện</span>' : run === true ? '<span class="chip run">đang chạy phiên</span>' : run === false ? '<span class="chip">chưa chạy phiên</span>' : '<span class="chip on">BẬT</span>';
-        return `<label class="src ${cfg.sources[id] && en ? '' : 'off'}"><input type="checkbox" data-src="${id}" ${cfg.sources[id] ? 'checked' : ''}><span>${esc(m.icon)}</span><span class="nm">${esc(m.name)}</span>${chip}<span class="n">${counts[id] || 0} quà</span></label>`;
+          : st === 'running' ? (vis === 'always' ? '<span class="chip on">🟢 luôn hiện</span>' : run === true ? '<span class="chip run">🟢 đang chạy phiên</span>' : '<span class="chip on">🟢 đang chạy</span>')
+          : st === 'linked' ? `<span class="chip link" title="Game không bật nhưng overlay đang mở">🔗 ${esc(where)}</span>`
+          : vis === 'never' ? '<span class="chip off">⚪ không hiện</span>'
+          : !cfg.sources[id] ? '<span class="chip">⚪ bỏ chọn</span>'
+          : CAM_IDS.has(id) ? '<span class="chip off" title="Chưa chọn trong 🎥 Game Camera (Bắn Cung: chưa ▶ BẮT ĐẦU)">⚪ chưa chơi</span>'
+          : run === false && gameEnabled(id) ? '<span class="chip">⚪ chưa chạy phiên</span>' : '<span class="chip off">⚪ TẮT ở Thư viện</span>';
+        const sel = `<select data-vis="${id}" title="Tự động: theo game bật / overlay mở">${VIS_VALUES.map(v => `<option value="${v}" ${v === vis ? 'selected' : ''}>${{ auto: 'Tự động', always: 'Luôn hiện', never: 'Không hiện' }[v]}</option>`).join('')}</select>`;
+        return `<label class="src ${st === 'off' ? 'off' : ''}"><input type="checkbox" data-src="${id}" ${cfg.sources[id] ? 'checked' : ''}><span>${esc(m.icon)}</span><span class="nm">${esc(m.name)}</span>${chip}${sel}<span class="n">${counts[id] || 0} quà</span></label>`;
       }).join('');
       $('src-list').querySelectorAll('input[data-src]').forEach(inp => inp.addEventListener('change', () => { cfg.sources[inp.dataset.src] = inp.checked; paint(); scheduleSave(); }));
+      $('src-list').querySelectorAll('select[data-vis]').forEach(s => s.addEventListener('change', () => {
+        if (s.value === 'auto') delete cfg.visibility[s.dataset.vis]; else cfg.visibility[s.dataset.vis] = s.value;
+        paint(); scheduleSave();
+      }));
+      const gnames = ids => ids.map(id => esc(gameMeta(id).icon + ' ' + gameMeta(id).name)).join(' + ');
+      const giftName = id => esc(rawEntries.find(e => e.giftId === id)?.giftName || ('#' + id));
+      $('ovl-list').innerHTML = lastOverlaps.map(o => `<div class="ovl">⚠ <b>${esc(o.giftName)}</b> — ${gnames(o.games)} cùng chạy khi nhận quà này</div>`).join('')
+        + lastClashes.map(c => `<div class="ovl">🔗 <b>${giftName(c.giftId)}</b> — ${gnames(c.linked)} (đang mở kèm) trùng quà với ${gnames(c.run)}: bật lên là cả hai cùng chạy</div>`).join('');
       $('ent-cnt').textContent = rawEntries.length + ' dòng';
-      $('ent-body').innerHTML = rawEntries.filter(e => cfg.sources[e.gameId] && gameEnabled(e.gameId)).map(e => {
+      $('ent-body').innerHTML = rawEntries.filter(e => status[e.gameId] !== 'off').map(e => {
         const ov = cfg.overrides[e.key] || {}; const m = gameMeta(e.gameId);
         return `<tr class="${ov.hidden ? 'hid' : ''}"><td><button class="eye" data-key="${esc(e.key)}" title="${ov.hidden ? 'Đang ẩn — bấm để hiện' : 'Đang hiện — bấm để ẩn'}">${ov.hidden ? '🙈' : '👁'}</button></td>
           <td>${e.generic ? '🎁' : `<img src="${esc(e.image || FALLBACK_ICON)}" onerror="this.src='${FALLBACK_ICON}'">`} ${esc(e.giftName)}</td>
@@ -960,13 +1040,17 @@
     // ===== TẢI DỮ LIỆU =====
     async function loadAll() {
       try {
-        const [gl, gifts, ob, own, lf] = await Promise.all([
+        const [gl, gifts, ob, own, lf, cam, pres] = await Promise.all([
           fetch('/api/games').then(r => r.json()),
           fetch('/api/gifts').then(r => r.json()).catch(() => []),
           fetch('/api/obs-bridge/config').then(r => r.ok ? r.json() : null).catch(() => null),
           fetch(`/api/games/${GAME_ID}/config`).then(r => r.ok ? r.json() : null).catch(() => null),
-          fetch('/api/license/features', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)
+          fetch('/api/license/features', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/giftboard/cam-gifts', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/overlay-presence', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)
         ]);
+        if (cam) camData = cam;
+        if (pres) setPresence(pres);
         games = {}; for (const g of Array.isArray(gl) ? gl : []) games[g.id] = g;
         licStates = obj(lf && lf.states);
         for (const g of Array.isArray(gifts) ? gifts : []) if (g?.id) catalog[String(g.id)] = g;
@@ -976,6 +1060,24 @@
         fillInputs(); fitStage(); paint();
         log(`Đã tải ${Object.keys(games).length} game · ${Object.keys(catalog).length} quà TikTok`, 'ok');
       } catch (e) { log('Tải dữ liệu lỗi: ' + e.message, 'err'); }
+    }
+
+    // ===== GAME ĐANG MỞ / GAME CAMERA =====
+    // Overlay vừa đóng → nhớ lúc đóng: còn 🔗 thêm 30s (OBS hay tải lại trang khi đổi scene).
+    function setPresence(next) {
+      next = obj(next); const now = Date.now();
+      for (const id of Object.keys(presence)) if (!(next[id]?.open > 0) && presence[id]?.open > 0) lastOpenAt[id] = now;
+      presence = next;
+    }
+    // Chỉ vẽ lại khi trạng thái game thật sự đổi — vẽ lại làm chạy lại hoạt ảnh cuộn.
+    function repaintIfStatusChanged() { if (JSON.stringify(statusMap()) !== lastStatusSig) schedulePaint(); }
+    setInterval(repaintIfStatusChanged, 5000);   // hết 30s chờ của game vừa đóng overlay
+    let camFetchT = null;
+    function refreshCamGifts() {
+      clearTimeout(camFetchT);
+      camFetchT = setTimeout(async () => {
+        try { const r = await fetch('/api/giftboard/cam-gifts', { cache: 'no-store' }); if (r.ok) { camData = await r.json(); schedulePaint(); } } catch (_) {}
+      }, 300);
     }
 
     // ===== SOCKET =====
@@ -993,8 +1095,10 @@
         if (!games[gameId]) games[gameId] = { id: gameId, name: gameId, icon: '🎮', config };
         else games[gameId].config = config;
         if (HAS_SESSION.has(gameId) && typeof config?.sessionActive === 'boolean') running[gameId] = config.sessionActive;
+        if (CAM_IDS.has(gameId) || gameId === 'camgames') refreshCamGifts();
         schedulePaint();
       });
+      socket.on('overlay:presence', snap => { setPresence(snap); repaintIfStatusChanged(); });
       socket.on('gameDisabled', ({ gameId }) => { if (games[gameId]) { games[gameId].config = { ...(games[gameId].config || {}), enabled: false }; schedulePaint(); } if (gameId === GAME_ID) { cfg.enabled = false; fillInputs(); paint(); } });
       socket.on('gameEnabled', ({ gameId }) => { if (games[gameId]) { games[gameId].config = { ...(games[gameId].config || {}), enabled: true }; schedulePaint(); } if (gameId === GAME_ID) { cfg.enabled = true; fillInputs(); paint(); } });
       socket.on('giftSheet', list => { if (!Array.isArray(list)) return; for (const g of list) if (g?.id) catalog[String(g.id)] = g; schedulePaint(); });
@@ -1016,7 +1120,7 @@
       const setRun = (id, on) => { if (running[id] !== on) { running[id] = on; if (cfg.rules.onlyRunning || !IS_OVERLAY) schedulePaint(); } };
       socket.on('votecomment:state', s => setRun('votecomment', !!s?.active));
       socket.on('nhietdo:state', s => { if (s && typeof s.sessionActive === 'boolean') setRun('nhietdo', s.sessionActive); });
-      socket.on('bancung:state', s => { if (s && typeof s.sessionActive === 'boolean') setRun('bancung', s.sessionActive); });
+      socket.on('bancung:state', s => { if (s && typeof s.sessionActive === 'boolean') { if (running.bancung !== s.sessionActive) refreshCamGifts(); setRun('bancung', s.sessionActive); } });
       socket.on('trongcay:state', s => { if (s && typeof s.sessionActive === 'boolean') setRun('trongcay', s.sessionActive); });
       socket.on('gift', g => pulse(g?.giftId));
       socket.on('overlay:reload', data => { if (IS_OVERLAY && (!data?.gameId || data.gameId === GAME_ID)) location.reload(); });
