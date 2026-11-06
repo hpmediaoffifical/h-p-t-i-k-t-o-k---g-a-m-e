@@ -53,6 +53,7 @@ Mỗi game mới cần:
 5. Script tags + `openXxx()` handler trong `public/app.js`.
 6. CSS namespace prefix `.<id>-*` trong `public/style.css`.
 7. **Tránh route collision với `/api/games/:id/*`** — generic GET/POST `/state` và `/config` đã giữ chỗ. Đặt route riêng dưới namespace khác (vd `/api/<id>/*`).
+8. **📋 Bảng Quà Tổng:** overlay game gắn `<script src="/lib/overlay-hello.js" data-game="<id>">` sau socket.io (bảng biết game đang mở trên OBS; trang bảng quà riêng thêm `data-presence="0"`). Bảng quà riêng của game phải ẩn khi `html.gb-active` / `window.__hpGiftboardActive`. Quà của game mới thêm vào `public/lib/giftboard-collect.js` (hoặc `lib/giftboard-tt.js` nếu dựng phía server); bộ chọn quà gắn `data-gid` lên mỗi dòng là tự có nhãn "⚠ đang dùng ở". Spec `docs/superpowers/specs/2026-11-06-giftboard-theo-game-dang-chay-design.md`.
 
 ## Versioning & Release
 
