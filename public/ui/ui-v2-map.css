@@ -66,6 +66,7 @@ body.ui-v2 {
     --bg-0b0d12: #FBF5F4;
     --bg-0c0e15: #FBF5F4;
     --bg-0d0f15: #FBF5F4;
+    --bg-0d1017: #FBF5F4;
     --bg-0d1220: #EDF0F8;
     --bg-0e1117: #FBF5F4;
     --bg-0e1118: #FBF5F4;
@@ -82,6 +83,7 @@ body.ui-v2 {
     --bg-10202a: #EDF4F8;
     --bg-11131a: #FFFFFF;
     --bg-11141d: #FFFFFF;
+    --bg-11151e: #FFFFFF;
     --bg-11151f: #EFF1F6;
     --bg-111723: #EEF1F7;
     --bg-12151c: #FFFFFF;
@@ -91,6 +93,7 @@ body.ui-v2 {
     --bg-131926: #EEF1F7;
     --bg-14141f: #FFFFFF;
     --bg-14171f: #FFFFFF;
+    --bg-141822: #FFFFFF;
     --bg-141824: #EFF0F6;
     --bg-141923: #FFFFFF;
     --bg-141925: #EEF1F6;
@@ -100,6 +103,7 @@ body.ui-v2 {
     --bg-14202a: #EEF3F7;
     --bg-15131c: #FFFFFF;
     --bg-15171f: #FFFFFF;
+    --bg-151a25: #FFFFFF;
     --bg-151b27: #EEF1F6;
     --bg-161922: #FFFFFF;
     --bg-161a23: #FFFFFF;
@@ -109,6 +113,7 @@ body.ui-v2 {
     --bg-161b27: #FFFFFF;
     --bg-161c28: #EFF1F6;
     --bg-16261a: #FFFFFF;
+    --bg-171a23: #FFFFFF;
     --bg-171c27: #FFFFFF;
     --bg-171f2d: #EEF1F6;
     --bg-181b25: #FFFFFF;
@@ -127,11 +132,14 @@ body.ui-v2 {
     --bg-1b2030: #F8F1EF;
     --bg-1b212c: #F8F1EF;
     --bg-1b2130: #F8F1EF;
+    --bg-1b2131: #EFF1F6;
+    --bg-1b2740: #EDF0F7;
     --bg-1c1f2b: #F8F1EF;
     --bg-1c2030: #F8F1EF;
     --bg-1c2230: #F8F1EF;
     --bg-1c2233: #EFF0F6;
     --bg-1c2c2a: #F8F1EF;
+    --bg-1d2433: #F8F1EF;
     --bg-1e1b4b: #EDECF8;
     --bg-1e2230: #F8F1EF;
     --bg-1e293b: #EEF1F6;
@@ -140,6 +148,8 @@ body.ui-v2 {
     --bg-1f2230: #F8F1EF;
     --bg-1f2430: #F8F1EF;
     --bg-1f2533: #F8F1EF;
+    --bg-1f3a2a: #EEF6F2;
+    --bg-22171a: #FFFFFF;
     --bg-221f16: #FFFFFF;
     --bg-222836: #F8F1EF;
     --bg-222839: #F8F1EF;
@@ -149,22 +159,28 @@ body.ui-v2 {
     --bg-232a38: #F8F1EF;
     --bg-232c3c: #F8F1EF;
     --bg-262626: #F8F1EF;
+    --bg-2a1418: #F7EEEF;
     --bg-2a1a1f: #F8F1EF;
     --bg-2a1a25: #F8F1EF;
     --bg-2a1a35: #F3EEF7;
+    --bg-2a1c1c: #F8F1EF;
     --bg-2a2412: #F7F5ED;
     --bg-2a241a: #F8F1EF;
     --bg-2a2e3a: #F8F1EF;
     --bg-2a3041: #F2E8E5;
     --bg-2a3046: #F2E8E5;
     --bg-2a3142: #F2E8E5;
+    --bg-2a3a58: #EEF1F7;
+    --bg-2c2023: #F8F1EF;
     --bg-2c3243: #F2E8E5;
     --bg-353c50: #F2E8E5;
     --bg-365314: #F3FAEA;
     --bg-3a1a1e: #F7EDEF;
+    --bg-3a1c22: #F7EEF0;
     --bg-3a3f50: #F2E8E5;
     --bg-3a4252: #F2E8E5;
     --bg-3a4258: #F2E8E5;
+    --bg-3d465c: #E7DAD6;
     --bg-3f6212: #F3FBE9;
     --bg-5f1010: #FBE9E9;
     --bg-7c2d12: #FCEEE9;
@@ -214,6 +230,7 @@ body.ui-v2 {
     --bg-rgba_255_255_255_18: rgba(36,27,31,0.162);
     --bg-rgba_4_6_11_0_72: rgba(36,27,31,0.35);
     --bg-rgba_40_30_15_0_9: rgba(36,27,31,0.18);
+    --bg-rgba_5_7_12_78: rgba(36,27,31,0.35);
     --bg-rgba_60_60_70_0_1: rgba(36,27,31,0.03);
     --bg-rgba_60_60_70_0_15: rgba(36,27,31,0.038);
     --bg-rgba_8_10_16_0_78: rgba(36,27,31,0.35);
@@ -229,6 +246,7 @@ body.ui-v2 {
     --fg-6b7385: #6B5E62;
     --fg-6b7387: #6B5E62;
     --fg-6b7390: #6B5E62;
+    --fg-6b7785: #6B5E62;
     --fg-6fdc8c: #249442;
     --fg-6fe0a0: #219754;
     --fg-73c7ff: #006EB8;
@@ -241,6 +259,7 @@ body.ui-v2 {
     --fg-8b93a8: #54474B;
     --fg-8ba0a8: #54474B;
     --fg-8be9a8: #1D9A44;
+    --fg-8cc0ff: #0053B8;
     --fg-8e97ab: #54474B;
     --fg-8f9aae: #54474B;
     --fg-8fd3ff: #006FB8;
@@ -321,9 +340,12 @@ body.ui-v2 {
     --fg-ff5fa3: #B8004E;
     --fg-ff6b6b: #B80000;
     --fg-ff6b78: #B80010;
+    --fg-ff7b7b: #B80000;
+    --fg-ff8080: #B80000;
     --fg-ff8a65: #B82C00;
     --fg-ff8a8a: #B80000;
     --fg-ff8a94: #B80010;
+    --fg-ff8b8b: #B80000;
     --fg-ff8c5a: #B83800;
     --fg-ff8da6: #B80028;
     --fg-ff8ec0: #B80051;
@@ -392,6 +414,7 @@ body.ui-v2 .ui-keep-colors {
     --bd-2c303d: initial;
     --bd-2c3243: initial;
     --bd-2c3345: initial;
+    --bd-2f4a78: initial;
     --bd-2f7a4a: initial;
     --bd-30394a: initial;
     --bd-354056: initial;
@@ -411,6 +434,7 @@ body.ui-v2 .ui-keep-colors {
     --bd-46506a: initial;
     --bd-46516a: initial;
     --bd-4a5066: initial;
+    --bd-4a6aa0: initial;
     --bd-4ade80: initial;
     --bd-4b5a75: initial;
     --bd-4caf50: initial;
@@ -467,6 +491,8 @@ body.ui-v2 .ui-keep-colors {
     --bd-rgba_138_214_255_0_25: initial;
     --bd-rgba_138_214_255_0_4: initial;
     --bd-rgba_180_90_240_0_5: initial;
+    --bd-rgba_217_65_65_35: initial;
+    --bd-rgba_217_65_65_45: initial;
     --bd-rgba_239_68_68_0_3: initial;
     --bd-rgba_239_68_68_0_35: initial;
     --bd-rgba_239_68_68_0_38: initial;
@@ -500,6 +526,8 @@ body.ui-v2 .ui-keep-colors {
     --bd-rgba_255_107_61_0_45: initial;
     --bd-rgba_255_107_61_0_5: initial;
     --bd-rgba_255_107_61_0_6: initial;
+    --bd-rgba_255_107_61_5: initial;
+    --bd-rgba_255_138_61_3: initial;
     --bd-rgba_255_166_77_55: initial;
     --bd-rgba_255_176_32_0_4: initial;
     --bd-rgba_255_176_84_0_45: initial;
@@ -543,6 +571,7 @@ body.ui-v2 .ui-keep-colors {
     --bd-rgba_255_45_85_0_55: initial;
     --bd-rgba_255_82_82_0_45: initial;
     --bd-rgba_255_99_99_0_55: initial;
+    --bd-rgba_34_179_95_4: initial;
     --bd-rgba_34_197_94_0_3: initial;
     --bd-rgba_34_197_94_0_35: initial;
     --bd-rgba_34_197_94_0_4: initial;
@@ -586,6 +615,7 @@ body.ui-v2 .ui-keep-colors {
     --bg-0b0d12: initial;
     --bg-0c0e15: initial;
     --bg-0d0f15: initial;
+    --bg-0d1017: initial;
     --bg-0d1220: initial;
     --bg-0e1117: initial;
     --bg-0e1118: initial;
@@ -604,6 +634,7 @@ body.ui-v2 .ui-keep-colors {
     --bg-10b981: initial;
     --bg-11131a: initial;
     --bg-11141d: initial;
+    --bg-11151e: initial;
     --bg-11151f: initial;
     --bg-111723: initial;
     --bg-12151c: initial;
@@ -613,6 +644,7 @@ body.ui-v2 .ui-keep-colors {
     --bg-131926: initial;
     --bg-14141f: initial;
     --bg-14171f: initial;
+    --bg-141822: initial;
     --bg-141824: initial;
     --bg-141923: initial;
     --bg-141925: initial;
@@ -623,6 +655,7 @@ body.ui-v2 .ui-keep-colors {
     --bg-14b8a6: initial;
     --bg-15131c: initial;
     --bg-15171f: initial;
+    --bg-151a25: initial;
     --bg-151b27: initial;
     --bg-161922: initial;
     --bg-161a23: initial;
@@ -634,6 +667,7 @@ body.ui-v2 .ui-keep-colors {
     --bg-16261a: initial;
     --bg-16a34a: initial;
     --bg-16c6c0: initial;
+    --bg-171a23: initial;
     --bg-171c27: initial;
     --bg-171f2d: initial;
     --bg-181b25: initial;
@@ -654,11 +688,14 @@ body.ui-v2 .ui-keep-colors {
     --bg-1b2030: initial;
     --bg-1b212c: initial;
     --bg-1b2130: initial;
+    --bg-1b2131: initial;
+    --bg-1b2740: initial;
     --bg-1c1f2b: initial;
     --bg-1c2030: initial;
     --bg-1c2230: initial;
     --bg-1c2233: initial;
     --bg-1c2c2a: initial;
+    --bg-1d2433: initial;
     --bg-1e1b4b: initial;
     --bg-1e2230: initial;
     --bg-1e293b: initial;
@@ -669,6 +706,8 @@ body.ui-v2 .ui-keep-colors {
     --bg-1f2230: initial;
     --bg-1f2430: initial;
     --bg-1f2533: initial;
+    --bg-1f3a2a: initial;
+    --bg-22171a: initial;
     --bg-221f16: initial;
     --bg-222836: initial;
     --bg-222839: initial;
@@ -681,15 +720,19 @@ body.ui-v2 .ui-keep-colors {
     --bg-2563eb: initial;
     --bg-25f4ee: initial;
     --bg-262626: initial;
+    --bg-2a1418: initial;
     --bg-2a1a1f: initial;
     --bg-2a1a25: initial;
     --bg-2a1a35: initial;
+    --bg-2a1c1c: initial;
     --bg-2a2412: initial;
     --bg-2a241a: initial;
     --bg-2a2e3a: initial;
     --bg-2a3041: initial;
     --bg-2a3046: initial;
     --bg-2a3142: initial;
+    --bg-2a3a58: initial;
+    --bg-2c2023: initial;
     --bg-2c3243: initial;
     --bg-2f7d32: initial;
     --bg-2fbf71: initial;
@@ -697,10 +740,12 @@ body.ui-v2 .ui-keep-colors {
     --bg-365314: initial;
     --bg-38bdf8: initial;
     --bg-3a1a1e: initial;
+    --bg-3a1c22: initial;
     --bg-3a3f50: initial;
     --bg-3a4252: initial;
     --bg-3a4258: initial;
     --bg-3b82f6: initial;
+    --bg-3d465c: initial;
     --bg-3f6212: initial;
     --bg-46c963: initial;
     --bg-4a148c: initial;
@@ -804,6 +849,7 @@ body.ui-v2 .ui-keep-colors {
     --bg-rgba_20_23_31_0_85: initial;
     --bg-rgba_20_23_31_0_9: initial;
     --bg-rgba_205_127_50_0_12: initial;
+    --bg-rgba_217_65_65_14: initial;
     --bg-rgba_236_72_153_0_03: initial;
     --bg-rgba_236_72_153_6: initial;
     --bg-rgba_239_68_68_0_08: initial;
@@ -854,6 +900,7 @@ body.ui-v2 .ui-keep-colors {
     --bg-rgba_255_107_61_0_18: initial;
     --bg-rgba_255_107_61_0_25: initial;
     --bg-rgba_255_107_61_12: initial;
+    --bg-rgba_255_138_61_12: initial;
     --bg-rgba_255_176_32_0_16: initial;
     --bg-rgba_255_176_84_0_16: initial;
     --bg-rgba_255_176_84_0_26: initial;
@@ -914,6 +961,7 @@ body.ui-v2 .ui-keep-colors {
     --bg-rgba_255_90_90_0_15: initial;
     --bg-rgba_255_90_90_0_32: initial;
     --bg-rgba_255_99_99_0_06: initial;
+    --bg-rgba_34_179_95_12: initial;
     --bg-rgba_34_197_94_0_04: initial;
     --bg-rgba_34_197_94_0_05: initial;
     --bg-rgba_34_197_94_0_06: initial;
@@ -943,6 +991,7 @@ body.ui-v2 .ui-keep-colors {
     --bg-rgba_37_244_238_08: initial;
     --bg-rgba_4_6_11_0_72: initial;
     --bg-rgba_40_30_15_0_9: initial;
+    --bg-rgba_5_7_12_78: initial;
     --bg-rgba_59_130_246_0_06: initial;
     --bg-rgba_59_130_246_0_08: initial;
     --bg-rgba_59_130_246_0_1: initial;
@@ -996,6 +1045,7 @@ body.ui-v2 .ui-keep-colors {
     --fg-6b7385: initial;
     --fg-6b7387: initial;
     --fg-6b7390: initial;
+    --fg-6b7785: initial;
     --fg-6fdc8c: initial;
     --fg-6fe0a0: initial;
     --fg-73c7ff: initial;
@@ -1008,6 +1058,7 @@ body.ui-v2 .ui-keep-colors {
     --fg-8b93a8: initial;
     --fg-8ba0a8: initial;
     --fg-8be9a8: initial;
+    --fg-8cc0ff: initial;
     --fg-8e97ab: initial;
     --fg-8f9aae: initial;
     --fg-8fd3ff: initial;
@@ -1096,10 +1147,13 @@ body.ui-v2 .ui-keep-colors {
     --fg-ff6b3d: initial;
     --fg-ff6b6b: initial;
     --fg-ff6b78: initial;
+    --fg-ff7b7b: initial;
+    --fg-ff8080: initial;
     --fg-ff8a3d: initial;
     --fg-ff8a65: initial;
     --fg-ff8a8a: initial;
     --fg-ff8a94: initial;
+    --fg-ff8b8b: initial;
     --fg-ff8c5a: initial;
     --fg-ff8da6: initial;
     --fg-ff8e3a: initial;

@@ -380,6 +380,11 @@
         dom.dot.classList.remove('online', 'connecting', 'error');
         if (state) dom.dot.classList.add(state);
         dom.statusText.textContent = text;
+        // 🎨 Statusbar dưới cùng: luôn hiện trạng thái TikTok (status-row ở topbar ẩn khi đã kết nối)
+        const sbDot = document.getElementById('sb-dot');
+        if (sbDot) { sbDot.className = 'dot' + (state ? ' ' + state : ''); }
+        const sbText = document.getElementById('sb-tiktok');
+        if (sbText) sbText.textContent = 'TikTok · ' + text;
     }
     function showView(viewId) {
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -522,7 +527,8 @@
         }
         // 🎮 Game Tương Tác: mục nhóm đứng ở chỗ game con đầu tiên trong danh sách; ẩn nếu KEY ẩn hết game con đã vào app.
         const ttKids = games.filter(g => TT_CHILD_GAMES.has(g.id));
-        if (ttKids.length && ttKids.some(g => g.lstate !== 'hidden')) {
+        // Chặn trùng: 2 lần loadGames() chồng nhau (await ở giữa) cùng chèn vào một mảng → mục nhóm hiện 2 lần
+        if (ttKids.length && ttKids.some(g => g.lstate !== 'hidden') && !games.some(g => g.id === TT_HUB_ID)) {
             const at = games.findIndex(g => TT_CHILD_GAMES.has(g.id));
             games.splice(at, 0, {
                 id: TT_HUB_ID, name: 'Game Tương Tác', icon: '🎮', virtual: true, hub: true,
@@ -564,9 +570,18 @@
     };
     function renderGameList() {
         dom.gameList.innerHTML = '';
-        for (const g of games) {
-            if (LIBRARY_HIDDEN.has(g.id) || CAM_CHILD_GAMES.has(g.id) || TT_CHILD_GAMES.has(g.id)) continue;
-            if (g.lstate === 'hidden') continue;   // HP KEY: mục Ẩn (chưa ra mắt) không hiện
+        // HP KEY: mục Ẩn (chưa ra mắt) không hiện; game con Camera/Tương Tác vào qua mục nhóm
+        const visible = games.filter(g => !(LIBRARY_HIDDEN.has(g.id) || CAM_CHILD_GAMES.has(g.id) || TT_CHILD_GAMES.has(g.id)) && g.lstate !== 'hidden');
+        // 🎨 Giao diện mới: chia nhóm có tiêu đề (public/ui/nav-groups.js)
+        const sections = window.HpNavGroups ? window.HpNavGroups.group(visible) : [{ id: 'all', label: '', items: visible }];
+        for (const sec of sections) {
+          if (sec.label) {
+            const h = document.createElement('div');
+            h.className = 'nav-sec';
+            h.innerHTML = `<span>${sec.label}</span><span class="nav-sec-n">${sec.items.length}</span>`;
+            dom.gameList.appendChild(h);
+          }
+          for (const g of sec.items) {
             const paused = g.lstate === 'off';      // HP KEY: mục Tạm tắt (bảo trì) cho mọi KEY
             const div = document.createElement('div');
             div.className = 'game-item' + (g.locked ? ' locked' : '') + (paused ? ' paused' : '');
@@ -645,7 +660,9 @@
                 }
             });
             dom.gameList.appendChild(div);
+          }
         }
+        renderHomeReady();
     }
     function isGameEnabled(g) {
         const cfg = g.config || {};
@@ -672,6 +689,7 @@
         btn.classList.toggle('on', on);
         btn.classList.toggle('off', !on);
         btn.title = (on ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT') + (g.virtual ? ' tool chạy ngầm' : ' game chạy ngầm');
+        renderHomeReady();
     }
 
     // ===== 🏠 Trang chủ = 🚀 Khởi động nhanh (khung nhúng /quick-launch?embed=1) =====
@@ -693,6 +711,36 @@
     const brandHome = document.getElementById('brand-home');
     brandHome?.addEventListener('click', goHome);
     brandHome?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goHome(); } });
+    document.getElementById('nav-home')?.addEventListener('click', goHome);
+
+    // ===== 🎨 Giao diện mới: dải sẵn sàng ở Trang chủ + statusbar =====
+    // Gọi lại mỗi khi kết nối / bản quyền / bật-tắt game đổi. Thiếu phần tử (app-smoke, bản cũ) → bỏ qua.
+    let homeLicenseText = '';
+    function renderHomeReady() {
+        const set = (id, cls, sub) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('ok', 'warn', 'idle');
+            el.classList.add(cls);
+            const s = el.querySelector('.hr-sub');
+            if (s) s.textContent = sub;
+        };
+        set('hr-tiktok', isLiveConnected ? 'ok' : 'idle', isLiveConnected ? `Đã kết nối @${liveUsername}` : 'Chưa kết nối — nhập @ID ở thanh trên');
+        set('hr-license', homeLicenseText ? 'ok' : 'idle', homeLicenseText || 'Đang kiểm tra…');
+        const list = (games || []).filter(g => !LIBRARY_HIDDEN.has(g.id) && !g.hub && !g.locked && g.lstate !== 'hidden' && g.lstate !== 'off');
+        const on = list.filter(isGameEnabled).length;
+        set('hr-games', on ? 'ok' : 'warn', `${on}/${list.length} game & công cụ đang bật`);
+        const sbGames = document.getElementById('sb-games');
+        if (sbGames) sbGames.textContent = `${on} game đang bật`;
+    }
+    // Ctrl K (public/ui/cmdk.js) đọc danh sách game đang hiện + link OBS
+    window.hpGameIndex = () => (games || [])
+        .filter(g => !LIBRARY_HIDDEN.has(g.id) && g.lstate !== 'hidden')
+        .map(g => ({ id: g.id, name: g.name, icon: g.icon, overlayPath: g.overlayPath || '', on: isGameEnabled(g), locked: !!g.locked }));
+    try {
+        const host = document.getElementById('sb-host');
+        if (host) host.textContent = new URL(buildOverlayURL('/')).host;
+    } catch (_) {}
     // Khung nhúng báo chiều cao nội dung (iframe tự cao theo) + bấm ⚙ trên thẻ → mở game ở app chính
     window.addEventListener('message', (e) => {
         const frame = dom.homeQlFrame;
@@ -947,10 +995,12 @@
     document.getElementById('btn-open-giftboard')?.addEventListener('click', () => openGame('giftboard'));
 
     function highlightActiveGame(gameId) {
-        const sideId = TT_CHILD_GAMES.has(gameId) ? TT_HUB_ID : gameId;   // game con Game Tương Tác → tô mục nhóm
+        // game con Game Tương Tác / Game Camera → tô mục nhóm
+        const sideId = TT_CHILD_GAMES.has(gameId) ? TT_HUB_ID : CAM_CHILD_GAMES.has(gameId) ? 'camgames' : gameId;
         document.querySelectorAll('.game-item').forEach(el => {
             el.classList.toggle('active', el.dataset.id === sideId);
         });
+        document.getElementById('nav-home')?.classList.toggle('active', !gameId);
         document.getElementById('btn-open-giftboard')?.classList.toggle('active', gameId === 'giftboard');
     }
 
@@ -2562,6 +2612,7 @@
             ['lstatViewer','lstatDiamond','lstatFollow','lstatShare'].forEach(k => { if (dom[k]) dom[k].textContent = '0'; });
         }
         updateTranslateControls();
+        renderHomeReady();
         if (connected) setTimeout(() => autoSyncTranslateRules(), 0);
     }
     function escAttrInline(s) { return String(s ?? '').replace(/[<>"]/g, ''); }
@@ -5002,6 +5053,7 @@
             const foot = document.getElementById('footer-version');
             if (cur) cur.textContent = 'v' + currentLocalVersion;
             if (foot) foot.textContent = 'v' + currentLocalVersion;
+            const sbv = document.getElementById('sb-version'); if (sbv) sbv.textContent = 'v' + currentLocalVersion;
             const sv = document.getElementById('st-app-version'); if (sv) sv.textContent = 'v' + currentLocalVersion;
             return local;
         } catch { return null; }
@@ -7246,6 +7298,9 @@
         const keyEl = $id('st-lic-key');
         if (keyEl) keyEl.textContent = isCreator ? '@' + (info.key || '') : (info.key ? info.key.slice(0, 4) + '••••' + info.key.slice(-4) : '—');
         const days = daysUntilDmy(info.expiry);
+        homeLicenseText = !activated ? '' : (isCreator ? 'CREATOR' : isAdmin ? 'ADMIN' : isVip ? 'VIP' : 'Đã kích hoạt')
+            + (info.expiry ? (days == null ? '' : days < 0 ? ' · đã hết hạn' : ' · còn ' + days + ' ngày') : ' · vĩnh viễn');
+        renderHomeReady();
         const expEl = $id('st-lic-expiry');
         if (expEl) expEl.textContent = info.expiry
             ? info.expiry + (days == null ? '' : (days < 0 ? ' · đã hết hạn' : ' · còn ' + days + ' ngày'))

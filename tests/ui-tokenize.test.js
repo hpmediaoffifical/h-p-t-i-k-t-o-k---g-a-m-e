@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { tokenize, untokenize, colorKey, VAR_RE } = require('../tools/ui-tokenize-css.js');
+const { tokenize, tokenizeHtml, untokenize, colorKey, VAR_RE } = require('../tools/ui-tokenize-css.js');
 
 const SAMPLE = `/* c {color:#fff} */
 .a { background: #0b0d12; color: #e6e9ef; border: 1px solid rgba(255,255,255,.08); }
@@ -42,13 +42,22 @@ test('rule có nền màu nhấn (gradient hồng) giữ chữ trắng', () => {
     assert.match(out, /\.btn \{ background: linear-gradient\(135deg,var\(--bg-ff2d6f, #ff2d6f\),var\(--bg-ff7a45, #ff7a45\)\); color:#fff \}/);
 });
 
-test('public/style.css: mọi biến có fallback đúng màu tên biến mã hoá (overlay luôn y cũ)', () => {
-    const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
-    let n = 0;
-    for (const m of css.matchAll(VAR_RE)) {
-        n++;
-        assert.strictEqual(m[2], colorKey(m[3]), `biến --${m[1]}-${m[2]} có fallback ${m[3]}`);
-    }
-    assert.ok(n > 500, 'style.css đã được tokenize (' + n + ' biến)');
-    assert.strictEqual(tokenize(css).css, css, 'chạy lại tools/ui-tokenize-css.js sau khi sửa style.css');
+for (const [rel, min] of [['public/style.css', 500], ['public/quick-launch.html', 20]]) {
+    test(`${rel}: mọi biến có fallback đúng màu tên biến mã hoá (overlay/cửa sổ nổi luôn y cũ)`, () => {
+        const text = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+        let n = 0;
+        for (const m of text.matchAll(VAR_RE)) {
+            n++;
+            assert.strictEqual(m[2], colorKey(m[3]), `biến --${m[1]}-${m[2]} có fallback ${m[3]}`);
+        }
+        assert.ok(n > min, rel + ' đã được tokenize (' + n + ' biến)');
+        const again = rel.endsWith('.html') ? tokenizeHtml(text).css : tokenize(text).css;
+        assert.strictEqual(again, text, 'chạy lại node tools/ui-tokenize-css.js sau khi sửa ' + rel);
+    });
+}
+
+test('ui-v2-map.css khai báo biến cho đúng các màu đang dùng', () => {
+    const map = fs.readFileSync(path.join(__dirname, '..', 'public', 'ui', 'ui-v2-map.css'), 'utf8');
+    assert.match(map, /--bg-0b0d12: #FBF5F4;/);
+    assert.match(map, /body\.ui-v2 \.ui-keep-colors \{/);
 });

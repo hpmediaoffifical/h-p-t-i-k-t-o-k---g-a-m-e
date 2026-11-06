@@ -224,16 +224,38 @@ ${names.map(n => `    ${n}: initial;`).join('\n')}
 
 module.exports = { tokenize, untokenize, colorKey, parseColor, mapColor, buildMap, VAR_RE };
 
+// File .html: chỉ tokenize nội dung các khối <style>…</style>.
+function tokenizeHtml(html) {
+    const vars = new Map();
+    const out = html.replace(/(<style[^>]*>)([\s\S]*?)(<\/style>)/g, (_, a, css, b) => {
+        const r = tokenize(css);
+        for (const [k, v] of r.vars) vars.set(k, v);
+        return a + r.css + b;
+    });
+    return { css: out, vars };
+}
+
+// Nơi được tokenize. quick-launch.html: chỉ đổi màu khi nhúng Trang chủ (?embed=1 thêm class ui-v2).
+const TARGETS = ['public/style.css', 'public/quick-launch.html'];
+
+module.exports.tokenizeHtml = tokenizeHtml;
+module.exports.TARGETS = TARGETS;
+
 if (require.main === module) {
     const root = path.join(__dirname, '..');
-    const file = path.join(root, 'public', 'style.css');
-    const orig = fs.readFileSync(file, 'utf8');
-    const base = untokenize(orig);
-    const { css, vars } = tokenize(orig);
-    if (untokenize(css) !== base) throw new Error('untokenize(kết quả) khác bản gốc — dừng, không ghi');
-    fs.writeFileSync(file, css);
+    const all = new Map();
+    for (const rel of TARGETS) {
+        const file = path.join(root, rel);
+        const orig = fs.readFileSync(file, 'utf8');
+        const base = untokenize(orig);
+        const { css, vars } = rel.endsWith('.html') ? tokenizeHtml(orig) : tokenize(orig);
+        if (untokenize(css) !== base) throw new Error(rel + ': untokenize(kết quả) khác bản gốc — dừng, không ghi');
+        fs.writeFileSync(file, css);
+        for (const [k, v] of vars) all.set(k, v);
+        console.log(`${rel}: ${vars.size} biến`);
+    }
     fs.mkdirSync(path.join(root, 'public', 'ui'), { recursive: true });
-    fs.writeFileSync(path.join(root, 'public', 'ui', 'ui-v2-map.css'), buildMap(vars));
-    const mapped = [...vars.values()].filter(v => mapColor(v.kind, v.color)).length;
-    console.log(`style.css: ${vars.size} biến (${mapped} đổi sang tông sáng)`);
+    fs.writeFileSync(path.join(root, 'public', 'ui', 'ui-v2-map.css'), buildMap(all));
+    const mapped = [...all.values()].filter(v => mapColor(v.kind, v.color)).length;
+    console.log(`ui-v2-map.css: ${all.size} biến (${mapped} đổi sang tông sáng)`);
 }
