@@ -35,8 +35,9 @@ export function createMorph(env) {
     let person = env.person();
     let fx = null;
     // canvas phụ dùng lại: oc = người nhuộm (mỗi khung) · st = tượng / lưới khối (chụp một lần) · tiny = bản thu nhỏ đọc alpha
-    const mk = () => { const c = document.createElement('canvas'); c.width = c.height = 8; return { c, x: c.getContext('2d') }; };
-    const OC = mk(), ST = mk(), CK = mk(), TINY = mk();
+    const mk = (read = false) => { const c = document.createElement('canvas'); c.width = c.height = 8; return { c, x: c.getContext('2d', read ? { willReadFrequently: true } : undefined) }; };
+    // TINY / QR: canvas ĐỌC điểm ảnh (CPU) - chỉ nhận ảnh nhỏ đã thu từ canvas GPU, không bao giờ vẽ thẳng người (WebGL) vào.
+    const OC = mk(), ST = mk(), CK = mk(), TINY = mk(true), QR = mk(true);
     const OS = 0.5;
 
     // ---------- hình học ----------
@@ -422,10 +423,15 @@ export function createMorph(env) {
     }
     // Ép ảnh nhỏ trong canvas C về bảng màu theo kiểu: 'pal' thường · 'inv' âm bản · 'mono' 2 màu tím xanh / hồng · 'scan' sọc tối từng hàng.
     // Đọc điểm ảnh không được (canvas bẩn) → để nguyên màu.
+    // Đọc / ghi điểm ảnh qua canvas RIÊNG (QR, willReadFrequently, cỡ nhỏ): getImageData thẳng trên OC / ST mỗi 80 ms làm Chrome tự
+    // chuyển OC / ST sang CPU → mỗi lần snapInto vẽ người (canvas WebGL của matte) vào là đọc ngược CẢ khung về CPU
+    // (NPC đo 2026-11-03: 👾 / 🧊 khựng 80-240 ms). OC / ST giữ trên GPU, chỉ ảnh nhỏ đã thu mới đi qua CPU. Trả mảng điểm ảnh đã ép màu.
     function quantize(C, mode) {
         const w = C.c.width, h = C.c.height;
+        if (QR.c.width !== w || QR.c.height !== h) { QR.c.width = w; QR.c.height = h; } else QR.x.clearRect(0, 0, w, h);
+        QR.x.drawImage(C.c, 0, 0);
         let im;
-        try { im = C.x.getImageData(0, 0, w, h); } catch (_) { return; }
+        try { im = QR.x.getImageData(0, 0, w, h); } catch (_) { return null; }
         const d = im.data;
         for (let i = 0; i < d.length; i += 4) {
             if (d[i + 3] < 110) { d[i + 3] = 0; continue; }
@@ -439,7 +445,10 @@ export function createMorph(env) {
             if (mode === 'scan' && Math.floor(i / 4 / w) % 2) k = 0.55;
             d[i] = p[0] * k; d[i + 1] = p[1] * k; d[i + 2] = p[2] * k;
         }
-        C.x.putImageData(im, 0, 0);
+        QR.x.putImageData(im, 0, 0);
+        C.x.clearRect(0, 0, w, h);
+        C.x.drawImage(QR.c, 0, 0);
+        return d;
     }
     const pixelSize = (f, g) => Math.max(9, Math.round(g.unit / (34 + f.sc.power * 9)));
     // Vẽ người thô (ô bs px sân khấu) theo kiểu glitch.
@@ -475,9 +484,7 @@ export function createMorph(env) {
     function pixelGrid(f, g) {
         const bs = pixelSize(f, g), b = snapInto(ST, boxOf(g), 1 / bs);
         if (!b) return null;
-        quantize(ST, 'pal');
-        let d = null;
-        try { d = ST.x.getImageData(0, 0, b.ow, b.oh).data; } catch (_) {}
+        const d = quantize(ST, 'pal');
         const R = f.rand, blocks = [];
         const cs = (c, k) => `rgb(${Math.min(255, Math.round(c[0] * k))},${Math.min(255, Math.round(c[1] * k))},${Math.min(255, Math.round(c[2] * k))})`;
         for (let r = 0; r < b.oh; r++) for (let c = 0; c < b.ow; c++) {
@@ -1769,7 +1776,21 @@ export function createMorph(env) {
     const more = createMore({ ctx, W, H, cue, shakeAt, drawPersonPlain, snapInto, mk, rng });
     const FRAMES = { ice: iceFrame, pixel: pixelFrame, zap: zapFrame, vacuum: vacuumFrame, bees: beesFrame, slap: slapFrame, fly: (f, e, dt, g) => fly.frame(f, e, dt, g) };
     for (const st of more.styles) FRAMES[st] = (f, e, dt, g) => more.frame(f, e, dt, g);
+    // Trả NGAY bộ nhớ GPU của canvas dùng một lượt (atlas mảnh băng / khối điểm ảnh rộng tới 2048 px, vân nứt): canvas chỉ được giải phóng
+    // khi trình duyệt dọn rác lớn - heap JS nhỏ thì hiếm khi dọn → spam 100 lượt dồn hàng trăm MB GPU, trang chậm dần (NPC đo 2026-11-03:
+    // sau 120 lượt luồng chính bị chặn 49-71 % ở 🧊 / ⚡, nạp lại trang còn 5-12 %; tiến trình GPU +115 MB / 12 lượt).
+    const freeCanvas = c => { if (c && c.width) { c.width = 0; c.height = 0; } };
+    function release(f) {
+        if (!f) return;
+        if (f.atlas) freeCanvas(f.atlas.c);
+        if (f.grid) freeCanvas(f.grid.atlas);
+        f.atlas = null; f.grid = null; f.qb = null;
+        for (const c of FACET.values()) freeCanvas(c);
+        FACET.clear();
+        if (more.release) more.release(f);
+    }
     function start(d, now) {
+        release(fx);
         person = env.person();
         const sc = d.script, seed = (Math.random() * 1e9) | 0;
         fx = { d, sc, start: now, p: env.plan(sc), cue: new Set(), rand: rng(seed), seed: (seed % 1000) / 100, sx: 0, sy: 0,
@@ -1780,7 +1801,7 @@ export function createMorph(env) {
         if (more.styles.includes(sc.style)) more.start(fx);
                 return true;
     }
-    function stop() { fx = null; }
+    function stop() { release(fx); fx = null; }
     const estMs = () => (fx ? fx.p.end : 0);
     function frame(now, dt, eFix) {
         if (!fx) return true;

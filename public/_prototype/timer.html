@@ -2342,14 +2342,14 @@
     });
     $('btnCopyMainUrl').addEventListener('click', (e) => {
       const btn = e.currentTarget;
-      const url = location.origin + '/_prototype/timer.html?mode=overlay';
+      const url = (() => { const p = '/_prototype/timer.html?mode=overlay'; try { if (typeof parent.buildOverlayURL === 'function') return parent.buildOverlayURL(p); } catch (_) {} return location.origin + p; })();
       const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(() => btn.textContent = '📋 Link overlay OBS', 1500); };
       const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(() => btn.textContent = '📋 Link overlay OBS', 1500); };
       try { navigator.clipboard.writeText(url).then(done, fail); } catch (_) { fail(); }
     });
     $('btnCopyTrigUrl').addEventListener('click', (e) => {
       const btn = e.currentTarget;
-      const url = location.origin + '/_prototype/timer.html?mode=overlay&type=trigger';
+      const url = (() => { const p = '/_prototype/timer.html?mode=overlay&type=trigger'; try { if (typeof parent.buildOverlayURL === 'function') return parent.buildOverlayURL(p); } catch (_) {} return location.origin + p; })();
       const done = () => { btn.textContent = '✓ Đã copy'; setTimeout(()=>btn.textContent='📋 Copy URL Overlay Trigger', 1500); };
       const fail = () => { btn.textContent = '⚠ Copy fail'; setTimeout(()=>btn.textContent='📋 Copy URL Overlay Trigger', 1500); };
       if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(()=>{

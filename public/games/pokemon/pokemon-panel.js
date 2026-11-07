@@ -10,7 +10,12 @@
     const PREVIEW_QUERY = '?mute=1';
     const PANEL_QUERY = '?panel=1';
     const GIFTS_PATH = '/overlay/pokemon-gifts';
-    const base = () => location.origin;
+    // Link qua buildOverlayURL của app.js → hpaction.obs (TikTok LIVE Studio chặn "localhost"). Tính lúc bấm,
+    // vì app.js biết domain đã map hay chưa sau khi /api/overlay/share-links trả về.
+    const link = (path, query) => {
+        const u = typeof window.buildOverlayURL === 'function' ? window.buildOverlayURL(path) : location.origin + path;
+        return query ? u + (u.includes('?') ? '&' : '?') + query : u;
+    };
     let mounted = false;
 
     const css = `
@@ -45,16 +50,16 @@
         const style = document.createElement('style');
         style.textContent = css;
         document.head.appendChild(style);
-        const overlay = base() + OVERLAY_PATH + OBS_QUERY;
-        const preview = base() + OVERLAY_PATH + PREVIEW_QUERY;
-        const panel = base() + OVERLAY_PATH + PANEL_QUERY;
-        const gifts = base() + GIFTS_PATH;
+        const overlay = link(OVERLAY_PATH, OBS_QUERY.slice(1));
+        const preview = link(OVERLAY_PATH, PREVIEW_QUERY.slice(1));
+        const panel = link(OVERLAY_PATH, PANEL_QUERY.slice(1));
+        const gifts = link(GIFTS_PATH);
         host.innerHTML = `
             <div class="pokemon-card">
                 <h3>📺 Link OBS (Browser Source 1080×1920)</h3>
                 <p>Game chạy ngay khi app nối phòng LIVE: tim, bình luận, chia sẻ, quà của người xem tự chảy vào game. Không cần cấu hình thêm trong app. Link đã kèm <b>?obs=1</b>: không có nút ⚙ và người xem giả trên sóng.</p>
-                <div class="pokemon-link"><label>Màn chơi chính</label><input readonly value="${overlay}" /><button data-copy="${overlay}">📋 Copy</button><button data-open="${preview}" title="Xem trước (tắt tiếng)">🪟 Mở</button></div>
-                <div class="pokemon-link"><label>Bảng quà (nguồn riêng)</label><input readonly value="${gifts}" /><button data-copy="${gifts}">📋 Copy</button><button data-open="${gifts}">🪟 Mở</button></div>
+                <div class="pokemon-link"><label>Màn chơi chính</label><input readonly data-path="${OVERLAY_PATH}" data-q="${OBS_QUERY.slice(1)}" value="${overlay}" /><button data-copy="${overlay}">📋 Copy</button><button data-open="${preview}" title="Xem trước (tắt tiếng)">🪟 Mở</button></div>
+                <div class="pokemon-link"><label>Bảng quà (nguồn riêng)</label><input readonly data-path="${GIFTS_PATH}" value="${gifts}" /><button data-copy="${gifts}">📋 Copy</button><button data-open="${gifts}">🪟 Mở</button></div>
                 <div class="pokemon-status" id="pokemon-status">Đang kiểm tra trạng thái…</div>
             </div>
             <div class="pokemon-card">
@@ -102,6 +107,10 @@
             el.classList.toggle('on', cfg.enabled !== false);
         }).catch(() => { el.textContent = 'Chưa đọc được cấu hình game.'; });
     }
+
+    window.addEventListener('hp:overlay-links', () => {
+        document.querySelectorAll('#pokemon-panel input[data-path]').forEach((i) => { i.value = link(i.dataset.path, i.dataset.q); });
+    });
 
     window.HpPokemonPanel = {
         open() { render(); refreshStatus(); }

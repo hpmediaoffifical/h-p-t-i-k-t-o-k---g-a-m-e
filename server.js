@@ -123,6 +123,12 @@ const LeagueCard = require('./lib/league-card');
 // (không suy từ tên máy, để URL giống nhau trên mọi cài đặt HP Action LIVE). Lý do đầy đủ +
 // phần tự thêm vào hosts file nằm ở lib/obs-host.js.
 const { OBS_HOST: OBS_LOCAL_HOST, isHostMapped } = require('./lib/obs-host');
+// Link overlay đưa cho người dùng / tạo nguồn OBS: http://hpaction.obs:<port>/overlay/<id> (TikTok LIVE Studio
+// chặn "localhost"); hosts chưa map thì về localhost. Client có bản tương ứng: buildOverlayURL() trong app.js.
+function overlayPublicUrl(p) {
+    const path = String(p || '').startsWith('/') ? p : '/' + (p || '');
+    return `http://${isHostMapped() ? OBS_LOCAL_HOST : 'localhost'}:${PORT}${path}`;
+}
 // VIP Welcome — thẻ vào phòng: tín hiệu vào phòng (member + barrage), vào/ra/vào lại, bậc, sổ xu, hàng media.
 const vwSignals = require('./lib/vipwelcome/join-signals');
 const vwTiers = require('./lib/vipwelcome/tier-match');
@@ -1775,10 +1781,10 @@ if (!appConfig.obsBridge) {
 if (!Array.isArray(appConfig.obsBridge.groupsDisabled)) {
     appConfig.obsBridge.groupsDisabled = [];
 }
-// Backward-compat: config cũ chưa có cờ master → mặc định BẬT
-if (typeof appConfig.obsBridge.enabled !== 'boolean') {
-    appConfig.obsBridge.enabled = true;
-}
+// 🎬 Hiệu ứng OBS (quà → Scene/hotkey) ĐÃ GỠ khỏi app (06/11/2026). Kết nối OBS WebSocket vẫn giữ —
+// Game Camera / Chém Trái Cây lấy hình nguồn camera qua nó (⚙ Cài đặt → OBS & Overlay).
+const OBS_EFFECTS_REMOVED = true;
+appConfig.obsBridge.enabled = false;
 
 // ====== LUA Duration Registry ======
 // Map hotkey name → suggested duration ms (auto-fill khi user pick effect).
@@ -1973,7 +1979,7 @@ function obsBridgeEnqueueForGift(giftId, repeatCount, opts = {}) {
     if (!giftId) return { enqueued: 0, reason: 'no-gift-id' };
     // ⛔ Master OFF: "Hiệu ứng OBS" đã TẮT trong 🎮 Thư viện Game → KHÔNG nhận quà, không trigger
     // bất kỳ effect nào (kể cả quà test). Đây là cổng chặn chính ở server.
-    if (appConfig.obsBridge && appConfig.obsBridge.enabled === false) {
+    if (OBS_EFFECTS_REMOVED || (appConfig.obsBridge && appConfig.obsBridge.enabled === false)) {
         return { enqueued: 0, reason: 'obs-effects-disabled' };
     }
     const mapping = (appConfig.obsBridge && appConfig.obsBridge.mapping) || [];
@@ -5086,6 +5092,21 @@ function nhatLaResetDonors() {
     emitNhatLaTop(true);
 }
 
+// 🎨 "Quà hôm nay" (Trang chủ): đếm quà thật trong ngày, lưu <DATA_DIR>/gift-stats-today.json, phát 'giftStats' ≤ 1 lần/giây
+const giftStats = require('./lib/gift-stats.js').createGiftStats();
+const GIFT_STATS_FILE = path.join(DATA_DIR, 'gift-stats-today.json');
+try { if (fs.existsSync(GIFT_STATS_FILE)) giftStats.load(JSON.parse(fs.readFileSync(GIFT_STATS_FILE, 'utf8'))); } catch (_) {}
+let giftStatsTimer = null;
+function giftStatsChanged() {
+    if (giftStatsTimer) return;
+    giftStatsTimer = setTimeout(() => {
+        giftStatsTimer = null;
+        io.emit('giftStats', giftStats.today(10));
+        fs.promises.writeFile(GIFT_STATS_FILE, JSON.stringify(giftStats.toJSON())).catch(() => {});
+    }, 1000);
+}
+app.get('/api/gift-stats/today', (req, res) => res.json(giftStats.today(Number(req.query.limit) || 10)));
+
 function emitGift(g) {
     rememberLiveTranslateUser(liveTranslateRecentGifts, g);
     // 🎮 Phiên game theo quà: quà kích hoạt mở / gia hạn / xếp hàng phiên TRƯỚC khi đưa quà cho các game
@@ -5110,6 +5131,7 @@ function emitGift(g) {
     const coFanChange = coFansTouch(enriched, 'gift');   // 🏢 Creator Online: cộng xu trọn đời (bỏ quà thử)
     io.emit('gift', enriched);
     if (coFanChange) io.emit('creatoronline:fan', coFanChange);
+    try { if (giftStats.add(enriched)) giftStatsChanged(); } catch (e) { console.warn('[gift-stats] lỗi:', e?.message || e); }
     setLiveDashboardGift(enriched);
     try { leagueOnGift(enriched); } catch (e) { console.warn('[leaguecard] gift lỗi:', e?.message || e); }
     try { if (qvStore && qvStore.alive()) qvStore.addGift({ uid: String(enriched.uniqueId || enriched.userId || ''), name: enriched.nickname || enriched.uniqueId, avatar: enriched.profilePictureUrl || enriched.profilePicture || '', coins: (Number(enriched.coinValue) || 0) * Math.max(1, parseInt(enriched.repeatCount, 10) || 1) }); } catch (e) { console.warn('[quaivat] sổ tuần lỗi:', e?.message || e); }
@@ -7067,7 +7089,7 @@ const camObs = createCamObs({
     isHubUrl: url => feedUrlIs(url || '', 'camgames', /\/overlay\/camgames(?:[/?#]|$)/i),
     cameraName: () => String(appConfig.games?.camgames?.source || '') || (Date.now() - camAuto.at < 10000 ? camAuto.source : ''),
     savedScene: () => String(appConfig.games?.camgames?.scene || ''),
-    overlayUrl: () => `http://localhost:${PORT}/overlay/camgames`,
+    overlayUrl: () => overlayPublicUrl('/overlay/camgames'),
     port: PORT
 });
 let camProgCache = { at: 0, data: null };
@@ -7305,7 +7327,7 @@ app.get('/api/games/:id/share-link', (req, res) => {
     res.json({
         ok: true,
         token,
-        url: `http://${OBS_LOCAL_HOST}:${PORT}/overlay/shared/${token}`,
+        url: `http://${OBS_LOCAL_HOST}:${PORT}${GAMES[gameId].overlayPath}`,
         localUrl: `http://localhost:${PORT}${GAMES[gameId].overlayPath}`,
         // false = hosts file chưa map, link .obs sẽ không mở được -> UI nên bảo user dùng
         // localUrl hoặc chạy lại bước thêm hosts.
@@ -12335,7 +12357,8 @@ app.put('/api/obs-bridge/config', express.json(), (req, res) => {
     if (typeof body.enabled === 'boolean') {
         // Tính năng theo KEY: Hiệu ứng OBS bị khoá thì không bật được (nhớ ý muốn bật để mở khoá thì tự bật).
         const L = licenseLocks();
-        if (body.enabled && !featureOn('obs-effects')) { appConfig.obsBridge.enabled = false; L.obsBridge = true; }
+        if (OBS_EFFECTS_REMOVED) appConfig.obsBridge.enabled = false;   // đã gỡ: không bật lại được
+        else if (body.enabled && !featureOn('obs-effects')) { appConfig.obsBridge.enabled = false; L.obsBridge = true; }
         else { appConfig.obsBridge.enabled = body.enabled; delete L.obsBridge; }
     }
     if (typeof body.url === 'string') appConfig.obsBridge.url = body.url.trim();
@@ -12440,6 +12463,18 @@ app.post('/api/obs-bridge/trigger', express.json(), async (req, res) => {
 // ====== 🚀 Quick Launch — cửa sổ điều khiển nhanh tách rời, always-on-top ======
 app.get('/quick-launch', (req, res) =>
     res.sendFile(path.join(__dirname, 'public', 'quick-launch.html')));
+// 🎨 Trang chủ: công tắc tự mở cửa sổ Khởi động nhanh khi khởi động app (Electron giữ prefs; chạy server
+// riêng không có Electron thì báo available:false để trang ẩn công tắc).
+app.get('/api/quick-launch/auto-open', (req, res) => {
+    const h = global.__qlAutoOpen;
+    res.json(h ? { available: true, on: !!h.get() } : { available: false, on: false });
+});
+app.put('/api/quick-launch/auto-open', express.json(), (req, res) => {
+    const h = global.__qlAutoOpen;
+    if (!h) return res.status(409).json({ ok: false, available: false });
+    h.set(!!(req.body && req.body.on));
+    res.json({ ok: true, on: !!h.get() });
+});
 
 // ====== 📦 Danh sách quà — cửa sổ tách rời, ghim trên cùng (test quà mọi game) ======
 app.get('/gift-list', (req, res) =>

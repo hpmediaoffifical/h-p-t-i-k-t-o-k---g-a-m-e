@@ -43,6 +43,8 @@ Rồi **restart Node server** (`require()` cache file lúc startup).
 - **License system:** v1.0.64+ dùng `hpvn.media/hpkey/api.php` (HMAC + RSA). Trước đó dùng `hp-license.nguyenvu.dev/activate`. Endpoint cũ vẫn còn cho gift-sheet + auto-update.
 - **License storage:** `%APPDATA%/hp-action-live/data/app-config.json` field `license`. Recheck mỗi 60s (`hpkey/config.js:RECHECK_SECONDS`).
 
+- **🎨 Giao diện mới (tông sáng, v-next):** `public/style.css` + `<style>` của `quick-launch.html` đã *tokenize* — màu cứng thành `var(--bg|fg|bd-<hex>, <màu cũ>)`. Biến chỉ khai báo trong `public/ui/ui-v2-map.css` (SINH bởi `node tools/ui-tokenize-css.js`, phạm vi `body.ui-v2`, chỉ `index.html` nạp) → overlay OBS nạp `/style.css` vẫn y màu cũ. **Sửa/thêm màu trong style.css xong phải chạy lại `node tools/ui-tokenize-css.js`** (test `tests/ui-tokenize.test.js` báo nếu quên). Vỏ app: `public/ui/ui-v2.css` (token HP NPC LIVE, font Be Vietnam Pro nhúng `public/fonts/`), sidebar nhóm `public/ui/nav-groups.js`, Ctrl K `public/ui/cmdk.js`; kết nối/số liệu/5 nút nhanh nằm ở `header.topbar` (giữ id cũ), `footer.statusbar`. Biến màu riêng của game (`--tt-*`, `--caro-*`) và panel chèn CSS bằng JS (Pokemon) phủ lại trong `ui-v2.css`. Khung xem trước overlay muốn giữ màu cũ: thêm class `ui-keep-colors`. Spec `docs/superpowers/specs/2026-11-06-giao-dien-moi-design.md`.
+
 ## Convention khi thêm game mới
 
 Mỗi game mới cần:
@@ -53,6 +55,7 @@ Mỗi game mới cần:
 5. Script tags + `openXxx()` handler trong `public/app.js`.
 6. CSS namespace prefix `.<id>-*` trong `public/style.css`.
 7. **Tránh route collision với `/api/games/:id/*`** — generic GET/POST `/state` và `/config` đã giữ chỗ. Đặt route riêng dưới namespace khác (vd `/api/<id>/*`).
+8. **Link OBS / TikTok LIVE Studio:** mọi link đưa cho người dùng đi qua `window.buildOverlayURL(path)` (tính lúc BẤM, không chốt lúc wire panel) → ra `http://hpaction.obs:<port>/overlay/<id>` (TikTok LIVE Studio chặn "localhost"; hosts chưa map mới về localhost). Phía server dùng `overlayPublicUrl(path)`. KHÔNG tự ghép `location.origin`/`localhost` — `tests/overlay-links.test.js` sẽ hỏng. Link cũ `/overlay/shared/<token>` vẫn redirect.
 
 ## Versioning & Release
 

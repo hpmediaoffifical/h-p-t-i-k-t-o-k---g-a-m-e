@@ -708,6 +708,12 @@ function saveQuickLaunchPrefs(patch) {
     if (qlSaveTimer) clearTimeout(qlSaveTimer);
     qlSaveTimer = setTimeout(() => { qlSaveTimer = null; writeQuickLaunchPrefsNow(); }, 250);
 }
+// 🎨 Công tắc "Tự mở Khởi động nhanh khi khởi động" ở Trang chủ app chính → server gọi qua hook này
+// (cùng tiến trình; đi qua cache prefs nên không bị ghi đè bởi lần lưu vị trí cửa sổ sau đó).
+global.__qlAutoOpen = {
+    get: () => loadQuickLaunchPrefs().autoOpen !== false,
+    set: (on) => saveQuickLaunchPrefs({ autoOpen: !!on })
+};
 // qlLayout = bố cục đang dùng → mọi lần lưu bounds ghi vào đúng slot này.
 let qlLayout = 'doc';
 const QL_MIN_W = 240;   // khớp W_MIN trong public/quick-launch.html (Dọc ôm sát ~260px)
@@ -1434,8 +1440,8 @@ async function setupObsHostMapping() {
             title: 'Đã thiết lập xong',
             message: `Địa chỉ ${obsHost.OBS_HOST} đã sẵn sàng.`,
             detail: `Trong TikTok LIVE Studio, thêm nguồn "Link" và dán địa chỉ overlay dạng:\n\n`
-                + `http://${obsHost.OBS_HOST}:${PORT}/overlay/shared/...\n\n`
-                + 'Bấm nút chia sẻ ở mỗi game để lấy link đầy đủ.'
+                + `http://${obsHost.OBS_HOST}:${PORT}/overlay/<game>\n\n`
+                + 'Bấm nút 📋 Link OBS ở mỗi game để lấy link đầy đủ.'
         });
     } else {
         saveObsHostPrefs({ ...prefs, declinedVersion: version, lastError: result.error });

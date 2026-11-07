@@ -1453,7 +1453,7 @@ function log(html){
 }
 
 function copyObsLink(btn){
-  const url = `${location.protocol}//${location.host}/_prototype/level-quest.html?mode=overlay`;
+  const url = (() => { const p = '/_prototype/level-quest.html?mode=overlay'; try { if (typeof parent.buildOverlayURL === 'function') return parent.buildOverlayURL(p); } catch (_) {} return location.origin + p; })();
   const done = () => {
     if (btn) { const t = btn.textContent; btn.textContent = '✓ Đã copy'; setTimeout(()=>btn.textContent=t, 1500); }
     log(`<span class="lv">📋 Copied OBS link</span>`);

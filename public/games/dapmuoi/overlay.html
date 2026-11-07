@@ -598,12 +598,14 @@
         bumps.tick(s.clock);
         rub = healing ? bumps.heal(s.clock) : null;
     }
+    // Cỡ + độ đậm nốt đốt (user 2026-11-03: "hơi đậm và to" → mờ hơn, rồi "mờ hơn chút nữa"): 46 px · đục 100 % → 36 px · 50 %.
+    const BUMP_PX = 36, BUMP_ALPHA = 0.5;
     function drawBumps(s, now) {
         const list = bumps.list(bodyF, s.clock);
         const headW = bodyF && bodyF.head ? bodyF.head.width : 220;
-        const d = 46 * Math.max(0.6, Math.min(2.2, headW / 220));
+        const d = BUMP_PX * Math.max(0.6, Math.min(2.2, headW / 220));
         for (const b of list) {
-            ctx.save(); ctx.globalAlpha = b.alpha * (b.healing ? 1 - b.progress * 0.9 : 1);
+            ctx.save(); ctx.globalAlpha = BUMP_ALPHA * b.alpha * (b.healing ? 1 - b.progress * 0.9 : 1);
             const sz = d * b.scale * (b.healing ? 1 - b.progress * 0.5 : 1);
             if (imgBump.complete && imgBump.naturalWidth) ctx.drawImage(imgBump, b.x - sz / 2, b.y - sz / 2, sz, sz);
             else { const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, sz / 2); g.addColorStop(0, 'rgba(255,90,110,.95)'); g.addColorStop(1, 'rgba(224,42,72,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, sz / 2, 0, Math.PI * 2); ctx.fill(); }
