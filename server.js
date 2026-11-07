@@ -155,6 +155,7 @@ const DATA_DIR = process.env.HP_DATA_DIR || path.join(__dirname, 'data');
 // 🔐 Bản quyền tin cậy = token ĐÃ KÝ RSA gắn mã máy (lib/license-trust.js). Vai trò / ID được phép / tính năng
 // lấy từ đây, KHÔNG từ appConfig.license (file thường, sửa tay được). Nhớ đệm 30 s; kích hoạt / xác thực xong gọi invalidate().
 const LicTrust = require('./lib/license-trust');
+function licenseGrace() { try { return LicTrust.offlineGrace(require('./hpkey/index').getStatus()); } catch (_) { return null; } }   // 🔐 ân hạn 24 h chỉ từ token đã ký
 const trustedLicense = LicTrust.createTrustedLicense({ getStatus: () => require('./hpkey/index').getStatus() });
 const CONFIG_FILE = path.join(DATA_DIR, 'app-config.json');
 const CONFIG_BACKUP_DIR = path.join(DATA_DIR, 'config-backups');
@@ -1836,7 +1837,7 @@ function obsBridgeSuggestDurationMs(hotkey, sceneName) {
     return 0;
 }
 const obsBridge = new OBSBridge({
-    isLicensed: () => Boolean(trustedLicense.get() || LicTrust.offlineGrace(appConfig.license)),   // 🔐 token đã ký (+ ân hạn 24 h, không văng key)
+    isLicensed: () => Boolean(trustedLicense.get() || licenseGrace()),   // 🔐 token đã ký (+ ân hạn 24 h, không văng key)
     autoReconnect: true,
     reconnectDelayMs: 5000,
     logger: {
@@ -2259,7 +2260,7 @@ const LUA_CACHE_DIR = path.join(
 const luaSync = new LuaSync({
     cacheDir: LUA_CACHE_DIR,
     defaultManifestUrl: appConfig.luaSync.manifestUrl,
-    isLicensed: () => Boolean(trustedLicense.get() || LicTrust.offlineGrace(appConfig.license)),   // 🔐 token đã ký (+ ân hạn 24 h, không văng key)
+    isLicensed: () => Boolean(trustedLicense.get() || licenseGrace()),   // 🔐 token đã ký (+ ân hạn 24 h, không văng key)
     logger: { log: (...args) => console.log('[lua-sync]', ...args) }
 });
 luaSync.on('updates_available', (updates) => {
@@ -6960,14 +6961,14 @@ app.post('/api/connect', async (req, res) => {
     if (!trustedLicense.get()) trustedLicense.invalidate();
     let lic = trustedLicense.get();
     // KHÔNG VĂNG KEY: app đã kích hoạt mà tạm thiếu token (vừa cập nhật, token quá hạn offline…) → xác thực lại key
-    // đã lưu ngay (tạo lại token, khách khỏi nhập lại); mất mạng → ân hạn 24 h như bản cũ (LicTrust.offlineGrace).
+    // đã lưu ngay (tạo lại token, khách khỏi nhập lại); mất mạng → ân hạn 24 h sau hạn offline của token đã ký (licenseGrace).
     if (!lic && appConfig.license && appConfig.license.activated && appConfig.license.key) {
         try {
             const r = await validateLicenseKey(appConfig.license.key);
             if (r && r.ok) { appConfig.license.lastValidated = Date.now(); trustedLicense.invalidate(); lic = trustedLicense.get(); }
         } catch (_) {}
-        if (!lic) lic = LicTrust.offlineGrace(appConfig.license);
     }
+    if (!lic) lic = licenseGrace();
     const allow = LicTrust.connectAllowed(lic, cleanName);
     if (!allow.ok) {
         if (allow.reason === 'creator_locked') return res.status(403).json({
