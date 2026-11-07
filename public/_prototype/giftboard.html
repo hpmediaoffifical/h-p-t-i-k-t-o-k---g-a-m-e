@@ -532,7 +532,8 @@
     // Mục Ẩn (HP KEY gs, chưa ra mắt): không vào danh sách nguồn, không lên bảng. Cài đặt nguồn (cfg.sources) giữ nguyên.
     // Mục Tạm tắt (bảo trì): vẫn hiện trong danh sách nguồn, chip ghi ⏸ Tạm bảo trì thay vì "TẮT ở Thư viện".
     const srcState = id => licStates[id === 'obsEffects' ? 'obs-effects' : id];
-    function srcHidden(id) { return srcState(id) === 'hidden'; }
+    // 🎬 Hiệu ứng OBS đã gỡ khỏi app (server OBS_EFFECTS_REMOVED) → không còn là nguồn.
+    function srcHidden(id) { return srcState(id) === 'hidden' || (id === 'obsEffects' && !!obsCfg?.removed); }
     function gameEnabled(id) {
       if (srcHidden(id)) return false;
       if (id === 'obsEffects') return !!obsCfg && obsCfg.enabled !== false;
@@ -1012,7 +1013,7 @@
         games = {}; for (const g of Array.isArray(gl) ? gl : []) games[g.id] = g;
         licStates = obj(lf && lf.states);
         for (const g of Array.isArray(gifts) ? gifts : []) if (g?.id) catalog[String(g.id)] = g;
-        if (ob) obsCfg = { enabled: ob.enabled !== false, mapping: ob.mapping || [], groupsDisabled: ob.groupsDisabled || [] };
+        if (ob) obsCfg = { removed: ob.removed === true, enabled: ob.enabled !== false, mapping: ob.mapping || [], groupsDisabled: ob.groupsDisabled || [] };
         for (const id of HAS_SESSION) if (games[id]?.config && typeof games[id].config.sessionActive === 'boolean') running[id] = games[id].config.sessionActive;
         if (own && typeof own === 'object' && !own.error) { cfg = normalize(own.config || own); lastSavedJson = JSON.stringify(cfg); }
         fillInputs(); fitStage(); paint();
@@ -1070,7 +1071,7 @@
       socket.on('giftSheet', list => { if (!Array.isArray(list)) return; for (const g of list) if (g?.id) catalog[String(g.id)] = g; schedulePaint(); });
       socket.on('timer:cfg', data => { timerCfg = data && data.cfg ? data.cfg : data; schedulePaint(); });
       socket.on('license:features', d => { licStates = obj(d && d.states); schedulePaint(); });
-      socket.on('obsBridge:config', data => { if (data) { obsCfg = { enabled: data.enabled !== false, mapping: data.mapping || [], groupsDisabled: data.groupsDisabled || [] }; schedulePaint(); } });
+      socket.on('obsBridge:config', data => { if (data) { obsCfg = { removed: data.removed === true || !!obsCfg?.removed, enabled: data.enabled !== false, mapping: data.mapping || [], groupsDisabled: data.groupsDisabled || [] }; schedulePaint(); } });
       socket.on('giftboard:transient', data => {
         if (!data?.panels || dragging) return;
         for (const [id, p] of Object.entries(obj(data.panels))) {

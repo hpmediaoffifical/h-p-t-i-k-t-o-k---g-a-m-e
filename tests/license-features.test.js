@@ -224,7 +224,7 @@ test('mục Ẩn không hiện ở mọi danh sách game; server trả trang kho
     const root = path.join(__dirname, '..');
     const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     const app = read('public/app.js');
-    assert.match(app, /if \(g\.lstate === 'hidden'\) continue;/, 'Thư viện Game bỏ mục Ẩn');
+    assert.match(app, /if \(g\.lstate === 'hidden'\) continue;|const visible = games\.filter\([^\n]*g\.lstate !== 'hidden'\)/, 'Thư viện Game bỏ mục Ẩn');
     assert.match(app, /games\.some\(g => g\.id === last && g\.lstate !== 'hidden'\)/, 'không mở lại màn đã nhớ của mục Ẩn');
     assert.match(read('public/quick-launch.html'), /games = games\.filter\(g => g\.lstate !== 'hidden'\)/, 'Khởi động nhanh (thẻ + ⚙ thứ tự)');
     assert.match(read('public/games/camgames/camgames-panel.js'), /filter\(g => lstates\[g\.id\] !== 'hidden'\)/, 'Game Camera');

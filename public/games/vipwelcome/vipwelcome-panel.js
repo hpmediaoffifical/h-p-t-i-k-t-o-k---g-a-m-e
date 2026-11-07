@@ -522,9 +522,10 @@
 
     function wireOverlayCopy() {
         const inp = $('#vipwelcome-overlay-url');
-        const url = (window.buildOverlayURL ? window.buildOverlayURL('/overlay/vipwelcome') : (location.origin + '/overlay/vipwelcome'));
-        if (inp) inp.value = url;
+        const overlayUrl = () => (window.buildOverlayURL ? window.buildOverlayURL('/overlay/vipwelcome') : (location.origin + '/overlay/vipwelcome'));
+        if (inp) { inp._baseOverlayPath = '/overlay/vipwelcome'; inp.value = overlayUrl(); }
         $('#vipwelcome-btn-copy')?.addEventListener('click', async () => {
+            const url = overlayUrl();
             const ok = window.hpCopyText ? await window.hpCopyText(url) : false;
             if (ok) flashOk('✓ Đã copy link OBS');
             else flashWarn('Copy thất bại — link: ' + url);
@@ -1006,7 +1007,7 @@
         const profile = activeProfile();
         const ladder = tierLadder(profile, g);
         const rules = (profile?.userRules || []).filter(r => (r.trigger || 'join') === 'join');
-        const url = $('#vipwelcome-overlay-url')?.value || (location.origin + '/overlay/vipwelcome');
+        const url = window.buildOverlayURL ? window.buildOverlayURL('/overlay/vipwelcome') : (location.origin + '/overlay/vipwelcome');
         const lowest = ladder.find(x => !x.blocked);
         const SCALE = TIKTOK_MAX_LV;   // thước 0–50
         const pct = (lv) => Math.max(0, Math.min(100, lv / SCALE * 100));
@@ -1333,7 +1334,7 @@
         if (!host || host._vwWired) return;
         host._vwWired = true;
         const b = Object.assign({ title: 'KHÁCH QUEN CỦA PHÒNG', scope: 'month', skin: 'violet', limit: 10 }, cfg.joinCard?.board || {});
-        const boardUrl = window.buildOverlayURL ? window.buildOverlayURL('/overlay/vipwelcome-board') : (location.origin + '/overlay/vipwelcome-board');
+        const boardUrl = () => (window.buildOverlayURL ? window.buildOverlayURL('/overlay/vipwelcome-board') : (location.origin + '/overlay/vipwelcome-board'));
         host.innerHTML = `
             <div class="vw-pane-head">
                 <div class="vw-pane-hint">Mỗi người đã ghé bao nhiêu <b>buổi LIVE</b> của kênh <b id="vw-visits-host">…</b> (ra vào nhiều lần trong 1 buổi vẫn tính 1) và 🔥 số buổi liền nhau. Ghi khi thẻ vào phòng đã hiện trên OBS.</div>
@@ -1347,7 +1348,7 @@
                 <div class="vw-setting-title">📺 Bảng xếp hạng trên OBS</div>
                 <div class="vw-rule-row">
                     <button id="vw-board-copy" class="primary small">📋 Copy link OBS bảng xếp hạng</button>
-                    <span class="vw-hint">${escapeHtml(boardUrl)}</span>
+                    <span class="vw-hint">${escapeHtml(boardUrl())}</span>
                 </div>
                 <label class="vw-inline">Tiêu đề <input type="text" maxlength="30" id="vw-board-title" value="${escapeHtml(b.title)}" /></label>
                 <label class="vw-inline">Phạm vi
@@ -1375,8 +1376,8 @@
         $('#vw-board-skin').addEventListener('change', (e) => setBoard(bb => { bb.skin = e.target.value === 'amber' ? 'amber' : 'violet'; }));
         $('#vw-board-limit').addEventListener('input', (e) => setBoard(bb => { bb.limit = Math.max(3, Math.min(20, parseInt(e.target.value, 10) || 10)); }));
         $('#vw-board-copy').addEventListener('click', async () => {
-            const ok = window.hpCopyText ? await window.hpCopyText(boardUrl) : false;
-            if (ok) flashOk('✓ Đã copy link OBS bảng xếp hạng'); else flashWarn('Copy thất bại — link: ' + boardUrl);
+            const ok = window.hpCopyText ? await window.hpCopyText(boardUrl()) : false;
+            if (ok) flashOk('✓ Đã copy link OBS bảng xếp hạng'); else flashWarn('Copy thất bại — link: ' + boardUrl());
         });
         let t = null;
         $('#vw-visits-q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(fetchVisits, 250); });

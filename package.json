@@ -1,6 +1,6 @@
 {
   "name": "hp-action-live",
-  "version": "1.23.0",
+  "version": "1.25.1",
   "description": "HP Action LIVE — TikTok Game Library cho streamer",
   "author": "HP Media",
   "main": "electron-main.js",
@@ -16,7 +16,7 @@
     "node-fetch": "^2.7.0",
     "obs-websocket-js": "^5.0.8",
     "socket.io": "^4.7.5",
-    "tiktok-live-connector": "^2.4.4"
+    "tiktok-live-connector": "^2.5.0"
   },
   "devDependencies": {
     "electron": "^42.0.1",
@@ -39,6 +39,7 @@
       "caro-preview-preload.js",
       "nhatla-preview-toolbar-preload.js",
       "gift-list-preload.js",
+      "quit-confirm-preload.js",
       "hpkey/**/*",
       "lib/**/*",
       "public/**/*",
@@ -115,6 +116,16 @@
       "warningsAsErrors": false,
       "differentialPackage": false,
       "artifactName": "HP-Action-LIVE-Setup-${version}.exe"
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "loadBrowserProcessSpecificV8Snapshot": false,
+      "grantFileProtocolExtraPrivileges": false
     }
   }
 }

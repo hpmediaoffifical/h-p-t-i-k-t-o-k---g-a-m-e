@@ -2020,9 +2020,10 @@
     // ---------- Save / overlay copy ----------
     function wireCopyOverlay() {
         const inp = $('#caro-overlay-url');
-        const url = (window.buildOverlayURL ? window.buildOverlayURL('/overlay/caro') : (location.origin + '/overlay/caro'));
-        if (inp) inp.value = url;
+        const overlayUrl = () => (window.buildOverlayURL ? window.buildOverlayURL('/overlay/caro') : (location.origin + '/overlay/caro'));
+        if (inp) { inp._baseOverlayPath = '/overlay/caro'; inp.value = overlayUrl(); }
         $('#caro-btn-copy').addEventListener('click', async () => {
+            const url = overlayUrl();
             const ok = window.hpCopyText ? await window.hpCopyText(url) : false;
             if (ok) flashOk('✓ Đã copy link OBS');
             else flashWarn('Copy thất bại — link: ' + url);

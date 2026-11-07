@@ -42,6 +42,21 @@ export class HpCamHide {
         this.hidden = false;      // server xác nhận cam gốc đang ở ngoài khung
         this.err = '';
         this.backAt = 0;
+        // 📺 Trang có đang nằm trong Scene ĐANG PHÁT không (OBS bắn obsSourceActiveChanged khi đổi; null = OBS chưa báo).
+        // Cùng link Game Camera dán ở NHIỀU Scene → mọi trang đều chạy lượt; trang ở Scene ẩn chạy trễ mà vẫn xin ẩn cam thì cam
+        // của Scene đang phát bị dời LẦN HAI sau khi trang đang phát đã trả - không ai vẽ đè → khán giả thấy "cam về → văng đi →
+        // về lại" (HP LIVE NPC e705360, 2026-11-03). Trang báo chắc chắn ĐANG ẨN thì không xin ẩn cam.
+        this.onAir = null;
+        const onAirEv = e => {
+            const d = e && e.detail;
+            const v = d && typeof d.active === 'boolean' ? d.active : d && typeof d.visible === 'boolean' && !d.visible ? false : null;
+            if (v === null || v === this.onAir) return;
+            this.onAir = v;
+            if (!v && this.wanted) { this.wanted = false; this.backAt = performance.now(); this._ask(false); }
+        };
+        const wins = [window];
+        try { if (window.top && window.top !== window && window.top.document) wins.push(window.top); } catch (_) {}   // khung con trong overlay mẹ: OBS bắn ở trang mẹ
+        for (const w of wins) { w.addEventListener('obsSourceActiveChanged', onAirEv); w.addEventListener('obsSourceVisibleChanged', onAirEv); }
         this._t = setInterval(() => {
             if (this.wanted) this._ask(true);                                     // giữ hợp đồng
             else if (this.hidden && performance.now() - this.backAt > 2500) this.hidden = false;   // server im lặng → thôi giữ hình
@@ -50,7 +65,7 @@ export class HpCamHide {
     // Vẽ nền thay camera từ lúc XIN ẩn (đè lên cam gốc còn hiện vài chục ms - y hệt nhau) tới lúc server xác nhận ĐÃ TRẢ.
     get covering() { return this.wanted || this.hidden; }
     want(on) {
-        on = !!on && this.allowed;
+        on = !!on && this.allowed && this.onAir !== false;
         if (on === this.wanted) return;
         this.wanted = on;
         if (!on) this.backAt = performance.now();
@@ -59,7 +74,7 @@ export class HpCamHide {
     _ask(hide) {
         const s = this.getSocket && this.getSocket();
         if (!s || !s.connected) { if (!hide) this.hidden = false; return; }
-        s.timeout(4000).emit('camgames:camhide', { game: this.game, hide }, (err, r) => {
+        s.timeout(4000).emit('camgames:camhide', { game: this.game, hide, onAir: this.onAir }, (err, r) => {
             if (err) { if (!hide) this.hidden = false; return; }
             this.hidden = !!(r && r.hidden);
             this.err = r && r.ok === false ? String(r.error || '') : '';

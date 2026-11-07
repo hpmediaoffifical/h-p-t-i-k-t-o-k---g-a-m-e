@@ -126,6 +126,12 @@ const LeagueCard = require('./lib/league-card');
 // (không suy từ tên máy, để URL giống nhau trên mọi cài đặt HP Action LIVE). Lý do đầy đủ +
 // phần tự thêm vào hosts file nằm ở lib/obs-host.js.
 const { OBS_HOST: OBS_LOCAL_HOST, isHostMapped } = require('./lib/obs-host');
+// Link overlay đưa cho người dùng / tạo nguồn OBS: http://hpaction.obs:<port>/overlay/<id> (TikTok LIVE Studio
+// chặn "localhost"); hosts chưa map thì về localhost. Client có bản tương ứng: buildOverlayURL() trong app.js.
+function overlayPublicUrl(p) {
+    const path = String(p || '').startsWith('/') ? p : '/' + (p || '');
+    return `http://${isHostMapped() ? OBS_LOCAL_HOST : 'localhost'}:${PORT}${path}`;
+}
 // VIP Welcome — thẻ vào phòng: tín hiệu vào phòng (member + barrage), vào/ra/vào lại, bậc, sổ xu, hàng media.
 const vwSignals = require('./lib/vipwelcome/join-signals');
 const vwTiers = require('./lib/vipwelcome/tier-match');
@@ -149,6 +155,11 @@ function isWorkerConfigured() {
 // HP_DATA_DIR được set bởi electron-main.js trong môi trường đóng gói (vì __dirname nằm trong asar read-only).
 // Khi chạy dev / node trực tiếp: fallback về data/ cạnh server.js
 const DATA_DIR = process.env.HP_DATA_DIR || path.join(__dirname, 'data');
+// 🔐 Bản quyền tin cậy = token ĐÃ KÝ RSA gắn mã máy (lib/license-trust.js). Vai trò / ID được phép / tính năng
+// lấy từ đây, KHÔNG từ appConfig.license (file thường, sửa tay được). Nhớ đệm 30 s; kích hoạt / xác thực xong gọi invalidate().
+const LicTrust = require('./lib/license-trust');
+function licenseGrace() { try { return LicTrust.offlineGrace(require('./hpkey/index').getStatus()); } catch (_) { return null; } }   // 🔐 ân hạn 24 h chỉ từ token đã ký
+const trustedLicense = LicTrust.createTrustedLicense({ getStatus: () => require('./hpkey/index').getStatus() });
 const CONFIG_FILE = path.join(DATA_DIR, 'app-config.json');
 const CONFIG_BACKUP_DIR = path.join(DATA_DIR, 'config-backups');
 
@@ -218,17 +229,25 @@ function socketIsTrusted(socket) {
     return isTrustedRemote(hs.address, given);
 }
 
+// 🔐 Chống DNS rebinding (lib/host-guard.js): Host phải là tên nội bộ / IP / tên máy — chặn cả GET (đọc key, mật khẩu OBS).
+const HostGuard = require('./lib/host-guard');
+const HOST_GUARD_OPTS = { localHosts: LOCAL_ORIGIN_HOSTS, machineNames: [os.hostname()] };
+function hostOk(host) { return HostGuard.hostAllowed(host, HOST_GUARD_OPTS); }
 const app = express();
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
     cors: { origin: (origin, cb) => cb(null, originAllowed(origin)) },
     // Gói cors chỉ set header (không bao giờ trả 403) và CORS không áp dụng cho WebSocket →
     // allowRequest mới thật sự chặn handshake (polling lẫn websocket) từ trang lạ theo Origin.
-    allowRequest: (req, cb) => (originAllowed(req.headers.origin) ? cb(null, true) : cb('origin_not_allowed', false))
+    allowRequest: (req, cb) => (!hostOk(req.headers.host) ? cb('host_not_allowed', false) : originAllowed(req.headers.origin) ? cb(null, true) : cb('origin_not_allowed', false))
 });
 
 // Chống CSRF / DNS rebinding cho mọi request GHI — đặt TRƯỚC express.static/express.json và mọi
 // express.raw inline ở route upload. GET và /socket.io không bị chặn ở đây.
+app.use((req, res, next) => {
+    if (hostOk(req.headers.host)) return next();
+    res.status(403).type('text/plain').send('host_not_allowed');
+});
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 app.use((req, res, next) => {
     if (!WRITE_METHODS.has(req.method) || req.path.startsWith('/socket.io')) return next();
@@ -1814,10 +1833,10 @@ if (!appConfig.obsBridge) {
 if (!Array.isArray(appConfig.obsBridge.groupsDisabled)) {
     appConfig.obsBridge.groupsDisabled = [];
 }
-// Backward-compat: config cũ chưa có cờ master → mặc định BẬT
-if (typeof appConfig.obsBridge.enabled !== 'boolean') {
-    appConfig.obsBridge.enabled = true;
-}
+// 🎬 Hiệu ứng OBS (quà → Scene/hotkey) ĐÃ GỠ khỏi app (06/11/2026). Kết nối OBS WebSocket vẫn giữ —
+// Game Camera / Chém Trái Cây lấy hình nguồn camera qua nó (⚙ Cài đặt → OBS & Overlay).
+const OBS_EFFECTS_REMOVED = true;
+appConfig.obsBridge.enabled = false;
 
 // ====== LUA Duration Registry ======
 // Map hotkey name → suggested duration ms (auto-fill khi user pick effect).
@@ -1857,7 +1876,7 @@ function obsBridgeSuggestDurationMs(hotkey, sceneName) {
     return 0;
 }
 const obsBridge = new OBSBridge({
-    isLicensed: () => Boolean(appConfig.license && appConfig.license.activated),
+    isLicensed: () => Boolean(trustedLicense.get() || licenseGrace()),   // 🔐 token đã ký (+ ân hạn 24 h, không văng key)
     autoReconnect: true,
     reconnectDelayMs: 5000,
     logger: {
@@ -2014,7 +2033,7 @@ function obsBridgeEnqueueForGift(giftId, repeatCount, opts = {}) {
     if (!giftId) return { enqueued: 0, reason: 'no-gift-id' };
     // ⛔ Master OFF: "Hiệu ứng OBS" đã TẮT trong 🎮 Thư viện Game → KHÔNG nhận quà, không trigger
     // bất kỳ effect nào (kể cả quà test). Đây là cổng chặn chính ở server.
-    if (appConfig.obsBridge && appConfig.obsBridge.enabled === false) {
+    if (OBS_EFFECTS_REMOVED || (appConfig.obsBridge && appConfig.obsBridge.enabled === false)) {
         return { enqueued: 0, reason: 'obs-effects-disabled' };
     }
     const mapping = (appConfig.obsBridge && appConfig.obsBridge.mapping) || [];
@@ -2282,7 +2301,7 @@ const LUA_CACHE_DIR = path.join(
 const luaSync = new LuaSync({
     cacheDir: LUA_CACHE_DIR,
     defaultManifestUrl: appConfig.luaSync.manifestUrl,
-    isLicensed: () => Boolean(appConfig.license && appConfig.license.activated),
+    isLicensed: () => Boolean(trustedLicense.get() || licenseGrace()),   // 🔐 token đã ký (+ ân hạn 24 h, không văng key)
     logger: { log: (...args) => console.log('[lua-sync]', ...args) }
 });
 luaSync.on('updates_available', (updates) => {
@@ -3587,13 +3606,17 @@ const { validateLicenseKey } = require('./hpkey/validate');
 // còn nguyên. MỞ KHOÁ = bật lại đúng những gì đã tắt vì key (mục người dùng tự tắt thì để nguyên).
 // Kèm theo: API không cho bật mục bị khoá, /api/games đánh dấu locked, overlay OBS của mục bị khoá hiện 🔒.
 function licenseFeatures() {
-    const f = appConfig.license && appConfig.license.features;
+    const t = trustedLicense.get();
+    const f = t ? t.features : (appConfig.license && appConfig.license.features);
     return Array.isArray(f) ? f : null;
 }
 function featureOn(id) { return LicFeat.can(licenseFeatures(), id); }
 // Trạng thái mục theo game (HP KEY gs, SDK 2.1 — appConfig.license.gameState): chỉ đổi cách HIỆN (⏸ Tạm bảo trì / ẩn / 🧪);
 // khoá vẫn theo features vì server đã trừ mục Tạm tắt / Ẩn khỏi ft.
-function licenseGameState() { return LicFeat.normalizeState(appConfig.license && appConfig.license.gameState); }
+function licenseGameState() {
+    const t = trustedLicense.get();
+    return LicFeat.normalizeState(t ? t.gameState : (appConfig.license && appConfig.license.gameState));
+}
 function licenseStateOf(id) { return LicFeat.stateOf(licenseFeatures(), licenseGameState(), id); }
 function licenseDeniedMessage(id) {
     const st = licenseStateOf(id);
@@ -5127,6 +5150,21 @@ function nhatLaResetDonors() {
     emitNhatLaTop(true);
 }
 
+// 🎨 "Quà hôm nay" (Trang chủ): đếm quà thật trong ngày, lưu <DATA_DIR>/gift-stats-today.json, phát 'giftStats' ≤ 1 lần/giây
+const giftStats = require('./lib/gift-stats.js').createGiftStats();
+const GIFT_STATS_FILE = path.join(DATA_DIR, 'gift-stats-today.json');
+try { if (fs.existsSync(GIFT_STATS_FILE)) giftStats.load(JSON.parse(fs.readFileSync(GIFT_STATS_FILE, 'utf8'))); } catch (_) {}
+let giftStatsTimer = null;
+function giftStatsChanged() {
+    if (giftStatsTimer) return;
+    giftStatsTimer = setTimeout(() => {
+        giftStatsTimer = null;
+        io.emit('giftStats', giftStats.today(10));
+        fs.promises.writeFile(GIFT_STATS_FILE, JSON.stringify(giftStats.toJSON())).catch(() => {});
+    }, 1000);
+}
+app.get('/api/gift-stats/today', (req, res) => res.json(giftStats.today(Number(req.query.limit) || 10)));
+
 function emitGift(g) {
     rememberLiveTranslateUser(liveTranslateRecentGifts, g);
     // 🎮 Phiên game theo quà: quà kích hoạt mở / gia hạn / xếp hàng phiên TRƯỚC khi đưa quà cho các game
@@ -5151,6 +5189,7 @@ function emitGift(g) {
     const coFanChange = coFansTouch(enriched, 'gift');   // 🏢 Creator Online: cộng xu trọn đời (bỏ quà thử)
     io.emit('gift', enriched);
     if (coFanChange) io.emit('creatoronline:fan', coFanChange);
+    try { if (giftStats.add(enriched)) giftStatsChanged(); } catch (e) { console.warn('[gift-stats] lỗi:', e?.message || e); }
     setLiveDashboardGift(enriched);
     try { leagueOnGift(enriched); } catch (e) { console.warn('[leaguecard] gift lỗi:', e?.message || e); }
     try { if (qvStore && qvStore.alive()) qvStore.addGift({ uid: String(enriched.uniqueId || enriched.userId || ''), name: enriched.nickname || enriched.uniqueId, avatar: enriched.profilePictureUrl || enriched.profilePicture || '', coins: (Number(enriched.coinValue) || 0) * Math.max(1, parseInt(enriched.repeatCount, 10) || 1) }); } catch (e) { console.warn('[quaivat] sổ tuần lỗi:', e?.message || e); }
@@ -5778,7 +5817,7 @@ app.post('/api/backup/import', (req, res) => {
     if (appConfig.games.vipwelcome) appConfig.games.vipwelcome = migrateVipWelcomeConfig(appConfig.games.vipwelcome);
     appConfig.liveTranslate = sanitizeLiveTranslateConfig(incoming.liveTranslate ? migrateLiveTranslateVolume(incoming.liveTranslate) : (appConfig.liveTranslate || {}));
     appConfig.creatorCaption = sanitizeCreatorCaptionConfig(incoming.creatorCaption || appConfig.creatorCaption || {});
-    if (incoming.license && typeof incoming.license === 'object') appConfig.license = { ...(appConfig.license || {}), ...incoming.license };
+    // 🔐 Nhập cấu hình KHÔNG ghi đè bản quyền (từng là đường đổi vai trò thành ADMIN) — bản quyền chỉ đến từ kích hoạt key.
     saveAppConfig();
     io.emit('translate:config', appConfig.liveTranslate);
     io.emit('creatorCaption:config', appConfig.creatorCaption);
@@ -6624,7 +6663,7 @@ app.post('/api/update/download', async (req, res) => {
                     if (setupAsset) {
                         downloadUrl = setupAsset.browser_download_url;
                         expectedSize = setupAsset.size || 0;
-                        expectedSha = '';   // GitHub không có SHA → skip verify
+                        expectedSha = require('./lib/update-integrity').assetSha256(setupAsset);   // 🔐 GitHub digest sha256
                         version = String(remote.tag_name).replace(/^v/i, '');
                     }
                 }
@@ -6647,6 +6686,8 @@ app.post('/api/update/download', async (req, res) => {
             if (!downloadUrl) {
                 throw new Error('Không kết nối được nguồn cập nhật');
             }
+            // 🔐 Không có mã băm để đối chiếu → KHÔNG tải/cài (file có thể bị tráo trên đường truyền hoặc ở nguồn).
+            if (!expectedSha) throw new Error('Không xác minh được file cập nhật (thiếu mã kiểm tra) - thử lại sau hoặc tải bản cài từ HP Media');
 
             // CHỐT CHẶN HẠ CẤP. Client bấm Đồng ý mà KHÔNG gửi version/URL nào (public/app.js POST body rỗng) →
             // route này tự dò nguồn lại từ đầu. Nếu GitHub OK lúc kiểm tra nhưng lỗi lúc tải, nhánh dự phòng được
@@ -6842,6 +6883,7 @@ app.get('/api/license/status', async (req, res) => {
     try {
         const result = await validateLicenseKey(stored.key);
         if (result.ok) {
+            trustedLicense.invalidate();   // 🔐 bản quyền vừa đổi → đọc lại token
             appConfig.license = {
                 ...stored,
                 activated: true,
@@ -6895,6 +6937,7 @@ app.get('/api/license/status', async (req, res) => {
         }
         // Đang bị khoá/hết hạn -> KHÔNG xoá key (giữ để lần sau tự vào),
         // trả savedKey để gate điền sẵn (user khỏi gõ lại).
+        trustedLicense.invalidate();   // 🔐 bản quyền vừa đổi → đọc lại token
         appConfig.license = { ...stored, activated: false, lastError: result.error };
         saveAppConfig();
         return res.json({ activated: false, error: result.error, savedKey: stored.key });
@@ -6907,6 +6950,7 @@ app.post('/api/license/activate', async (req, res) => {
     const key = (req.body && req.body.key) || '';
     const result = await validateLicenseKey(key);
     if (!result.ok) return res.json(result);
+    trustedLicense.invalidate();   // 🔐 bản quyền vừa đổi → đọc lại token
     appConfig.license = {
         activated: true,
         key: result.key,
@@ -6926,6 +6970,7 @@ app.post('/api/license/activate', async (req, res) => {
 });
 
 app.post('/api/license/deactivate', (req, res) => {
+    trustedLicense.invalidate();   // 🔐 bản quyền vừa đổi → đọc lại token
     appConfig.license = { activated: false };
     saveAppConfig();
     res.json({ ok: true });
@@ -6978,35 +7023,32 @@ app.post('/api/connect', async (req, res) => {
     if (!username) return res.status(400).json({ ok: false, error: 'Thiếu username' });
     const cleanName = String(username).replace(/^@/, '').trim();
 
-    // === CREATOR role enforcement ===
-    // Với role=CREATOR: KEY column A chính là TikTok ID. User phải connect với
-    // TikTok username TRÙNG khớp key đang active.
-    // Nếu khác → reject. User phải liên hệ HP Media (đổi key tương ứng TikTok ID mới).
-    const lic = appConfig.license || {};
-    if (lic.activated && lic.role === 'CREATOR' && lic.key) {
-        const boundId = String(lic.key).replace(/^@/, '').toLowerCase().trim();
-        if (cleanName.toLowerCase() !== boundId) {
-            return res.status(403).json({
-                ok: false,
-                error: 'Bạn đã thay đổi TikTok ID hoặc nhập sai\nLIÊN HỆ HP MEDIA ĐỂ ĐƯỢC HỖ TRỢ',
-                _creatorLocked: true,
-                boundTiktokId: lic.key
-            });
-        }
+    // === 🔐 Bản quyền + vai trò từ TOKEN ĐÃ KÝ (lib/license-trust.js) — không tin appConfig.license (file sửa tay được) ===
+    // Chưa kích hoạt → chặn (trước đây chỉ màn hình chặn, gọi thẳng API là kết nối được).
+    // CREATOR: key chính là TikTok ID → chỉ kết nối đúng ID đó. VIP có danh sách ID → chỉ các ID trong danh sách.
+    // Đệm báo chưa có key → đọc lại token 1 lần (vừa kích hoạt xong mà đệm 30 s còn giữ trạng thái cũ)
+    if (!trustedLicense.get()) trustedLicense.invalidate();
+    let lic = trustedLicense.get();
+    // KHÔNG VĂNG KEY: app đã kích hoạt mà tạm thiếu token (vừa cập nhật, token quá hạn offline…) → xác thực lại key
+    // đã lưu ngay (tạo lại token, khách khỏi nhập lại); mất mạng → ân hạn 24 h sau hạn offline của token đã ký (licenseGrace).
+    if (!lic && appConfig.license && appConfig.license.activated && appConfig.license.key) {
+        try {
+            const r = await validateLicenseKey(appConfig.license.key);
+            if (r && r.ok) { appConfig.license.lastValidated = Date.now(); trustedLicense.invalidate(); lic = trustedLicense.get(); }
+        } catch (_) {}
     }
-
-    // === VIP allow-list enforcement ===
-    // role=VIP có danh sách ID: chỉ cho kết nối các TikTok ID trong danh sách.
-    // Danh sách rỗng → không giới hạn (như trước).
-    if (lic.activated && lic.role === 'VIP' && Array.isArray(lic.allowedIds) && lic.allowedIds.length) {
-        if (lic.allowedIds.indexOf(cleanName.toLowerCase()) < 0) {
-            return res.status(403).json({
-                ok: false,
-                error: 'TikTok ID này không nằm trong danh sách được phép của key VIP\nLIÊN HỆ HP MEDIA ĐỂ ĐƯỢC HỖ TRỢ',
-                _vipNotAllowed: true,
-                allowedIds: lic.allowedIds
-            });
-        }
+    if (!lic) lic = licenseGrace();
+    const allow = LicTrust.connectAllowed(lic, cleanName);
+    if (!allow.ok) {
+        if (allow.reason === 'creator_locked') return res.status(403).json({
+            ok: false, error: 'Bạn đã thay đổi TikTok ID hoặc nhập sai\nLIÊN HỆ HP MEDIA ĐỂ ĐƯỢC HỖ TRỢ',
+            _creatorLocked: true, boundTiktokId: lic.key
+        });
+        if (allow.reason === 'vip_not_allowed') return res.status(403).json({
+            ok: false, error: 'TikTok ID này không nằm trong danh sách được phép của key VIP\nLIÊN HỆ HP MEDIA ĐỂ ĐƯỢC HỖ TRỢ',
+            _vipNotAllowed: true, allowedIds: lic.allowedIds
+        });
+        return res.status(403).json({ ok: false, error: 'Chưa kích hoạt bản quyền - nhập key HP Media để kết nối LIVE', _noLicense: true });
     }
 
     // Lưu lastUsername (kể cả LIVE chưa bật) — tiện auto-fill lần sau
@@ -7136,7 +7178,7 @@ const camObs = createCamObs({
     isHubUrl: url => feedUrlIs(url || '', 'camgames', /\/overlay\/camgames(?:[/?#]|$)/i),
     cameraName: () => String(appConfig.games?.camgames?.source || '') || (Date.now() - camAuto.at < 10000 ? camAuto.source : ''),
     savedScene: () => String(appConfig.games?.camgames?.scene || ''),
-    overlayUrl: () => `http://localhost:${PORT}/overlay/camgames`,
+    overlayUrl: () => overlayPublicUrl('/overlay/camgames'),
     port: PORT
 });
 let camProgCache = { at: 0, data: null };
@@ -7178,7 +7220,7 @@ app.post('/api/giftboard/obs/add', async (req, res) => {
     if (!obsBridge.isConnected()) return res.status(409).json({ ok: false, error: 'Chưa kết nối OBS WebSocket - vào ⚙ Cài đặt / Hiệu ứng OBS → Kết nối' });
     try {
         const r = await addOverlayToScene((type, data) => obsBridge.obs.call(type, data), {
-            url: `http://localhost:${PORT}/_prototype/giftboard.html?mode=overlay`,
+            url: overlayPublicUrl('/_prototype/giftboard.html?mode=overlay'),   // hpaction.obs: TikTok LIVE Studio chặn localhost
             isMine: giftboardObsUrlIsMine,
             inputName: 'HP Bảng Quà Tổng',
             scene: typeof req.body?.scene === 'string' ? req.body.scene.slice(0, 200) : ''
@@ -7399,7 +7441,7 @@ app.get('/api/games/:id/share-link', (req, res) => {
     res.json({
         ok: true,
         token,
-        url: `http://${OBS_LOCAL_HOST}:${PORT}/overlay/shared/${token}`,
+        url: `http://${OBS_LOCAL_HOST}:${PORT}${GAMES[gameId].overlayPath}`,
         localUrl: `http://localhost:${PORT}${GAMES[gameId].overlayPath}`,
         // false = hosts file chưa map, link .obs sẽ không mở được -> UI nên bảo user dùng
         // localUrl hoặc chạy lại bước thêm hosts.
@@ -11853,6 +11895,7 @@ app.get('/api/obs-bridge/config', (req, res) => {
     // trả nguyên văn thì mọi máy trong LAN đọc được.
     const trusted = requestIsTrusted(req);
     res.json({
+        removed: OBS_EFFECTS_REMOVED,   // 🎬 Hiệu ứng OBS đã gỡ khỏi app → Bảng Quà Tổng bỏ nguồn này
         enabled: cfg.enabled !== false,
         url: cfg.url || '',
         password: trusted ? (cfg.password || '') : '',
@@ -12429,7 +12472,8 @@ app.put('/api/obs-bridge/config', express.json(), (req, res) => {
     if (typeof body.enabled === 'boolean') {
         // Tính năng theo KEY: Hiệu ứng OBS bị khoá thì không bật được (nhớ ý muốn bật để mở khoá thì tự bật).
         const L = licenseLocks();
-        if (body.enabled && !featureOn('obs-effects')) { appConfig.obsBridge.enabled = false; L.obsBridge = true; }
+        if (OBS_EFFECTS_REMOVED) appConfig.obsBridge.enabled = false;   // đã gỡ: không bật lại được
+        else if (body.enabled && !featureOn('obs-effects')) { appConfig.obsBridge.enabled = false; L.obsBridge = true; }
         else { appConfig.obsBridge.enabled = body.enabled; delete L.obsBridge; }
     }
     if (typeof body.url === 'string') appConfig.obsBridge.url = body.url.trim();
@@ -12534,6 +12578,18 @@ app.post('/api/obs-bridge/trigger', express.json(), async (req, res) => {
 // ====== 🚀 Quick Launch — cửa sổ điều khiển nhanh tách rời, always-on-top ======
 app.get('/quick-launch', (req, res) =>
     res.sendFile(path.join(__dirname, 'public', 'quick-launch.html')));
+// 🎨 Trang chủ: công tắc tự mở cửa sổ Khởi động nhanh khi khởi động app (Electron giữ prefs; chạy server
+// riêng không có Electron thì báo available:false để trang ẩn công tắc).
+app.get('/api/quick-launch/auto-open', (req, res) => {
+    const h = global.__qlAutoOpen;
+    res.json(h ? { available: true, on: !!h.get() } : { available: false, on: false });
+});
+app.put('/api/quick-launch/auto-open', express.json(), (req, res) => {
+    const h = global.__qlAutoOpen;
+    if (!h) return res.status(409).json({ ok: false, available: false });
+    h.set(!!(req.body && req.body.on));
+    res.json({ ok: true, on: !!h.get() });
+});
 
 // ====== 📦 Danh sách quà — cửa sổ tách rời, ghim trên cùng (test quà mọi game) ======
 app.get('/gift-list', (req, res) =>
@@ -13015,6 +13071,7 @@ httpServer.listen(PORT, BIND_HOST, async () => {
                     const gs = LicFeat.normalizeState(license && license.gameState);
                     // ft giữ nguyên mà gs đổi (Tạm tắt → Ẩn) vẫn phải vẽ lại → so cả hai.
                     if (LicFeat.same(f, appConfig.license.features) && LicFeat.sameState(gs, appConfig.license.gameState)) return;
+                    trustedLicense.invalidate();   // 🔐 bản quyền vừa đổi → đọc lại token
                     appConfig.license = { ...appConfig.license, features: f, gameState: gs };
                     saveAppConfig();
                     applyLicenseLocks('watcher');
@@ -13024,6 +13081,7 @@ httpServer.listen(PORT, BIND_HOST, async () => {
                 console.warn('[hpkey] Key bị thu hồi:', reason, '-> đóng app');
                 try {
                     // Giữ key đã lưu (chỉ đánh dấu chưa kích hoạt) -> mở khoá là tự vào lại
+                    trustedLicense.invalidate();   // 🔐 bản quyền vừa đổi → đọc lại token
                     appConfig.license = { ...(appConfig.license || {}), activated: false, lastError: 'revoked:' + reason };
                     saveAppConfig();
                 } catch (_) {}

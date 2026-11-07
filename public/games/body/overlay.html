@@ -948,7 +948,7 @@ function cancelRow(rowId) {
 }
 
 // ---------- khung hình ----------
-let lastT = 0, rafAt = 0;
+let lastT = 0, rafAt = 0, noPersonAt = 0;
 const drawStat = { ms: 0, max: 0, maxAt: 0, n: 0 };
 function loop(now) {
     const t = performance.now();
@@ -959,6 +959,30 @@ function loop(now) {
     try { frame(now); } finally { requestAnimationFrame(loop); }
 }
 setInterval(() => { if (performance.now() - rafAt > 250) frame(performance.now()); }, 50);   // trang ẩn → rAF đứng
+// 🎞 Video ĐANG PHÁT mà đứng khung (NPC đo 2026-11-03, máy CPU bận 90 %: video "đang phát", đã tải hết, readyState 2 mà currentTime
+// đứng yên mãi - bộ giải mã của trình duyệt kẹt; tua nhẹ là chạy lại) → hiệu ứng / nền đứng hình một khung trên OBS. Canh mỗi 0,25 s:
+// đứng > 1,5 s (ở khung đầu > 0,7 s) thì tua 40 ms. Chỉ video đang chạy của lượt (hành động / Hậu Cảnh), nền thường trực và video làm camera (?src=).
+const vidWatch = new WeakMap();
+setInterval(() => {
+    if (disabled || isReview && window.__bodyT != null) return;
+    const now = performance.now(), list = new Set();
+    if (act && act.mod.playing) for (const m of act.mod.playing() || []) if (m && m.isVideo) list.add(m.el);
+    if (hc) { if (hc.m && hc.m.isVideo) list.add(hc.m.el); for (const L of hc.layers) if (L.m.isVideo) list.add(L.m.el); }
+    const p = curProfile(), idle = p && p.idleFile ? media.get(p.idleFile) : null;
+    if (idle && idle.isVideo) list.add(idle.el);
+    if (window.__bodySrc) list.add(window.__bodySrc);
+    for (const el of list) {
+        if (el.paused || el.ended || el.seeking || el.readyState < 2) { vidWatch.delete(el); continue; }
+        const r = vidWatch.get(el);
+        if (!r || r.t !== el.currentTime) { vidWatch.set(el, { t: el.currentTime, at: now }); continue; }
+        // Đầu video (khung 0) chỉ chờ 0,7 s: 🏓 Pickleball / 🥷 Ninja hay kẹt ngay khung đầu trên máy bận - hiệu ứng chờ video 1,5 s
+        // rồi tự chạy theo đồng hồ riêng → người diễn mà nền đứng hình.
+        if (now - r.at < (el.currentTime < 0.05 ? 700 : 1500)) continue;
+        r.at = now; r.kicks = (r.kicks || 0) + 1;
+        try { el.currentTime = Math.min(el.currentTime + 0.04, Number.isFinite(el.duration) ? Math.max(0, el.duration - 0.05) : el.currentTime + 0.04); } catch (_) {}
+        if (r.kicks === 1) console.warn('[body] video đứng khung - tua nhẹ cho chạy lại:', String(el.currentSrc || '').split('/').pop());
+    }
+}, 250);
 function frame(now) {
     const t0 = performance.now();
     try { frameInner(now); }
@@ -981,14 +1005,19 @@ function frameInner(now) {
     }
     if (disabled || !(window.HpCamFrame?.active ?? true)) { camHide.want(false); return; }
     // Chưa tách được người (model chưa nạp / chưa có hình): giữ quà tối đa 8 giây - không phủ nền che mất NPC.
+    // 8 giây = LIỀN 8 giây không có người (noPersonAt), không phải quà đã chờ 8 giây: spam ×100 xếp hàng vài phút mà hình chớp mất
+    // một nhịp (OBS gửi lại khung / bật lại nguồn) thì bản cũ bỏ sạch MỌI lượt đã chờ > 8 s ngay khung đó.
+    if (person.ready || !(aQueue.length || hcQueue.length)) noPersonAt = 0;
+    else if (!noPersonAt) noPersonAt = now;
+    const noPersonLong = !!noPersonAt && now - noPersonAt > 8000;
     while (!act && aQueue.length) {
         if (person.ready) { actStart(aQueue.shift(), now); if (act) break; continue; }
-        if (now - aQueue[0].at > 8000) { rowRunEnd(aQueue.shift(), false, hpT('chưa tách được người sau 8 giây')); continue; }
+        if (noPersonLong) { rowRunEnd(aQueue.shift(), false, hpT('chưa tách được người sau 8 giây')); continue; }
         break;
     }
     while (!hc && hcQueue.length) {
         if (person.ready) { hcStart(hcQueue.shift(), now); if (hc) break; continue; }
-        if (now - hcQueue[0].at > 8000) { rowRunEnd(hcQueue.shift(), false, hpT('chưa tách được người sau 8 giây')); continue; }
+        if (noPersonLong) { rowRunEnd(hcQueue.shift(), false, hpT('chưa tách được người sau 8 giây')); continue; }
         break;
     }
     // 😭 chờ thấy MẶT tối đa 8 giây rồi bỏ qua - đếm từ lúc model mặt ĐÃ NẠP (lệnh tới lúc model chưa có thì nạp mất vài giây,

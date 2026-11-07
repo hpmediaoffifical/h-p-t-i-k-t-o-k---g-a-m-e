@@ -410,9 +410,10 @@
 
     function wireOverlayCopy() {
         const inp = $('#pktiktok-overlay-url');
-        const url = (window.buildOverlayURL ? window.buildOverlayURL('/overlay/pktiktok') : (location.origin + '/overlay/pktiktok'));
-        if (inp) inp.value = url;
+        const overlayUrl = () => (window.buildOverlayURL ? window.buildOverlayURL('/overlay/pktiktok') : (location.origin + '/overlay/pktiktok'));
+        if (inp) { inp._baseOverlayPath = '/overlay/pktiktok'; inp.value = overlayUrl(); }
         $('#pktiktok-btn-copy')?.addEventListener('click', async () => {
+            const url = overlayUrl();
             const ok = window.hpCopyText ? await window.hpCopyText(url) : false;
             if (ok) flashOk('✓ Đã copy link OBS');
             else flashWarn('Copy thất bại — link: ' + url);

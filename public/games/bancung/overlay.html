@@ -1371,9 +1371,14 @@
         }
 
         // ===== Bám theo người =====
+        // Game TẮT (link Bắn Cung riêng vẫn nằm trong Scene) → KHÔNG chạy model dáng + mặt nạ: NPC đo OBS thật 2026-11-03 trang ẩn vẫn
+        // tính ~7 lần/giây × 66 ms suốt buổi LIVE, giành CPU / GPU với 🧍 Bộ Tách Người. (_gameOff khai báo phía dưới - try khỏi lỗi TDZ.)
+        function gameOffNow() { try { return _gameOff || config?.enabled === false || state?.enabled === false; } catch (_) { return config?.enabled === false; } }
         function syncBodyTrack() {
             const d = config?.display || {};
-            trackWanted = (d.bodyTrack === true || isCamHub) && !isEdit;
+            // config === null = chưa nhận cấu hình: CHƯA bật (overlay mẹ nạp sẵn iframe mọi game → Bắn Cung TẮT cũng xin dáng + mặt nạ
+            // người ngay lúc mở, model nặng nạp ở luồng chính rồi nằm lại - NPC đo hub 2026-11-03).
+            trackWanted = !!config && (d.bodyTrack === true || isCamHub) && !isEdit && !gameOffNow();
             if (bodyTrack) { bodyTrack.maskSmooth = d.maskSmooth !== false; bodyTrack.setEnabled(trackWanted); }
             if (!trackWanted) { restoreLayout(); showTrackWarn(''); }
         }
@@ -2251,7 +2256,7 @@
         // Chỉ ẩn khi mất kết nối hoặc game bị TẮT — chưa bấm ▶ Bắt đầu thì vẫn hiện tim + cung như cũ.
         let _offlineTimer = 0, _offline = false, _gameOff = false;
         // + khung bị overlay mẹ (🎥 Game Camera) ẩn / nạp sẵn → HpCamFrame.active = false (cam-frame-guard.js câm âm thanh).
-        function updateHidden() { document.body.classList.toggle('bc-hide', _offline || _gameOff || state?.enabled === false || !frameOn()); }
+        function updateHidden() { document.body.classList.toggle('bc-hide', _offline || _gameOff || state?.enabled === false || !frameOn()); syncBodyTrack(); }
         socket.on('disconnect', () => {
             clearTimeout(_offlineTimer);
             _offlineTimer = setTimeout(() => { _offline = true; window.HpCamFrame?.setOnline(false); updateHidden(); }, 1500);

@@ -14,18 +14,38 @@
                 inp.value = buildOverlayURL(inp._baseOverlayPath);
             } else if (inp.value && inp.value.includes('/overlay/')) {
                 // Re-apply on existing URL
-                const baseUrl = inp.value.replace(/\?res=[^&]*&?/, '').replace(/[?&]$/, '');
-                inp.value = buildOverlayURL(baseUrl.replace(location.origin, ''));
+                try {
+                    const u = new URL(inp.value);
+                    u.searchParams.delete('res');
+                    inp.value = buildOverlayURL(u.toString());
+                } catch (_) {}
             }
         });
     }
-    // Cache 1 lần lúc load trang — có sẵn token .obs cho từng game trước khi user bấm bất kỳ
-    // nút "📋 Link OBS" nào (buildOverlayURL luôn được gọi đồng bộ từ các panel).
-    // TikTok LIVE Studio chặn thẳng "localhost" ở ô Link nguồn; hpaction.obs trỏ về loopback
-    // qua hosts file (xem lib/obs-host.js) nên qua được bộ lọc mà vẫn chạy nội bộ.
+    // MỌI link overlay (mọi game, kể cả game thêm sau) ra dạng http://hpaction.obs:<port>/overlay/<id>.
+    // TikTok LIVE Studio chặn thẳng "localhost"/"127.0.0.1" ở ô Link nguồn; hpaction.obs trỏ về loopback
+    // qua hosts file (xem lib/obs-host.js) nên qua được bộ lọc mà vẫn chạy nội bộ, OBS cũng dùng được.
+    // Mặc định coi như đã map (link đúng ngay từ lúc mở app, không chờ fetch); server báo hosts CHƯA map
+    // thì mới quay về localhost. Link cũ /overlay/shared/<token> vẫn chạy (server.js redirect).
+    const OBS_HOST = 'hpaction.obs';
     let obsShareInfo = null;
+    const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]', OBS_HOST];
+    function overlayOrigin() {
+        // Mở app từ máy khác trong LAN → hpaction.obs của máy đó không trỏ về server này.
+        if (!LOOPBACK_HOSTS.includes(location.hostname) || !/^https?:$/.test(location.protocol)) return location.origin;
+        if (obsShareInfo && obsShareInfo.mapped === false) return location.origin;
+        const host = (obsShareInfo && obsShareInfo.host) || OBS_HOST;
+        const port = (obsShareInfo && obsShareInfo.port) || location.port;
+        return `http://${host}${port ? ':' + port : ''}`;
+    }
     fetch('/api/overlay/share-links').then(r => r.ok ? r.json() : null).then(j => {
-        if (j && j.ok) obsShareInfo = j;
+        if (!j || !j.ok) return;
+        obsShareInfo = j;
+        // Ô link nào đã điền trước khi biết hosts map hay chưa → điền lại + báo panel tự vẽ lại.
+        document.querySelectorAll('input[id$="-overlay-url"], #overlay-url').forEach(inp => {
+            if (inp._baseOverlayPath) inp.value = buildOverlayURL(inp._baseOverlayPath);
+        });
+        window.dispatchEvent(new CustomEvent('hp:overlay-links', { detail: j }));
     }).catch(() => {});
 
     function buildOverlayURL(pathOrFull) {
@@ -33,12 +53,13 @@
         let url;
         if (pathOrFull.startsWith('http')) {
             url = pathOrFull;
-        } else if (obsShareInfo && obsShareInfo.mapped) {
-            const shared = Object.values(obsShareInfo.links).find(l => l.overlayPath === pathOrFull);
-            const target = shared ? `/overlay/shared/${shared.token}` : pathOrFull;
-            url = `http://${obsShareInfo.host}:${obsShareInfo.port}${target}`;
+            // Link đầy đủ trỏ về chính server này qua localhost/127.0.0.1 → đổi sang hpaction.obs.
+            try {
+                const u = new URL(pathOrFull);
+                if (LOOPBACK_HOSTS.includes(u.hostname) && u.port === location.port) url = overlayOrigin() + u.pathname + u.search + u.hash;
+            } catch (_) {}
         } else {
-            url = location.origin + pathOrFull;
+            url = overlayOrigin() + (pathOrFull.startsWith('/') ? '' : '/') + pathOrFull;
         }
         const res = getOverlayResolution();
         if (res === '4k') {
@@ -359,6 +380,15 @@
         dom.dot.classList.remove('online', 'connecting', 'error');
         if (state) dom.dot.classList.add(state);
         dom.statusText.textContent = text;
+        // 🎨 Statusbar dưới cùng: luôn hiện trạng thái TikTok (status-row ở topbar ẩn khi đã kết nối)
+        const sbDot = document.getElementById('sb-dot');
+        if (sbDot) { sbDot.className = 'dot' + (state ? ' ' + state : ''); }
+        const sbText = document.getElementById('sb-tiktok');
+        if (sbText) {
+            sbText.textContent = 'TikTok · ' + text;
+            // Gợi ý 8: rớt LIVE giữa buổi (đang tự nối lại) hoặc lỗi → statusbar báo đỏ cho dễ thấy
+            sbText.parentElement?.classList.toggle('sb-alert', state === 'error' || (state === 'connecting' && /mất kết nối|nối lại/i.test(text)));
+        }
     }
     function showView(viewId) {
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -472,24 +502,7 @@
             virtual: true,
             config: { enabled: localStorage.getItem('hp-live-translate-tool-enabled') !== 'false' }
         });
-        list.push({
-            id: 'obs-effects',
-            name: 'Hiệu ứng OBS',
-            description: 'Bridge WebSocket → OBS Studio. Trigger Lua effects khi nhận gift TikTok.',
-            icon: '🎬',
-            virtual: true,
-            config: { enabled: localStorage.getItem('hp-obs-effects-enabled') !== 'false' }
-        });
-        // ★ Đẩy trạng thái master obs-effects (theo UI/localStorage) lên server NGAY khi khởi động —
-        // server là nơi gate quà. Sửa drift của user đã tắt từ trước (localStorage=false nhưng server
-        // mặc định true → trước đây vẫn nhận quà dù UI hiện tắt).
-        try {
-            const obsOn = localStorage.getItem('hp-obs-effects-enabled') !== 'false';
-            fetch('/api/obs-bridge/config', {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: obsOn })
-            }).catch(() => {});
-        } catch (e) {}
+        // 🎬 Hiệu ứng OBS đã gỡ khỏi app (06/11/2026) — không còn mục trong Thư viện; kết nối OBS WebSocket ở ⚙ Cài đặt.
         try {
             const lf = await (await fetch('/api/license/features')).json();
             licenseLocked = new Set(Array.isArray(lf.locked) ? lf.locked : []);
@@ -544,13 +557,24 @@
     };
     function renderGameList() {
         dom.gameList.innerHTML = '';
-        for (const g of games) {
-            if (LIBRARY_HIDDEN.has(g.id) || CAM_CHILD_GAMES.has(g.id) || TT_CHILD_GAMES.has(g.id)) continue;
-            if (g.lstate === 'hidden') continue;   // HP KEY: mục Ẩn (chưa ra mắt) không hiện
+        // HP KEY: mục Ẩn (chưa ra mắt) không hiện; game con Camera/Tương Tác vào qua mục nhóm
+        const visible = games.filter(g => !(LIBRARY_HIDDEN.has(g.id) || CAM_CHILD_GAMES.has(g.id) || TT_CHILD_GAMES.has(g.id)) && g.lstate !== 'hidden');
+        // 🎨 Giao diện mới: chia nhóm có tiêu đề (public/ui/nav-groups.js)
+        const sections = window.HpNavGroups ? window.HpNavGroups.group(visible) : [{ id: 'all', label: '', items: visible }];
+        for (const sec of sections) {
+          if (sec.label) {
+            const h = document.createElement('div');
+            h.className = 'nav-sec';
+            h.innerHTML = `<span>${sec.label}</span><span class="nav-sec-n">${sec.items.length}</span>`;
+            dom.gameList.appendChild(h);
+          }
+          for (const g of sec.items) {
             const paused = g.lstate === 'off';      // HP KEY: mục Tạm tắt (bảo trì) cho mọi KEY
             const div = document.createElement('div');
             div.className = 'game-item' + (g.locked ? ' locked' : '') + (paused ? ' paused' : '');
             div.dataset.id = g.id;
+            // 🎨 Thanh bên 1 dòng/mục: dòng phụ (tóm tắt nhóm / "Đang phát triển") hiện ở tooltip
+            div.title = g.hub ? ttHubSummary() : (!paused && !g.locked && !STABLE_GAMES.has(g.id) ? GAME_DEVELOPMENT_NOTICE : '');
             // Determine if game has 'enabled' field in its config (pktiktok + vipwelcome)
             const cfg = g.config || {};
             const hasEnabledField = ('enabled' in cfg);
@@ -559,7 +583,10 @@
             const badge = paused ? ` <span class="lock-badge" title="${lockTip}">⏸</span>`
                 : g.locked ? ' <span class="lock-badge" title="KEY chưa mở tính năng này">🔒</span>'
                 : g.lstate === 'admin' ? ' <span class="lock-badge" title="Thử nghiệm — mới mở cho một số KEY dùng thử">🧪</span>' : '';
-            div.innerHTML = `<span class="ico">${g.icon}</span>
+            // 🎨 Biểu tượng ô chữ cái (màu theo nhóm) thay emoji lệch cỡ — emoji vẫn giữ ở tooltip
+            const NG = window.HpNavGroups;
+            const icoHtml = NG ? `<span class="ico ico-chip tone-${NG.groupOf(g.id)}" title="${escHtml(g.icon || '')}">${escHtml(NG.initials(g.name))}</span>` : `<span class="ico">${g.icon}</span>`;
+            div.innerHTML = `${icoHtml}
                 <div class="meta">
                     <div class="gn">${g.name}${badge}</div>
                     ${g.hub ? `<div class="gd gtt-side-sum" data-hub-sum>${ttHubSummary()}</div>` : paused ? '<div class="gd game-lock-notice">Tạm bảo trì</div>' : g.locked ? '<div class="gd game-lock-notice">Đã khóa</div>' : renderGameDevelopmentNotice(g)}
@@ -625,7 +652,9 @@
                 }
             });
             dom.gameList.appendChild(div);
+          }
         }
+        renderHomeReady();
     }
     function isGameEnabled(g) {
         const cfg = g.config || {};
@@ -643,7 +672,7 @@
     function syncSideToggle(gameId) {
         if (TT_CHILD_GAMES.has(gameId)) {
             const sum = document.querySelector('[data-hub-sum]');
-            if (sum) sum.textContent = ttHubSummary();
+            if (sum) { sum.textContent = ttHubSummary(); sum.closest('.game-item')?.setAttribute('title', sum.textContent); }
         }
         const g = games.find(x => x.id === gameId);
         const btn = document.querySelector(`[data-game-toggle="${gameId}"]`);
@@ -652,6 +681,7 @@
         btn.classList.toggle('on', on);
         btn.classList.toggle('off', !on);
         btn.title = (on ? 'Đang BẬT — bấm để TẮT' : 'Đang TẮT — bấm để BẬT') + (g.virtual ? ' tool chạy ngầm' : ' game chạy ngầm');
+        renderHomeReady();
     }
 
     // ===== 🏠 Trang chủ = 🚀 Khởi động nhanh (khung nhúng /quick-launch?embed=1) =====
@@ -673,6 +703,42 @@
     const brandHome = document.getElementById('brand-home');
     brandHome?.addEventListener('click', goHome);
     brandHome?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goHome(); } });
+    document.getElementById('nav-home')?.addEventListener('click', goHome);
+
+    // ===== 🎨 Giao diện mới: dải sẵn sàng ở Trang chủ + statusbar =====
+    // Gọi lại mỗi khi kết nối / bản quyền / bật-tắt game đổi. Thiếu phần tử (app-smoke, bản cũ) → bỏ qua.
+    let homeLicenseText = '', homeLicenseOk = false;
+    function renderHomeReady() {
+        const set = (id, cls, sub) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('ok', 'warn', 'idle');
+            el.classList.add(cls);
+            const s = el.querySelector('.hr-sub');
+            if (s) s.textContent = sub;
+        };
+        set('hr-tiktok', isLiveConnected ? 'ok' : 'idle', isLiveConnected ? `Đã kết nối @${liveUsername}` : 'Chưa kết nối — nhập @ID ở thanh trên');
+        set('hr-license', homeLicenseOk ? 'ok' : homeLicenseText ? 'warn' : 'idle', homeLicenseText || 'Đang kiểm tra…');
+        const list = (games || []).filter(g => !LIBRARY_HIDDEN.has(g.id) && !g.hub && !g.locked && g.lstate !== 'hidden' && g.lstate !== 'off');
+        const on = list.filter(isGameEnabled).length;
+        set('hr-games', on ? 'ok' : 'warn', `${on}/${list.length} game & công cụ đang bật`);
+        const sbGames = document.getElementById('sb-games');
+        if (sbGames) sbGames.textContent = `${on} game đang bật`;
+        window.HpHomeLive?.renderGames?.();   // Trang chủ "Game đang bật" theo công tắc mới nhất
+    }
+    // Ctrl K (public/ui/cmdk.js) đọc danh sách game đang hiện + link OBS
+    window.hpGameIndex = () => (games || [])
+        .filter(g => !LIBRARY_HIDDEN.has(g.id) && g.lstate !== 'hidden')
+        .map(g => ({ id: g.id, name: g.name, icon: g.icon, overlayPath: g.overlayPath || '', on: isGameEnabled(g), locked: !!g.locked, camChild: CAM_CHILD_GAMES.has(g.id) }));
+    // Host overlay ở statusbar: tính lại khi /api/overlay/share-links trả về (máy chưa map hosts → localhost)
+    function renderSbHost() {
+        try {
+            const host = document.getElementById('sb-host');
+            if (host) host.textContent = new URL(buildOverlayURL('/')).host;
+        } catch (_) {}
+    }
+    renderSbHost();
+    window.addEventListener('hp:overlay-links', renderSbHost);
     // Khung nhúng báo chiều cao nội dung (iframe tự cao theo) + bấm ⚙ trên thẻ → mở game ở app chính
     window.addEventListener('message', (e) => {
         const frame = dom.homeQlFrame;
@@ -685,6 +751,22 @@
     document.getElementById('home-ql-sort')?.addEventListener('click', () => {
         try { dom.homeQlFrame?.contentWindow?.postMessage({ type: 'hp-ql:settings' }, location.origin); } catch (_) {}
     });
+    // 🎨 Công tắc "Tự mở khi khởi động" (cửa sổ Khởi động nhanh) — chỉ hiện trong app Electron
+    (function bindQlAutoOpen() {
+        const wrap = document.getElementById('home-ql-auto-wrap'), box = document.getElementById('home-ql-auto');
+        if (!wrap || !box) return;
+        fetch('/api/quick-launch/auto-open').then(r => r.json()).then(d => {
+            if (!d || !d.available) return;
+            box.checked = !!d.on;
+            wrap.hidden = false;
+        }).catch(() => {});
+        box.addEventListener('change', () => {
+            fetch('/api/quick-launch/auto-open', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ on: box.checked })
+            }).then(r => r.json()).then(d => { if (d && 'on' in d) box.checked = !!d.on; }).catch(() => {});
+        });
+    })();
     document.getElementById('home-ql-popout')?.addEventListener('click', () => {
         window.open('/quick-launch', '_blank', 'width=380,height=560,resizable=yes,scrollbars=no');
     });
@@ -927,10 +1009,12 @@
     document.getElementById('btn-open-giftboard')?.addEventListener('click', () => openGame('giftboard'));
 
     function highlightActiveGame(gameId) {
-        const sideId = TT_CHILD_GAMES.has(gameId) ? TT_HUB_ID : gameId;   // game con Game Tương Tác → tô mục nhóm
+        // game con Game Tương Tác / Game Camera → tô mục nhóm
+        const sideId = TT_CHILD_GAMES.has(gameId) ? TT_HUB_ID : CAM_CHILD_GAMES.has(gameId) ? 'camgames' : gameId;
         document.querySelectorAll('.game-item').forEach(el => {
             el.classList.toggle('active', el.dataset.id === sideId);
         });
+        document.getElementById('nav-home')?.classList.toggle('active', !gameId);
         document.getElementById('btn-open-giftboard')?.classList.toggle('active', gameId === 'giftboard');
     }
 
@@ -2544,6 +2628,7 @@
             ['lstatViewer','lstatDiamond','lstatFollow','lstatShare'].forEach(k => { if (dom[k]) dom[k].textContent = '0'; });
         }
         updateTranslateControls();
+        renderHomeReady();
         if (connected) setTimeout(() => autoSyncTranslateRules(), 0);
     }
     function escAttrInline(s) { return String(s ?? '').replace(/[<>"]/g, ''); }
@@ -2607,7 +2692,17 @@
         const sugg = document.getElementById('username-sugg');
         if (!sugg) return;
         dom.usernameInput.addEventListener('focus', () => renderTiktokSuggestions(dom.usernameInput.value));
-        dom.usernameInput.addEventListener('input', () => renderTiktokSuggestions(dom.usernameInput.value));
+        dom.usernameInput.addEventListener('input', () => {
+            // ID TikTok: tự đổi chữ thường, không nhận @ / dấu / ký tự đặc biệt (chỉ a-z 0-9 . _)
+            const el = dom.usernameInput, v = el.value;
+            const clean = window.HpUiText ? window.HpUiText.sanitizeTiktokId(v) : v;
+            if (clean !== v) {
+                const pos = window.HpUiText.sanitizeTiktokId(v.slice(0, el.selectionStart || 0)).length;
+                el.value = clean;
+                try { el.setSelectionRange(pos, pos); } catch (_) {}
+            }
+            renderTiktokSuggestions(el.value);
+        });
         // Click ngoài conn-row → ẩn
         document.addEventListener('click', (e) => {
             const row = document.getElementById('conn-row');
@@ -4028,6 +4123,8 @@
         // tin từ server đẩy cho preview/overlay — preview cũng đã xử lý qua 'gift' event
     });
     socket.on('member', (m) => appendSystem(`👋 ${m.nickname || m.uniqueId} đã vào LIVE`));
+    // 🎨 Trang chủ "Hoạt động LIVE" (public/ui/home-live.js) nghe cùng socket
+    window.HpHomeLive?.bind?.(socket);
     socket.on('social', (s) => appendSystem(`💗 ${s.nickname || s.uniqueId} ${s.label || ''}`));
     socket.on('roomUser', (r) => {
         if (typeof r.viewerCount === 'number' && dom.lstatViewer) dom.lstatViewer.textContent = fmtNum(r.viewerCount);
@@ -4984,6 +5081,7 @@
             const foot = document.getElementById('footer-version');
             if (cur) cur.textContent = 'v' + currentLocalVersion;
             if (foot) foot.textContent = 'v' + currentLocalVersion;
+            const sbv = document.getElementById('sb-version'); if (sbv) sbv.textContent = 'v' + currentLocalVersion;
             const sv = document.getElementById('st-app-version'); if (sv) sv.textContent = 'v' + currentLocalVersion;
             return local;
         } catch { return null; }
@@ -7228,6 +7326,10 @@
         const keyEl = $id('st-lic-key');
         if (keyEl) keyEl.textContent = isCreator ? '@' + (info.key || '') : (info.key ? info.key.slice(0, 4) + '••••' + info.key.slice(-4) : '—');
         const days = daysUntilDmy(info.expiry);
+        homeLicenseOk = activated;
+        homeLicenseText = !activated ? 'Chưa kích hoạt' : (isCreator ? 'CREATOR' : isAdmin ? 'ADMIN' : isVip ? 'VIP' : 'Đã kích hoạt')
+            + (info.expiry ? (days == null ? '' : days < 0 ? ' · đã hết hạn' : ' · còn ' + days + ' ngày') : ' · vĩnh viễn');
+        renderHomeReady();
         const expEl = $id('st-lic-expiry');
         if (expEl) expEl.textContent = info.expiry
             ? info.expiry + (days == null ? '' : (days < 0 ? ' · đã hết hạn' : ' · còn ' + days + ' ngày'))
