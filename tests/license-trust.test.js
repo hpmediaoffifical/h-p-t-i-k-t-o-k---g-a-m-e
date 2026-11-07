@@ -25,6 +25,21 @@ test('nhớ đệm theo TTL (không gọi reg.exe mỗi quà); invalidate() đ�
     assert.strictEqual(n, 3);
 });
 
+test('offlineGrace: không văng key — app đã kích hoạt + xác thực trong 24h vẫn được chạy khi tạm thiếu token / mất mạng', () => {
+    const { offlineGrace } = require('../lib/license-trust.js');
+    const now = Date.parse('2026-11-07T12:00:00Z');
+    const lic = (h, extra) => Object.assign({ activated: true, key: 'k', role: 'CREATOR', lastValidated: new Date(now - h * 3600e3).toISOString() }, extra);
+    assert.ok(offlineGrace(lic(2), now));
+    assert.strictEqual(offlineGrace(lic(2), now).role, 'CREATOR');
+    assert.strictEqual(offlineGrace(lic(25), now), null, 'quá 24h → cần mạng');
+    assert.strictEqual(offlineGrace(lic(2, { activated: false }), now), null);
+    assert.strictEqual(offlineGrace(lic(2, { key: '' }), now), null);
+    assert.strictEqual(offlineGrace(null, now), null);
+    // server.js lưu lastValidated = Date.now() (số mili-giây)
+    assert.ok(offlineGrace({ activated: true, key: 'k', role: 'VIP', lastValidated: now - 3600e3 }, now));
+    assert.strictEqual(offlineGrace({ activated: true, key: 'k', lastValidated: now - 30 * 3600e3 }, now), null);
+});
+
 test('connectAllowed: không key → chặn; CREATOR chỉ đúng ID của key; VIP theo danh sách; ADMIN tự do', () => {
     assert.strictEqual(connectAllowed(null, 'abc').ok, false);
     assert.strictEqual(connectAllowed(null, 'abc').reason, 'no_license');

@@ -1836,7 +1836,7 @@ function obsBridgeSuggestDurationMs(hotkey, sceneName) {
     return 0;
 }
 const obsBridge = new OBSBridge({
-    isLicensed: () => Boolean(trustedLicense.get()),   // 🔐 token đã ký, không tin app-config.json
+    isLicensed: () => Boolean(trustedLicense.get() || LicTrust.offlineGrace(appConfig.license)),   // 🔐 token đã ký (+ ân hạn 24 h, không văng key)
     autoReconnect: true,
     reconnectDelayMs: 5000,
     logger: {
@@ -2259,7 +2259,7 @@ const LUA_CACHE_DIR = path.join(
 const luaSync = new LuaSync({
     cacheDir: LUA_CACHE_DIR,
     defaultManifestUrl: appConfig.luaSync.manifestUrl,
-    isLicensed: () => Boolean(trustedLicense.get()),   // 🔐 token đã ký, không tin app-config.json
+    isLicensed: () => Boolean(trustedLicense.get() || LicTrust.offlineGrace(appConfig.license)),   // 🔐 token đã ký (+ ân hạn 24 h, không văng key)
     logger: { log: (...args) => console.log('[lua-sync]', ...args) }
 });
 luaSync.on('updates_available', (updates) => {
@@ -6958,7 +6958,16 @@ app.post('/api/connect', async (req, res) => {
     // CREATOR: key chính là TikTok ID → chỉ kết nối đúng ID đó. VIP có danh sách ID → chỉ các ID trong danh sách.
     // Đệm báo chưa có key → đọc lại token 1 lần (vừa kích hoạt xong mà đệm 30 s còn giữ trạng thái cũ)
     if (!trustedLicense.get()) trustedLicense.invalidate();
-    const lic = trustedLicense.get();
+    let lic = trustedLicense.get();
+    // KHÔNG VĂNG KEY: app đã kích hoạt mà tạm thiếu token (vừa cập nhật, token quá hạn offline…) → xác thực lại key
+    // đã lưu ngay (tạo lại token, khách khỏi nhập lại); mất mạng → ân hạn 24 h như bản cũ (LicTrust.offlineGrace).
+    if (!lic && appConfig.license && appConfig.license.activated && appConfig.license.key) {
+        try {
+            const r = await validateLicenseKey(appConfig.license.key);
+            if (r && r.ok) { appConfig.license.lastValidated = Date.now(); trustedLicense.invalidate(); lic = trustedLicense.get(); }
+        } catch (_) {}
+        if (!lic) lic = LicTrust.offlineGrace(appConfig.license);
+    }
     const allow = LicTrust.connectAllowed(lic, cleanName);
     if (!allow.ok) {
         if (allow.reason === 'creator_locked') return res.status(403).json({
