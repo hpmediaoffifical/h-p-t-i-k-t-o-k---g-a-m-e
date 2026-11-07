@@ -34,6 +34,18 @@ test('feedLine: quà / bình luận / vào phòng / chia sẻ ra 1 dòng gọn; 
     assert.ok(long.what.length <= 80);
 });
 
+test('isSaveCall: chỉ lệnh lưu cấu hình mới bật "Đã lưu ✓", không tính chạy thử / mô phỏng / kết nối', () => {
+    const { isSaveCall } = require('../public/ui/game-dock.js');
+    assert.strictEqual(isSaveCall('POST', '/api/games/thuytinh/config'), true);
+    assert.strictEqual(isSaveCall('PUT', '/api/obs-bridge/config'), true);
+    assert.strictEqual(isSaveCall('POST', '/api/settings'), true);
+    assert.strictEqual(isSaveCall('GET', '/api/games/thuytinh/config'), false);
+    assert.strictEqual(isSaveCall('POST', '/api/test-gift'), false);
+    assert.strictEqual(isSaveCall('POST', '/api/leaguecard/simulate'), false);
+    assert.strictEqual(isSaveCall('POST', '/api/obs-bridge/connect'), false);
+    assert.strictEqual(isSaveCall('POST', '/overlay/thuytinh'), false);
+});
+
 test('obsAlert: chỉ báo đỏ khi OBS ĐÃ từng nối trong phiên rồi mất', () => {
     assert.strictEqual(obsAlert(false, { connected: false }), false);
     assert.strictEqual(obsAlert(true, { connected: false, connecting: false }), true);

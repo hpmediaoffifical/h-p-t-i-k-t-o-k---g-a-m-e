@@ -22,6 +22,15 @@ test('group() theo thứ tự GROUPS, giữ thứ tự game trong nhóm, bỏ nh
     assert.ok(out[0].label.length > 0);
 });
 
+test('initials: 2 chữ cái đầu viết hoa, bỏ emoji/ký hiệu, tên 1 từ lấy 2 chữ đầu', () => {
+    assert.strictEqual(NG.initials('Hũ Thủy Tinh'), 'HT');
+    assert.strictEqual(NG.initials('Caro Đối Đầu'), 'CĐ');
+    assert.strictEqual(NG.initials('🎬 Hiệu ứng OBS'), 'HƯ');
+    assert.strictEqual(NG.initials('THỜI GIAN'), 'TG');
+    assert.strictEqual(NG.initials('Pokemon'), 'PO');
+    assert.strictEqual(NG.initials(''), '?');
+});
+
 test('GROUPS có đủ 4 nhóm theo thứ tự', () => {
     assert.deepStrictEqual(NG.GROUPS.map(g => g.id), ['gift', 'hubs', 'fx', 'tools']);
 });

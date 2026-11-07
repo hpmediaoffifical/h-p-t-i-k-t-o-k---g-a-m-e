@@ -583,7 +583,10 @@
             const badge = paused ? ` <span class="lock-badge" title="${lockTip}">⏸</span>`
                 : g.locked ? ' <span class="lock-badge" title="KEY chưa mở tính năng này">🔒</span>'
                 : g.lstate === 'admin' ? ' <span class="lock-badge" title="Thử nghiệm — mới mở cho một số KEY dùng thử">🧪</span>' : '';
-            div.innerHTML = `<span class="ico">${g.icon}</span>
+            // 🎨 Biểu tượng ô chữ cái (màu theo nhóm) thay emoji lệch cỡ — emoji vẫn giữ ở tooltip
+            const NG = window.HpNavGroups;
+            const icoHtml = NG ? `<span class="ico ico-chip tone-${NG.groupOf(g.id)}" title="${escHtml(g.icon || '')}">${escHtml(NG.initials(g.name))}</span>` : `<span class="ico">${g.icon}</span>`;
+            div.innerHTML = `${icoHtml}
                 <div class="meta">
                     <div class="gn">${g.name}${badge}</div>
                     ${g.hub ? `<div class="gd gtt-side-sum" data-hub-sum>${ttHubSummary()}</div>` : paused ? '<div class="gd game-lock-notice">Tạm bảo trì</div>' : g.locked ? '<div class="gd game-lock-notice">Đã khóa</div>' : renderGameDevelopmentNotice(g)}

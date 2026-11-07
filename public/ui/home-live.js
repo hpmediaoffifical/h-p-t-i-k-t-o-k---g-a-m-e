@@ -112,6 +112,37 @@
             if (!pending) { pending = true; setTimeout(() => { pending = false; renderFeed(); }, 250); }
         }
 
+        // Gợi ý 7: Quà hôm nay (server đếm quà thật trong ngày, gửi 'giftStats' ≤ 1 lần/giây)
+        const giftsEl = doc.getElementById('home-gifts-list');
+        const giftsTotal = doc.getElementById('home-gifts-total');
+        const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
+        function renderGifts(d) {
+            if (!giftsEl || !d) return;
+            giftsEl.textContent = '';
+            if (giftsTotal) giftsTotal.textContent = fmt(d.totalCoins) + ' xu';
+            const items = (d.items || []).slice(0, 6);
+            if (!items.length) {
+                const e = doc.createElement('div'); e.className = 'hl-empty';
+                e.textContent = 'Chưa có quà nào hôm nay';
+                giftsEl.appendChild(e);
+                return;
+            }
+            const head = doc.createElement('div'); head.className = 'hl-grow hl-ghead';
+            for (const h of ['Quà', 'Hôm nay', 'Xu']) { const c = doc.createElement('span'); c.textContent = h; head.appendChild(c); }
+            giftsEl.appendChild(head);
+            for (const it of items) {
+                const row = doc.createElement('div'); row.className = 'hl-grow'; row.dataset.uiRaw = '1';
+                const n = doc.createElement('span'); n.className = 'hl-gname';
+                if (it.image) { const im = doc.createElement('img'); im.src = it.image; im.alt = ''; im.onerror = () => im.remove(); n.appendChild(im); }
+                n.appendChild(doc.createTextNode(it.name || 'Quà'));
+                const c = doc.createElement('span'); c.textContent = '× ' + fmt(it.count);
+                const x = doc.createElement('span'); x.className = 'hl-coin'; x.textContent = fmt(it.coins);
+                row.append(n, c, x);
+                giftsEl.appendChild(row);
+            }
+        }
+        fetch('/api/gift-stats/today').then(r => r.json()).then(renderGifts).catch(() => renderGifts({ items: [] }));
+
         // Statusbar: OBS
         let obsEver = false;
         const sbObs = doc.getElementById('sb-obs');
@@ -143,6 +174,7 @@
                 socket.on('chat:blocked', () => push('blocked', {}));
                 socket.on('member', m => push('member', m));
                 socket.on('social', s => push('social', s));
+                socket.on('giftStats', renderGifts);
             }
         };
     }

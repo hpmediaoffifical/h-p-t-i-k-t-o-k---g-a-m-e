@@ -4939,6 +4939,21 @@ function nhatLaResetDonors() {
     emitNhatLaTop(true);
 }
 
+// 🎨 "Quà hôm nay" (Trang chủ): đếm quà thật trong ngày, lưu <DATA_DIR>/gift-stats-today.json, phát 'giftStats' ≤ 1 lần/giây
+const giftStats = require('./lib/gift-stats.js').createGiftStats();
+const GIFT_STATS_FILE = path.join(DATA_DIR, 'gift-stats-today.json');
+try { if (fs.existsSync(GIFT_STATS_FILE)) giftStats.load(JSON.parse(fs.readFileSync(GIFT_STATS_FILE, 'utf8'))); } catch (_) {}
+let giftStatsTimer = null;
+function giftStatsChanged() {
+    if (giftStatsTimer) return;
+    giftStatsTimer = setTimeout(() => {
+        giftStatsTimer = null;
+        io.emit('giftStats', giftStats.today(10));
+        fs.promises.writeFile(GIFT_STATS_FILE, JSON.stringify(giftStats.toJSON())).catch(() => {});
+    }, 1000);
+}
+app.get('/api/gift-stats/today', (req, res) => res.json(giftStats.today(Number(req.query.limit) || 10)));
+
 function emitGift(g) {
     rememberLiveTranslateUser(liveTranslateRecentGifts, g);
     // 🎮 Phiên game theo quà: quà kích hoạt mở / gia hạn / xếp hàng phiên TRƯỚC khi đưa quà cho các game
@@ -4961,6 +4976,7 @@ function emitGift(g) {
     };
     console.log(`[gift] emit → ${enriched.nickname || enriched.uniqueId} sent "${enriched.giftName || '?'}" (id=${enriched.giftId}, x${enriched.repeatCount || 1}, ${enriched.coinValue || 0}💎)`);
     io.emit('gift', enriched);
+    try { if (giftStats.add(enriched)) giftStatsChanged(); } catch (e) { console.warn('[gift-stats] lỗi:', e?.message || e); }
     setLiveDashboardGift(enriched);
     try { leagueOnGift(enriched); } catch (e) { console.warn('[leaguecard] gift lỗi:', e?.message || e); }
     // Push to all game overlays

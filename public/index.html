@@ -136,7 +136,11 @@
                     <!-- 🎨 Gợi ý 1/2: game đang bật (link OBS + Copy + công tắc) & hoạt động LIVE — public/ui/home-live.js -->
                     <div class="home-duo">
                         <section class="hl-card"><div class="hl-head"><h2>Game đang bật</h2><span class="hl-count" id="home-games-count">0</span></div><div class="hl-games" id="home-games-list"></div></section>
-                        <section class="hl-card"><div class="hl-head"><h2>Hoạt động LIVE</h2></div><div class="hl-feed" id="home-feed-list"></div></section>
+                        <div class="home-col">
+                            <section class="hl-card"><div class="hl-head"><h2>Hoạt động LIVE</h2></div><div class="hl-feed" id="home-feed-list"></div></section>
+                            <!-- Gợi ý 7: quà thật trong ngày (server lib/gift-stats.js) -->
+                            <section class="hl-card"><div class="hl-head"><h2>Quà hôm nay</h2><span class="hl-count" id="home-gifts-total">0 xu</span></div><div class="hl-gifts" id="home-gifts-list"></div></section>
+                        </div>
                     </div>
                     <div class="home-head">
                         <div class="home-head-txt">
@@ -3135,6 +3139,7 @@
     <script src="/ui/ui-text.js"></script>
     <script src="/ui/header-bar.js"></script>
     <script src="/ui/home-live.js"></script>
+    <script src="/ui/game-dock.js"></script>
     <script src="/app.js"></script>
 </body>
 </html>
