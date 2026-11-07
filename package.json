@@ -16,7 +16,7 @@
     "node-fetch": "^2.7.0",
     "obs-websocket-js": "^5.0.8",
     "socket.io": "^4.7.5",
-    "tiktok-live-connector": "^2.4.4"
+    "tiktok-live-connector": "^2.5.0"
   },
   "devDependencies": {
     "electron": "^42.0.1",
