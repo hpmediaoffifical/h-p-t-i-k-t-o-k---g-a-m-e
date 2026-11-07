@@ -152,6 +152,10 @@ function isWorkerConfigured() {
 // HP_DATA_DIR được set bởi electron-main.js trong môi trường đóng gói (vì __dirname nằm trong asar read-only).
 // Khi chạy dev / node trực tiếp: fallback về data/ cạnh server.js
 const DATA_DIR = process.env.HP_DATA_DIR || path.join(__dirname, 'data');
+// 🔐 Bản quyền tin cậy = token ĐÃ KÝ RSA gắn mã máy (lib/license-trust.js). Vai trò / ID được phép / tính năng
+// lấy từ đây, KHÔNG từ appConfig.license (file thường, sửa tay được). Nhớ đệm 30 s; kích hoạt / xác thực xong gọi invalidate().
+const LicTrust = require('./lib/license-trust');
+const trustedLicense = LicTrust.createTrustedLicense({ getStatus: () => require('./hpkey/index').getStatus() });
 const CONFIG_FILE = path.join(DATA_DIR, 'app-config.json');
 const CONFIG_BACKUP_DIR = path.join(DATA_DIR, 'config-backups');
 
@@ -221,17 +225,25 @@ function socketIsTrusted(socket) {
     return isTrustedRemote(hs.address, given);
 }
 
+// 🔐 Chống DNS rebinding (lib/host-guard.js): Host phải là tên nội bộ / IP / tên máy — chặn cả GET (đọc key, mật khẩu OBS).
+const HostGuard = require('./lib/host-guard');
+const HOST_GUARD_OPTS = { localHosts: LOCAL_ORIGIN_HOSTS, machineNames: [os.hostname()] };
+function hostOk(host) { return HostGuard.hostAllowed(host, HOST_GUARD_OPTS); }
 const app = express();
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
     cors: { origin: (origin, cb) => cb(null, originAllowed(origin)) },
     // Gói cors chỉ set header (không bao giờ trả 403) và CORS không áp dụng cho WebSocket →
     // allowRequest mới thật sự chặn handshake (polling lẫn websocket) từ trang lạ theo Origin.
-    allowRequest: (req, cb) => (originAllowed(req.headers.origin) ? cb(null, true) : cb('origin_not_allowed', false))
+    allowRequest: (req, cb) => (!hostOk(req.headers.host) ? cb('host_not_allowed', false) : originAllowed(req.headers.origin) ? cb(null, true) : cb('origin_not_allowed', false))
 });
 
 // Chống CSRF / DNS rebinding cho mọi request GHI — đặt TRƯỚC express.static/express.json và mọi
 // express.raw inline ở route upload. GET và /socket.io không bị chặn ở đây.
+app.use((req, res, next) => {
+    if (hostOk(req.headers.host)) return next();
+    res.status(403).type('text/plain').send('host_not_allowed');
+});
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 app.use((req, res, next) => {
     if (!WRITE_METHODS.has(req.method) || req.path.startsWith('/socket.io')) return next();
@@ -1824,7 +1836,7 @@ function obsBridgeSuggestDurationMs(hotkey, sceneName) {
     return 0;
 }
 const obsBridge = new OBSBridge({
-    isLicensed: () => Boolean(appConfig.license && appConfig.license.activated),
+    isLicensed: () => Boolean(trustedLicense.get()),   // 🔐 token đã ký, không tin app-config.json
     autoReconnect: true,
     reconnectDelayMs: 5000,
     logger: {
@@ -2247,7 +2259,7 @@ const LUA_CACHE_DIR = path.join(
 const luaSync = new LuaSync({
     cacheDir: LUA_CACHE_DIR,
     defaultManifestUrl: appConfig.luaSync.manifestUrl,
-    isLicensed: () => Boolean(appConfig.license && appConfig.license.activated),
+    isLicensed: () => Boolean(trustedLicense.get()),   // 🔐 token đã ký, không tin app-config.json
     logger: { log: (...args) => console.log('[lua-sync]', ...args) }
 });
 luaSync.on('updates_available', (updates) => {
@@ -3552,13 +3564,17 @@ const { validateLicenseKey } = require('./hpkey/validate');
 // còn nguyên. MỞ KHOÁ = bật lại đúng những gì đã tắt vì key (mục người dùng tự tắt thì để nguyên).
 // Kèm theo: API không cho bật mục bị khoá, /api/games đánh dấu locked, overlay OBS của mục bị khoá hiện 🔒.
 function licenseFeatures() {
-    const f = appConfig.license && appConfig.license.features;
+    const t = trustedLicense.get();
+    const f = t ? t.features : (appConfig.license && appConfig.license.features);
     return Array.isArray(f) ? f : null;
 }
 function featureOn(id) { return LicFeat.can(licenseFeatures(), id); }
 // Trạng thái mục theo game (HP KEY gs, SDK 2.1 — appConfig.license.gameState): chỉ đổi cách HIỆN (⏸ Tạm bảo trì / ẩn / 🧪);
 // khoá vẫn theo features vì server đã trừ mục Tạm tắt / Ẩn khỏi ft.
-function licenseGameState() { return LicFeat.normalizeState(appConfig.license && appConfig.license.gameState); }
+function licenseGameState() {
+    const t = trustedLicense.get();
+    return LicFeat.normalizeState(t ? t.gameState : (appConfig.license && appConfig.license.gameState));
+}
 function licenseStateOf(id) { return LicFeat.stateOf(licenseFeatures(), licenseGameState(), id); }
 function licenseDeniedMessage(id) {
     const st = licenseStateOf(id);
@@ -5759,7 +5775,7 @@ app.post('/api/backup/import', (req, res) => {
     if (appConfig.games.vipwelcome) appConfig.games.vipwelcome = migrateVipWelcomeConfig(appConfig.games.vipwelcome);
     appConfig.liveTranslate = sanitizeLiveTranslateConfig(incoming.liveTranslate ? migrateLiveTranslateVolume(incoming.liveTranslate) : (appConfig.liveTranslate || {}));
     appConfig.creatorCaption = sanitizeCreatorCaptionConfig(incoming.creatorCaption || appConfig.creatorCaption || {});
-    if (incoming.license && typeof incoming.license === 'object') appConfig.license = { ...(appConfig.license || {}), ...incoming.license };
+    // 🔐 Nhập cấu hình KHÔNG ghi đè bản quyền (từng là đường đổi vai trò thành ADMIN) — bản quyền chỉ đến từ kích hoạt key.
     saveAppConfig();
     io.emit('translate:config', appConfig.liveTranslate);
     io.emit('creatorCaption:config', appConfig.creatorCaption);
@@ -6577,7 +6593,7 @@ app.post('/api/update/download', async (req, res) => {
                     if (setupAsset) {
                         downloadUrl = setupAsset.browser_download_url;
                         expectedSize = setupAsset.size || 0;
-                        expectedSha = '';   // GitHub không có SHA → skip verify
+                        expectedSha = require('./lib/update-integrity').assetSha256(setupAsset);   // 🔐 GitHub digest sha256
                         version = String(remote.tag_name).replace(/^v/i, '');
                     }
                 }
@@ -6600,6 +6616,8 @@ app.post('/api/update/download', async (req, res) => {
             if (!downloadUrl) {
                 throw new Error('Không kết nối được nguồn cập nhật');
             }
+            // 🔐 Không có mã băm để đối chiếu → KHÔNG tải/cài (file có thể bị tráo trên đường truyền hoặc ở nguồn).
+            if (!expectedSha) throw new Error('Không xác minh được file cập nhật (thiếu mã kiểm tra) - thử lại sau hoặc tải bản cài từ HP Media');
 
             // CHỐT CHẶN HẠ CẤP. Client bấm Đồng ý mà KHÔNG gửi version/URL nào (public/app.js POST body rỗng) →
             // route này tự dò nguồn lại từ đầu. Nếu GitHub OK lúc kiểm tra nhưng lỗi lúc tải, nhánh dự phòng được
@@ -6795,6 +6813,7 @@ app.get('/api/license/status', async (req, res) => {
     try {
         const result = await validateLicenseKey(stored.key);
         if (result.ok) {
+            trustedLicense.invalidate();   // 🔐 bản quyền vừa đổi → đọc lại token
             appConfig.license = {
                 ...stored,
                 activated: true,
@@ -6848,6 +6867,7 @@ app.get('/api/license/status', async (req, res) => {
         }
         // Đang bị khoá/hết hạn -> KHÔNG xoá key (giữ để lần sau tự vào),
         // trả savedKey để gate điền sẵn (user khỏi gõ lại).
+        trustedLicense.invalidate();   // 🔐 bản quyền vừa đổi → đọc lại token
         appConfig.license = { ...stored, activated: false, lastError: result.error };
         saveAppConfig();
         return res.json({ activated: false, error: result.error, savedKey: stored.key });
@@ -6860,6 +6880,7 @@ app.post('/api/license/activate', async (req, res) => {
     const key = (req.body && req.body.key) || '';
     const result = await validateLicenseKey(key);
     if (!result.ok) return res.json(result);
+    trustedLicense.invalidate();   // 🔐 bản quyền vừa đổi → đọc lại token
     appConfig.license = {
         activated: true,
         key: result.key,
@@ -6879,6 +6900,7 @@ app.post('/api/license/activate', async (req, res) => {
 });
 
 app.post('/api/license/deactivate', (req, res) => {
+    trustedLicense.invalidate();   // 🔐 bản quyền vừa đổi → đọc lại token
     appConfig.license = { activated: false };
     saveAppConfig();
     res.json({ ok: true });
@@ -6931,35 +6953,23 @@ app.post('/api/connect', async (req, res) => {
     if (!username) return res.status(400).json({ ok: false, error: 'Thiếu username' });
     const cleanName = String(username).replace(/^@/, '').trim();
 
-    // === CREATOR role enforcement ===
-    // Với role=CREATOR: KEY column A chính là TikTok ID. User phải connect với
-    // TikTok username TRÙNG khớp key đang active.
-    // Nếu khác → reject. User phải liên hệ HP Media (đổi key tương ứng TikTok ID mới).
-    const lic = appConfig.license || {};
-    if (lic.activated && lic.role === 'CREATOR' && lic.key) {
-        const boundId = String(lic.key).replace(/^@/, '').toLowerCase().trim();
-        if (cleanName.toLowerCase() !== boundId) {
-            return res.status(403).json({
-                ok: false,
-                error: 'Bạn đã thay đổi TikTok ID hoặc nhập sai\nLIÊN HỆ HP MEDIA ĐỂ ĐƯỢC HỖ TRỢ',
-                _creatorLocked: true,
-                boundTiktokId: lic.key
-            });
-        }
-    }
-
-    // === VIP allow-list enforcement ===
-    // role=VIP có danh sách ID: chỉ cho kết nối các TikTok ID trong danh sách.
-    // Danh sách rỗng → không giới hạn (như trước).
-    if (lic.activated && lic.role === 'VIP' && Array.isArray(lic.allowedIds) && lic.allowedIds.length) {
-        if (lic.allowedIds.indexOf(cleanName.toLowerCase()) < 0) {
-            return res.status(403).json({
-                ok: false,
-                error: 'TikTok ID này không nằm trong danh sách được phép của key VIP\nLIÊN HỆ HP MEDIA ĐỂ ĐƯỢC HỖ TRỢ',
-                _vipNotAllowed: true,
-                allowedIds: lic.allowedIds
-            });
-        }
+    // === 🔐 Bản quyền + vai trò từ TOKEN ĐÃ KÝ (lib/license-trust.js) — không tin appConfig.license (file sửa tay được) ===
+    // Chưa kích hoạt → chặn (trước đây chỉ màn hình chặn, gọi thẳng API là kết nối được).
+    // CREATOR: key chính là TikTok ID → chỉ kết nối đúng ID đó. VIP có danh sách ID → chỉ các ID trong danh sách.
+    // Đệm báo chưa có key → đọc lại token 1 lần (vừa kích hoạt xong mà đệm 30 s còn giữ trạng thái cũ)
+    if (!trustedLicense.get()) trustedLicense.invalidate();
+    const lic = trustedLicense.get();
+    const allow = LicTrust.connectAllowed(lic, cleanName);
+    if (!allow.ok) {
+        if (allow.reason === 'creator_locked') return res.status(403).json({
+            ok: false, error: 'Bạn đã thay đổi TikTok ID hoặc nhập sai\nLIÊN HỆ HP MEDIA ĐỂ ĐƯỢC HỖ TRỢ',
+            _creatorLocked: true, boundTiktokId: lic.key
+        });
+        if (allow.reason === 'vip_not_allowed') return res.status(403).json({
+            ok: false, error: 'TikTok ID này không nằm trong danh sách được phép của key VIP\nLIÊN HỆ HP MEDIA ĐỂ ĐƯỢC HỖ TRỢ',
+            _vipNotAllowed: true, allowedIds: lic.allowedIds
+        });
+        return res.status(403).json({ ok: false, error: 'Chưa kích hoạt bản quyền - nhập key HP Media để kết nối LIVE', _noLicense: true });
     }
 
     // Lưu lastUsername (kể cả LIVE chưa bật) — tiện auto-fill lần sau
@@ -12922,6 +12932,7 @@ httpServer.listen(PORT, BIND_HOST, async () => {
                     const gs = LicFeat.normalizeState(license && license.gameState);
                     // ft giữ nguyên mà gs đổi (Tạm tắt → Ẩn) vẫn phải vẽ lại → so cả hai.
                     if (LicFeat.same(f, appConfig.license.features) && LicFeat.sameState(gs, appConfig.license.gameState)) return;
+                    trustedLicense.invalidate();   // 🔐 bản quyền vừa đổi → đọc lại token
                     appConfig.license = { ...appConfig.license, features: f, gameState: gs };
                     saveAppConfig();
                     applyLicenseLocks('watcher');
@@ -12931,6 +12942,7 @@ httpServer.listen(PORT, BIND_HOST, async () => {
                 console.warn('[hpkey] Key bị thu hồi:', reason, '-> đóng app');
                 try {
                     // Giữ key đã lưu (chỉ đánh dấu chưa kích hoạt) -> mở khoá là tự vào lại
+                    trustedLicense.invalidate();   // 🔐 bản quyền vừa đổi → đọc lại token
                     appConfig.license = { ...(appConfig.license || {}), activated: false, lastError: 'revoked:' + reason };
                     saveAppConfig();
                 } catch (_) {}

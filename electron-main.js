@@ -11,6 +11,32 @@ const { spawn } = require('child_process');
 
 const PORT = process.env.PORT || 3000;
 const APP_URL = `http://localhost:${PORT}`;
+
+// 🔐 Chỉ mở ra ngoài link http/https — link lạ (file:, ms-msdt:, search-ms:…) có thể chạy chương trình trên Windows.
+function isSafeExternalUrl(url) {
+    try { const u = new URL(String(url)); return u.protocol === 'https:' || u.protocol === 'http:'; } catch (_) { return false; }
+}
+function openExternalSafe(url) {
+    if (isSafeExternalUrl(url)) return shell.openExternal(url);
+    console.warn('[security] chặn mở link ngoài:', String(url).slice(0, 120));
+}
+// Trang nội bộ của app: localhost / 127.0.0.1 / hpaction.obs cùng cổng, data: (hộp thoại tự dựng), about:blank
+function isAppUrl(url) {
+    try {
+        const u = new URL(String(url));
+        if (u.protocol === 'data:' || u.protocol === 'about:') return true;
+        return u.protocol === 'http:' && String(u.port) === String(PORT) && ['localhost', '127.0.0.1', 'hpaction.obs'].includes(u.hostname);
+    } catch (_) { return false; }
+}
+// 🔐 Mọi cửa sổ: không cho điều hướng ra khỏi trang nội bộ (link ngoài → trình duyệt, chỉ http/https);
+// cửa sổ mới mặc định chỉ trang nội bộ (cửa sổ nào tự đặt setWindowOpenHandler thì thay cái mặc định này).
+// Bản cài cho khách: không mở DevTools (bản dev npm start vẫn mở được).
+app.on('web-contents-created', (_e, wc) => {
+    wc.on('will-navigate', (ev, url) => { if (!isAppUrl(url)) { ev.preventDefault(); openExternalSafe(url); } });
+    wc.setWindowOpenHandler(({ url }) => { if (isAppUrl(url)) return { action: 'allow' }; openExternalSafe(url); return { action: 'deny' }; });
+    if (app.isPackaged) wc.on('devtools-opened', () => wc.closeDevTools());
+});
+
 const APP_NAME = 'HP Action LIVE';
 
 let mainWindow = null;
@@ -169,8 +195,7 @@ function createMainWindow() {
         autoHideMenuBar: true,
         show: false,
         webPreferences: {
-            contextIsolation: true,
-            sandbox: false
+            contextIsolation: true
         }
     });
     Menu.setApplicationMenu(null);
@@ -220,13 +245,13 @@ function createMainWindow() {
         }
         // Chém Trái Cây: "Mở tracker trong Chrome" phải ra trình duyệt ngoài (Electron tắt GPU, MediaPipe chạy chậm).
         if (url.startsWith(`${APP_URL}/tracker/`)) {
-            shell.openExternal(url);
+            openExternalSafe(url);
             return { action: 'deny' };
         }
         if (url.startsWith(APP_URL)) {
             return { action: 'allow' };
         }
-        shell.openExternal(url);
+        openExternalSafe(url);
         return { action: 'deny' };
     });
 
@@ -272,7 +297,7 @@ function buildTray() {
         const contextMenu = Menu.buildFromTemplate([
             { label: 'Mở HP Action LIVE', click: showMainWindow },
             { label: '🔊 Mở Sound Effects', click: () => openSoundfxApp() },
-            { label: 'Mở overlay OBS trong trình duyệt', click: () => shell.openExternal(`${APP_URL}/overlay/thuytinh`) },
+            { label: 'Mở overlay OBS trong trình duyệt', click: () => openExternalSafe(`${APP_URL}/overlay/thuytinh`) },
             { type: 'separator' },
             { label: 'Thoát', click: () => fullQuit() }
         ]);
@@ -310,9 +335,8 @@ function confirmQuitAsync() {
                 parent, modal: !!parent,
                 show: false,
                 webPreferences: {
-                    nodeIntegration: true,
-                    contextIsolation: false,
-                    sandbox: false
+                    contextIsolation: true,
+                    preload: path.join(__dirname, 'quit-confirm-preload.js')
                 }
             });
             const html = `<!doctype html><html><head><meta charset="utf-8"><style>
@@ -371,7 +395,7 @@ function confirmQuitAsync() {
                     </div>
                 </div>
                 <script>
-                    const { ipcRenderer } = require('electron');
+                    const ipcRenderer = { send: (_ch, v) => window.hpQuit.send(v) };   // 🔐 qua preload, không còn nodeIntegration
                     document.getElementById('ok').addEventListener('click', () => ipcRenderer.send('hp-quit-confirm', true));
                     document.getElementById('cancel').addEventListener('click', () => ipcRenderer.send('hp-quit-confirm', false));
                     document.addEventListener('keydown', (e) => {
@@ -790,7 +814,6 @@ function openQuickLaunchWindow() {
         show: false,
         webPreferences: {
             contextIsolation: true,
-            sandbox: false,
             preload: path.join(__dirname, 'quick-launch-preload.js')
         }
     };
@@ -834,7 +857,7 @@ function openQuickLaunchWindow() {
     win.on('close', () => { flushQuickLaunchPrefs(); });
     win.on('closed', () => { quickLaunchWindow = null; });
     win.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url); return { action: 'deny' };
+        openExternalSafe(url); return { action: 'deny' };
     });
 }
 ipcMain.on('quick-launch:setAlwaysOnTop', (e, on) => {
@@ -973,7 +996,6 @@ function openCaroPreviewWindow() {
         show: false,
         webPreferences: {
             contextIsolation: true,
-            sandbox: false,
             preload: path.join(__dirname, 'caro-preview-preload.js')
         }
     };
@@ -993,7 +1015,7 @@ function openCaroPreviewWindow() {
     caroPreviewWindow.on('close',  () => { persistBounds(); flushCaroPreviewPrefs(); });
     caroPreviewWindow.on('closed', () => { caroPreviewWindow = null; });
     caroPreviewWindow.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url); return { action: 'deny' };
+        openExternalSafe(url); return { action: 'deny' };
     });
 }
 ipcMain.on('caro-preview:setAlwaysOnTop', (e, on) => {
@@ -1154,7 +1176,7 @@ function openNhatLaPreviewWindow() {
         hasShadow: false,
         skipTaskbar: false,
         show: false,
-        webPreferences: { contextIsolation: true, sandbox: false }
+        webPreferences: { contextIsolation: true }
     };
     Object.assign(opts, clampBoundsToVisible(prefs.x, prefs.y, width, height));
     nhatLaPreviewWindow = new BrowserWindow(opts);
@@ -1178,7 +1200,6 @@ function openNhatLaPreviewWindow() {
         show: false,
         webPreferences: {
             contextIsolation: true,
-            sandbox: false,
             preload: path.join(__dirname, 'nhatla-preview-toolbar-preload.js')
         }
     });
@@ -1227,7 +1248,7 @@ function openNhatLaPreviewWindow() {
         if (!nhatLaPreviewIsClosing && nhatLaPreviewWindow && !nhatLaPreviewWindow.isDestroyed()) nhatLaPreviewWindow.close();
     });
     nhatLaPreviewWindow.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url);
+        openExternalSafe(url);
         return { action: 'deny' };
     });
 }
@@ -1352,7 +1373,6 @@ function openGiftListWindow() {
         show: false,
         webPreferences: {
             contextIsolation: true,
-            sandbox: false,
             preload: path.join(__dirname, 'gift-list-preload.js')
         }
     };
@@ -1375,7 +1395,7 @@ function openGiftListWindow() {
     giftListWindow.on('close',  () => { persistBounds(); flushGiftListPrefs(); });
     giftListWindow.on('closed', () => { giftListWindow = null; });
     giftListWindow.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url); return { action: 'deny' };
+        openExternalSafe(url); return { action: 'deny' };
     });
 }
 ipcMain.on('gift-list:setAlwaysOnTop', (e, on) => {
@@ -1522,7 +1542,7 @@ function openNhietDoPopoutWindow({ pin = false, edit = false } = {}) {
         alwaysOnTop: pin,
         skipTaskbar: false,
         show: false,
-        webPreferences: { contextIsolation: true, sandbox: false }
+        webPreferences: { contextIsolation: true }
     };
     Object.assign(opts, clampBoundsToVisible(sub.x, sub.y, opts.width, opts.height));
     const win = new BrowserWindow(opts);
@@ -1550,7 +1570,7 @@ function openNhietDoPopoutWindow({ pin = false, edit = false } = {}) {
         else nhietDoPopoutWindow = null;
     });
     win.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url); return { action: 'deny' };
+        openExternalSafe(url); return { action: 'deny' };
     });
     if (pin) nhietDoPinWindow = win;
     else nhietDoPopoutWindow = win;

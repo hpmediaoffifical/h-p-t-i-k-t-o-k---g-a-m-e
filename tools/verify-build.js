@@ -82,6 +82,8 @@ const FILES = [
     ['public/ui/header-bar.js', 'nút phần đầu game'],
     ['public/ui/home-live.js', 'Trang chủ: game đang bật / hoạt động / quà hôm nay'],
     ['public/ui/game-dock.js', 'ngăn Xem trước · OBS + trạng thái lưu'],
+    ['quit-confirm-preload.js', 'preload hộp thoại thoát (thiếu = bấm Thoát không phản hồi)'],
+    ['lib/license-trust.js', 'kiểm bản quyền từ token ký (thiếu = server không khởi động)'],
     ['lib/gift-stats.js', 'đếm quà hôm nay (thiếu = server không khởi động)'],
     ['public/_prototype/touchplay.html', 'game Touch & Play (Game Camera nhúng vào)'],
     ['lib/touchplay-obs-feed.js', 'feed camera từ OBS (thiếu = server không khởi động)'],
