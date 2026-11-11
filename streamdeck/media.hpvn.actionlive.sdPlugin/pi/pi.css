@@ -1,0 +1,15 @@
+html, body { margin: 0; background: #2d2d2d; color: #d8d8d8; font: 12px "Segoe UI", Arial, sans-serif; }
+body { padding: 8px 10px 12px; }
+.hp-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.hp-row[hidden] { display: none; }
+.hp-row label { flex: 0 0 82px; color: #a8a8a8; }
+.hp-row select, .hp-row input { flex: 1 1 auto; min-width: 0; height: 26px; box-sizing: border-box; background: #3d3d3d; color: #e8e8e8; border: 1px solid #505050; border-radius: 4px; padding: 0 6px; font: inherit; }
+.hp-row select:focus, .hp-row input:focus { outline: 1px solid #6aa0ff; }
+button { height: 26px; background: #464646; color: #e8e8e8; border: 1px solid #5a5a5a; border-radius: 4px; padding: 0 10px; font: inherit; cursor: pointer; }
+button:hover { background: #525252; }
+.hp-status { padding: 6px 8px; border-radius: 4px; background: #3a3a3a; margin-bottom: 4px; }
+.hp-status.ok { background: #1f3b26; color: #9be3ad; }
+.hp-status.bad { background: #4a3a14; color: #ffd57a; }
+.hp-error { margin-top: 8px; padding: 6px 8px; border-radius: 4px; background: #4a1f1f; color: #ffb3b3; white-space: pre-line; }
+.hp-adv { margin-top: 10px; color: #a8a8a8; }
+.hp-adv summary { cursor: pointer; }

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>HP Action LIVE</title>
+<link rel="stylesheet" href="pi.css">
+</head>
+<body>
+<div id="status" class="hp-status">Đang tìm HP Action LIVE…</div>
+
+<div class="hp-row" data-for="game">
+  <label for="gameId">Game</label>
+  <select id="gameId" data-setting="gameId"></select>
+</div>
+<div class="hp-row" data-for="game">
+  <label for="gameMode">Khi bấm</label>
+  <select id="gameMode" data-setting="mode">
+    <option value="toggle">Đảo bật / tắt</option>
+    <option value="on">Luôn bật</option>
+    <option value="off">Luôn tắt</option>
+  </select>
+</div>
+
+<div class="hp-row" data-for="live">
+  <label for="liveMode">Khi bấm</label>
+  <select id="liveMode" data-setting="mode">
+    <option value="toggle">Kết nối / ngắt</option>
+    <option value="connect">Chỉ kết nối</option>
+    <option value="disconnect">Chỉ ngắt</option>
+  </select>
+</div>
+<div class="hp-row" data-for="live">
+  <label for="username">TikTok ID</label>
+  <input id="username" data-setting="username" placeholder="trống = ID dùng lần cuối">
+</div>
+
+<div class="hp-row" data-for="gift">
+  <label for="giftId">Quà</label>
+  <select id="giftId" data-setting="giftId"></select>
+</div>
+<div class="hp-row" data-for="gift">
+  <label for="count">Số lượng</label>
+  <input id="count" data-setting="count" type="number" min="1" max="99" value="1">
+</div>
+
+<div class="hp-row" data-for="chat">
+  <label for="comment">Bình luận</label>
+  <input id="comment" data-setting="comment" maxlength="300" placeholder="vd 111">
+</div>
+<div class="hp-row" data-for="chat">
+  <label for="nickname">Tên</label>
+  <input id="nickname" data-setting="nickname" maxlength="64" placeholder="Stream Deck">
+</div>
+
+<div class="hp-row" data-for="hotkey">
+  <label for="group">Game</label>
+  <select id="group" data-setting="group"></select>
+</div>
+<div class="hp-row" data-for="hotkey">
+  <label for="key">Hành động</label>
+  <select id="key" data-setting="key"></select>
+</div>
+
+<details class="hp-adv">
+  <summary>Nâng cao</summary>
+  <div class="hp-row">
+    <label for="port">Cổng app</label>
+    <input id="port" type="number" min="1" max="65535" placeholder="3000">
+    <button id="savePort" type="button">Lưu</button>
+  </div>
+  <div class="hp-row"><button id="refresh" type="button">↻ Tải lại danh sách</button></div>
+</details>
+<div id="error" class="hp-error" hidden></div>
+
+<script src="pi.js"></script>
+</body>
+</html>
