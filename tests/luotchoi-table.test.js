@@ -2,7 +2,7 @@
 // 🎲 Bộ Trò Chơi Theo Lượt — khung ghế + lượt. Spec docs/superpowers/specs/2026-11-12-luotchoi-design.md §2.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createTable, normalizeConfig, parseNumbers } = require('../lib/luot-choi/table');
+const { createTable, normalizeConfig, parseNumbers, HOST_KEY } = require('../lib/luot-choi/table');
 
 const SEAT = { giftId: '5655', giftName: 'Hoa hồng' };
 const SHIELD = { giftId: '6064', giftName: 'Kem' };
@@ -215,7 +215,7 @@ test('chủ LIVE vào ghế bằng panel và chọn bằng hostPick', () => {
     assert.equal(tb.hostJoin().action, 'seat');
     assert.equal(tb.hostJoin().action, 'ignored');
     seat(tb, 'a'); clock.go(3100);
-    assert.equal(turnKey(tb), 'host');
+    assert.equal(turnKey(tb), HOST_KEY);
     assert.equal(snap(tb).seats[0].nickname, 'Anh Chủ');
     const trap = tb._board().trap;
     assert.equal(tb.hostPick(trap === 1 ? 2 : 1), true);
@@ -272,4 +272,14 @@ test('quà thử từ panel (as) vào ghế / thêm khiên không cần cài qu�
     assert.equal(tb.addGift({ user: u('a'), as: 'seat' }).action, 'seat');
     assert.equal(tb.addGift({ user: u('a'), as: 'shield' }).action, 'shield');
     assert.equal(tb.addGift({ user: u('b'), giftId: SEAT.giftId }).action, 'ignored');
+});
+
+test('người xem trùng khoá Chủ LIVE không vào ghế / chọn số thay Chủ LIVE được', () => {
+    const { tb, clock } = make({ seats: 2 });
+    tb.hostJoin(); seat(tb, 'a'); clock.go(3100);
+    assert.equal(turnKey(tb), HOST_KEY);
+    const fake = { key: HOST_KEY, nickname: 'Mạo danh', avatar: '' };
+    assert.equal(tb.comment({ user: fake, text: '1' }), false, 'bình luận mạo danh không được tính');
+    assert.equal(tb.addGift({ user: fake, giftId: SEAT.giftId }).action, 'ignored');
+    assert.equal(snap(tb).board.used.length, 0);
 });

@@ -183,7 +183,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         const el = $('#lc-board');
         const b = st.board;
         if (!b || st.phase === 'lobby') { el.innerHTML = ''; return; }
-        const hostTurn = st.turnKey === 'host';
+        const hostTurn = !!(st.seats.find(s => s.turn) || {}).host;
         const opts = new Set(st.options || []);
         let cells = [];
         if (b.kind === 'latcap') cells = b.cards.map(c => ({ n: c.n, label: c.face ? `<span class="face">${c.face}</span>` : c.n }));
