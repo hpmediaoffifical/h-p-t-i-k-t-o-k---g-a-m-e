@@ -1851,7 +1851,8 @@ let _goiBaiAccels = [];
 function applyGoiBaiHotkeys(cfg) {
     for (const a of _goiBaiAccels) { try { globalShortcut.unregister(a); } catch (_) {} }
     _goiBaiAccels = [];
-    if (!cfg || cfg.enabled !== true) return;
+    const busy = [];   // phím app khác đang giữ → server báo lên panel (streamer không đọc log)
+    if (!cfg || cfg.enabled !== true) return { busy };
     const pairs = [['skip', cfg.hotkeySkip], ['togglePause', cfg.hotkeyPause]];
     for (const [cmd, key] of pairs) {
         let accel = String(key || '').trim();
@@ -1865,10 +1866,11 @@ function applyGoiBaiHotkeys(cfg) {
                 } catch (e) { console.warn('[goibai-hotkey] api fail:', e.message); }
             });
             if (ok) _goiBaiAccels.push(accel);
-            else console.warn('[goibai-hotkey] phím đang bị chiếm:', accel);
-        } catch (e) { console.warn('[goibai-hotkey] register fail:', accel, e.message); }
+            else { busy.push(accel); console.warn('[goibai-hotkey] phím đang bị chiếm:', accel); }
+        } catch (e) { busy.push(accel); console.warn('[goibai-hotkey] register fail:', accel, e.message); }
     }
     if (_goiBaiAccels.length) console.log(`[goibai] global hotkeys registered: ${_goiBaiAccels.join(', ')}`);
+    return { busy };
 }
 global.__goiBaiApplyHotkeys = applyGoiBaiHotkeys;
 

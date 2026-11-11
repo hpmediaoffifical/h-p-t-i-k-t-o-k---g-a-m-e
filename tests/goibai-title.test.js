@@ -10,6 +10,8 @@ test('bỏ nhãn video thường gặp', () => {
     assert.equal(cleanSongTitle('Em Của Ngày Hôm Qua (Lyrics Video) - HD'), 'Em Của Ngày Hôm Qua');
     assert.equal(cleanSongTitle('Ed Sheeran - Perfect (Official Music Video)'), 'Ed Sheeran - Perfect');
     assert.equal(cleanSongTitle('Hoa Nở Không Màu | MV 4K'), 'Hoa Nở Không Màu');
+    // cụm ngoặc ở GIỮA tên: không để lại khoảng trắng kép (gặp khi thử thật 12/11/2026)
+    assert.equal(cleanSongTitle('Wiz Khalifa - See You Again ft. Charlie Puth [Official Video] Furious 7 Soundtrack'), 'Wiz Khalifa - See You Again ft. Charlie Puth Furious 7 Soundtrack');
     // kết quả thật từ yt-dlp (11/11/2026)
     assert.equal(cleanSongTitle('LẠC TRÔI | OFFICIAL MUSIC VIDEO | SƠN TÙNG M-TP', 'Sơn Tùng M-TP Official'), 'LẠC TRÔI');
     assert.equal(cleanSongTitle('Lạc Trôi | Sơn Tùng MTP ‹ Lyric Video ›', 'Sunshine Gr'), 'Lạc Trôi');

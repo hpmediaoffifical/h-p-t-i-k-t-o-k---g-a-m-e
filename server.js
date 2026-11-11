@@ -6293,7 +6293,7 @@ app.post('/api/games/:id/config', (req, res) => {
     }
     if (g.id === 'goibai') {
         try { goiBai.onConfig(prevEnabled); } catch (e) { console.warn('[goibai] config lỗi:', e?.message || e); }
-        try { global.__goiBaiApplyHotkeys?.(appConfig.games.goibai); } catch (e) {}
+        try { goiBai.setHotkeyBusy(global.__goiBaiApplyHotkeys?.(appConfig.games.goibai)?.busy); } catch (e) {}
     }
     if (g.id === 'trongcay') {
         try { trongCayApplyConfigToState(appConfig.games.trongcay); } catch (e) {}
@@ -7345,7 +7345,7 @@ const goiBai = createGoiBaiController({
 });
 goiBai.mountRoutes(app, { publicDir: path.join(__dirname, 'public') });
 goiBai.start();
-setTimeout(() => { try { global.__goiBaiApplyHotkeys?.(appConfig.games.goibai); } catch (e) {} }, 1500);
+setTimeout(() => { try { goiBai.setHotkeyBusy(global.__goiBaiApplyHotkeys?.(appConfig.games.goibai)?.busy); } catch (e) {} }, 1500);
 
 app.get('/overlay/trongcay', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'trongcay', 'overlay.html'));

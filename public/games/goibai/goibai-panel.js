@@ -165,7 +165,9 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
                 : `<span class="gob-pill">${hpT('Bộ tìm bài: tự tải khi bật')}</span>`,
             st.paused ? `<span class="gob-pill wait">${hpT('⏸ Tạm dừng')}</span>` : ''
         ].filter(Boolean);
-        el.innerHTML = pills.join(' ') + (st.lastError ? ` <span class="gob-warn">⚠ ${esc(st.lastError)}</span>` : '');
+        const busy = Array.isArray(st.hotkeyBusy) ? st.hotkeyBusy : [];
+        el.innerHTML = pills.join(' ') + (st.lastError ? ` <span class="gob-warn">⚠ ${esc(st.lastError)}</span>` : '')
+            + (busy.length ? ` <span class="gob-warn">⚠ ${esc(hpT('Phím {k} đang bị app khác giữ — đổi phím khác', { k: busy.join(', ') }))}</span>` : '');
     }
     function renderLive() {
         if (!st) return;
