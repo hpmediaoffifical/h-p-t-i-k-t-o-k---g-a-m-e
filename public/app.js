@@ -1054,6 +1054,8 @@
         else if (gameId === 'dapmuoi') openDapMuoi(game);
         else if (gameId === 'body') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpBodyPanel?.open(socket); }
         else if (gameId === 'dacau') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpDaCauPanel?.open(socket); }
+        else if (gameId === 'gapthu') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpGapThuPanel?.open(socket); }
+        else if (gameId === 'xucxac') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpXucXacPanel?.open(socket); }
         else if (gameId === 'trongcay') openTrongCay(game);
         else if (gameId === 'nhatla') openNhatLa(game);
         else if (gameId === 'liveTranslate') openLiveTranslateView();

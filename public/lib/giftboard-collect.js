@@ -68,6 +68,11 @@
         for (const g of c.coolingGifts || []) push('nhietdo', 'cool', g.giftId, g, g.customLabel || 'Hạ nhiệt', '−' + (g.degrees ?? 0) + '°');
         if (c.heatMode === 'perCoin') generic('nhietdo', `Mọi quà: +${c.perCoinDegrees ?? 0.1}° mỗi xu`);
         else if (c.heatMode === 'perGift') generic('nhietdo', `Mọi quà: +${c.perGiftDegrees ?? 5}°`); }
+      // 🕹️ Gắp Thú / 🎲 Xúc Xắc 3D: quà gán = N lượt; anyGift = mọi quà khác 1 lượt (lib/gift-turns.js)
+      for (const [gid, word] of [['gapthu', 'Gắp thú'], ['xucxac', 'Tung xúc xắc']]) {
+        const c = gc(gid);
+        for (const g of c.gifts || []) push(gid, 'turn', g.giftId, g, word + (g.sure ? ' (chắc trúng)' : ''), '×' + (g.turns || 1));
+        if (c.anyGift !== false && Object.keys(c).length) generic(gid, 'Mọi quà: ' + word.toLowerCase() + ' 1 lượt'); }
       { const c = gc('bancung');
         for (const g of c.shotGifts || []) push('bancung', 'shot', g.giftId, g, g.customLabel || 'Bắn cung', g.shots > 1 ? '×' + g.shots : '🏹');
         for (const g of c.healGifts || []) push('bancung', 'heal', g.giftId, g, g.customLabel || 'Hồi máu', '+' + (g.healHearts ?? 1) + '♥');

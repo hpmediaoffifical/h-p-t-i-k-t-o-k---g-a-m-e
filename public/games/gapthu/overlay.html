@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>Gắp Thú</title>
+<style>
+    html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; user-select: none;
+        font-family: 'Be Vietnam Pro', 'Segoe UI', system-ui, sans-serif; color: #fff; }
+    body.gapthu-bg { background: radial-gradient(ellipse at 50% 35%, #3a2c55 0%, #151225 70%); }
+    #gapthu-stage { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: 0 0; }
+    #gapthu-box { position: absolute; width: 720px; height: 1080px; transform-origin: 50% 50%; }
+    #gapthu-box.off { display: none; }
+    #gapthu-cv { position: absolute; inset: 0; width: 720px; height: 1080px; }
+    .gapthu-who { position: absolute; left: 50%; top: -84px; transform: translate(-50%, -12px); display: flex; align-items: center; gap: 12px;
+        padding: 8px 20px 8px 8px; border-radius: 40px; background: rgba(20, 14, 34, .82); border: 2px solid rgba(255,255,255,.25);
+        font-size: 30px; font-weight: 800; white-space: nowrap; max-width: 600px; opacity: 0; transition: opacity .2s, transform .2s; }
+    .gapthu-who.on { opacity: 1; transform: translate(-50%, 0); }
+    .gapthu-who img, .gapthu-card img.av { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: #443; flex: none; }
+    .gapthu-who span { overflow: hidden; text-overflow: ellipsis; }
+    .gapthu-who .gi { width: 40px; height: 40px; border-radius: 0; background: none; }
+    .gapthu-card { position: absolute; left: 50%; top: 360px; width: 580px; transform: translate(-50%, 0) scale(.6); opacity: 0;
+        padding: 26px 26px 30px; border-radius: 34px; text-align: center; background: linear-gradient(180deg, #fff8fc, #ffe1ef);
+        color: #3a1530; box-shadow: 0 18px 50px rgba(0,0,0,.45), 0 0 0 6px rgba(255,255,255,.6) inset;
+        transition: opacity .18s, transform .28s cubic-bezier(.2,1.6,.4,1); pointer-events: none; }
+    .gapthu-card.on { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    .gapthu-card.lose { background: linear-gradient(180deg, #f3f2f8, #d9d6e8); color: #2b2840; }
+    .gapthu-card .top { display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 30px; font-weight: 800; }
+    .gapthu-card .top span { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gapthu-card .big { font-size: 120px; line-height: 1.1; margin: 8px 0 2px; }
+    .gapthu-card .say { font-size: 44px; font-weight: 900; line-height: 1.15; }
+    .gapthu-card .sub { font-size: 26px; font-weight: 600; opacity: .7; margin-top: 8px; }
+    .gapthu-q { position: absolute; left: 50%; top: 1000px; transform: translateX(-50%); padding: 6px 20px; border-radius: 30px;
+        background: rgba(0,0,0,.55); font-size: 28px; font-weight: 800; white-space: nowrap; }
+    .gapthu-q[hidden] { display: none; }
+    body.gapthu-shot * { transition: none !important; }
+</style>
+</head>
+<body>
+<div id="gapthu-stage">
+    <div id="gapthu-box">
+        <canvas id="gapthu-cv" width="720" height="1080"></canvas>
+        <div class="gapthu-who" id="gapthu-who"></div>
+        <div class="gapthu-card" id="gapthu-card"></div>
+        <div class="gapthu-q" id="gapthu-q" hidden></div>
+    </div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/lib/overlay-hello.js" data-game="gapthu"></script>
+<script>
+/* 🕹️ Gắp Thú — overlay OBS 1080×1920 trong suốt. Server quyết kết quả từng lượt (socket 'gapthu:turn'),
+ * overlay chỉ diễn hoạt cảnh trong đúng turn.ms. ?review=1 khung xem thử (phòng preview), ?demo=1 tự sinh lượt giả,
+ * ?bg=1 nền tối để xem ngoài OBS, ?mute=1 tắt tiếng. Spec docs/superpowers/specs/2026-11-12-gapthu-xucxac-design.md §3.2 */
+(function () {
+    'use strict';
+    const qs = new URLSearchParams(location.search);
+    const isReview = qs.get('review') === '1', isDemo = qs.get('demo') === '1', muted = qs.get('mute') === '1';
+    if (qs.get('bg') === '1') document.body.classList.add('gapthu-bg');
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const stage = $('gapthu-stage'), box = $('gapthu-box'), cv = $('gapthu-cv'), ctx = cv.getContext('2d');
+
+    const THEMES = {
+        pink: { frame: '#ff5c9d', frame2: '#c2306d', sign: '#ffe4f0', signText: '#c2306d', glass: 'rgba(255,214,234,.16)', base: '#ff7db0', bulb: ['#fff59d', '#ffffff'] },
+        mint: { frame: '#26c6a2', frame2: '#12866b', sign: '#e0fff6', signText: '#0f7a61', glass: 'rgba(200,255,240,.14)', base: '#4fd8b8', bulb: ['#fffde7', '#b2fff0'] },
+        night: { frame: '#5b5bd6', frame2: '#2f2f8f', sign: '#14143a', signText: '#9ef0ff', glass: 'rgba(140,160,255,.14)', base: '#6c6cf0', bulb: ['#ff6ad5', '#62f6ff'] }
+    };
+    let cfg = { enabled: true, prizes: [], display: { x: 50, y: 55, scale: 100, theme: 'pink', showQueue: true }, sound: { enabled: true, volume: 0.6 } };
+    let disabled = false;
+
+    // ---------- bố cục 1080×1920 → cửa sổ ----------
+    function fit() {
+        const k = Math.min(innerWidth / 1080, innerHeight / 1920);
+        stage.style.transform = `scale(${k})`;
+        stage.style.left = ((innerWidth - 1080 * k) / 2) + 'px';
+        stage.style.top = ((innerHeight - 1920 * k) / 2) + 'px';
+    }
+    function layout() {
+        const d = cfg.display || {};
+        const s = (Number(d.scale) || 100) / 100;
+        box.style.left = (1080 * (d.x ?? 50) / 100 - 360) + 'px';
+        box.style.top = (1920 * (d.y ?? 55) / 100 - 540) + 'px';
+        box.style.transform = `scale(${s})`;
+        box.classList.toggle('off', disabled);
+        buildPile();
+    }
+    addEventListener('resize', fit); fit();
+
+    // ---------- hình học tủ (toạ độ canvas 720×1080) ----------
+    const G = { glassL: 40, glassR: 680, glassT: 140, glassB: 820, rail: 176, homeX: 128, upY: 236, downY: 712, pileL: 230, pileR: 650, floor: 806 };
+    let pile = [];   // [{icon, x, y, s, r}]
+    function prizeIcons() {
+        const p = (cfg.prizes || []).filter(x => x && x.icon);
+        return p.length ? p.map(x => x.icon) : ['🧸', '🐰', '🐻', '🦊', '🐼', '🐱'];
+    }
+    function buildPile() {
+        const icons = prizeIcons();
+        pile = [];
+        let n = 0;
+        const rows = [{ y: G.floor - 34, c: 6, s: 74 }, { y: G.floor - 92, c: 5, s: 70 }, { y: G.floor - 146, c: 4, s: 64 }];
+        for (const row of rows) {
+            for (let i = 0; i < row.c; i++) {
+                const t = (i + 0.5) / row.c;
+                const jitter = ((n * 37) % 11 - 5) * 2;
+                pile.push({ icon: icons[n % icons.length], x: G.pileL + t * (G.pileR - G.pileL) + jitter, y: row.y + ((n * 13) % 7 - 3) * 2, s: row.s, r: ((n * 29) % 9 - 4) * 0.06 });
+                n++;
+            }
+        }
+    }
+
+    // ---------- trạng thái hoạt cảnh ----------
+    let turn = null;          // { ...payload, t0, grabbed:{icon, idx}, dropT }
+    let lastIdleDraw = 0;
+    const queueLeft = { n: 0 };
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const seg = (p, a, b) => clamp((p - a) / (b - a), 0, 1);
+    const P = { move: [0, .22], down: [.22, .42], close: [.42, .5], up: [.5, .7], carry: [.7, .85] };
+
+    function targetX(t) { return G.pileL + (clamp(t.result.clawX, .12, .88) - .12) / .76 * (G.pileR - G.pileL); }
+    function nearestPile(x) {
+        let best = 0, bd = 1e9;
+        pile.forEach((it, i) => { const d = Math.abs(it.x - x) + (G.floor - it.y) * 0.4; if (d < bd) { bd = d; best = i; } });
+        return best;
+    }
+
+    function clawState(now) {
+        if (!turn) return { x: G.homeX, y: G.upY, open: .9, carry: null };
+        const p = clamp((now - turn.t0) / turn.ms, 0, 1.2);
+        const tx = targetX(turn), r = turn.result;
+        let x = G.homeX, y = G.upY, open = .9, carry = null;
+        if (p < P.down[0]) { x = G.homeX + (tx - G.homeX) * ease(seg(p, ...P.move)); }
+        else if (p < P.close[0]) { x = tx; y = G.upY + (G.downY - G.upY) * ease(seg(p, ...P.down)); }
+        else if (p < P.up[0]) { x = tx; y = G.downY; open = .9 - .9 * seg(p, ...P.close); }
+        else if (p < P.carry[0]) {
+            const u = ease(seg(p, ...P.up));
+            x = tx; y = G.downY - (G.downY - G.upY) * u; open = 0;
+            if (!r.win && seg(p, ...P.up) >= r.slipAt) { open = .35; if (!turn.dropT) { turn.dropT = now; turn.dropFrom = { x, y: y + 66 }; sfx('slip'); } }
+        } else {
+            const u = ease(seg(p, ...P.carry));
+            x = tx + (G.homeX - tx) * u; y = G.upY; open = r.win ? (u > .92 ? .9 : 0) : .35;
+            if (r.win && u > .92 && !turn.dropT) { turn.dropT = now; turn.dropFrom = { x, y: y + 66 }; sfx('win'); }
+            if (!r.win && p >= P.carry[1] && !turn.loseSaid) { turn.loseSaid = true; sfx('lose'); }
+        }
+        // đang kẹp quà: trúng → icon giải; trượt → thú gần nhất (rồi tuột)
+        if (p >= P.close[1] && !turn.dropT) carry = turn.grabIcon;
+        if (p >= P.close[0] && turn.grabIdx == null) {
+            turn.grabIdx = nearestPile(tx);
+            turn.grabIcon = r.win && r.prize ? r.prize.icon : pile[turn.grabIdx].icon;
+            sfx('clink');
+        }
+        return { x, y, open, carry };
+    }
+
+    // ---------- vẽ ----------
+    function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+    function emoji(icon, x, y, size, rot) {
+        ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot);
+        ctx.font = `${size}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(icon, 0, 0); ctx.restore();
+    }
+    function draw(now) {
+        const th = THEMES[cfg.display?.theme] || THEMES.pink;
+        ctx.clearRect(0, 0, 720, 1080);
+        // thân tủ
+        ctx.fillStyle = th.frame2; rr(18, 108, 684, 960, 44); ctx.fill();
+        ctx.fillStyle = th.frame; rr(26, 112, 668, 946, 40); ctx.fill();
+        // biển hiệu + bóng đèn
+        ctx.fillStyle = th.frame2; rr(60, 8, 600, 118, 50); ctx.fill();
+        ctx.fillStyle = th.sign; rr(70, 18, 580, 98, 44); ctx.fill();
+        ctx.fillStyle = th.signText; ctx.font = '900 64px "Be Vietnam Pro","Segoe UI",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('GẮP THÚ', 360, 70);
+        const blink = Math.floor(now / 380) % 2;
+        for (let i = 0; i < 16; i++) {
+            const bx = 88 + i * 36, on = (i + blink) % 2;
+            ctx.fillStyle = th.bulb[on]; ctx.globalAlpha = on ? 1 : .45;
+            ctx.beginPath(); ctx.arc(bx, 120, 7, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        // kính + nền trong
+        ctx.fillStyle = 'rgba(10,8,24,.55)'; rr(G.glassL, G.glassT, G.glassR - G.glassL, G.glassB - G.glassT, 18); ctx.fill();
+        ctx.fillStyle = th.glass; rr(G.glassL, G.glassT, G.glassR - G.glassL, G.glassB - G.glassT, 18); ctx.fill();
+        // cửa nhả quà
+        ctx.fillStyle = 'rgba(0,0,0,.55)'; rr(58, 640, 150, 170, 14); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 4; rr(58, 640, 150, 170, 14); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.font = '800 26px "Be Vietnam Pro","Segoe UI",sans-serif'; ctx.fillText('QUÀ', 133, 790);
+        // đống thú
+        pile.forEach((it, i) => { if (turn && i === turn.grabIdx && (!turn.dropT || turn.result.win || now - turn.dropT < 600)) return; emoji(it.icon, it.x, it.y, it.s, it.r); });
+        // ray
+        ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(G.glassL + 10, G.rail - 6, G.glassR - G.glassL - 20, 12);
+        // càng
+        const c = clawState(now);
+        ctx.fillStyle = '#d9dbe6'; rr(c.x - 34, G.rail - 16, 68, 30, 8); ctx.fill();
+        ctx.strokeStyle = '#c8cad6'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(c.x, G.rail + 12); ctx.lineTo(c.x, c.y); ctx.stroke();
+        drawClaw(c.x, c.y, c.open);
+        if (c.carry) emoji(c.carry, c.x, c.y + 66, 72, 0);
+        // quà rơi (tuột về đống / rơi vào cửa)
+        if (turn && turn.dropT) {
+            const dt = (now - turn.dropT) / 1000;
+            const tgtY = turn.result.win ? 760 : G.floor - 40;
+            const y = Math.min(tgtY, turn.dropFrom.y + 1400 * dt * dt);
+            if (y < tgtY || dt < 0.6) emoji(turn.grabIcon, turn.dropFrom.x, y, 72, dt * 2);
+        }
+        // phản chiếu kính
+        const grd = ctx.createLinearGradient(G.glassL, 0, G.glassR, 0);
+        grd.addColorStop(0, 'rgba(255,255,255,.18)'); grd.addColorStop(.18, 'rgba(255,255,255,0)'); grd.addColorStop(.8, 'rgba(255,255,255,0)'); grd.addColorStop(1, 'rgba(255,255,255,.1)');
+        ctx.fillStyle = grd; rr(G.glassL, G.glassT, G.glassR - G.glassL, G.glassB - G.glassT, 18); ctx.fill();
+        // bệ điều khiển
+        ctx.fillStyle = th.base; rr(40, 850, 640, 190, 26); ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,.18)'; rr(40, 850, 640, 190, 26); ctx.fill();
+        const jx = 220 + (turn && c.x > G.homeX + 8 ? 10 : 0);
+        ctx.fillStyle = '#333'; ctx.beginPath(); ctx.ellipse(200, 980, 60, 18, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#222'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(200, 978); ctx.lineTo(jx, 908); ctx.stroke();
+        ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(jx, 900, 26, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = turn ? '#ffe14d' : '#ffb300'; ctx.beginPath(); ctx.ellipse(500, 950, 64, 50, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.font = '900 30px "Be Vietnam Pro","Segoe UI",sans-serif'; ctx.fillText('GẮP', 500, 952);
+    }
+    function drawClaw(x, y, open) {
+        ctx.save(); ctx.translate(x, y);
+        ctx.fillStyle = '#eceef6'; rr(-26, -14, 52, 30, 10); ctx.fill();
+        ctx.strokeStyle = '#eceef6'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+        for (const side of [-1, 1]) {
+            const a = -side * (-0.12 + open * 0.62);
+            ctx.save(); ctx.translate(side * 16, 12); ctx.rotate(a);
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(side * 18, 44); ctx.lineTo(side * 2, 78); ctx.stroke();
+            ctx.restore();
+        }
+        ctx.restore();
+    }
+
+    // ---------- thẻ người tặng + kết quả ----------
+    function avatarImg(url) { return url ? `<img class="av" src="${esc(url)}" alt="" onerror="this.style.visibility='hidden'">` : ''; }
+    function showWho(t) {
+        const w = $('gapthu-who');
+        w.innerHTML = `${avatarImg(t.avatar)}<span>${esc(t.nickname || 'Ẩn danh')}</span>${t.giftImage ? `<img class="gi" src="${esc(t.giftImage)}" alt="">` : ''}`;
+        w.classList.add('on');
+    }
+    let cardTimer = 0;
+    function showCard(t) {
+        const card = $('gapthu-card'), r = t.result;
+        card.classList.toggle('lose', !r.win);
+        card.innerHTML = r.win
+            ? `<div class="top">${avatarImg(t.avatar)}<span>${esc(t.nickname || 'Ẩn danh')}</span></div><div class="big">${esc(r.prize.icon)}</div><div class="say">gắp được ${esc(r.prize.name)}!</div>${r.pityHit ? '<div class="sub">🍀 Bảo hiểm gắp trúng</div>' : ''}`
+            : `<div class="top">${avatarImg(t.avatar)}<span>${esc(t.nickname || 'Ẩn danh')}</span></div><div class="big">😝</div><div class="say">Tuột mất rồi!</div>${r.pityLeft ? `<div class="sub">Còn ${r.pityLeft} lượt trượt nữa là chắc trúng</div>` : ''}`;
+        card.classList.add('on');
+        clearTimeout(cardTimer);
+        cardTimer = setTimeout(hideCard, Math.max(1400, t.ms * 0.2 + 1500));
+    }
+    function hideCard() { $('gapthu-card').classList.remove('on'); }
+    function renderQueue() {
+        const q = $('gapthu-q');
+        q.hidden = !(cfg.display?.showQueue !== false && queueLeft.n > 0);
+        q.textContent = `⏳ còn ${queueLeft.n} lượt`;
+    }
+
+    function startTurn(t) {
+        if (disabled || !t || !t.result) return;
+        hideCard();
+        turn = { ...t, t0: performance.now(), grabIdx: null, dropT: 0 };
+        queueLeft.n = t.left || 0; renderQueue();
+        showWho(t);
+        sfx('start');
+        const myId = turn;
+        setTimeout(() => { if (turn === myId) showCard(t); }, t.ms * 0.84);
+        setTimeout(() => { if (turn === myId) { turn = null; $('gapthu-who').classList.remove('on'); } }, t.ms + 200);
+    }
+
+    // ---------- âm thanh (tổng hợp WebAudio, không cần file) ----------
+    let ac = null;
+    function tone(freq, dur, type, vol, slide) {
+        if (muted || !cfg.sound || cfg.sound.enabled === false) return;
+        try {
+            ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+            const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+            o.type = type || 'square'; o.frequency.setValueAtTime(freq, t);
+            if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
+            const v = (Number(cfg.sound.volume) || 0.6) * (vol || 0.15);
+            g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
+        } catch (e) { /* không có âm thanh vẫn chơi được */ }
+    }
+    function sfx(kind) {
+        if (kind === 'start') { tone(523, .08); setTimeout(() => tone(784, .1), 90); }
+        else if (kind === 'clink') tone(1200, .07, 'triangle', .2);
+        else if (kind === 'slip') tone(500, .35, 'sawtooth', .12, 160);
+        else if (kind === 'lose') { tone(392, .18, 'triangle', .2); setTimeout(() => tone(311, .3, 'triangle', .2), 180); }
+        else if (kind === 'win') [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, .16, 'square', .14), i * 110));
+    }
+
+    // ---------- vòng vẽ: đang có lượt thì 60 khung/s, rảnh thì ~6 khung/s (chỉ nháy đèn) ----------
+    function loop(now) {
+        if (turn || now - lastIdleDraw > 160) { draw(now); lastIdleDraw = now; }
+        requestAnimationFrame(loop);
+    }
+
+    // ---------- cấu hình + socket ----------
+    function applyConfig(c) {
+        if (!c) return;
+        cfg = c; disabled = c.enabled === false && !isReview && !isDemo;
+        layout(); renderQueue();
+    }
+    fetch('/api/games/gapthu/config', { cache: 'no-store' }).then(r => r.json()).then(applyConfig).catch(() => layout());
+    if (typeof io === 'function') {
+        const token = qs.get('token') || '';
+        const socket = io({ query: { role: 'aux' }, transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+        socket.on('connect', () => socket.emit('subscribe', isReview ? 'preview' : 'overlay'));
+        if (!isDemo) socket.on('gapthu:turn', startTurn);
+        socket.on('gameConfig', d => { if (d && d.gameId === 'gapthu') applyConfig(d.config); });
+        socket.on('overlay:reload', d => { if (!isReview && (!d || !d.gameId || d.gameId === 'gapthu')) location.reload(); });
+    }
+    // ?demo=1: tự sinh lượt giả (xem dáng tủ không cần quà)
+    if (isDemo) {
+        const names = ['Mây Hồng', 'Tí Nị', 'Anh Ba Khía', 'Bé Na'];
+        let k = 0;
+        const fake = () => {
+            const win = k % 3 !== 1, ps = (cfg.prizes || []).filter(p => p.weight > 0);
+            const prize = ps.length ? ps[k % ps.length] : { icon: '🧸', name: 'Gấu bông' };
+            startTurn({ ms: 4000, left: 2 - (k % 3), nickname: names[k % names.length], avatar: '', result: { win, prize: win ? prize : null, clawX: .2 + (k * .23) % .6, slipAt: .5, pityLeft: win ? 0 : 3 } });
+            k++;
+        };
+        setTimeout(fake, 600); setInterval(fake, 4600);
+    }
+    // ?shot=win:0.6 | lose:0.7 — đóng băng 1 khung ở tiến độ đó (chụp ảnh tài liệu / thử headless, không cần quà).
+    function shot(spec) {
+        const [kind, pStr] = String(spec).split(':');
+        const p = Math.min(1, Math.max(0, Number(pStr) || 0.5));
+        const prize = (cfg.prizes || [])[0] || { icon: '🧸', name: 'Gấu bông' };
+        const win = kind !== 'lose', ms = 4000;
+        const t = { ms, left: 2, nickname: 'Mây Hồng', avatar: '', giftImage: '', result: { win, prize: win ? prize : null, clawX: .62, slipAt: .45, pityLeft: 3 } };
+        turn = { ...t, t0: 0, grabIdx: null, dropT: 0 };
+        queueLeft.n = 2; renderQueue(); showWho(t);
+        for (let x = 0; x <= p * ms; x += 16) draw(x);
+        if (p >= 0.84) { showCard(t); clearTimeout(cardTimer); }
+    }
+    window.__gapthu = { startTurn, shot, get cfg() { return cfg; }, draw: () => draw(performance.now()) };
+    layout();
+    if (qs.get('shot')) {
+        document.body.classList.add('gapthu-shot');
+        const go = () => shot(qs.get('shot'));
+        fetch('/api/games/gapthu/config', { cache: 'no-store' }).then(r => r.json()).then(c => { applyConfig(c); go(); }).catch(go);
+    } else requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
