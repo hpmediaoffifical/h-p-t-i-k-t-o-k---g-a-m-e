@@ -24,3 +24,8 @@ test('ẩn danh hoặc mẫu rỗng → không đọc', () => {
     assert.equal(renderTts('', ctx), '');
     assert.equal(renderTts('{tên}', { ...ctx, nickname: '🎉🎉' }), '');
 });
+
+test('biến Sổ Fan: {xu} {buổi} {ngày}', () => {
+    assert.equal(renderTts('{tên} tặng {xu} xu, {buổi} buổi, vắng {ngày} ngày', { ...ctx, xu: 1200, awayDays: 20 }), 'Davina tặng 1200 xu, 12 buổi, vắng 20 ngày');
+    assert.equal(renderTts('{ngày}-{xu}', { nickname: 'A' }), '0-0');
+});

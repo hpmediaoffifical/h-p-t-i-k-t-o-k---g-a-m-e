@@ -85,3 +85,12 @@ test('accentOf: lần đầu > chuỗi > TOP > MOD; thẻ muộn không có', ()
     assert.equal(accentOf({ roles: {} }), '');
     assert.equal(accentOf({ late: true, visit: { isFirst: true } }), '');
 });
+
+test('accentOf: huy hiệu Sổ Fan thắng; Khách quen nhường chuỗi ≥3; thẻ muộn vẫn trống', () => {
+    const sop = { id: 'sop', icon: '💎', label: 'Khách sộp' };
+    const quen = { id: 'quen', icon: '⭐', label: 'Khách quen' };
+    assert.equal(accentOf({ fanTier: sop, visit: { streak: 5 }, roles: { top: 1 } }), '💎 KHÁCH SỘP');
+    assert.equal(accentOf({ fanTier: quen, visit: { streak: 4 }, roles: {} }), '🔥 4 BUỔI LIỀN');
+    assert.equal(accentOf({ fanTier: quen, visit: { streak: 1 }, roles: {} }), '⭐ KHÁCH QUEN');
+    assert.equal(accentOf({ late: true, fanTier: sop }), '');
+});

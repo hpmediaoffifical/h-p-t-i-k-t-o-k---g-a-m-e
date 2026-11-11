@@ -25,7 +25,7 @@ test('streak: có mặt buổi kế tiếp +1, vắng 1 buổi về 1', () => {
     for (const r of ['r1', 'r2', 'r3']) { v.startRoom('h', r); v.record('h', 'u1', r, meta, OCT); }
     assert.equal(v.peek('h', 'u1', 'r4').streak, 1);   // r4 chưa mở buổi → không tính liền
     v.startRoom('h', 'r4');
-    assert.deepEqual(v.peek('h', 'u1', 'r4'), { visitNo: 4, isFirst: false, streak: 4 });
+    assert.deepEqual(v.peek('h', 'u1', 'r4'), { visitNo: 4, isFirst: false, streak: 4, prevAt: OCT });
     v.startRoom('h', 'r5');   // u1 vắng r4
     const x = v.record('h', 'u1', 'r5', meta, OCT);
     assert.deepEqual([x.visitNo, x.streak], [4, 1]);
@@ -42,7 +42,7 @@ test('startRoom idempotent (kết nối lại giữa buổi)', () => {
 test('peek không ghi; isFirst cho người mới', () => {
     const v = createVisits({ file: tmpFile(), saveDelayMs: 0 });
     v.startRoom('h', 'r1');
-    assert.deepEqual(v.peek('h', 'u9', 'r1'), { visitNo: 1, isFirst: true, streak: 1 });
+    assert.deepEqual(v.peek('h', 'u9', 'r1'), { visitNo: 1, isFirst: true, streak: 1, prevAt: 0 });
     assert.equal(v.top('h', { scope: 'all' }, OCT).length, 0);
 });
 
@@ -104,4 +104,21 @@ test('rekey khi cả 2 key đã có: gộp số buổi, không mất dữ liệu
     v.startRoom('h', 'r3'); v.record('h', 'u:x', 'r3', {}, OCT); v.record('h', 'y', 'r3', {}, OCT);
     v.rekey('h', 'u:x', 'y');   // cùng buổi r3 → không đếm 2 lần
     assert.equal(v.top('h', { scope: 'all', q: '' }, OCT).find(x => x.key === 'y').sessions, 1);
+});
+
+test('peek/record: prevAt = lần gặp trước buổi này (giữ nguyên khi vào lại trong buổi), lưu fansLevel, list()', () => {
+    const v = createVisits({ file: tmpFile(), saveDelayMs: 0 });
+    v.startRoom('h', 'r1');
+    assert.equal(v.peek('h', 'u1', 'r1').prevAt, 0);
+    v.record('h', 'u1', 'r1', { ...meta, fansLevel: 7 }, OCT);
+    v.startRoom('h', 'r2');
+    assert.equal(v.peek('h', 'u1', 'r2').prevAt, OCT);
+    v.record('h', 'u1', 'r2', { ...meta, fansLevel: 0 }, NOV);   // 0 = sự kiện không mang cấp fan → giữ số cũ
+    assert.equal(v.peek('h', 'u1', 'r2').prevAt, OCT);            // vào lại trong r2 vẫn thấy lần gặp TRƯỚC buổi
+    const rows = v.list('h');
+    assert.equal(rows.length, 1);
+    assert.deepEqual([rows[0].key, rows[0].sessions, rows[0].lastAt, rows[0].fansLevel], ['u1', 2, NOV, 7]);
+    assert.deepEqual(v.list('khac'), []);
+    assert.equal(v.fansLevelOf('h', 'u1'), 7);
+    assert.equal(v.fansLevelOf('h', 'nobody'), 0);
 });

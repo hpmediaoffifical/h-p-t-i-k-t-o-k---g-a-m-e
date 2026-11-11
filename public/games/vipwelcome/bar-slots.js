@@ -85,7 +85,9 @@
     function accentOf(card) {
         if (!card) return '';
         if (card.late) return '';
-        const v = card.visit, r = card.roles || {};
+        const v = card.visit, r = card.roles || {}, f = card.fanTier;
+        // Sổ Fan: 1 huy hiệu bậc fan; riêng Khách quen nhường chuỗi buổi liền (cụ thể hơn)
+        if (f && f.label && !(f.id === 'quen' && v && v.streak >= 3)) return ((f.icon ? f.icon + ' ' : '') + String(f.label).toUpperCase()).trim();
         if (v && v.isFirst) return '🎉 LẦN ĐẦU GHÉ';
         if (v && v.streak >= 3) return '🔥 ' + v.streak + ' BUỔI LIỀN';
         if (r.top > 0) return '👑 TOP ' + r.top;

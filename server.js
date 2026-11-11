@@ -143,6 +143,8 @@ const { createMediaQueue: createVipMediaQueue } = require('./lib/vipwelcome/medi
 const { createVisits: createVipVisits } = require('./lib/vipwelcome/visits');
 const { createBatcher: createVipBatcher } = require('./lib/vipwelcome/batcher');
 const { renderTts: vipRenderTts } = require('./lib/vipwelcome/tts-text');
+// Sổ Fan: bậc khách sộp / lâu rồi mới gặp / fan cứng / khách quen / khách mới (dùng chung sổ xu + sổ ghé)
+const vwFan = require('./lib/vipwelcome/fan-tiers');
 
 // === Mọi data source đi qua license-server (HP Media kiểm soát) ===
 // App không biết thông tin backend → installer .exe extract ra cũng không lộ gì.
@@ -10926,6 +10928,28 @@ function vipTtsVolume(jc) {
     const v = Number(jc?.tts?.volume);
     return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 90;   // 0 = tắt tiếng thật, không về 90
 }
+// Sổ Fan — bậc của 1 người lúc vào phòng (chưa ghi lần ghé này). null = ẩn danh / chủ phòng / tắt / không bậc nào.
+function vipFanFor(user, key, ctx) {
+    const jc = vipJoinCfg();
+    const host = ctx?.host || vipHostKey(), room = ctx?.room || vipRoomKey();
+    const noVisit = ctx?.noVisit ?? vipNoVisit(user, key);
+    if (noVisit || !key) return null;
+    const peek = vipVisits.peek(host, key, room);
+    const stored = vipVisits.fansLevelOf(host, key);
+    const stats = {
+        visitNo: peek.visitNo, isFirst: peek.isFirst, prevAt: peek.prevAt || 0,
+        xu: vipLedger.get(host, key), fansLevel: Math.max(Number(user?.fansLevel) || 0, stored), now: Date.now(), noVisit
+    };
+    const tier = vwFan.classifyFan(stats, vwFan.normalizeFanTiers(jc.fanTiers), { enabled: jc.fanTiersOn !== false });
+    return tier ? { tier, stats } : null;
+}
+// matchJoin + Sổ Fan: không bậc cấp / luật ID nào khớp mà bậc fan "chào dù cấp thấp" → vẫn chào.
+function vipMatchJoin(cfg, user, key) {
+    const match = vwTiers.matchJoin(cfg, user);
+    if (match) return match;
+    const fan = vipFanFor(user, key);
+    return fan ? vwFan.fanMatch(fan.tier, vwTiers.TIER_PRIORITY_BASE) : null;
+}
 function vipBuildCard(user, key, match, { late = false } = {}) {
     const jc = vipJoinCfg();
     const enigma = !!user.isEnigma;
@@ -10933,6 +10957,7 @@ function vipBuildCard(user, key, match, { late = false } = {}) {
     const host = vipHostKey(), room = vipRoomKey();
     const noVisit = vipNoVisit(user, key);
     const peek = noVisit ? null : vipVisits.peek(host, key, room);
+    const fan = vipFanFor(user, key, { host, room, noVisit });
     return {
         host, room, noVisit,
         visitNo: peek?.visitNo || 0,   // cho câu đọc {lần} kể cả khi tắt chip "lần ghé"
@@ -10953,6 +10978,7 @@ function vipBuildCard(user, key, match, { late = false } = {}) {
         xu: vipLedger.get(vipHostKey(), key),
         // Khách quen: số SẼ ghi khi overlay xác nhận thẻ đã hiện (1 buổi LIVE chỉ đếm 1)
         visit: jc.showVisits === false ? null : peek,
+        fanTier: vwFan.fanBadge(fan?.tier),   // 1 huy hiệu Sổ Fan (bậc ưu tiên cao nhất)
         late,
         enterText: jc.enterText || 'VÀO PHÒNG',
         ruleLabel: match.label || '',
@@ -10986,7 +11012,7 @@ function vipStartRoom() {
 function vipRecordVisit(key, meta, host, room) {
     if (!key || vipIsFakeUserId(key) || meta?.noVisit || !host || !room) return;   // giả lập / ẩn danh / chủ phòng không vào sổ
     vipVisits.startRoom(host, room);
-    vipVisits.record(host, key, room, { uniqueId: meta.uniqueId, nickname: meta.nickname, avatar: meta.avatar }, Date.now());
+    vipVisits.record(host, key, room, { uniqueId: meta.uniqueId, nickname: meta.nickname, avatar: meta.avatar, fansLevel: meta.fansLevel }, Date.now());
 }
 function vipBoardPayload() {
     const b = vipJoinCfg().board || {};
@@ -11060,7 +11086,7 @@ function vipHandleJoinSignal(signal) {
     if (!key) { console.log(`[vipwelcome] ⚠ JOIN bỏ qua: thiếu cả userId lẫn @id (source=${signal.source})`); return; }
     const now = Date.now();
     const antiDupMs = Math.max(1, Number(jc.antiDupSec) || 10) * 1000;
-    const match = vwTiers.matchJoin(cfg, user);
+    const match = vipMatchJoin(cfg, user, key);
     const decision = vipPresence.onJoinSignal(key, now, { antiDupMs, cooldownMs: (match?.cooldownSec || 0) * 1000, source: signal.source });
     const who = `@${user.uniqueId || '?'} "${user.nickname || ''}" LV${user.level} FAN${user.fansLevel}`;
     const prev = vipJoinLastMatch.get(key);
@@ -11115,10 +11141,15 @@ function vipHandleJoinSignal(signal) {
     // Đọc tên: gắn LUÔN vào lượt media của người đó (overlay đọc ngay khi clip kết thúc, cùng 1 lượt) → không ai chen
     // vào giữa, không hết hạn riêng. Không có media thì đọc tên là 1 lượt riêng cùng mức ưu tiên.
     let ttsText = '';
-    if (jc.tts?.enabled !== false && match.tts?.enabled) {
-        ttsText = vipRenderTts(match.tts.template, {
-            nickname: user.nickname, uniqueId: user.uniqueId, title: match.title, level: user.level,
-            fansLevel: user.fansLevel, visitNo: card.visitNo, isEnigma: user.isEnigma
+    // Bậc Sổ Fan bật đọc → câu của bậc fan (kể cả khi bậc cấp TikTok tắt đọc); người chỉ định theo ID giữ câu riêng.
+    const fan = match.kind === 'user' ? null : vipFanFor(user, key, { host: card.host, room: card.room, noVisit: card.noVisit });
+    const fanTts = vwFan.fanTts(fan?.tier);
+    const tts = fanTts || (match.tts?.enabled ? match.tts : null);
+    if (jc.tts?.enabled !== false && tts) {
+        ttsText = vipRenderTts(tts.template, {
+            nickname: user.nickname, uniqueId: user.uniqueId, title: fanTts ? fan.tier.label : match.title, level: user.level,
+            fansLevel: user.fansLevel, visitNo: card.visitNo, isEnigma: user.isEnigma,
+            xu: fan?.stats.xu ?? card.xu, awayDays: fan ? vwFan.awayDays(fan.stats.prevAt, fan.stats.now) : 0
         });
     }
     if (match.media) {
@@ -11149,7 +11180,7 @@ function vipHandleActivity(rawUser, opts) {
     const key = vipPrepareUser(user);
     if (!key) return;
     if (vipPresence.onActivity(key, Date.now(), { lateEnabled: jc.lateWelcome !== false }) !== 'late') return;
-    const match = vwTiers.matchJoin(cfg, user);
+    const match = vipMatchJoin(cfg, user, key);
     if (!match) return;
     console.log(`[vipwelcome] Chào muộn @${user.uniqueId || '?'} "${user.nickname || ''}" → ${match.label}`);
     vipSendCard(vipBuildCard(user, key, match, { late: true }));
@@ -11780,6 +11811,16 @@ app.post('/api/games/vipwelcome/visits', express.json(), (req, res) => {
     res.status(400).json({ ok: false, error: 'bad_action' });
 });
 app.get('/api/games/vipwelcome/board', (req, res) => res.json(vipBoardPayload()));
+// Sổ Fan — gộp sổ xu + sổ ghé của kênh đang kết nối, kèm bậc fan (tính như lúc người đó vào buổi kế tiếp)
+app.get('/api/vipwelcome/fanbook', (req, res) => {
+    const host = vipHostKey();
+    const jc = vipJoinCfg();
+    const tiers = vwFan.normalizeFanTiers(jc.fanTiers);
+    const items = vwFan.buildFanBook({ visits: vipVisits.list(host), ledger: vipLedger.list(host, { limit: 100000 }) }, tiers, Date.now(), {
+        q: String(req.query.q || ''), sort: String(req.query.sort || 'xu'), limit: Math.min(1000, Number(req.query.limit) || 200)
+    });
+    res.json({ host, enabled: jc.fanTiersOn !== false, tiers, items });
+});
 
 app.get('/api/games/vipwelcome/ledger', (req, res) => {
     const host = String(req.query.host || vipHostKey());
