@@ -2,7 +2,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
-const { assetName, parseSums, parseSearchOutput, parseAudioJson, verifyBinary } = require('../lib/goi-bai/ytdlp');
+const { assetName, parseSums, parseSearchOutput, parseAudioJson, verifyBinary, isStale } = require('../lib/goi-bai/ytdlp');
+
+test('isStale: bản yt-dlp quá N ngày → cần cập nhật; phiên bản lạ → không đoán', () => {
+    const now = Date.UTC(2026, 10, 12);
+    assert.equal(isStale('2026.10.26', now, 14), true);
+    assert.equal(isStale('2026.11.05', now, 14), false);
+    assert.equal(isStale('2026.10.26.232901', now, 30), false, 'bản nightly có hậu tố');
+    assert.equal(isStale('', now, 14), false);
+    assert.equal(isStale('abc', now, 14), false);
+});
 
 test('assetName theo nền tảng', () => {
     assert.equal(assetName('win32'), 'yt-dlp.exe');
