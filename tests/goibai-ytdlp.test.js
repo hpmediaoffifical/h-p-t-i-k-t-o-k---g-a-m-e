@@ -76,3 +76,9 @@ test('parseAudioJson: JSON hỏng / thiếu url → null', () => {
     assert.equal(parseAudioJson('không phải json', 0), null);
     assert.equal(parseAudioJson('{}', 0), null);
 });
+
+test('parseAudioJson: heatmap (đoạn hay nhất) — có thì gọn lại, không có thì mảng rỗng', () => {
+    const j = { url: 'https://x/y', duration: 200, heatmap: [{ start_time: 2, end_time: 4, value: 0.5 }, { start_time: 0, end_time: 2, value: 1 }, null] };
+    assert.deepEqual(parseAudioJson(JSON.stringify(j), 1_000).heatmap, [{ s: 0, e: 2, v: 1 }, { s: 2, e: 4, v: 0.5 }]);
+    assert.deepEqual(parseAudioJson(JSON.stringify({ url: 'https://x/y' }), 1_000).heatmap, []);
+});
