@@ -198,3 +198,7 @@ duelSinkAfter:2, duelShowSec:5`.
 - `tests/goibai-logic.test.js`: nối dài (người gọi / trùng bài), mở trận đúng điều kiện, 1 phiếu/người, quà người bầu, thắng
   lên đầu, hoà, thua 2 trận chìm, huỷ trận, chốt sớm khi bài kết thúc.
 - `tests/goibai-ytdlp.test.js`: `parseAudioJson` trả `heatmap`.
+- Thử thật 12/11/2026 (server cổng riêng + tab trình phát): "Lạc Trôi" 98,3→143,3 s (đỉnh giây 134), "Nơi Này Có Anh"
+  114,4→159,4 s, bài không heatmap phát 0→45 s; đoạn 45 s dừng ở 45,7 s; nối dài 45→90 s; 3 trận tự mở/chốt, bài thua 2 trận chìm.
+  Hai lỗi tìm ra khi thử: fade đếm bước bị tab nền hãm (dừng lố 29 s) → tính theo đồng hồ thật + chốt cứng `endAt + 0,5 s`;
+  chống kẹt GĐ1 báo nhầm lúc yt-dlp còn lấy link bài đầu → phát lại từ 0 s → chỉ tính sau khi lệnh `play` đã gửi.

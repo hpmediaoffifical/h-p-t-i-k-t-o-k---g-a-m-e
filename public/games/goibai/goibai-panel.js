@@ -37,6 +37,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
                 <div class="gob-grid">
                     <div class="gob-col">
                         <div class="gob-box" id="gob-now"></div>
+                        <div class="gob-box gob-duelbox" id="gob-duel" hidden></div>
                         <div class="gob-box"><div class="gob-h">${hpT('Hàng chờ')} <span id="gob-qn"></span></div><div id="gob-queue"></div></div>
                         <div class="gob-box" id="gob-passes-box"><div class="gob-h">${hpT('Lượt chờ gõ bài')}</div><div id="gob-passes"></div></div>
                         <div class="gob-box">
@@ -44,6 +45,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
                             <div class="gob-line"><input id="gob-t-nick" placeholder="${hpTA('Tên người xem')}" value="Người xem thử"><input id="gob-t-coins" type="number" min="1" value="1" title="${hpTA('Số xu')}" style="width:80px"></div>
                             <div class="gob-line"><input id="gob-t-song" placeholder="${hpTA('Tên bài (để trống = chỉ tạo lượt)')}" style="flex:1"></div>
                             <div class="gob-line"><button id="gob-t-call" class="primary small">${hpT('Gọi thử')}</button><button id="gob-t-music" class="ghost small" title="${hpTA('Giả lập quà 🎵 Ca khúc với tên bài ở trên')}">${hpT('Thử Ca khúc')}</button><span id="gob-t-msg" class="gob-muted"></span></div>
+                            <div class="gob-line"><span class="gob-muted">${hpT('⚔️ Đấu Bài:')}</span><button id="gob-t-v1" class="ghost small" title="${hpTA('Người xem ở trên bình luận 1')}">${hpT('Bầu 1')}</button><button id="gob-t-v2" class="ghost small" title="${hpTA('Người xem ở trên bình luận 2')}">${hpT('Bầu 2')}</button><span class="gob-muted">${hpT('rồi Gọi thử để tặng quà cho bài đã bầu')}</span></div>
                         </div>
                     </div>
                     <div class="gob-col" id="gob-settings"></div>
@@ -75,6 +77,13 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             .gob-gift img { width: 30px; height: 30px; object-fit: contain; } .gob-gift b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
             .gob-switch { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
             .gob-warn { color: #d39b16; font-size: 12px; }
+            .gob-clip { margin-left: 6px; padding: 0 6px; border-radius: 6px; background: rgba(255,170,40,.18); color: #d39b16; font-size: 12px; font-weight: 600; }
+            .gob-duelbox { border-color: rgba(255,120,60,.55); }
+            .gob-duel-vs { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
+            .gob-duel-vs > div { min-width: 0; } .gob-duel-vs b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .gob-duel-vs .r { text-align: right; }
+            .gob-duel-bar { display: flex; height: 6px; border-radius: 4px; overflow: hidden; margin-top: 6px; background: rgba(127,127,127,.2); }
+            .gob-duel-bar i:first-child { background: #ff4f8b; } .gob-duel-bar i:last-child { background: #4f8bff; margin-left: auto; }
             @media (max-width: 900px) { .gob-grid { grid-template-columns: 1fr; } }`;
         document.head.appendChild(css);
         return sec;
@@ -116,6 +125,22 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
                 ${numField('lockFirst', hpT('Khoá bài đầu'), 0, 10)}
                 ${numField('waitBonus', hpT('Điểm / phút chờ'), 0, 10000, 5)}
             </div>
+            <div class="gob-box"><div class="gob-h">${hpT('⚡ Đoạn hay nhất')}</div>
+                <div class="gob-line"><label><input type="checkbox" data-c="clipOn" ${cfg.clipOn !== false ? 'checked' : ''}> ${hpT('Chỉ phát đoạn hay nhất (theo xu)')}</label></div>
+                ${numField('clipShortSec', hpT('Dưới mốc 1 (giây)'), 15, 600, 5)}
+                ${numField('clipMidCoins', hpT('Mốc 1 (xu)'), 1, 100000)}
+                ${numField('clipLongSec', hpT('Từ mốc 1 (giây)'), 15, 1200, 5)}
+                ${numField('clipFullCoins', hpT('Mốc 2 = cả bài (xu)'), 1, 1000000)}
+                <div class="gob-muted">${hpT('Đoạn lấy theo chỗ người xem YouTube tua lại nhiều nhất. Bài không có dữ liệu → phát từ đầu. Tặng thêm khi đang phát → nối dài.')}</div>
+            </div>
+            <div class="gob-box"><div class="gob-h">${hpT('⚔️ Đấu Bài')}</div>
+                <div class="gob-line"><label><input type="checkbox" data-c="duel" ${cfg.duel !== false ? 'checked' : ''}> ${hpT('2 bài kế tiếp đấu nhau, bài thắng phát trước')}</label></div>
+                ${numField('duelSec', hpT('Thời gian trận (giây)'), 5, 60)}
+                ${numField('duelVotePts', hpT('Điểm mỗi phiếu'), 0, 1000, 1, hpT('1 xu = 1 điểm'))}
+                ${numField('duelSinkAfter', hpT('Thua liên tiếp → cuối hàng'), 0, 10, 1, hpT('0 = không'))}
+                <div class="gob-line"><button class="obs-link small" id="gob-btn-obs-duel" title="${hpTA('Link OBS chỉ có thẻ Đấu Bài — đặt riêng trong Scene')}">${hpT('OBS: chỉ thẻ trận')}</button></div>
+                <div class="gob-muted">${hpT('Mở trong lúc 1 bài đang phát. Người xem bình luận 1 / 2 (1 phiếu), tặng quà cho bài đã bầu.')}</div>
+            </div>
             <div class="gob-box"><div class="gob-h">${hpT('Hiển thị')}</div>
                 ${numField('listRows', hpT('Số dòng trên OBS'), 1, 15)}
                 <div class="gob-line"><label><input type="checkbox" data-c="idleHint" ${cfg.idleHint !== false ? 'checked' : ''}> ${hpT('Hiện gợi ý khi hàng trống')}</label></div>
@@ -134,6 +159,11 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         box.querySelectorAll('input[data-t]').forEach(el => el.addEventListener('change', () => { cfg[el.dataset.t] = el.value.trim(); schedulePersist(); }));
         box.querySelectorAll('[data-del]').forEach(el => el.addEventListener('click', () => { cfg.gifts.splice(Number(el.dataset.del), 1); renderSettings(); schedulePersist(); }));
         $('#gob-add-gift').addEventListener('click', openGiftPicker);
+        $('#gob-btn-obs-duel').addEventListener('click', () => {
+            const url = window.buildOverlayURL('/overlay/goibai') + '?view=duel';
+            if (window.hpObsQuick) { window.hpObsQuick(url, 'Gọi Bài — Đấu Bài'); return; }
+            navigator.clipboard?.writeText(url);
+        });
         renderYtdlp();
     }
 
@@ -173,12 +203,26 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         if (!st) return;
         renderStatus(); renderYtdlp();
         const p = st.playing;
+        const c = p && p.clip && !p.clip.full ? p.clip : null;
+        const from = c ? c.start : 0, to = c && c.end != null ? c.end : (p ? (p.dur || p.duration) : 0);
         $('#gob-now').innerHTML = p
-            ? `<div class="gob-now"><img src="${esc(p.thumb || '')}" alt=""><div><b>${esc(p.title)}</b><span class="gob-muted">${esc(p.nickname)} · ${esc(p.coins)} ${COIN} · ${fmtTime(p.pos)} / ${fmtTime(p.dur || p.duration)}</span><div class="gob-bar"><i style="width:${(p.dur || p.duration) ? Math.min(100, (p.pos || 0) * 100 / (p.dur || p.duration)) : 0}%"></i></div></div></div>`
+            ? `<div class="gob-now"><img src="${esc(p.thumb || '')}" alt=""><div><b>${esc(p.title)}${c ? `<span class="gob-clip">⚡ ${esc(c.len)}s</span>` : ''}</b><span class="gob-muted">${esc(p.nickname)} · ${esc(p.coins)} ${COIN} · ${fmtTime(p.pos)} / ${c ? fmtTime(from) + '→' + fmtTime(to) : fmtTime(to)}</span><div class="gob-bar"><i style="width:${to > from ? Math.max(0, Math.min(100, ((p.pos || 0) - from) * 100 / (to - from))) : 0}%"></i></div></div></div>`
             : `<span class="gob-muted">${hpT('Chưa phát bài nào.')}</span>`;
+        const d = st.duel, w = st.lastDuel, db = $('#gob-duel');
+        db.hidden = !d && !w;
+        if (d) {
+            const left = Math.max(0, Math.ceil((d.endsAt - (st.now || Date.now())) / 1000));
+            const tot = (d.a.pts || 0) + (d.b.pts || 0), wa = tot ? Math.round(d.a.pts * 100 / tot) : 50;
+            db.innerHTML = `<div class="gob-h">${hpT('⚔️ Đấu Bài')} <span class="gob-muted">${hpT('còn {s} giây', { s: left })}</span></div>
+                <div class="gob-duel-vs"><div><b>1 · ${esc(d.a.title)}</b><span class="gob-muted">${hpT('{p} điểm · {v} phiếu', { p: d.a.pts, v: d.a.votes })}</span></div><span>VS</span>
+                <div class="r"><b>${esc(d.b.title)} · 2</b><span class="gob-muted">${hpT('{p} điểm · {v} phiếu', { p: d.b.pts, v: d.b.votes })}</span></div></div>
+                <div class="gob-duel-bar"><i style="width:${wa}%"></i><i style="width:${100 - wa}%"></i></div>`;
+        } else if (w) {
+            db.innerHTML = `<div class="gob-h">${hpT('⚔️ Đấu Bài')}</div><div>🏆 <b>${esc(w.winnerTitle)}</b> ${hpT('thắng — phát tiếp theo')}${w.sunk ? ` <span class="gob-muted">${hpT('· “{t}” về cuối hàng', { t: w.loserTitle })}</span>` : ''}</div>`;
+        }
         $('#gob-qn').textContent = st.queueTotal ? hpT('{n} bài', { n: st.queueTotal }) : '';
         $('#gob-queue').innerHTML = (st.queue || []).map((r, i) => `<div class="gob-row"><span>${r.locked ? '🔒' : i + 1}</span>
-            <div class="t"><b>${esc(r.status === 'searching' ? hpT('đang tìm “{q}”…', { q: r.query }) : r.title)}</b><span>${esc(r.nickname)}${r.backers && r.backers.length ? ' +' + r.backers.length : ''}${r.source === 'music' ? ' · 🎵' : ''} · ${hpT('{n} điểm', { n: r.score })}</span></div>
+            <div class="t"><b>${esc(r.status === 'searching' ? hpT('đang tìm “{q}”…', { q: r.query }) : r.title)}</b><span>${esc(r.nickname)}${r.backers && r.backers.length ? ' +' + r.backers.length : ''}${r.source === 'music' ? ' · 🎵' : ''}${r.sunk ? ' · ' + hpT('⬇ thua đấu') : ''} · ${hpT('{n} điểm', { n: r.score })}</span></div>
             <span>${esc(r.coins)} ${COIN}</span>
             <span class="acts"><button class="ghost small" data-top="${esc(r.id)}" title="${hpTA('Đưa lên đầu hàng')}">⏫</button><button class="ghost small" data-rm="${esc(r.id)}" title="${hpTA('Xoá khỏi hàng chờ')}">✕</button></span></div>`).join('')
             || `<span class="gob-muted">${hpT('Hàng chờ trống')}</span>`;
@@ -257,6 +301,15 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         };
         $('#gob-t-call').addEventListener('click', () => test(false));
         $('#gob-t-music').addEventListener('click', () => test(true));
+        const vote = async (v) => {
+            const msg = $('#gob-t-msg');
+            try {
+                const r = await fetch('/api/goibai/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nickname: $('#gob-t-nick').value, vote: v }) }).then(x => x.json());
+                msg.textContent = r.ok ? hpT('Đã bầu bài {v}', { v }) : r.reason === 'voted' ? hpT('Người này đã bầu rồi') : (r.error || hpT('Lỗi'));
+            } catch (e) { msg.textContent = hpT('Lỗi kết nối server'); }
+        };
+        $('#gob-t-v1').addEventListener('click', () => vote('1'));
+        $('#gob-t-v2').addEventListener('click', () => vote('2'));
     }
 
     function open(sharedSocket) {

@@ -54,6 +54,36 @@
   .gob-more { text-align: center; font-size: 20px; opacity: .75; padding: 6px 0 4px; }
   .gob-idle { display: flex; align-items: center; gap: 10px; padding: 12px 16px; font-size: 24px; }
   .gob-idle img { width: 44px; height: 44px; object-fit: contain; }
+  .gob-clip { display: inline-block; margin-left: 8px; padding: 0 10px; border-radius: 10px; background: rgba(255, 213, 74, .18); color: #ffd54a; font-size: 18px; }
+
+  /* ⚔️ Đấu Bài */
+  .gob-duel { padding: 12px 14px 14px; border-color: rgba(255, 120, 60, .75); animation: gobPop .35s ease-out; }
+  .gob-duel-h { display: flex; justify-content: space-between; align-items: center; font-size: 24px; font-weight: 700; color: #ffb36b; letter-spacing: .5px; }
+  .gob-duel-h b { min-width: 52px; text-align: center; padding: 2px 10px; border-radius: 12px; background: rgba(255, 120, 60, .25); color: #fff; }
+  .gob-duel-vs { display: grid; grid-template-columns: 1fr 44px 1fr; align-items: center; gap: 8px; margin-top: 10px; }
+  .gob-side { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: center; min-width: 0; }
+  .gob-side.b { grid-template-columns: 1fr 64px; text-align: right; }
+  .gob-side.b .gob-side-img { order: 2; }
+  .gob-side-img { position: relative; width: 64px; height: 64px; }
+  .gob-side-img img { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; background: #23284a; }
+  .gob-side-img i { position: absolute; top: -8px; left: -8px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-weight: 700; font-size: 20px; background: #ff4f8b; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); }
+  .gob-side.b .gob-side-img i { left: auto; right: -8px; background: #4f8bff; }
+  .gob-side .t { min-width: 0; }
+  .gob-side .t b { font-size: 22px; line-height: 1.15; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .gob-side .t span { display: block; font-size: 18px; opacity: .78; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gob-duel-x { text-align: center; font-size: 26px; font-weight: 700; color: #ffb36b; }
+  .gob-duel-bar { display: flex; height: 14px; border-radius: 8px; overflow: hidden; margin-top: 12px; background: rgba(255, 255, 255, .12); }
+  .gob-duel-bar i { display: block; height: 100%; transition: width .4s ease; }
+  .gob-duel-bar .a { background: linear-gradient(90deg, #ff4f8b, #ff8a5c); }
+  .gob-duel-bar .b { background: linear-gradient(90deg, #5cb8ff, #4f8bff); margin-left: auto; }
+  .gob-duel-pts { display: flex; justify-content: space-between; font-size: 20px; margin-top: 6px; }
+  .gob-duel-pts b { font-size: 24px; }
+  .gob-duel-pts img { width: 20px; height: 20px; vertical-align: -3px; }
+  .gob-duel-hint { text-align: center; font-size: 19px; opacity: .85; margin-top: 4px; }
+  .gob-duel-win { display: flex; align-items: center; gap: 12px; padding: 12px 16px; font-size: 24px; border-color: rgba(255, 213, 74, .7); animation: gobPop .35s ease-out; }
+  .gob-duel-win b { color: #ffd54a; }
+  .gob-duel-win small { display: block; font-size: 19px; opacity: .8; }
+  body.gob-only-duel #now, body.gob-only-duel #tickets, body.gob-only-duel #list, body.gob-only-duel #idle { display: none !important; }
 </style>
 </head>
 <body>
@@ -67,6 +97,8 @@
     </div>
     <div class="gob-bar"><i id="now-bar"></i></div>
   </div>
+  <div class="gob-card gob-duel gob-hidden" id="duel"></div>
+  <div class="gob-card gob-duel-win gob-hidden" id="duel-win"></div>
   <div id="tickets"></div>
   <div class="gob-card gob-list gob-hidden" id="list"></div>
   <div class="gob-card gob-idle gob-hidden" id="idle"></div>
@@ -99,6 +131,7 @@
       $('now-cover').src = p.thumb || '';
       $('now-title').textContent = p.title || p.query || '';
       $('now-tag').textContent = st.paused ? T('⏸ TẠM DỪNG') : T('🎧 ĐANG PHÁT');
+      if (p.clip && !p.clip.full && p.clip.len) { var cl = document.createElement('span'); cl.className = 'gob-clip'; cl.textContent = '⚡ ' + p.clip.len + 's'; $('now-tag').appendChild(cl); }
       $('now-tag').classList.toggle('gob-paused', !!st.paused);
       $('now-by').innerHTML = (p.avatar ? '<img src="' + esc(p.avatar) + '" alt="">' : '') + '<span>' + esc(p.nickname) + ' · ' + esc(p.coins) + ' ' + COIN + '</span>';
     }
@@ -124,6 +157,54 @@
     $('idle').classList.toggle('gob-hidden', !idle);
     if (idle) $('idle').innerHTML = (gift.giftImage ? '<img src="' + esc(gift.giftImage) + '" alt="">' : '🎁') + '<span>' + esc(T('Tặng {g} để gọi bài', { g: gift.giftName || T('quà') })) + '</span>';
     renderTickets();
+    renderDuel();
+  }
+
+  // ⚔️ Thẻ trận: dựng khung 1 lần/trận, sau đó chỉ đổi số (như thẻ lượt — tránh hoạt cảnh chạy lại)
+  var duelId = '';
+  function sideHtml(k, d, n) {
+    return '<div class="gob-side ' + k + '"><div class="gob-side-img"><img src="' + esc(d.thumb || '') + '" alt="" onerror="this.style.visibility=\'hidden\'"><i>' + n + '</i></div>' +
+      '<div class="t"><b>' + esc(d.title) + '</b><span>' + esc(d.nickname) + '</span></div></div>';
+  }
+  function renderDuel() {
+    if (!st) return;
+    var d = st.duel, box = $('duel');
+    box.classList.toggle('gob-hidden', !d);
+    if (!d) { duelId = ''; }
+    else {
+      if (duelId !== d.id) {
+        duelId = d.id;
+        box.innerHTML = '<div class="gob-duel-h"><span>' + esc(T('⚔️ ĐẤU BÀI — bài thắng phát trước')) + '</span><b class="cd"></b></div>' +
+          '<div class="gob-duel-vs">' + sideHtml('a', d.a, 1) + '<div class="gob-duel-x">VS</div>' + sideHtml('b', d.b, 2) + '</div>' +
+          '<div class="gob-duel-bar"><i class="a"></i><i class="b"></i></div>' +
+          '<div class="gob-duel-pts"><span class="pa"></span><span class="pb"></span></div>' +
+          '<div class="gob-duel-hint">' + esc(T('Bình luận 1 hoặc 2 · tặng quà cho bài đã chọn')) + '</div>';
+      }
+      var tot = (d.a.pts || 0) + (d.b.pts || 0);
+      var wa = tot > 0 ? Math.max(6, Math.min(94, d.a.pts * 100 / tot)) : 50;
+      box.querySelector('.gob-duel-bar .a').style.width = wa + '%';
+      box.querySelector('.gob-duel-bar .b').style.width = (100 - wa) + '%';
+      var line = function (x) { return '<b>' + esc(x.pts) + '</b> · ' + esc(T('{v} phiếu', { v: x.votes })) + (x.giftCoins ? ' · ' + esc(x.giftCoins) + ' ' + COIN : ''); };
+      var pa = line(d.a), pb = line(d.b);
+      if (box.querySelector('.pa').innerHTML !== pa) box.querySelector('.pa').innerHTML = pa;
+      if (box.querySelector('.pb').innerHTML !== pb) box.querySelector('.pb').innerHTML = pb;
+      tickDuel();
+    }
+    var w = !d && st.lastDuel, wb = $('duel-win');
+    wb.classList.toggle('gob-hidden', !w);
+    if (w) {
+      var html = '🏆<div><b>' + esc(w.winnerTitle) + '</b> ' + esc(T('thắng — phát tiếp theo')) +
+        (w.sunk ? '<small>' + esc(T('“{t}” thua 2 trận → về cuối hàng', { t: w.loserTitle })) + '</small>' : '') + '</div>';
+      if (wb.innerHTML !== html) wb.innerHTML = html;
+    }
+  }
+  function tickDuel() {
+    var d = st && st.duel;
+    if (!d) return;
+    var el = $('duel').querySelector('.cd');
+    if (!el) return;
+    var left = Math.max(0, Math.ceil((d.endsAt - (Date.now() - offset)) / 1000)) + 's';
+    if (el.textContent !== left) el.textContent = left;
   }
 
   // Thẻ lượt: GIỮ nguyên nút DOM theo người (key) — chỉ dựng thẻ khi có lượt mới, còn lại cập nhật số đếm tại chỗ.
@@ -156,15 +237,15 @@
     Array.prototype.slice.call(box.children).forEach(function (el) { if (!keep[el.getAttribute('data-sig')]) el.remove(); });
   }
 
+  // ⚡ thanh tiến trình tính TRONG đoạn đang phát (đoạn hay nhất), không phải cả bài
   function tickBar() {
-    if (st && st.playing && !st.paused) {
-      var p = st.playing, dur = p.dur || p.duration || 0;
-      var pos = (p.pos || 0) + (Date.now() - recvAt) / 1000;
-      $('now-bar').style.width = dur > 0 ? Math.min(100, pos * 100 / dur) + '%' : '0%';
-    } else if (st && st.playing) {
-      var p2 = st.playing, d2 = p2.dur || p2.duration || 0;
-      $('now-bar').style.width = d2 > 0 ? Math.min(100, (p2.pos || 0) * 100 / d2) + '%' : '0%';
-    }
+    if (!st || !st.playing) return;
+    var p = st.playing, c = p.clip;
+    var dur = p.dur || p.duration || 0;
+    var from = c && !c.full ? (c.start || 0) : 0;
+    var to = c && !c.full && c.end != null ? c.end : dur;
+    var pos = (p.pos || 0) + (st.paused ? 0 : (Date.now() - recvAt) / 1000);
+    $('now-bar').style.width = to > from ? Math.max(0, Math.min(100, (pos - from) * 100 / (to - from))) + '%' : '0%';
   }
 
   function apply(s) {
@@ -173,10 +254,13 @@
   }
 
   var qs = new URLSearchParams(location.search);
+  if (qs.get('view') === 'duel') document.body.classList.add('gob-only-duel');   // link OBS riêng chỉ thẻ trận
   if (qs.get('demo') === '1') {
     var n = Date.now();
     apply({ now: n, paused: false, cfg: { listRows: 5, countdownSec: 15, idleHint: true, gifts: [{ giftName: 'Hoa hồng', giftImage: '' }] },
-      playing: { id: 'p', title: 'Nơi Này Có Anh', nickname: 'Linh Chi', coins: 199, thumb: 'https://i.ytimg.com/vi/FN7ALfpGxiI/mqdefault.jpg', pos: 40, dur: 260 },
+      playing: { id: 'p', title: 'Nơi Này Có Anh', nickname: 'Linh Chi', coins: 199, thumb: 'https://i.ytimg.com/vi/FN7ALfpGxiI/mqdefault.jpg', pos: 140, dur: 260, clip: { start: 120, end: 210, len: 90, full: false } },
+      duel: { id: 'd1', endsAt: n + 11000, a: { title: 'Lạc Trôi', nickname: 'Hà My', thumb: 'https://i.ytimg.com/vi/Llw9Q6akRo4/mqdefault.jpg', pts: 46, votes: 16, giftCoins: 30 },
+        b: { title: 'Em Của Ngày Hôm Qua', nickname: 'Quang', thumb: '', pts: 21, votes: 21, giftCoins: 0 } },
       passes: [{ key: 'g', nickname: 'Minh Tuấn', coins: 1, cdUntil: n + 12000, validUntil: n + 600000, note: '' }],
       queue: [
         { id: 'a', title: 'Lạc Trôi', nickname: 'Hà My', coins: 99, locked: true, status: 'ready' },
@@ -189,7 +273,7 @@
     socket.on('goibai:state', apply);
     socket.on('overlay:reload', function (d) { if (!d || !d.gameId || d.gameId === 'goibai') location.reload(); });
   }
-  setInterval(function () { renderTickets(); tickBar(); }, 250);
+  setInterval(function () { renderTickets(); tickBar(); tickDuel(); }, 250);
 })();
 </script>
 </body>

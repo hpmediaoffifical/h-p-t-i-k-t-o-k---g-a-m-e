@@ -26,6 +26,8 @@
   var cur = { id: '', title: '' };
   var target = 0.7;          // âm lượng mong muốn 0..1
   var fadeTimer = null, lastProgress = 0, pendingStart = 0, wantPlay = false;
+  // ⚡ đoạn hay nhất: dừng ở endAt (giây, null = hết bài) — fade ra END_FADE giây trước điểm dừng rồi báo 'ended'
+  var endAt = null, ending = false, END_FADE = 1.5;
 
   function send(type, extra) {
     if (!cur.id) return;
@@ -35,17 +37,21 @@
   }
   function fade(to, ms, done) {
     clearInterval(fadeTimer);
-    var from = audio.volume, steps = Math.max(1, Math.round(ms / 40)), i = 0;
+    // Tính theo đồng hồ thật, không đếm bước: tab nền bị hãm setInterval 1 lần/giây → đếm 38 bước thành 38 giây
+    // (đoạn 45 s từng dừng ở giây 74 khi chạy `node server.js` + tab trình phát ở nền).
+    var from = audio.volume, t0 = Date.now(), span = Math.max(1, ms);
     fadeTimer = setInterval(function () {
-      i++;
-      audio.volume = Math.max(0, Math.min(1, from + (to - from) * (i / steps)));
-      if (i >= steps) { clearInterval(fadeTimer); fadeTimer = null; if (done) done(); }
+      var k = Math.min(1, (Date.now() - t0) / span);
+      audio.volume = Math.max(0, Math.min(1, from + (to - from) * k));
+      if (k >= 1) { clearInterval(fadeTimer); fadeTimer = null; if (done) done(); }
     }, 40);
   }
   function play(msg) {
     cur = { id: msg.id, title: msg.title || '' };
     if (typeof msg.volume === 'number') target = Math.max(0, Math.min(1, msg.volume / 100));
     pendingStart = Number(msg.startAt) || 0;
+    endAt = typeof msg.endAt === 'number' && msg.endAt > 0 ? msg.endAt : null;
+    ending = false;
     wantPlay = true;
     clearInterval(fadeTimer);
     audio.volume = 0;
@@ -60,8 +66,20 @@
     var p = audio.play();
     if (p && p.catch) p.catch(function (e) { nowEl.textContent = '⚠ Trình duyệt chặn tự phát — bấm vào trang này 1 lần'; send('error', { message: 'autoplay: ' + e.message }); });
   });
-  audio.addEventListener('playing', function () { fade(target, 1000); send('started'); });
+  audio.addEventListener('playing', function () { if (!ending) fade(target, 1000); send('started'); });
+  function finishClip() {
+    var id = cur.id;
+    audio.pause();
+    send('ended');
+    if (cur.id === id) { cur = { id: '', title: '' }; wantPlay = false; ending = false; endAt = null; nowEl.textContent = 'Chờ bài…'; }
+  }
   audio.addEventListener('timeupdate', function () {
+    if (endAt != null && !ending && cur.id && audio.currentTime >= endAt - END_FADE) {
+      ending = true;
+      fade(0, Math.max(200, (endAt - audio.currentTime) * 1000), finishClip);
+    }
+    // chốt cứng: fade bị huỷ (đứng tiếng giữa chừng rồi 'playing' lại…) cũng không được phát lố điểm dừng
+    if (endAt != null && cur.id && audio.currentTime >= endAt + 0.5) { clearInterval(fadeTimer); fadeTimer = null; finishClip(); return; }
     var t = Date.now();
     if (t - lastProgress < 1000) return;
     lastProgress = t; send('progress');
@@ -82,7 +100,13 @@
     if (msg.cmd === 'play') play(msg);
     else if (msg.cmd === 'stop') { wantPlay = false; var id = cur.id; cur = { id: '', title: '' }; fade(0, 600, function () { if (!cur.id) { audio.pause(); audio.removeAttribute('src'); audio.load(); } }); nowEl.textContent = 'Chờ bài…'; void id; }
     else if (msg.cmd === 'pause') { fade(0, 400, function () { audio.pause(); }); nowEl.textContent = '⏸ ' + cur.title; }
-    else if (msg.cmd === 'resume') { if (cur.id) { audio.play().catch(function () {}); fade(target, 600); nowEl.textContent = '▶ ' + cur.title; } }
+    else if (msg.cmd === 'resume') { ending = false; if (cur.id) { audio.play().catch(function () {}); fade(target, 600); nowEl.textContent = '▶ ' + cur.title; } }
+    else if (msg.cmd === 'clip') {
+      if (msg.id !== cur.id) return;
+      endAt = typeof msg.endAt === 'number' && msg.endAt > 0 ? msg.endAt : null;
+      // đang fade ra mà được nối dài → kéo tiếng lên lại
+      if (ending && (endAt == null || audio.currentTime < endAt - END_FADE)) { ending = false; fade(target, 600); }
+    }
     else if (msg.cmd === 'volume') { target = Math.max(0, Math.min(1, (Number(msg.volume) || 0) / 100)); if (!audio.paused && !fadeTimer) audio.volume = target; }
   });
 })();
