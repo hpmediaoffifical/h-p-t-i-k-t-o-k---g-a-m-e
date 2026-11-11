@@ -218,7 +218,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
                 <div class="r"><b>${esc(d.b.title)} · 2</b><span class="gob-muted">${hpT('{p} điểm · {v} phiếu', { p: d.b.pts, v: d.b.votes })}</span></div></div>
                 <div class="gob-duel-bar"><i style="width:${wa}%"></i><i style="width:${100 - wa}%"></i></div>`;
         } else if (w) {
-            db.innerHTML = `<div class="gob-h">${hpT('⚔️ Đấu Bài')}</div><div>🏆 <b>${esc(w.winnerTitle)}</b> ${hpT('thắng — phát tiếp theo')}${w.sunk ? ` <span class="gob-muted">${hpT('· “{t}” về cuối hàng', { t: w.loserTitle })}</span>` : ''}</div>`;
+            db.innerHTML = `<div class="gob-h">${hpT('⚔️ Đấu Bài')}</div><div>🏆 <b>${esc(w.winnerTitle)}</b> ${hpT('thắng — phát tiếp theo')}${w.sunk ? ` <span class="gob-muted">${esc(hpT('· “{t}” về cuối hàng', { t: w.loserTitle }))}</span>` : ''}</div>`;
         }
         $('#gob-qn').textContent = st.queueTotal ? hpT('{n} bài', { n: st.queueTotal }) : '';
         $('#gob-queue').innerHTML = (st.queue || []).map((r, i) => `<div class="gob-row"><span>${r.locked ? '🔒' : i + 1}</span>
