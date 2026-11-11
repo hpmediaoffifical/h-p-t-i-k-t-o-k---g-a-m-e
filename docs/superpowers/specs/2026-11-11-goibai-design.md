@@ -135,3 +135,66 @@ hotkeySkip:'', hotkeyPause:''`.
   vượt giới hạn, điểm theo thời gian chờ, khoá top N sau grace, bỏ qua bài searching, pinTop, serialize/restore.
 - `tests/goibai-title.test.js`, `tests/goibai-ytdlp.test.js` (đọc JSON search/format, SHA2-256SUMS, hạn link).
 - Thử tay: `POST /api/goibai/test` + Browser pane mở `/player/goibai` và `/overlay/goibai`.
+
+---
+
+## 10. Giai đoạn 2 — ⚡ Đoạn hay nhất + ⚔️ Đấu Bài (12/11/2026)
+
+Chốt với user: quy đổi 3 mốc xu, xu tặng thêm cho bài đang phát nối dài bài; phần còn lại user giao "tự quyết".
+
+### 10.1 ⚡ Chỉ phát đoạn hay nhất (`clipOn`, mặc định bật)
+- **Thời lượng theo xu của bài** (`coins` = xu gốc + xu góp + xu đẩy, tính lúc bắt đầu phát):
+  `< clipMidCoins (30)` → `clipShortSec` (45 s) · `< clipFullCoins (299)` → `clipLongSec` (90 s) · còn lại → **cả bài**.
+  Bài ngắn hơn thời lượng đoạn → cả bài.
+- **Chọn đoạn** (`lib/goi-bai/clip.js` `pickSegment`): `yt-dlp -j` lúc lấy link âm thanh đã trả `heatmap`
+  (≈100 khúc `{start_time,end_time,value}`) → không tốn thêm lệnh. Trượt cửa sổ dài bằng đoạn (bước 1 s), chọn cửa sổ có
+  tổng nhiệt cao nhất; **bỏ 10% đầu video** (nhiều bài có đỉnh giả ở giây 0); cửa sổ không vượt cuối bài. Lùi điểm bắt đầu
+  về đầu khúc nhiệt chứa nó (không cắt giữa câu quá nhiều). Không có heatmap → phát từ giây 0, dừng ở thời lượng đoạn.
+- Trình phát nhận `startAt` + `endAt` (`null` = hết bài). Tới `endAt − 1,5 s` → fade ra 1,5 s → dừng → báo `ended`.
+  Lệnh mới `goibai:cmd {cmd:'clip', id, endAt}` dời điểm dừng khi được nối dài.
+- **Nối dài** (§10.3): xu của bài đang phát tăng qua mốc → `growClip` giữ điểm đầu, kéo `end = start + thời lượng mới`
+  (cả bài → `null`). Không bao giờ rút ngắn.
+- OBS + panel: nhãn `⚡ 45s` / `⚡ 90s` / không nhãn khi cả bài; thanh tiến trình tính trong đoạn.
+
+### 10.2 Thứ tự quà của 1 người (thay §2.1)
+1. Đang có lượt → cộng vào lượt.
+2. **Đang bầu trong trận Đấu Bài** (§10.4) → xu vào bài của phe đã chọn (mọi quà, không chỉ quà mở lượt).
+3. **Là người gọi bài đang phát, đoạn chưa phải cả bài, `clipOn`** → nối dài bài đang phát (`action:'extend'`; chỉ quà
+   mở lượt). Đã cả bài → bước 4.
+4. Đủ `maxPerViewer` → đẩy bài mới nhất. 5. Lượt mới.
+- Người khác gọi **trùng bài đang phát** khi bài còn là đoạn ngắn → góp xu nối dài (`backers`); đã cả bài → trả lượt `playing` như cũ.
+
+### 10.3 Dữ liệu trên hàng đang phát
+`clip = { start, end|null, len|null, full, src:'heat'|'head'|'full' }` — lưu trong phiên; khôi phục giữa bài phát tiếp từ
+giây đã lưu và giữ `end`.
+
+### 10.4 ⚔️ Đấu Bài (`duel`, mặc định bật)
+- **Mở trận** (trong `tick`): có bài đang phát, không tạm dừng, chưa có trận cho bài đang phát này (mỗi bài phát tối đa 1
+  trận), hàng có ≥ 2 bài `ready`, còn lại ≥ `duelSec + 5` giây của đoạn đang phát. Hai bài = **2 bài `ready` đầu hàng**
+  (A = đang đứng trước). Trận kéo dài `duelSec` (15 s) — diễn ra trong lúc bài đang phát, không chèn im lặng.
+- **Bầu**: bình luận đúng `1` hoặc `2` → 1 phiếu/người/trận, không đổi phe. Người đã bầu tặng quà → xu cộng vào bài phe
+  đó (bài lên điểm, đoạn phát dài hơn) và vào điểm trận. Người chưa bầu tặng quà → xử lý như thường.
+- **Điểm trận** = `phiếu × duelVotePts (1) + xu`. Hoà → A thắng (giữ thứ tự cũ).
+- **Kết thúc**: hết giờ, hoặc bài đang phát kết thúc/bị bỏ trước (chốt luôn với số đang có). Bài thắng `pinTop` (khoá lên
+  đầu, phát kế tiếp), `duelLosses = 0`. Bài thua giữ chỗ, `duelLosses + 1`; **thua `duelSinkAfter` (2) trận liên tiếp
+  → về cuối hàng**: bỏ khoá, `sunk = true` (đứng sau mọi bài chưa chìm, điểm chờ tính lại từ lúc chìm). Hết chìm khi được phát.
+- **Huỷ trận** (không ai thắng): 1 trong 2 bài bị xoá / được phát / hết `ready`, xoá hết hàng, tắt `duel`.
+- Kết quả hiện `duelShowSec` (5 s) trên OBS (`lastDuel`).
+- Thứ tự `sorted()`: bài khoá → bài chưa chìm (điểm) → bài chìm (điểm).
+
+### 10.5 Overlay & panel
+- `/overlay/goibai`: thẻ trận giữa thẻ Đang phát và hàng chờ: 2 bài (ảnh bìa, tên, người gọi), thanh so điểm, phiếu/xu
+  mỗi phe, đếm ngược, dòng "Bình luận 1 hoặc 2 · tặng quà cho phe đã chọn"; hết trận → "🏆 Bài X thắng — phát tiếp theo".
+  `?view=duel` = chỉ thẻ trận (đặt riêng trong OBS). `?demo=1` có trận giả.
+- Panel: công tắc ⚡ Đoạn hay + 4 ô (2 mốc xu, 2 thời lượng); công tắc ⚔️ Đấu Bài + giây trận + điểm/phiếu; khung trận đang
+  diễn ra; nút 🧪 "Bầu 1 / Bầu 2" (`POST /api/goibai/test {vote:'1'|'2', nickname}` đi đúng đường bình luận).
+
+### 10.6 Cấu hình thêm
+`clipOn:true, clipShortSec:45, clipLongSec:90, clipMidCoins:30, clipFullCoins:299, duel:true, duelSec:15, duelVotePts:1,
+duelSinkAfter:2, duelShowSec:5`.
+
+### 10.7 Kiểm thử
+- `tests/goibai-clip.test.js`: mốc xu, chọn cửa sổ theo heatmap, bỏ 10% đầu, không vượt cuối, không heatmap, bài ngắn, `growClip`.
+- `tests/goibai-logic.test.js`: nối dài (người gọi / trùng bài), mở trận đúng điều kiện, 1 phiếu/người, quà người bầu, thắng
+  lên đầu, hoà, thua 2 trận chìm, huỷ trận, chốt sớm khi bài kết thúc.
+- `tests/goibai-ytdlp.test.js`: `parseAudioJson` trả `heatmap`.
