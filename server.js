@@ -326,6 +326,7 @@ const DapMuoi = require('./public/games/dapmuoi/game.js');
 function makeDefaultDapMuoiConfig() { return DapMuoi.defaultConfig(); }
 // 🏸 Đá Cầu — engine thuần UMD (port từ HP LIVE NPC): quà tung cầu, đỡ bằng đầu / đùi qua pose camera.
 const DaCau = require('./public/games/dacau/game.js');
+const SutBong = require('./public/games/sutbong/game.js');
 // 🧍 Bộ Tách Người — module server riêng (port HP LIVE NPC): route /overlay/body, /api/body/*, ẩn cam OBS, quà → body:run.
 const BodyServer = require('./lib/body-server');
 
@@ -716,6 +717,16 @@ const GAMES = {
         overlayPath: '/overlay/dacau',
         defaultConfig: DaCau.defaultConfig()
     },
+    // ⚽ SÚT BÓNG VÀO GÔN — game camera khe 'hands': quà sút bóng về khung thành, streamer làm thủ môn chặn bằng 2 tay (pose).
+    // Engine public/games/sutbong/game.js. Game con của Game Camera. Spec docs/superpowers/specs/2026-11-12-sutbong-design.md.
+    sutbong: {
+        id: 'sutbong',
+        name: 'Sút Bóng',
+        description: 'Quà sút bóng về khung thành, streamer làm thủ môn chặn bằng 2 tay trước camera. Bảng tỷ số cản – vào.',
+        icon: '⚽',
+        overlayPath: '/overlay/sutbong',
+        defaultConfig: SutBong.defaultConfig()
+    },
     // 🧍 BỘ TÁCH NGƯỜI — khe 'body' (lớp dưới cùng overlay mẹ): tách nền người rồi vẽ lại cho Hậu Cảnh, Rơi Hố, Bị Đuổi,
     // Video Hành Động, Khóc Lóc, Bắn Tim, Bắt NPC, Biến Hình. Logic ở lib/body-server.js + public/games/body/.
     body: {
@@ -753,7 +764,7 @@ const GAMES = {
 // Game con của Game Camera — thứ tự = thứ tự thẻ trong menu (public/games/camgames/registry.js).
 // Level Quest không vào CAM_STANDALONE_IDS dù còn link riêng: nó không đọc `enabled` (KPI đếm cả khi đang
 // chọn game khác, link riêng luôn hiện) → bật/tắt cờ đó vô hại, thẻ không cần nút ⏻ Tắt.
-const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'bancung', 'level-quest', 'dacau', 'body'];
+const CAM_GAME_IDS = ['touchplay', 'chemtraicay', 'dapmuoi', 'bancung', 'level-quest', 'dacau', 'sutbong', 'body'];
 // Game con có link OBS riêng từ trước khi vào Game Camera (khách cũ dán /overlay/bancung trong scene).
 // Game Camera chỉ bật nó khi streamer CHỌN VÀO và tắt khi chọn sang game khác / tắt Game Camera — không
 // ép tắt lúc khởi động, kẻo khách đang chơi Bắn Cung cập nhật app xong thấy game tự tắt. Thẻ trong Game
@@ -1383,7 +1394,7 @@ function makeDefaultGiftBoardConfig() {
         panels: {},
         // Game nào được lên bảng (game TẮT ở Thư viện luôn bị loại bất kể cờ này)
         sources: { thuytinh: true, caro: true, votecomment: true, nhietdo: true, bancung: true, trongcay: true, nhatla: true, timer: true,
-            touchplay: true, chemtraicay: true, dapmuoi: true, dacau: true, body: true,
+            touchplay: true, chemtraicay: true, dapmuoi: true, dacau: true, sutbong: true, body: true,
             quaivat: true, nhatu: true, pokemon: true, creatoronline: true, duongveque: true, obsEffects: true },
         rules: { mergeSameGift: true, groupByGame: false, sort: 'game', showGeneric: true, onlyRunning: false, hideBirdGifts: true,
             requireOverlay: true,    // chỉ game có overlay đang mở (OBS / LIVE Studio) mới lên bảng
@@ -1946,6 +1957,7 @@ const touchplayFeed = new ObsCameraFeed({
         bancung: (url) => feedUrlIs(url, 'bancung', /\/overlay\/bancung/i) || (camPlayActives().includes('bancung') && feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)),
         dapmuoi: (url) => feedUrlIs(url, 'dapmuoi', /\/overlay\/dapmuoi/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         dacau: (url) => feedUrlIs(url, 'dacau', /\/overlay\/dacau/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
+        sutbong: (url) => feedUrlIs(url, 'sutbong', /\/overlay\/sutbong/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         body: (url) => feedUrlIs(url, 'body', /\/overlay\/body/i) || feedUrlIs(url, 'camgames', /\/overlay\/camgames/i),
         // Level Quest chỉ bám đầu khi chơi trong Game Camera (link riêng đứng yên, không cần feed).
         'level-quest': (url) => camGameInHub('level-quest') && feedUrlIs(url, 'camgames', /\/overlay\/camgames/i)
@@ -1966,6 +1978,7 @@ const touchplayFeed = new ObsCameraFeed({
             bancung: bc.enabled !== false && (bcd.bodyTrack === true || camPlayActives().includes('bancung')) ? (bcd.trackSource || '') : null,
             dapmuoi: dm.enabled !== false ? '' : null,     // không có nguồn riêng: dùng nguồn chung Game Camera
             dacau: G.dacau?.enabled !== false ? '' : null,  // như trên
+            sutbong: G.sutbong?.enabled !== false ? '' : null,  // như trên
             body: G.body?.enabled !== false ? '' : null,    // như trên
             'level-quest': camGameInHub('level-quest') ? '' : null   // như trên; chỉ khi đang chọn trong Game Camera
         };
@@ -2471,6 +2484,7 @@ if (appConfig.games.chemtraicay) {
 }
 if (appConfig.games.dapmuoi) appConfig.games.dapmuoi = DapMuoi.normalizeConfig(appConfig.games.dapmuoi);
 if (appConfig.games.dacau) appConfig.games.dacau = DaCau.normalizeConfig(appConfig.games.dacau);
+if (appConfig.games.sutbong) appConfig.games.sutbong = SutBong.normalizeConfig(appConfig.games.sutbong);
 // 🎥 Bộ quà mẫu Game Camera (lib/camgames-gift-seed.js): một lần, chỉ điền game còn trống quà.
 try {
     const seeded = require('./lib/camgames-gift-seed').applyGiftSeed(appConfig.games,
@@ -5317,6 +5331,18 @@ function emitGift(g) {
     // 🏸 Đá Cầu — quà gán đích danh (cfg.gifts, so theo id) → tung cầu; combo ×N = N quả (trần 5)
     try {
         handleDaCauGift({
+            nickname: g.nickname,
+            profilePicture: g.profilePicture || '',
+            giftId: g.giftId,
+            giftName: enriched.giftName || g.giftName,
+            giftImage: enriched.image,
+            repeatCount: g.repeatCount || 1,
+            source: g.source || 'tiktok'
+        });
+    } catch (e) { /* non-fatal */ }
+    // ⚽ Sút Bóng — quà gán đích danh (cfg.gifts, so theo id) → sút; combo ×N = N cú
+    try {
+        handleSutBongGift({
             nickname: g.nickname,
             profilePicture: g.profilePicture || '',
             giftId: g.giftId,
@@ -10384,6 +10410,40 @@ app.post('/api/dacau/control', (req, res) => {
     const cmd = String(req.body?.cmd || '');
     if (!['clear', 'reset'].includes(cmd)) return res.status(400).json({ error: 'cmd không hợp lệ' });
     io.emit('gameCmd', { gameId: 'dacau', cmd, payload: {}, seq: Date.now() });
+    res.json({ ok: true });
+});
+// ====== ⚽ SÚT BÓNG VÀO GÔN ======
+// Engine public/games/sutbong/game.js; quà gán đích danh trong cfg.gifts [{giftId, giftName, shot}] — chỉ so id.
+// Tỷ số giữ ở overlay (localStorage); /api/sutbong/control reset = về 0.
+app.get('/overlay/sutbong', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'public', 'games', 'sutbong', 'overlay.html'));
+});
+function sutBongCfg() { return SutBong.normalizeConfig(appConfig.games.sutbong || SutBong.defaultConfig()); }
+function emitSutBong(type, count, base) {
+    io.to('overlay').to('preview').emit('sutbong:gift', { type, count, nickname: base.nickname || '', profilePicture: base.profilePicture || '',
+        giftName: base.giftName || '', image: base.giftImage || '', source: base.source || 'tiktok', ts: Date.now() });
+}
+function handleSutBongGift(base) {
+    const cfg = sutBongCfg();
+    if (cfg.enabled === false || !base.giftId) return;
+    if (camGiftYields('sutbong', { giftId: base.giftId, giftName: base.giftName })) return;
+    const hit = SutBong.shotsForGift(cfg, base.giftId, base.repeatCount);
+    if (!hit) return;
+    console.log(`[sutbong] ${base.nickname || '?'} → sút ${hit.count} quả ${hit.type} (gift ${base.giftId})`);
+    emitSutBong(hit.type, hit.count, base);
+}
+app.post('/api/sutbong/test', (req, res) => {
+    const type = SutBong.SHOT_IDS.includes(req.body?.type) ? req.body.type : 'normal';
+    const count = Math.min(SutBong.MAX_PER_GIFT, Math.max(1, Math.floor(Number(req.body?.count) || 1)));
+    const nickname = String(req.body?.nickname || 'Thử nghiệm').slice(0, 40);
+    emitSutBong(type, count, { nickname, profilePicture: '', giftName: 'Sút thử', giftImage: '', source: 'test' });
+    res.json({ ok: true, type, count });
+});
+app.post('/api/sutbong/control', (req, res) => {
+    const cmd = String(req.body?.cmd || '');
+    if (!['clear', 'reset'].includes(cmd)) return res.status(400).json({ error: 'cmd không hợp lệ' });
+    io.emit('gameCmd', { gameId: 'sutbong', cmd, payload: {}, seq: Date.now() });
     res.json({ ok: true });
 });
 setTimeout(() => camApplyHotkeys('dapmuoi'), 1500);

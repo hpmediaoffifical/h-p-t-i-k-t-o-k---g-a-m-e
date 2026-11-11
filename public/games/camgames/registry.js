@@ -3,7 +3,7 @@
  *   overlay: trang overlay của game con — overlay mẹ nạp trong iframe phủ kín, nền trong suốt.
  *   track:   game cần nhận diện gì (chỉ để hiện cho streamer biết).
  *   note:    dòng nhắc thêm dưới thẻ (tuỳ chọn).
- *   slot:    'hands' (chơi bằng tay) | 'head' (đồ bám trên đầu/người) | 'kick' (Đá Cầu) | 'body' (Bộ Tách Người). Chơi cùng lúc tối đa 1 game mỗi khe —
+ *   slot:    'hands' (chơi bằng tay, cả Sút Bóng) | 'head' (đồ bám trên đầu/người) | 'kick' (Đá Cầu) | 'body' (Bộ Tách Người). Chơi cùng lúc tối đa 1 game mỗi khe —
  *            cùng giá trị SLOTS trong lib/camgames.js.
  *   hotkeys: game có phím tắt toàn cục (HOTKEY_GAMES trong lib/camgames.js). Chơi 2 game cùng có phím thì chỉ game
  *            streamer bấm vào gần nhất giữ phím (camgames.hotkeyGame), game kia tạm nhả.
@@ -63,6 +63,14 @@
             track: 'Đầu · hông · đầu gối',
             note: 'Camera cần thấy tới đầu gối, thiếu thì chỉ đỡ bằng đầu.',
             overlay: '/overlay/dacau'
+        },
+        {
+            id: 'sutbong', name: 'Sút Bóng', icon: '⚽',
+            slot: 'hands',
+            desc: 'Quà sút bóng về khung thành, streamer làm thủ môn chặn bằng 2 tay. Bảng tỷ số cản – vào + top ghi bàn.',
+            track: 'Hai bàn tay (cổ tay · ngón)',
+            note: 'Đứng lùi cho camera thấy từ đầu tới hông, giơ được hai tay.',
+            overlay: '/overlay/sutbong'
         },
         {
             id: 'body', name: 'Bộ Tách Người', icon: '🧍',

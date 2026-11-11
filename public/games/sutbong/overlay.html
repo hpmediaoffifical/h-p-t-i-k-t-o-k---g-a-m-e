@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<script src="/games/camgames/cam-frame-guard.js"></script><!-- 🔇 khung ẩn / mất kết nối app thì câm + ngưng (nạp trước mọi script) -->
+<meta charset="utf-8" />
+<script src="/i18n/hp-i18n.js" data-scope="overlay"></script>
+<script src="/lib/hp-icons.js"></script>
+<script src="/lib/hp-game-feed.js"></script>
+<title>HP Sút Bóng - Overlay</title>
+<style>
+    /* ⚽ SÚT BÓNG VÀO GÔN - OBS Browser Source 1080×1920 trong suốt. Camera = mắt người sút: quà sút bóng từ mép dưới bay vào
+       khung thành vẽ quanh streamer; streamer (thủ môn) chặn bằng 2 tay (pose của bộ nhận diện chung 🎥 Game Camera).
+       ?review=1  khung xem trước trong app · ?mouse=1  thử bằng chuột · ?demo=1  thủ môn giả tự chơi · ?mute=1  câm */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; color: #fff; user-select: none;
+        font-family: 'Segoe UI', Arial, sans-serif; }
+    body.sb-bg { background: linear-gradient(180deg, #1d3b2a 0%, #2f6b3e 55%, #3d8a4c 100%); }
+    #sb-stage { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: 0 0; }
+    #sb-canvas { position: absolute; inset: 0; width: 1080px; height: 1920px; display: block; }
+    .sb-view { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; pointer-events: none; }
+    /* bảng tỷ số */
+    .sb-board { position: absolute; left: 50%; top: 3%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px;
+        white-space: nowrap; transition: opacity .25s; }
+    .sb-score { display: flex; align-items: stretch; border-radius: 18px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.45);
+        font-variant-numeric: tabular-nums; }
+    .sb-score .side { display: flex; flex-direction: column; justify-content: center; padding: 8px 20px; font-size: 26px; font-weight: 800; letter-spacing: 1px; }
+    .sb-score .side.k { background: #0f5132; } .sb-score .side.v { background: #7a1f2b; }
+    .sb-score .num { display: flex; align-items: center; justify-content: center; min-width: 210px; padding: 0 18px; background: rgba(8,12,20,.92);
+        font-size: 84px; font-weight: 900; line-height: 1; }
+    .sb-score .num i { font-style: normal; opacity: .55; margin: 0 14px; font-size: 60px; }
+    .sb-score .num b.pop { animation: sbPop .3s ease-out; display: inline-block; }
+    @keyframes sbPop { from { transform: scale(1.5); color: #ffd54a; } to { transform: scale(1); } }
+    .sb-sub { padding: 6px 16px; border-radius: 999px; background: rgba(8,12,20,.78); font-size: 26px; font-weight: 700; color: #e6ecff; }
+    .sb-sub b { color: #ffd54a; }
+    .sb-top { padding: 6px 16px; border-radius: 12px; background: rgba(8,12,20,.7); font-size: 24px; font-weight: 700; color: #ffe08a; max-width: 980px;
+        overflow: hidden; text-overflow: ellipsis; }
+    .sb-top:empty, .sb-sub:empty { display: none; }
+    .sb-board .hpf-ico { margin-right: .25em; }
+    .sb-alert { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); display: none; max-width: 86%; padding: 20px 28px;
+        border-radius: 18px; background: rgba(10,14,28,.88); border: 2px solid #7fd7ff; font-size: 34px; font-weight: 700; text-align: center; white-space: normal; }
+    .sb-alert.warn { background: rgba(120,20,20,.9); border-color: #ff8a80; }
+    .sb-alert small { display: block; margin-top: 8px; font-size: 24px; font-weight: 500; opacity: .85; }
+    .sb-alert.on { display: block; }
+    .sb-alert .hpf-ico { margin-right: .25em; }
+    .sb-hint { position: absolute; left: 50%; bottom: 1%; transform: translateX(-50%); padding: 10px 18px; border-radius: 12px; display: none;
+        background: rgba(8,12,20,.85); border: 1px solid rgba(255,255,255,.2); font-size: 22px; color: #c9d1e3; white-space: nowrap; }
+    body.sb-mouse .sb-hint { display: block; }
+</style>
+</head>
+<body>
+<div id="sb-stage">
+    <canvas id="sb-canvas" width="1080" height="1920"></canvas>
+    <div class="sb-view">
+        <div class="sb-board" id="sb-board">
+            <div class="sb-score"><div class="side k">🧤 CẢN</div><div class="num"><b id="sb-k">0</b><i>–</i><b id="sb-v">0</b></div><div class="side v">VÀO ⚽</div></div>
+            <div class="sb-sub" id="sb-sub"></div>
+            <div class="sb-top" id="sb-top"></div>
+        </div>
+        <div class="sb-notices" id="sb-notices"></div>
+        <div class="sb-alert" id="sb-alert"></div>
+        <div class="sb-hint">Chuột = 1 bàn tay · B = sút thử · D = thủ môn giả · Z = vẽ vùng chạm · C = xoá bóng</div>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/lib/overlay-hello.js" data-game="sutbong"></script>
+<script src="/games/sutbong/game.js"></script>
+<script>
+(function () {
+    'use strict';
+    const W = 1080, H = 1920;
+    const Game = window.HpGame.sutbong;
+    const qs = new URLSearchParams(location.search);
+    const isReview = qs.get('review') === '1';
+    const mouseMode = isReview || qs.get('mouse') === '1';
+    let demo = qs.get('demo') === '1';
+    const muted = qs.get('mute') === '1';
+    const token = qs.get('token') || '';
+    // tỷ số chỉ lưu ở overlay thật (OBS / tab chuột); khung xem trước + người giả không ghi đè tỷ số buổi LIVE
+    const persist = !isReview && !demo;
+    const STORE_KEY = 'hpal.sutbong.stats';
+    const $ = (id) => document.getElementById(id);
+    const canvas = $('sb-canvas');
+    const ctx = canvas.getContext('2d');
+    if (mouseMode && !isReview) document.body.classList.add('sb-mouse');
+    if (qs.get('bg') === '1') document.body.classList.add('sb-bg');
+
+    let cfg = Game.normalizeConfig(null);
+    const engine = Game.createEngine(cfg, { width: W, height: H });
+    let view = { x: 0, y: 0, w: W, h: H };
+    function applyView(v) {
+        view = v; engine.setArea(v);
+        for (const el of document.querySelectorAll('.sb-view')) Object.assign(el.style, { left: v.x + 'px', top: v.y + 'px', width: v.w + 'px', height: v.h + 'px' });
+    }
+    import('/lib/obs-scene-map.mjs').then(m => { const cv = m.createCamView({ W, H, overlayId: 'sutbong', getLayout: () => feed.layout, onChange: applyView }); applyView(cv.rect); }).catch(e => console.warn('[sutbong] cam-view:', e));
+    let disabled = false, lastT = performance.now(), zonesKey = false;
+
+    // ---------- tỷ số lưu máy ----------
+    let savedKey = '';
+    function loadStore() {
+        if (!persist) return;
+        try { const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); if (s) engine.loadStats(s); } catch (_) {}
+    }
+    function saveStore(force) {
+        if (!persist) return;
+        try {
+            const s = JSON.stringify(engine.stats());
+            if (force || s !== savedKey) { localStorage.setItem(STORE_KEY, s); savedKey = s; }
+        } catch (_) {}
+    }
+    loadStore();
+    setInterval(saveStore, 2000);
+
+    // ---------- bố cục ----------
+    let stageScale = 1, stageX = 0, stageY = 0;
+    function fitStage() {
+        const vw = innerWidth, vh = innerHeight;
+        stageScale = Math.min(vw / W, vh / H);
+        stageX = (vw - W * stageScale) / 2; stageY = (vh - H * stageScale) / 2;
+        $('sb-stage').style.transform = `translate(${stageX}px, ${stageY}px) scale(${stageScale})`;
+    }
+    fitStage(); window.addEventListener('resize', fitStage);
+    const toStage = (cx, cy) => ({ x: (cx - stageX) / stageScale, y: (cy - stageY) / stageScale });
+
+    // ---------- tay ----------
+    let hands = [], handsAt = -Infinity, seenAt = -Infinity;
+    const VIS = 0.5;
+    function seePose(P, t) { if (Array.isArray(P) && P[11] && P[12] && P[11].v >= VIS && P[12].v >= VIS) seenAt = t; }
+
+    // ---------- 🤖 thủ môn giả ----------
+    const bot = { pose: null, poseAt: 0, hand: { L: null, R: null }, plan: new Map() };
+    function botRest(side) {
+        const g = engine.goalRect(), cx = g.x + g.w / 2, sy = g.y + g.h * 0.32;
+        return { x: cx + (side === 'L' ? -150 : 150), y: sy + 230 };
+    }
+    function botThink(now, dt) {
+        const g = engine.goalRect();
+        const want = { L: botRest('L'), R: botRest('R') };
+        for (const b of engine.balls) {
+            if (b.phase !== 'fly') continue;
+            if (!bot.plan.has(b.id)) {
+                bot.plan.set(b.id, { miss: Math.random() < 0.3, react: 180 + Math.random() * 180, dx: (Math.random() < 0.5 ? -1 : 1) * (150 + Math.random() * 120) });
+                if (bot.plan.size > 40) bot.plan.delete(bot.plan.keys().next().value);
+            }
+            const p = bot.plan.get(b.id);
+            if (b.t < p.react) continue;
+            const side = b.tx < g.x + g.w / 2 ? 'L' : 'R';
+            want[side] = { x: b.tx + (p.miss ? p.dx : 0), y: b.ty };
+        }
+        for (const side of ['L', 'R']) {
+            const h = bot.hand[side] || (bot.hand[side] = botRest(side));
+            const k = Math.min(1, dt / 1000 * 9);
+            h.x += (want[side].x - h.x) * k; h.y += (want[side].y - h.y) * k;
+        }
+        if (now - bot.poseAt < 50) return false;    // nhận diện giả ~20 khung/s
+        bot.poseAt = now;
+        const cx = g.x + g.w / 2, sy = g.y + g.h * 0.32;
+        const P = Array.from({ length: 33 }, () => ({ x: 0, y: 0, v: 0 }));
+        const set = (i, x, y) => { P[i] = { x, y, v: 1 }; };
+        set(0, cx, sy - 130); set(11, cx - 120, sy); set(12, cx + 120, sy); set(23, cx - 80, sy + 330); set(24, cx + 80, sy + 330);
+        set(25, cx - 95, sy + 560); set(26, cx + 95, sy + 560); set(27, cx - 105, sy + 770); set(28, cx + 105, sy + 770);
+        for (const [side, s, w, pk, ix, el] of [['L', 11, 15, 17, 19, 13], ['R', 12, 16, 18, 20, 14]]) {
+            const h = bot.hand[side];
+            const ux = h.x - P[s].x, uy = h.y - P[s].y, L = Math.hypot(ux, uy) || 1;
+            set(w, h.x - ux / L * 35, h.y - uy / L * 35);
+            set(ix, h.x + ux / L * 25, h.y + uy / L * 25); set(pk, h.x + ux / L * 20 + 10, h.y + uy / L * 20);
+            set(el, (P[s].x + P[w].x) / 2 + (side === 'L' ? -40 : 40), (P[s].y + P[w].y) / 2 + 30);
+        }
+        bot.pose = P;
+        return true;
+    }
+    function drawBot() {
+        const P = bot.pose; if (!P) return;
+        ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        const line = (...ids) => { ctx.beginPath(); ids.forEach((i, k) => k ? ctx.lineTo(P[i].x, P[i].y) : ctx.moveTo(P[i].x, P[i].y)); ctx.stroke(); };
+        for (const [w, c] of [[34, 'rgba(0,0,0,.35)'], [22, 'rgba(235,240,255,.85)']]) {
+            ctx.lineWidth = w; ctx.strokeStyle = c;
+            line(11, 12); line(11, 23, 24, 12); line(11, 13, 15); line(12, 14, 16); line(23, 25, 27); line(24, 26, 28);
+        }
+        ctx.fillStyle = 'rgba(235,240,255,.92)'; ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.arc(P[0].x, P[0].y, 70, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.restore();
+    }
+
+    // ---------- chuột: con trỏ là một bàn tay ----------
+    let mouse = null;
+    if (mouseMode) {
+        window.addEventListener('pointermove', (e) => { const p = toStage(e.clientX, e.clientY); mouse = { x: p.x, y: p.y, t: performance.now() }; });
+        window.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 'b') { audioInit(); audioResume(); engine.enqueue(Game.SHOT_IDS[Math.floor(Math.random() * 4)], 1, { nickname: 'Chuột' }); }
+            if (k === 'd') { demo = !demo; if (!demo) bot.pose = null; }
+            if (k === 'z') zonesKey = !zonesKey;
+            if (k === 'c') engine.clear();
+        });
+        window.addEventListener('pointerdown', () => { audioInit(); audioResume(); });
+    }
+
+    // ---------- hiệu ứng ----------
+    const FEED = window.HpGameFeed;
+    const feedList = FEED.createList($('sb-notices'), { max: 2, life: 2800 });
+    const labels = [], bursts = [], ripples = [], trails = new Map();
+    let flashAt = -Infinity, flashColor = '';
+    function addLabel(x, y, text, color, size, life) { const sl = FEED.splitLabel(String(text)); labels.push({ x, y, text: sl.text, ico: sl.ico, color, t0: performance.now(), size: size || 52, life: life || 1000 }); if (labels.length > 24) labels.shift(); }
+    function notice(icon, text, image, kind, who) {
+        feedList.push({ icon, color: kind === 'bad' ? '#ff6b6b' : kind === 'good' ? '#ffd54a' : undefined, who: who || '', text, image });
+    }
+    const escHtml = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+    function showAlert(pair, warn) {
+        const el = $('sb-alert');
+        if (!pair) { el.classList.remove('on'); return; }
+        el.className = 'sb-alert on' + (warn ? ' warn' : '');
+        el.innerHTML = `${FEED.icoLabel(pair[0])}${pair[1] ? `<small>${pair[1]}</small>` : ''}`;
+    }
+
+    // Khung thành nhìn từ chấm phạt đền: cột dọc + xà ngang trắng, lưới hai bên + lưới sau mờ (không che mặt thủ môn).
+    function drawGoal(g, now) {
+        const depth = g.h * 0.16, inset = g.w * 0.07;
+        const bx = g.x + inset, bw = g.w - inset * 2, by = g.y - depth * 0.35, bh = g.h + depth * 0.35 - depth * 0.55;
+        ctx.save();
+        // lưới sau + hai bên
+        const shake = ripples.length ? Math.sin(now / 30) * 4 * Math.max(0, 1 - (now - ripples[ripples.length - 1].t0) / 700) : 0;
+        ctx.strokeStyle = 'rgba(255,255,255,.16)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i <= 14; i++) { const x = bx + bw * i / 14; ctx.moveTo(x + shake, by); ctx.lineTo(x - shake, by + bh); }
+        for (let j = 0; j <= 10; j++) { const y = by + bh * j / 10; ctx.moveTo(bx, y + shake); ctx.lineTo(bx + bw, y - shake); }
+        for (let j = 0; j <= 10; j++) {
+            const t = j / 10;
+            ctx.moveTo(g.x, g.y + g.h * t); ctx.lineTo(bx, by + bh * t);
+            ctx.moveTo(g.x + g.w, g.y + g.h * t); ctx.lineTo(bx + bw, by + bh * t);
+        }
+        ctx.moveTo(g.x, g.y); ctx.lineTo(bx, by); ctx.moveTo(g.x + g.w, g.y); ctx.lineTo(bx + bw, by);
+        ctx.stroke();
+        // vạch vôi
+        ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.moveTo(view.x + view.w * 0.02, g.y + g.h); ctx.lineTo(view.x + view.w * 0.98, g.y + g.h); ctx.stroke();
+        // cột + xà
+        const post = Math.max(14, g.w * 0.022);
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = post + 8;
+        ctx.beginPath(); ctx.moveTo(g.x, g.y + g.h); ctx.lineTo(g.x, g.y); ctx.lineTo(g.x + g.w, g.y); ctx.lineTo(g.x + g.w, g.y + g.h); ctx.stroke();
+        ctx.strokeStyle = '#f5f7fb'; ctx.lineWidth = post;
+        ctx.stroke();
+        ctx.restore();
+    }
+    // Quả bóng: mặt trắng + ngũ giác đen (vàng: mặt vàng), xoay theo `rot`.
+    function drawBall(x, y, r, rot, type, alpha) {
+        ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y);
+        const gold = type === 'gold';
+        if (type === 'gold') { ctx.shadowColor = 'rgba(255,214,90,.95)'; ctx.shadowBlur = r * 0.8; }
+        else if (type === 'rocket') { ctx.shadowColor = 'rgba(120,200,255,.95)'; ctx.shadowBlur = r * 0.8; }
+        const grd = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.1, 0, 0, r);
+        grd.addColorStop(0, gold ? '#fff6cc' : '#ffffff'); grd.addColorStop(0.7, gold ? '#ffd54a' : '#e9edf3'); grd.addColorStop(1, gold ? '#c89200' : '#9aa3b2');
+        ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.save(); ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.clip(); ctx.rotate(rot);
+        ctx.fillStyle = gold ? '#7a4f00' : '#1d2230';
+        const pent = (cx, cy, s, a0) => { ctx.beginPath(); for (let i = 0; i < 5; i++) { const a = a0 + i * Math.PI * 2 / 5; ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * s, cy + Math.sin(a) * s); } ctx.closePath(); ctx.fill(); };
+        pent(0, 0, r * 0.32, -Math.PI / 2);
+        for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * Math.PI * 2 / 5 + Math.PI / 5; pent(Math.cos(a) * r * 0.86, Math.sin(a) * r * 0.86, r * 0.3, a); }
+        ctx.strokeStyle = gold ? 'rgba(122,79,0,.6)' : 'rgba(29,34,48,.55)'; ctx.lineWidth = Math.max(1.5, r * 0.04);
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * Math.PI * 2 / 5; ctx.moveTo(Math.cos(a) * r * 0.32, Math.sin(a) * r * 0.32); ctx.lineTo(Math.cos(a) * r * 0.62, Math.sin(a) * r * 0.62); }
+        ctx.stroke();
+        ctx.restore();
+        ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = Math.max(2, r * 0.05);
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+    }
+    const TRAIL = { normal: 'rgba(255,255,255,', curve: 'rgba(110,240,220,', rocket: 'rgba(120,200,255,', gold: 'rgba(255,214,90,' };
+    function drawTrail(b) {
+        const tr = trails.get(b.id) || [];
+        if (b.phase === 'fly') { tr.push({ x: b.x, y: b.y, r: b.r }); if (tr.length > 14) tr.shift(); trails.set(b.id, tr); }
+        if (tr.length < 2) return;
+        const c = TRAIL[b.type] || TRAIL.normal;
+        ctx.save(); ctx.lineCap = 'round';
+        for (let i = 1; i < tr.length; i++) {
+            const a = i / tr.length;
+            ctx.strokeStyle = c + (0.45 * a * b.alpha) + ')'; ctx.lineWidth = tr[i].r * 1.1 * a;
+            ctx.beginPath(); ctx.moveTo(tr[i - 1].x, tr[i - 1].y); ctx.lineTo(tr[i].x, tr[i].y); ctx.stroke();
+        }
+        ctx.restore();
+    }
+    function drawShadow(id) {
+        const b = engine.ballById(id); if (!b || b.phase === 'saved') return;
+        const g = engine.goalRect();
+        const gp = Game.shotPos({ ...b, ty: g.y + g.h, arc: 0 }, Math.min(1.1, b.u));
+        ctx.save(); ctx.globalAlpha = 0.35 * b.alpha; ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.ellipse(gp.x, gp.y, b.r * 0.9, b.r * 0.25, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+    function drawHands(now) {
+        const show = cfg.display.showHands || zonesKey || cfg.display.showZones;
+        if (!show) return;
+        const list = [...hands];
+        if (mouseMode && mouse && now - mouse.t < 1500) list.push({ x: mouse.x, y: mouse.y, r: 60 });
+        const sc = (Game.DIFFICULTY[cfg.difficulty] || Game.DIFFICULTY.normal).hit * cfg.hitScale / 100;
+        ctx.save();
+        for (const h of list) {
+            const r = h.r * sc;
+            ctx.fillStyle = 'rgba(80,220,140,.22)'; ctx.strokeStyle = 'rgba(160,255,200,.85)'; ctx.lineWidth = 5;
+            ctx.beginPath(); ctx.arc(h.x, h.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.font = `${Math.round(r * 1.1)}px "Segoe UI Emoji", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.globalAlpha = 0.85; ctx.fillText('🧤', h.x, h.y); ctx.globalAlpha = 1;
+        }
+        ctx.restore();
+    }
+    function drawZones(g) {
+        if (!(cfg.display.showZones || zonesKey)) return;
+        ctx.save(); ctx.setLineDash([14, 10]); ctx.strokeStyle = 'rgba(255,214,90,.8)'; ctx.lineWidth = 3;
+        ctx.strokeRect(g.x, g.y, g.w, g.h);
+        ctx.restore();
+    }
+    function drawEffects(now) {
+        for (let i = bursts.length - 1; i >= 0; i--) {
+            const b = bursts[i], t = (now - b.t0) / 500;
+            if (t >= 1) { bursts.splice(i, 1); continue; }
+            ctx.save(); ctx.globalAlpha = 1 - t; ctx.strokeStyle = b.color; ctx.lineWidth = 8 * (1 - t);
+            for (let k = 0; k < 10; k++) {
+                const a = k / 10 * Math.PI * 2, r0 = 40 + 140 * t, r1 = r0 + 40;
+                ctx.beginPath(); ctx.moveTo(b.x + Math.cos(a) * r0, b.y + Math.sin(a) * r0); ctx.lineTo(b.x + Math.cos(a) * r1, b.y + Math.sin(a) * r1); ctx.stroke();
+            }
+            ctx.restore();
+        }
+        for (let i = ripples.length - 1; i >= 0; i--) {
+            const r = ripples[i], t = (now - r.t0) / 800;
+            if (t >= 1) { ripples.splice(i, 1); continue; }
+            ctx.save(); ctx.globalAlpha = 0.8 * (1 - t); ctx.strokeStyle = '#fff'; ctx.lineWidth = 5;
+            for (const k of [0, 0.3]) { const rr = 20 + 220 * Math.max(0, t - k); ctx.beginPath(); ctx.ellipse(r.x, r.y, rr, rr * 0.7, 0, 0, Math.PI * 2); ctx.stroke(); }
+            ctx.restore();
+        }
+        for (let i = labels.length - 1; i >= 0; i--) {
+            const l = labels[i], t = (now - l.t0) / l.life;
+            if (t >= 1) { labels.splice(i, 1); continue; }
+            const sc = t < 0.15 ? 0.6 + t / 0.15 * 0.5 : 1.1 - Math.min(0.1, (t - 0.15));
+            ctx.save(); ctx.globalAlpha = t > 0.7 ? (1 - t) / 0.3 : 1;
+            ctx.translate(l.x, l.y - 60 * t); ctx.scale(sc, sc); FEED.drawLabel(ctx, l, 0, 0, l.size, l.color); ctx.restore();
+        }
+        if (now - flashAt < 260) {
+            ctx.save(); ctx.globalAlpha = 0.22 * (1 - (now - flashAt) / 260); ctx.fillStyle = flashColor;
+            ctx.fillRect(view.x, view.y, view.w, view.h); ctx.restore();
+        }
+    }
+    function drawBalls(s, now) {
+        for (const b of s.balls) {
+            if (b.phase === 'spot') {
+                // chấm phạt đền: bóng nảy nhẹ + vòng báo hướng sút (tuỳ chọn)
+                const k = b.t / Game.SPOT_MS;
+                if (cfg.display.showAim) {
+                    ctx.save(); ctx.globalAlpha = 0.25 + 0.5 * k; ctx.strokeStyle = '#ff5252'; ctx.lineWidth = 6; ctx.setLineDash([10, 8]);
+                    ctx.beginPath(); ctx.arc(b.tx, b.ty, b.r1 * (2.2 - 1.2 * k), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+                }
+                drawBall(b.x, b.y - Math.abs(Math.sin(k * Math.PI * 2)) * 18, b.r, 0, b.type, 1);
+            } else {
+                drawShadow(b.id);
+                drawTrail(b);
+                const rot = b.phase === 'fly' ? b.t / 60 : b.t / 1000 * b.spin;
+                drawBall(b.x, b.y, b.r, rot, b.type, b.alpha);
+            }
+            if (cfg.display.showNames && b.by && b.phase !== 'saved' && b.phase !== 'goal') {
+                ctx.save(); ctx.font = `800 ${Math.round(Math.max(22, b.r * 0.42))}px "Segoe UI", sans-serif`; ctx.textAlign = 'center';
+                ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.fillStyle = '#fff';
+                const ty = b.y - b.r - 14;
+                ctx.strokeText('@' + b.by, b.x, ty); ctx.fillText('@' + b.by, b.x, ty); ctx.restore();
+            }
+        }
+        for (const id of [...trails.keys()]) if (!s.balls.some(b => b.id === id)) trails.delete(id);
+    }
+
+    // ---------- HUD ----------
+    let hudKey = '', lastK = 0, lastV = 0;
+    function applyHud(s) {
+        const D = cfg.display;
+        const board = $('sb-board');
+        board.style.display = D.showHud ? '' : 'none';
+        board.style.top = D.hudY + '%';
+        if (s.keeper !== lastK) { $('sb-k').textContent = s.keeper; pop('sb-k'); lastK = s.keeper; }
+        if (s.viewers !== lastV) { $('sb-v').textContent = s.viewers; pop('sb-v'); lastV = s.viewers; }
+        const sub = [];
+        if (s.streak >= 2) sub.push(`${FEED.icoLabel(hpT('🔥 Chuỗi cản'))} <b>${s.streak}</b>`);
+        if (s.best >= 3) sub.push(`${FEED.icoLabel(hpT('🏆 Kỷ lục'))} <b>${s.best}</b>`);
+        if (s.queue) sub.push(`${FEED.icoLabel(hpT('⏳ Chờ sút'))} <b>${s.queue}</b>`);
+        const top = D.showTop && s.top.length ? FEED.icoLabel(hpT('👑 Ghi bàn:')) + ' ' + s.top.map((x, i) => `${['🥇', '🥈', '🥉'][i]} ${escHtml(x.name)} ${x.points}`).join(' · ') : '';
+        const key = sub.join('|') + '#' + top;
+        if (key !== hudKey) { hudKey = key; $('sb-sub').innerHTML = sub.join(' · '); $('sb-top').innerHTML = top; }
+    }
+    function pop(id) { const el = $(id); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+
+    // ---------- âm thanh (tổng hợp, không cần file) ----------
+    const audio = { ctx: null };
+    function audioInit() {
+        if (audio.ctx || !cfg.sound.enabled || muted) return;
+        try { audio.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {}
+    }
+    function audioResume() { if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume().catch(() => {}); }
+    function tone(freq, ms, type, vol, delay, toFreq) {
+        if (!audio.ctx || !cfg.sound.enabled) return;
+        const ac = audio.ctx, t0 = ac.currentTime + (delay || 0) / 1000, o = ac.createOscillator(), g = ac.createGain();
+        o.type = type; o.frequency.setValueAtTime(freq, t0);
+        if (toFreq) o.frequency.exponentialRampToValueAtTime(toFreq, t0 + ms / 1000);
+        g.gain.setValueAtTime(vol * cfg.sound.volume, t0); g.gain.setTargetAtTime(0, t0 + ms / 1000 * 0.4, ms / 1000 * 0.25);
+        o.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0 + ms / 1000 + 0.1);
+    }
+    function noise(ms, vol, freq, q, delay) {
+        if (!audio.ctx || !cfg.sound.enabled) return;
+        const ac = audio.ctx, len = Math.floor(ac.sampleRate * ms / 1000), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+        const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+        src.buffer = buf; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q || 1;
+        g.gain.value = vol * cfg.sound.volume;
+        src.connect(f); f.connect(g); g.connect(ac.destination); src.start(ac.currentTime + (delay || 0) / 1000);
+    }
+    const sfx = {
+        gift: () => tone(880, 120, 'triangle', 0.18),
+        kick: () => { tone(140, 160, 'sine', 0.6, 0, 60); noise(60, 0.5, 900, 0.8); },
+        save: () => { noise(90, 0.8, 2400, 0.7); tone(320, 140, 'square', 0.12); },
+        goal: () => { noise(1400, 0.35, 700, 0.4); noise(1100, 0.25, 1600, 0.5, 120); tone(2200, 500, 'sine', 0.12, 0); tone(2200, 220, 'sine', 0.1, 650); },
+        milestone: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 180, 'triangle', 0.25, i * 90))
+    };
+
+    // ---------- sự kiện engine ----------
+    const NAME = id => (Game.SHOT_TYPES[id] || Game.SHOT_TYPES.normal).name.split(' (')[0];
+    function handleEvents(ev) {
+        const now = performance.now();
+        for (const e of ev) {
+            if (e.type === 'kick') sfx.kick();
+            else if (e.type === 'save') {
+                sfx.save();
+                bursts.push({ x: e.x, y: e.y, t0: now, color: '#7dffb0' });
+                addLabel(e.x, e.y - 90, hpT('CẢN PHÁ! +{points}', { points: e.points }), '#7dffb0', 58, 1100);
+                flashAt = now; flashColor = '#3dff8a';
+                if (e.milestone) { sfx.milestone(); addLabel(view.x + view.w / 2, view.y + view.h * 0.3, hpT('🧤 {n} PHA CẢN LIÊN TIẾP!', { n: e.milestone }), '#ffd54a', 80, 1700); }
+                else if (e.record) addLabel(view.x + view.w / 2, view.y + view.h * 0.3, hpT('🏆 Kỷ lục chuỗi cản!'), '#ffd54a', 62, 1300);
+                if (e.by) notice('🧤', hpT('cản cú sút của @{by}', { by: e.by }), e.avatar, 'good');
+            } else if (e.type === 'goal') {
+                sfx.goal();
+                ripples.push({ x: e.x, y: e.y, t0: now });
+                addLabel(view.x + view.w / 2, view.y + view.h * 0.3, hpT('⚽ VÀOOO! +{points}', { points: e.points }), '#ff6b6b', 96, 1500);
+                flashAt = now; flashColor = '#ff3b3b';
+                notice('⚽', e.by ? hpT('@{by} ghi bàn!', { by: e.by }) : hpT('Bàn thắng!'), e.avatar, 'bad');
+            } else if (e.type === 'queueFull') notice('⏳', hpT('Hàng chờ sút đã đầy'));
+        }
+    }
+
+    // ---------- feed camera OBS + nhận diện ----------
+    const feed = { on: false, tracker: null, layout: null, busy: false, lastAt: 0, status: null, toStage: null, seenPose: 0 };
+    function wantFeed() { return !isReview && !disabled && !demo; }
+    async function syncFeed() {
+        const want = wantFeed();
+        if (want === feed.on) return;
+        feed.on = want;
+        if (!want) { socket.emit('touchplay:feed', false); if (feed.tracker) feed.tracker.stop(); return; }
+        try {
+            if (!feed.tracker) {
+                const [trk, map] = await Promise.all([import('/lib/hp-tracking.mjs'), import('/lib/obs-scene-map.mjs')]);
+                feed.toStage = map.cameraToStage;
+                // Trong 🎥 Game Camera: bộ nhận diện chung của overlay mẹ (chỉ cần model BODY - cổ tay + ngón).
+                feed.tracker = trk.sharedTracker('sutbong', { width: W, height: H }) || new trk.HpTracker({ width: W, height: H, quality: 'auto' });
+                feed.tracker.want({ hands: false, pose: true, face: false });
+                window.__sb.tracker = feed.tracker;
+            }
+            if (!feed.on) return;
+            await feed.tracker.startExternal();
+            feed.tracker.want({ hands: false, pose: true, face: false });
+            feed.lastAt = performance.now();
+            if (feed.on) socket.emit('touchplay:feed', feedReg());
+        } catch (e) { console.warn('[sutbong] không bật được nhận diện:', (e && e.message) || e); }
+    }
+    function feedReg() { return feed.tracker && feed.tracker.shared ? { id: 'sutbong', frames: false } : 'sutbong'; }
+    async function onFrame(f) {
+        if (!feed.on || feed.busy || !f || !f.img || !feed.tracker || !feed.toStage) return;
+        if (feed.tracker.shared) { feed.lastAt = performance.now(); return; }
+        feed.busy = true;
+        try {
+            const bmp = await createImageBitmap(new Blob([f.img], { type: 'image/jpeg' }));
+            feed.tracker.pushFrame(bmp, feed.toStage(feed.layout, bmp.width, bmp.height, W, H, 'sutbong'));
+            feed.lastAt = performance.now();
+        } catch (_) {} finally { feed.busy = false; }
+    }
+    function feedProblem() {
+        const st = feed.status || {};
+        if (st.obsConnected === false) return [hpT('App chưa kết nối OBS WebSocket.'), hpT('OBS: Công cụ → Cài đặt WebSocket Server → bật; rồi kết nối OBS trong app.')];
+        if (!st.source) return [hpT('Chưa chọn nguồn camera cho Game Camera.'), hpT('Mở 🎥 Game Camera trong app → chọn Nguồn camera trong OBS.')];
+        const src = escHtml(st.source);
+        if (st.error === 'source-missing') return [hpT('Không tìm thấy nguồn "{src}" trong OBS.', { src }), ''];
+        return [hpT('Chưa nhận được hình từ nguồn "{src}".', { src }), hpT('Kiểm tra camera trong scene OBS đang phát.')];
+    }
+    // Khung AI MỚI → tay + so chạm với vị trí bóng lúc camera chụp (trừ độ trễ).
+    function pumpTracking(now) {
+        const t = feed.tracker; if (!feed.on || !t) return;
+        if (t.poseAt === feed.seenPose) { if (now - t.poseAt > 400) hands = []; return; }
+        feed.seenPose = t.poseAt;
+        const pose = now - t.poseAt < 400 ? t.pose : null;
+        seePose(pose, t.poseAt);
+        hands = pose ? Game.handsFromPose(pose) : [];
+        if (hands.length) { handsAt = now; engine.contact(hands, engine.clock - (now - t.poseAt) - cfg.latencyMs); }
+    }
+
+    // ---------- vòng vẽ ----------
+    let lastSnap = null, fakeNow = 0;
+    function loop() {
+        requestAnimationFrame(loop);
+        const now = performance.now();
+        const dt = Math.min(50, now - lastT); lastT = now;
+        if (disabled || !window.HpCamFrame.active) return;
+        tick(now, dt);
+        draw(now);
+    }
+    function tick(now, dt) {
+        pumpTracking(now);
+        if (demo && botThink(now, dt)) {
+            seePose(bot.pose, now);
+            hands = Game.handsFromPose(bot.pose);
+            engine.contact(hands, engine.clock - cfg.latencyMs * 0.3);
+        } else if (!demo && !feed.on) hands = [];
+        if (mouseMode && mouse && now - mouse.t < 150) engine.contact([{ x: mouse.x, y: mouse.y, r: 60 }], NaN);
+        const seen = demo || mouseMode || now - seenAt < 1200;
+        engine.setReady(seen);
+        engine.step(dt);
+        const s = engine.snapshot(); lastSnap = s;
+        handleEvents(s.events);
+        applyHud(s);
+        if (!isReview && !mouseMode && !demo && feed.on) {
+            const lost = now - (feed.tracker && feed.tracker.shared ? feed.tracker.lastFrameAt : feed.lastAt) > 4000;
+            if (lost) showAlert(feedProblem(), true);
+            else if (s.waiting || (s.queue && !seen)) showAlert([hpT('🧤 Đứng vào khung thành cho camera thấy'), hpT('Thấy từ ĐẦU tới HÔNG + hai tay - thấy người là bóng được sút')], false);
+            else showAlert(null);
+        } else showAlert(null);
+        return s;
+    }
+    function draw(now) {
+        const s = lastSnap; if (!s) return;
+        ctx.clearRect(0, 0, W, H);
+        drawGoal(s.goal, now);
+        drawZones(s.goal);
+        if (demo) drawBot();
+        drawHands(now);
+        drawBalls(s, now);
+        drawEffects(now);
+    }
+    window.__sb = {
+        engine, tracker: null, get cfg() { return cfg; }, get hands() { return hands; }, get bot() { return bot; },
+        // trang ẩn (rAF đứng) vẫn chạy được: __sb.step(ms) bước tay. Đồng hồ giả tăng đúng ms mỗi bước — gọi dồn trong 1 lần
+        // chạy script thì performance.now() đứng yên, người giả không ra khung pose mới.
+        step(ms) { fakeNow = Math.max(fakeNow + ms, performance.now()); const s = tick(fakeNow, ms); draw(fakeNow); return s; },
+        setDemo(v) { demo = !!v; if (!demo) bot.pose = null; syncFeed(); }
+    };
+    requestAnimationFrame(loop);
+
+    // ---------- cấu hình ----------
+    function applyConfig(c) {
+        cfg = Game.normalizeConfig(c);
+        engine.setConfig(cfg);
+        setDisabled(cfg.enabled === false && !mouseMode && !demo);
+        if (!cfg.sound.enabled && audio.ctx) audio.ctx.suspend().catch(() => {});
+    }
+    function setDisabled(off) {
+        if (off === disabled) return;
+        disabled = off;
+        $('sb-stage').style.display = off ? 'none' : '';
+        if (off) { engine.clear(); ctx.clearRect(0, 0, W, H); showAlert(null); }
+        if (audio.ctx) { if (off) audio.ctx.suspend().catch(() => {}); else audioResume(); }
+        syncFeed();
+    }
+    window.HpCamFrame.onChange((on) => {
+        $('sb-stage').style.display = on && !disabled ? '' : 'none';
+        if (!on) showAlert(null);
+        lastT = performance.now();
+    });
+
+    // ---------- socket ----------
+    const socket = io({ query: { role: 'aux' }, transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+    window.__sb.socket = socket;
+    let offlineTimer = 0;
+    socket.on('disconnect', () => { clearTimeout(offlineTimer); offlineTimer = setTimeout(() => window.HpCamFrame.setOnline(false), 1500); });
+    socket.on('connect', () => {
+        clearTimeout(offlineTimer); window.HpCamFrame.setOnline(true);
+        socket.emit('subscribe', isReview ? 'preview' : 'overlay');
+        if (feed.on) socket.emit('touchplay:feed', feedReg());
+    });
+    socket.on('sutbong:gift', (d) => {
+        if (disabled || !d) return;
+        audioInit(); audioResume();
+        const type = Game.SHOT_IDS.includes(d.type) ? d.type : 'normal';
+        const n = engine.enqueue(type, d.count || 1, { nickname: d.nickname || '', avatar: d.profilePicture || '' });
+        if (!n) return;
+        sfx.gift();
+        notice(Game.SHOT_TYPES[type].icon, (n > 1 ? hpT('{n} cú ', { n }) : '') + NAME(type).toLowerCase(), d.profilePicture, type === 'normal' ? '' : 'good', d.nickname || '');
+    });
+    socket.on('gameCmd', (d) => {
+        if (!d || d.gameId !== 'sutbong') return;
+        if (d.cmd === 'clear' || d.cmd === 'stop') engine.clear();
+        else if (d.cmd === 'reset') { engine.reset(); saveStore(true); lastK = lastV = -1; }
+    });
+    socket.on('gameConfig', (d) => { if (d && d.gameId === 'sutbong') applyConfig(d.config); });
+    socket.on('gameDisabled', (d) => { if (d && d.gameId === 'sutbong' && !mouseMode && !demo) setDisabled(true); });
+    socket.on('gameEnabled', (d) => { if (d && d.gameId === 'sutbong') setDisabled(false); });
+    socket.on('touchplay:frame', onFrame);
+    socket.on('touchplay:layout', (l) => { feed.layout = l; });
+    socket.on('touchplay:feedStatus', (st) => { feed.status = st; });
+    socket.on('overlay:reload', (d) => { if (!isReview && (!d || !d.gameId || d.gameId === 'sutbong')) { saveStore(true); location.reload(); } });
+    window.addEventListener('pagehide', () => saveStore(true));
+
+    if (!isReview) {
+        setInterval(() => {
+            if (!feed.on || !socket.connected || !feed.tracker) return;
+            const t = feed.tracker, now = performance.now();
+            socket.emit('touchplay:overlayStat', { fps: t.fps, aiMs: t.aiMs, hands: now - handsAt < 1500 ? hands.length : 0, pose: now - t.poseAt < 500 ? 1 : 0, delegate: t.delegate, phase: 'play' });
+        }, 2000);
+    }
+
+    // ---------- khởi động ----------
+    (async () => {
+        try {
+            const r = await fetch('/api/games/sutbong/config', { cache: 'no-store' });
+            if (r.ok) applyConfig(await r.json()); else applyConfig(null);
+        } catch (e) { applyConfig(null); }
+        syncFeed();
+        if (demo && qs.get('autoball') !== '0') {
+            const shots = ['normal', 'curve', 'rocket', 'gold'];
+            let i = 0;
+            setInterval(() => { if (!engine.balls.length && document.visibilityState !== 'hidden') engine.enqueue(shots[i++ % 4], 1, { nickname: 'Demo' }); }, 1200);
+        }
+    })();
+})();
+</script>
+</body>
+</html>

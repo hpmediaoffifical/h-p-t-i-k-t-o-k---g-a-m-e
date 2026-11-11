@@ -106,7 +106,7 @@
           if (t.triggers?.enabled !== false) for (const tr of t.triggers?.list || []) if (tr?.enabled !== false && tr.gift?.giftId) push('timer', 'trg:' + tr.id, tr.gift.giftId, tr.gift, tr.name || 'Kích hoạt đếm ngược', fmtSec(tr.durationSec));
         } }
       // 🎥 Game Camera (trừ Bắn Cung — đã đọc ở trên): server dựng sẵn nhãn. Mục không có giftId = dòng "mọi quà/theo xu".
-      const srvLists = [['touchplay', camData], ['chemtraicay', camData], ['dapmuoi', camData], ['dacau', camData], ['body', camData],
+      const srvLists = [['touchplay', camData], ['chemtraicay', camData], ['dapmuoi', camData], ['dacau', camData], ['sutbong', camData], ['body', camData],
         ...[...TT_IDS].map(id => [id, ttData])];
       for (const [id, src] of srvLists) {
         if (!src || !src.games) continue;

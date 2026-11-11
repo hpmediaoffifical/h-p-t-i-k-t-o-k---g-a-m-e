@@ -156,6 +156,15 @@ test('Đá Cầu: quà đích danh chỉ so theo id (như handler)', () => {
     assert.deepStrictEqual(Cam.giftClaims({ giftId: '1', giftName: 'Rose' }, cfgs, ['dapmuoi', 'dacau']), []);
 });
 
+test('Sút Bóng: khe tay (thay Đập Muỗi), chơi chung Bắn Cung / Đá Cầu; quà đích danh chỉ so id', () => {
+    const ids = [...IDS, 'sutbong'];
+    assert.strictEqual(Cam.slotOf('sutbong'), 'hands');
+    assert.deepStrictEqual(Cam.normalizeActives(['dapmuoi', 'bancung', 'dacau', 'sutbong'], ids), ['bancung', 'dacau', 'sutbong']);
+    const cfgs = { sutbong: { gifts: [{ giftId: '5655', giftName: 'Rose', shot: 'curve' }, { giftName: 'TikTok' }] }, dacau: { gifts: [] } };
+    assert.deepStrictEqual(Cam.giftClaims({ giftId: '5655', giftName: 'Rose' }, cfgs, ['dacau', 'sutbong']), ['sutbong']);
+    assert.deepStrictEqual(Cam.giftClaims({ giftId: '9', giftName: 'TikTok' }, cfgs, ['dacau', 'sutbong']), []);
+});
+
 test('Touch & Play: quà chỉ định từng hành động giành quà khi chơi kèm (chưa lưu gifts = bộ mẫu, so cả tên)', () => {
     const cfgs = { touchplay: { tpCfg: {} }, bancung: { sessionActive: true, shotGifts: [] } };
     assert.deepStrictEqual(Cam.giftClaims({ giftId: '5655', giftName: 'Rose' }, cfgs, ['touchplay', 'bancung']), ['touchplay']);
