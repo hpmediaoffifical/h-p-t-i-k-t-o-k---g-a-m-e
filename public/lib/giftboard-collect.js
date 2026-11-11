@@ -105,6 +105,9 @@
           }
           if (t.triggers?.enabled !== false) for (const tr of t.triggers?.list || []) if (tr?.enabled !== false && tr.gift?.giftId) push('timer', 'trg:' + tr.id, tr.gift.giftId, tr.gift, tr.name || 'Kích hoạt đếm ngược', fmtSec(tr.durationSec));
         } }
+      { const c = gc('goibai');   // 🎧 Gọi Bài: quà gọi bài + 🎵 quà Ca khúc (mọi bài)
+        for (const g of c.gifts || []) push('goibai', 'pass', g.giftId, g, 'Gọi bài', '🎧');
+        if (Object.keys(c).length && c.songGifts !== false) push('goibai', 'music', 'music', { giftName: 'Ca khúc (mọi bài)' }, 'Ca khúc vào hàng', '🎧'); }
       // 🎥 Game Camera (trừ Bắn Cung — đã đọc ở trên): server dựng sẵn nhãn. Mục không có giftId = dòng "mọi quà/theo xu".
       const srvLists = [['touchplay', camData], ['chemtraicay', camData], ['dapmuoi', camData], ['dacau', camData], ['body', camData],
         ...[...TT_IDS].map(id => [id, ttData])];

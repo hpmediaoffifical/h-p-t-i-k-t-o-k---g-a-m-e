@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>🎧 Gọi Bài — overlay</title>
+<meta name="viewport" content="width=1080, initial-scale=1">
+<script src="/i18n/hp-i18n.js" data-scope="overlay"></script>
+<style>
+  @font-face { font-family: 'SoFont'; font-weight: 500; src: url('/fonts/be-vietnam-pro/be-vietnam-pro-500-vietnamese.woff2') format('woff2'), url('/fonts/be-vietnam-pro/be-vietnam-pro-500-latin.woff2') format('woff2'); }
+  @font-face { font-family: 'SoFont'; font-weight: 700; src: url('/fonts/be-vietnam-pro/be-vietnam-pro-600-vietnamese.woff2') format('woff2'), url('/fonts/be-vietnam-pro/be-vietnam-pro-600-latin.woff2') format('woff2'); }
+  html, body { margin: 0; width: 1080px; height: 1920px; background: transparent; overflow: hidden; }
+  body { font-family: 'SoFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #fff; }
+  .gob-board { position: absolute; left: 40px; top: 160px; width: 640px; display: flex; flex-direction: column; gap: 12px; }
+  .gob-card { background: rgba(14, 16, 34, .80); border: 2px solid rgba(255, 255, 255, .12); border-radius: 22px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+  .gob-hidden { display: none !important; }
+
+  /* Đang phát */
+  .gob-now { display: grid; grid-template-columns: 112px 1fr; gap: 16px; padding: 14px; align-items: center; border-color: rgba(255, 213, 74, .55); }
+  .gob-cover { width: 112px; height: 112px; border-radius: 16px; object-fit: cover; background: #23284a; }
+  .gob-now-tag { font-size: 20px; color: #ffd54a; letter-spacing: .5px; }
+  .gob-now-title { font-size: 34px; font-weight: 700; line-height: 1.15; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .gob-by { display: flex; align-items: center; gap: 8px; font-size: 22px; opacity: .92; margin-top: 4px; min-width: 0; }
+  .gob-by img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex: none; }
+  .gob-by span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gob-bar { grid-column: 1 / -1; height: 8px; border-radius: 6px; background: rgba(255, 255, 255, .15); overflow: hidden; }
+  .gob-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffd54a, #ff4f8b); border-radius: 6px; }
+  .gob-paused { color: #9fb3ff; }
+
+  /* Lượt chọn bài */
+  .gob-ticket { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-color: rgba(255, 79, 139, .7); animation: gobPop .35s ease-out; }
+  .gob-ticket img.av { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex: none; }
+  .gob-ticket .tx { flex: 1; min-width: 0; font-size: 24px; line-height: 1.25; }
+  .gob-ticket .tx b { color: #ffd54a; }
+  .gob-ticket .tx small { display: block; font-size: 20px; opacity: .85; }
+  .gob-ticket .tx small.warn { color: #ffb36b; opacity: 1; }
+  .gob-cd { width: 58px; height: 58px; flex: none; position: relative; }
+  .gob-cd svg { transform: rotate(-90deg); }
+  .gob-cd b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; }
+  @keyframes gobPop { from { transform: scale(.92); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  /* Hàng chờ */
+  .gob-list { padding: 6px 10px; }
+  .gob-head { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 6px 2px; font-size: 20px; opacity: .8; }
+  .gob-row { display: grid; grid-template-columns: 34px 44px 1fr auto; gap: 10px; align-items: center; padding: 7px 6px; border-top: 1px solid rgba(255, 255, 255, .08); }
+  .gob-row:first-of-type { border-top: 0; }
+  .gob-row .no { font-size: 24px; font-weight: 700; color: #ffd54a; text-align: center; }
+  .gob-row img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: #23284a; }
+  .gob-row .t { min-width: 0; }
+  .gob-row .t b { display: block; font-size: 25px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gob-row .t span { display: block; font-size: 18px; opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gob-row .c { font-size: 22px; font-weight: 700; white-space: nowrap; }
+  .gob-row .c img { width: 20px; height: 20px; vertical-align: -3px; background: none; border-radius: 0; }
+  .gob-row.searching .t b { opacity: .65; font-style: italic; }
+  .gob-more { text-align: center; font-size: 20px; opacity: .75; padding: 6px 0 4px; }
+  .gob-idle { display: flex; align-items: center; gap: 10px; padding: 12px 16px; font-size: 24px; }
+  .gob-idle img { width: 44px; height: 44px; object-fit: contain; }
+</style>
+</head>
+<body>
+<div class="gob-board" id="board">
+  <div class="gob-card gob-now gob-hidden" id="now">
+    <img class="gob-cover" id="now-cover" alt="">
+    <div style="min-width:0">
+      <div class="gob-now-tag" id="now-tag">🎧 ĐANG PHÁT</div>
+      <div class="gob-now-title" id="now-title"></div>
+      <div class="gob-by" id="now-by"></div>
+    </div>
+    <div class="gob-bar"><i id="now-bar"></i></div>
+  </div>
+  <div id="tickets"></div>
+  <div class="gob-card gob-list gob-hidden" id="list"></div>
+  <div class="gob-card gob-idle gob-hidden" id="idle"></div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/lib/overlay-hello.js" data-game="goibai"></script>
+<script>
+(function () {
+  'use strict';
+  var T = window.hpT || function (s, v) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return v && v[k] != null ? v[k] : m; }); };
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var COIN = '<img src="/coin.svg" alt="">';
+  var REASON = {
+    notfound: 'Không thấy bài — gõ tên khác', toolong: 'Bài quá dài — chọn bài khác', blocked: 'Tên bài không hợp lệ',
+    playing: 'Bài đang phát — chọn bài khác', error: 'Lỗi tìm bài — gõ lại', noengine: 'Đang chuẩn bị — gõ lại sau'
+  };
+  var st = null, offset = 0, recvAt = 0;
+
+  function avatar(u) { return u ? '<img class="av" src="' + esc(u) + '" alt="" onerror="this.style.visibility=\'hidden\'">' : '<img class="av" alt="" style="visibility:hidden">'; }
+
+  function render() {
+    if (!st) return;
+    $('board').style.display = st.enabled === false ? 'none' : '';   // game tắt → overlay trống trơn
+    var cfg = st.cfg || {};
+    var p = st.playing;
+    // Đang phát
+    $('now').classList.toggle('gob-hidden', !p);
+    if (p) {
+      $('now-cover').src = p.thumb || '';
+      $('now-title').textContent = p.title || p.query || '';
+      $('now-tag').textContent = st.paused ? T('⏸ TẠM DỪNG') : T('🎧 ĐANG PHÁT');
+      $('now-tag').classList.toggle('gob-paused', !!st.paused);
+      $('now-by').innerHTML = (p.avatar ? '<img src="' + esc(p.avatar) + '" alt="">' : '') + '<span>' + esc(p.nickname) + ' · ' + esc(p.coins) + ' ' + COIN + '</span>';
+    }
+    // Hàng chờ
+    var q = st.queue || [], rows = Math.max(1, cfg.listRows || 5);
+    $('list').classList.toggle('gob-hidden', !q.length);
+    if (q.length) {
+      var html = '<div class="gob-head"><span>' + esc(T('🎶 TIẾP THEO')) + '</span><span>' + esc(T('{n} bài', { n: st.queueTotal || q.length })) + '</span></div>';
+      q.slice(0, rows).forEach(function (r, i) {
+        var title = r.status === 'searching' ? T('đang tìm “{q}”…', { q: r.query }) : (r.title || r.query);
+        var extra = (r.backers && r.backers.length) ? ' +' + r.backers.length : '';
+        html += '<div class="gob-row' + (r.status === 'searching' ? ' searching' : '') + '"><div class="no">' + (r.locked ? '🔒' : (i + 1)) + '</div>' +
+          (r.avatar ? '<img src="' + esc(r.avatar) + '" alt="" onerror="this.style.visibility=\'hidden\'">' : '<img alt="" style="visibility:hidden">') +
+          '<div class="t"><b>' + esc(title) + '</b><span>' + esc(r.nickname + extra) + '</span></div><div class="c">' + esc(r.coins) + ' ' + COIN + '</div></div>';
+      });
+      var more = (st.queueTotal || q.length) - rows;
+      if (more > 0) html += '<div class="gob-more">' + esc(T('+{n} bài nữa', { n: more })) + '</div>';
+      $('list').innerHTML = html;
+    }
+    // Gợi ý khi trống
+    var gift = (cfg.gifts || [])[0];
+    var idle = !p && !q.length && !(st.passes || []).length && cfg.idleHint !== false && !!gift;
+    $('idle').classList.toggle('gob-hidden', !idle);
+    if (idle) $('idle').innerHTML = (gift.giftImage ? '<img src="' + esc(gift.giftImage) + '" alt="">' : '🎁') + '<span>' + esc(T('Tặng {g} để gọi bài', { g: gift.giftName || T('quà') })) + '</span>';
+    renderTickets();
+  }
+
+  // Thẻ lượt: GIỮ nguyên nút DOM theo người (key) — chỉ dựng thẻ khi có lượt mới, còn lại cập nhật số đếm tại chỗ.
+  // (Dựng lại innerHTML mỗi 250 ms làm hoạt cảnh hiện ra chạy lại liên tục → thẻ gần như luôn trong suốt.)
+  var C = 2 * Math.PI * 24;
+  function renderTickets() {
+    if (!st) return;
+    var now = Date.now() - offset;
+    var passes = (st.passes || []).filter(function (g) { return g.cdUntil > now; }).slice(0, 2);
+    var box = $('tickets'), keep = {};
+    passes.forEach(function (g) {
+      var sig = g.key + '|' + (g.note || '');
+      keep[sig] = true;
+      var el = box.querySelector('[data-sig="' + CSS.escape(sig) + '"]');
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'gob-card gob-ticket';
+        el.setAttribute('data-sig', sig);
+        var sub = g.note ? '<small class="warn">⚠ ' + esc(T(REASON[g.note] || REASON.error)) + '</small>' : '<small>' + esc(T('Gõ tên bài vào bình luận')) + '</small>';
+        el.innerHTML = avatar(g.avatar) + '<div class="tx">🎧 <b>' + esc(g.nickname) + '</b> ' + esc(T('được gọi bài!')) + sub + '</div>' +
+          '<div class="gob-cd"><svg width="58" height="58"><circle cx="29" cy="29" r="24" stroke="rgba(255,255,255,.18)" stroke-width="6" fill="none"/><circle class="arc" cx="29" cy="29" r="24" stroke="#ff4f8b" stroke-width="6" fill="none" stroke-linecap="round" stroke-dasharray="' + C + '"/></svg><b></b></div>';
+        box.appendChild(el);
+      }
+      var left = Math.max(0, Math.ceil((g.cdUntil - now) / 1000));
+      var total = Math.max(1, (st.cfg && st.cfg.countdownSec) || 15);
+      el.querySelector('.arc').setAttribute('stroke-dashoffset', String(C * (1 - Math.min(1, left / total))));
+      var num = el.querySelector('.gob-cd b');
+      if (num.textContent !== String(left)) num.textContent = String(left);
+    });
+    Array.prototype.slice.call(box.children).forEach(function (el) { if (!keep[el.getAttribute('data-sig')]) el.remove(); });
+  }
+
+  function tickBar() {
+    if (st && st.playing && !st.paused) {
+      var p = st.playing, dur = p.dur || p.duration || 0;
+      var pos = (p.pos || 0) + (Date.now() - recvAt) / 1000;
+      $('now-bar').style.width = dur > 0 ? Math.min(100, pos * 100 / dur) + '%' : '0%';
+    } else if (st && st.playing) {
+      var p2 = st.playing, d2 = p2.dur || p2.duration || 0;
+      $('now-bar').style.width = d2 > 0 ? Math.min(100, (p2.pos || 0) * 100 / d2) + '%' : '0%';
+    }
+  }
+
+  function apply(s) {
+    st = s; recvAt = Date.now(); offset = Date.now() - (Number(s.now) || Date.now());
+    render(); tickBar();
+  }
+
+  var qs = new URLSearchParams(location.search);
+  if (qs.get('demo') === '1') {
+    var n = Date.now();
+    apply({ now: n, paused: false, cfg: { listRows: 5, countdownSec: 15, idleHint: true, gifts: [{ giftName: 'Hoa hồng', giftImage: '' }] },
+      playing: { id: 'p', title: 'Nơi Này Có Anh', nickname: 'Linh Chi', coins: 199, thumb: 'https://i.ytimg.com/vi/FN7ALfpGxiI/mqdefault.jpg', pos: 40, dur: 260 },
+      passes: [{ key: 'g', nickname: 'Minh Tuấn', coins: 1, cdUntil: n + 12000, validUntil: n + 600000, note: '' }],
+      queue: [
+        { id: 'a', title: 'Lạc Trôi', nickname: 'Hà My', coins: 99, locked: true, status: 'ready' },
+        { id: 'b', title: 'Em Của Ngày Hôm Qua', nickname: 'Quang', coins: 30, locked: true, status: 'ready', backers: [{}] },
+        { id: 'c', title: 'Chúng Ta Của Hiện Tại', nickname: 'Thảo', coins: 5, locked: false, status: 'ready' },
+        { id: 'd', query: 'hãy trao cho anh', nickname: 'Bảo', coins: 1, status: 'searching' }
+      ], queueTotal: 7 });
+  } else {
+    var socket = io();
+    socket.on('goibai:state', apply);
+    socket.on('overlay:reload', function (d) { if (!d || !d.gameId || d.gameId === 'goibai') location.reload(); });
+  }
+  setInterval(function () { renderTickets(); tickBar(); }, 250);
+})();
+</script>
+</body>
+</html>

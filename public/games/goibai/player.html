@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>🎧 Gọi Bài — trình phát</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #12162a; color: #e8ebf5; padding: 16px; }
+  .st { opacity: .75; font-size: 12px; margin-top: 6px; }
+  b { color: #ffd54a; }
+</style>
+</head>
+<body>
+<!-- Trang phát của Gọi Bài. Trong app: cửa sổ ẩn (electron-main.js ensureGoiBaiPlayer). Chạy `node server.js`
+     không Electron: mở trang này ở một tab RIÊNG và để mở (bấm vào trang 1 lần nếu trình duyệt chặn tự phát). -->
+<div>🎵 <b>Gọi Bài</b> — trình phát. Giữ trang này mở trong lúc LIVE.</div>
+<div id="now" class="st">Chờ bài…</div>
+<audio id="a" preload="auto"></audio>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function () {
+  'use strict';
+  var audio = document.getElementById('a');
+  var nowEl = document.getElementById('now');
+  var socket = io();
+  var cur = { id: '', title: '' };
+  var target = 0.7;          // âm lượng mong muốn 0..1
+  var fadeTimer = null, lastProgress = 0, pendingStart = 0, wantPlay = false;
+
+  function send(type, extra) {
+    if (!cur.id) return;
+    var ev = { type: type, id: cur.id, pos: audio.currentTime || 0, dur: isFinite(audio.duration) ? audio.duration : 0 };
+    for (var k in extra || {}) ev[k] = extra[k];
+    socket.emit('goibai:player', ev);
+  }
+  function fade(to, ms, done) {
+    clearInterval(fadeTimer);
+    var from = audio.volume, steps = Math.max(1, Math.round(ms / 40)), i = 0;
+    fadeTimer = setInterval(function () {
+      i++;
+      audio.volume = Math.max(0, Math.min(1, from + (to - from) * (i / steps)));
+      if (i >= steps) { clearInterval(fadeTimer); fadeTimer = null; if (done) done(); }
+    }, 40);
+  }
+  function play(msg) {
+    cur = { id: msg.id, title: msg.title || '' };
+    if (typeof msg.volume === 'number') target = Math.max(0, Math.min(1, msg.volume / 100));
+    pendingStart = Number(msg.startAt) || 0;
+    wantPlay = true;
+    clearInterval(fadeTimer);
+    audio.volume = 0;
+    audio.src = msg.src;
+    audio.load();
+    nowEl.textContent = '▶ ' + cur.title;
+  }
+  audio.addEventListener('loadedmetadata', function () {
+    if (pendingStart > 0 && pendingStart < (audio.duration || 0) - 2) { try { audio.currentTime = pendingStart; } catch (e) {} }
+    pendingStart = 0;
+    if (!wantPlay) return;
+    var p = audio.play();
+    if (p && p.catch) p.catch(function (e) { nowEl.textContent = '⚠ Trình duyệt chặn tự phát — bấm vào trang này 1 lần'; send('error', { message: 'autoplay: ' + e.message }); });
+  });
+  audio.addEventListener('playing', function () { fade(target, 1000); send('started'); });
+  audio.addEventListener('timeupdate', function () {
+    var t = Date.now();
+    if (t - lastProgress < 1000) return;
+    lastProgress = t; send('progress');
+    // fade ra 1 giây cuối bài
+    if (isFinite(audio.duration) && audio.duration - audio.currentTime < 1.2 && !fadeTimer) fade(0, 1000);
+  });
+  audio.addEventListener('ended', function () { send('ended'); cur = { id: '', title: '' }; wantPlay = false; nowEl.textContent = 'Chờ bài…'; });
+  audio.addEventListener('error', function () {
+    var err = audio.error;
+    if (!cur.id || !wantPlay) return;
+    send('error', { message: err ? ('mã ' + err.code + ' ' + (err.message || '')) : 'không rõ' });
+  });
+  document.addEventListener('click', function () { if (wantPlay && audio.paused) audio.play().catch(function () {}); });
+
+  socket.on('connect', function () { socket.emit('goibai:player:hello'); });
+  socket.on('goibai:cmd', function (msg) {
+    if (!msg) return;
+    if (msg.cmd === 'play') play(msg);
+    else if (msg.cmd === 'stop') { wantPlay = false; var id = cur.id; cur = { id: '', title: '' }; fade(0, 600, function () { if (!cur.id) { audio.pause(); audio.removeAttribute('src'); audio.load(); } }); nowEl.textContent = 'Chờ bài…'; void id; }
+    else if (msg.cmd === 'pause') { fade(0, 400, function () { audio.pause(); }); nowEl.textContent = '⏸ ' + cur.title; }
+    else if (msg.cmd === 'resume') { if (cur.id) { audio.play().catch(function () {}); fade(target, 600); nowEl.textContent = '▶ ' + cur.title; } }
+    else if (msg.cmd === 'volume') { target = Math.max(0, Math.min(1, (Number(msg.volume) || 0) / 100)); if (!audio.paused && !fadeTimer) audio.volume = target; }
+  });
+})();
+</script>
+</body>
+</html>

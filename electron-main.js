@@ -1819,6 +1819,60 @@ function applyDvqHotkeys(cfg) {
 global.__dvqApplyHotkeys = applyDvqHotkeys;
 
 // ============================================================
+// 🎵 GỌI BÀI — cửa sổ phát ẨN (trang nội bộ /player/goibai, <audio> ra loa máy, OBS bắt Desktop Audio)
+// + phím tắt toàn cục Bỏ bài / Tạm dừng. Server gọi global.__goiBaiPlayer.ensure(on) khi bật/tắt game.
+// 🔐 sandbox + chỉ trang nội bộ (luật v1.25); tự phát không cần bấm; không hãm nhịp khi chạy nền.
+// ============================================================
+let goiBaiWindow = null;
+function ensureGoiBaiPlayer(on) {
+    if (!on) {
+        if (goiBaiWindow && !goiBaiWindow.isDestroyed()) goiBaiWindow.destroy();
+        goiBaiWindow = null;
+        return;
+    }
+    if (goiBaiWindow && !goiBaiWindow.isDestroyed()) return;
+    goiBaiWindow = new BrowserWindow({
+        show: false, width: 420, height: 200, skipTaskbar: true, title: 'HP Gọi Bài — trình phát',
+        webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' }
+    });
+    goiBaiWindow.setMenu(null);
+    goiBaiWindow.loadURL(`${APP_URL}/player/goibai`);
+    // Trang phát chết (renderer crash) → dựng lại sau 2 giây; server phát tiếp đúng chỗ khi trang nối lại.
+    goiBaiWindow.webContents.on('render-process-gone', () => {
+        try { goiBaiWindow?.destroy(); } catch (_) {}
+        goiBaiWindow = null;
+        setTimeout(() => ensureGoiBaiPlayer(true), 2000);
+    });
+    goiBaiWindow.on('closed', () => { goiBaiWindow = null; });
+}
+global.__goiBaiPlayer = { ensure: (on) => { if (app.isReady()) ensureGoiBaiPlayer(!!on); else app.whenReady().then(() => ensureGoiBaiPlayer(!!on)); } };
+
+let _goiBaiAccels = [];
+function applyGoiBaiHotkeys(cfg) {
+    for (const a of _goiBaiAccels) { try { globalShortcut.unregister(a); } catch (_) {} }
+    _goiBaiAccels = [];
+    if (!cfg || cfg.enabled !== true) return;
+    const pairs = [['skip', cfg.hotkeySkip], ['togglePause', cfg.hotkeyPause]];
+    for (const [cmd, key] of pairs) {
+        let accel = String(key || '').trim();
+        if (/^[a-z0-9]$/i.test(accel)) accel = `Control+Shift+${accel.toUpperCase()}`;
+        if (!accel || _goiBaiAccels.includes(accel)) continue;
+        try {
+            const ok = globalShortcut.register(accel, async () => {
+                try {
+                    const fetch = require('node-fetch');
+                    await fetch(`${APP_URL}/api/goibai/control`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd }) });
+                } catch (e) { console.warn('[goibai-hotkey] api fail:', e.message); }
+            });
+            if (ok) _goiBaiAccels.push(accel);
+            else console.warn('[goibai-hotkey] phím đang bị chiếm:', accel);
+        } catch (e) { console.warn('[goibai-hotkey] register fail:', accel, e.message); }
+    }
+    if (_goiBaiAccels.length) console.log(`[goibai] global hotkeys registered: ${_goiBaiAccels.join(', ')}`);
+}
+global.__goiBaiApplyHotkeys = applyGoiBaiHotkeys;
+
+// ============================================================
 // PHỤ ĐỀ GIỌNG CREATOR — phím tắt toàn cục Nghe/Tạm dừng: gọi route toggle của server
 // (đang nghe → tạm dừng, cửa sổ Edge/Chrome vẫn mở; đang nghỉ → nghe lại; chưa mở → mở và nghe).
 // ============================================================
