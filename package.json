@@ -9,7 +9,10 @@
     "server": "node server.js",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
-    "test": "node --test \"tests/**/*.test.{js,mjs}\""
+    "test": "node --test \"tests/**/*.test.{js,mjs}\"",
+    "prebuild:win": "node build/check-asar-deps.js --preflight",
+    "prebuild": "node build/check-asar-deps.js --preflight",
+    "verify:asar": "node build/check-asar-deps.js dist/win-unpacked/resources/app.asar"
   },
   "dependencies": {
     "express": "^4.19.2",
@@ -126,6 +129,7 @@
       "onlyLoadAppFromAsar": true,
       "loadBrowserProcessSpecificV8Snapshot": false,
       "grantFileProtocolExtraPrivileges": false
-    }
+    },
+    "afterPack": "./build/after-pack-check.js"
   }
 }
