@@ -64,11 +64,11 @@ Build lại thì **phải sinh lại manifest**, vì SHA-256 đổi theo từng 
   "sha256": "5b517a2d64ef6fc0d2b7d00cf12830f4f7503ecdcc44f1e836b42db4ef716033", "size": 114566783, "notes": "" }
 ```
 
-**HP Đại Chiến**, gói web 0.1.1 (commit 065c011 kho HP Dai Chien; gói 0.1.0 đã bỏ):
+**HP Đại Chiến**, gói web 0.1.2 (commit d65ec8c kho HP Dai Chien, 3,1 MB; gói 0.1.0 / 0.1.1 đã bỏ):
 
 ```json
-{ "version": "0.1.1", "url": "https://hpvn.media/daichien/hp-dai-chien-web-0.1.1.zip",
-  "sha256": "e070e578a7e7c78f5399069db307672151cbdc29258657af5a2b6b8788334630", "size": 13196468, "notes": "" }
+{ "version": "0.1.2", "url": "https://hpvn.media/daichien/hp-dai-chien-web-0.1.2.zip",
+  "sha256": "6567b295b8fa5c4344b0a783db05be15e16b172f2f7b96fd87f2475ad1180658", "size": 3289987, "notes": "" }
 ```
 
 ## Thêm game tải riêng mới
