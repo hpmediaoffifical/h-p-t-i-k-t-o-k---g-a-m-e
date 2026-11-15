@@ -15,7 +15,7 @@
     function isOn(g) { const c = g.config || {}; return !g.locked && (!('enabled' in c) || c.enabled !== false); }
 
     function card(t) {
-        if (t.download) return window.HpSinhTonCard ? window.HpSinhTonCard.html(t) : '';   // game tải riêng: thẻ tự vẽ (sinhton-card.js)
+        if (t.download) return window.HpDownloadCard ? window.HpDownloadCard.html(t) : '';   // game tải riêng: thẻ tự vẽ (download-card.js)
         const g = appGame(t.id);
         if (g && g.lstate === 'hidden') return '';   // HP KEY: mục Ẩn (chưa ra mắt) không hiện
         const head = (badge) => `<div class="cg-game-head"><span class="cg-ico">${t.icon}</span><b>${esc(t.name)}</b>${badge || ''}</div>
@@ -46,7 +46,7 @@
         const root = $('#gtt-root');
         if (!root) return;
         root.innerHTML = `<div class="cg-grid" id="gtt-grid">${children().map(card).join('')}</div>`;
-        window.HpSinhTonCard?.bind(root, hubSocket);
+        window.HpDownloadCard?.bind(root, hubSocket);
         root.querySelectorAll('[data-settings]').forEach(b => b.addEventListener('click', () => window.hpOpenGame?.(b.dataset.settings)));
         root.querySelectorAll('[data-power]').forEach(b => b.addEventListener('click', async () => {
             const g = appGame(b.dataset.power);

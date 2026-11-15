@@ -2311,26 +2311,59 @@ luaSync.on('updates_available', (updates) => {
 luaSync.on('downloaded', (data) => {
     io.emit('luaSync:downloaded', data);
 });
-// ====== 🔫 Sinh Tồn — game bắn súng 3D chạy riêng, TẢI VỀ RIÊNG (không gói vào bản cập nhật app) ======
+// ====== 🎮 Game TẢI RIÊNG (không gói vào bản cập nhật app): Sinh Tồn, HP Đại Chiến… — lib/game-download.js ======
 // Manifest trên máy chủ HP Media; link tải nằm trong manifest, không ra giao diện / GitHub. Chỉ tải khi có bản quyền.
-// Bộ cài lưu %APPDATA%\hp-action-live\sinhton\. Game tự nối socket.io của app (cổng 3000) để nhận quà + tên/avatar.
-const SINHTON_MANIFEST_URL = (appConfig.sinhton && typeof appConfig.sinhton.manifestUrl === 'string' && appConfig.sinhton.manifestUrl)
-    || 'https://hpvn.media/sinhton/manifest.json';
-const sinhTon = require('./lib/sinhton-download').createSinhTon({
-    dir: path.join(process.env.APPDATA || require('os').homedir(), 'hp-action-live', 'sinhton'),
-    manifestUrl: SINHTON_MANIFEST_URL,
-    isLicensed: () => Boolean(trustedLicense.get() || licenseGrace()),   // 🔐 token đã ký (+ ân hạn 24 h)
-    canUse: () => featureOn('sinhton'),
-    spawnImpl: (file) => {
-        const child = spawn(file, [], { detached: true, stdio: 'ignore', windowsHide: false, cwd: path.dirname(file) });
-        child.on('error', (e) => console.warn('[sinhton] chạy lỗi:', e.message));
+// File lưu %APPDATA%\hp-action-live\games\<id>\. Game tự nối socket.io của app để nhận quà + tên/avatar.
+// Thêm game = 1 dòng ở đây + 1 dòng `download: true` trong public/games/gametuongtac/registry.js (cùng id). Hướng dẫn: docs/game-tai-rieng.md
+//   kind 'exe': bộ cài Windows electron-builder, tên file `<prefix><version>.exe`, tìm bản đã cài theo DisplayName (`installName`).
+//   kind 'web': zip game web (có `entry`), app giải nén + phục vụ tại /dl/<id>/, mở bằng cửa sổ Edge/Chrome (GPU) hoặc OBS.
+const DL_GAMES_DEF = [
+    { id: 'sinhton', kind: 'exe', manifestUrl: 'https://hpvn.media/sinhton/manifest.json', prefix: 'HP-Sinh-Ton-Setup-', installName: 'HP Sinh T', exeName: 'HP Sinh Tồn.exe' },
+    { id: 'daichien', kind: 'web', manifestUrl: 'https://hpvn.media/daichien/manifest.json', prefix: 'hp-dai-chien-web-', entry: 'index.html' }
+];
+const GameDownload = require('./lib/game-download');
+const dlGames = {};
+for (const d of DL_GAMES_DEF) {
+    const over = appConfig.dlGames && appConfig.dlGames[d.id];   // đổi nguồn tải khi cần: appConfig.dlGames.<id>.manifestUrl
+    dlGames[d.id] = GameDownload.createGameDownload({
+        id: d.id, kind: d.kind, entry: d.entry,
+        dir: path.join(process.env.APPDATA || require('os').homedir(), 'hp-action-live', 'games', d.id),
+        manifestUrl: (over && typeof over.manifestUrl === 'string' && over.manifestUrl) || d.manifestUrl,
+        fileName: (v) => d.prefix + v + (d.kind === 'web' ? '.zip' : '.exe'),
+        isLicensed: () => Boolean(trustedLicense.get() || licenseGrace()),   // 🔐 token đã ký (+ ân hạn 24 h)
+        canUse: () => featureOn(d.id),
+        findInstalled: () => GameDownload.findInstalledWindows(d.installName, d.exeName),
+        spawnImpl: (file) => {
+            const child = spawn(file, [], { detached: true, stdio: 'ignore', windowsHide: false, cwd: path.dirname(file) });
+            child.on('error', (e) => console.warn(`[${d.id}] chạy lỗi:`, e.message));
+            child.unref();
+        },
+        openWeb: async (entry) => {
+            const r = openGameBrowserWindow(`http://127.0.0.1:${PORT}/dl/${d.id}/${entry}?win=1`, path.join(DATA_DIR, d.id + '-window'), d.window || [1280, 760]);
+            if (!r.ok) throw new Error(r.error);
+        },
+        onChange: (s) => io.emit('dlgame:state', s),
+        log: (...a) => console.log(...a)
+    });
+}
+// Cửa sổ Edge/Chrome --app (game 3D cần GPU/WebGL; Electron của app tắt GPU) — như Zombie Phá Nhà.
+function openGameBrowserWindow(url, profileRoot, [w, h]) {
+    const found = CaptionListener.resolveBrowserExe('edge', { exists: (p) => { try { return fs.existsSync(p); } catch (e) { return false; } } });
+    if (!found) return { ok: false, error: 'Không tìm thấy Microsoft Edge hoặc Google Chrome trên máy' };
+    const profileDir = path.join(profileRoot, found.browser);
+    try { fs.mkdirSync(profileDir, { recursive: true }); } catch (e) {}
+    const keepDrawing = ['--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling'];
+    const args = CaptionListener.buildLaunchArgs({ url, profileDir }).filter(a => !a.startsWith('--window-size=')).concat(`--window-size=${w},${h}`, ...keepDrawing);
+    try {
+        const child = spawn(found.exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
+        child.on('error', (e) => console.warn('[dl-game] mở cửa sổ lỗi:', e.message));
         child.unref();
-    },
-    onChange: (s) => io.emit('sinhton:state', s),
-    log: (...a) => console.log(...a)
-});
-setTimeout(() => { sinhTon.checkManifest().catch(() => {}); }, 8000);                 // đợi bản quyền xác thực xong
-setInterval(() => { sinhTon.checkManifest().catch(() => {}); }, 30 * 60 * 1000).unref();   // 30 phút xem có bản mới
+    } catch (e) { return { ok: false, error: e.message }; }
+    return { ok: true };
+}
+const dlCheckAll = () => { for (const g of Object.values(dlGames)) g.checkManifest().catch(() => {}); };
+setTimeout(dlCheckAll, 8000);                              // đợi bản quyền xác thực xong
+setInterval(dlCheckAll, 30 * 60 * 1000).unref();           // 30 phút xem có bản mới
 // ====== OBS Settings sync (đồng bộ thông số LUA giữa các máy) ======
 const obsSettings = new OBSSettings({
     logger: { log: (...args) => console.log('[obs-settings]', ...args) }
@@ -8100,20 +8133,34 @@ app.post('/api/duongveque/key', (req, res) => {
     io.emit('duongveque:key', { action });
     res.json({ ok: true });
 });
-// 🔫 Sinh Tồn (tải riêng, xem sinhTon ở trên): trạng thái / kiểm bản mới / tải / huỷ / mở game hoặc chạy bộ cài.
-app.get('/api/sinhton/state', async (req, res) => { await sinhTon.refreshInstalled(false); res.set('Cache-Control', 'no-store').json(sinhTon.state()); });
-for (const [name, fn] of [['check', () => sinhTon.checkManifest()], ['cancel', () => sinhTon.cancel()], ['open', () => sinhTon.open()], ['open-installed', () => sinhTon.openInstalled()]]) {
-    app.post('/api/sinhton/' + name, async (req, res) => {
-        if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
-        try { const r = await fn(); res.json({ ok: true, result: r && r.ran, state: sinhTon.state() }); }
-        catch (e) { res.json({ ok: false, error: e.message, state: sinhTon.state() }); }
-    });
-}
-// Tải ~110 MB chạy nền: trả lời ngay, tiến độ qua socket 'sinhton:state'
-app.post('/api/sinhton/download', (req, res) => {
+// 🎮 Game tải riêng (dlGames ở trên): trạng thái / kiểm bản mới / tải / huỷ / mở game hoặc chạy bộ cài.
+const dlGame = (req, res) => { const g = dlGames[req.params.id]; if (!g) res.status(404).json({ ok: false, error: 'Không có game này' }); return g; };
+app.get('/api/dlgames/:id/state', async (req, res) => {
+    const g = dlGame(req, res); if (!g) return;
+    await g.refreshInstalled(false);
+    res.set('Cache-Control', 'no-store').json(g.state());
+});
+const DL_ACTIONS = { check: (g) => g.checkManifest(), cancel: (g) => g.cancel(), open: (g) => g.open(), 'open-installed': (g) => g.openInstalled() };
+app.post('/api/dlgames/:id/:action', async (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
-    sinhTon.download().catch((e) => console.warn('[sinhton] tải lỗi:', e.message));
-    res.json({ ok: true, state: sinhTon.state() });
+    const g = dlGame(req, res); if (!g) return;
+    const a = req.params.action;
+    if (a === 'download') {   // tải chạy nền: trả lời ngay, tiến độ qua socket 'dlgame:state'
+        g.download().catch((e) => console.warn(`[${g.id}] tải lỗi:`, e.message));
+        return res.json({ ok: true, state: g.state() });
+    }
+    if (!Object.prototype.hasOwnProperty.call(DL_ACTIONS, a)) return res.status(404).json({ ok: false });
+    try { const r = await DL_ACTIONS[a](g); res.json({ ok: true, result: r && r.ran, state: g.state() }); }
+    catch (e) { res.json({ ok: false, error: e.message, state: g.state() }); }
+});
+// Game web đã tải: phục vụ thư mục bản hiện tại tại /dl/<id>/ (game dùng đường dẫn tương đối, tự nối socket của app).
+const dlStatic = new Map();
+app.use('/dl/:id', (req, res, next) => {
+    const g = Object.prototype.hasOwnProperty.call(dlGames, req.params.id) ? dlGames[req.params.id] : null;
+    const root = g && g.webRoot();
+    if (!root) return res.status(404).type('text/plain').send('Chưa tải game này — mở 🎮 Game Tương Tác trong HP Action LIVE để tải.');
+    if (!dlStatic.has(root)) dlStatic.set(root, express.static(root, { fallthrough: false, maxAge: 0 }));
+    dlStatic.get(root)(req, res, next);
 });
 app.post('/api/nhatu/window/open', (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });

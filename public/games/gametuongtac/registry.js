@@ -45,11 +45,18 @@
             note: 'Camera tự đạo diễn; chỉ dùng Browser Source HOẶC cửa sổ game, không dùng cả hai.'
         },
         {
-            // Game chạy RIÊNG (bộ cài Windows), không gói vào app: thẻ có nút Tải về / Mở game / Cập nhật (sinhton-card.js).
-            id: 'sinhton', name: 'Sinh Tồn', icon: '🔫', download: true,
+            // Game TẢI RIÊNG (không gói vào app): download: true → thẻ Tải về / Mở game / Cập nhật (download-card.js);
+            // phải có cùng id trong DL_GAMES_DEF của server.js. obs = bảng quà OBS của chính game (nếu có).
+            id: 'sinhton', name: 'Sinh Tồn', icon: '🔫', download: true, obs: 'http://localhost:8765/overlay-qua.html', obsSize: '1080 × 600',
             desc: 'Bắn súng 3D trên bến cảng: streamer cầm súng sống sót; quà gọi quái mang tên + avatar người tặng, hoặc giúp streamer (hồi máu, giáp, đồng đội…).',
             play: 'Quà · thả tim · chia sẻ · theo dõi · bình luận',
             note: 'Mở HP Action LIVE + kết nối LIVE trước, game tự nhận quà. Gán quà: phím F2 trong game.'
+        },
+        {
+            id: 'daichien', name: 'HP Đại Chiến', icon: '⚔️', download: true,
+            desc: 'Đấu trường 2 phe, 3 đường: Hiệp Khách (xanh) đấu Gia tộc Xương (đỏ), phá trụ rồi phá Nhà chính. Quà lớn thành TƯỚNG mang tên + avatar người tặng, lên cấp khi hạ quân.',
+            play: 'Gõ 1 / 2 chọn phe · tim = lính · quà theo xu = quân / khổng lồ / tướng / trùm',
+            note: 'Mở cửa sổ game (OBS bắt cửa sổ) hoặc dán Link OBS vào Browser Source — chỉ dùng một trong hai.'
         }
     ];
 })();
