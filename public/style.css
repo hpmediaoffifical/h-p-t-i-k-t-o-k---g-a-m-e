@@ -9657,6 +9657,12 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .gametuongtac-body { display: flex; flex-direction: column; gap: 12px; padding: 12px; min-height: 0; flex: 1; overflow: auto; }
 .cg-game.gtt-soon { opacity: .6; border-style: dashed; }
 .cg-game.gtt-locked { opacity: .55; }
+/* 🔫 Sinh Tồn — thẻ tải riêng (public/games/sinhton/sinhton-card.js) */
+.sinhton-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--fg-c8cee0, #c8cee0); }
+.sinhton-row small { display: block; color: var(--fg-8b93a8, #8b93a8); font-size: 11px; }
+.sinhton-progress { height: 8px; border-radius: 999px; background: var(--bg-232733, #232733); overflow: hidden; }
+.sinhton-progress i { display: block; height: 100%; background: var(--bg-25f4ee, #25f4ee); transition: width .3s ease; }
+.sinhton-err { font-size: 12px; color: var(--fg-ff6b6b, #ff6b6b); }
 .cg-badge.gtt-off { color: var(--fg-8b93a8, #8b93a8); }
 .gtt-side-arrow { flex-shrink: 0; width: 26px; text-align: center; font-size: 20px; line-height: 1; color: var(--fg-8b93a8, #8b93a8); }
 .game-item.active .gtt-side-arrow { color: var(--fg-25f4ee, #25f4ee); }

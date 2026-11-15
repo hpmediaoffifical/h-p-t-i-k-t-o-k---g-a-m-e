@@ -664,7 +664,7 @@
     function ttHubSummary() {
         const kids = games.filter(g => TT_CHILD_GAMES.has(g.id) && g.lstate !== 'hidden');
         const on = kids.filter(g => !g.locked && isGameEnabled(g)).length;
-        const soon = (window.HpTuongTacGames || []).filter(t => t.soon || !games.some(g => g.id === t.id)).length;
+        const soon = (window.HpTuongTacGames || []).filter(t => !t.download && (t.soon || !games.some(g => g.id === t.id))).length;   // game tải riêng (Sinh Tồn) không phải "sắp ra mắt"
         return `${on}/${kids.length} đang bật` + (soon ? ` · ${soon} sắp ra mắt` : '');
     }
     // Nút ⏻ trong Thư viện Game phản ánh đúng config — gọi mỗi khi enabled đổi (kể cả đổi từ cửa sổ

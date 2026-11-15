@@ -43,6 +43,13 @@
             desc: 'Tòa nhà LIVE chibi 3D 25 phòng: người xem là fan của 5 nhóm nhảy, quà bất kỳ được lên sân khấu, vé có phòng mang tên, vai MC/Kỹ thuật/Quản lý, PK giữa các nhóm.',
             play: 'Gõ 1–5 chọn nhóm · quà = lên sân khấu / phòng / vai · PK',
             note: 'Camera tự đạo diễn; chỉ dùng Browser Source HOẶC cửa sổ game, không dùng cả hai.'
+        },
+        {
+            // Game chạy RIÊNG (bộ cài Windows), không gói vào app: thẻ có nút Tải về / Mở game / Cập nhật (sinhton-card.js).
+            id: 'sinhton', name: 'Sinh Tồn', icon: '🔫', download: true,
+            desc: 'Bắn súng 3D trên bến cảng: streamer cầm súng sống sót; quà gọi quái mang tên + avatar người tặng, hoặc giúp streamer (hồi máu, giáp, đồng đội…).',
+            play: 'Quà · thả tim · chia sẻ · theo dõi · bình luận',
+            note: 'Mở HP Action LIVE + kết nối LIVE trước, game tự nhận quà. Gán quà: phím F2 trong game.'
         }
     ];
 })();

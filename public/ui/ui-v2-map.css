@@ -156,6 +156,7 @@ body.ui-v2 {
     --bg-221f16: #FFFFFF;
     --bg-222836: #F8F1EF;
     --bg-222839: #F8F1EF;
+    --bg-232733: #F8F1EF;
     --bg-232838: #F8F1EF;
     --bg-232936: #F8F1EF;
     --bg-232938: #F8F1EF;
@@ -729,6 +730,7 @@ body.ui-v2 .ui-keep-colors {
     --bg-222836: initial;
     --bg-222839: initial;
     --bg-22c55e: initial;
+    --bg-232733: initial;
     --bg-232838: initial;
     --bg-232936: initial;
     --bg-232938: initial;

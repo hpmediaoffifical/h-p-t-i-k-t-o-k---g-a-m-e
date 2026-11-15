@@ -2311,6 +2311,26 @@ luaSync.on('updates_available', (updates) => {
 luaSync.on('downloaded', (data) => {
     io.emit('luaSync:downloaded', data);
 });
+// ====== 🔫 Sinh Tồn — game bắn súng 3D chạy riêng, TẢI VỀ RIÊNG (không gói vào bản cập nhật app) ======
+// Manifest trên máy chủ HP Media; link tải nằm trong manifest, không ra giao diện / GitHub. Chỉ tải khi có bản quyền.
+// Bộ cài lưu %APPDATA%\hp-action-live\sinhton\. Game tự nối socket.io của app (cổng 3000) để nhận quà + tên/avatar.
+const SINHTON_MANIFEST_URL = (appConfig.sinhton && typeof appConfig.sinhton.manifestUrl === 'string' && appConfig.sinhton.manifestUrl)
+    || 'https://hpvn.media/sinhton/manifest.json';
+const sinhTon = require('./lib/sinhton-download').createSinhTon({
+    dir: path.join(process.env.APPDATA || require('os').homedir(), 'hp-action-live', 'sinhton'),
+    manifestUrl: SINHTON_MANIFEST_URL,
+    isLicensed: () => Boolean(trustedLicense.get() || licenseGrace()),   // 🔐 token đã ký (+ ân hạn 24 h)
+    canUse: () => featureOn('sinhton'),
+    spawnImpl: (file) => {
+        const child = spawn(file, [], { detached: true, stdio: 'ignore', windowsHide: false, cwd: path.dirname(file) });
+        child.on('error', (e) => console.warn('[sinhton] chạy lỗi:', e.message));
+        child.unref();
+    },
+    onChange: (s) => io.emit('sinhton:state', s),
+    log: (...a) => console.log(...a)
+});
+setTimeout(() => { sinhTon.checkManifest().catch(() => {}); }, 8000);                 // đợi bản quyền xác thực xong
+setInterval(() => { sinhTon.checkManifest().catch(() => {}); }, 30 * 60 * 1000).unref();   // 30 phút xem có bản mới
 // ====== OBS Settings sync (đồng bộ thông số LUA giữa các máy) ======
 const obsSettings = new OBSSettings({
     logger: { log: (...args) => console.log('[obs-settings]', ...args) }
@@ -8079,6 +8099,21 @@ app.post('/api/duongveque/key', (req, res) => {
     if (!['jump', 'ram', 'start'].includes(action)) return res.status(400).json({ ok: false, error: 'action' });
     io.emit('duongveque:key', { action });
     res.json({ ok: true });
+});
+// 🔫 Sinh Tồn (tải riêng, xem sinhTon ở trên): trạng thái / kiểm bản mới / tải / huỷ / mở game hoặc chạy bộ cài.
+app.get('/api/sinhton/state', async (req, res) => { await sinhTon.refreshInstalled(false); res.set('Cache-Control', 'no-store').json(sinhTon.state()); });
+for (const [name, fn] of [['check', () => sinhTon.checkManifest()], ['cancel', () => sinhTon.cancel()], ['open', () => sinhTon.open()], ['open-installed', () => sinhTon.openInstalled()]]) {
+    app.post('/api/sinhton/' + name, async (req, res) => {
+        if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+        try { const r = await fn(); res.json({ ok: true, result: r && r.ran, state: sinhTon.state() }); }
+        catch (e) { res.json({ ok: false, error: e.message, state: sinhTon.state() }); }
+    });
+}
+// Tải ~110 MB chạy nền: trả lời ngay, tiến độ qua socket 'sinhton:state'
+app.post('/api/sinhton/download', (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    sinhTon.download().catch((e) => console.warn('[sinhton] tải lỗi:', e.message));
+    res.json({ ok: true, state: sinhTon.state() });
 });
 app.post('/api/nhatu/window/open', (req, res) => {
     if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
