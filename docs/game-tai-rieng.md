@@ -55,13 +55,15 @@ Game tự nối socket.io của app (cổng 3000) để nhận quà kèm tên v�
 
 Build lại thì **phải sinh lại manifest**, vì SHA-256 đổi theo từng lần build.
 
-### Manifest cho các file hiện có (15/11/2026)
+### Manifest đang chạy trên hpvn.media (15/11/2026)
 
-**Sinh Tồn**, bộ cài 1.1.0 build lúc 18:32:
+hpvn.media đi qua Cloudflare: file .zip / .exe bị cache, nên mỗi bản dùng tên file mới có số phiên bản, KHÔNG ghi đè file cùng tên.
+
+**Sinh Tồn**, bộ cài 1.1.1 (bản 1.1.0 vẫn còn trên hosting nhưng manifest không trỏ tới):
 
 ```json
-{ "version": "1.1.0", "url": "https://hpvn.media/sinhton/HP-Sinh-Ton-Setup-1.1.0.exe",
-  "sha256": "5b517a2d64ef6fc0d2b7d00cf12830f4f7503ecdcc44f1e836b42db4ef716033", "size": 114566783, "notes": "" }
+{ "version": "1.1.1", "url": "https://hpvn.media/sinhton/HP-Sinh-Ton-Setup-1.1.1.exe",
+  "sha256": "08fa93cbd20efc612b13a94841b40cc8bda401ec23fc8352a96b920cf1d8203d", "size": 114567918, "notes": "" }
 ```
 
 **HP Đại Chiến**, gói web 0.1.2 (commit d65ec8c kho HP Dai Chien, 3,1 MB; gói 0.1.0 / 0.1.1 đã bỏ):
