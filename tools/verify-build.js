@@ -64,6 +64,9 @@ const FILES = [
     ['lib/quaivat-store.js', 'lưu phiên + BXH Zombie (thiếu = server không khởi động)'],
     ['lib/creatoronline-fans.js', 'fan trọn đời Creator Online (thiếu = server không khởi động)'],
     ['public/games/gametuongtac/registry.js', 'danh sách Game Tương Tác (thiếu = menu rỗng)'],
+    // 🎮 Game tải riêng (Sinh Tồn, HP Đại Chiến): server require lib/game-download lúc khởi động
+    ['lib/game-download.js', 'tải game riêng (thiếu = server không khởi động)'],
+    ['public/games/gametuongtac/download-card.js', 'thẻ Tải về / Mở game của game tải riêng'],
     ['public/games/nhatu/overlay.html', 'overlay Nhà Tù Online'],
     ['public/games/nhatu/js/game.js', 'engine Nhà Tù Online'],
     ['public/games/pokemon/overlay.html', 'overlay Săn Pokemon'],
