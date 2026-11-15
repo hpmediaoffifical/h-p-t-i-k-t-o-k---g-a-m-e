@@ -28,7 +28,7 @@ Các game này **không** nằm trong bộ cài / bản cập nhật HP Action L
 Game tự nối socket.io của app (cổng 3000) để nhận quà kèm tên và avatar người tặng.
 
 - Gói `web` chạy ngay trong app nên có thể gọi thẳng `/api/comment-filter/check` để che tên có từ cấm.
-- Cổng khác 3000: tuỳ game, vd HP Đại Chiến nhận `?hp=CỔNG`.
+- Cổng khác 3000: tuỳ game. HP Đại Chiến từ 0.1.1 tự nhận ra khi chạy dưới /dl/, không cần `?hp=CỔNG`.
 
 ## Mỗi lần phát hành bản game mới
 
@@ -64,11 +64,11 @@ Build lại thì **phải sinh lại manifest**, vì SHA-256 đổi theo từng 
   "sha256": "5b517a2d64ef6fc0d2b7d00cf12830f4f7503ecdcc44f1e836b42db4ef716033", "size": 114566783, "notes": "" }
 ```
 
-**HP Đại Chiến**, gói web 0.1.0 build lúc 18:45:
+**HP Đại Chiến**, gói web 0.1.1 (commit 065c011 kho HP Dai Chien; gói 0.1.0 đã bỏ):
 
 ```json
-{ "version": "0.1.0", "url": "https://hpvn.media/daichien/hp-dai-chien-web-0.1.0.zip",
-  "sha256": "3d4fc0246bd1cabeee7a181a19c1416b8501c58df5e69ec6a111398b47ddd00a", "size": 13196371, "notes": "" }
+{ "version": "0.1.1", "url": "https://hpvn.media/daichien/hp-dai-chien-web-0.1.1.zip",
+  "sha256": "e070e578a7e7c78f5399069db307672151cbdc29258657af5a2b6b8788334630", "size": 13196468, "notes": "" }
 ```
 
 ## Thêm game tải riêng mới
