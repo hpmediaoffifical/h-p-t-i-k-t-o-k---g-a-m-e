@@ -94,8 +94,10 @@ Phía app chỉ cần đổi `manifestUrl`.
 
 ## Thử không cần hpvn.media
 
-1. Dựng máy chủ HTTPS tạm có chứng chỉ tự ký, phục vụ file + `manifest.json`.
-2. Ghi `dlGames.<id>.manifestUrl` vào `app-config.json` của thư mục dữ liệu thử.
-3. Chạy `node server.js` với `NODE_TLS_REJECT_UNAUTHORIZED=0`. **Chỉ dùng cho bản thử.**
+Bộ tải **luôn kiểm chứng chỉ HTTPS** (`strictFetch` trong `lib/game-download.js`). Nó bỏ qua cả biến môi trường
+`NODE_TLS_REJECT_UNAUTHORIZED=0`, nên chứng chỉ tự ký không dùng được.
 
-Test tự động: `node --test tests/game-download.test.js`.
+- Muốn thử tải thật trên máy: dựng máy chủ HTTPS bằng chứng chỉ máy đã tin (vd mkcert), rồi ghi `dlGames.<id>.manifestUrl` vào `app-config.json` của thư mục dữ liệu thử.
+- Hoặc thử thẳng với hpvn.media.
+
+Test tự động không cần mạng: `node --test tests/game-download.test.js`.

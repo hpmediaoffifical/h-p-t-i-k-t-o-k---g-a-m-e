@@ -170,3 +170,8 @@ test('web: gói thiếu index.html hoặc có symlink → lỗi, không thay b�
     try { fs.symlinkSync(os.tmpdir(), path.join(d, 'out'), 'junction'); } catch (e) { linked = false; }
     if (linked) assert.throws(() => G.checkTree(d), /đường dẫn lạ/);
 });
+
+test('strictFetch chỉ đi https (không mạng)', async () => {
+    await assert.rejects(G.strictFetch('http://hpvn.media/sinhton/manifest.json'), /https/);
+    await assert.rejects(G.strictFetch('không phải link'));
+});
