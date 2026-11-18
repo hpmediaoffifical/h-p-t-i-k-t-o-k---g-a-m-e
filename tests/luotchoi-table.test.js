@@ -20,6 +20,12 @@ const turnKey = (tb) => snap(tb).turnKey;
 // chạy tới khi hết khoảng giữ (hiệu ứng) để lượt kế bắt đầu
 const settle = (tb, clock) => { for (let i = 0; i < 20 && snap(tb).holdUntil; i++) clock.go(500); };
 
+test('normalizeConfig: quà ghi dạng mã trơn ("5655" / 5655) cũng nhận như {giftId}', () => {
+    const c = normalizeConfig({ seatGifts: ['5655', 7934, '', null], shieldGifts: [{ giftId: '5269' }] });
+    assert.deepEqual(c.seatGifts.map(g => g.giftId), ['5655', '7934']);
+    assert.deepEqual(c.shieldGifts.map(g => g.giftId), ['5269']);
+});
+
 test('normalizeConfig: chặn khoảng, trò lạ về hama', () => {
     const c = normalizeConfig({ seats: 9, minPlayers: 0, turnSec: 1, game: 'xyz', seatGifts: [{ giftId: 1 }, {}] });
     assert.equal(c.seats, 4);

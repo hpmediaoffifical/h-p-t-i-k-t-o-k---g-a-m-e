@@ -92,6 +92,10 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         cfg = cfg || {};
         if (!Array.isArray(cfg.seatGifts)) cfg.seatGifts = [];
         if (!Array.isArray(cfg.shieldGifts)) cfg.shieldGifts = [];
+        // mã quà trơn ("5655") → {giftId} như server (lib/luot-choi/table.js giftList)
+        const obj = (g) => (typeof g === 'string' || typeof g === 'number') ? { giftId: String(g) } : g;
+        cfg.seatGifts = cfg.seatGifts.map(obj).filter(g => g && g.giftId != null);
+        cfg.shieldGifts = cfg.shieldGifts.map(obj).filter(g => g && g.giftId != null);
     }
     function schedulePersist() { clearTimeout(persistTimer); persistTimer = setTimeout(persistConfig, 350); }
     async function persistConfig() {

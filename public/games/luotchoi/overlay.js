@@ -222,8 +222,10 @@
     function renderOqScore(s) {
         var el = $('oqscore');
         if (!el) return;
-        var b = s.board;
-        if (s.game.id !== 'oanquan' || !b || !b.captured) { el.hidden = true; return; }
+        // lúc chờ người cũng hiện (bàn mẫu, điểm 0) → bắt đầu ván không làm cả khung nhảy vị trí
+        var b = s.board || s.preview;
+        if (s.game.id !== 'oanquan' || !b) { el.hidden = true; return; }
+        b = Object.assign({ captured: [{ dan: 0, quan: 0 }, { dan: 0, quan: 0 }], scores: [0, 0] }, b);
         var qv = b.quanValue || 10;
         el.hidden = false;
         el.innerHTML = '<div class="oqs-h">' + T('Quân đã ăn → điểm') + ' <small>(' + T('dân 1đ · quan {q}đ', { q: qv }) + ')</small></div>' +
@@ -274,11 +276,14 @@
         return lo === hi ? String(lo) : lo + '–' + hi;
     }
 
+    var giftImg = {};   // id quà → ảnh (bảng quà của app), cho quà gắn thiếu ảnh
+    fetch('/api/gifts').then(function (r) { return r.json(); }).then(function (list) { (list || []).forEach(function (g) { if (g && g.image) giftImg[String(g.id)] = g.image; }); renderPrompt(); }).catch(function () {});
     function renderPrompt() {
         var s = st, el = $('prompt');
         if (!s) return;
-        var gift = (s.cfg.seatGifts || [])[0];
-        var giftHtml = gift ? (gift.giftImage ? '<img src="' + esc(gift.giftImage) + '" alt=""> ' : '🎁 ') + '<b>' + esc(gift.giftName || T('quà')) + '</b>' : '🎁';
+        // CHỈ icon quà vào ghế đã gắn ở panel (tối đa 3), không tên / không xu; thiếu ảnh → tra /api/gifts theo id
+        var gifts = (s.cfg.seatGifts || []).slice(0, 3);
+        var giftHtml = gifts.length ? gifts.map(function (g) { var img = g.giftImage || giftImg[String(g.giftId)]; return img ? '<img src="' + esc(img) + '" alt="">' : '🎁'; }).join('') : '🎁';
         if (staging) { el.innerHTML = '<span class="lc-wait-dots">' + T('Đang {v}', { v: T(VERB[s.game.id] || 'chọn') }) + '</span>'; return; }
         if (s.phase === 'lobby') {
             var free = s.cfg.seats - s.seats.length;
@@ -351,12 +356,7 @@
         R.render(stage, b, { fresh: fresh, marks: s.board ? s.marks : [], colorOf: colorOf, boardId: s.board ? s.boardId : 'preview', players: (s.seats || []).map(function (x) { return x.nickname; }),
             turnSide: s.phase === 'playing' && !s.holdUntil ? (s.seats || []).findIndex(function (x) { return x.turn; }) : -1, sel: s.board ? s.board.sel : null });
         renderOqScore(s);
-        if (!s.board) {
-            var w = document.createElement('div');
-            w.className = 'wait';
-            w.innerHTML = s.seats.length ? T('Chờ người vào ghế…') : T('Tặng quà để ngồi vào bàn chơi');
-            stage.appendChild(w);
-        }
+        // chờ người: KHÔNG in chữ đè lên bàn mẫu — thanh nhắc phía dưới đã ghi "Tặng quà để vào ghế · còn N ghế"
         $('queue').innerHTML = s.queue && s.queue.length ? T('Chờ ván sau') + ': ' + s.queue.slice(0, 6).map(function (q) { return esc(q.nickname); }).join(' · ') + (s.queue.length > 6 ? ' +' + (s.queue.length - 6) : '') : '';
         renderPrompt();
         renderRing();

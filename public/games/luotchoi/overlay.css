@@ -40,6 +40,10 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 .lc-prompt .cd { display: inline-block; min-width: 62px; padding: 0 12px; border-radius: 99px; background: rgba(255, 255, 255, .12); margin-left: 8px; }
 .lc-queue { font-size: 22px; opacity: .8; text-align: center; min-height: 0; }
 .lc-queue:empty { display: none; }
+/* chân thẻ CAO CỐ ĐỊNH (thanh nhắc tối đa 2 dòng + hàng chờ): nhắc hiện/ẩn, dài/ngắn không xô bàn chơi lên xuống */
+.lc-foot { flex: none; height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px; overflow: hidden; }
+.lc-foot .lc-prompt { max-width: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.lc-prompt .cd { white-space: nowrap; }
 
 /* thông báo nổi */
 .lc-toasts { position: absolute; z-index: 6; left: 0; right: 0; top: 250px; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
@@ -189,7 +193,10 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 .tt-meter.hot b { color: #ff6b5a; animation: lcAim .35s ease-in-out infinite alternate; }
 
 /* ── bàn 3D (board3d.js): canvas trong suốt + lớp neo HTML đặt theo vị trí chiếu từ 3D ── */
-.lc3-canvas { position: absolute; inset: 0; display: block; }
+.lc3-canvas { position: absolute; inset: 0; display: block;
+  /* mép khung vẽ mờ dần: vật văng ra (tháp đổ, sỏi…) tan mềm thay vì bị cắt thành đường thẳng */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent), linear-gradient(to bottom, transparent, #000 6%, #000 92%, transparent);
+  -webkit-mask-composite: source-in; mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent), linear-gradient(to bottom, transparent, #000 6%, #000 92%, transparent); mask-composite: intersect; }
 .lc3-layer { position: absolute; inset: 0; pointer-events: none; }
 .lc3-anchor { position: absolute; left: 0; top: 0; width: 0; height: 0; }
 /* nhãn dán ngay trên ô (giữa điểm neo), gọn để không đè ô bên cạnh */
@@ -225,6 +232,8 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 .oq-owner { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); padding: 4px 16px; border-radius: 99px; background: rgba(255, 213, 74, .92);
   color: #2b1d05; font-size: 22px; font-weight: 700; white-space: nowrap; max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
 .oq-owner.top { background: rgba(79, 179, 255, .92); color: #06223a; }
+/* chữ căn giữa đúng nền viên thuốc (dấu ▲▼ và chữ có dấu tiếng Việt lệch dòng khi line-height mặc định) */
+.oq-owner, .oq-arrow { display: inline-flex; align-items: center; justify-content: center; gap: 6px; line-height: 1; height: 38px; padding-top: 0; padding-bottom: 0; box-sizing: border-box; }
 /* bản 2D dự phòng */
 .oq2 { position: absolute; inset: 40px 20px; display: grid; grid-template-columns: 120px repeat(5, 1fr) 120px; grid-template-rows: 1fr 1fr; gap: 10px; }
 .oq2 .c { border-radius: 16px; background: rgba(120, 70, 30, .85); display: grid; place-items: center; font-size: 34px; font-weight: 700; position: relative; }
@@ -252,6 +261,11 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 .oq-badge { border-color: rgba(254, 44, 85, .8); }
 .oq-badge.top .oq-no { background: #25F4EE; color: #00313a; }
 .oq-badge.top { border-color: rgba(37, 244, 238, .8); }
+/* 2 hàng số tách xa khỏi ô (hàng trên đẩy lên, hàng dưới đẩy xuống) để thấy sỏi trong ô; điểm neo vẫn ở giữa ô cho tay bay tới */
+.oq-badge.top { transform: translate(-50%, calc(-50% - 30px)); }
+.oq-badge:not(.top):not(.q) { transform: translate(-50%, calc(-50% + 26px)); }
+.oq-owner.top, .oq-arrow.top { transform: translate(-50%, calc(-50% - 44px)); }
+.oq-owner:not(.top), .oq-arrow:not(.top) { transform: translate(-50%, calc(-50% + 40px)); }
 .oq-owner { background: #FE2C55; color: #fff; }
 .oq-owner.top { background: #25F4EE; color: #00313a; }
 .oq-arrow { border-color: #FE2C55; }

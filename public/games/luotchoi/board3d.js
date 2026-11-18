@@ -313,9 +313,11 @@ const HM = {
         const used = new Set(b.used);
         for (const t of st.teeth) {
             const down = used.has(t.n);
-            if (down !== t.pressed) {
-                t.pressed = down;
-                const y0 = t.g.position.y, y1 = t.baseY - (down ? t.th * 0.55 : 0);
+            // ngoạm: cả hàm răng thụt hẳn xuống lợi để nắp đầu ngậm kín (răng vuông cao hơn vòm mõm ở phía trước)
+            const lvl = b.sprung ? 2 : down ? 1 : 0;
+            if (lvl !== t.lvl) {
+                t.pressed = down; t.lvl = lvl;
+                const y0 = t.g.position.y, y1 = t.baseY - [0, t.th * 0.55, t.th * 1.05][lvl];
                 if (animate) tween(220, k => { t.g.position.y = y0 + (y1 - y0) * k; }, ease.back); else t.g.position.y = y1;
                 t.body.material = down ? st.mats.ivoryDown : st.mats.ivory;
                 t.lbl.material.opacity = down ? 0.35 : 1;
