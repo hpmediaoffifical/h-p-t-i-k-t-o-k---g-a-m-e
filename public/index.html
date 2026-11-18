@@ -324,7 +324,7 @@
                     </script>
                 </header>
                 <div style="padding:0; flex:1; min-height:0;">
-                    <iframe id="giftboard-frame" src="/_prototype/giftboard.html" loading="lazy" style="width:100%; height:calc(100vh - 80px); border:0; display:block; background:#eef2f7;"></iframe>
+                    <iframe id="giftboard-frame" data-lazy-src="/_prototype/giftboard.html" loading="lazy" style="width:100%; height:calc(100vh - 80px); border:0; display:block; background:#eef2f7;"></iframe>
                 </div>
             </section>
 
@@ -2159,7 +2159,7 @@
                 <div class="game-body nhatla-body">
                     <div id="nl-review-workspace" class="nhatla-review-workspace">
                         <div id="nl-review-shell" class="nhatla-review-shell">
-                            <iframe id="nl-review-frame" src="/overlay/nhatla?review=1" title="Nhặt Lá overlay review" tabindex="-1"></iframe>
+                            <iframe id="nl-review-frame" data-lazy-src="/overlay/nhatla?review=1" title="Nhặt Lá overlay review" tabindex="-1"></iframe>
                         </div>
                     </div>
                     <div class="nhatla-settings-column">
@@ -3212,5 +3212,6 @@
     <script src="/ui/live-tools.js"></script>
     <script src="/ui/preflight-ui.js"></script>
     <script src="/ui/game-preview.js"></script>
+    <script src="/ui/lazy-frames.js"></script>
 </body>
 </html>

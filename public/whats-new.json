@@ -11,9 +11,17 @@
     "title": "Game tải riêng",
     "items": [
       "🔫 Sinh Tồn và HP Đại Chiến: tải về ngay trong 🎮 Game Tương Tác",
-      "Game tải riêng có kiểm tra toàn vẹn khi tải, không làm nặng bản cập nhật",
-      "Biểu tượng riêng cho từng game ở thanh bên",
-      "Bảng điều khiển: tên game hiện đủ, nút Link OBS gọn"
+      "Game tải riêng có kiểm tra toàn vẹn khi tải, không làm nặng bản cập nhật"
+    ]
+  },
+  "1.28.0": {
+    "title": "Chuyên nghiệp hơn, nhẹ hơn",
+    "items": [
+      "✅ Kiểm tra trước LIVE: 1 nút soát TikTok, OBS, overlay từng game, camera — có nút sửa nhanh",
+      "➕ Thêm overlay vào OBS bằng 1 nút cho mọi game",
+      "🎬 Kiểu buổi LIVE: bấm 1 chip bật đúng bộ game · 🎚 Trộn âm từng game",
+      "🌙 Giao diện Tối · biểu tượng riêng từng game · rê chuột xem trước game",
+      "Bảng gọn nổi trên cùng có số liệu LIVE + phím tắt mở/ẩn; app nhẹ hơn khi mở"
     ]
   }
 }

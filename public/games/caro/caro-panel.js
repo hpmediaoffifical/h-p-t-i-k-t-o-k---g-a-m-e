@@ -743,7 +743,9 @@
         });
 
         return {
-            setList(list) { allGifts = list || []; render(search.value || ''); renderCurrent(); },
+            // ⚡ Chỉ vẽ danh sách khi menu đang MỞ (open() tự vẽ lại). Trước đây mỗi ô chọn quà vẽ sẵn ~500 dòng
+            // có ảnh vào menu ẩn → panel Caro chiếm ~13.000 phần tử / ~3.000 ảnh của trang chính dù chưa mở.
+            setList(gifts) { allGifts = gifts || []; if (isOpen()) render(search.value || ''); else list.textContent = ''; renderCurrent(); },
             setValue(id) { selectedId = id || ''; renderCurrent(); },
             getValue() { return selectedId; }
         };
