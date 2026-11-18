@@ -9,7 +9,8 @@
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('vi-VN');
     // thanh Top trận gọn: ≥ 100.000 xu → 299,9K / 1,2M (thanh có đồng hồ không bị cắt chữ)
-    const fmtShort = (n) => { n = Math.round(Number(n) || 0); return n >= 1e6 ? (n / 1e6).toFixed(1).replace('.', ',').replace(/,0$/, '') + 'M' : n >= 1e5 ? (n / 1e3).toFixed(1).replace('.', ',').replace(/,0$/, '') + 'K' : fmt(n); };
+    const cut1 = (x) => String(Math.floor(x * 10) / 10).replace('.', ',');   // cắt bớt, không làm tròn lên (299.990 → 299,9K)
+    const fmtShort = (n) => { n = Math.round(Number(n) || 0); return n >= 1e6 ? cut1(n / 1e6) + 'M' : n >= 1e5 ? cut1(n / 1e3) + 'K' : fmt(n); };
     const HUES = [12, 38, 160, 200, 262, 320, 95, 280];
     function hue(id) { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return HUES[h % HUES.length]; }
     function initials(name) {
