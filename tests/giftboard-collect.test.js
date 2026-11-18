@@ -30,3 +30,11 @@ test('collect: quà Game Camera / Game Tương Tác từ dữ liệu server; m�
         ['creatoronline', '', true, 'Quà khác: Lên sân khấu']
     ]);
 });
+
+test('collect: 🎲 Trò Chơi Theo Lượt — quà vào ghế + quà khiên', () => {
+    const rows = C.collect({ games: { luotchoi: { config: { seatGifts: [{ giftId: '5655', giftName: 'Hoa' }], shieldGifts: [{ giftId: '6064', giftName: 'Kem' }] } } } });
+    assert.deepStrictEqual(rows.map(r => [r.gameId, r.giftId, r.label]), [
+        ['luotchoi', '5655', 'Vào ghế chơi'],
+        ['luotchoi', '6064', 'Khiên đỡ 1 lần trúng bẫy']
+    ]);
+});

@@ -1077,6 +1077,7 @@
         else if (gameId === 'top3tran') { showView('view-top3tran'); window.HpTop3TranPanel?.open(socket); }
         else if (gameId === 'leaguecard') { if (!window.__giftSheet) window.__giftSheet = giftSheet; showView('view-leaguecard'); window.HpLeagueCardPanel?.open(socket); }
         else if (gameId === 'goibai') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpGoiBaiPanel?.open(socket); }
+        else if (gameId === 'luotchoi') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpLuotChoiPanel?.open(socket); }
         else if (gameId === 'touchplay') showView('view-touchplay');
         else if (gameId === 'camgames') { showView('view-camgames'); window.HpCamGamesPanel?.open(socket); }
         else if (gameId === TT_HUB_ID) { showView('view-gametuongtac'); window.HpTuongTacPanel?.open(socket); }

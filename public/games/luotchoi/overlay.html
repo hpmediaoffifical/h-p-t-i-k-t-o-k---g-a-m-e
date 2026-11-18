@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>🎲 Đấu Trường Mini — overlay</title>
+<meta name="viewport" content="width=1080, initial-scale=1">
+<script src="/i18n/hp-i18n.js" data-scope="overlay"></script>
+<link rel="stylesheet" href="/games/luotchoi/overlay.css">
+<script type="importmap">
+  { "imports": { "three": "/games/quaivat/vendor/three.module.min.js", "three/addons/": "/games/quaivat/vendor/addons/" } }
+</script>
+</head>
+<body>
+<div class="lc-card lc-hidden" id="card">
+  <div class="lc-top">
+    <div class="lc-title"><span id="g-icon"></span><span id="g-name"></span></div>
+    <div class="lc-champs" id="champs"></div>
+  </div>
+  <div class="lc-seats" id="seats"></div>
+  <div class="lc-stage" id="stage"></div>
+  <div class="lc-prompt" id="prompt"></div>
+  <div class="lc-queue" id="queue"></div>
+  <div class="lc-hand" id="hand" hidden></div>
+</div>
+<div class="lc-toasts" id="toasts"></div>
+<div class="lc-result lc-hidden" id="result"></div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/lib/overlay-hello.js" data-game="luotchoi"></script>
+<script src="/games/luotchoi/boards.js"></script>
+<script src="/games/luotchoi/overlay.js"></script>
+<script type="module" src="/games/luotchoi/board3d.js"></script>
+</body>
+</html>

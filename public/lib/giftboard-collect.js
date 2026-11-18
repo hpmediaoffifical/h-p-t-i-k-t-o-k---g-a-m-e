@@ -113,6 +113,9 @@
       { const c = gc('goibai');   // 🎧 Gọi Bài: quà gọi bài + 🎵 quà Ca khúc (mọi bài)
         for (const g of c.gifts || []) push('goibai', 'pass', g.giftId, g, 'Gọi bài', '🎧');
         if (Object.keys(c).length && c.songGifts !== false) push('goibai', 'music', 'music', { giftName: 'Ca khúc (mọi bài)' }, 'Ca khúc vào hàng', '🎧'); }
+      { const c = gc('luotchoi');   // 🎲 Đấu Trường Mini: quà vào ghế + quà khiên
+        for (const g of c.seatGifts || []) push('luotchoi', 'seat', g.giftId, g, 'Vào ghế chơi', '🪑');
+        for (const g of c.shieldGifts || []) push('luotchoi', 'shield', g.giftId, g, 'Khiên đỡ 1 lần trúng bẫy', '🛡️'); }
       // 🎥 Game Camera (trừ Bắn Cung — đã đọc ở trên): server dựng sẵn nhãn. Mục không có giftId = dòng "mọi quà/theo xu".
       const srvLists = [['touchplay', camData], ['chemtraicay', camData], ['dapmuoi', camData], ['dacau', camData], ['sutbong', camData], ['body', camData],
         ...[...TT_IDS].map(id => [id, ttData])];
