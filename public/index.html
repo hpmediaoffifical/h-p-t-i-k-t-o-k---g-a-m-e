@@ -110,6 +110,7 @@
             <div class="side-fab-row topbar-actions">
                     <div class="side-fab"><button id="comments-fab" class="comments-fab" title="Bình luận LIVE"><svg class="ui-i" aria-hidden="true"><use href="#ui-chat"/></svg><span class="badge" id="comments-badge" hidden>0</span></button><span class="side-fab-lbl">Bình luận</span></div>
                     <div class="side-fab"><button id="unknown-fab" class="comments-fab unknown-fab" title="Quà mới — quà chưa có trong danh sách"><svg class="ui-i" aria-hidden="true"><use href="#ui-gift-new"/></svg><span class="badge" id="unknown-badge" hidden>0</span></button><span class="side-fab-lbl">Quà mới</span></div>
+                    <div class="side-fab"><button id="btn-mixer" class="side-soundfx-circle" title="Trộn âm — âm lượng từng game trên OBS"><svg class="ui-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></button><span class="side-fab-lbl">Trộn âm</span></div>
                     <div class="side-fab"><button id="btn-open-soundfx" class="side-soundfx-circle" title="Sound Effects — app hiệu ứng âm thanh"><svg class="ui-i" aria-hidden="true"><use href="#ui-sound"/></svg></button><span class="side-fab-lbl">Âm thanh</span></div>
                     <div class="side-fab"><button id="btn-open-settings" class="side-settings-circle" title="Cài đặt"><svg class="ui-i" aria-hidden="true"><use href="#ui-gear"/></svg></button><span class="side-fab-lbl">Cài đặt</span></div>
                 </div>
@@ -133,6 +134,8 @@
                         <div class="hr-card idle" id="hr-license"><span class="hr-ico"><svg class="ui-i" aria-hidden="true"><use href="#ui-shield"/></svg></span><div class="hr-txt"><b>Bản quyền</b><span class="hr-sub">Đang kiểm tra…</span></div></div>
                         <div class="hr-card idle" id="hr-games"><span class="hr-ico"><svg class="ui-i" aria-hidden="true"><use href="#ui-play"/></svg></span><div class="hr-txt"><b>Game</b><span class="hr-sub">—</span></div></div>
                     </div>
+                    <!-- 🎬 Kiểu buổi LIVE — public/ui/live-tools.js -->
+                    <div class="lp-row" id="live-presets"></div>
                     <!-- 🎨 Gợi ý 1/2: game đang bật (link OBS + Copy + công tắc) & hoạt động LIVE — public/ui/home-live.js -->
                     <div class="home-duo">
                         <section class="hl-card"><div class="hl-head"><h2>Game đang bật</h2><span class="hl-count" id="home-games-count">0</span></div><div class="hl-games" id="home-games-list"></div></section>
@@ -3201,5 +3204,7 @@
     <script src="/lib/giftboard-collect.js"></script>
     <script src="/lib/gift-usage.js"></script>
     <script src="/app.js"></script>
+    <script src="/ui/live-presets.js"></script>
+    <script src="/ui/live-tools.js"></script>
 </body>
 </html>

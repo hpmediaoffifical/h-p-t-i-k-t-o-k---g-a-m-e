@@ -297,6 +297,38 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json({ limit: '5mb' }));
 
+// 🎚 Bàn trộn âm chung: mọi trang /overlay/<id> (HTML gửi bằng res.sendFile) được chèn lớp nhân âm lượng
+// public/lib/hp-mixer.js ngay đầu <head> → Tổng × kênh game áp cho mọi âm thanh, không đụng config game.
+const audioMixer = require('./lib/audio-mixer');
+app.use('/overlay', (req, res, next) => {
+    const gid = String(req.path.split('/')[1] || '');   // đo lúc còn mount '/overlay' → '/<id>'
+    const send = res.sendFile.bind(res);
+    res.sendFile = (file, opts, cb) => {
+        if (typeof file !== 'string' || !/\.html?$/i.test(file)) return send(file, opts, cb);
+        fs.readFile(file, 'utf8', (err, html) => {
+            if (err) return send(file, opts, cb);
+            res.type('html').set('Cache-Control', 'no-cache').send(audioMixer.injectScript(html, gid));
+        });
+    };
+    next();
+});
+app.get('/api/mixer', (req, res) => res.json(audioMixer.normalize(appConfig.mixer)));
+app.put('/api/mixer', (req, res) => {
+    appConfig.mixer = audioMixer.merge(appConfig.mixer, req.body);
+    try { saveAppConfig(); } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+    io.emit('mixer:state', appConfig.mixer);
+    res.json({ ok: true, mixer: appConfig.mixer });
+});
+// 🎬 Kiểu buổi LIVE (public/ui/live-presets.js): danh sách chip; bật/tắt game vẫn đi đường /api/games/:id/config
+const livePresets = require('./public/ui/live-presets.js');
+app.get('/api/live-presets', (req, res) => res.json({ presets: livePresets.normalize(appConfig.livePresets) }));
+app.put('/api/live-presets', (req, res) => {
+    appConfig.livePresets = livePresets.normalize(Array.isArray(req.body?.presets) ? req.body.presets : []);
+    try { saveAppConfig(); } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+    io.emit('livePresets', appConfig.livePresets);
+    res.json({ ok: true, presets: appConfig.livePresets });
+});
+
 // 13 events PK TikTok — metadata tĩnh, dùng chung cho default + normalize.
 // `auto`: sự kiện này CÓ tín hiệu thật từ TikTok Live để tự fire hay không.
 //   - true  → server auto-detect được (theo schema tiktok-live-connector v2).
