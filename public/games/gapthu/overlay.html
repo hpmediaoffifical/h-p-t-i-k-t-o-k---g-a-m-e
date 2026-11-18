@@ -729,6 +729,8 @@
             socket.on('gapthu:steer', onSteer);
             socket.on('gapthu:drop', onDrop);
             socket.on('gapthu:dance', onDance);
+            // game bị tắt giữa lượt (server huỷ lượt tự lái / bỏ hàng chờ) → dọn bảng lệnh lái, chip tên, thẻ kết quả
+            socket.on('gapthu:cancel', () => { steer = null; turn = null; renderSteer(); hideCard(); $('gapthu-who').classList.remove('on'); });
         }
         socket.on('gameConfig', d => { if (d && d.gameId === 'gapthu') applyConfig(d.config); });
         socket.on('overlay:reload', d => { if (!isReview && (!d || !d.gameId || d.gameId === 'gapthu')) location.reload(); });
