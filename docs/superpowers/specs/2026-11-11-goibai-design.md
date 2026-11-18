@@ -76,7 +76,7 @@ TikTok → server.js emitGift / handleTikTokChat
 |---|---|
 | `lib/goi-bai/logic.js` | `createGoiBai(cfg)` → `addGift`, `addComment`, `addSongGift`, `applySearch`, `rejectRow`, `tick(now)`, `peekNext`, `beginPlay`, `endPlay`, `skip`, `pinTop`, `remove`, `clear`, `snapshot`, `serialize/restore`. Không đụng file/mạng/socket. |
 | `lib/goi-bai/title.js` | `cleanSongTitle(title, channel)` bỏ "Official MV / Lyrics / 4K / Audio…", "- Topic". |
-| `lib/goi-bai/ytdlp.js` | `findExe`, `ensure()` (GitHub latest release → `yt-dlp.exe` + `SHA2-256SUMS`, kiểm SHA-256, ghi `.tmp` rồi đổi tên), `version()`, `search(q, n)`, `resolveAudio(videoId)` → `{ url, headers, validUntil }`. Phần đọc JSON/SUMS là hàm thuần có test. Tối đa 2 tiến trình cùng lúc, hết giờ 20 s. |
+| `lib/goi-bai/ytdlp.js` | `findExe`, `ensure()` (GitHub latest release → `yt-dlp.exe` + `SHA2-256SUMS`, kiểm SHA-256, ghi `.tmp` rồi đổi tên), `version()`, `search(q, n)`, `resolveAudio(videoId)` → `{ url, headers, validUntil }`. Phần đọc JSON/SUMS là hàm thuần có test. Tối đa 2 tiến trình cùng lúc, hết giờ 45 s (đo thật 7–30 s/lần tìm), tìm lỗi thì thử lại 1 lần. |
 | `server.js` | `GAMES.goibai`, móc quà/bình luận, route `/api/goibai/*`, proxy âm thanh `/api/goibai/stream`, socket, lưu phiên, gọi `global.__goiBaiPlayer`. |
 | `electron-main.js` | `global.__goiBaiPlayer.ensure(on)`: cửa sổ ẩn `show:false`, sandbox, `autoplayPolicy: 'no-user-gesture-required'`, `backgroundThrottling:false`, nạp `APP_URL/player/goibai` (trang nội bộ — đúng luật điều hướng v1.25). `global.__goiBaiApplyHotkeys(cfg)`. |
 | `public/games/goibai/` | `player.html`, `overlay.html`, `goibai-panel.js` (tự chèn view + CSS `.so-*`). |
@@ -102,7 +102,7 @@ TikTok → server.js emitGift / handleTikTokChat
 
 ## 4. Lỗi & giới hạn
 - Chưa có yt-dlp / tải hỏng / SHA lệch → trạng thái báo trên panel; lượt được trả lại (`noengine`), không mất xu.
-- yt-dlp treo → giết tiến trình sau 20 s → `error`, trả lượt.
+- yt-dlp treo → giết tiến trình sau 45 s → thử lại 1 lần → vẫn lỗi thì `error`, trả lượt. Bài vừa vào phát mà không lấy được link (video bị chặn/giới hạn tuổi) → cũng trả lượt.
 - Bộ đếm lượt hết hạn mà không gõ → lượt mất (tick mỗi 1 s), OBS ẩn thẻ.
 - Từ cấm: kiểm cả tên bài YouTube (khi bộ lọc bình luận bật).
 - `goibai:state` gửi tối đa 4 lần/giây; hàng chờ gửi tối đa 30 dòng.

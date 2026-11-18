@@ -100,6 +100,7 @@
 
   /* ── Vé gọi bài: hình vé hoà nhạc, cuống xé có vòng đếm ngược ── */
   .gob-tk-wrap { filter: drop-shadow(0 7px 0 #1a0820) drop-shadow(0 16px 22px rgba(0,0,0,.45)); animation: gobRise .45s cubic-bezier(.2,.9,.3,1.2) both; }
+  .gob-tk-more { align-self: flex-start; padding: 8px 18px; border-radius: 999px; background: rgba(20, 8, 32, .78); color: #fff3b8; font-weight: 800; font-size: 24px; box-shadow: 0 6px 16px rgba(0,0,0,.4); }
   .gob-ticket { display: grid; grid-template-columns: 1fr 108px; align-items: center; min-height: 104px; border-radius: 22px;
     background:
       linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 45%),
@@ -351,7 +352,7 @@
     wb.classList.toggle('gob-hidden', !w);
     if (w) {
       var html = '<div class="gob-trophy">🏆</div><div class="tx"><b>' + esc(w.winnerTitle) + '</b>' + esc(T('thắng — phát tiếp theo')) +
-        (w.sunk ? '<small>' + esc(T('“{t}” thua 2 trận → về cuối hàng', { t: w.loserTitle })) + '</small>' : '') + '</div>';
+        (w.sunk ? '<small>' + esc(T('“{t}” thua {n} trận → về cuối hàng', { t: w.loserTitle, n: (st.cfg && st.cfg.duelSinkAfter) || 2 })) + '</small>' : '') + '</div>';
       if (wb.getAttribute('data-sig') !== html) { wb.innerHTML = html; wb.setAttribute('data-sig', html); }
     }
   }
@@ -369,8 +370,17 @@
   function renderTickets() {
     if (!st) return;
     var now = Date.now() - offset;
-    var passes = (st.passes || []).filter(function (g) { return g.cdUntil > now; }).slice(0, 2);
+    var live = (st.passes || []).filter(function (g) { return g.cdUntil > now; });
+    var passes = live.slice(0, 2);
     var box = $('tickets'), keep = {};
+    var more = live.length - passes.length;
+    if (more > 0) {   // chỉ hiện 2 vé, còn lại gom 1 dòng để người có lượt biết mình chưa bị quên
+      keep['more'] = true;
+      var mel = box.querySelector('[data-sig="more"]');
+      if (!mel) { mel = document.createElement('div'); mel.className = 'gob-tk-more'; mel.setAttribute('data-sig', 'more'); box.appendChild(mel); }
+      var mt = T('+{n} người đang chờ gõ tên bài', { n: more });
+      if (mel.textContent !== mt) mel.textContent = mt;
+    }
     passes.forEach(function (g) {
       var sig = g.key + '|' + (g.note || '');
       keep[sig] = true;

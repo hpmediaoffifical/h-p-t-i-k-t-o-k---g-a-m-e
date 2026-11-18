@@ -139,7 +139,7 @@ test('trùng bài đang chờ → góp xu vào bài có sẵn', () => {
 });
 
 test('trùng bài đang phát → loại "playing", trả lượt', () => {
-    const { so } = make();
+    const { so } = make({ clipOn: false });   // không phát đoạn hay: bài đang phát không nhận góp
     const a = callSong(so, 'a', 10, 'same');
     so.beginPlay(a.id);
     so.addGift({ user: U('b'), giftId: '5655', coins: 3 });
@@ -194,7 +194,7 @@ test('peekNext bỏ qua bài đang tìm; beginPlay / endPlay', () => {
 });
 
 test('bài đang phát không nhận cộng xu; người đó lại được lượt mới', () => {
-    const { so } = make();
+    const { so } = make({ clipOn: false });   // không phát đoạn hay: không nối dài
     const a = callSong(so, 'a', 1, 'v1');
     so.beginPlay(a.id);
     assert.equal(so.addGift({ user: U('a'), giftId: '5655', coins: 5 }).action, 'pass');
@@ -451,4 +451,31 @@ test('Đấu Bài: phát bài chìm thì hết chìm; serialize giữ chuỗi th
     assert.equal(m2.so.findRow(a.id).duelLosses, 2);
     so.endPlay();
     assert.equal(so.beginPlay(a.id).sunk, false);
+});
+
+test('QA 19/11: bình luận chỉ gồm số / mã tù nhân không thành tên bài, giữ lượt', () => {
+    const { so } = make();
+    so.addGift({ user: U('a'), giftId: '5655', coins: 1 });
+    for (const t of ['#4823', '4823 5120']) assert.equal(so.addComment({ user: U('a'), text: t }), null, t);
+    assert.ok(so.addComment({ user: U('a'), text: 'Lạc trôi' }));
+});
+test('QA 19/11: gọi trùng bài vừa vào phát (đoạn chưa chốt) → góp xu, không trả lượt playing', () => {
+    const { so } = make({ clipOn: true });
+    const r1 = callSong(so, 'a', 1, 'v1');
+    so.beginPlay(r1.id);   // clip chưa chốt (server đang lấy link)
+    so.addGift({ user: U('b'), giftId: '5655', coins: 30 });
+    const row = so.addComment({ user: U('b'), text: 'bài v1' });
+    const r = so.applySearch(row.id, [item('v1')]);
+    assert.equal(r.ok, true);
+    assert.equal(so.playing.coins, 31);
+});
+test('QA 19/11: bài vừa vào phát mà không phát được → trả lượt cho người gọi', () => {
+    const { so } = make();
+    const r1 = callSong(so, 'a', 5, 'v1');
+    so.beginPlay(r1.id);
+    so.refundPlaying('error');
+    assert.equal(so.playing, null);
+    const p = so.snapshot().passes.find(g => g.key === 'a');
+    assert.ok(p, 'có lượt trả lại');
+    assert.equal(p.coins, 5);
 });

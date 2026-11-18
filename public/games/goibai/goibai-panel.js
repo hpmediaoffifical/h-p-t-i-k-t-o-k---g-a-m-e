@@ -221,13 +221,18 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             db.innerHTML = `<div class="gob-h">${hpT('⚔️ Đấu Bài')}</div><div>🏆 <b>${esc(w.winnerTitle)}</b> ${hpT('thắng — phát tiếp theo')}${w.sunk ? ` <span class="gob-muted">${esc(hpT('· “{t}” về cuối hàng', { t: w.loserTitle }))}</span>` : ''}</div>`;
         }
         $('#gob-qn').textContent = st.queueTotal ? hpT('{n} bài', { n: st.queueTotal }) : '';
-        $('#gob-queue').innerHTML = (st.queue || []).map((r, i) => `<div class="gob-row"><span>${r.locked ? '🔒' : i + 1}</span>
+        const qHtml = (st.queue || []).map((r, i) => `<div class="gob-row"><span>${r.locked ? '🔒' : i + 1}</span>
             <div class="t"><b>${esc(r.status === 'searching' ? hpT('đang tìm “{q}”…', { q: r.query }) : r.title)}</b><span>${esc(r.nickname)}${r.backers && r.backers.length ? ' +' + r.backers.length : ''}${r.source === 'music' ? ' · 🎵' : ''}${r.sunk ? ' · ' + hpT('⬇ thua đấu') : ''} · ${hpT('{n} điểm', { n: r.score })}</span></div>
             <span>${esc(r.coins)} ${COIN}</span>
             <span class="acts"><button class="ghost small" data-top="${esc(r.id)}" title="${hpTA('Đưa lên đầu hàng')}">⏫</button><button class="ghost small" data-rm="${esc(r.id)}" title="${hpTA('Xoá khỏi hàng chờ')}">✕</button></span></div>`).join('')
             || `<span class="gob-muted">${hpT('Hàng chờ trống')}</span>`;
-        $('#gob-queue').querySelectorAll('[data-top]').forEach(b => b.addEventListener('click', () => control('pinTop', { id: b.dataset.top })));
-        $('#gob-queue').querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => control('remove', { id: b.dataset.rm })));
+        const qEl = $('#gob-queue');
+        if (qEl.dataset.sig !== qHtml) {   // trạng thái tới vài lần/giây khi đang phát → chỉ dựng lại khi hàng chờ thật sự đổi
+            qEl.dataset.sig = qHtml;
+            qEl.innerHTML = qHtml;
+            qEl.querySelectorAll('[data-top]').forEach(b => b.addEventListener('click', () => control('pinTop', { id: b.dataset.top })));
+            qEl.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => control('remove', { id: b.dataset.rm })));
+        }
         const now = st.now || Date.now();   // giờ server lúc gửi trạng thái
         const passes = st.passes || [];
         $('#gob-passes-box').hidden = !passes.length;
