@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
-const { assetName, parseSums, parseSearchOutput, parseAudioJson, verifyBinary, isStale } = require('../lib/goi-bai/ytdlp');
+const { assetName, parseSums, parseSearchOutput, parseAudioJson, verifyBinary, isStale, shouldCheckUpdate } = require('../lib/goi-bai/ytdlp');
 
 test('isStale: bản yt-dlp quá N ngày → cần cập nhật; phiên bản lạ → không đoán', () => {
     const now = Date.UTC(2026, 10, 12);
@@ -81,4 +81,13 @@ test('parseAudioJson: heatmap (đoạn hay nhất) — có thì gọn lại, kh�
     const j = { url: 'https://x/y', duration: 200, heatmap: [{ start_time: 2, end_time: 4, value: 0.5 }, { start_time: 0, end_time: 2, value: 1 }, null] };
     assert.deepEqual(parseAudioJson(JSON.stringify(j), 1_000).heatmap, [{ s: 0, e: 2, v: 1 }, { s: 2, e: 4, v: 0.5 }]);
     assert.deepEqual(parseAudioJson(JSON.stringify({ url: 'https://x/y' }), 1_000).heatmap, []);
+});
+
+test('shouldCheckUpdate: bản cũ nhưng mới hỏi GitHub trong ngày → không tải lại (GitHub chưa ra bản mới)', () => {
+    const now = Date.UTC(2026, 10, 18, 12);
+    const day = 86400000;
+    assert.equal(shouldCheckUpdate('2026.10.26', now, 21, now - 2 * day), true, 'cũ + lâu chưa hỏi');
+    assert.equal(shouldCheckUpdate('2026.10.26', now, 21, now - 3600000), false, 'cũ nhưng vừa hỏi 1 giờ trước');
+    assert.equal(shouldCheckUpdate('2026.11.10', now, 21, 0), false, 'còn mới');
+    assert.equal(shouldCheckUpdate('', now, 21, 0), false);
 });

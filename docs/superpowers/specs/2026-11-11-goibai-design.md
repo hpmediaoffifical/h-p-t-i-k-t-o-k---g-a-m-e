@@ -202,3 +202,10 @@ duelSinkAfter:2, duelShowSec:5`.
   114,4→159,4 s, bài không heatmap phát 0→45 s; đoạn 45 s dừng ở 45,7 s; nối dài 45→90 s; 3 trận tự mở/chốt, bài thua 2 trận chìm.
   Hai lỗi tìm ra khi thử: fade đếm bước bị tab nền hãm (dừng lố 29 s) → tính theo đồng hồ thật + chốt cứng `endAt + 0,5 s`;
   chống kẹt GĐ1 báo nhầm lúc yt-dlp còn lấy link bài đầu → phát lại từ 0 s → chỉ tính sau khi lệnh `play` đã gửi.
+
+### 10.8 Giao diện overlay 2.5D (18/11/2026)
+Thay kiểu thẻ phẳng: đầu đĩa (bìa nghiêng 3D + đĩa than có rãnh xoay, ánh phản chiếu đứng yên, cần đọc đĩa nhấc lên khi tạm
+dừng, sóng nhạc), thẻ "phiến" có viền sáng mặt trên + cạnh dày + bóng, cả bảng nghiêng nhẹ `rotateY(7deg)`; vé hoà nhạc có
+cuống xé + vòng đếm ngược; hàng chờ có huy hiệu vàng/bạc/đồng + ảnh bìa + avatar nhỏ; Đấu Bài 2 đĩa nghiêng đối mặt, VS ánh kim,
+thanh kéo co có tia sáng; thẻ cúp kết quả. Chỉ CSS + SVG nội tuyến; chuyển động chỉ transform/opacity. Không có avatar → chữ cái
+đầu trên nền màu theo tên. Xem thử: `?demo=1&bg=1` (+`&paused=1`, `&win=1`).
