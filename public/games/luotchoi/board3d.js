@@ -216,8 +216,9 @@ function tagHtml(m, colorOf) {
 // (hà mã, núi đá, tháp); bàn phẳng (lật thẻ, Ô Ăn Quan) xoay sẽ ngược số → bỏ qua. Xoay xong xếp lại nhãn tên.
 let spinY = 0, tagArgs = null;
 const SPIN_KINDS = { hama: 1, chumcoc: 1, thaptre: 1 };
-function rotate(dir, angleDeg) {
+function rotate(dir, angleDeg, deltaDeg) {
     if (!root || !SPIN_KINDS[game]) return;
+    if (deltaDeg != null) { spinTo(spinY + deltaDeg * Math.PI / 180, 120); return; }   // kéo chuột: xoay thêm từ góc đang đứng
     const to = angleDeg != null ? angleDeg * Math.PI / 180 : dir === 0 ? 0 : spinY + dir * Math.PI / 4;
     spinTo(to, angleDeg != null ? 140 : 650);
 }

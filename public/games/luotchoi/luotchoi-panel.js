@@ -280,15 +280,16 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         $('#lc-btn-start').addEventListener('click', () => API('start'));
         $('#lc-btn-cancel').addEventListener('click', () => API('cancel'));
         // 🔄 xoay mô hình trên LIVE: nút = ±45° / về 0; kéo chuột = xoay liên tục (gửi góc tuyệt đối, tối đa ~12 lần/giây)
-        let spinDeg = 0, lastSend = 0, sendTm = null;
-        const sendAngle = () => { lastSend = Date.now(); sendTm = null; API('rotate', { angle: spinDeg }); };
+        // kéo: gửi phần xoay THÊM (delta) cộng dồn giữa 2 lần gửi → overlay quay tiếp từ góc đang đứng, không nảy
+        let pendDeg = 0, lastSend = 0, sendTm = null;
+        const sendAngle = () => { lastSend = Date.now(); sendTm = null; const dl = Math.round(pendDeg); if (!dl) return; pendDeg -= dl; API('rotate', { delta: dl }); };
         const queueAngle = () => { if (sendTm) return; const w = Math.max(0, 80 - (Date.now() - lastSend)); sendTm = setTimeout(sendAngle, w); };
-        document.querySelectorAll('#view-luotchoi [data-rot]').forEach(el => el.addEventListener('click', () => { const d = Number(el.dataset.rot); spinDeg = d === 0 ? 0 : spinDeg + d * 45; API('rotate', { dir: d }); }));
+        document.querySelectorAll('#view-luotchoi [data-rot]').forEach(el => el.addEventListener('click', () => API('rotate', { dir: Number(el.dataset.rot) })));
         const drag = document.querySelector('#view-luotchoi .lc-drag');
         if (drag) {
-            let x0 = null, d0 = 0;
-            drag.addEventListener('pointerdown', e => { x0 = e.clientX; d0 = spinDeg; try { drag.setPointerCapture(e.pointerId); } catch (er) {} });
-            drag.addEventListener('pointermove', e => { if (x0 == null) return; spinDeg = Math.round(d0 + (e.clientX - x0) * 0.8); queueAngle(); });
+            let x0 = null;
+            drag.addEventListener('pointerdown', e => { x0 = e.clientX; try { drag.setPointerCapture(e.pointerId); } catch (er) {} });
+            drag.addEventListener('pointermove', e => { if (x0 == null) return; pendDeg += (e.clientX - x0) * 0.8; x0 = e.clientX; queueAngle(); });
             const end = () => { if (x0 == null) return; x0 = null; queueAngle(); };
             drag.addEventListener('pointerup', end); drag.addEventListener('pointercancel', end);
         }

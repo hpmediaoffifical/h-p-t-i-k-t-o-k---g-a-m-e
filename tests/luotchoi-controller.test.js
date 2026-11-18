@@ -77,3 +77,13 @@ test('rotate theo góc (kéo chuột): angle độ được chặn ±3600, làm 
     const got = io.sent.filter(([ev]) => ev === 'luotchoi:rotate').map(([, d]) => d.angle);
     assert.deepEqual(got, [38, 3600]);
 });
+
+test('rotate theo góc xoay thêm (delta, kéo chuột): chặn ±720, làm tròn; số lạ bị chặn', () => {
+    const io = fakeIo();
+    const c = createLuotChoiController({ io, getConfig: () => ({ enabled: true }), log: () => {} });
+    assert.equal(c.control('rotate', { delta: 12.4 }).ok, true);
+    assert.equal(c.control('rotate', { delta: -5000 }).ok, true);
+    assert.equal(c.control('rotate', { delta: 'x' }).ok, false);
+    const got = io.sent.filter(([ev]) => ev === 'luotchoi:rotate').map(([, d]) => d.delta);
+    assert.deepEqual(got, [12, -720]);
+});
