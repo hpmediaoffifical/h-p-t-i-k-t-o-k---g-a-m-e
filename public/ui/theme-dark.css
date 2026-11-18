@@ -1,0 +1,52 @@
+/* 🌙 Giao diện tối (tuỳ chọn) — áp khi body có class theme-dark (public/ui/theme.js).
+   Màu cũ của style.css tự về tông tối gốc nhờ khối body.ui-v2.theme-dark trong ui-v2-map.css (biến = initial).
+   File này chỉ đặt lại token vỏ app --ui-* + vài màu cứng trong ui-v2.css. Overlay OBS không nạp file này.
+   Tương phản chữ ≥ 4.5:1 trên --ui-surface (WCAG AA). */
+body.ui-v2.theme-dark {
+    --ui-bg: #0E1117; --ui-surface: #161B24; --ui-subtle: #1B212C; --ui-muted-bg: #232B37;
+    --ui-line: #262E3B; --ui-line-strong: #364152;
+    --ui-ink: #ECEFF4; --ui-ink-2: #C3CAD5; --ui-muted: #9AA4B5; --ui-idle: #4A5466;
+    --ui-brand: #FF4D82; --ui-brand-2: #FF8A57; --ui-grad: linear-gradient(135deg, #FF3D78, #FF7A45);
+    --ui-brand-soft: #3A1828; --ui-brand-ink: #FF9CBC;
+    --ui-ok: #34C96F; --ui-ok-bg: #12301F; --ui-ok-ink: #7BE3A4;
+    --ui-warn: #F0A23A; --ui-warn-bg: #33250F; --ui-warn-ink: #F6C27A;
+    --ui-bad: #FF5C74; --ui-bad-bg: #3A1620; --ui-bad-ink: #FF9AAA;
+    --ui-info: #5B9BFF; --ui-info-bg: #142541; --ui-info-ink: #A3C6FF;
+    --ui-shadow: 0 2px 8px rgba(0, 0, 0, .35);
+    --ui-shadow-lg: 0 18px 50px rgba(0, 0, 0, .55);
+    color-scheme: dark;
+    /* biến riêng của game (đã phủ sáng trong ui-v2.css) → trả về tối */
+    --caro-border: rgba(236, 239, 244, .12); --caro-border-strong: rgba(255, 85, 119, .45);
+    --caro-bg: #0E1117; --caro-card: #161B24; --caro-card-2: #1B212C;
+    --caro-cyan: #2CD4CD; --caro-pink: #FF5577;
+}
+body.ui-v2.theme-dark #view-thuytinh {
+    --tt-s1: #161B24; --tt-s2: #1B212C; --tt-s3: #232B37; --tt-line: #262E3B; --tt-line2: #364152;
+    --tt-tx: #ECEFF4; --tt-mu: #9AA4B5; --tt-mu2: #7D889A;
+    --tt-acc: #FF7A4D; --tt-sel: #F0A23A; --tt-ok: #34C96F; --tt-bad: #FF5C74;
+}
+body.ui-v2.theme-dark .topbar { background: rgba(22, 27, 36, .92); }
+body.ui-v2.theme-dark ::-webkit-scrollbar-thumb,
+body.ui-v2.theme-dark .side-card.side-library .game-list::-webkit-scrollbar-thumb { background: #364152; background-clip: padding-box; }
+body.ui-v2.theme-dark ::-webkit-scrollbar-thumb:hover { background: #4A5466; background-clip: padding-box; }
+body.ui-v2.theme-dark .side-card.side-library .game-list { scrollbar-color: #364152 transparent; }
+body.ui-v2.theme-dark .gift-card { --card-border: 1px solid #262E3B; --card-bg: #161B24; }
+body.ui-v2.theme-dark .side-giftboard-btn.active { border-color: #6A2440; }
+body.ui-v2.theme-dark .topbar .side-fab-row .quick-launch-fab:hover { background: #4A1C31 !important; }
+body.ui-v2.theme-dark .topbar .side-fab-row .badge { border-color: var(--ui-surface); }
+body.ui-v2.theme-dark .dot.online { box-shadow: 0 0 0 3px #12301F; }
+body.ui-v2.theme-dark button.obs-link, body.ui-v2.theme-dark button.btn-outline { border-color: #6A2440; }
+body.ui-v2.theme-dark button.danger { border-color: #6A2433; }
+body.ui-v2.theme-dark button.danger:hover:not(:disabled) { background: #4A1C27; border-color: #8A2E42; }
+body.ui-v2.theme-dark .game-item .ico-chip.tone-gift { background: #3A2614; color: #FFB27A; }
+body.ui-v2.theme-dark .game-item .ico-chip.tone-fx { background: #2A1F45; color: #C3A6FF; }
+body.ui-v2.theme-dark .statusbar .sb-item.sb-alert .dot { box-shadow: 0 0 0 3px #4A1C27; }
+body.ui-v2.theme-dark .gd-frame { background: repeating-conic-gradient(#1B212C 0 25%, #161B24 0 50%) 0 0 / 16px 16px; }
+body.ui-v2.theme-dark .wn-box, body.ui-v2.theme-dark .mx-pop { box-shadow: 0 12px 32px rgba(0, 0, 0, .55); }
+/* Khung xem trước overlay giữ đúng màu overlay — không đổi theo giao diện */
+body.ui-v2.theme-dark .ui-keep-colors { color-scheme: normal; }
+
+/* Nút đổi giao diện ở topbar */
+body.ui-v2 #btn-theme .ico-sun { display: none; }
+body.ui-v2.theme-dark #btn-theme .ico-sun { display: block; }
+body.ui-v2.theme-dark #btn-theme .ico-moon { display: none; }

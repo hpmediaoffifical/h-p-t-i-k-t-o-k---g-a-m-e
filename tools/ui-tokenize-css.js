@@ -215,7 +215,9 @@ function buildMap(vars) {
 body.ui-v2 {
 ${lines.join('\n')}
 }
-/* Khung xem trước overlay trong app: giữ đúng màu overlay (biến = initial → dùng fallback). */
+/* 🌙 Giao diện tối: bảng màu gốc của style.css vốn là tông tối → bỏ ánh xạ (initial = dùng fallback).
+   Token vỏ app --ui-* tối ở public/ui/theme-dark.css. Khung xem trước overlay (.ui-keep-colors) cũng vậy. */
+body.ui-v2.theme-dark,
 body.ui-v2 .ui-keep-colors {
 ${names.map(n => `    ${n}: initial;`).join('\n')}
 }

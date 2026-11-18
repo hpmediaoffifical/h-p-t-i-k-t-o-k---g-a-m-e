@@ -8,6 +8,7 @@
     <!-- 🎨 Giao diện mới: chỉ có tác dụng khi nhúng Trang chủ (?embed=1 → class ui-v2). Cửa sổ nổi giữ màu cũ. -->
     <link rel="stylesheet" href="/ui/fonts.css" />
     <link rel="stylesheet" href="/ui/ui-v2-map.css" />
+    <script src="/ui/theme.js"></script>
     <style>
     /* ============================================================
        Khởi động nhanh — cửa sổ điều khiển nhanh (Electron frameless / popup trình duyệt)
@@ -449,6 +450,13 @@
         --line: #EEE3E0; --line-2: #DFD0CC; --text: #241B1F; --muted: #6B5E62; --faint: #A3959A;
         --blue: #2F6FEB;
     }
+    /* 🌙 Giao diện tối của app (public/ui/theme.js) → trả biến gốc tông tối của trang */
+    html.embed.ui-v2.theme-dark {
+        color-scheme: dark;
+        --bg: #0b0d12; --surface: #161B24; --surface-h: #1B212C; --surface-2: #1B212C; --surface-3: #232B37;
+        --line: #262E3B; --line-2: #364152; --text: #ECEFF4; --muted: #9AA4B5; --faint: #6B768A;
+        --blue: #7fb6ff;
+    }
     html.embed.ui-v2, html.embed.ui-v2 body { font-family: "Be Vietnam Pro", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
     /* Gọn: mô tả dài trong ⚙ Cài đặt → tooltip trên dòng (script cuối trang) */
     .stg-desc, .stg-note { display: none !important; }
@@ -582,7 +590,7 @@
         const L = window.HpQlLayout;
         // ?embed=1: nhúng trong Trang chủ app chính — không khung cửa sổ, luôn lưới (thứ tự bố cục Ngang)
         const EMBED = new URLSearchParams(location.search).get('embed') === '1';
-        if (EMBED) { document.documentElement.classList.add('embed', 'ui-v2'); document.body.classList.add('embed', 'ui-v2'); }
+        if (EMBED) { document.documentElement.classList.add('embed', 'ui-v2'); document.body.classList.add('embed', 'ui-v2'); window.HpTheme && HpTheme.apply(); }
         const toParent = (msg) => { try { window.parent.postMessage(msg, location.origin); } catch (_) {} };
         const mainEl    = document.querySelector('main');
         const gridEl    = $('grid');

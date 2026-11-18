@@ -394,7 +394,9 @@ body.ui-v2 {
     --fg-rgba_255_255_255_0_85: rgba(36,27,31,0.85);
     --fg-rgba_255_255_255_0_92: rgba(36,27,31,0.92);
 }
-/* Khung xem trước overlay trong app: giữ đúng màu overlay (biến = initial → dùng fallback). */
+/* 🌙 Giao diện tối: bảng màu gốc của style.css vốn là tông tối → bỏ ánh xạ (initial = dùng fallback).
+   Token vỏ app --ui-* tối ở public/ui/theme-dark.css. Khung xem trước overlay (.ui-keep-colors) cũng vậy. */
+body.ui-v2.theme-dark,
 body.ui-v2 .ui-keep-colors {
     --bd-00ffff: initial;
     --bd-06b6d4: initial;
