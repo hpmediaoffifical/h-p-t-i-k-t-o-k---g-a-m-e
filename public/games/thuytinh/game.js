@@ -26,9 +26,12 @@
         return {
             // Vị trí hũ — góc dưới-phải, đã tinh chỉnh để cân streamer + chat layout TikTok
             jar: { xPercent: 64.57, yPercent: 76.38, height: 400 },
-            gift: { minSize: 24, maxSize: 120, dropHeight: 220, showName: false, showCount: true },
+            // mergeMaxCoins: quà ≤ N xu gộp thành 1 chồng "×N" (0 = tắt, mỗi món 1 icon như cũ)
+            gift: { minSize: 24, maxSize: 120, dropHeight: 220, showName: false, showCount: true, mergeMaxCoins: 0 },
             // Physics: gravity vừa phải, friction thấp → quà rơi mượt, không cứng
-            physics: { gravity: 1.4, bounce: 0.4, friction: 0.05 },
+            // 🫙 Hũ đầy đặn: tightPack = va chạm theo phần hình thật của icon · homing = quà trượt miệng tự bay về hũ
+            // flutter = rơi lượn như tờ giấy · sortBySize 0–1 = quà nhỏ luồn xuống khi đống quà bị xáo
+            physics: { gravity: 1.4, bounce: 0.4, friction: 0.05, tightPack: true, homing: true, flutter: true, sortBySize: 0.5 },
             jarVisible: true,
             jarLocked: true,                // khóa hũ — không bị kéo nhầm khi clean stream
             maxCapacity: 0,
@@ -771,6 +774,7 @@
         function runTriggerAction(action, userInfo) {
             // Game tắt → bỏ qua MỌI trigger (kể cả audio + visual fx)
             if (!isEnabled()) return;
+            bumpFxEpoch();   // quà đang có bị hiệu ứng hất ra là CỐ Ý → không tự bay về hũ
             switch (action) {
                 case 'thief': triggerThief(userInfo); break;
                 case 'joinPolice': togglePoliceMembership(userInfo); break;
@@ -922,6 +926,7 @@
         function isInPoliceForce(uid) { return !!uid && policeForce.has(String(uid)); }
         function processQueue() {
             if (!spawnQueue.length) { clearInterval(spawnTicker); spawnTicker = null; return; }
+            if (flyingCount() >= MAX_FLYING) return;   // combo khổng lồ: rơi từng nhịp, không thả 200 icon cùng lúc
             const batch = Math.min(2, spawnQueue.length);
             for (let i = 0; i < batch; i++) dropOne(spawnQueue.shift());
         }
@@ -954,7 +959,8 @@
         }
 
         function makeGiftBody(g, x, y, sz, velocity) {
-            const body = Bodies.circle(x, y, sz / 2, {
+            const img = loadImage(g);
+            const body = Bodies.circle(x, y, collisionRadius(sz, img?.src), {
                 restitution: config.physics.bounce,
                 friction: config.physics.friction,
                 density: 0.002
@@ -965,12 +971,14 @@
                 coins: g.coinValue || 1,
                 tier: tierOf(g.coinValue || 1),
                 sz,
-                img: loadImage(g),
-                tipperUid: g.userId || g.uniqueId
+                img,
+                tipperUid: g.userId || g.uniqueId,
+                epoch: fxEpoch
             };
             Body.setVelocity(body, velocity || { x: 0, y: 2 });
             Composite.add(engine.world, body);
             bodies.push(body);
+            ensureArtFit(body);
             return body;
         }
         function scaleGiftBody(body, targetSize) {
@@ -981,6 +989,205 @@
             if (!Number.isFinite(factor) || Math.abs(factor - 1) < 0.02) return;
             Body.scale(body, factor, factor);
             body.gm.sz = next;
+        }
+
+        // ===== 🫙 HŨ ĐẦY ĐẶN (18/11/2026) =====
+        // 1) VA CHẠM THEO PHẦN HÌNH THẬT: icon TikTok chỉ phủ ~26–62% ô vuông (hoa hồng ~40%) nhưng thân vật lý
+        //    trước đây là hình tròn bằng CẢ ô → giữa các quà luôn hở, hũ "đầy" khi mới chứa ít. Nay đo kênh alpha
+        //    1 lần mỗi ảnh (ảnh đo riêng crossOrigin; CDN chặn đọc pixel → hệ số dự phòng), bán kính va chạm =
+        //    bán kính hình tròn cùng diện tích phần hình × 0,95. Ảnh vẽ giữ nguyên cỡ.
+        const ART_FALLBACK = 0.86;
+        const artFactor = new Map();      // src → hệ số (bán kính va chạm / nửa cạnh ô ảnh)
+        const artPending = new Map();     // src → Promise
+        function artFactorOf(src) {
+            if (config.physics.tightPack === false) return 1;
+            return artFactor.has(src) ? artFactor.get(src) : ART_FALLBACK;
+        }
+        function measureArt(src) {
+            if (!src || artFactor.has(src)) return Promise.resolve();
+            if (artPending.has(src)) return artPending.get(src);
+            const p = new Promise((resolve) => {
+                const im = new Image();
+                im.crossOrigin = 'anonymous';
+                im.onload = () => {
+                    try {
+                        const N = 40;
+                        const c = document.createElement('canvas'); c.width = N; c.height = N;
+                        const cx = c.getContext('2d', { willReadFrequently: true });
+                        cx.drawImage(im, 0, 0, N, N);
+                        const d = cx.getImageData(0, 0, N, N).data;
+                        let on = 0;
+                        for (let i = 3; i < d.length; i += 4) if (d[i] > 40) on++;
+                        const cover = on / (N * N);                       // phần hình / ô vuông
+                        const r = Math.sqrt(4 * cover / Math.PI);         // bán kính cùng diện tích, theo nửa cạnh
+                        artFactor.set(src, Math.max(0.55, Math.min(0.92, r * 0.95)));
+                    } catch (_) { artFactor.set(src, ART_FALLBACK); }   // ảnh khác origin không cho đọc pixel
+                    resolve();
+                };
+                im.onerror = () => { artFactor.set(src, ART_FALLBACK); resolve(); };
+                im.src = src;
+            });
+            artPending.set(src, p);
+            return p;
+        }
+        function collisionRadius(sz, src) { return Math.max(5, (sz / 2) * artFactorOf(src)); }
+        // Đổi bán kính va chạm cho khớp hệ số mới (đo xong / bật tắt tightPack) — ảnh vẽ không đổi
+        function fitCollider(body) {
+            if (!body?.gm || !body.circleRadius) return;
+            const want = collisionRadius(body.gm.sz, body.gm.img?.src);
+            const k = want / body.circleRadius;
+            if (Number.isFinite(k) && Math.abs(k - 1) > 0.02) Body.scale(body, k, k);
+        }
+        function ensureArtFit(body) {
+            const src = body?.gm?.img?.src;
+            if (!src || artFactor.has(src) || config.physics.tightPack === false) return;
+            measureArt(src).then(() => { if (bodies.includes(body)) fitCollider(body); });
+        }
+
+        // 2) QUÀ TRƯỢT MIỆNG TỰ BAY VỀ HŨ: quà vừa thả mà rơi ra ngoài (va nhau trên miệng hũ…) nằm yên một nhịp
+        //    rồi bay theo đường cong vào lại — tối đa 2 lần/quà, chỉ khi hũ chưa đầy (có trễ để không giật qua lại).
+        //    KHÔNG áp cho quà bị hiệu ứng CỐ Ý hất ra (dốc hũ, đá hũ, trộm, tràn…): mọi hiệu ứng tăng fxEpoch,
+        //    quà sinh ở epoch cũ thì không bay về.
+        let fxEpoch = 0;
+        function bumpFxEpoch() { fxEpoch++; }
+        let jarFullish = false;
+        let lastLandAt = 0;
+        let jarMotion = 0;
+        let tickN = 0;
+        const HOME_STILL_TICKS = 36;      // ~0,6 s nằm yên ngoài hũ thì bay về
+        const HOME_MS = 650;
+        const MAX_FLYING = 30;            // trần số icon đang rơi cùng lúc (combo khổng lồ / phòng đông)
+        function insideJar(p, pad = 0) {
+            const r = jarRect();
+            return p.x > r.x + r.w * SHAPE.bodyLeftX - pad && p.x < r.x + r.w * SHAPE.bodyRightX + pad
+                // từ dưới VAI hũ trở xuống: quà nằm trên vai (bên ngoài thuỷ tinh) không tính là đã vào hũ
+                && p.y > r.y + r.h * (SHAPE.shoulderY + 0.02) - pad && p.y < r.y + r.h * SHAPE.bodyBottomY + pad;
+        }
+        function flyingCount() {
+            let n = 0;
+            for (const b of bodies) if (b.gm && !b.gm.landed) n++;
+            return n;
+        }
+        function startHoming(b) {
+            const r = jarRect();
+            const neckW = r.w * (SHAPE.neckRightX - SHAPE.neckLeftX);
+            const to = { x: r.cx + (Math.random() - 0.5) * neckW * 0.3, y: r.y + r.h * SHAPE.neckTopY - b.gm.sz * 0.8 };
+            const from = { x: b.position.x, y: b.position.y };
+            b.gm.home = { from, to, ctrl: { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 240 }, t0: performance.now(), mask: b.collisionFilter.mask };
+            b.collisionFilter.mask = 0;           // bay xuyên đống quà / thành hũ
+            b.gm.homeTries = (b.gm.homeTries || 0) + 1;
+        }
+        function stepHoming(b) {
+            const h = b.gm.home;
+            const t = Math.min(1, (performance.now() - h.t0) / HOME_MS);
+            const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+            const u = 1 - e;
+            Body.setPosition(b, {
+                x: u * u * h.from.x + 2 * u * e * h.ctrl.x + e * e * h.to.x,
+                y: u * u * h.from.y + 2 * u * e * h.ctrl.y + e * e * h.to.y
+            });
+            Body.setVelocity(b, { x: 0, y: 0 });
+            if (t >= 1) {
+                b.collisionFilter.mask = h.mask == null ? -1 : h.mask;
+                b.gm.home = null;
+                b.gm.still = 0;
+                Body.setVelocity(b, { x: (Math.random() - 0.5) * 0.6, y: 3 });
+            }
+        }
+
+        // 3) QUÀ RẺ GỘP THÀNH CHỒNG "×N": quà ≤ gift.mergeMaxCoins xu, khi đã nằm yên trong hũ, nhập vào chồng của
+        //    CHÍNH món đó (không cần nằm cạnh) → chồng to dần + huy hiệu ×N. Chặn lag khi bị spam quà 1 xu:
+        //    số icon trong hũ bị chặn theo SỐ LOẠI quà rẻ chứ không theo số lần tặng. Mặc định tắt (0).
+        const stackHeads = new Map();     // giftId → body đầu chồng
+        function stackSize(base, count) {
+            return Math.round(base * Math.min(2.2, 1 + 0.35 * Math.log10(Math.max(1, count))));   // ×10 → 1,35 · ×100 → 1,7 · trần 2,2
+        }
+        function tryMerge(b) {
+            const maxC = Number(config.gift.mergeMaxCoins) || 0;
+            if (maxC <= 0 || !b.gm || (b.gm.coins || 1) > maxC || b.gm.stackHead || b.gm.zigzag) return false;
+            const key = String(b.gm.id);
+            const head = stackHeads.get(key);
+            if (!head || head === b || !bodies.includes(head) || !head.gm?.landed || !insideJar(head.position, 40)) {
+                stackHeads.set(key, b);
+                b.gm.stackHead = true;
+                b.gm.count = b.gm.count || 1;
+                b.gm.baseSz = b.gm.baseSz || b.gm.sz;
+                return false;
+            }
+            head.gm.count = (head.gm.count || 1) + (b.gm.count || 1);
+            scaleGiftBody(head, stackSize(head.gm.baseSz || head.gm.sz, head.gm.count));
+            Composite.remove(engine.world, b);
+            const i = bodies.indexOf(b);
+            if (i >= 0) bodies.splice(i, 1);
+            return true;
+        }
+        function giftUnits() {
+            let n = 0;
+            for (const b of bodies) n += (b.gm && b.gm.count) || 1;
+            return n;
+        }
+
+        // 4) RƠI LƯỢN + QUÀ NHỎ LUỒN XUỐNG: icon đang rơi đảo nhẹ như tờ giấy (chỉ quà CHƯA chạm đống — quà đã nằm
+        //    mà bị đẩy thì cả đống rung). Quà to được đẩy nổi nhẹ lên khi đống ĐANG xáo VÀ vừa có quà rơi vào
+        //    (cổng thời gian + chuyển động: thiếu 1 trong 2 thì lực nổi tự nuôi chuyển động, đống không bao giờ nghỉ).
+        function jarTick() {
+            tickN++;
+            const busy = isTransientAnimationActive();
+            const now = performance.now();
+            const flutter = config.physics.flutter !== false;
+            const sortK = Math.max(0, Math.min(1, Number(config.physics.sortBySize ?? 0.5)));
+            const g = engine.gravity.y * engine.gravity.scale;
+            let motion = 0, sumSz = 0, nIn = 0;
+            for (const b of bodies) {
+                const m = b.gm; if (!m) continue;
+                if (m.home) { stepHoming(b); continue; }
+                const v = b.velocity;
+                const sp = Math.hypot(v.x, v.y);
+                const inJ = insideJar(b.position);
+                if (inJ) { nIn++; sumSz += m.sz; if (sp > motion) motion = sp; }
+                if (!m.landed) {
+                    if (inJ && !m.inJar) { m.inJar = true; lastLandAt = now; }
+                    if (sp < 0.5 && (m.age = (m.age || 0) + 1) > 8) m.landed = true;
+                    else if (flutter && v.y > 1 && !m.zigzag && !busy) {
+                        const ph = (m.phase ??= Math.random() * 6.283);
+                        Body.applyForce(b, b.position, { x: Math.sin(now / 260 + ph) * b.mass * 0.00022, y: 0 });
+                        Body.setAngularVelocity(b, b.angularVelocity * 0.96 + Math.sin(now / 260 + ph) * 0.004);
+                    }
+                } else if (inJ && !m.inJar) { m.inJar = true; lastLandAt = now; }
+                m.still = sp < 0.35 ? (m.still || 0) + 1 : 0;
+                // bay về hũ
+                if (config.physics.homing !== false && !busy && !jarFullish && !m.inJar && !m.zigzag
+                    && m.epoch === fxEpoch && (m.homeTries || 0) < 2 && m.still > HOME_STILL_TICKS
+                    && b.position.y > jarRect().y + jarRect().h * SHAPE.shoulderY) startHoming(b);
+            }
+            jarMotion = motion;
+            // quà to nổi nhẹ (chỉ khi đống đang xáo + vừa có quà rơi vào trong 1,2 s)
+            if (sortK > 0 && !busy && nIn > 6 && motion > 0.6 && now - lastLandAt < 1200) {
+                const avg = sumSz / nIn;
+                for (const b of bodies) {
+                    if (!b.gm?.inJar || b.gm.home || b.gm.sz <= avg) continue;
+                    const lift = Math.min(1, (b.gm.sz / avg - 1)) * 0.05 * sortK;
+                    Body.applyForce(b, b.position, { x: 0, y: -b.mass * g * lift });
+                }
+            }
+            // ~6 lần/giây: hũ đầy chưa (có trễ) + gộp chồng
+            if (tickN % 10 === 0) {
+                const r = jarRect();
+                let top = Infinity;
+                for (const b of bodies) if (b.gm?.inJar && b.gm.landed && !b.gm.home && b.position.y < top) top = b.position.y;
+                const fullAt = r.y + r.h * (SHAPE.shoulderY + 0.03), freeAt = r.y + r.h * (SHAPE.shoulderY + 0.1);
+                if (isJarFull()) jarFullish = true;
+                else if (!jarFullish && top < fullAt) jarFullish = true;
+                else if (jarFullish && top > freeAt) jarFullish = false;
+                if ((Number(config.gift.mergeMaxCoins) || 0) > 0 && !busy) {
+                    let merged = 0;
+                    for (let i = bodies.length - 1; i >= 0; i--) {
+                        const b = bodies[i];
+                        if (b?.gm?.inJar && b.gm.landed && b.gm.still > 12 && !b.gm.home && tryMerge(b)) merged++;
+                    }
+                    if (merged) { updateCountDisplay(); onCountChange(bodies.length); }
+                }
+            }
         }
 
         function dropOne(g) {
@@ -1107,6 +1314,7 @@
         }
         function spillJar(durationMs = 1400) {
             if (spillInProgress || jarStolen) return;
+            bumpFxEpoch();
             spillInProgress = true;
             removeJarWalls();
             const r = jarRect();
@@ -1253,7 +1461,9 @@
                     tier: b.gm.tier,
                     sz: b.gm.sz,
                     imgSrc: b.gm.img?.src || '',
-                    tipperUid: b.gm.tipperUid
+                    tipperUid: b.gm.tipperUid,
+                    count: b.gm.count > 1 ? b.gm.count : undefined,
+                    baseSz: b.gm.baseSz || undefined
                 } : null
             }));
         }
@@ -1327,7 +1537,7 @@
                     imgCache.set(saved.gm.imgSrc, img);
                 }
             }
-            const body = Bodies.circle(x ?? saved.x, y ?? saved.y, sz / 2, {
+            const body = Bodies.circle(x ?? saved.x, y ?? saved.y, collisionRadius(sz, img?.src), {
                 restitution: config.physics.bounce,
                 friction: config.physics.friction,
                 density: 0.002
@@ -1339,9 +1549,14 @@
                 tier: saved.gm.tier,
                 sz,
                 img,
-                tipperUid: saved.gm.tipperUid
+                tipperUid: saved.gm.tipperUid,
+                // khôi phục: coi như đã nằm yên trong hũ, không bay về; chồng ×N giữ số
+                landed: true, inJar: true, epoch: -1,
+                count: saved.gm.count > 1 ? saved.gm.count : undefined,
+                baseSz: saved.gm.baseSz || undefined
             };
             if (velocity) Body.setVelocity(body, velocity);
+            setTimeout(() => ensureArtFit(body), 0);
             return body;
         }
         function clearBodiesOnly() {
@@ -5495,6 +5710,23 @@
                     ctx.beginPath(); ctx.arc(0, 0, sz / 2, 0, Math.PI * 2); ctx.fill();
                 }
                 ctx.restore();
+                if (m.count > 1) {
+                    // huy hiệu ×N luôn đứng thẳng, góc dưới-phải của chồng
+                    const txt = '×' + (m.count >= 10000 ? Math.round(m.count / 1000) + 'k' : m.count);
+                    const fs = Math.max(18, Math.round(sz * 0.34));
+                    ctx.save();
+                    ctx.font = '800 ' + fs + 'px Inter, Arial, sans-serif';
+                    const w = ctx.measureText(txt).width + fs * 0.7;
+                    const bx = b.position.x + sz * 0.18, by = b.position.y + sz * 0.2;
+                    ctx.fillStyle = 'rgba(15,18,26,0.82)';
+                    ctx.beginPath();
+                    if (ctx.roundRect) ctx.roundRect(bx - w / 2, by - fs * 0.7, w, fs * 1.4, fs * 0.7); else ctx.rect(bx - w / 2, by - fs * 0.7, w, fs * 1.4);
+                    ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(txt, bx, by + 1);
+                    ctx.restore();
+                }
             }
             requestAnimationFrame(render);
         }
@@ -5620,7 +5852,7 @@
             // Hiện counter khi feature on, BẤT KỂ bodies = 0 (user thấy '0' khi hũ trống)
             if (config.gift.showCount) {
                 countDisplay.style.display = 'block';
-                countDisplay.textContent = String(bodies.length);
+                countDisplay.textContent = String(giftUnits());
                 const r = jarRect();
                 countDisplay.style.left = (r.cx / CANVAS_W * 100) + '%';
                 countDisplay.style.top = ((r.y + r.h * 0.88) / CANVAS_H * 100) + '%';
@@ -5643,6 +5875,8 @@
                 config.triggers = patch.triggers ? JSON.parse(JSON.stringify(patch.triggers)) : {};
             }
             engine.gravity.y = config.physics.gravity;
+            // bật/tắt "xếp sát theo hình thật" → khớp lại bán kính va chạm của quà đang có
+            if (patch?.physics && 'tightPack' in patch.physics) for (const b of bodies) { ensureArtFit(b); fitCollider(b); }
             if (!isEnabled()) {
                 spawnQueue.length = 0;
                 if (spawnTicker) { clearInterval(spawnTicker); spawnTicker = null; }
@@ -5861,6 +6095,7 @@
                     });
                 }
             }
+            jarTick();
         });
 
         requestAnimationFrame(render);

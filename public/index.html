@@ -536,6 +536,24 @@
                                         <label><input type="checkbox" id="cfg-jar-locked"/> 🔒 Khoá hũ</label>
                                     </div>
                                 </div>
+                                <div class="feat-section">
+                                    <div class="feat-section-title">Xếp quà đầy đặn</div>
+                                    <div class="cfg-row inline">
+                                        <label title="Va chạm theo đúng phần hình của icon quà thay vì cả ô vuông → quà nằm sát nhau, hũ chứa được nhiều hơn"><input type="checkbox" id="cfg-tight-pack"/> Xếp sát theo hình thật</label>
+                                        <label title="Quà vừa thả mà rơi trượt ra ngoài miệng hũ sẽ tự bay ngược vào lại (khi hũ chưa đầy). Quà bị hiệu ứng hất ra thì không"><input type="checkbox" id="cfg-homing"/> Quà trượt tự bay về hũ</label>
+                                        <label title="Quà đang rơi đảo nhẹ như tờ giấy thay vì rơi thẳng"><input type="checkbox" id="cfg-flutter"/> Rơi lượn</label>
+                                    </div>
+                                    <div class="cfg-row" title="Khi có quà mới rơi vào, quà to nổi lên trên, quà nhỏ luồn xuống đáy. 0 = tắt">
+                                        <label>Quà nhỏ luồn xuống</label>
+                                        <input type="range" id="cfg-sort" min="0" max="1" step="0.1" />
+                                        <span class="cfg-val" id="cfg-sort-v">0.5</span>
+                                    </div>
+                                    <div class="cfg-row" title="Quà từ mức xu này trở xuống gộp thành 1 chồng có số ×N — chống giật khi bị spam quà rẻ. 0 = tắt (mỗi món 1 icon)">
+                                        <label>Gộp quà ≤ xu</label>
+                                        <input type="range" id="cfg-merge" min="0" max="100" step="1" />
+                                        <span class="cfg-val" id="cfg-merge-v">0</span>
+                                    </div>
+                                </div>
                             </div>
                         </section>
                         <section class="tt-sec" data-sec="show" hidden>

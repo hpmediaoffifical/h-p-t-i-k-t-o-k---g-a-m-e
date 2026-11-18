@@ -304,6 +304,13 @@
         cfgGmax: $('#cfg-gmax'),
         cfgGmaxV: $('#cfg-gmax-v'),
         cfgGdrop: $('#cfg-gdrop'),
+        cfgTightPack: $('#cfg-tight-pack'),
+        cfgHoming: $('#cfg-homing'),
+        cfgFlutter: $('#cfg-flutter'),
+        cfgSort: $('#cfg-sort'),
+        cfgSortV: $('#cfg-sort-v'),
+        cfgMerge: $('#cfg-merge'),
+        cfgMergeV: $('#cfg-merge-v'),
         cfgGdropV: $('#cfg-gdrop-v'),
         cfgShowCount: $('#cfg-show-count'),
         cfgJarVisible: $('#cfg-jar-visible'),
@@ -1508,6 +1515,12 @@
         bindRange(dom.cfgGmin, cfg.gift.minSize, dom.cfgGminV);
         bindRange(dom.cfgGmax, cfg.gift.maxSize, dom.cfgGmaxV);
         bindRange(dom.cfgGdrop, cfg.gift.dropHeight ?? 220, dom.cfgGdropV);
+        // 🫙 Xếp quà đầy đặn
+        if (dom.cfgTightPack) dom.cfgTightPack.checked = cfg.physics.tightPack !== false;
+        if (dom.cfgHoming) dom.cfgHoming.checked = cfg.physics.homing !== false;
+        if (dom.cfgFlutter) dom.cfgFlutter.checked = cfg.physics.flutter !== false;
+        bindRange(dom.cfgSort, cfg.physics.sortBySize ?? 0.5, dom.cfgSortV);
+        bindRange(dom.cfgMerge, cfg.gift.mergeMaxCoins ?? 0, dom.cfgMergeV);
         // cfg-goal đã chuyển từ slider sang number input — set value trực tiếp
         if (dom.cfgGoal) dom.cfgGoal.value = cfg.goal?.target ?? 5000;
         if (dom.cfgGoalV) dom.cfgGoalV.textContent = cfg.goal?.target ?? 5000;
@@ -1644,12 +1657,17 @@
                 maxSize: parseInt(dom.cfgGmax.value, 10),
                 dropHeight: Math.max(80, Math.min(700, parseInt(dom.cfgGdrop?.value, 10) || 220)),
                 showName: false,
-                showCount: dom.cfgShowCount.checked
+                showCount: dom.cfgShowCount.checked,
+                mergeMaxCoins: Math.max(0, Math.min(100, parseInt(dom.cfgMerge?.value, 10) || 0))
             },
             physics: {
                 gravity: parseFloat(dom.cfgGravity.value),
                 bounce: parseFloat(dom.cfgBounce.value),
-                friction: parseFloat(dom.cfgFriction.value)
+                friction: parseFloat(dom.cfgFriction.value),
+                tightPack: dom.cfgTightPack ? dom.cfgTightPack.checked : true,
+                homing: dom.cfgHoming ? dom.cfgHoming.checked : true,
+                flutter: dom.cfgFlutter ? dom.cfgFlutter.checked : true,
+                sortBySize: Math.max(0, Math.min(1, parseFloat(dom.cfgSort?.value ?? 0.5)))
             },
             jarVisible: dom.cfgJarVisible.checked,
             jarLocked: !!(dom.cfgJarLocked && dom.cfgJarLocked.checked),
@@ -1716,6 +1734,8 @@
         dom.cfgGminV.textContent = cfg.gift.minSize;
         dom.cfgGmaxV.textContent = cfg.gift.maxSize;
         if (dom.cfgGdropV) dom.cfgGdropV.textContent = cfg.gift.dropHeight ?? 220;
+        if (dom.cfgSortV) dom.cfgSortV.textContent = cfg.physics.sortBySize;
+        if (dom.cfgMergeV) dom.cfgMergeV.textContent = cfg.gift.mergeMaxCoins ? cfg.gift.mergeMaxCoins : 'Tắt';
         if (dom.cfgGoalV) dom.cfgGoalV.textContent = cfg.goal.target;
         if (dom.cfgShakeAtV) dom.cfgShakeAtV.textContent = cfg.autoShakeAt;
         if (dom.cfgWebmVolV) dom.cfgWebmVolV.textContent = cfg.webmFxVolume ?? 80;
@@ -2867,9 +2887,10 @@
     dom.usernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') dom.btnConnect.click(); });
 
     // Config range inputs
-    ['cfgGravity', 'cfgBounce', 'cfgFriction', 'cfgJarH', 'cfgGmin', 'cfgGmax', 'cfgGdrop', 'cfgGoal', 'cfgGoalGap', 'cfgWebmVol', 'cfgShakeAt', 'cfgThiefMiss', 'cfgPoliceRate', 'cfgPoliceBan', 'cfgScaleLb', 'cfgScaleCaught', 'cfgScaleThief', 'cfgScalePolice', 'cfgScaleOsin', 'cfgScaleUfo']
+    ['cfgGravity', 'cfgBounce', 'cfgFriction', 'cfgJarH', 'cfgGmin', 'cfgGmax', 'cfgGdrop', 'cfgSort', 'cfgMerge', 'cfgGoal', 'cfgGoalGap', 'cfgWebmVol', 'cfgShakeAt', 'cfgThiefMiss', 'cfgPoliceRate', 'cfgPoliceBan', 'cfgScaleLb', 'cfgScaleCaught', 'cfgScaleThief', 'cfgScalePolice', 'cfgScaleOsin', 'cfgScaleUfo']
         .forEach(k => dom[k]?.addEventListener('input', pushConfigUpdate));
     dom.cfgPoliceName?.addEventListener('input', pushConfigUpdate);
+    ['cfgTightPack', 'cfgHoming', 'cfgFlutter'].forEach(k => dom[k]?.addEventListener('change', pushConfigUpdate));
     dom.cfgShowCount?.addEventListener('change', pushConfigUpdate);
     dom.cfgJarVisible?.addEventListener('change', pushConfigUpdate);
     dom.cfgJarLocked?.addEventListener('change', pushConfigUpdate);
