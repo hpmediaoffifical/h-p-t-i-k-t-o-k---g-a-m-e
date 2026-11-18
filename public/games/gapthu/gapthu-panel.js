@@ -40,6 +40,21 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                 <button class="ghost small" id="gapthu-pity-reset">${hpT('Đặt lại bộ đếm bảo hiểm')}</button>
             </div>
             <div class="ctc-card">
+                <h3>${hpT('🎮 TỰ LÁI (QUÀ LỚN)')}</h3>
+                <div class="ctc-row" data-k="steerMinCoins"><label>${hpT('Quà từ')}</label>
+                    <input type="range" min="0" max="1000" step="1" value="${Math.min(1000, cfg.steerMinCoins)}"><input type="number" min="0" max="100000" step="1" value="${cfg.steerMinCoins}"><span class="unit">${hpT('xu / món')}</span>
+                    <div class="hint">${hpT('Người tặng quà từ mức này tự lái càng bằng bình luận: trái / phải / vào / ra (hoặc a d w s, "trái 3"), "gắp" để thả. 0 = tắt.')}</div></div>
+                <div class="ctc-row" data-k="steerSec"><label>${hpT('Thời gian lái')}</label>
+                    <input type="range" min="8" max="30" step="1" value="${cfg.steerSec}"><input type="number" min="8" max="30" step="1" value="${cfg.steerSec}"><span class="unit">${hpT('giây')}</span></div>
+                <div class="ctc-row" data-k="steerSteps"><label>${hpT('Số bước')}</label>
+                    <input type="range" min="3" max="20" step="1" value="${cfg.steerSteps}"><input type="number" min="3" max="20" step="1" value="${cfg.steerSteps}"><span class="unit">${hpT('bước')}</span></div>
+                <div class="ctc-row" data-k="steerBonus"><label>${hpT('Thưởng nhắm đúng')}</label>
+                    <input type="range" min="0" max="50" step="1" value="${cfg.steerBonus}"><input type="number" min="0" max="50" step="1" value="${cfg.steerBonus}"><span class="unit">%</span>
+                    <div class="hint">${hpT('Kẹp đúng ô dưới càng: {a}% · kẹp lệch sang ô bên: {b}%. Hết giờ thì tự gắp tại chỗ.', { a: Math.min(95, win + (Number(cfg.steerBonus) || 0)), b: Math.round(Math.min(95, win + (Number(cfg.steerBonus) || 0)) / 2) })}</div></div>
+                <button class="small" id="gapthu-steer-test">${hpT('▶ Thử 1 lượt tự lái')}</button>
+                <button class="ghost small" id="gapthu-steer-drop" title="${esc(hpT('Thả càng ngay cho người đang lái'))}">${hpT('✊ Thả hộ')}</button>
+            </div>
+            <div class="ctc-card">
                 <h3>${hpT('HIỂN THỊ')}</h3>
                 <div class="hp-gtp-line"><label>${hpT('Màu tủ')}</label><span class="hp-gtp-seg" data-seg="theme">${THEMES.map(([v, t]) => `<button type="button" data-v="${v}" class="${D.theme === v ? 'on' : ''}">${t}</button>`).join('')}</span></div>
                 ${['x', 'y', 'scale'].map(k => {
@@ -59,6 +74,9 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         }));
         host.querySelectorAll('[data-pdel]').forEach(b => b.addEventListener('click', () => { cfg.prizes.splice(Number(b.dataset.pdel), 1); api.save(); api.rerender(); }));
         host.querySelector('#gapthu-padd')?.addEventListener('click', () => { cfg.prizes.push({ id: 'p' + Date.now().toString(36), name: hpT('Giải mới'), icon: '🎁', weight: 1 }); api.save(); api.rerender(); });
+        const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+        host.querySelector('#gapthu-steer-test')?.addEventListener('click', e => { post('/api/gapthu/test', { steer: true, nickname: hpT('Thử tự lái') }); e.currentTarget.textContent = '✓'; });
+        host.querySelector('#gapthu-steer-drop')?.addEventListener('click', e => { post('/api/gapthu/control', { cmd: 'drop' }); e.currentTarget.textContent = '✓'; });
         host.querySelector('#gapthu-pity-reset')?.addEventListener('click', e => {
             fetch('/api/gapthu/control', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'resetPity' }) }).catch(() => {});
             e.currentTarget.textContent = '✓';
@@ -76,7 +94,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                 const n = Number(v); if (!Number.isFinite(n)) return;
                 if (key.startsWith('d.')) cfg.display[key.slice(2)] = n; else cfg[key] = n;
                 range.value = n; num.value = n; api.save();
-                if (key === 'winRate' && done) api.rerender();
+                if ((key === 'winRate' || key === 'steerBonus') && done) api.rerender();
             };
             range.addEventListener('input', () => apply(range.value, false));
             range.addEventListener('change', () => apply(range.value, true));

@@ -29,8 +29,9 @@ overlay chỉ diễn hoạt cảnh theo kết quả nhận được, trong đún
 - `cfg.anyGift` (mặc định **bật**): quà không có trong danh sách vẫn = 1 lượt. Tắt → chỉ quà đã gán mới chơi.
 - Combo ×N: lượt = `turns × N`, chặn trần `maxPerGift` = 10 lượt / lần tặng.
 - Hàng chờ tối đa `queueMax` = 30 lượt; tràn thì bỏ phần dư (log), không chặn quà game khác.
-- **Nhịp nhanh** (`turnMs(baseSec, queueLen)`): lượt chuẩn `turnSec` (mặc định 4 s, cho chọn 3–5). Hàng chờ ≥ 5 → ×0.75, ≥ 12 → ×0.55; không bao giờ dưới 2 s.
+- **Nhịp nhanh** (`speedFactor(queueLen)`, `turnMs(baseSec, queueLen)`): lượt chuẩn `turnSec` (mặc định 4 s, cho chọn 3–5). Hàng chờ > 3 thì nhanh thêm 12 % mỗi lượt vượt, trần **×2,5**; không bao giờ dưới 1,5 s. Không bỏ lượt ai, chỉ rút ngắn hoạt cảnh (cả lượt tự lái, xem §3.3).
 - Runner nghỉ 250 ms giữa hai lượt để hoạt cảnh kịp về chỗ.
+- Lượt có độ dài không biết trước (tự lái §3.3): `onTurn` trả `{ hold: true }` → runner đứng chờ tới khi server gọi `runner.release(ms)` (đã diễn xong phần thả càng).
 
 ### 2.2 Bật/tắt, thử, điều khiển
 
@@ -52,6 +53,27 @@ overlay chỉ diễn hoạt cảnh theo kết quả nhận được, trong đún
   - `clawX` 0.12–0.88: vị trí ngang máy gắp hạ xuống (cùng giá trị cho mọi màn).
   - trượt: `slipAt` 0.25–0.75 = phần đường kéo lên thì thú tuột.
   - trúng: chọn giải theo trọng số `pickPrize(prizes, rng)`; tất cả weight = 0 → coi như trượt (không có giải để phát).
+
+### 3.3 🎮 Tự lái (quà lớn) — thêm 18/11/2026
+
+Quà có giá **≥ `steerMinCoins`** (mặc định **99 xu** / 1 món, 0 = tắt) → lượt **TỰ LÁI** cho đúng người tặng; quà nhỏ hơn vẫn là lượt tự gắp. Combo ×N quà lớn = N lượt tự lái nối nhau (vẫn trần 10).
+
+**Lưới giải 7 cột × 3 hàng** (`GRID`, hàng 0 = sát kính, 2 = trong cùng) do **server** giữ: mỗi ô 1 giải (chọn theo tỉ trọng, `fixLayout`), gửi kèm mọi `gapthu:turn` / `gapthu:state` để overlay vẽ đống giải đúng chỗ. Giải hiếm (tỉ trọng thấp) chiếm ít ô → người lái phải nhắm. Trúng thì ô đó được bù giải mới (`refillCell`). Lượt tự gắp cũng dùng lưới: trúng → càng hạ xuống 1 ô đang có đúng giải đó (`autoCell`, không có thì đặt giải vào 1 ô).
+
+**Lệnh bình luận** (`parseSteer(text)`, chỉ người đang lái; người khác bình luận không ảnh hưởng):
+- bỏ dấu, chữ thường; từ khoá: `trái/trai/a/left/<` · `phải/phai/d/right/>` · `vào/vao/lên/len/w/up/^` · `ra/xuống/xuong/s/down/v` · `gắp/gap/thả/tha/chốt/chot/g/ok`.
+- chuỗi chỉ gồm chữ `a d w s` (vd `aaw`) = mỗi chữ 1 bước; số sau hướng = số bước (`trái 3`); lặp từ cũng được (`trái trái`). Từ đệm bỏ qua: `qua sang di nua them buoc nhe nha chut xiu`.
+- **có 1 từ lạ → cả câu là trò chuyện**, không điều khiển (tránh "ra đây chị ơi" kéo càng). Tối đa 5 bước / bình luận.
+- Mỗi lượt có ngân sách **`steerSteps` bước** (mặc định 8, 3–20) và đồng hồ **`steerSec`** (mặc định 15 s, 8–30). Hết bước: chỉ còn chờ "gắp"; hết giờ: tự gắp tại chỗ. Càng bắt đầu ở giữa (cột 3, hàng 1).
+- Hàng chờ dài: đồng hồ tự lái chia cho `speedFactor` nhưng không dưới 8 s.
+
+**Kết quả** (`resolveSteer(cfg, layout, pos, { sure, misses }, rng)` → `{ win, prize, cell, kind, slipAt, pityHit }`) — server quyết, phụ thuộc vị trí:
+1. **Chọn vật bị kẹp**: ô ngay dưới càng nặng 1, ô kề cạnh 0,12, ô chéo 0,04 (chỉ ô có giải); ô dưới càng trống thì thêm "kẹp hụt" nặng 0,6. Bốc theo trọng số.
+2. **Lực kẹp**: trúng nếu `rng < (winRate + steerBonus)%` (kẹp đúng ô dưới càng; `steerBonus` mặc định 15, trần 95 %), kẹp lệch sang ô kề thì lực còn **một nửa**. Mặc định: kẹp đúng ô 50 %, lệch 25 %; tính cả xác suất kẹp lệch, nhắm giữa đống ≈ **40 %** mỗi lượt (đo bằng test 4 000 lượt), so với tự gắp 35 % → có kỹ năng nhưng không chắc thắng.
+3. Quà gán `sure` và **bảo hiểm** (`misses ≥ pity`) vẫn áp: chắc trúng vật đã bốc (bốc phải "kẹp hụt" thì lấy ô có giải gần nhất).
+4. Trượt: `kind = slip` (kẹp được rồi tuột, `slipAt`) hoặc `empty` (khép vào khoảng không).
+
+Sự kiện: `gapthu:turn` (`mode: steer`, `steer: { pos, stepsLeft, secLeft }`) → `gapthu:steer` sau mỗi lệnh hợp lệ (`pos, stepsLeft, secLeft, dir`) → `gapthu:drop` (`result`, `ms` diễn thả càng) → runner `release`. Overlay: chip người lái + đồng hồ + "còn N bước" + bảng mũi tên gợi ý lệnh ở bệ máy, vòng đích trên ô dưới càng, càng trượt mượt tới ô mới, cần gạt nghiêng theo lệnh.
 
 ### 3.2 Overlay `/overlay/gapthu` (Canvas 2D, 1080×1920 trong suốt)
 
@@ -97,5 +119,7 @@ Mỗi game 1 file `public/games/<id>/<id>-panel.js` tự chèn `<section id="vie
 
 - `tests/gift-turns.test.js`: số lượt theo quà/combo/trần, anyGift tắt, hàng chờ tràn, `turnMs`, runner với đồng hồ giả.
 - `tests/gapthu.test.js`: normalize, `pickPrize` theo trọng số (rng cố định), winRate 0/100, bảo hiểm, `sure`, weight toàn 0, `clawX/slipAt` trong khoảng.
+- `tests/gapthu-steer.test.js`: ngưỡng quà, lưới 7×3 (`fixLayout/refillCell/autoCell`), `parseSteer` (có/không dấu, số bước, wasd, trò chuyện = null, trần 5), `applyMoves` (ngân sách, vách), `resolveSteer` (đúng ô / lệch / hụt / chắc trúng / bảo hiểm, tỉ lệ trung bình 4 000 lượt).
+- `tests/gapthu-server.test.js`: io/app/đồng hồ giả — quà lớn giữ hàng chờ, chỉ người tặng điều khiển, gắp / hết giờ → drop rồi sang lượt kế, đồng hồ rút theo hàng chờ, ngưỡng 0 = tắt.
 - `tests/xucxac.test.js`: `rollDice` 1–6 & số viên, `outcomeFor` biên, bảng mặc định phủ kín [n, 6n], normalize.
 - Chạy thử: server cổng riêng + `HP_DATA_DIR` riêng, `POST /api/test-gift` → chụp overlay ở giữa lượt và lúc hiện kết quả.

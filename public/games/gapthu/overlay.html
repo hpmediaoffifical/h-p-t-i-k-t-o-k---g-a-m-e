@@ -13,11 +13,13 @@
     #gapthu-cv { position: absolute; inset: 0; width: 720px; height: 1080px; }
     .gapthu-who { position: absolute; left: 50%; top: -84px; transform: translate(-50%, -12px); display: flex; align-items: center; gap: 12px;
         padding: 8px 20px 8px 8px; border-radius: 40px; background: rgba(20, 14, 34, .82); border: 2px solid rgba(255,255,255,.25);
-        font-size: 30px; font-weight: 800; white-space: nowrap; max-width: 600px; opacity: 0; transition: opacity .2s, transform .2s; }
+        font-size: 30px; font-weight: 800; white-space: nowrap; max-width: 640px; opacity: 0; transition: opacity .2s, transform .2s; }
     .gapthu-who.on { opacity: 1; transform: translate(-50%, 0); }
+    .gapthu-who.steer { background: linear-gradient(90deg, #ff3d8b, #7b5cff); border-color: #fff; }
     .gapthu-who img, .gapthu-card img.av { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: #443; flex: none; }
     .gapthu-who span { overflow: hidden; text-overflow: ellipsis; }
     .gapthu-who .gi { width: 40px; height: 40px; border-radius: 0; background: none; }
+    .gapthu-who b { flex: none; font-size: 24px; padding: 2px 10px; border-radius: 14px; background: rgba(255,255,255,.22); }
     .gapthu-card { position: absolute; left: 50%; top: 360px; width: 580px; transform: translate(-50%, 0) scale(.6); opacity: 0;
         padding: 26px 26px 30px; border-radius: 34px; text-align: center; background: linear-gradient(180deg, #fff8fc, #ffe1ef);
         color: #3a1530; box-shadow: 0 18px 50px rgba(0,0,0,.45), 0 0 0 6px rgba(255,255,255,.6) inset;
@@ -32,6 +34,24 @@
     .gapthu-q { position: absolute; left: 50%; top: 1000px; transform: translateX(-50%); padding: 6px 20px; border-radius: 30px;
         background: rgba(0,0,0,.55); font-size: 28px; font-weight: 800; white-space: nowrap; }
     .gapthu-q[hidden] { display: none; }
+    /* 🎮 bảng lệnh tự lái: phủ lên bệ máy */
+    .gapthu-steer { position: absolute; left: 40px; top: 850px; width: 640px; height: 190px; box-sizing: border-box; border-radius: 26px;
+        padding: 14px 18px; display: none; grid-template-columns: 1fr 230px; gap: 12px; align-items: center;
+        background: rgba(16, 10, 30, .9); border: 3px solid rgba(255,255,255,.35); }
+    .gapthu-steer.on { display: grid; }
+    .gapthu-pad { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 50px); gap: 6px; }
+    .gapthu-key { display: grid; place-items: center; border-radius: 12px; background: rgba(255,255,255,.12); font-size: 22px; font-weight: 800;
+        line-height: 1; text-align: center; transition: background .15s, transform .15s; }
+    .gapthu-key i { font-style: normal; font-size: 26px; display: block; }
+    .gapthu-key.hit { background: #ffd54a; color: #2a1a00; transform: scale(1.08); }
+    .gapthu-key.grab { background: #ff3d8b; }
+    .gapthu-key.dim { opacity: .35; }
+    .gapthu-meter { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .gapthu-sec { font-size: 64px; font-weight: 900; line-height: 1; }
+    .gapthu-sec.hurry { color: #ff6b6b; }
+    .gapthu-bar { width: 200px; height: 12px; border-radius: 6px; background: rgba(255,255,255,.18); overflow: hidden; }
+    .gapthu-bar > div { height: 100%; width: 100%; background: linear-gradient(90deg, #ffd54a, #ff3d8b); transition: width .25s linear; }
+    .gapthu-steps { font-size: 24px; font-weight: 800; opacity: .9; }
     body.gapthu-shot * { transition: none !important; }
 </style>
 </head>
@@ -41,20 +61,37 @@
         <canvas id="gapthu-cv" width="720" height="1080"></canvas>
         <div class="gapthu-who" id="gapthu-who"></div>
         <div class="gapthu-card" id="gapthu-card"></div>
+        <div class="gapthu-steer" id="gapthu-steer">
+            <div class="gapthu-pad">
+                <div></div><div class="gapthu-key" data-dir="0,1"><i>⬆</i>vào</div><div></div>
+                <div class="gapthu-key" data-dir="-1,0"><i>⬅</i>trái</div><div class="gapthu-key grab" data-dir="grab"><i>✊</i>gắp</div><div class="gapthu-key" data-dir="1,0"><i>➡</i>phải</div>
+                <div></div><div class="gapthu-key" data-dir="0,-1"><i>⬇</i>ra</div><div></div>
+            </div>
+            <div class="gapthu-meter">
+                <div class="gapthu-sec" id="gapthu-sec">15</div>
+                <div class="gapthu-bar"><div id="gapthu-bar"></div></div>
+                <div class="gapthu-steps" id="gapthu-steps">còn 8 bước</div>
+            </div>
+        </div>
         <div class="gapthu-q" id="gapthu-q" hidden></div>
     </div>
 </div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/lib/overlay-hello.js" data-game="gapthu"></script>
 <script>
-/* 🕹️ Gắp Thú — overlay OBS 1080×1920 trong suốt. Server quyết kết quả từng lượt (socket 'gapthu:turn'),
- * overlay chỉ diễn hoạt cảnh trong đúng turn.ms. ?review=1 khung xem thử (phòng preview), ?demo=1 tự sinh lượt giả,
- * ?bg=1 nền tối để xem ngoài OBS, ?mute=1 tắt tiếng. Spec docs/superpowers/specs/2026-11-12-gapthu-xucxac-design.md §3.2 */
+/* 🕹️ Gắp Thú — overlay OBS 1080×1920 trong suốt. Server quyết kết quả (socket 'gapthu:turn' / 'gapthu:steer' / 'gapthu:drop'),
+ * overlay chỉ diễn. Đống giải = lưới 7×3 server gửi (layout: id giải mỗi ô, hàng 0 sát kính).
+ * Lượt tự gắp: càng chạy tới ô → hạ → kẹp → nâng → về cửa / tuột, trong đúng turn.ms.
+ * Lượt TỰ LÁI (quà lớn): bảng lệnh ở bệ máy, càng trượt theo lệnh bình luận của người tặng, "gắp"/hết giờ → 'gapthu:drop'.
+ * ?review=1 khung xem thử, ?demo=1 lượt giả (có tự lái), ?bg=1 nền tối, ?mute=1 tắt tiếng,
+ * ?shot=win:0.9 | lose:0.6 | empty:0.5 | steer | steerdrop:0.3 đóng băng 1 khung. Spec 2026-11-12-gapthu-xucxac-design.md §3 */
 (function () {
     'use strict';
     const qs = new URLSearchParams(location.search);
     const isReview = qs.get('review') === '1', isDemo = qs.get('demo') === '1', muted = qs.get('mute') === '1';
+    const shotSpec = qs.get('shot');
     if (qs.get('bg') === '1') document.body.classList.add('gapthu-bg');
+    if (shotSpec) document.body.classList.add('gapthu-shot');
     const $ = id => document.getElementById(id);
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const stage = $('gapthu-stage'), box = $('gapthu-box'), cv = $('gapthu-cv'), ctx = cv.getContext('2d');
@@ -74,102 +111,107 @@
         stage.style.left = ((innerWidth - 1080 * k) / 2) + 'px';
         stage.style.top = ((innerHeight - 1920 * k) / 2) + 'px';
     }
-    function layout() {
+    function layoutBox() {
         const d = cfg.display || {};
-        const s = (Number(d.scale) || 100) / 100;
         box.style.left = (1080 * (d.x ?? 50) / 100 - 360) + 'px';
         box.style.top = (1920 * (d.y ?? 55) / 100 - 540) + 'px';
-        box.style.transform = `scale(${s})`;
+        box.style.transform = `scale(${(Number(d.scale) || 100) / 100})`;
         box.classList.toggle('off', disabled);
-        buildPile();
     }
     addEventListener('resize', fit); fit();
 
-    // ---------- hình học tủ (toạ độ canvas 720×1080) ----------
-    const G = { glassL: 40, glassR: 680, glassT: 140, glassB: 820, rail: 176, homeX: 128, upY: 236, downY: 712, pileL: 230, pileR: 650, floor: 806 };
-    let pile = [];   // [{icon, x, y, s, r}]
-    function prizeIcons() {
-        const p = (cfg.prizes || []).filter(x => x && x.icon);
-        return p.length ? p.map(x => x.icon) : ['🧸', '🐰', '🐻', '🦊', '🐼', '🐱'];
+    // ---------- hình học tủ (toạ độ canvas 720×1080) + lưới giải 7×3 ----------
+    const G = { glassL: 40, glassR: 680, glassT: 140, glassB: 820, rail: 176, homeX: 128, upY: 236, pileL: 230, pileR: 650, floor: 806 };
+    const COLS = 7, ROWS = 3, CELLS = COLS * ROWS;
+    const cellPos = i => ({ col: i % COLS, row: Math.floor(i / COLS) });
+    const cellIndex = p => p.row * COLS + p.col;
+    // hàng 0 sát kính (thấp, to), hàng 2 trong cùng (cao, nhỏ) — vẽ hàng trong trước
+    function cellXY(i) {
+        const { col, row } = cellPos(i);
+        const jx = ((i * 37) % 11 - 5) * 1.6, jy = ((i * 13) % 7 - 3) * 1.6;
+        return { x: G.pileL + (col + 0.5) / COLS * (G.pileR - G.pileL) + jx, y: G.floor - 36 - row * 54 + jy, s: 74 - row * 7, r: ((i * 29) % 9 - 4) * 0.06 };
     }
-    function buildPile() {
-        const icons = prizeIcons();
-        pile = [];
-        let n = 0;
-        const rows = [{ y: G.floor - 34, c: 6, s: 74 }, { y: G.floor - 92, c: 5, s: 70 }, { y: G.floor - 146, c: 4, s: 64 }];
-        for (const row of rows) {
-            for (let i = 0; i < row.c; i++) {
-                const t = (i + 0.5) / row.c;
-                const jitter = ((n * 37) % 11 - 5) * 2;
-                pile.push({ icon: icons[n % icons.length], x: G.pileL + t * (G.pileR - G.pileL) + jitter, y: row.y + ((n * 13) % 7 - 3) * 2, s: row.s, r: ((n * 29) % 9 - 4) * 0.06 });
-                n++;
-            }
-        }
+    const colX = col => G.pileL + (col + 0.5) / COLS * (G.pileR - G.pileL);
+    const downYOf = cell => cellXY(cell).y - 70;
+    let layout = null;          // id giải mỗi ô (server gửi)
+    const iconOf = id => ((cfg.prizes || []).find(p => p.id === id) || {}).icon || (id ? '🎁' : '');
+    function localLayout() {     // demo / chụp ảnh / chưa nhận được từ server
+        const ps = (cfg.prizes || []).filter(p => p && p.weight > 0);
+        const ids = ps.length ? ps.map(p => p.id) : [null];
+        return Array.from({ length: CELLS }, (_, i) => ids[(i * 5 + Math.floor(i / 3)) % ids.length]);
     }
+    const getLayout = () => layout || (layout = localLayout());
 
     // ---------- trạng thái hoạt cảnh ----------
-    let turn = null;          // { ...payload, t0, grabbed:{icon, idx}, dropT }
-    let lastIdleDraw = 0;
+    let turn = null;            // lượt đang diễn
+    let steer = null;           // { pos, stepsLeft, steps, sec, endsAt } khi đang tự lái (chưa thả)
+    let lastIdleDraw = 0, clawX = G.homeX, lastFrame = 0;
     const queueLeft = { n: 0 };
     const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
     const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
     const seg = (p, a, b) => clamp((p - a) / (b - a), 0, 1);
-    const P = { move: [0, .22], down: [.22, .42], close: [.42, .5], up: [.5, .7], carry: [.7, .85] };
-
-    function targetX(t) { return G.pileL + (clamp(t.result.clawX, .12, .88) - .12) / .76 * (G.pileR - G.pileL); }
-    function nearestPile(x) {
-        let best = 0, bd = 1e9;
-        pile.forEach((it, i) => { const d = Math.abs(it.x - x) + (G.floor - it.y) * 0.4; if (d < bd) { bd = d; best = i; } });
-        return best;
-    }
+    // pha theo phần của turn.ms; lượt thả sau tự lái bỏ gần hết pha chạy ngang (càng đã ở trên ô)
+    const P_AUTO = { move: [0, .22], down: [.22, .42], close: [.42, .5], up: [.5, .7], carry: [.7, .85], card: .84 };
+    const P_DROP = { move: [0, .06], down: [.06, .3], close: [.3, .38], up: [.38, .6], carry: [.6, .8], card: .8 };
 
     function clawState(now) {
-        if (!turn) return { x: G.homeX, y: G.upY, open: .9, carry: null };
+        if (!turn || !turn.result) return { x: clawX, y: G.upY, open: .9, carry: null };
+        const P = turn.P, r = turn.result;
         const p = clamp((now - turn.t0) / turn.ms, 0, 1.2);
-        const tx = targetX(turn), r = turn.result;
-        let x = G.homeX, y = G.upY, open = .9, carry = null;
-        if (p < P.down[0]) { x = G.homeX + (tx - G.homeX) * ease(seg(p, ...P.move)); }
-        else if (p < P.close[0]) { x = tx; y = G.upY + (G.downY - G.upY) * ease(seg(p, ...P.down)); }
-        else if (p < P.up[0]) { x = tx; y = G.downY; open = .9 - .9 * seg(p, ...P.close); }
+        const tx = colX(cellPos(r.cell).col), dy = downYOf(r.cell), sx = turn.startX;
+        let x = sx, y = G.upY, open = .9, carry = null;
+        if (p < P.down[0]) x = sx + (tx - sx) * ease(seg(p, ...P.move));
+        else if (p < P.close[0]) { x = tx; y = G.upY + (dy - G.upY) * ease(seg(p, ...P.down)); }
+        else if (p < P.up[0]) { x = tx; y = dy; open = .9 - .9 * seg(p, ...P.close); }
         else if (p < P.carry[0]) {
             const u = ease(seg(p, ...P.up));
-            x = tx; y = G.downY - (G.downY - G.upY) * u; open = 0;
-            if (!r.win && seg(p, ...P.up) >= r.slipAt) { open = .35; if (!turn.dropT) { turn.dropT = now; turn.dropFrom = { x, y: y + 66 }; sfx('slip'); } }
+            x = tx; y = dy - (dy - G.upY) * u; open = 0;
+            if (r.kind === 'slip' && seg(p, ...P.up) >= r.slipAt) { open = .35; if (!turn.dropT) { turn.dropT = now; turn.dropFrom = { x, y: y + 66 }; sfx('slip'); } }
         } else {
             const u = ease(seg(p, ...P.carry));
             x = tx + (G.homeX - tx) * u; y = G.upY; open = r.win ? (u > .92 ? .9 : 0) : .35;
             if (r.win && u > .92 && !turn.dropT) { turn.dropT = now; turn.dropFrom = { x, y: y + 66 }; sfx('win'); }
             if (!r.win && p >= P.carry[1] && !turn.loseSaid) { turn.loseSaid = true; sfx('lose'); }
         }
-        // đang kẹp quà: trúng → icon giải; trượt → thú gần nhất (rồi tuột)
-        if (p >= P.close[1] && !turn.dropT) carry = turn.grabIcon;
-        if (p >= P.close[0] && turn.grabIdx == null) {
-            turn.grabIdx = nearestPile(tx);
-            turn.grabIcon = r.win && r.prize ? r.prize.icon : pile[turn.grabIdx].icon;
+        if (p >= P.close[0] && !turn.grabbed) {
+            turn.grabbed = true;
+            turn.grabIcon = r.kind === 'empty' ? '' : (r.win && r.prize ? r.prize.icon : iconOf(getLayout()[r.cell]));
             sfx('clink');
         }
+        if (p >= P.close[1] && !turn.dropT && turn.grabIcon) carry = turn.grabIcon;
+        clawX = x;
         return { x, y, open, carry };
+    }
+    function steerClaw(now) {
+        // càng trượt mượt tới cột đích (không nhảy cóc)
+        const dt = Math.min(0.05, Math.max(0, (now - (lastFrame || now)) / 1000));
+        const tx = colX(steer.pos.col);
+        clawX += (tx - clawX) * Math.min(1, dt * 9);
+        if (Math.abs(tx - clawX) < 0.5) clawX = tx;
+        return { x: clawX, y: G.upY, open: .9, carry: null };
     }
 
     // ---------- vẽ ----------
     function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
     function emoji(icon, x, y, size, rot) {
+        if (!icon) return;
         ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot);
         ctx.font = `${size}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(icon, 0, 0); ctx.restore();
     }
     function draw(now) {
         const th = THEMES[cfg.display?.theme] || THEMES.pink;
+        const lay = getLayout();
         ctx.clearRect(0, 0, 720, 1080);
         // thân tủ
         ctx.fillStyle = th.frame2; rr(18, 108, 684, 960, 44); ctx.fill();
         ctx.fillStyle = th.frame; rr(26, 112, 668, 946, 40); ctx.fill();
-        // biển hiệu + bóng đèn
+        // biển hiệu + bóng đèn (tự lái: nháy nhanh)
         ctx.fillStyle = th.frame2; rr(60, 8, 600, 118, 50); ctx.fill();
         ctx.fillStyle = th.sign; rr(70, 18, 580, 98, 44); ctx.fill();
         ctx.fillStyle = th.signText; ctx.font = '900 64px "Be Vietnam Pro","Segoe UI",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('GẮP THÚ', 360, 70);
-        const blink = Math.floor(now / 380) % 2;
+        ctx.fillText(steer ? 'TỰ LÁI!' : 'GẮP THÚ', 360, 70);
+        const blink = Math.floor(now / (steer ? 160 : 380)) % 2;
         for (let i = 0; i < 16; i++) {
             const bx = 88 + i * 36, on = (i + blink) % 2;
             ctx.fillStyle = th.bulb[on]; ctx.globalAlpha = on ? 1 : .45;
@@ -183,12 +225,24 @@
         ctx.fillStyle = 'rgba(0,0,0,.55)'; rr(58, 640, 150, 170, 14); ctx.fill();
         ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 4; rr(58, 640, 150, 170, 14); ctx.stroke();
         ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.font = '800 26px "Be Vietnam Pro","Segoe UI",sans-serif'; ctx.fillText('QUÀ', 133, 790);
-        // đống thú
-        pile.forEach((it, i) => { if (turn && i === turn.grabIdx && (!turn.dropT || turn.result.win || now - turn.dropT < 600)) return; emoji(it.icon, it.x, it.y, it.s, it.r); });
-        // ray
-        ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(G.glassL + 10, G.rail - 6, G.glassR - G.glassL - 20, 12);
+
+        // đống giải: hàng trong cùng vẽ trước
+        const hidden = turn && turn.result && turn.grabbed && turn.result.kind !== 'empty' && (!turn.dropT || turn.result.win || now - turn.dropT < 600) ? turn.result.cell : -1;
+        for (let row = ROWS - 1; row >= 0; row--) for (let col = 0; col < COLS; col++) {
+            const i = row * COLS + col; if (i === hidden) continue;
+            const c = cellXY(i); emoji(iconOf(lay[i]), c.x, c.y, c.s, c.r);
+        }
+        // vòng đích quanh ô dưới càng (tự lái) — vẽ ĐÈ lên đống giải cho dễ thấy + vạch dọc từ càng xuống
+        if (steer) {
+            const t = cellXY(cellIndex(steer.pos)), pulse = 1 + Math.sin(now / 160) * .08;
+            ctx.save(); ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 6; ctx.setLineDash([12, 8]);
+            ctx.beginPath(); ctx.ellipse(t.x, t.y + t.s * .1, t.s * .66 * pulse, t.s * .5 * pulse, 0, 0, Math.PI * 2); ctx.stroke();
+            ctx.globalAlpha = .35; ctx.setLineDash([6, 10]); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(clawX, G.upY + 80); ctx.lineTo(t.x, t.y - t.s * .45); ctx.stroke();
+            ctx.restore();
+        }
+        // ray        ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(G.glassL + 10, G.rail - 6, G.glassR - G.glassL - 20, 12);
         // càng
-        const c = clawState(now);
+        const c = steer ? steerClaw(now) : clawState(now);
         ctx.fillStyle = '#d9dbe6'; rr(c.x - 34, G.rail - 16, 68, 30, 8); ctx.fill();
         ctx.strokeStyle = '#c8cad6'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(c.x, G.rail + 12); ctx.lineTo(c.x, c.y); ctx.stroke();
         drawClaw(c.x, c.y, c.open);
@@ -196,7 +250,7 @@
         // quà rơi (tuột về đống / rơi vào cửa)
         if (turn && turn.dropT) {
             const dt = (now - turn.dropT) / 1000;
-            const tgtY = turn.result.win ? 760 : G.floor - 40;
+            const tgtY = turn.result.win ? 760 : cellXY(turn.result.cell).y;
             const y = Math.min(tgtY, turn.dropFrom.y + 1400 * dt * dt);
             if (y < tgtY || dt < 0.6) emoji(turn.grabIcon, turn.dropFrom.x, y, 72, dt * 2);
         }
@@ -204,15 +258,18 @@
         const grd = ctx.createLinearGradient(G.glassL, 0, G.glassR, 0);
         grd.addColorStop(0, 'rgba(255,255,255,.18)'); grd.addColorStop(.18, 'rgba(255,255,255,0)'); grd.addColorStop(.8, 'rgba(255,255,255,0)'); grd.addColorStop(1, 'rgba(255,255,255,.1)');
         ctx.fillStyle = grd; rr(G.glassL, G.glassT, G.glassR - G.glassL, G.glassB - G.glassT, 18); ctx.fill();
-        // bệ điều khiển
+        // bệ điều khiển (tự lái thì bảng lệnh DOM phủ lên)
         ctx.fillStyle = th.base; rr(40, 850, 640, 190, 26); ctx.fill();
         ctx.fillStyle = 'rgba(0,0,0,.18)'; rr(40, 850, 640, 190, 26); ctx.fill();
-        const jx = 220 + (turn && c.x > G.homeX + 8 ? 10 : 0);
-        ctx.fillStyle = '#333'; ctx.beginPath(); ctx.ellipse(200, 980, 60, 18, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#222'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(200, 978); ctx.lineTo(jx, 908); ctx.stroke();
-        ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(jx, 900, 26, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = turn ? '#ffe14d' : '#ffb300'; ctx.beginPath(); ctx.ellipse(500, 950, 64, 50, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.font = '900 30px "Be Vietnam Pro","Segoe UI",sans-serif'; ctx.fillText('GẮP', 500, 952);
+        if (!steer) {
+            const jx = 220 + (turn && Math.abs(c.x - G.homeX) > 8 ? 10 : 0);
+            ctx.fillStyle = '#333'; ctx.beginPath(); ctx.ellipse(200, 980, 60, 18, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#222'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(200, 978); ctx.lineTo(jx, 908); ctx.stroke();
+            ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(jx, 900, 26, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = turn ? '#ffe14d' : '#ffb300'; ctx.beginPath(); ctx.ellipse(500, 950, 64, 50, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.font = '900 30px "Be Vietnam Pro","Segoe UI",sans-serif'; ctx.fillText('GẮP', 500, 952);
+        }
+        lastFrame = now;
     }
     function drawClaw(x, y, open) {
         ctx.save(); ctx.translate(x, y);
@@ -229,18 +286,23 @@
 
     // ---------- thẻ người tặng + kết quả ----------
     function avatarImg(url) { return url ? `<img class="av" src="${esc(url)}" alt="" onerror="this.style.visibility='hidden'">` : ''; }
-    function showWho(t) {
+    function showWho(t, steering) {
         const w = $('gapthu-who');
-        w.innerHTML = `${avatarImg(t.avatar)}<span>${esc(t.nickname || 'Ẩn danh')}</span>${t.giftImage ? `<img class="gi" src="${esc(t.giftImage)}" alt="">` : ''}`;
+        w.classList.toggle('steer', !!steering);
+        w.innerHTML = `${avatarImg(t.avatar)}<span>${esc(t.nickname || 'Ẩn danh')}</span>${steering ? '<b>🎮 đang lái</b>' : ''}${t.giftImage ? `<img class="gi" src="${esc(t.giftImage)}" alt="">` : ''}`;
         w.classList.add('on');
     }
     let cardTimer = 0;
     function showCard(t) {
         const card = $('gapthu-card'), r = t.result;
         card.classList.toggle('lose', !r.win);
+        const head = `<div class="top">${avatarImg(t.avatar)}<span>${esc(t.nickname || 'Ẩn danh')}</span></div>`;
+        const pity = r.pityLeft ? `<div class="sub">Còn ${r.pityLeft} lượt trượt nữa là chắc trúng</div>` : '';
         card.innerHTML = r.win
-            ? `<div class="top">${avatarImg(t.avatar)}<span>${esc(t.nickname || 'Ẩn danh')}</span></div><div class="big">${esc(r.prize.icon)}</div><div class="say">gắp được ${esc(r.prize.name)}!</div>${r.pityHit ? '<div class="sub">🍀 Bảo hiểm gắp trúng</div>' : ''}`
-            : `<div class="top">${avatarImg(t.avatar)}<span>${esc(t.nickname || 'Ẩn danh')}</span></div><div class="big">😝</div><div class="say">Tuột mất rồi!</div>${r.pityLeft ? `<div class="sub">Còn ${r.pityLeft} lượt trượt nữa là chắc trúng</div>` : ''}`;
+            ? `${head}<div class="big">${esc(r.prize.icon)}</div><div class="say">gắp được ${esc(r.prize.name)}!</div>${r.pityHit ? '<div class="sub">🍀 Bảo hiểm gắp trúng</div>' : (t.mode === 'steer' ? '<div class="sub">🎮 Tay lái lụa!</div>' : '')}`
+            : r.kind === 'empty'
+                ? `${head}<div class="big">🫣</div><div class="say">Hụt rồi - khép vào khoảng không!</div>${pity}`
+                : `${head}<div class="big">😝</div><div class="say">Tuột mất rồi!</div>${pity}`;
         card.classList.add('on');
         clearTimeout(cardTimer);
         cardTimer = setTimeout(hideCard, Math.max(1400, t.ms * 0.2 + 1500));
@@ -248,20 +310,74 @@
     function hideCard() { $('gapthu-card').classList.remove('on'); }
     function renderQueue() {
         const q = $('gapthu-q');
-        q.hidden = !(cfg.display?.showQueue !== false && queueLeft.n > 0);
+        q.hidden = !(cfg.display?.showQueue !== false && queueLeft.n > 0) || !!steer;
         q.textContent = `⏳ còn ${queueLeft.n} lượt`;
     }
 
+    // ---------- bảng lệnh tự lái ----------
+    let steerTick = 0;
+    function renderSteer() {
+        const el = $('gapthu-steer');
+        el.classList.toggle('on', !!steer);
+        if (!steer) { clearInterval(steerTick); steerTick = 0; return; }
+        const left = Math.max(0, Math.ceil((steer.endsAt - performance.now()) / 1000));
+        $('gapthu-sec').textContent = left + 's';
+        $('gapthu-sec').classList.toggle('hurry', left <= 5);
+        $('gapthu-bar').style.width = Math.round(100 * clamp(left / (steer.sec || 15), 0, 1)) + '%';
+        $('gapthu-steps').textContent = steer.stepsLeft > 0 ? `còn ${steer.stepsLeft} bước` : 'hết bước - bình luận "gắp"';
+        el.querySelectorAll('.gapthu-key:not(.grab)').forEach(k => k.classList.toggle('dim', steer.stepsLeft <= 0));
+        if (!steerTick) steerTick = setInterval(renderSteer, 250);
+    }
+    function flashKey(dir) {
+        const key = $('gapthu-steer').querySelector(`[data-dir="${dir}"]`);
+        if (!key) return;
+        key.classList.add('hit'); setTimeout(() => key.classList.remove('hit'), 320);
+    }
+
+    // ---------- nhận lượt ----------
     function startTurn(t) {
-        if (disabled || !t || !t.result) return;
+        if (disabled || !t) return;
         hideCard();
-        turn = { ...t, t0: performance.now(), grabIdx: null, dropT: 0 };
-        queueLeft.n = t.left || 0; renderQueue();
-        showWho(t);
-        sfx('start');
-        const myId = turn;
-        setTimeout(() => { if (turn === myId) showCard(t); }, t.ms * 0.84);
-        setTimeout(() => { if (turn === myId) { turn = null; $('gapthu-who').classList.remove('on'); } }, t.ms + 200);
+        if (Array.isArray(t.layout)) layout = t.layout.slice();
+        queueLeft.n = t.left || 0;
+        if (t.mode === 'steer' && t.steer) {
+            turn = { ...t, result: null };
+            steer = { pos: { ...t.steer.pos }, stepsLeft: t.steer.stepsLeft, steps: t.steer.steps, sec: t.steer.sec, endsAt: performance.now() + t.steer.secLeft * 1000 };
+            showWho(t, true); renderSteer(); renderQueue(); sfx('steer');
+            return;
+        }
+        if (!t.result) return;
+        steer = null; renderSteer();
+        turn = { ...t, t0: performance.now(), P: P_AUTO, startX: G.homeX, grabbed: false, dropT: 0 };
+        if (turn.result.cell == null) turn.result.cell = 3;
+        renderQueue(); showWho(t, false); sfx('start');
+        scheduleEnd(turn, t.layoutAfter);
+    }
+    function onSteer(d) {
+        if (!steer || !turn || (d.id && turn.id && d.id !== turn.id)) return;
+        steer.pos = { ...d.pos }; steer.stepsLeft = d.stepsLeft;
+        if (Number.isFinite(d.secLeft)) steer.endsAt = performance.now() + d.secLeft * 1000;
+        if (Array.isArray(d.dir)) { flashKey(d.dir.join(',')); sfx('move'); }
+        renderSteer();
+    }
+    function onDrop(d) {
+        if (disabled || !d || !d.result) return;
+        if (Array.isArray(d.layout)) layout = d.layout.slice();
+        flashKey('grab');
+        const base = turn && turn.id === d.id ? turn : { id: d.id, nickname: d.nickname, avatar: d.avatar, mode: 'steer' };
+        steer = null; renderSteer(); showWho(base, false);
+        turn = { ...base, mode: 'steer', result: d.result, ms: d.ms, t0: performance.now(), P: P_DROP, startX: clawX, grabbed: false, dropT: 0 };
+        renderQueue(); sfx('start');
+        scheduleEnd(turn, d.layoutAfter);
+    }
+    function scheduleEnd(me, layoutAfter) {
+        setTimeout(() => { if (turn === me) showCard(me); }, me.ms * me.P.card);
+        setTimeout(() => {
+            if (turn !== me) return;
+            turn = null; clawX = G.homeX;
+            if (Array.isArray(layoutAfter)) layout = layoutAfter.slice();
+            $('gapthu-who').classList.remove('on');
+        }, me.ms + 200);
     }
 
     // ---------- âm thanh (tổng hợp WebAudio, không cần file) ----------
@@ -280,64 +396,103 @@
     }
     function sfx(kind) {
         if (kind === 'start') { tone(523, .08); setTimeout(() => tone(784, .1), 90); }
+        else if (kind === 'steer') [392, 523, 659, 784].forEach((f, i) => setTimeout(() => tone(f, .1, 'square', .12), i * 70));
+        else if (kind === 'move') tone(880, .05, 'triangle', .14);
         else if (kind === 'clink') tone(1200, .07, 'triangle', .2);
         else if (kind === 'slip') tone(500, .35, 'sawtooth', .12, 160);
         else if (kind === 'lose') { tone(392, .18, 'triangle', .2); setTimeout(() => tone(311, .3, 'triangle', .2), 180); }
         else if (kind === 'win') [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, .16, 'square', .14), i * 110));
     }
 
-    // ---------- vòng vẽ: đang có lượt thì 60 khung/s, rảnh thì ~6 khung/s (chỉ nháy đèn) ----------
+    // ---------- vòng vẽ: có lượt/tự lái thì 60 khung/s, rảnh thì ~6 khung/s (chỉ nháy đèn) ----------
     function loop(now) {
-        if (turn || now - lastIdleDraw > 160) { draw(now); lastIdleDraw = now; }
+        if (turn || steer || now - lastIdleDraw > 160) { draw(now); lastIdleDraw = now; }
         requestAnimationFrame(loop);
     }
 
     // ---------- cấu hình + socket ----------
     function applyConfig(c) {
         if (!c) return;
-        cfg = c; disabled = c.enabled === false && !isReview && !isDemo;
-        layout(); renderQueue();
+        cfg = c; disabled = c.enabled === false && !isReview && !isDemo && !shotSpec;
+        layoutBox(); renderQueue();
     }
-    fetch('/api/games/gapthu/config', { cache: 'no-store' }).then(r => r.json()).then(applyConfig).catch(() => layout());
-    if (typeof io === 'function') {
+    const cfgReady = fetch('/api/games/gapthu/config', { cache: 'no-store' }).then(r => r.json()).then(applyConfig).catch(() => layoutBox());
+    function syncState() {
+        if (isDemo || shotSpec) return;
+        fetch('/api/gapthu/state', { cache: 'no-store' }).then(r => r.json()).then(s => {
+            if (Array.isArray(s.layout) && !turn) layout = s.layout.slice();
+            if (s.steer && !steer && s.current && s.current.id === s.steer.id) {
+                startTurn({ ...s.current, layout: s.layout, steer: { pos: s.steer.pos, stepsLeft: s.steer.stepsLeft, steps: s.current.steer?.steps, sec: s.current.steer?.sec, secLeft: s.steer.secLeft } });
+            }
+        }).catch(() => {});
+    }
+    if (typeof io === 'function' && !shotSpec) {
         const token = qs.get('token') || '';
         const socket = io({ query: { role: 'aux' }, transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
-        socket.on('connect', () => socket.emit('subscribe', isReview ? 'preview' : 'overlay'));
-        if (!isDemo) socket.on('gapthu:turn', startTurn);
+        socket.on('connect', () => { socket.emit('subscribe', isReview ? 'preview' : 'overlay'); syncState(); });
+        if (!isDemo) {
+            socket.on('gapthu:turn', startTurn);
+            socket.on('gapthu:steer', onSteer);
+            socket.on('gapthu:drop', onDrop);
+        }
         socket.on('gameConfig', d => { if (d && d.gameId === 'gapthu') applyConfig(d.config); });
         socket.on('overlay:reload', d => { if (!isReview && (!d || !d.gameId || d.gameId === 'gapthu')) location.reload(); });
     }
-    // ?demo=1: tự sinh lượt giả (xem dáng tủ không cần quà)
+
+    // ---------- ?demo=1: lượt giả, cứ 3 lượt có 1 lượt tự lái ----------
+    const names = ['Mây Hồng', 'Tí Nị', 'Anh Ba Khía', 'Bé Na'];
+    function fakePrize(k) { const ps = (cfg.prizes || []).filter(p => p.weight > 0); return ps.length ? ps[k % ps.length] : { id: 'p1', icon: '🧸', name: 'Gấu bông' }; }
     if (isDemo) {
-        const names = ['Mây Hồng', 'Tí Nị', 'Anh Ba Khía', 'Bé Na'];
         let k = 0;
         const fake = () => {
-            const win = k % 3 !== 1, ps = (cfg.prizes || []).filter(p => p.weight > 0);
-            const prize = ps.length ? ps[k % ps.length] : { icon: '🧸', name: 'Gấu bông' };
-            startTurn({ ms: 4000, left: 2 - (k % 3), nickname: names[k % names.length], avatar: '', result: { win, prize: win ? prize : null, clawX: .2 + (k * .23) % .6, slipAt: .5, pityLeft: win ? 0 : 3 } });
-            k++;
+            const n = k++, nick = names[n % names.length];
+            if (n % 3 === 2) {
+                startTurn({ id: 'd' + n, mode: 'steer', ms: 4000, left: 1, nickname: nick, steer: { pos: { col: 3, row: 1 }, stepsLeft: 8, steps: 8, sec: 15, secLeft: 15 } });
+                const path = [[-1, 0], [-1, 0], [0, 1], [1, 0]];
+                let pos = { col: 3, row: 1 }, used = 0;
+                path.forEach((dd, i) => setTimeout(() => { pos = { col: pos.col + dd[0], row: pos.row + dd[1] }; used++; onSteer({ id: 'd' + n, pos, stepsLeft: 8 - used, secLeft: 14 - i, dir: dd }); }, 700 * (i + 1)));
+                setTimeout(() => { const win = n % 2 === 0; onDrop({ id: 'd' + n, ms: 3600, result: { win, prize: win ? fakePrize(n) : null, cell: cellIndex(pos), kind: win ? 'grab' : 'slip', slipAt: .5, pityLeft: win ? 0 : 2 } }); }, 700 * 6);
+                return 700 * 6 + 3800;
+            }
+            const win = n % 3 !== 1, cell = (n * 5) % CELLS;
+            startTurn({ id: 'd' + n, ms: 4000, left: 2 - (n % 3), nickname: nick, avatar: '', result: { win, prize: win ? fakePrize(n) : null, cell, kind: win ? 'grab' : 'slip', slipAt: .5, pityLeft: win ? 0 : 3 } });
+            return 4600;
         };
-        setTimeout(fake, 600); setInterval(fake, 4600);
+        const run = () => setTimeout(run, fake());
+        setTimeout(run, 600);
     }
-    // ?shot=win:0.6 | lose:0.7 — đóng băng 1 khung ở tiến độ đó (chụp ảnh tài liệu / thử headless, không cần quà).
+
+    // ---------- ?shot=… đóng băng 1 khung (chụp ảnh / kiểm tra khi trình duyệt ẩn, rAF đứng) ----------
     function shot(spec) {
         const [kind, pStr] = String(spec).split(':');
         const p = Math.min(1, Math.max(0, Number(pStr) || 0.5));
-        const prize = (cfg.prizes || [])[0] || { icon: '🧸', name: 'Gấu bông' };
-        const win = kind !== 'lose', ms = 4000;
-        const t = { ms, left: 2, nickname: 'Mây Hồng', avatar: '', giftImage: '', result: { win, prize: win ? prize : null, clawX: .62, slipAt: .45, pityLeft: 3 } };
-        turn = { ...t, t0: 0, grabIdx: null, dropT: 0 };
-        queueLeft.n = 2; renderQueue(); showWho(t);
+        const prize = fakePrize(0);
+        getLayout();
+        if (kind === 'steer' || kind === 'steerdrop') {
+            const pos = { col: 1, row: 2 };
+            startTurn({ id: 's', mode: 'steer', ms: 4000, left: 2, nickname: 'Mây Hồng', steer: { pos: { col: 3, row: 1 }, stepsLeft: 8, steps: 8, sec: 15, secLeft: 11 } });
+            onSteer({ id: 's', pos, stepsLeft: 5, secLeft: 11, dir: [-1, 0] });
+            for (let x = 0; x <= 1500; x += 16) draw(x);
+            renderSteer();
+            if (kind === 'steer') return;
+            onDrop({ id: 's', ms: 4000, result: { win: true, prize, cell: cellIndex(pos), kind: 'grab', slipAt: 0, pityLeft: 0 } });
+            const t0 = turn.t0 = 0; lastFrame = 0;
+            for (let x = t0; x <= p * 4000; x += 16) draw(x);
+            if (p >= P_DROP.card) { showCard(turn); clearTimeout(cardTimer); }
+            return;
+        }
+        const win = kind === 'win', ms = 4000;
+        const t = { id: 'a', ms, left: 2, nickname: 'Mây Hồng', avatar: '', giftImage: '',
+            result: { win, prize: win ? prize : null, cell: 11, kind: win ? 'grab' : (kind === 'empty' ? 'empty' : 'slip'), slipAt: .45, pityLeft: 3 } };
+        startTurn(t);
+        turn.t0 = 0;
         for (let x = 0; x <= p * ms; x += 16) draw(x);
-        if (p >= 0.84) { showCard(t); clearTimeout(cardTimer); }
+        if (p >= P_AUTO.card) { showCard(turn); clearTimeout(cardTimer); }
     }
-    window.__gapthu = { startTurn, shot, get cfg() { return cfg; }, draw: () => draw(performance.now()) };
-    layout();
-    if (qs.get('shot')) {
-        document.body.classList.add('gapthu-shot');
-        const go = () => shot(qs.get('shot'));
-        fetch('/api/games/gapthu/config', { cache: 'no-store' }).then(r => r.json()).then(c => { applyConfig(c); go(); }).catch(go);
-    } else requestAnimationFrame(loop);
+    window.__gapthu = { startTurn, onSteer, onDrop, shot, get cfg() { return cfg; }, draw: () => draw(performance.now()) };
+    layoutBox();
+    if (shotSpec) cfgReady.then(() => shot(shotSpec));
+    else requestAnimationFrame(loop);
 })();
 </script>
 </body>

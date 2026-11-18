@@ -36,15 +36,21 @@ test('createQueue: trần + nhận bao nhiêu', () => {
     assert.strictEqual(q.shift(), undefined);
 });
 
-test('turnMs: nhịp nhanh theo hàng chờ, không dưới 2 giây', () => {
+test('speedFactor: hàng chờ > 3 nhanh thêm 12%/lượt, trần ×2,5', () => {
+    assert.strictEqual(T.speedFactor(0), 1);
+    assert.strictEqual(T.speedFactor(3), 1);
+    assert.strictEqual(T.speedFactor(5), 1.24);
+    assert.strictEqual(T.speedFactor(30), 2.5);
+});
+
+test('turnMs: rút ngắn theo hàng chờ, không dưới 1,5 giây', () => {
     assert.strictEqual(T.turnMs(4, 0), 4000);
-    assert.strictEqual(T.turnMs(4, 5), 3000);
-    assert.strictEqual(T.turnMs(4, 12), 2200);
-    assert.strictEqual(T.turnMs(3, 20), 2000);
+    assert.strictEqual(T.turnMs(4, 5), 3226);
+    assert.strictEqual(T.turnMs(4, 30), 1600);
+    assert.strictEqual(T.turnMs(3, 30), 1500);
     assert.strictEqual(T.turnMs(99, 0), 5000, 'kẹp 3–5 giây');
     assert.strictEqual(T.turnMs('x', 0), 4000);
 });
-
 function fakeClock() {
     let now = 0; const timers = [];
     return {
@@ -99,4 +105,23 @@ test('createRunner: add trả số lượt nhận (tràn hàng chờ)', () => {
     const r = T.createRunner({ clock, max: 2, turnSec: () => 4, onTurn: () => {} });
     assert.strictEqual(r.add([1, 2, 3, 4]), 3, '1 chạy ngay + 2 xếp hàng');
     assert.strictEqual(r.size(), 2);
+});
+
+test('createRunner: lượt giữ (hold) chờ release rồi mới sang lượt kế', () => {
+    const clock = fakeClock();
+    const played = [];
+    const r = T.createRunner({ clock, gapMs: 100, max: 10, turnSec: () => 4,
+        onTurn: (item) => { played.push(item); return item === 'steer' ? { hold: true } : undefined; } });
+    r.add(['steer', 'b']);
+    clock.advance(60000);
+    assert.deepStrictEqual(played, ['steer'], 'đang giữ: không tự sang lượt');
+    assert.strictEqual(r.holding(), true);
+    r.release(500);
+    clock.advance(599);
+    assert.deepStrictEqual(played, ['steer']);
+    clock.advance(1);
+    assert.deepStrictEqual(played, ['steer', 'b']);
+    assert.strictEqual(r.holding(), false);
+    r.release(0);
+    assert.strictEqual(played.length, 2, 'release khi không giữ = bỏ qua');
 });

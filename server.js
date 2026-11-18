@@ -4026,6 +4026,7 @@ function handleTikTokChat(data, { test = false } = {}) {
     }
     try { handleVoteCommentChat({ uniqueId, comment }); } catch (e) {}
     try { handleTrongCayChat({ uniqueId, nickname, profilePicture, comment }); } catch (e) {}
+    try { gapXucServer?.onChat({ uniqueId, nickname, comment }); } catch (e) {}   // 🕹️ Gắp Thú: người đang tự lái ra lệnh
     return { blocked: '', nickname };
 }
 
