@@ -772,8 +772,16 @@ const LP = {
     },
     camera(st) {
         const wdt = st.cols * st.gx, dep = st.rows * st.gz;
-        const d = Math.max(wdt * 1.5, dep * 1.85, 7.6);   // sát hơn: quà trên thẻ đủ to để nhìn trên điện thoại
-        frameCamera(new THREE.Vector3(0, d * 0.9, d * 0.5), new THREE.Vector3(0, 0, 0.1), 30);
+        // lùi dần tới khi CẢ 4 góc viền bàn nằm trong khung (cạnh gần bị phối cảnh kéo xuống dưới → trước đây bị cắt mép dưới);
+        // chừa mép trên cho nhãn tên hàng đầu. Sát nhất có thể để quà trên thẻ đủ to nhìn trên điện thoại.
+        const hx = wdt / 2 + 0.36, hz = dep / 2 + 0.36;
+        const corners = [[-hx, -hz], [hx, -hz], [-hx, hz], [hx, hz]].map(([x, z]) => new THREE.Vector3(x, -0.07, z));
+        const tgt = new THREE.Vector3(0, 0, 0.25), v = new THREE.Vector3();
+        for (let d = Math.max(wdt, dep) * 1.2; d < 60; d *= 1.04) {
+            frameCamera(new THREE.Vector3(0, d * 0.9, d * 0.5 + tgt.z), tgt, 30);
+            camera.updateMatrixWorld();
+            if (corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < 0.94 && v.y > -0.93 && v.y < 0.86; })) break;
+        }
     },
     // nhãn tên dán ngay mép trên thẻ của chính người lật (thẻ to, sát nhau → không que)
     anchors(st) { return st.cards.map(k => ({ n: k.n, obj: k.grp, offset: new THREE.Vector3(0, 0.1, -CARD.d * 0.38), onCell: new THREE.Vector3(0, 0.12, -CARD.d * 0.5) })); }
