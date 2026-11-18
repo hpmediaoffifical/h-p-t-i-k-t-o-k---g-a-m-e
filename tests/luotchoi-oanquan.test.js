@@ -154,3 +154,26 @@ test('chặn vòng lặp vô hạn: lượt dừng sau tối đa MAX_STEPS bư�
     G.pick(b, 1, null, side0); G.pick(b, 2, null, side0);
     assert.ok(b.lastMove.trace.length < 2000);
 });
+
+test('bình luận chữ cho dễ hiểu: "3 trái" / "3 phải" / "3t" / "3p" / "3 2" / "3" / "phải"', () => {
+    assert.deepEqual(G.parseComment('3 trái'), [3, 1]);
+    assert.deepEqual(G.parseComment('3 PHẢI'), [3, 2]);
+    assert.deepEqual(G.parseComment('3 phai'), [3, 2]);
+    assert.deepEqual(G.parseComment('3t'), [3, 1]);
+    assert.deepEqual(G.parseComment('3p'), [3, 2]);
+    assert.deepEqual(G.parseComment('3 2'), [3, 2]);
+    assert.deepEqual(G.parseComment('#4'), [4]);
+    assert.deepEqual(G.parseComment('trái'), [1]);
+    assert.deepEqual(G.parseComment('phải'), [2]);
+    assert.deepEqual(G.parseComment('3 trái nhé bạn'), []);
+    assert.deepEqual(G.parseComment('7 trái'), []);
+});
+
+test('gõ liền 2 chữ số "52" = ô 5 rải phải, "31" = ô 3 rải trái; ô ngoài 1–5 hoặc hướng ngoài 1–2 bị bỏ', () => {
+    assert.deepEqual(G.parseComment('52'), [5, 2]);
+    assert.deepEqual(G.parseComment('31'), [3, 1]);
+    assert.deepEqual(G.parseComment('12'), [1, 2]);
+    assert.deepEqual(G.parseComment('63'), []);
+    assert.deepEqual(G.parseComment('53'), []);
+    assert.deepEqual(G.parseComment('10'), []);
+});

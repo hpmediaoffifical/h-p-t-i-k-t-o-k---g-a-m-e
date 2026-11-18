@@ -397,3 +397,24 @@ test('Ô Ăn Quan: để máy tự đi tới hết ván → có kết quả theo
     if (p0 === p1) assert.equal(s.result.draw, true);
     else assert.equal(s.result.winners[0].key, p0 > p1 ? 'a' : 'b');
 });
+
+test('Ô Ăn Quan: bình luận "2 phải" đi được (bàn dùng parseComment riêng của trò)', () => {
+    const { tb, clock } = make({ game: 'oanquan', seats: 2 });
+    seat(tb, 'a', 'b'); clock.go(3100);
+    assert.equal(tb.comment({ user: u('a'), text: '2 phải' }), true);
+    assert.equal(snap(tb).board.lastMove.dir, 2);
+    settle(tb, clock);
+    assert.equal(tb.comment({ user: u('b'), text: String(snap(tb).options[0]) }), true);   // 1 ô còn quân
+    assert.equal(tb.comment({ user: u('b'), text: 'trái' }), true);
+    assert.equal(snap(tb).board.lastMove.dir, 1);
+});
+
+test('giao diện LIVE: khung neo dưới, nền kính mờ 35%, cỡ 85% mặc định; giá trị lạ bị chặn; có trong snapshot', () => {
+    const c = normalizeConfig({});
+    assert.deepEqual([c.layout, c.glass, c.cardScale], ['bottom', 35, 85]);
+    const d = normalizeConfig({ layout: 'xyz', glass: 500, cardScale: 10 });
+    assert.deepEqual([d.layout, d.glass, d.cardScale], ['bottom', 90, 55]);
+    assert.equal(normalizeConfig({ layout: 'top' }).layout, 'top');
+    const { tb } = make({ layout: 'middle', glass: 20, cardScale: 70 });
+    assert.deepEqual([snap(tb).cfg.layout, snap(tb).cfg.glass, snap(tb).cfg.cardScale], ['middle', 20, 70]);
+});

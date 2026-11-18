@@ -123,6 +123,11 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                 ${numField('maxQueue', hpT('Hàng chờ tối đa'), 0, 30)}
                 <div class="lc-line"><label>${hpT('Tên Chủ LIVE')}</label><input data-t="hostName" value="${esc(cfg.hostName || 'Chủ LIVE')}" maxlength="30"></div>
             </div>
+            <div class="lc-box"><div class="lc-h">${hpT('🖼️ Hiển thị trên LIVE')} <span class="lc-muted">${hpT('không che creator')}</span></div>
+                <div class="lc-line"><label>${hpT('Vị trí khung')}</label><select data-s="layout">${[['bottom', 'Dưới (mặc định)'], ['middle', 'Giữa'], ['top', 'Trên']].map(([v, l]) => `<option value="${v}" ${(cfg.layout || 'bottom') === v ? 'selected' : ''}>${hpT(l)}</option>`).join('')}</select></div>
+                <div class="lc-line"><label>${hpT('Nền mờ')}</label><input type="range" data-k="glass" min="0" max="90" value="${esc(cfg.glass ?? 35)}" style="flex:1"><span id="lc-glass">${esc(cfg.glass ?? 35)}%</span></div>
+                <div class="lc-line"><label>${hpT('Cỡ khung')}</label><input type="range" data-k="cardScale" min="55" max="100" value="${esc(cfg.cardScale ?? 85)}" style="flex:1"><span id="lc-scale">${esc(cfg.cardScale ?? 85)}%</span></div>
+            </div>
             <div class="lc-box"><div class="lc-h">${hpT('🔊 Giọng đọc')} <span class="lc-muted">${hpT('phát trong OBS: tới lượt, số đã chọn, dính bẫy')}</span></div>
                 <div class="lc-line"><label><input type="checkbox" data-c="voice" ${cfg.voice !== false ? 'checked' : ''}> ${hpT('Đọc tên người chơi')}</label></div>
                 <div class="lc-line"><label>${hpT('Âm lượng')}</label><input type="range" data-k="voiceVolume" min="0" max="100" value="${esc(cfg.voiceVolume ?? 80)}" style="flex:1"><span id="lc-vol">${esc(cfg.voiceVolume ?? 80)}%</span></div>
@@ -130,8 +135,11 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         box.querySelectorAll('input[data-k]').forEach(el => el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
             cfg[el.dataset.k] = Number(el.value);
             if (el.dataset.k === 'voiceVolume') $('#lc-vol').textContent = el.value + '%';
+            if (el.dataset.k === 'glass') $('#lc-glass').textContent = el.value + '%';
+            if (el.dataset.k === 'cardScale') $('#lc-scale').textContent = el.value + '%';
             schedulePersist();
         }));
+        box.querySelectorAll('select[data-s]').forEach(el => el.addEventListener('change', () => { cfg[el.dataset.s] = el.value; schedulePersist(); }));
         box.querySelectorAll('input[data-c]').forEach(el => el.addEventListener('change', () => { cfg[el.dataset.c] = el.checked; schedulePersist(); }));
         box.querySelectorAll('input[data-t]').forEach(el => el.addEventListener('change', () => { cfg[el.dataset.t] = el.value.trim(); schedulePersist(); }));
         box.querySelectorAll('[data-del]').forEach(el => el.addEventListener('click', () => {
@@ -197,8 +205,8 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         let cells = [];
         // Ô Ăn Quan: chưa chọn ô → nút ô 1–5 hàng của mình; đã chọn ô → 2 nút hướng
         if (b.kind === 'oanquan') cells = b.sel != null
-            ? [{ n: 1, label: '⬅ 1' }, { n: 2, label: '2 ➡' }]
-            : [1, 2, 3, 4, 5].map(n => ({ n, label: n }));
+            ? [{ n: 1, label: '⬅ Trái' }, { n: 2, label: 'Phải ➡' }]
+            : [1, 2, 3, 4, 5].map(n => ({ n, label: 'Ô ' + n }));
         else if (b.kind === 'latcap') cells = b.cards.map(c => ({ n: c.n, label: c.face ? `<span class="face">${c.face}</span>` : c.n }));
         else if (b.kind === 'thaptre') cells = b.bars.filter(x => x.level < b.levels).map(x => ({ n: x.n, label: x.n }));
         else cells = Array.from({ length: b.n }, (_, i) => ({ n: i + 1, label: i + 1 }));

@@ -221,3 +221,55 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 .oq2 .c { border-radius: 16px; background: rgba(120, 70, 30, .85); display: grid; place-items: center; font-size: 34px; font-weight: 700; position: relative; }
 .oq2 .c small { position: absolute; top: 6px; left: 10px; font-size: 16px; color: #ffd54a; }
 .oq2 .q { grid-row: 1 / 3; border-radius: 60px; background: rgba(150, 90, 30, .9); }
+
+/* ── 🪨 Ô Ăn Quan: mũi tên hướng rải + bảng tính điểm ── */
+.oq-arrow { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); padding: 4px 14px; border-radius: 99px; white-space: nowrap;
+  background: rgba(12, 14, 30, .88); border: 2px solid rgba(255, 255, 255, .55); font-size: 22px; font-weight: 700; }
+.oq-arrow b { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #fff; color: #1b1f3a; margin: 0 2px; }
+.oq-arrow.hot { border-color: #ffd54a; color: #ffd54a; box-shadow: 0 0 22px rgba(255, 213, 74, .7); animation: lcAim .45s ease-in-out infinite alternate; }
+.oq-arrow.hot b { background: #ffd54a; }
+.oq-score { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; border-radius: 18px; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .12); }
+.oq-score[hidden] { display: none; }
+.oq-score .oqs-h { font-size: 20px; opacity: .85; }
+.oq-score .oqs-h small { opacity: .8; }
+.oq-score .oqs-row { display: flex; align-items: center; gap: 14px; font-size: 24px; padding: 4px 8px; border-radius: 12px; }
+.oq-score .oqs-row.turn { background: rgba(255, 213, 74, .14); }
+.oq-score .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oq-score .debt { color: #ffb36b; }
+.oq-score .tot { color: #ffd54a; font-size: 28px; }
+
+/* 2 phe Ô Ăn Quan theo màu TikTok: hàng dưới (ghế 1) hồng #FE2C55 · hàng trên (ghế 2) xanh #25F4EE */
+.oq-badge .oq-no { background: #FE2C55; color: #fff; }
+.oq-badge { border-color: rgba(254, 44, 85, .8); }
+.oq-badge.top .oq-no { background: #25F4EE; color: #00313a; }
+.oq-badge.top { border-color: rgba(37, 244, 238, .8); }
+.oq-owner { background: #FE2C55; color: #fff; }
+.oq-owner.top { background: #25F4EE; color: #00313a; }
+.oq-arrow { border-color: #FE2C55; }
+.oq-arrow b { background: #FE2C55; color: #fff; }
+.oq-arrow.top { border-color: #25F4EE; }
+.oq-arrow.top b { background: #25F4EE; color: #00313a; }
+.oq-arrow.hot { color: #fff; border-color: #FE2C55; box-shadow: 0 0 22px rgba(254, 44, 85, .75); }
+.oq-arrow.hot.top { border-color: #25F4EE; box-shadow: 0 0 22px rgba(37, 244, 238, .75); }
+.oq-arrow.hot b { background: #FE2C55; }
+.oq-arrow.hot.top b { background: #25F4EE; }
+.oq-score .oqs-row.s0 .nm { color: #ff6b88; }
+.oq-score .oqs-row.s1 .nm { color: #5ff8f3; }
+
+/* ── Giao diện LIVE: không che creator ──────────────────────────────────────
+   Nền kính mờ xám trong suốt (--lc-glass), cỡ khung (--lc-scale), neo dưới/giữa/trên. Khung dọc 1080×1920 TikTok:
+   mặt creator thường ở ~y 300–800, bình luận TikTok đè góc dưới trái → mặc định neo dưới, chừa 230 px đáy. */
+:root { --lc-glass: .35; --lc-scale: .85; }
+.lc-card { background: rgba(28, 30, 40, var(--lc-glass)); border-color: rgba(255, 255, 255, .16); box-shadow: 0 10px 40px rgba(0, 0, 0, calc(var(--lc-glass) * .8));
+  transform-origin: 50% 100%; transform: scale(var(--lc-scale)); }
+.lc-card[data-layout="bottom"] { top: auto; bottom: 230px; }
+.lc-card[data-layout="middle"] { top: 50%; transform-origin: 50% 50%; transform: translateY(-50%) scale(var(--lc-scale)); }
+.lc-card[data-layout="top"] { top: 150px; transform-origin: 50% 0; }
+.lc-stage { background: none; }
+.lc-seat { background: rgba(20, 22, 30, calc(var(--lc-glass) + .15)); }
+.lc-prompt, .lc-title { text-shadow: 0 2px 6px rgba(0, 0, 0, .65); }
+.lc-result[data-layout="bottom"] { top: auto; bottom: 330px; }
+.lc-result[data-layout="top"] { top: 330px; }
+
+/* bàn Ô Ăn Quan dẹt ngang → vùng bàn thấp lại, khung gọn, lộ creator nhiều hơn */
+.lc-card[data-game="oanquan"] .lc-stage { height: 470px; }

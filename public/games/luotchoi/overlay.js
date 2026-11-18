@@ -143,6 +143,11 @@
     function stopHand(hand) { try { hand.getAnimations().forEach(function (a) { a.cancel(); }); } catch (e) {} }
     function cellOf(n) { return $('stage').querySelector('[data-n="' + n + '"]'); }
     function flyTo(n, tool, ms) {
+        // bàn 3D: bàn tay 3D dựng trong cảnh (ánh sáng + bóng đổ cùng bàn chơi)
+        if (window.LcBoards3D && window.LcBoards3D.ready && window.LcBoards3D.fly) {
+            var c3 = cellOf(n); if (c3) c3.classList.add('aim');
+            return window.LcBoards3D.fly(n, tool, ms);
+        }
         return new Promise(function (res) {
             var cell = cellOf(n), hand = $('hand'), card = $('card');
             if (!cell || !hand) return setTimeout(res, ms);
@@ -165,6 +170,7 @@
         });
     }
     function handAway(tool) {
+        if (window.LcBoards3D && window.LcBoards3D.ready && window.LcBoards3D.away) { window.LcBoards3D.away(tool); return; }
         var hand = $('hand');
         if (!hand || hand.hidden) return;
         var out = tool === 'pull' ? ' translate(240px, 0)' : ' translate(260px, 420px) rotate(-20deg)';
@@ -212,6 +218,39 @@
         });
     }
 
+    // 🪨 Ô Ăn Quan: bảng tính điểm — quân đã ăn của từng người (dân × 1đ + quan × 10đ − vay = tổng)
+    function renderOqScore(s) {
+        var el = $('oqscore');
+        if (!el) return;
+        var b = s.board;
+        if (s.game.id !== 'oanquan' || !b || !b.captured) { el.hidden = true; return; }
+        var qv = b.quanValue || 10;
+        el.hidden = false;
+        el.innerHTML = '<div class="oqs-h">' + T('Quân đã ăn → điểm') + ' <small>(' + T('dân 1đ · quan {q}đ', { q: qv }) + ')</small></div>' +
+            [0, 1].map(function (i) {
+                var x = s.seats[i] || {}, c = b.captured[i] || { dan: 0, quan: 0 }, debt = (b.debt || [0, 0])[i] - (b.debt || [0, 0])[1 - i];
+                var total = (b.scores || [])[i] || 0;
+                return '<div class="oqs-row s' + i + (x.turn ? ' turn' : '') + '"><b class="nm">' + (i === 0 ? '▲ ' : '▼ ') + esc(x.nickname || '') + '</b>' +
+                    '<span>🪨 ' + c.dan + ' ' + T('dân') + '</span><span>👑 ' + c.quan + ' ' + T('quan') + ' × ' + qv + '</span>' +
+                    (debt ? '<span class="debt">' + (debt > 0 ? '− ' + T('vay') + ' ' + debt : '+ ' + T('cho vay') + ' ' + (-debt)) + '</span>' : '') +
+                    '<b class="tot">= ' + total + ' ' + T('điểm') + '</b></div>';
+            }).join('');
+    }
+
+    // Giao diện LIVE: khung neo dưới/giữa/trên, nền kính mờ xám (độ mờ %), cỡ khung % — để vẫn thấy creator phía sau.
+    // ?layout=bottom|middle|top&glass=0-90&scale=55-100 trên link OBS thắng cấu hình panel.
+    function applyLayout(c) {
+        c = c || {};
+        var lay = params.get('layout') || c.layout || 'bottom';
+        var glass = params.has('glass') ? Number(params.get('glass')) : (c.glass ?? 35);
+        var sc = params.has('scale') ? Number(params.get('scale')) : (c.cardScale ?? 85);
+        var card = $('card'), res = $('result');
+        card.dataset.layout = lay; res.dataset.layout = lay;
+        if (st && st.game) card.dataset.game = st.game.id;   // vùng bàn cao theo trò (Ô Ăn Quan dẹt → thấp hơn)
+        document.documentElement.style.setProperty('--lc-glass', String(Math.max(0, Math.min(90, glass)) / 100));
+        document.documentElement.style.setProperty('--lc-scale', String(Math.max(55, Math.min(100, sc)) / 100));
+    }
+
     function renderSeats(s) {
         var n = s.cfg.seats, html = '';
         for (var i = 0; i < n; i++) {
@@ -248,8 +287,8 @@
             if (s.holdUntil || !cur) { el.innerHTML = '&nbsp;'; return; }
             if (s.game.id === 'oanquan') {
                 var hint = s.board && s.board.sel != null
-                    ? T('chọn hướng') + ' <b>1</b> ⬅ ' + T('hoặc') + ' <b>2</b> ➡'
-                    : T('bình luận ô + hướng, vd') + ' <b>3 2</b> <small>(1 ⬅ · 2 ➡)</small>';
+                    ? T('Bước 2 · chọn hướng rải: gõ') + ' <b>trái</b> ⬅ ' + T('hoặc') + ' <b>phải</b> ➡'
+                    : T('gõ ô + hướng, vd') + ' <b>52</b> = ' + T('ô 5 rải phải') + ' <small>(' + T('1 trái · 2 phải') + ')</small>';
                 el.innerHTML = T('Tới lượt') + ' <b>' + esc(cur.nickname) + '</b> · ' + hint + ' <span class="cd">' + secLeft(s.turnUntil) + 's</span>';
                 return;
             }
@@ -293,6 +332,7 @@
         off = (s.now || Date.now()) - Date.now();
         var show = s.cfg.enabled || s.demo;
         $('card').classList.toggle('lc-hidden', !show);
+        applyLayout(s.cfg);
         if (!show) { $('result').classList.add('lc-hidden'); firstState = false; lastSeq = Math.max(lastSeq, ((s.events || []).slice(-1)[0] || {}).seq || 0); return; }
         var fresh = handleEvents(s, evs || [], spokenPicks);
         $('g-icon').textContent = s.game.icon;
@@ -304,7 +344,9 @@
         stage.classList.toggle('idle', !s.board);
         // 3D (board3d.js, Three.js) khi đã nạp xong; chưa xong / máy không có WebGL → bản 2D (boards.js)
         var R = window.LcBoards3D && window.LcBoards3D.ready ? window.LcBoards3D : window.LcBoards;
-        R.render(stage, b, { fresh: fresh, marks: s.board ? s.marks : [], colorOf: colorOf, boardId: s.board ? s.boardId : 'preview', players: (s.seats || []).map(function (x) { return x.nickname; }) });
+        R.render(stage, b, { fresh: fresh, marks: s.board ? s.marks : [], colorOf: colorOf, boardId: s.board ? s.boardId : 'preview', players: (s.seats || []).map(function (x) { return x.nickname; }),
+            turnSide: s.phase === 'playing' && !s.holdUntil ? (s.seats || []).findIndex(function (x) { return x.turn; }) : -1, sel: s.board ? s.board.sel : null });
+        renderOqScore(s);
         if (!s.board) {
             var w = document.createElement('div');
             w.className = 'wait';

@@ -84,10 +84,27 @@ Sforum (cellphones.com.vn). Chỗ các nguồn khác nhau → chọn cách phổ
   2 bên; rải quân = cụm sỏi bay hình cung từ ô sang ô + bàn tay úp xuống đi theo; ăn = cả ô bay về phía người ăn.
 
 
+### 2.2b Ô Ăn Quan — chỉnh sau khi chơi thử cùng user (18/11/2026)
+
+- **Cách gõ chính: 2 chữ số liền** `52` = ô 5 rải phải (ô 1–5 hàng của mình đếm trái→phải màn hình, hướng 1 = trái,
+  2 = phải). Nhận thêm `5 2`, `5 phải`, `5p`, gõ `5` rồi `phải` (có/không dấu) — `oanquan.parseComment()`, bàn dùng
+  hàm này thay `parseNumbers` khi trò có. Creator (Chủ LIVE) bấm chuột trong panel: nút **Ô 1…Ô 5** → **⬅ Trái / Phải ➡**.
+- Trên bàn: mũi tên **⬅ trái 1 · phải 2 ➡** ở 2 đầu hàng đang tới lượt (sáng nhấp nháy khi đã chọn ô); số ô 2 phe theo
+  màu TikTok — hàng dưới (ghế 1) hồng `#FE2C55`, hàng trên (ghế 2) xanh `#25F4EE`; dòng nhắc "gõ ô + hướng, vd 52".
+- **Bảng "Quân đã ăn → điểm"** dưới bàn: mỗi người `dân × 1đ + quan × 10đ (− vay / + cho vay) = tổng điểm`.
+- Ô quan dời ra xa (mép phẳng cách ô dân 0,21), to hơn → sỏi quan không lấn ô 1 / ô 5; bàn gỗ rộng 9,7.
+
+### 2.4 Giao diện LIVE không che creator (18/11/2026)
+
+Khung game **nền kính mờ xám trong suốt** (`glass` 0–90%, mặc định 35%), **neo dưới** (`layout: bottom|middle|top`,
+mặc định dưới — mặt creator thường ở nửa trên khung dọc), **cỡ khung** `cardScale` 55–100% (mặc định 85%); Ô Ăn Quan
+vùng bàn thấp lại (470 px). Chỉnh trong panel "🖼️ Hiển thị trên LIVE"; link OBS có thể ghi đè `?layout=&glass=&scale=`.
+
 ### 2.3 Bàn tay + con cóc vẽ lại (18/11/2026)
 
-Bàn tay mới `public/games/luotchoi/hand-art.js` (SVG tự vẽ: tay người da đổ bóng, móng, nếp đốt, tay áo hồng) thay găng tay
-hoạt hình; cóc 3D dựng lại theo dáng cóc thật (thân dẹt có đốm, mắt lồi tròng vàng con ngươi ngang, miệng cười rộng, chân gập).
+**Bàn tay 3D** dựng trong cảnh (`board3d.js` makeHand3D: lòng tay, ngón trỏ 3 đốt có móng, 3 ngón co, ngón cái, tay áo hồng —
+cùng ánh sáng + bóng đổ với bàn chơi; `LcBoards3D.fly/away`, Ô Ăn Quan tay đi theo cụm sỏi). Bản SVG `hand-art.js` giữ cho
+máy không WebGL; cóc 3D dựng lại theo dáng cóc thật (thân dẹt có đốm, mắt lồi tròng vàng con ngươi ngang, miệng cười rộng, chân gập).
 Ảnh/model vẽ tay thay thế được qua `public/games/luotchoi/assets/manifest.json` (`hand`, `stick`, `frog`); brief gửi
 ChatGPT / AI 3D: `art-requests/dau-truong-mini/BRIEF-DAU-TRUONG-MINI.md`.
 

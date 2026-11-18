@@ -180,6 +180,7 @@ function tagHtml(m, colorOf) {
 }
 
 function disposeRoot() {
+    if (hand3d) hand3d.visible = false;
     if (!root) return;
     scene.remove(root);
     root.traverse(o => { if (o.isMesh) { o.geometry.dispose(); [].concat(o.material).forEach(m => { if (!m.userData.shared) m.dispose(); }); } });
@@ -714,23 +715,24 @@ function woodTex() {
 }
 const PEB_COLORS = [0x7fd6b1, 0xf2efe6, 0xf1b860, 0xe88fa8, 0x8db6f0, 0xc9a7f2];
 function pitPos(i) {
-    if (i === 5) return new THREE.Vector3(3.36, 0, 0);
-    if (i === 11) return new THREE.Vector3(-3.36, 0, 0);
+    // ô quan: tâm đống sỏi ở ±3.62; mép phẳng ±3.05 (cách mép ô dân 0.21) → sỏi quan không lấn sang ô 1 / ô 5
+    if (i === 5) return new THREE.Vector3(3.62, 0, 0);
+    if (i === 11) return new THREE.Vector3(-3.62, 0, 0);
     if (i < 5) return new THREE.Vector3(-2.34 + i * 1.17, 0, 0.62);
     return new THREE.Vector3(-2.34 + (10 - i) * 1.17, 0, -0.62);
 }
 // vị trí sỏi thứ k trong ô (xoắn ốc góc vàng, xếp tầng khi nhiều)
 function pebbleOffset(k, quan) {
     const per = quan ? 22 : 12, lay = Math.floor(k / per), j = k % per;
-    const R = quan ? 0.55 : 0.34;
+    const R = quan ? 0.55 : 0.29;
     const r = R * Math.sqrt((j + 0.5) / per), a = j * 2.39996 + lay * 0.9;
-    return new THREE.Vector3(Math.cos(a) * r * (quan ? 0.7 : 1), 0.06 + lay * 0.075, Math.sin(a) * r * (quan ? 1.6 : 1));
+    return new THREE.Vector3(Math.cos(a) * r * (quan ? 0.8 : 1), 0.06 + lay * 0.075, Math.sin(a) * r * (quan ? 1.7 : 1));
 }
 const OQ = {
     build() {
         const g = new THREE.Group();
         const wood = std(0xffffff, { map: woodTex(), roughness: 0.55 });
-        const plank = new THREE.Mesh(new RoundedBoxGeometry(8.9, 0.34, 3.1, 4, 0.14), wood);
+        const plank = new THREE.Mesh(new RoundedBoxGeometry(9.7, 0.34, 3.3, 4, 0.14), wood);
         plank.position.y = -0.17; g.add(plank);
         const pitMat = std(0x5a3216, { roughness: 0.85, side: THREE.DoubleSide }), rimMat = std(0xd9a066, { roughness: 0.45 });
         const pits = [];
@@ -741,9 +743,9 @@ const OQ = {
                 // ô quan: nửa đĩa elip, mặt phẳng quay vào giữa bàn
                 const right = i === 5;
                 const floor = new THREE.Mesh(new THREE.CircleGeometry(1.0, 40, right ? -Math.PI / 2 : Math.PI / 2, Math.PI), pitMat);
-                floor.rotation.x = -Math.PI / 2; floor.scale.set(0.82, 1.4, 1); floor.position.set(right ? -0.62 : 0.62, 0.03, 0);
+                floor.rotation.x = -Math.PI / 2; floor.scale.set(1.15, 1.45, 1); floor.position.set(right ? -0.57 : 0.57, 0.03, 0);
                 const rim = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.045, 8, 40, Math.PI), rimMat);
-                rim.rotation.set(-Math.PI / 2, 0, right ? -Math.PI / 2 : Math.PI / 2); rim.scale.set(1.4, 0.82, 1); rim.position.copy(floor.position);
+                rim.rotation.set(-Math.PI / 2, 0, right ? -Math.PI / 2 : Math.PI / 2); rim.scale.set(1.45, 1.15, 1); rim.position.copy(floor.position);
                 grp.add(floor, rim);
             } else {
                 const floor = new THREE.Mesh(new RoundedBoxGeometry(1.0, 0.05, 1.0, 2, 0.12), pitMat);
@@ -772,7 +774,7 @@ const OQ = {
         if (pit.count === dan && pit.hasQuan === quan) return;
         pit.count = dan; pit.hasQuan = quan;
         pit.pebs.clear();
-        const ox = pit.quan ? (i === 5 ? -0.62 : 0.62) : 0;
+        const ox = 0;
         if (quan) {
             const q = new THREE.Mesh(st.pebGeo, st.quanMat); q.scale.set(0.34, 0.25, 0.3); q.position.set(ox, 0.24, 0); q.castShadow = true; pit.pebs.add(q);
         }
@@ -846,28 +848,127 @@ const OQ = {
     },
     // bàn tay rải quân (ảnh HTML) đi theo cụm sỏi — chiếu từ 3D ra màn hình
     handAt(pos) {
+        if (renderer) { handFollow(pos); return; }   // tay 3D đi theo cụm sỏi
         let h = layer.querySelector('.lc3-sowhand');
         if (!pos) { if (h) h.remove(); return; }
         if (!h) { h = document.createElement('div'); h.className = 'lc3-sowhand'; h.innerHTML = window.LcHandArt ? window.LcHandArt('sow') : ''; layer.appendChild(h); }
         const v = pos.clone().setY(pos.y + 0.15).project(camera);
         h.style.transform = `translate(${((v.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-v.y * 0.5 + 0.5) * H).toFixed(1)}px)`;
     },
-    camera() { frameCamera(new THREE.Vector3(0, 8.3, 8.0), new THREE.Vector3(0, -0.3, 0.3), 33); },
+    camera() { frameCamera(new THREE.Vector3(0, 7.6, 7.4), new THREE.Vector3(0, -0.2, 0.3), 33); },
     anchors(st, o) {
         const list = st.pits.map(p => {
             const q = p.quan;
             // ô dân: bong bóng ở mép ngoài hàng; ô quan: ở đầu bàn (không đè ô 1 / ô 5)
-            const pos = pitPos(p.i).clone().add(new THREE.Vector3(q ? (p.i === 5 ? -0.15 : 0.15) : 0, 0.05, q ? 1.0 : (p.i < 5 ? 0.62 : -0.62)));
+            const pos = pitPos(p.i).clone().add(new THREE.Vector3(0, 0.05, q ? 1.2 : (p.i < 5 ? 0.62 : -0.62)));
             const lbl = q ? '<b class="oq-qn">QUAN</b>' : `<b class="oq-no">${p.i < 5 ? p.i + 1 : 11 - p.i}</b>`;
             const zero = p.count === 0 && !p.hasQuan;
             return { n: OQ.key(p.i), pos, html: `<span class="oq-badge${q ? ' q' : ''}${p.i >= 6 && p.i <= 10 ? ' top' : ''}">${lbl}<span class="oq-cnt${zero ? ' zero' : ''}">${Math.max(0, p.count)}</span></span>` };
         });
         const pl = (o && o.players) || [];
-        list.push({ n: 'row0', pos: new THREE.Vector3(0, 0, 2.05), html: `<span class="oq-owner">▲ ${escH(pl[0] || 'Ghế 1')}</span>` });
-        list.push({ n: 'row1', pos: new THREE.Vector3(0, 0, -2.05), html: `<span class="oq-owner top">▼ ${escH(pl[1] || 'Ghế 2')}</span>` });
+        const ts = o && o.turnSide;
+        if (ts === 0 || ts === 1) {
+            const z = ts === 0 ? 2.15 : -2.15, hot = (o.sel != null ? ' hot' : '') + (ts === 1 ? ' top' : '');
+            list.push({ n: 'arL', pos: new THREE.Vector3(-3.0, 0, z), html: `<span class="oq-arrow${hot}">⬅ trái <b>1</b></span>` });
+            list.push({ n: 'arR', pos: new THREE.Vector3(3.0, 0, z), html: `<span class="oq-arrow${hot}"><b>2</b> phải ➡</span>` });
+        }
+        list.push({ n: 'row0', pos: new THREE.Vector3(0, 0, 2.15), html: `<span class="oq-owner">▲ ${escH(pl[0] || 'Ghế 1')}</span>` });
+        list.push({ n: 'row1', pos: new THREE.Vector3(0, 0, -2.15), html: `<span class="oq-owner top">▼ ${escH(pl[1] || 'Ghế 2')}</span>` });
         return list;
     }
 };
+
+// ═════════════════════════════════════════════════════════════════════════
+// ✋ BÀN TAY 3D — tự dựng bằng khối bo tròn, cùng ánh sáng + bóng đổ với bàn chơi.
+// Gốc toạ độ = ĐẦU NGÓN TRỎ, ngón chỉ xuống (−Y), mu bàn tay quay về máy quay (+Z).
+// LcBoards3D.fly(key, tool, ms) → tay bay tới điểm neo [data-n=key] rồi ấn; LcBoards3D.away(tool) → rút đi.
+// ═════════════════════════════════════════════════════════════════════════
+const SKIN = 0xe8a882;
+function makeHand3D() {
+    const h = new THREE.Group();
+    const skin = new THREE.MeshPhysicalMaterial({ color: SKIN, roughness: 0.5, metalness: 0, sheen: 0.6, sheenColor: new THREE.Color(0xffd2b8), sheenRoughness: 0.6, clearcoat: 0.12 });
+    const skinShade = new THREE.MeshPhysicalMaterial({ color: 0xe3a682, roughness: 0.55, sheen: 0.4, sheenColor: new THREE.Color(0xffc8a8) });
+    const nail = new THREE.MeshPhysicalMaterial({ color: 0xffe6dc, roughness: 0.2, clearcoat: 0.8 });
+    const sleeve = new THREE.MeshPhysicalMaterial({ color: 0xff5e94, roughness: 0.45, sheen: 0.5, sheenColor: new THREE.Color(0xffc0d6) });
+    const white = std(0xffffff, { roughness: 0.5 });
+    const seg = (r, len, mat) => new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 6, 14), mat || skin);
+    // ngón trỏ duỗi thẳng: 3 đốt nối từ đầu ngón (gốc) lên khớp
+    const idx = new THREE.Group(); idx.position.x = -0.24; h.add(idx);
+    const f1 = seg(0.105, 0.2); f1.position.y = 0.2; idx.add(f1);
+    const f2 = seg(0.112, 0.22); f2.position.y = 0.5; idx.add(f2);
+    const f3 = seg(0.118, 0.22); f3.position.y = 0.8; idx.add(f3);
+    const nl = sphere(nail, 0.075, 0.1, 0.03); nl.position.set(0, 0.16, 0.095); idx.add(nl);
+    [0.36, 0.66].forEach(y => { const cr = new THREE.Mesh(new THREE.TorusGeometry(0.108, 0.008, 6, 20, Math.PI), skinShade); cr.position.set(0, y, 0); cr.rotation.y = 0; idx.add(cr); });
+    // lòng + mu bàn tay
+    const palm = new THREE.Mesh(new RoundedBoxGeometry(0.86, 0.72, 0.34, 4, 0.15), skin); palm.position.set(0.02, 1.33, -0.02); h.add(palm);
+    // 3 ngón co lại thành nắm (nhìn từ mu tay thấy 3 khớp tròn)
+    [[0.03, 1.0], [0.27, 0.95], [0.47, 0.88]].forEach(([x, len], k) => {
+        const g = new THREE.Group(); g.position.set(x, 1.0, 0); h.add(g);
+        const knuckle = sphere(skin, 0.118, 0.12, 0.13); knuckle.position.set(0, 0, 0.02); g.add(knuckle);
+        const a = seg(0.108 - k * 0.006, 0.12); a.position.set(0, -0.12, -0.08); a.rotation.x = 0.9; g.add(a);
+        const b = seg(0.1 - k * 0.006, 0.1); b.position.set(0, -0.14, -0.26); b.rotation.x = 2.3; g.add(b);
+    });
+    // ngón cái ôm bên hông, hướng xuống phía ngón trỏ
+    const th = new THREE.Group(); th.position.set(-0.46, 1.32, 0.02); th.rotation.z = -0.65; th.rotation.x = 0.35; h.add(th);
+    const t1 = seg(0.13, 0.2); t1.position.y = -0.12; th.add(t1);
+    const t2 = seg(0.115, 0.16); t2.position.y = -0.38; th.add(t2);
+    const tn = sphere(nail, 0.07, 0.085, 0.03); tn.position.set(0, -0.48, 0.1); th.add(tn);
+    // cổ tay + tay áo hồng, sọc trắng
+    const wrist = seg(0.3, 0.12); wrist.position.set(0.03, 1.78, -0.02); wrist.scale.z = 0.62; h.add(wrist);
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.42, 0.55, 28), sleeve); cuff.position.set(0.03, 2.15, -0.02); cuff.scale.z = 0.72; h.add(cuff);
+    const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.41, 0.035, 8, 32), white); stripe.rotation.x = Math.PI / 2; stripe.position.set(0.03, 1.98, -0.02); stripe.scale.y = 0.72; h.add(stripe);
+    shadowed(h);
+    // gốc = đầu ngón trỏ: dời cả bàn tay để đầu ngón (x −0.24, y 0.09) nằm ở (0, 0)
+    h.children.forEach(c => { c.position.x += 0.24; c.position.y -= 0.09; });
+    const wrap = new THREE.Group(); wrap.add(h);
+    wrap.visible = false;
+    return wrap;
+}
+const HAND_SCALE = { hama: 0.75, chumcoc: 0.9, thaptre: 0.85, latcap: 1.05, oanquan: 0.8 };
+let hand3d = null, handPress = null;
+function getHand() {
+    if (!hand3d) { hand3d = makeHand3D(); scene.add(hand3d); }
+    hand3d.scale.setScalar(HAND_SCALE[game] || 0.85);
+    return hand3d;
+}
+// tay hơi nghiêng về máy quay để thấy mu bàn tay + ngón chỉ
+function handPose(hand, lean) { hand.rotation.set(-0.42 - (lean || 0), -0.25, 0.18); }
+function anchorWorld(key) {
+    const a = anchors.find(x => String(x.n) === String(key));
+    if (!a) return null;
+    if (a.obj) { a.obj.updateWorldMatrix(true, false); return (a.offset ? a.offset.clone() : new THREE.Vector3()).applyMatrix4(a.obj.matrixWorld); }
+    return a.pos.clone();
+}
+function fly(key, tool, ms) {
+    return new Promise(res => {
+        const tgt = renderer && anchorWorld(key);
+        if (!tgt) return setTimeout(res, ms);
+        const hand = getHand();
+        const s = hand.scale.x;
+        const start = tgt.clone().add(new THREE.Vector3(3.2 * s + 1.5, 4.5, 3.0));
+        const hover = tgt.clone().add(new THREE.Vector3(0, 0.55 * s, 0.1));
+        const press = tgt.clone().add(new THREE.Vector3(0, 0.04, 0.02));
+        handPress = press.clone();
+        hand.visible = true; handPose(hand, 0.25);
+        hand.position.copy(start);
+        tween(ms * 0.62, k => { hand.position.lerpVectors(start, hover, k); handPose(hand, 0.25 * (1 - k)); }, ease.out, () => {
+            tween(ms * 0.38, k => { hand.position.lerpVectors(hover, press, k); }, ease.in, res);
+        });
+    });
+}
+function away(tool) {
+    if (!hand3d || !hand3d.visible) return;
+    const from = hand3d.position.clone();
+    const to = tool === 'pull' ? from.clone().add(new THREE.Vector3(2.2, 0.3, 1.2)) : from.clone().add(new THREE.Vector3(2.6, 3.2, 2.4));
+    tween(tool === 'pull' ? 650 : 420, k => { hand3d.position.lerpVectors(from, to, k); }, ease.in, () => { hand3d.visible = false; });
+}
+// Ô Ăn Quan: tay đi theo cụm sỏi khi rải (đầu ngón chạm đỉnh cụm)
+function handFollow(pos) {
+    const hand = getHand();
+    if (!pos) { hand.visible = false; return; }
+    hand.visible = true; handPose(hand, 0.1);
+    hand.position.set(pos.x, pos.y + 0.32, pos.z + 0.05);
+}
 
 const KINDS = { hama: HM, chumcoc: CC, thaptre: TT, latcap: LP, oanquan: OQ };
 let state = null;
@@ -919,7 +1020,7 @@ function render(stage, b, o) {
 async function boot() {
     if (!init()) return;
     try { await document.fonts.load(font(64)); } catch (e) {}
-    window.LcBoards3D = { ready: true, render };
+    window.LcBoards3D = { ready: true, render, fly, away };
     window.dispatchEvent(new Event('lc3d:ready'));
 }
 boot();
