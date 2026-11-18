@@ -42,7 +42,7 @@
         }).join('');
         return `<div class="cc${b.sprung ? ' pop' : ''}${b.sprung && !o.fresh ? ' still' : ''}">
             <div class="body"><div class="band"></div></div><div class="neck"></div><div class="rim"></div>
-            <div class="holes">${holes}</div><div class="frog">🐸</div></div>`;
+            <div class="holes">${holes}</div><div class="frog">🐐</div></div>`;
     }
 
     function thaptre(b, o) {

@@ -1,6 +1,6 @@
 /* 🎲 Đấu Trường Mini — bàn tay vẽ bằng SVG (tự thiết kế) cho phần diễn: tay bay vào bấm / rút / lật / rải quân.
  * window.LcHandArt(kind) → chuỗi SVG. kind: 'point' (ngón trỏ chỉ lên — đầu ngón ở (52, 2) của khung 140×200),
- * 'sow' (cùng bàn tay, overlay xoay 180° để úp xuống rải quân), 'stick' (que tre cho Cóc Trốn Chum).
+ * 'sow' (cùng bàn tay, overlay xoay 180° để úp xuống rải quân), 'stick' (que tre cho Dê Núi).
  * Có ảnh vẽ tay (assets/manifest.json → "hand": "hand.png", đầu ngón ở giữa mép trên ảnh) thì dùng ảnh thay SVG.
  * Brief vẽ ảnh: art-requests/dau-truong-mini/BRIEF-DAU-TRUONG-MINI.md. */
 (function () {

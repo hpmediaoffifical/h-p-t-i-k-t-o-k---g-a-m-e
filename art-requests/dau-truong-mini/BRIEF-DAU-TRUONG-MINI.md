@@ -18,7 +18,7 @@
 Gợi ý công cụ:
 - **Ảnh 2D** (bàn tay, que tre, ảnh bìa, texture): ChatGPT (tạo ảnh) → yêu cầu "transparent background PNG".
   Nếu nền chưa trong suốt: tách nền bằng công cụ xoá nền rồi kiểm mép tóc/ngón không bị răng cưa.
-- **Model 3D** (cóc, quan, hà mã…): Meshy / Tripo3D / Rodin — "image to 3D" dùng ảnh tham chiếu ChatGPT vẽ trước,
+- **Model 3D** (dê con, quan, hà mã…): Meshy / Tripo3D / Rodin — "image to 3D" dùng ảnh tham chiếu ChatGPT vẽ trước,
   xuất **GLB**, PBR, ≤ 15 000 tam giác, texture 1024 px. Không cần xương / hoạt ảnh (code tự làm chuyển động).
 
 ## 1. Phong cách chung (áp cho mọi mục)
@@ -46,27 +46,28 @@ Gợi ý công cụ:
 - **Tránh:** găng tay trắng kiểu hoạt hình cũ, móng dài, nhẫn, hình xăm, nền màu, bóng đổ ra ngoài khung, tay trái.
 - **Nhận khi:** nhìn rõ ở kích thước 140 × 200 px; đầu ngón đúng mép trên giữa; mép trong suốt sạch.
 
-### 2b. Que tre — `stick.png` **[TỰ DÙNG]** (trò Cóc Trốn Chum)
+### 2b. Que tre — `stick.png` **[TỰ DÙNG]** (trò 🐐 Dê Núi)
 - PNG trong suốt **120 × 470 px**, que tre xanh có 3 đốt, **đầu nhọn ở mép DƯỚI giữa** (điểm neo), vót vàng ở mũi.
 - **Prompt:** *A single short bamboo skewer stick, vertical, green with three darker nodes, sharpened pale tip pointing down,
   soft 3D toy style shading, transparent background, PNG 120x470, no text.*
 
 ---
 
-## 3. Con cóc — `frog.glb` **[TỰ DÙNG]** (trò 🐸 Cóc Trốn Chum)
+## 3. Dê núi — `goat.glb` **[TỰ DÙNG]** (trò 🐐 Dê Núi — con giáp năm Đinh Mùi 2027)
 
-- **Dùng ở:** cóc trốn trong chum, trúng lỗ thì **nhảy vọt lên ngồi trên miệng chum** nhìn ra người xem.
-- **Định dạng:** GLB, Y hướng lên, **mặt cóc nhìn về +Z**, gốc toạ độ ở giữa đáy; ≤ 15k tam giác; PBR (base color, roughness, normal) 1024 px.
-  Code tự co về khung ~1,3 đơn vị nên không cần đúng kích thước thật.
-- **Hình dáng:** cóc **ngồi xổm, thân thấp và rộng**, đầu to tròn, **mắt lồi trên đỉnh đầu** (tròng vàng, **con ngươi nằm ngang**, có mí xanh),
-  **miệng cười rộng**, má hồng nhạt, lưng xanh lá có **đốm sẫm**, bụng kem, chân trước chống, **chân sau gập hai bên**, bàn chân có màng.
-  Dễ thương, hơi tinh nghịch (vừa bị chọc ra khỏi chum).
+- **Dùng ở:** dê núi trốn trong mỏm đá, trúng hốc thì **nhảy vọt lên đứng trên đỉnh đá** (đứng nghiêng 3/4) nhìn ra người xem (thay con cóc cũ từ 18/11/2026).
+- **Định dạng:** GLB, Y hướng lên, **mặt dê nhìn về +Z**, gốc toạ độ ở giữa đáy; ≤ 15k tam giác; PBR (base color, roughness, normal) 1024 px.
+  Code tự co về khung ~1,35 đơn vị nên không cần đúng kích thước thật. Manifest: `"goat": "goat.glb"`.
+- **Hình dáng:** dê núi con dễ thương nhưng **đúng dáng dê**: **mặt dài thuôn nhọn** hơi cúi, mõm hồng nâu, **mắt hai bên đầu tròng hổ phách con ngươi NGANG**,
+  **tai dài chĩa ngang**, **sừng cong vút ra sau có vân** vàng nâu, **chòm râu cằm**, thân **lông ngắn mượt** trắng kem (KHÔNG xoăn như cừu), chân thon móng chẻ,
+  đuôi ngắn vểnh, **vòng cổ đỏ có chuông vàng** (không khí Tết).
 - **Prompt (ChatGPT, ảnh tham chiếu trước khi dựng 3D):**
-  > Cute chubby toy frog sitting squat, wide flat body, big bulging eyes on top of the head with golden irises and horizontal pupils and green eyelids,
-  > wide happy smile, light pink cheeks, glossy green skin with darker spots on the back, cream belly, front legs planted, folded back legs with webbed feet,
-  > premium vinyl toy look, soft studio lighting, front three-quarter view, plain white background, no text.
-- **Prompt (AI 3D, image-to-3D):** dùng ảnh trên + *"game-ready stylized frog toy, single mesh, PBR, low poly 15k, facing +Z, origin at bottom center"*.
-- **Tránh:** cóc thật đáng sợ / nhầy nhụa, răng, màu độc (đỏ, đen), tư thế đứng hai chân.
+  > Cute stylized young mountain goat, long tapered face slightly lowered, pinkish-brown muzzle, side-set amber eyes with horizontal pupils,
+  > long sideways ears, ridged golden-brown horns curving backwards, small chin beard, short smooth cream-white coat (not woolly), slender legs with split hooves,
+  > short upright tail, red collar with a golden bell,
+  > Lunar New Year mood, premium vinyl toy look, soft studio lighting, front three-quarter view, plain white background, no text.
+- **Prompt (AI 3D, image-to-3D):** dùng ảnh trên + *"game-ready stylized baby goat toy, single mesh, PBR, low poly 15k, facing +Z, origin at bottom center"*.
+- **Tránh:** trông giống cừu (lông xoăn, mặt tròn ngắn), sừng nhọn hung dữ, mắt đỏ, dáng gầy guộc.
 
 ---
 
@@ -80,25 +81,23 @@ Gợi ý công cụ:
   pink gums and tongue, no teeth, premium vinyl toy, front three-quarter view, white background, no text.*
 - **Ghi chú code:** cần nối `upperJaw` vào xoay mở/ngoạm thay cho khối dựng sẵn trong `board3d.js` (mục HM).
 
-## 5. Chum đất nung — `jar.glb` **[GĐ2]** (trò 🐸 Cóc Trốn Chum)
+## 5. Mỏm đá núi — `rock.glb` **[GĐ2]** (trò 🐐 Dê Núi)
 
-- Chum sành bụng phình, miệng loe, **men nâu một dải ở vai + hoa văn sóng tự vẽ**, đất nung ấm có hạt; **không đục lỗ** (code tự đặt lỗ có số).
-- GLB, ≤ 8k tam giác, chiều cao : bề rộng ≈ 1 : 1,15.
-- **Prompt:** *Traditional Vietnamese terracotta storage jar, round belly, flared rim, one glazed brown band with a hand-drawn wave pattern,
-  warm clay with subtle speckles, soft studio light, white background, no text.*
+- Mỏm đá núi **low-poly nhiều mặt vát góc cạnh**, đá xám nâu sẫm loang xám lạnh, mặt ngửa bạc nắng, rêu xanh lác đác ở chân;
+  chân loe, lưng phình, **đỉnh bằng có miệng hang tối** (dê nhảy ra từ đây); **không đục hốc** (code tự đặt hốc có số theo mặt đá).
+- GLB, ≤ 8k tam giác, cao ~3 : rộng ~3,6 (khớp code `ROCK_H` = 2,95). Kèm vài viên đá vụn + bụi cỏ núi nếu tiện.
+- **Prompt:** *Low-poly faceted mountain crag, angular rock faces, dark grey-brown stone with cool grey variations, sunlit top facets, a little moss at the base,
+  flat top with a dark cave opening, game asset, soft studio light, white background, no text.*
 
 ## 6. Tháp tre — `bamboo-bar.png` **[GĐ2]** (trò 🎋 Tháp Tre Chao Đảo)
 
 - Texture **1024 × 256** mặt dài thanh tre đã chẻ (xanh vàng, thớ dọc, **2 đốt** ở 1/4 và 3/4), lặp được theo chiều ngang.
 - Thêm `bamboo-end.png` **256 × 160**: mặt cắt đầu thanh (vòng thớ đồng tâm) — code in số lên trên.
 
-## 7. Thẻ Săn Cặp Trái Cây — `card-back.png`, `fruit-*.png` **[GĐ2]**
+## 7. Thẻ Săn Cặp Quà — `card-back.png` **[GĐ2]** (trò 🎁 Săn Cặp Quà)
 
-- `card-back.png` **512 × 640**: lưng thẻ xanh dương hoa văn chéo, viền trắng, **chừa vòng tròn trống ở giữa** (code in số).
-- 12 hình trái cây **512 × 512** nền trong suốt, phong cách đồ chơi bóng: dưa hấu (miếng), táo, chuối, nho, dâu, dứa, kiwi (bổ đôi), đào, anh đào, dừa, chanh, xoài.
-  Tên file: `fruit-duahau.png`, `fruit-tao.png`, `fruit-chuoi.png`, `fruit-nho.png`, `fruit-dau.png`, `fruit-dua.png`, `fruit-kiwi.png`, `fruit-dao.png`,
-  `fruit-anhdao.png`, `fruit-dualeo.png` (dừa), `fruit-chanh.png`, `fruit-xoai.png`.
-- **Prompt mẫu:** *Glossy toy-style 3D illustration of a {fruit}, soft studio lighting, slight top-down angle, centered, transparent background, PNG 512x512, no text.*
+- Mặt thẻ = **ảnh quà TikTok thật** lấy từ bảng quà của app (8 quà cố định) → KHÔNG cần vẽ.
+- `card-back.png` **512 × 640**: lưng thẻ đen bóng kiểu TikTok, sọc chéo hồng `#FE2C55` / xanh `#25F4EE`, viền đôi lệch màu, **chừa vòng tròn trống ở giữa** (code in số).
 
 ## 8. Ô Ăn Quan — bàn gỗ + quân **[GĐ2]** (trò 🪨 Ô Ăn Quan)
 
@@ -113,7 +112,7 @@ Gợi ý công cụ:
 
 - 6 ảnh **1024 × 1024** PNG: bìa bộ `cover-dau-truong-mini.png` + mỗi trò 1 ảnh:
   `cover-hama.png`, `cover-chumcoc.png`, `cover-thaptre.png`, `cover-latcap.png`, `cover-oanquan.png`.
-- Bố cục: vật chính ở giữa (hà mã há miệng / cóc ló khỏi chum / tháp tre nghiêng / 3 thẻ đang lật / bàn ô ăn quan có tay rải quân),
+- Bố cục: vật chính ở giữa (hà mã há miệng / dê con ló khỏi chum / tháp tre nghiêng / 3 thẻ đang lật / bàn ô ăn quan có tay rải quân),
   nền gradient tím-xanh đêm có ánh đèn sân khấu, **chừa 20% phía trên trống** để app đặt tên trò. Không chữ.
 
 ---

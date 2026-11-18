@@ -10,7 +10,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const COIN = '<img class="hp-coin-ico" src="/coin.svg" alt="">';
     const PHASE = { lobby: 'Sảnh chờ', playing: 'Đang chơi', result: 'Kết quả' };
-    const SIZE = { hama: ['teeth', 'Số răng', 6, 16], chumcoc: ['holes', 'Số lỗ chum', 8, 30], thaptre: ['levels', 'Số tầng', 6, 12], latcap: ['pairs', 'Số cặp', 4, 8], oanquan: ['quanValue', 'Quan = mấy dân (5 hoặc 10)', 5, 10] };
+    const SIZE = { hama: ['teeth', 'Số răng', 6, 16], chumcoc: ['holes', 'Số hốc đá', 8, 30], thaptre: ['levels', 'Số tầng', 6, 12], latcap: ['pairs', 'Số cặp', 4, 8], oanquan: ['quanValue', 'Quan = mấy dân (5 hoặc 10)', 5, 10] };
     const API = (cmd, extra) => fetch('/api/luotchoi/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ cmd }, extra || {})) }).then(r => r.json()).catch(() => ({ ok: false }));
     let cfg = null, st = null, socket = null, bound = false, persistTimer = null, clockOff = 0, cdTimer = null;
 
@@ -137,7 +137,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                 <div class="lc-line"><label><input type="checkbox" data-c="voice" ${cfg.voice !== false ? 'checked' : ''}> ${hpT('Đọc tên người chơi')}</label></div>
                 <div class="lc-line"><label>${hpT('Âm lượng')}</label><input type="range" data-k="voiceVolume" min="0" max="100" value="${esc(cfg.voiceVolume ?? 80)}" style="flex:1"><span id="lc-vol">${esc(cfg.voiceVolume ?? 80)}%</span></div>
             </div>
-            <div class="lc-box"><div class="lc-h">${hpT('🎵 Âm thanh hiệu ứng')} <span class="lc-muted">${hpT('tiếng ấn, ngoạm, cóc bật, tháp đổ, lật thẻ, sỏi rơi… — không nhạc nền')}</span></div>
+            <div class="lc-box"><div class="lc-h">${hpT('🎵 Âm thanh hiệu ứng')} <span class="lc-muted">${hpT('tiếng ấn, ngoạm, dê bật, tháp đổ, lật thẻ, sỏi rơi… — không nhạc nền')}</span></div>
                 <div class="lc-line"><label><input type="checkbox" data-c="sfx" ${cfg.sfx !== false ? 'checked' : ''}> ${hpT('Bật âm thanh hiệu ứng')}</label></div>
                 <div class="lc-line"><label>${hpT('Âm lượng')}</label><input type="range" data-k="sfxVolume" min="0" max="100" value="${esc(cfg.sfxVolume ?? 70)}" style="flex:1"><span id="lc-sfxvol">${esc(cfg.sfxVolume ?? 70)}%</span></div>
                 <div class="lc-line"><label>${hpT('🎹 Ô Ăn Quan: rải sỏi thành nhạc')}</label><select data-s="oqSong">${[['happy', 'Happy Birthday'], ['twinkle', 'Twinkle Twinkle Little Star'], ['buom', 'Kìa con bướm vàng'], ['off', hpT('Tắt (tiếng sỏi thường)')]].map(([v, l]) => `<option value="${v}" ${(cfg.oqSong || 'happy') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>

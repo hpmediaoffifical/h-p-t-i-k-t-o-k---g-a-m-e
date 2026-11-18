@@ -2,7 +2,7 @@
  *
  * window.LcBoards3D.render(stage, board, { boardId, marks, colorOf }) — cùng chữ ký LcBoards (2D) để overlay.js đổi qua lại.
  *  - Giữ 1 cảnh / 1 canvas trong #stage. boardId đổi (bàn mới) → dựng lại hình; cùng boardId → so khác biệt với lần
- *    trước rồi CHẠY HOẠT CẢNH (ấn răng, cắm que, rút thanh, lật thẻ, ngoạm, cóc nhảy, tháp đổ).
+ *    trước rồi CHẠY HOẠT CẢNH (ấn răng, cắm que, rút thanh, lật thẻ, ngoạm, dê nhảy, tháp đổ).
  *  - Mỗi ô có 1 điểm neo HTML [data-n] đặt đúng vị trí chiếu ra màn hình → overlay.js cho tay bay tới + dán nhãn tên.
  *  - Chỉ vẽ khi có hoạt cảnh (render theo nhu cầu) → nhẹ cho OBS. Tháp lung lay thì vẽ liên tục ~30 khung/giây.
  *  - Máy không có WebGL → không đặt LcBoards3D.ready, overlay giữ bản 2D (boards.js).
@@ -364,30 +364,8 @@ function shake(obj, amp, ms) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// 🐸 CHUM CÓC — chum đất nung tiện tròn, lỗ có số, que tre cắm chéo, cóc bật ra từ miệng chum
+// 🐐 DÊ NÚI — mỏm đá núi góc cạnh, hốc có số, que tre cắm chéo, dê núi (con giáp 2027) bật ra từ hang trên đỉnh
 // ═════════════════════════════════════════════════════════════════════════
-const JAR_PROFILE = [[0.0, 0], [0.95, 0.02], [1.3, 0.22], [1.6, 0.75], [1.72, 1.3], [1.62, 1.9], [1.32, 2.35], [0.92, 2.62], [0.82, 2.78], [0.95, 2.86], [0.98, 2.95], [0.86, 3.0]];
-function jarRadius(y) {
-    for (let i = 1; i < JAR_PROFILE.length; i++) {
-        const [r0, y0] = JAR_PROFILE[i - 1], [r1, y1] = JAR_PROFILE[i];
-        if (y >= y0 && y <= y1) return r0 + (r1 - r0) * ((y - y0) / Math.max(1e-6, y1 - y0));
-    }
-    return 1;
-}
-function clayTex() {
-    return canvasTex('clay', 512, 256, (g, w, h) => {
-        const gr = g.createLinearGradient(0, 0, 0, h);
-        gr.addColorStop(0, '#9a5a2e'); gr.addColorStop(0.5, '#c27a44'); gr.addColorStop(1, '#8b4c24');
-        g.fillStyle = gr; g.fillRect(0, 0, w, h);
-        for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(${hash(i) > 0.5 ? '60,30,10' : '255,220,170'},${0.05 + hash(i + 7) * 0.08})`; g.fillRect(hash(i + 1) * w, hash(i + 2) * h, 1.5, 1.5); }
-        // dải men + hoa văn sóng tự vẽ
-        const band = (y, c) => { g.fillStyle = c; g.fillRect(0, y, w, 10); };
-        band(h * 0.70, '#5b2e14'); band(h * 0.78, '#e6b27a');
-        g.strokeStyle = '#5b2e14'; g.lineWidth = 4; g.beginPath();
-        for (let x = 0; x <= w; x += 4) g.lineTo(x, h * 0.74 + Math.sin(x / w * Math.PI * 16) * 6);
-        g.stroke();
-    }, true);
-}
 function bambooTex() {
     return canvasTex('bamboo', 64, 512, (g, w, h) => {
         const gr = g.createLinearGradient(0, 0, w, 0);
@@ -396,87 +374,172 @@ function bambooTex() {
         for (let y = 90; y < h; y += 150) { g.fillStyle = '#4d7419'; g.fillRect(0, y, w, 10); g.fillStyle = '#d6ef9a'; g.fillRect(0, y + 10, w, 3); }
     });
 }
-function frogSkinTex() {
-    return canvasTex('frogskin', 256, 256, (g, w, h) => {
-        const gr = g.createLinearGradient(0, 0, 0, h);
-        gr.addColorStop(0, '#8fe35a'); gr.addColorStop(0.55, '#47b83a'); gr.addColorStop(1, '#2f8a2a');
-        g.fillStyle = gr; g.fillRect(0, 0, w, h);
-        for (let i = 0; i < 46; i++) {
-            const x = hash(i + 11) * w, y = hash(i + 23) * h * 0.8, r = 4 + hash(i + 5) * 11;
-            g.fillStyle = `rgba(28,92,30,${0.35 + hash(i) * 0.3})`; g.beginPath(); g.ellipse(x, y, r, r * 0.8, hash(i) * 3, 0, Math.PI * 2); g.fill();
-            g.fillStyle = 'rgba(200,255,150,.35)'; g.beginPath(); g.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, Math.PI * 2); g.fill();
-        }
-    });
-}
-// 🐸 cóc dựng thủ tục: thân dẹt rộng có đốm, mắt lồi có mí + con ngươi ngang, miệng cười rộng, chân gập + bàn chân màng
-function makeFrog() {
-    const gltf = frogModel && frogModel.clone(true);
+// 🐐 DÊ CON (con giáp năm Đinh Mùi 2027) dựng thủ tục — ĐÚNG DÁNG DÊ: mặt dài nhọn hơi cúi, mõm thon, mắt hai bên đầu
+// (tròng hổ phách, con ngươi NGANG như dê thật), tai dài chĩa ngang, sừng cong vút ra sau có vân, chòm râu cằm,
+// thân lông ngắn mượt (không xoăn như cừu), chân thon móng chẻ, đuôi vểnh; vòng cổ đỏ chuông vàng (Tết).
+// Gốc toạ độ ≈ giữa thân, móng chạm y ≈ −0.45 — mặt quay +Z về máy quay.
+const GOAT_TURN = 0.6;   // dê đứng nghiêng 3/4 → thấy rõ mặt dài nhọn + sừng cong (nhìn thẳng thì mặt bị dồn ngắn)
+function makeGoat() {
+    const gltf = goatModel && goatModel.clone(true);
     if (gltf) return shadowed(gltf);
     const f = new THREE.Group();
-    const skin = phys(0xffffff, { map: frogSkinTex(), roughness: 0.28, clearcoat: 0.9 });
-    const green = phys(0x45b83a, { roughness: 0.3, clearcoat: 0.8 });
-    const belly = phys(0xf3f0b8, { roughness: 0.45, clearcoat: 0.3 });
-    const white = std(0xffffff, { roughness: 0.08 });
-    const iris = std(0xf1b31c, { roughness: 0.2 });
-    const dark = std(0x0d120b, { roughness: 0.05 });
-    const pink = std(0xff8fae, { roughness: 0.6 });
-    const mouthMat = std(0x1f3d14, { roughness: 0.6 });
-    // thân + đầu (gộp thành dáng cóc ngồi: thấp, rộng, đầu nhô về trước)
-    const body = sphere(skin, 0.78, 0.46, 0.66); body.position.set(0, 0.0, -0.08); f.add(body);
-    const head = sphere(skin, 0.64, 0.4, 0.5); head.position.set(0, 0.16, 0.3); f.add(head);
-    const bl = sphere(belly, 0.55, 0.3, 0.42); bl.position.set(0, -0.12, 0.3); f.add(bl);
-    // miệng cười rộng + lưỡi hồng chớm ra
-    const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.022, 8, 40, Math.PI * 0.86), mouthMat);
-    mouth.rotation.set(Math.PI / 2 + 0.25, 0, Math.PI + Math.PI * 0.07); mouth.position.set(0, 0.07, 0.36); f.add(mouth);
-    const tongue = sphere(pink, 0.09, 0.03, 0.07); tongue.position.set(0.08, 0.02, 0.79); f.add(tongue);
-    [-1, 1].forEach(s => {
-        // mắt lồi trên đỉnh: ụ da + lòng trắng + tròng vàng + con ngươi ngang + mí trên
-        const mound = sphere(green, 0.22, 0.2, 0.22); mound.position.set(0.3 * s, 0.46, 0.28); f.add(mound);
-        const eye = sphere(white, 0.19); eye.position.set(0.3 * s, 0.53, 0.36); f.add(eye);
-        const ir = sphere(iris, 0.13, 0.13, 0.05); ir.position.set(0.3 * s, 0.54, 0.535); f.add(ir);
-        const pu = sphere(dark, 0.1, 0.045, 0.03); pu.position.set(0.3 * s, 0.54, 0.575); f.add(pu);
-        const hl = sphere(white, 0.045); hl.position.set(0.25 * s, 0.6, 0.585); f.add(hl);
-        const lid = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.26), green);
-        lid.scale.setScalar(0.205); lid.position.set(0.3 * s, 0.535, 0.36); lid.rotation.x = -0.5; f.add(lid);
-        const ck = sphere(pink, 0.1, 0.05, 0.04); ck.position.set(0.48 * s, 0.14, 0.58); f.add(ck);
-        // chân trước + 3 ngón tròn
-        const arm = sphere(green, 0.1, 0.22, 0.1); arm.position.set(0.36 * s, -0.24, 0.52); arm.rotation.x = 0.4; f.add(arm);
-        for (let t = -1; t <= 1; t++) { const toe = sphere(belly, 0.055, 0.04, 0.07); toe.position.set(0.36 * s + t * 0.07, -0.43, 0.64 + Math.abs(t) * -0.02); f.add(toe); }
-        // chân sau gập hai bên + bàn chân màng
-        const thigh = sphere(skin, 0.3, 0.24, 0.42); thigh.position.set(0.62 * s, -0.16, -0.18); thigh.rotation.y = 0.35 * s; f.add(thigh);
-        const foot = sphere(green, 0.2, 0.05, 0.28); foot.position.set(0.7 * s, -0.42, 0.18); foot.rotation.y = -0.4 * s; f.add(foot);
-        for (let t = -1; t <= 1; t++) { const toe = sphere(belly, 0.05, 0.035, 0.06); toe.position.set(0.7 * s + t * 0.09 + 0.06 * s, -0.43, 0.42); f.add(toe); }
+    const coat = phys(0xf7f2ea, { roughness: 0.55, clearcoat: 0.25, sheen: 0.6, sheenColor: new THREE.Color(0xffffff) });
+    const coatShade = phys(0xe9dfd0, { roughness: 0.6, clearcoat: 0.2 });
+    const nose = phys(0xcfa79a, { roughness: 0.35, clearcoat: 0.5 });
+    const hornM = phys(0xcf9a4c, { roughness: 0.32, clearcoat: 0.7 });
+    const hoof = std(0x4a3a2e, { roughness: 0.45 });
+    const white = phys(0xffffff, { roughness: 0.05, clearcoat: 1 }), dark = phys(0x16101c, { roughness: 0.05, clearcoat: 1 }), amber = phys(0xd9952b, { roughness: 0.12, clearcoat: 1 });
+    const earIn = std(0xf3b0bf, { roughness: 0.7 }), pink = std(0xff9fbf, { roughness: 0.7, transparent: true, opacity: 0.7 });
+    const red = phys(0xe0262f, { roughness: 0.35, clearcoat: 0.6 }), gold = phys(0xf2c14e, { roughness: 0.2, metalness: 0.7, clearcoat: 0.6 });
+
+    // ── thân: bầu thuôn dọc (ngực trước to, hông sau), lông ngắn mượt ──
+    const body = sphere(coat, 0.4, 0.34, 0.55); body.position.set(0, 0.0, -0.12); f.add(body);
+    const chest = sphere(coat, 0.33, 0.33, 0.3); chest.position.set(0, 0.06, 0.22); f.add(chest);
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.16, 12), coat); tail.position.set(0, 0.22, -0.66); tail.rotation.x = -0.9; f.add(tail);
+    // chân thon + móng chẻ đôi (2 nửa)
+    [[-0.2, 0.26], [0.2, 0.26], [-0.19, -0.42], [0.19, -0.42]].forEach(([x, z]) => {
+        const up = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.22, 14), coat); up.position.set(x, -0.2, z); f.add(up);
+        const low = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.17, 14), coatShade); low.position.set(x, -0.36, z); f.add(low);
+        [-1, 1].forEach(h => { const c = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.06, 0.08), hoof); c.position.set(x + h * 0.022, -0.45, z + 0.01); f.add(c); });
     });
+    // ── cổ vươn lên trước ──
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.42, 18), coat); neck.position.set(0, 0.34, 0.3); neck.rotation.x = 0.55; f.add(neck);
+
+    // ── ĐẦU: sọ + mặt dài thuôn nhọn xuống mõm (nhóm đầu nghiêng cúi nhẹ) ──
+    const head = new THREE.Group(); head.position.set(0, 0.62, 0.42); head.rotation.x = 0.32; f.add(head);
+    const skull = sphere(coat, 0.21, 0.22, 0.23); skull.position.set(0, 0.04, -0.02); head.add(skull);
+    // mặt dài: 3 khúc ellipsoid nhỏ dần ra phía mõm → thuôn nhọn
+    [[0.17, 0.18, 0.2, 0.15], [0.135, 0.15, 0.17, 0.3], [0.1, 0.115, 0.13, 0.43]].forEach(([sx, sy, sz, z]) => {
+        const m = sphere(coat, sx, sy, sz); m.position.set(0, -0.03 - z * 0.12, z); head.add(m);
+    });
+    const muz = sphere(nose, 0.085, 0.075, 0.07); muz.position.set(0, -0.09, 0.53); head.add(muz);   // đầu mõm hồng nâu
+    [-1, 1].forEach(s => {
+        const n = sphere(dark, 0.018, 0.012, 0.012); n.position.set(0.035 * s, -0.07, 0.595); n.rotation.z = 0.5 * s; head.add(n);   // lỗ mũi xiên
+    });
+    const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.008, 6, 16, Math.PI), dark); mouth.position.set(0, -0.135, 0.55); mouth.rotation.set(0.3, 0, Math.PI); head.add(mouth);
+    // râu cằm: chòm lông nhọn rủ xuống dưới hàm
+    const beard = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.2, 14), coatShade); beard.position.set(0, -0.24, 0.44); beard.rotation.x = Math.PI - 0.25; head.add(beard);
+    [-1, 1].forEach(s => {
+        // mắt hai bên đầu, hơi hướng ra trước: lòng trắng + tròng hổ phách + con ngươi NGANG chữ nhật + đốm sáng + mí trên
+        const eg = new THREE.Group(); eg.position.set(0.16 * s, 0.07, 0.12); eg.rotation.y = 0.55 * s; head.add(eg);
+        const e = sphere(white, 0.075, 0.08, 0.05); eg.add(e);
+        const ir = sphere(amber, 0.062, 0.066, 0.02); ir.position.z = 0.04; eg.add(ir);
+        const pu = new THREE.Mesh(new RoundedBoxGeometry(0.075, 0.026, 0.01, 2, 0.006), dark); pu.position.z = 0.058; eg.add(pu);
+        const hl = sphere(white, 0.017); hl.position.set(-0.02 * s, 0.025, 0.062); eg.add(hl);
+        const lid = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, 0, Math.PI * 0.32), coatShade); lid.scale.set(0.082, 0.085, 0.058); lid.rotation.x = -0.25; eg.add(lid);
+        const ck = sphere(pink, 0.05, 0.03, 0.02); ck.position.set(0.12 * s, -0.08, 0.3); ck.rotation.y = 0.5 * s; head.add(ck);
+        // tai dài chĩa ngang hơi rủ, lòng hồng
+        const eargrp = new THREE.Group(); eargrp.position.set(0.19 * s, 0.1, -0.06); eargrp.rotation.set(0.1, 0.25 * s, -0.35 * s); head.add(eargrp);
+        const ear = sphere(coat, 0.17, 0.05, 0.075); ear.position.x = 0.12 * s; eargrp.add(ear);
+        const ei = sphere(earIn, 0.12, 0.02, 0.045); ei.position.set(0.12 * s, 0.015, 0.012); eargrp.add(ei);
+        // sừng: ống cong vút từ đỉnh đầu ra sau rồi chúc xuống, có vân
+        const curve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(0.07 * s, 0.2, 0.02), new THREE.Vector3(0.1 * s, 0.34, -0.06),
+            new THREE.Vector3(0.14 * s, 0.38, -0.22), new THREE.Vector3(0.17 * s, 0.28, -0.34)
+        ]);
+        const hn = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.035, 10, false), hornM); head.add(hn);
+        const cap = sphere(hornM, 0.035); cap.position.copy(curve.getPoint(1)); head.add(cap);
+        for (let k = 1; k <= 5; k++) {
+            const u = k / 6.5, ring = new THREE.Mesh(new THREE.TorusGeometry(0.037, 0.007, 6, 14), hornM);
+            ring.position.copy(curve.getPoint(u)); ring.lookAt(curve.getPoint(Math.min(1, u + 0.02)).applyMatrix4(new THREE.Matrix4())); head.add(ring);
+        }
+    });
+    // chỏm lông giữa 2 sừng
+    const tuft = sphere(coatShade, 0.07, 0.05, 0.08); tuft.position.set(0, 0.24, 0.05); head.add(tuft);
+
+    // ── vòng cổ đỏ + chuông vàng (Tết) ──
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.03, 12, 36), red); collar.position.set(0, 0.42, 0.36); collar.rotation.x = Math.PI / 2 - 0.55; f.add(collar);
+    const bell = sphere(gold, 0.055, 0.055, 0.055); bell.position.set(0, 0.29, 0.52); f.add(bell);
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.01, 0.02), dark); slot.position.set(0, 0.27, 0.575); f.add(slot);
     return shadowed(f);
 }
-// model vẽ tay thay thế (assets/manifest.json "frog": "frog.glb") — nạp 1 lần, mọi bàn sau dùng bản sao
-let frogModel = null;
-function loadFrogModel() {
-    const url = (window.__lcAssets || {}).frog;
-    if (!url || frogModel) return;
+// model vẽ tay thay thế (assets/manifest.json "goat": "goat.glb", hoặc "mascot") — nạp 1 lần, mọi bàn sau dùng bản sao
+let goatModel = null;
+function loadGoatModel() {
+    const A = window.__lcAssets || {}, url = A.goat || A.mascot;
+    if (!url || goatModel) return;
     import('three/addons/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load(url, (g) => {
         const m = g.scene;
         const box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3());
-        m.scale.setScalar(1.3 / Math.max(size.x, size.y, size.z));   // vừa khung ~1.3 đơn vị như bản dựng sẵn
+        m.scale.setScalar(1.35 / Math.max(size.x, size.y, size.z));   // vừa khung ~1.35 đơn vị như bản dựng sẵn
         const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()); m.position.sub(c);
-        const wrap = new THREE.Group(); wrap.add(m); frogModel = wrap;
+        const wrap = new THREE.Group(); wrap.add(m); goatModel = wrap;
     })).catch(() => {});
 }
-window.addEventListener('lc:assets', loadFrogModel);
-loadFrogModel();
+window.addEventListener('lc:assets', loadGoatModel);
+loadGoatModel();
+
+// ⛰️ MỎM ĐÁ NÚI (trò 🐐 Dê Núi): khối đá nhiều mặt vát góc cạnh (low-poly, đổ bóng phẳng), màu đá xám nâu loang theo mặt,
+// thu nhỏ dần lên đỉnh, đỉnh bằng có hang tối cho dê núi bật ra. Hốc có số nằm áp đúng mặt vát (dò bằng tia chiếu).
+const ROCK_H = 2.95;
+function rockProfile(y) {   // bán kính trung bình theo độ cao: chân núi loe, lưng núi phình, đỉnh thu nhỏ
+    const t = clamp(y / ROCK_H, 0, 1);
+    return 1.85 - 0.5 * t - 0.55 * t * t * t;
+}
+function buildRock() {
+    let geo = new THREE.IcosahedronGeometry(1, 2);   // ít mặt hơn → mặt vát to, góc cạnh rõ
+    const pos = geo.attributes.position, v = new THREE.Vector3();
+    const seen = new Map();   // cùng 1 đỉnh (trùng toạ độ) → cùng độ lồi lõm, không nứt mặt
+    for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+        const key = v.x.toFixed(3) + ',' + v.y.toFixed(3) + ',' + v.z.toFixed(3);
+        let out = seen.get(key);
+        if (!out) {
+            const y = (v.y * 0.5 + 0.5) * ROCK_H * 1.08;
+            const h = hash(Math.round((v.x + 2) * 97) * 7 + Math.round((v.y + 2) * 89) * 13 + Math.round((v.z + 2) * 83) * 31);
+            const flat = Math.hypot(v.x, v.z) || 1;
+            let r = rockProfile(y) * (0.74 + 0.48 * h);
+            let yy = y + (h - 0.5) * 0.34;
+            if (yy > ROCK_H) { yy = ROCK_H + (h - 0.5) * 0.05; r = Math.min(r, 0.95 + h * 0.15); }   // đỉnh bằng (miệng hang)
+            if (yy < 0) yy = 0;   // đáy phẳng chạm đất
+            out = [v.x / flat * r * Math.min(1, flat * 1.6), yy, v.z / flat * r * Math.min(1, flat * 1.6)];
+            seen.set(key, out);
+        }
+        pos.setXYZ(i, out[0], out[1], out[2]);
+    }
+    geo = geo.toNonIndexed();
+    geo.computeVertexNormals();
+    // màu từng mặt: xám đá / nâu đất / xám lạnh xen kẽ, mặt hướng lên sáng hơn (rêu nhạt ở chân)
+    const cols = [], c = new THREE.Color(), n = new THREE.Vector3(), a = new THREE.Vector3(), b2 = new THREE.Vector3(), d = new THREE.Vector3();
+    const P = geo.attributes.position;
+    const tones = [0x5d5853, 0x6c655d, 0x4f4b47, 0x766b5c, 0x625a50, 0x585f63, 0x7a7268];   // đá xám nâu sẫm, xen xám lạnh
+    for (let i = 0; i < P.count; i += 3) {
+        a.fromBufferAttribute(P, i); b2.fromBufferAttribute(P, i + 1); d.fromBufferAttribute(P, i + 2);
+        n.subVectors(b2, a).cross(d.clone().sub(a)).normalize();
+        const cy = (a.y + b2.y + d.y) / 3;
+        c.setHex(tones[Math.floor(hash(i * 3 + 11) * tones.length)]);
+        if (n.y > 0.6) c.lerp(new THREE.Color(0x9a9282), 0.3);           // mặt ngửa: bạc nắng
+        if (cy < 0.35 && hash(i + 5) > 0.55) c.lerp(new THREE.Color(0x6f8a4a), 0.45);   // rêu xanh ở chân núi
+        for (let k = 0; k < 3; k++) cols.push(c.r, c.g, c.b);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92, metalness: 0.02 }));
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    return mesh;
+}
 
 const CC = {
     build(b) {
         const g = new THREE.Group();
-        const pts = JAR_PROFILE.map(([r, y]) => new THREE.Vector2(r, y));
-        const clay = std(0xffffff, { map: clayTex(), roughness: 0.78 });
-        const jar = new THREE.Mesh(new THREE.LatheGeometry(pts, 72), clay); g.add(jar);
-        const mouth = new THREE.Mesh(new THREE.CircleGeometry(0.84, 48), std(0x1e0d04, { roughness: 1 })); mouth.rotation.x = -Math.PI / 2; mouth.position.y = 2.94; g.add(mouth);
+        // ⛰️ mỏm đá núi góc cạnh (tên biến 'jar' giữ cho phần rung/lắc dùng chung)
+        const jar = buildRock(); g.add(jar); jar.updateMatrixWorld(true);
+        const cave = new THREE.Mesh(new THREE.CircleGeometry(0.62, 9), std(0x15110d, { roughness: 1 })); cave.rotation.x = -Math.PI / 2; cave.position.y = ROCK_H + 0.05; g.add(cave);   // miệng hang trên đỉnh
+        // đá vụn + cỏ núi quanh chân
+        const pebM = new THREE.MeshStandardMaterial({ color: 0x8a837a, flatShading: true, roughness: 0.95 }), grass = std(0x6f9a3c, { roughness: 0.8 });
+        for (let i = 0; i < 9; i++) {
+            const an = Math.PI * 0.55 + (i / 9) * Math.PI * 1.9 + hash(i + 40) * 0.3, rr = 2.0 + hash(i + 50) * 0.5, sz = 0.12 + hash(i + 60) * 0.2;
+            const pb = new THREE.Mesh(new THREE.DodecahedronGeometry(sz, 0), pebM); pb.position.set(Math.sin(an) * rr, sz * 0.5, Math.cos(an) * rr); pb.rotation.set(hash(i) * 3, hash(i + 1) * 3, 0); pb.castShadow = pb.receiveShadow = true; g.add(pb);
+        }
+        for (let i = 0; i < 6; i++) {
+            const an = (i / 6) * Math.PI * 2 + 0.4, rr = 1.75 + hash(i + 70) * 0.25;
+            for (let j = 0; j < 3; j++) { const bl = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.24 + hash(i * 3 + j) * 0.14, 5), grass); bl.position.set(Math.sin(an) * rr + (j - 1) * 0.05, 0.12, Math.cos(an) * rr); bl.rotation.z = (j - 1) * 0.35; g.add(bl); }
+        }
+        const rc = new THREE.Raycaster();
         // lỗ: các hàng ở nửa trước, mỗi lỗ = đĩa tối có số + vành đất sáng
         const rows = b.n <= 10 ? 2 : b.n <= 18 ? 3 : b.n <= 24 ? 4 : 5;
         const per = Math.ceil(b.n / rows);
         const holes = [];
-        const rim = std(0xe0a46c, { roughness: 0.7 });
+        const rim = new THREE.MeshStandardMaterial({ color: 0x5f5850, flatShading: true, roughness: 0.85 });
         let k = 0;
         for (let r = 0; r < rows; r++) {
             const y = rows === 1 ? 1.3 : 2.05 - (1.45 * r) / (rows - 1);
@@ -484,22 +547,24 @@ const CC = {
             const spread = Math.min(1.25, 0.24 * (cnt - 1) + 0.1);
             for (let i = 0; i < cnt; i++, k++) {
                 const th = cnt === 1 ? 0 : -spread + (2 * spread * i) / (cnt - 1);
-                // pháp tuyến theo đúng độ cong thân chum (dr/dy) → đĩa lỗ áp sát mặt, không chìm nửa vào trong
-                const slope = (jarRadius(y + 0.05) - jarRadius(y - 0.05)) / 0.1;
-                const normal = new THREE.Vector3(Math.sin(th), -slope, Math.cos(th)).normalize();
-                const rad = jarRadius(y);
-                const pos = new THREE.Vector3(rad * Math.sin(th), y, rad * Math.cos(th)).addScaledVector(normal, 0.035);
+                // dò tia từ ngoài vào trục núi → điểm chạm + pháp tuyến đúng MẶT VÁT đá → hốc áp sát mặt đá
+                rc.set(new THREE.Vector3(6 * Math.sin(th), y, 6 * Math.cos(th)), new THREE.Vector3(-Math.sin(th), 0, -Math.cos(th)));
+                const hit = rc.intersectObject(jar, false)[0];
+                const normal = hit ? hit.face.normal.clone().normalize() : new THREE.Vector3(Math.sin(th), 0.2, Math.cos(th)).normalize();
+                if (normal.dot(new THREE.Vector3(Math.sin(th), 0, Math.cos(th))) < 0.35) normal.lerp(new THREE.Vector3(Math.sin(th), 0.15, Math.cos(th)), 0.5).normalize();   // mặt quá xiên → nghiêng về phía người xem cho dễ đọc số
+                const base = hit ? hit.point : new THREE.Vector3(rockProfile(y) * Math.sin(th), y, rockProfile(y) * Math.cos(th));
+                const pos = base.clone().addScaledVector(normal, 0.04);
                 const hole = new THREE.Group(); hole.position.copy(pos); hole.lookAt(pos.clone().add(normal));
                 const size = b.n > 20 ? 0.15 : 0.18;
-                const disc = decal(numberTex(k + 1, '#ffe2b8', '#1f0d04'), size * 2, size * 2); disc.material.depthWrite = true;
+                const disc = decal(numberTex(k + 1, '#fff1d6', '#17110c'), size * 2, size * 2); disc.material.depthWrite = true;
                 const ring = new THREE.Mesh(new THREE.TorusGeometry(size, 0.035, 10, 32), rim); ring.castShadow = true;
                 hole.add(disc, ring); g.add(hole);
                 holes.push({ n: k + 1, g: hole, disc, normal, stick: null, size });
             }
         }
-        const frog = makeFrog(); frog.position.set(0, 2.3, 0); frog.visible = false; frog.scale.setScalar(0.85); g.add(frog);
+        const mascot = makeGoat(); mascot.position.set(0, 2.3, 0); mascot.visible = false; mascot.scale.setScalar(0.85); g.add(mascot);   // 🐐 dê con năm Đinh Mùi
         jar.castShadow = true; jar.receiveShadow = true;
-        return { g, holes, frog, jar };
+        return { g, holes, mascot, jar };
     },
     apply(st, b, prev, animate) {
         const used = new Set(b.used);
@@ -517,22 +582,22 @@ const CC = {
             }
             if (b.trap === h.n) h.disc.material = new THREE.MeshBasicMaterial({ map: numberTex(h.n, '#ffffff', '#e23b3b'), transparent: true, toneMapped: false });
         }
-        if (b.sprung && !st.frog.visible) {
-            st.frog.visible = true;
+        if (b.sprung && !st.mascot.visible) {
+            st.mascot.visible = true;
             if (animate) {
-                sfx('boing');
+                sfx('boing'); sfx('bleat', { delay: 0.5 });
                 tween(1300, k => {
                     const y = 2.3 + Math.sin(Math.min(1, k * 1.25) * Math.PI) * 1.6 + (k > 0.8 ? 0 : 0) + 0.85 * ease.out(k);
-                    st.frog.position.set(0, k < 0.8 ? y : 3.4, 0.2 * k);
-                    st.frog.rotation.set(-0.3 * Math.sin(k * Math.PI), Math.PI * 2 * ease.out(Math.min(1, k * 1.2)), 0);
-                    const s = 0.85 + 0.25 * Math.sin(k * Math.PI);
-                    st.frog.scale.set(s, s * (k > 0.78 && k < 0.9 ? 0.8 : 1), s);
-                }, (k) => k, () => { st.frog.position.set(0, 3.38, 0.15); st.frog.rotation.set(0, 0, 0); st.frog.scale.setScalar(0.95); });
+                    st.mascot.position.set(0, k < 0.8 ? y : 3.4, 0.2 * k);
+                    st.mascot.rotation.set(-0.3 * Math.sin(k * Math.PI), Math.PI * 2 * ease.out(Math.min(1, k * 1.2)) + GOAT_TURN * k, 0);
+                    const s = 1.05 + 0.25 * Math.sin(k * Math.PI);
+                    st.mascot.scale.set(s, s * (k > 0.78 && k < 0.9 ? 0.8 : 1), s);
+                }, (k) => k, () => { st.mascot.position.set(0, 3.38, 0.15); st.mascot.rotation.set(0, GOAT_TURN, 0); st.mascot.scale.setScalar(1.15); });
                 shake(st.jar, 0.06, 500);
-            } else { st.frog.position.set(0, 3.38, 0.15); st.frog.scale.setScalar(0.95); }
+            } else { st.mascot.position.set(0, 3.38, 0.15); st.mascot.rotation.set(0, GOAT_TURN, 0); st.mascot.scale.setScalar(1.15); }
         }
     },
-    camera() { frameCamera(new THREE.Vector3(0, 4.3, 8.2), new THREE.Vector3(0, 1.72, 0), 30); },
+    camera() { frameCamera(new THREE.Vector3(0, 4.7, 10.6), new THREE.Vector3(0, 2.0, 0), 30); },   // đủ cả chân núi (đá vụn, cỏ) lẫn dê núi đứng trên đỉnh (cả sừng)
     anchors(st) { return st.holes.map(h => ({ n: h.n, obj: h.g, offset: new THREE.Vector3(0, 0, 0.02) })); }
 };
 

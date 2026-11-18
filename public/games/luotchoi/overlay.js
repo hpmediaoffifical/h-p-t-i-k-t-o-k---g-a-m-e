@@ -14,10 +14,10 @@
     var $ = function (id) { return document.getElementById(id); };
     var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
     var COLORS = ['#ff6b8b', '#4fb3ff', '#ffb547', '#39d98a', '#b388ff', '#ff8a4c'];
-    var TRAP_WORD = { hama: '🦛 NGOẠM!', chumcoc: '🐸 CÓC NHẢY RA!', thaptre: '🎋 THÁP ĐỔ!' };
-    var SAVE_WORD = { hama: 'rụt tay kịp', chumcoc: 'giữ được nắp chum', thaptre: 'đỡ được tháp' };
-    var TRAP_SAY = { hama: '{n} bị hà mã cắn rồi!', chumcoc: 'Cóc nhảy ra! {n} dính bẫy!', thaptre: 'Tháp đổ! {n} thua rồi!' };
-    var VERB = { hama: 'ấn răng', chumcoc: 'cắm lỗ', thaptre: 'rút thanh', latcap: 'lật ô', oanquan: 'bốc quân' };
+    var TRAP_WORD = { hama: '🦛 NGOẠM!', chumcoc: '🐐 DÊ NÚI NHẢY RA!', thaptre: '🎋 THÁP ĐỔ!' };
+    var SAVE_WORD = { hama: 'rụt tay kịp', chumcoc: 'bám được vách đá', thaptre: 'đỡ được tháp' };
+    var TRAP_SAY = { hama: '{n} bị hà mã cắn rồi!', chumcoc: 'Dê núi nhảy ra! {n} dính bẫy!', thaptre: 'Tháp đổ! {n} thua rồi!' };
+    var VERB = { hama: 'ấn răng', chumcoc: 'cắm hốc', thaptre: 'rút thanh', latcap: 'lật ô', oanquan: 'bốc quân' };
     var DIR = { 1: 'sang trái', 2: 'sang phải' };
     var TOOL = { hama: 'press', chumcoc: 'stick', thaptre: 'pull', latcap: 'tap', oanquan: 'press' };
     var SUSPENSE_MS = 800;   // = lib/luot-choi/table.js SUSPENSE_MS
@@ -371,7 +371,7 @@
 
     // ?sfxtest=1 → bảng nút nghe thử từng tiếng hiệu ứng (bấm = mở khoá âm thanh của trình duyệt)
     if (params.get('sfxtest') === '1' && window.LcSfx) {
-        var LBL = { press: '👆 Ấn răng', stick: '🎋 Cắm que', pull: '🪵 Rút thanh', chomp: '🦛 Ngoạm', boing: '🐸 Cóc bật', clatter: '💥 Tháp đổ', flip: '🃏 Lật thẻ', match: '✨ Trúng cặp', miss: '😕 Trật', pebble: '🪨 Sỏi rơi', take: '✊ Bốc sỏi', capture: '💰 Ăn quân', quan: '👑 Ăn quan', shield: '🛡️ Khiên', trash: '🗑️ Thùng rác', seat: '🪑 Vào ghế', start: '🎲 Bắt đầu', turn: '🔔 Tới lượt', tick: '⏱️ Đếm giây', win: '🏆 Vô địch', draw: '🤝 Hoà' };
+        var LBL = { press: '👆 Ấn răng', stick: '🎋 Cắm que', pull: '🪵 Rút thanh', chomp: '🦛 Ngoạm', boing: '🐐 Dê bật', bleat: '🐐 Dê kêu', clatter: '💥 Tháp đổ', flip: '🃏 Lật thẻ', match: '✨ Trúng cặp', miss: '😕 Trật', pebble: '🪨 Sỏi rơi', take: '✊ Bốc sỏi', capture: '💰 Ăn quân', quan: '👑 Ăn quan', shield: '🛡️ Khiên', trash: '🗑️ Thùng rác', seat: '🪑 Vào ghế', start: '🎲 Bắt đầu', turn: '🔔 Tới lượt', tick: '⏱️ Đếm giây', win: '🏆 Vô địch', draw: '🤝 Hoà' };
         var pad = document.createElement('div');
         pad.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:99;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px;border-radius:18px;background:rgba(12,14,30,.92);font:700 26px system-ui;color:#fff';
         Object.keys(LBL).forEach(function (k) { var b = document.createElement('button'); b.textContent = LBL[k]; b.style.cssText = 'padding:14px 6px;border-radius:12px;border:0;background:#2b2f55;color:#fff;font:inherit;cursor:pointer'; b.onclick = function () { window.LcSfx.config({ on: true, volume: 0.8 }); window.LcSfx.unlock(); window.LcSfx.play(k); }; pad.appendChild(b); });

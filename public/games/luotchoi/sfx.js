@@ -101,7 +101,7 @@
             knock(t + 0.14, 520, 0.6); knock(t + 0.19, 460, 0.45);
             tone(t + 0.15, 'square', 90, 60, 0.12, 0.002, 0.12);
         },
-        // cóc bật khỏi chum: "bốp" nút chai + lò xo "boing" có rung
+        // dê bật khỏi chum: "bốp" nút chai + lò xo "boing" có rung
         boing: function (t) {
             noise(t, 'bandpass', 1800, 900, 1.5, 0.6, 0.001, 0.05);
             tone(t, 'sine', 700, 700, 0.3, 0.001, 0.05);
@@ -111,8 +111,18 @@
             lfo.connect(lg); lg.connect(o.frequency);
             env(g, t + 0.04, 0.5, 0.01, 0.66); o.connect(g); out(g);
             o.start(t + 0.04); o.stop(t + 0.8); lfo.start(t + 0.04); lfo.stop(t + 0.8);
-            // tiếng "ộp" cóc kêu
-            tone(t + 0.55, 'sawtooth', 140, 110, 0.12, 0.01, 0.14); tone(t + 0.72, 'sawtooth', 150, 115, 0.1, 0.01, 0.12);
+        },
+        // dê con kêu "be-e-e": dây thanh (răng cưa) rung nhanh qua 2 vùng cộng hưởng giọng (formant), cao độ trượt nhẹ xuống
+        bleat: function (t) {
+            var o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), am = ctx.createGain(), ag = ctx.createGain();
+            o.type = 'sawtooth'; o.frequency.setValueAtTime(rnd(560, 600), t); o.frequency.linearRampToValueAtTime(rnd(500, 530), t + 0.62);
+            lfo.frequency.value = 9; lg.gain.value = 26; lfo.connect(lg); lg.connect(o.frequency);   // run giọng
+            var trem = ctx.createOscillator(); trem.frequency.value = 9; ag.gain.value = 0.35; trem.connect(ag); ag.connect(am.gain); am.gain.value = 0.65;
+            var f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(), g = ctx.createGain(), mix = ctx.createGain();
+            f1.type = 'bandpass'; f1.frequency.value = 1050; f1.Q.value = 5; f2.type = 'bandpass'; f2.frequency.value = 2600; f2.Q.value = 7;
+            g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.9, t + 0.05); g.gain.setValueAtTime(0.9, t + 0.45); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+            o.connect(am); am.connect(f1); am.connect(f2); f1.connect(mix); f2.connect(mix); mix.connect(g); out(g);
+            [o, lfo, trem].forEach(function (x) { x.start(t); x.stop(t + 0.75); });
         },
         // tháp đổ: rắc → hàng loạt thanh gỗ rơi lộp cộp, thưa dần + tiếng ầm nền
         clatter: function (t) {
