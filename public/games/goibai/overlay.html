@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>🎧 Gọi Bài — overlay</title>
+<meta name="viewport" content="width=1080, initial-scale=1">
+<script src="/i18n/hp-i18n.js" data-scope="overlay"></script>
+<!--
+  🎧 Gọi Bài — overlay OBS 1080×1920 nền trong suốt. Giao diện 2.5D (18/11/2026): đầu đĩa than xoay + ánh phản chiếu,
+  thẻ "phiến" có cạnh dày, vé hoà nhạc, Đấu Bài 2 đĩa đối mặt. CHỈ CSS + SVG nội tuyến (không thư viện, không ảnh ngoài).
+  Hiệu năng OBS: mọi chuyển động chỉ transform/opacity; bóng/đổ bóng tĩnh; xoay đĩa dừng hẳn khi tạm dừng.
+  ?demo=1 dữ liệu giả · ?view=duel chỉ thẻ trận · ?bg=1 nền tối để xem thử (không dùng trong OBS).
+-->
+<style>
+  @font-face { font-family: 'SoFont'; font-weight: 500; src: url('/fonts/be-vietnam-pro/be-vietnam-pro-500-vietnamese.woff2') format('woff2'), url('/fonts/be-vietnam-pro/be-vietnam-pro-500-latin.woff2') format('woff2'); }
+  @font-face { font-family: 'SoFont'; font-weight: 700; src: url('/fonts/be-vietnam-pro/be-vietnam-pro-600-vietnamese.woff2') format('woff2'), url('/fonts/be-vietnam-pro/be-vietnam-pro-600-latin.woff2') format('woff2'); }
+  :root {
+    --gold: #ffd54a; --gold2: #ff9f2e; --pink: #ff4f8b; --blue: #4f9bff; --cyan: #5ee7ff;
+    --ink: #0b0c1d; --txt: #fff; --dim: rgba(225, 228, 255, .72);
+  }
+  html, body { margin: 0; width: 1080px; height: 1920px; background: transparent; overflow: hidden; }
+  body { font-family: 'SoFont', 'Be Vietnam Pro', system-ui, sans-serif; color: var(--txt); }
+  body.gob-bgdemo { background: radial-gradient(120% 80% at 70% 30%, #3a3f63, #12142a 60%, #07080f); }
+  .gob-hidden { display: none !important; }
+
+  /* Bảng: đặt nghiêng nhẹ trong không gian 3D — cảm giác "đứng" trong khung hình chứ không dán phẳng */
+  .gob-stage { position: absolute; left: 40px; top: 150px; width: 700px; perspective: 1700px; }
+  .gob-board { display: flex; flex-direction: column; gap: 18px; transform: rotateY(7deg) rotateX(2deg); transform-origin: 0 40%; transform-style: preserve-3d; }
+
+  /* ── Thẻ "phiến": mặt kính tối + viền sáng mặt trên + cạnh dày phía dưới + bóng đổ ── */
+  .gob-card {
+    position: relative; border-radius: 28px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.13), rgba(255,255,255,0) 38%),
+      linear-gradient(155deg, rgba(58,50,112,.94), rgba(22,20,52,.95) 52%, rgba(11,11,30,.97));
+    box-shadow:
+      inset 0 1.5px 0 rgba(255,255,255,.28), inset 0 0 0 1px rgba(255,255,255,.08), inset 0 -2px 0 rgba(0,0,0,.35),
+      0 7px 0 #07071a, 0 8px 0 rgba(255,255,255,.06), 0 22px 44px rgba(0,0,0,.5);
+    animation: gobRise .45s cubic-bezier(.2,.9,.3,1.2) both;
+  }
+  .gob-card.gold { box-shadow: inset 0 1.5px 0 rgba(255,236,170,.55), inset 0 0 0 1.5px rgba(255,213,74,.38), inset 0 -2px 0 rgba(0,0,0,.35),
+      0 7px 0 #1b1205, 0 8px 0 rgba(255,213,74,.18), 0 22px 44px rgba(0,0,0,.5), 0 0 40px rgba(255,190,60,.18); }
+  @keyframes gobRise { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
+
+  .gob-coin { display: inline-block; width: 26px; height: 26px; vertical-align: -6px; filter: drop-shadow(0 2px 2px rgba(0,0,0,.45)); }
+  .gob-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 12px 3px 6px; border-radius: 99px; font-weight: 700; font-size: 22px;
+    background: linear-gradient(180deg, rgba(255,213,74,.28), rgba(255,159,46,.14)); box-shadow: inset 0 1px 0 rgba(255,255,255,.25), inset 0 0 0 1px rgba(255,213,74,.35); color: #ffe7a0; }
+  .gob-ini { display: grid; place-items: center; border-radius: 50%; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.5);
+    background: radial-gradient(circle at 32% 28%, hsl(var(--h) 90% 72%), hsl(var(--h) 70% 42%) 70%); box-shadow: inset 0 -3px 6px rgba(0,0,0,.3), 0 2px 6px rgba(0,0,0,.4); }
+
+  /* ── Đĩa than: rãnh đĩa + nhãn = ảnh bìa; ánh phản chiếu NẰM YÊN (đĩa quay dưới nó) ── */
+  .gob-vinyl { position: relative; border-radius: 50%; flex: none; }
+  .gob-disc { position: absolute; inset: 0; border-radius: 50%;
+    background:
+      radial-gradient(circle, #0c0c10 0 3.5%, transparent 4%),
+      radial-gradient(circle, transparent 0 33%, rgba(0,0,0,.65) 33.5% 35%, transparent 35.5%),
+      repeating-radial-gradient(circle, #17171d 0 1.6px, #0a0a0e 1.6px 3.4px);
+    box-shadow: 0 0 0 3px #26262f, 0 0 0 4px rgba(255,255,255,.08), 0 14px 26px rgba(0,0,0,.6);
+    animation: gobSpin 2.2s linear infinite; will-change: transform; }
+  .gob-disc img, .gob-disc .gob-lbl { position: absolute; left: 50%; top: 50%; width: 66%; height: 66%; margin: -33% 0 0 -33%; border-radius: 50%; object-fit: cover; background: #2a2d52; }
+  .gob-disc img { -webkit-mask: radial-gradient(circle, transparent 0 6%, #000 6.5%); mask: radial-gradient(circle, transparent 0 6%, #000 6.5%); }
+  .gob-disc .gob-lbl { display: grid; place-items: center; font-size: 30px; background: radial-gradient(circle, #ff8ab2, #c03a6e 70%); }
+  .gob-sheen { position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    background: conic-gradient(from 20deg, transparent 0 8%, rgba(255,255,255,.22) 12%, transparent 18% 50%, rgba(255,255,255,.14) 60%, transparent 66%);
+    -webkit-mask: radial-gradient(circle, transparent 0 32%, #000 33%); mask: radial-gradient(circle, transparent 0 32%, #000 33%); }
+  @keyframes gobSpin { to { transform: rotate(360deg); } }
+  body.gob-is-paused .gob-disc, body.gob-is-paused .gob-eq i { animation-play-state: paused; }
+
+  /* ── Đang phát: đầu đĩa ── */
+  .gob-now { display: grid; grid-template-columns: 250px 1fr; gap: 6px 18px; padding: 20px 22px 18px 18px; }
+  .gob-deck { position: relative; height: 186px; perspective: 600px; }
+  .gob-sleeve { position: absolute; left: 0; top: 4px; width: 172px; height: 172px; border-radius: 14px; object-fit: cover; background: linear-gradient(135deg, #3b3f75, #1b1d3a);
+    transform: rotateY(18deg) rotateZ(-3deg); transform-origin: left center;
+    box-shadow: 6px 10px 22px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.18); z-index: 2; }
+  .gob-sleeve-gloss { position: absolute; left: 0; top: 4px; width: 172px; height: 172px; border-radius: 14px; z-index: 3; pointer-events: none;
+    transform: rotateY(18deg) rotateZ(-3deg); transform-origin: left center;
+    background: linear-gradient(120deg, rgba(255,255,255,.32), rgba(255,255,255,0) 34%, rgba(255,255,255,0) 70%, rgba(255,255,255,.1)); }
+  .gob-deck .gob-vinyl { position: absolute; left: 74px; top: 0; width: 180px; height: 180px; z-index: 1; }
+  .gob-arm { position: absolute; left: 196px; top: -14px; width: 64px; height: 128px; z-index: 4; transform-origin: 46px 16px; transition: transform .6s ease; filter: drop-shadow(2px 4px 3px rgba(0,0,0,.55)); }
+  body.gob-is-paused .gob-arm { transform: rotate(-22deg); }
+  .gob-info { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+  .gob-tagrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .gob-live { display: inline-flex; align-items: center; gap: 8px; padding: 4px 14px 4px 10px; border-radius: 99px; font-size: 19px; font-weight: 700; letter-spacing: 1px; color: #1d1300;
+    background: linear-gradient(180deg, #ffe58a, #ffb83a); box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 3px 0 #9a5a08, 0 6px 14px rgba(255,170,40,.35); }
+  body.gob-is-paused .gob-live { background: linear-gradient(180deg, #c9d3ff, #8fa2ff); box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 3px 0 #3c4aa0; }
+  .gob-eq { display: inline-flex; align-items: flex-end; gap: 3px; height: 20px; }
+  .gob-eq i { width: 4px; height: 100%; border-radius: 2px; background: currentColor; transform-origin: bottom; animation: gobEq .9s ease-in-out infinite; }
+  .gob-eq i:nth-child(2) { animation-delay: -.3s; animation-duration: .7s; } .gob-eq i:nth-child(3) { animation-delay: -.55s; animation-duration: 1.1s; }
+  .gob-eq i:nth-child(4) { animation-delay: -.15s; animation-duration: .8s; }
+  @keyframes gobEq { 0%, 100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
+  .gob-clip { padding: 4px 12px; border-radius: 99px; font-size: 19px; font-weight: 700; color: #ffe27a; background: rgba(255,200,60,.14); box-shadow: inset 0 0 0 1px rgba(255,213,74,.45); }
+  .gob-now-title { font-size: 38px; font-weight: 700; line-height: 1.12; text-shadow: 0 2px 10px rgba(0,0,0,.45); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .gob-by { display: flex; align-items: center; gap: 10px; font-size: 23px; color: var(--dim); min-width: 0; }
+  .gob-by .gob-av, .gob-by .gob-ini { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex: none; font-size: 17px; box-shadow: 0 0 0 2px rgba(255,255,255,.25); }
+  .gob-by .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .gob-prog { grid-column: 1 / -1; display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; font-size: 19px; color: var(--dim); font-variant-numeric: tabular-nums; margin-top: 6px; }
+  .gob-track { position: relative; height: 12px; border-radius: 8px; background: rgba(0,0,0,.45); box-shadow: inset 0 2px 3px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.1); }
+  .gob-track i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 8px; background: linear-gradient(90deg, var(--gold), var(--pink)); box-shadow: 0 0 14px rgba(255,90,140,.6); }
+  .gob-track b { position: absolute; top: 50%; left: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, #ffc2d7 60%, #ff4f8b); box-shadow: 0 0 12px rgba(255,120,170,.9), 0 2px 4px rgba(0,0,0,.5); }
+
+  /* ── Vé gọi bài: hình vé hoà nhạc, cuống xé có vòng đếm ngược ── */
+  .gob-tk-wrap { filter: drop-shadow(0 7px 0 #1a0820) drop-shadow(0 16px 22px rgba(0,0,0,.45)); animation: gobRise .45s cubic-bezier(.2,.9,.3,1.2) both; }
+  .gob-ticket { display: grid; grid-template-columns: 1fr 108px; align-items: center; min-height: 104px; border-radius: 22px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 45%),
+      radial-gradient(120% 140% at 0% 0%, #ff6aa5, #b0287a 45%, #4b1263 100%);
+    -webkit-mask: radial-gradient(circle at calc(100% - 108px) 0, transparent 14px, #000 14.5px) top / 100% 51% no-repeat,
+                  radial-gradient(circle at calc(100% - 108px) 100%, transparent 14px, #000 14.5px) bottom / 100% 51% no-repeat;
+            mask: radial-gradient(circle at calc(100% - 108px) 0, transparent 14px, #000 14.5px) top / 100% 51% no-repeat,
+                  radial-gradient(circle at calc(100% - 108px) 100%, transparent 14px, #000 14.5px) bottom / 100% 51% no-repeat; }
+  .gob-ticket.warn { background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 45%), radial-gradient(120% 140% at 0% 0%, #ffb15a, #c0542a 50%, #5a1a24); }
+  .gob-tk-main { display: flex; align-items: center; gap: 16px; padding: 14px 18px; min-width: 0; border-right: 3px dashed rgba(255,255,255,.4); }
+  .gob-tk-main .gob-av, .gob-tk-main .gob-ini { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; flex: none; font-size: 28px; box-shadow: 0 0 0 3px rgba(255,255,255,.7), 0 4px 10px rgba(0,0,0,.35); }
+  .gob-tk-tx { min-width: 0; font-size: 26px; line-height: 1.22; }
+  .gob-tk-tx b { color: #fff3b8; }
+  .gob-tk-tx .who { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gob-tk-tx small { display: block; font-size: 21px; color: rgba(255,255,255,.88); }
+  .gob-tk-tx small.warn { color: #fff0c4; font-weight: 700; }
+  .gob-cd { position: relative; width: 72px; height: 72px; justify-self: center; }
+  .gob-cd svg { transform: rotate(-90deg); }
+  .gob-cd b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 28px; text-shadow: 0 2px 4px rgba(0,0,0,.4); }
+
+  /* ── Hàng chờ ── */
+  .gob-list { padding: 14px 16px 10px; }
+  .gob-head { display: flex; justify-content: space-between; align-items: center; padding: 0 6px 8px; font-size: 21px; letter-spacing: 1px; color: var(--dim); font-weight: 700; }
+  .gob-head .n { font-size: 19px; padding: 2px 12px; border-radius: 99px; background: rgba(255,255,255,.08); letter-spacing: 0; }
+  .gob-row { display: grid; grid-template-columns: 56px 64px 1fr auto; gap: 14px; align-items: center; padding: 9px 10px; margin-top: 8px; border-radius: 18px;
+    background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.02)); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 3px 0 rgba(0,0,0,.35); }
+  .gob-rank { position: relative; width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; font-weight: 700; color: #2a1a00;
+    background: radial-gradient(circle at 35% 28%, #fff4c2, #ffd54a 45%, #b9790f 100%); box-shadow: inset 0 -3px 4px rgba(0,0,0,.25), inset 0 2px 2px rgba(255,255,255,.7), 0 3px 0 #6d4605, 0 6px 10px rgba(0,0,0,.35); }
+  .gob-rank.r2 { color: #1d2230; background: radial-gradient(circle at 35% 28%, #ffffff, #cfd7e6 45%, #7d879c 100%); box-shadow: inset 0 -3px 4px rgba(0,0,0,.2), inset 0 2px 2px #fff, 0 3px 0 #4a5264, 0 6px 10px rgba(0,0,0,.35); }
+  .gob-rank.r3 { color: #2a1206; background: radial-gradient(circle at 35% 28%, #ffd9b8, #e09358 45%, #8a4a1c 100%); box-shadow: inset 0 -3px 4px rgba(0,0,0,.25), inset 0 2px 2px rgba(255,255,255,.6), 0 3px 0 #5a2c0c, 0 6px 10px rgba(0,0,0,.35); }
+  .gob-rank.rn { color: #fff; background: radial-gradient(circle at 35% 28%, #7f86c9, #3a3f7a 60%, #20234a); box-shadow: inset 0 -3px 4px rgba(0,0,0,.3), inset 0 1px 1px rgba(255,255,255,.4), 0 3px 0 #11132b; }
+  .gob-rank .lk { position: absolute; right: -6px; bottom: -4px; font-size: 18px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.6)); }
+  .gob-thumb { position: relative; width: 64px; height: 64px; }
+  .gob-thumb img, .gob-thumb .gob-ini { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; font-size: 26px; box-shadow: 0 4px 10px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.15); }
+  .gob-thumb .av { position: absolute; right: -6px; bottom: -6px; width: 28px; height: 28px; border-radius: 50%; object-fit: cover; font-size: 13px; box-shadow: 0 0 0 2px #1a1838; }
+  .gob-row .t { min-width: 0; }
+  .gob-row .t b { display: block; font-size: 26px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gob-row .t span { display: block; font-size: 19px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gob-row.searching .t b { color: rgba(255,255,255,.7); font-style: italic; animation: gobPulse 1.4s ease-in-out infinite; }
+  .gob-row.sunk { opacity: .72; }
+  @keyframes gobPulse { 50% { opacity: .45; } }
+  .gob-more { text-align: center; font-size: 20px; color: var(--dim); padding: 10px 0 4px; }
+  .gob-idle { display: flex; align-items: center; gap: 18px; padding: 16px 22px; font-size: 26px; font-weight: 700; }
+  .gob-idle .gob-vinyl { width: 84px; height: 84px; }
+  .gob-idle .gob-disc { animation-duration: 6s; }
+  .gob-idle img.g { width: 56px; height: 56px; object-fit: contain; vertical-align: middle; filter: drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
+
+  /* ── ⚔️ Đấu Bài: 2 đĩa đối mặt ── */
+  .gob-duel { padding: 18px 20px 16px; overflow: hidden; }
+  .gob-duel::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: radial-gradient(60% 70% at 0% 50%, rgba(255,79,139,.22), transparent 70%), radial-gradient(60% 70% at 100% 50%, rgba(79,155,255,.22), transparent 70%); }
+  .gob-duel-h { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; }
+  .gob-duel-h .ttl { font-size: 26px; font-weight: 700; letter-spacing: 2px;
+    background: linear-gradient(180deg, #fff, #ffd27a 55%, #ff8a3a); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+  .gob-duel-h .sub { display: block; font-size: 18px; letter-spacing: 0; color: var(--dim); -webkit-text-fill-color: currentColor; }
+  .gob-duel-h .cd { min-width: 70px; text-align: center; padding: 4px 12px; border-radius: 14px; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums;
+    background: linear-gradient(180deg, #ff7a45, #d63a1e); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 3px 0 #6e1608, 0 6px 14px rgba(255,90,40,.4); }
+  .gob-vs { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 96px 1fr; align-items: start; margin-top: 12px; perspective: 900px; }
+  .gob-side { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; gap: 8px; }
+  .gob-side .gob-vinyl { width: 150px; height: 150px; }
+  .gob-side.a .gob-vinyl { transform: rotateY(24deg); }
+  .gob-side.b .gob-vinyl { transform: rotateY(-24deg); }
+  .gob-side.a .gob-disc { box-shadow: 0 0 0 3px #26262f, 0 0 0 6px rgba(255,79,139,.55), 0 0 30px rgba(255,79,139,.45), 0 14px 26px rgba(0,0,0,.6); }
+  .gob-side.b .gob-disc { box-shadow: 0 0 0 3px #26262f, 0 0 0 6px rgba(79,155,255,.6), 0 0 30px rgba(79,155,255,.45), 0 14px 26px rgba(0,0,0,.6); animation-direction: reverse; }
+  .gob-orb { position: absolute; top: -4px; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 26px; font-weight: 700; z-index: 2;
+    background: radial-gradient(circle at 35% 28%, #ffd0e0, var(--pink) 55%, #8a1240); box-shadow: inset 0 -3px 5px rgba(0,0,0,.3), 0 3px 0 #5a0b2a, 0 6px 12px rgba(0,0,0,.45); }
+  .gob-side.a .gob-orb { left: -6px; }
+  .gob-side.b .gob-orb { right: -6px; background: radial-gradient(circle at 35% 28%, #d6e8ff, var(--blue) 55%, #123d8a); box-shadow: inset 0 -3px 5px rgba(0,0,0,.3), 0 3px 0 #0b2456, 0 6px 12px rgba(0,0,0,.45); }
+  .gob-side .tt { font-size: 24px; font-weight: 700; line-height: 1.18; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .gob-side .nm { font-size: 18px; color: var(--dim); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gob-vsx { align-self: center; margin-top: 30px; text-align: center; font-size: 52px; font-weight: 700; font-style: italic; letter-spacing: -2px;
+    background: linear-gradient(180deg, #fff 10%, #ffd36b 45%, #ff7b2e 80%); -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 3px 0 #5a1e05) drop-shadow(0 0 14px rgba(255,150,60,.6)); }
+  .gob-vsx small { display: block; font-size: 30px; font-style: normal; -webkit-text-fill-color: initial; filter: none; }
+  .gob-tug { position: relative; z-index: 1; height: 22px; margin: 16px 4px 0; border-radius: 12px; overflow: visible; background: rgba(0,0,0,.5); box-shadow: inset 0 2px 4px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.1); }
+  .gob-tug .a, .gob-tug .b { position: absolute; top: 0; bottom: 0; transition: width .45s cubic-bezier(.3,1.3,.5,1); }
+  .gob-tug .a { left: 0; border-radius: 12px 0 0 12px; background: linear-gradient(180deg, #ff93b8, var(--pink) 50%, #c22a63); box-shadow: 0 0 16px rgba(255,79,139,.6); }
+  .gob-tug .b { right: 0; border-radius: 0 12px 12px 0; background: linear-gradient(180deg, #a9cfff, var(--blue) 50%, #2560c9); box-shadow: 0 0 16px rgba(79,155,255,.6); }
+  .gob-tug .spark { position: absolute; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; transition: left .45s cubic-bezier(.3,1.3,.5,1);
+    background: radial-gradient(circle, #fff 0 22%, rgba(255,240,200,.8) 35%, rgba(255,200,120,0) 70%); animation: gobSpark .6s ease-in-out infinite alternate; }
+  @keyframes gobSpark { to { transform: scale(1.35); opacity: .75; } }
+  .gob-pts { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; font-size: 20px; color: var(--dim); }
+  .gob-pts b { font-size: 34px; color: #fff; margin-right: 6px; font-variant-numeric: tabular-nums; }
+  .gob-pts .a b { text-shadow: 0 0 14px rgba(255,79,139,.8); } .gob-pts .b b { text-shadow: 0 0 14px rgba(79,155,255,.8); }
+  .gob-pts .b { text-align: right; }
+  .gob-hint { position: relative; z-index: 1; display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 10px; font-size: 20px; color: var(--dim); }
+  .gob-hint kbd { font: inherit; font-weight: 700; color: #fff; min-width: 34px; padding: 1px 10px; border-radius: 10px; text-align: center; box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 3px 0 rgba(0,0,0,.45); }
+  .gob-hint kbd.a { background: linear-gradient(180deg, #ff7aa8, #d3346c); } .gob-hint kbd.b { background: linear-gradient(180deg, #7fb5ff, #2f6fd8); }
+  .gob-win { display: flex; align-items: center; gap: 18px; padding: 16px 22px; }
+  .gob-trophy { position: relative; width: 74px; height: 74px; flex: none; display: grid; place-items: center; font-size: 46px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,213,74,.45), rgba(255,213,74,0) 70%); }
+  .gob-trophy::before { content: ''; position: absolute; inset: -6px; border-radius: 50%; background: conic-gradient(from 0deg, transparent, rgba(255,230,140,.7), transparent 30%, transparent 50%, rgba(255,230,140,.6), transparent 80%); animation: gobSpin 3s linear infinite; z-index: -1; }
+  .gob-win .tx { min-width: 0; font-size: 25px; line-height: 1.25; }
+  .gob-win .tx b { color: var(--gold); display: block; font-size: 29px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gob-win small { display: block; font-size: 19px; color: var(--dim); }
+
+  body.gob-only-duel #now, body.gob-only-duel #tickets, body.gob-only-duel #list, body.gob-only-duel #idle { display: none !important; }
+</style>
+</head>
+<body>
+<div class="gob-stage"><div class="gob-board" id="board">
+  <div class="gob-card gold gob-now gob-hidden" id="now">
+    <div class="gob-deck">
+      <img class="gob-sleeve" id="now-sleeve" alt="">
+      <i class="gob-sleeve-gloss"></i>
+      <div class="gob-vinyl"><div class="gob-disc" id="now-disc"></div><i class="gob-sheen"></i></div>
+      <svg class="gob-arm" viewBox="0 0 64 128" aria-hidden="true">
+        <defs><linearGradient id="gobMetal" x1="0" x2="1"><stop offset="0" stop-color="#8b90a6"/><stop offset=".45" stop-color="#f4f6ff"/><stop offset="1" stop-color="#9aa0b8"/></linearGradient></defs>
+        <circle cx="46" cy="16" r="13" fill="url(#gobMetal)" stroke="#5c6178" stroke-width="2"/><circle cx="46" cy="16" r="5" fill="#3a3e52"/>
+        <path d="M46 16 L30 92 L18 104" fill="none" stroke="url(#gobMetal)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="6" y="98" width="20" height="13" rx="3" fill="#2b2f42" stroke="url(#gobMetal)" stroke-width="2" transform="rotate(-38 16 104)"/>
+      </svg>
+    </div>
+    <div class="gob-info">
+      <div class="gob-tagrow"><span class="gob-live"><span class="gob-eq"><i></i><i></i><i></i><i></i></span><span id="now-tag"></span></span><span class="gob-clip gob-hidden" id="now-clip"></span></div>
+      <div class="gob-now-title" id="now-title"></div>
+      <div class="gob-by" id="now-by"></div>
+    </div>
+    <div class="gob-prog"><span id="now-t0">0:00</span><div class="gob-track"><i id="now-bar"></i><b id="now-knob"></b></div><span id="now-t1">0:00</span></div>
+  </div>
+  <div class="gob-card gob-duel gob-hidden" id="duel"></div>
+  <div class="gob-card gold gob-win gob-hidden" id="duel-win"></div>
+  <div id="tickets" style="display:flex;flex-direction:column;gap:14px"></div>
+  <div class="gob-card gob-list gob-hidden" id="list"></div>
+  <div class="gob-card gob-idle gob-hidden" id="idle"></div>
+</div></div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/lib/overlay-hello.js" data-game="goibai"></script>
+<script>
+(function () {
+  'use strict';
+  var T = window.hpT || function (s, v) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return v && v[k] != null ? v[k] : m; }); };
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var COIN = '<img class="gob-coin" src="/coin.svg" alt="">';
+  var REASON = {
+    notfound: 'Không thấy bài — gõ tên khác', toolong: 'Bài quá dài — chọn bài khác', blocked: 'Tên bài không hợp lệ',
+    playing: 'Bài đang phát — chọn bài khác', error: 'Lỗi tìm bài — gõ lại', noengine: 'Đang chuẩn bị — gõ lại sau'
+  };
+  var st = null, offset = 0, recvAt = 0;
+
+  // Avatar: có ảnh thì ảnh (lỗi tải → chữ cái đầu), không có → chữ cái đầu trên nền màu theo tên (không để lỗ trống)
+  function hue(s) { var h = 0; s = String(s || ''); for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h; }
+  function initial(name) { var c = String(name || '?').trim().charAt(0); return c ? c.toUpperCase() : '?'; }
+  function ini(name, cls) { return '<span class="gob-ini ' + (cls || '') + '" style="--h:' + hue(name) + '">' + esc(initial(name)) + '</span>'; }
+  function avatar(url, name, cls) {
+    if (!url) return ini(name, cls);
+    return '<img class="gob-av ' + (cls || '') + '" src="' + esc(url) + '" alt="" data-n="' + esc(initial(name)) + '" data-h="' + hue(name) + '" onerror="window.__gobAvErr(this)">';
+  }
+  window.__gobAvErr = function (img) {
+    var s = document.createElement('span');
+    s.className = 'gob-ini ' + img.className.replace('gob-av', '');
+    s.style.setProperty('--h', img.getAttribute('data-h') || '200');
+    s.textContent = img.getAttribute('data-n') || '?';
+    img.replaceWith(s);
+  };
+  function vinyl(img, fallback) {
+    return '<div class="gob-vinyl"><div class="gob-disc">' + (img ? '<img src="' + esc(img) + '" alt="" onerror="this.remove()">' : '<span class="gob-lbl">' + (fallback || '🎵') + '</span>') + '</div><i class="gob-sheen"></i></div>';
+  }
+  function fmt(s) { s = Math.max(0, Math.floor(Number(s) || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+
+  var nowSig = '';
+  function render() {
+    if (!st) return;
+    $('board').style.display = st.enabled === false ? 'none' : '';   // game tắt → overlay trống trơn
+    document.body.classList.toggle('gob-is-paused', !!st.paused);
+    var cfg = st.cfg || {};
+    var p = st.playing;
+    // Đang phát — chỉ dựng lại phần ảnh khi đổi bài (tránh nạp lại ảnh mỗi 250 ms)
+    $('now').classList.toggle('gob-hidden', !p);
+    if (p) {
+      if (nowSig !== p.id) {
+        nowSig = p.id;
+        $('now-sleeve').src = p.thumb || '';
+        $('now-disc').innerHTML = p.thumb ? '<img src="' + esc(p.thumb) + '" alt="">' : '<span class="gob-lbl">🎵</span>';
+      }
+      $('now-title').textContent = p.title || p.query || '';
+      $('now-tag').textContent = st.paused ? T('TẠM DỪNG') : T('ĐANG PHÁT');
+      var c = p.clip && !p.clip.full && p.clip.len ? p.clip : null;
+      $('now-clip').classList.toggle('gob-hidden', !c);
+      if (c) $('now-clip').textContent = '⚡ ' + T('Đoạn hay {s}s', { s: c.len });
+      var by = avatar(p.avatar, p.nickname) + '<span class="nm">' + esc(p.nickname) + '</span><span class="gob-pill">' + COIN + esc(p.coins) + '</span>';
+      if ($('now-by').getAttribute('data-sig') !== by) { $('now-by').innerHTML = by; $('now-by').setAttribute('data-sig', by); }
+    } else nowSig = '';
+    // Hàng chờ
+    var q = st.queue || [], rows = Math.max(1, cfg.listRows || 5);
+    $('list').classList.toggle('gob-hidden', !q.length);
+    if (q.length) {
+      var html = '<div class="gob-head"><span>🎶 ' + esc(T('TIẾP THEO')) + '</span><span class="n">' + esc(T('{n} bài', { n: st.queueTotal || q.length })) + '</span></div>';
+      q.slice(0, rows).forEach(function (r, i) {
+        var title = r.status === 'searching' ? T('đang tìm “{q}”…', { q: r.query }) : (r.title || r.query);
+        var extra = (r.backers && r.backers.length) ? ' · +' + r.backers.length : '';
+        var rk = i === 0 ? '' : i === 1 ? ' r2' : i === 2 ? ' r3' : ' rn';
+        var thumb = r.thumb ? '<img src="' + esc(r.thumb) + '" alt="" onerror="this.style.visibility=\'hidden\'">' + avatar(r.avatar, r.nickname, 'av') : avatar(r.avatar, r.nickname);
+        html += '<div class="gob-row' + (r.status === 'searching' ? ' searching' : '') + (r.sunk ? ' sunk' : '') + '">' +
+          '<div class="gob-rank' + rk + '">' + (i + 1) + (r.locked ? '<span class="lk">🔒</span>' : '') + '</div>' +
+          '<div class="gob-thumb">' + thumb + '</div>' +
+          '<div class="t"><b>' + esc(title) + '</b><span>' + esc(r.nickname + extra) + (r.source === 'music' ? ' · 🎵' : '') + '</span></div>' +
+          '<span class="gob-pill">' + COIN + esc(r.coins) + '</span></div>';
+      });
+      var more = (st.queueTotal || q.length) - rows;
+      if (more > 0) html += '<div class="gob-more">' + esc(T('+{n} bài nữa', { n: more })) + '</div>';
+      if ($('list').getAttribute('data-sig') !== html) { $('list').innerHTML = html; $('list').setAttribute('data-sig', html); }
+    }
+    // Gợi ý khi trống
+    var gift = (cfg.gifts || [])[0];
+    var idle = !p && !q.length && !(st.passes || []).length && cfg.idleHint !== false && !!gift;
+    $('idle').classList.toggle('gob-hidden', !idle);
+    if (idle) {
+      var ih = vinyl('', '🎧') + '<span>' + esc(T('Tặng')) + ' ' + (gift.giftImage ? '<img class="g" src="' + esc(gift.giftImage) + '" alt="">' : '🎁') + ' ' + esc(gift.giftName || T('quà')) + ' ' + esc(T('để gọi bài')) + '</span>';
+      if ($('idle').getAttribute('data-sig') !== ih) { $('idle').innerHTML = ih; $('idle').setAttribute('data-sig', ih); }
+    }
+    renderTickets();
+    renderDuel();
+  }
+
+  // ⚔️ Thẻ trận: dựng khung 1 lần/trận, sau đó chỉ đổi số (tránh hoạt cảnh chạy lại)
+  var duelId = '';
+  function sideHtml(k, d, n) {
+    return '<div class="gob-side ' + k + '"><div style="position:relative">' + vinyl(d.thumb) + '<span class="gob-orb">' + n + '</span></div>' +
+      '<div class="tt">' + esc(d.title) + '</div><div class="nm">' + esc(d.nickname) + '</div></div>';
+  }
+  function renderDuel() {
+    if (!st) return;
+    var d = st.duel, box = $('duel');
+    box.classList.toggle('gob-hidden', !d);
+    if (!d) { duelId = ''; }
+    else {
+      if (duelId !== d.id) {
+        duelId = d.id;
+        box.innerHTML = '<div class="gob-duel-h"><span class="ttl">⚔️ ' + esc(T('ĐẤU BÀI')) + '<span class="sub">' + esc(T('Bài thắng phát trước')) + '</span></span><b class="cd"></b></div>' +
+          '<div class="gob-vs">' + sideHtml('a', d.a, 1) + '<div class="gob-vsx">VS<small>⚡</small></div>' + sideHtml('b', d.b, 2) + '</div>' +
+          '<div class="gob-tug"><i class="a"></i><i class="b"></i><i class="spark"></i></div>' +
+          '<div class="gob-pts"><span class="a"></span><span class="b"></span></div>' +
+          '<div class="gob-hint">' + esc(T('Bình luận')) + ' <kbd class="a">1</kbd> ' + esc(T('hoặc')) + ' <kbd class="b">2</kbd> · ' + esc(T('tặng quà cho bài đã chọn')) + '</div>';
+      }
+      var tot = (d.a.pts || 0) + (d.b.pts || 0);
+      var wa = tot > 0 ? Math.max(6, Math.min(94, d.a.pts * 100 / tot)) : 50;
+      box.querySelector('.gob-tug .a').style.width = wa + '%';
+      box.querySelector('.gob-tug .b').style.width = (100 - wa) + '%';
+      box.querySelector('.gob-tug .spark').style.left = wa + '%';
+      var line = function (x) { return '<b>' + esc(x.pts) + '</b>' + esc(T('{v} phiếu', { v: x.votes })) + (x.giftCoins ? ' · ' + esc(x.giftCoins) + ' ' + COIN : ''); };
+      var pa = line(d.a), pb = line(d.b);
+      if (box.querySelector('.gob-pts .a').innerHTML !== pa) box.querySelector('.gob-pts .a').innerHTML = pa;
+      if (box.querySelector('.gob-pts .b').innerHTML !== pb) box.querySelector('.gob-pts .b').innerHTML = pb;
+      tickDuel();
+    }
+    var w = !d && st.lastDuel, wb = $('duel-win');
+    wb.classList.toggle('gob-hidden', !w);
+    if (w) {
+      var html = '<div class="gob-trophy">🏆</div><div class="tx"><b>' + esc(w.winnerTitle) + '</b>' + esc(T('thắng — phát tiếp theo')) +
+        (w.sunk ? '<small>' + esc(T('“{t}” thua 2 trận → về cuối hàng', { t: w.loserTitle })) + '</small>' : '') + '</div>';
+      if (wb.getAttribute('data-sig') !== html) { wb.innerHTML = html; wb.setAttribute('data-sig', html); }
+    }
+  }
+  function tickDuel() {
+    var d = st && st.duel;
+    if (!d) return;
+    var el = $('duel').querySelector('.cd');
+    if (!el) return;
+    var left = Math.max(0, Math.ceil((d.endsAt - (Date.now() - offset)) / 1000)) + 's';
+    if (el.textContent !== left) el.textContent = left;
+  }
+
+  // Vé lượt: GIỮ nguyên nút DOM theo người (key) — chỉ dựng vé khi có lượt mới, còn lại cập nhật số đếm tại chỗ.
+  var C = 2 * Math.PI * 30;
+  function renderTickets() {
+    if (!st) return;
+    var now = Date.now() - offset;
+    var passes = (st.passes || []).filter(function (g) { return g.cdUntil > now; }).slice(0, 2);
+    var box = $('tickets'), keep = {};
+    passes.forEach(function (g) {
+      var sig = g.key + '|' + (g.note || '');
+      keep[sig] = true;
+      var el = box.querySelector('[data-sig="' + CSS.escape(sig) + '"]');
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'gob-tk-wrap';
+        el.setAttribute('data-sig', sig);
+        var sub = g.note ? '<small class="warn">⚠ ' + esc(T(REASON[g.note] || REASON.error)) + '</small>' : '<small>' + esc(T('Gõ tên bài vào bình luận')) + '</small>';
+        el.innerHTML = '<div class="gob-ticket' + (g.note ? ' warn' : '') + '"><div class="gob-tk-main">' + avatar(g.avatar, g.nickname) +
+          '<div class="gob-tk-tx"><span class="who">🎧 <b>' + esc(g.nickname) + '</b></span>' + esc(T('được gọi bài!')) + sub + '</div></div>' +
+          '<div class="gob-cd"><svg width="72" height="72"><circle cx="36" cy="36" r="30" stroke="rgba(0,0,0,.28)" stroke-width="7" fill="none"/><circle class="arc" cx="36" cy="36" r="30" stroke="#fff3b8" stroke-width="7" fill="none" stroke-linecap="round" stroke-dasharray="' + C + '"/></svg><b></b></div></div>';
+        box.appendChild(el);
+      }
+      var left = Math.max(0, Math.ceil((g.cdUntil - now) / 1000));
+      var total = Math.max(1, (st.cfg && st.cfg.countdownSec) || 15);
+      el.querySelector('.arc').setAttribute('stroke-dashoffset', String(C * (1 - Math.min(1, left / total))));
+      var num = el.querySelector('.gob-cd b');
+      if (num.textContent !== String(left)) num.textContent = String(left);
+    });
+    Array.prototype.slice.call(box.children).forEach(function (el) { if (!keep[el.getAttribute('data-sig')]) el.remove(); });
+  }
+
+  // ⚡ thanh tiến trình tính TRONG đoạn đang phát (đoạn hay nhất), không phải cả bài
+  var lastT0 = '', lastT1 = '';
+  function tickBar() {
+    if (!st || !st.playing) return;
+    var p = st.playing, c = p.clip;
+    var dur = p.dur || p.duration || 0;
+    var from = c && !c.full ? (c.start || 0) : 0;
+    var to = c && !c.full && c.end != null ? c.end : dur;
+    var pos = (p.pos || 0) + (st.paused ? 0 : (Date.now() - recvAt) / 1000);
+    var pct = to > from ? Math.max(0, Math.min(100, (pos - from) * 100 / (to - from))) : 0;
+    $('now-bar').style.width = pct + '%';
+    $('now-knob').style.left = pct + '%';
+    var t0 = fmt(Math.min(Math.max(0, pos - from), Math.max(0, to - from))), t1 = fmt(Math.max(0, to - from));
+    if (t0 !== lastT0) { $('now-t0').textContent = t0; lastT0 = t0; }
+    if (t1 !== lastT1) { $('now-t1').textContent = t1; lastT1 = t1; }
+  }
+
+  function apply(s) {
+    st = s; recvAt = Date.now(); offset = Date.now() - (Number(s.now) || Date.now());
+    render(); tickBar();
+  }
+
+  var qs = new URLSearchParams(location.search);
+  if (qs.get('view') === 'duel') document.body.classList.add('gob-only-duel');   // link OBS riêng chỉ thẻ trận
+  if (qs.get('bg') === '1') document.body.classList.add('gob-bgdemo');           // nền tối để xem thử ngoài OBS
+  if (qs.get('demo') === '1') {
+    var n = Date.now();
+    var Y = function (id) { return 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg'; };
+    var demo = { now: n, paused: qs.get('paused') === '1', cfg: { listRows: 5, countdownSec: 15, idleHint: true, gifts: [{ giftName: 'Hoa hồng', giftImage: '' }] },
+      playing: { id: 'p', title: 'Nơi Này Có Anh', nickname: 'Linh Chi', coins: 199, thumb: Y('FN7ALfpGxiI'), pos: 140, dur: 260, clip: { start: 120, end: 210, len: 90, full: false } },
+      duel: { id: 'd1', endsAt: n + 11000, a: { title: 'Lạc Trôi', nickname: 'Hà My', thumb: Y('Llw9Q6akRo4'), pts: 46, votes: 16, giftCoins: 30 },
+        b: { title: 'Em Của Ngày Hôm Qua', nickname: 'Quang Huy Nguyễn Văn', thumb: Y('Vt4kAu-ziRY'), pts: 21, votes: 21, giftCoins: 0 } },
+      passes: [{ key: 'g', nickname: 'Minh Tuấn', coins: 1, cdUntil: n + 12000, validUntil: n + 600000, note: '' }],
+      queue: [
+        { id: 'a', title: 'Lạc Trôi', nickname: 'Hà My', coins: 99, locked: true, status: 'ready', thumb: Y('Llw9Q6akRo4') },
+        { id: 'b', title: 'Em Của Ngày Hôm Qua', nickname: 'Quang', coins: 30, locked: true, status: 'ready', backers: [{}], thumb: Y('Vt4kAu-ziRY') },
+        { id: 'c', title: 'Chúng Ta Của Hiện Tại', nickname: 'Thảo', coins: 5, locked: false, status: 'ready', source: 'music' },
+        { id: 'd', query: 'hãy trao cho anh', nickname: 'Bảo', coins: 1, status: 'searching' }
+      ], queueTotal: 7 };
+    if (qs.get('win') === '1') { demo.duel = null; demo.lastDuel = { winnerTitle: 'Lạc Trôi', loserTitle: 'Em Của Ngày Hôm Qua', sunk: true }; }
+    apply(demo);
+  } else {
+    var socket = io();
+    socket.on('goibai:state', apply);
+    socket.on('overlay:reload', function (d) { if (!d || !d.gameId || d.gameId === 'goibai') location.reload(); });
+  }
+  setInterval(function () { renderTickets(); tickBar(); tickDuel(); }, 250);
+})();
+</script>
+</body>
+</html>

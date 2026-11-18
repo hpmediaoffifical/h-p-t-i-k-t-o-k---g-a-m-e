@@ -114,6 +114,8 @@ const { createCamObs } = require('./lib/camgames-obs');
 const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
 const MusicGifts = require('./lib/music-gifts');
 const CommentFilter = require('./lib/comment-filter');   // 🚫 từ cấm chung cho mọi game
+const { createGoiBaiController } = require('./lib/goi-bai/controller');   // 🎧 Gọi Bài
+const { DEFAULTS: GOIBAI_DEFAULTS } = require('./lib/goi-bai/logic');
 const { LuaSync } = require('./lib/lua-sync');
 const { OBSSettings } = require('./lib/obs-settings');
 
@@ -668,6 +670,14 @@ const GAMES = {
         icon: '🍂',
         overlayPath: '/overlay/nhatla',
         defaultConfig: makeDefaultNhatLaConfig()
+    },
+    goibai: {
+        id: 'goibai',
+        name: 'Gọi Bài',
+        description: 'Tặng quà để gọi bài, gõ tên bài vào bình luận. Tìm trên YouTube, xếp theo xu, phát ra loa. Quà Ca khúc tự vào hàng.',
+        icon: '🎧',
+        overlayPath: '/overlay/goibai',
+        defaultConfig: { ...GOIBAI_DEFAULTS, gifts: [] }
     },
     'level-quest': {
         id: 'level-quest',
@@ -1416,7 +1426,7 @@ function makeDefaultGiftBoardConfig() {
         // Game nào được lên bảng (game TẮT ở Thư viện luôn bị loại bất kể cờ này)
         sources: { thuytinh: true, caro: true, votecomment: true, nhietdo: true, bancung: true, trongcay: true, nhatla: true, timer: true,
             touchplay: true, chemtraicay: true, dapmuoi: true, dacau: true, body: true,
-            quaivat: true, nhatu: true, pokemon: true, creatoronline: true, duongveque: true, obsEffects: true },
+            quaivat: true, nhatu: true, pokemon: true, creatoronline: true, duongveque: true, goibai: true, obsEffects: true },
         rules: { mergeSameGift: true, groupByGame: false, sort: 'game', showGeneric: true, onlyRunning: false, hideBirdGifts: true,
             requireOverlay: true,    // chỉ game có overlay đang mở (OBS / LIVE Studio) mới lên bảng
             hideGameBoards: true },  // bảng đang mở trên OBS → ẩn bảng quà riêng của từng game (khỏi 2 bảng)
@@ -4079,6 +4089,7 @@ function handleTikTokChat(data, { test = false } = {}) {
     };
     const coFanChange = test ? null : coFansTouch(chatPayload, 'chat');   // 🏢 Creator Online: mã club 1–5
     broadcast('chat', chatPayload);
+    try { goiBai.addComment(chatPayload); } catch (e) { console.warn('[goibai] chat lỗi:', e?.message || e); }   // 🎧 người có lượt gõ tên bài
     if (coFanChange) io.emit('creatoronline:fan', coFanChange);
     processLiveTranslateChat(chatPayload);
     if (!test) {
@@ -4106,6 +4117,7 @@ function attachConnectionEvents(conn, lib) {
         currentRoomId = state?.roomId;
         vipStartRoom();
         leagueStartRoom();
+        try { goiBai.onRoom(currentRoomId); } catch (e) {}   // 🎧 phòng khác → bỏ hàng chờ buổi trước
         captionAutoStartOnLive();
         broadcast('status', { connected: true, username: currentUsername, roomId: currentRoomId });
         setLiveDashboardStatus(true, { username: currentUsername, roomId: currentRoomId });
@@ -5273,6 +5285,7 @@ function emitGift(g) {
     console.log(`[gift] emit → ${enriched.nickname || enriched.uniqueId} sent "${enriched.giftName || '?'}" (id=${enriched.giftId}, x${enriched.repeatCount || 1}, ${enriched.coinValue || 0}💎)`);
     const coFanChange = coFansTouch(enriched, 'gift');   // 🏢 Creator Online: cộng xu trọn đời (bỏ quà thử)
     io.emit('gift', enriched);
+    try { goiBai.addGift(enriched); } catch (e) { console.warn('[goibai] gift lỗi:', e?.message || e); }   // 🎧 lượt gọi bài / quà Ca khúc
     if (coFanChange) io.emit('creatoronline:fan', coFanChange);
     try { if (giftStats.add(enriched)) giftStatsChanged(); } catch (e) { console.warn('[gift-stats] lỗi:', e?.message || e); }
     setLiveDashboardGift(enriched);
@@ -5685,6 +5698,7 @@ async function connectToUser(username, opts = {}) {
         currentRoomId = state?.roomId;
         vipStartRoom();   // sổ ghé phòng: 1 roomId = 1 buổi (nối lại giữa buổi giữ roomId → không mở buổi mới)
         leagueStartRoom();   // 🏆 Thứ Hạng LIVE: phòng mới → xoá số cũ
+        try { goiBai.onRoom(currentRoomId); } catch (e) {}   // 🎧 phòng khác → bỏ hàng chờ buổi trước
         captionAutoStartOnLive({ newSession: !preserveSession });   // phụ đề giọng: tự mở cửa sổ nghe Edge/Chrome nếu bật
         // Synthetic "host vào phòng" event — TikTok không fire MEMBER cho HOST tự kết nối live của mình.
         // roomInfo là envelope JSON của TikTok {data:{owner:{id_str, display_id, nickname, avatar_thumb, follow_info...}}, extra,
@@ -6361,6 +6375,10 @@ app.post('/api/games/:id/config', (req, res) => {
         try { global.__nhatlaApplyHotkeys?.(appConfig.games.nhatla); } catch (e) {}
         // Đổi "TOP mấy" hoặc ngưỡng lá tối thiểu → đẩy lại danh sách ngay, đừng đợi quà kế tiếp.
         emitNhatLaTop(true);
+    }
+    if (g.id === 'goibai') {
+        try { goiBai.onConfig(prevEnabled); } catch (e) { console.warn('[goibai] config lỗi:', e?.message || e); }
+        try { goiBai.setHotkeyBusy(global.__goiBaiApplyHotkeys?.(appConfig.games.goibai)?.busy); } catch (e) {}
     }
     if (g.id === 'trongcay') {
         try { trongCayApplyConfigToState(appConfig.games.trongcay); } catch (e) {}
@@ -7444,6 +7462,19 @@ app.get('/overlay/vipwelcome-board', (req, res) => {
 app.get('/overlay/votecomment', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'votecomment', 'overlay.html'));
 });
+// 🎧 GỌI BÀI — luật ở lib/goi-bai/logic.js, điều phối (yt-dlp · trình phát ẩn · lưu phiên) ở controller.js.
+// Spec docs/superpowers/specs/2026-11-11-goibai-design.md.
+const goiBai = createGoiBaiController({
+    io, fetch, dataDir: DATA_DIR,
+    getConfig: () => appConfig.games.goibai,
+    isBlocked: (title) => commentFilterOn() && !!CommentFilter.findForbidden(title, getCommentForbidden()),
+    playerApi: () => global.__goiBaiPlayer,
+    log: (m) => console.log(m)
+});
+goiBai.mountRoutes(app, { publicDir: path.join(__dirname, 'public') });
+goiBai.start();
+setTimeout(() => { try { goiBai.setHotkeyBusy(global.__goiBaiApplyHotkeys?.(appConfig.games.goibai)?.busy); } catch (e) {} }, 1500);
+
 app.get('/overlay/trongcay', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'trongcay', 'overlay.html'));
 });
@@ -12792,6 +12823,7 @@ io.on('connection', (socket) => {
     socket.data.trusted = socketIsTrusted(socket);
     const onTrusted = (event, handler) => socket.on(event, (...args) => { if (socket.data.trusted === true) handler(...args); });
     touchplayFeed.attach(socket);
+    goiBai.attachSocket(socket, onTrusted);   // 🎧 Gọi Bài: trạng thái + trình phát ẩn
     socket.emit('giftboard:active', { on: giftboardActiveLast });   // 📋 overlay mới mở biết ngay có ẩn bảng quà riêng không
     // Default emits
     socket.emit('giftSheet', giftList);
