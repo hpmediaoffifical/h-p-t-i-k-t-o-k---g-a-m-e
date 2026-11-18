@@ -15,7 +15,7 @@ Chỉ lấy CƠ CHẾ của các trò "đoán bẫy" quen thuộc; tên, hình, 
 | `hama` | 🦛 Hà Mã Đau Răng | ấn răng; trúng răng đau → hà mã ngoạm | bẫy |
 | `chumcoc` | 🐸 Cóc Trốn Chum | cắm que tre vào lỗ chum (8–30 lỗ); trúng lỗ → cóc nhảy vọt ra | bẫy |
 | `thaptre` | 🎋 Tháp Tre Chao Đảo | rút thanh tre; tháp đổ → thua | bẫy (xác suất) |
-| `latcap` | 🎁 Săn Cặp Quà | lật 2 ô tìm cặp QUÀ TIKTOK giống nhau (12 quà quen mặt: Hoa hồng, TikTok, GG, Kem…; ảnh quà thật) | điểm |
+| `latcap` | 🎁 Săn Cặp Quà | lật 2 ô tìm cặp QUÀ TIKTOK giống nhau (8 quà chủ LIVE chọn từ sheet quà: 5655 Hoa hồng, 7934 Thả tim, 5269 TikTok, 7122 Súng đá quý, 7168 Súng bắn tiền, 6369 Sư tử, 9092 Phượng hoàng lửa, 9072 TikTok Universe → tối đa 8 cặp; mặt thẻ CHỈ ảnh quà) | điểm |
 | `oanquan` | 🪨 Ô Ăn Quan | trò dân gian 2 người: rải quân, ăn dân, ăn quan (§2.2) | điểm |
 
 ## 2. Luật chung (khung ghế + lượt)

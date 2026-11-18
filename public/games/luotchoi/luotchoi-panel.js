@@ -10,7 +10,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const COIN = '<img class="hp-coin-ico" src="/coin.svg" alt="">';
     const PHASE = { lobby: 'Sảnh chờ', playing: 'Đang chơi', result: 'Kết quả' };
-    const SIZE = { hama: ['teeth', 'Số răng', 6, 16], chumcoc: ['holes', 'Số lỗ chum', 8, 30], thaptre: ['levels', 'Số tầng', 6, 12], latcap: ['pairs', 'Số cặp', 4, 12], oanquan: ['quanValue', 'Quan = mấy dân (5 hoặc 10)', 5, 10] };
+    const SIZE = { hama: ['teeth', 'Số răng', 6, 16], chumcoc: ['holes', 'Số lỗ chum', 8, 30], thaptre: ['levels', 'Số tầng', 6, 12], latcap: ['pairs', 'Số cặp', 4, 8], oanquan: ['quanValue', 'Quan = mấy dân (5 hoặc 10)', 5, 10] };
     const API = (cmd, extra) => fetch('/api/luotchoi/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ cmd }, extra || {})) }).then(r => r.json()).catch(() => ({ ok: false }));
     let cfg = null, st = null, socket = null, bound = false, persistTimer = null, clockOff = 0, cdTimer = null;
 

@@ -109,10 +109,10 @@ test('thaptre: khiên nhét lại thanh vừa rút, tháp đứng lại', () => 
     assert.equal(G.view(b).bars.find(x => x.n === 1).out, false);
 });
 
-test('latcap: số cặp chặn 4–12, mỗi hình đúng 2 ô', () => {
+test('latcap: số cặp chặn 4–8 (= số quà), mỗi hình đúng 2 ô', () => {
     const G = GAMES_BY_ID.latcap;
     assert.equal(G.normalize({ pairs: 1 }).pairs, 4);
-    assert.equal(G.normalize({ pairs: 99 }).pairs, 12);
+    assert.equal(G.normalize({ pairs: 99 }).pairs, 8);
     const b = G.setup(G.normalize({ pairs: 6 }), mulberry(5));
     assert.equal(G.options(b).length, 12);
     const counts = {};
@@ -124,10 +124,10 @@ test('latcap: số cặp chặn 4–12, mỗi hình đúng 2 ô', () => {
 test('latcap: hình trên thẻ là quà TikTok (id quà) — ô ngửa kèm tên/emoji/xu, ô úp không lộ', () => {
     const G = GAMES_BY_ID.latcap;
     assert.equal(G.name, 'Săn Cặp Quà');
-    assert.equal(G.GIFTS.length, 12);
-    assert.equal(new Set(G.GIFTS.map(g => g.id)).size, 12);
+    // 8 quà user chọn (sheet quà, tab gift)
+    assert.deepEqual(G.GIFTS.map(g => g.id), ['5655', '7934', '5269', '7122', '7168', '6369', '9092', '9072']);
     for (const g of G.GIFTS) assert.ok(/^\d+$/.test(g.id) && g.name && g.emoji && g.coin >= 1, JSON.stringify(g));
-    const b = G.setup(G.normalize({ pairs: 12 }), mulberry(9));
+    const b = G.setup(G.normalize({ pairs: 8 }), mulberry(9));
     assert.ok(b.faces.every(f => G.GIFTS.some(g => g.id === f)));
     G.pick(b, 1);
     const v = G.view(b);

@@ -144,7 +144,6 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
   text-shadow: 0 2px 0 rgba(0, 0, 0, .3); }
 .lp .face { background: #fff9ea; transform: rotateY(180deg); font-size: 76px; border: 3px solid #ffd54a; }
 .lp .face { align-content: center; gap: 4px; }
-.lp .face small { font-size: 18px; font-weight: 700; color: #3b2a5a; }
 .lp .cardc.matched .face { background: #dcfbe8; border-color: #39d98a; }
 .lp .cardc.miss .face { border-color: #ff5a5a; animation: lcNo .5s .45s; }
 .lp .cardc.matched.just .flip { animation: lcYes .6s .45s; }

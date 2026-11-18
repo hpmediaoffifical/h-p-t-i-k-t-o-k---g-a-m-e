@@ -666,8 +666,7 @@ const TT = {
 };
 
 // ═════════════════════════════════════════════════════════════════════════
-// 🎁 LẬT CẶP QUÀ — thẻ bo góc kiểu TikTok: lưng đen bóng sọc hồng/xanh + số lệch màu; mặt = ẢNH QUÀ THẬT (/api/gifts theo id)
-// + tên + giá xu. Ảnh chưa tải được → emoji dự phòng của luật. Lật = nhấc + xoay 180°.
+// 🎁 LẬT CẶP QUÀ — thẻ bo góc kiểu TikTok: lưng đen bóng sọc hồng/xanh + số lệch màu; mặt = CHỈ ẢNH QUÀ THẬT (/api/gifts theo id). Ảnh chưa tải được → emoji dự phòng của luật. Lật = nhấc + xoay 180°.
 // ═════════════════════════════════════════════════════════════════════════
 const TT_PINK = '#fe2c55', TT_CYAN = '#25f4ee';
 let giftImgUrls = null;   // Promise<Map id → url ảnh>
@@ -704,22 +703,12 @@ function cardFaceTex(gift, matched) {
         g.fillStyle = gr; g.fillRect(0, 0, w, h);
         g.lineWidth = matched ? 12 : 7; g.strokeStyle = matched ? '#2bd47a' : TT_PINK; g.strokeRect(9, 9, w - 18, h - 18);
         if (!matched) { g.lineWidth = 3; g.strokeStyle = TT_CYAN; g.strokeRect(18, 18, w - 36, h - 36); }
-        // quầng sáng sau quà
-        const halo = g.createRadialGradient(w / 2, 132, 10, w / 2, 132, 110);
-        halo.addColorStop(0, 'rgba(255,255,255,.28)'); halo.addColorStop(1, 'rgba(255,255,255,0)');
-        g.fillStyle = halo; g.fillRect(0, 20, w, 230);
-        if (img) g.drawImage(img, w / 2 - 90, 42, 180, 180);
-        else { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = "150px 'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif"; g.fillText(gift ? gift.emoji : '🎁', w / 2, 136); }
-        // tên quà + giá xu
-        g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.font = font(28);
-        g.fillText(gift ? gift.name : '', w / 2, 248, w - 30);
-        if (gift) {
-            const txt = String(gift.coin); g.font = font(24); const tw = g.measureText(txt).width + 44;
-            g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.roundRect(w / 2 - tw / 2, 270, tw, 32, 16); g.fill();
-            g.fillStyle = '#ffc93c'; g.beginPath(); g.arc(w / 2 - tw / 2 + 17, 286, 10, 0, Math.PI * 2); g.fill();
-            g.fillStyle = '#b8860b'; g.beginPath(); g.arc(w / 2 - tw / 2 + 17, 286, 5, 0, Math.PI * 2); g.fill();
-            g.fillStyle = '#ffd95a'; g.textAlign = 'left'; g.fillText(txt, w / 2 - tw / 2 + 33, 287);
-        }
+        // CHỈ ảnh quà (không tên, không xu) — to, giữa thẻ, có quầng sáng phía sau
+        const halo = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, 130);
+        halo.addColorStop(0, 'rgba(255,255,255,.3)'); halo.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = halo; g.fillRect(0, 0, w, h);
+        if (img) g.drawImage(img, w / 2 - 110, h / 2 - 110, 220, 220);
+        else { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = "170px 'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif"; g.fillText(gift ? gift.emoji : '🎁', w / 2, h / 2 + 6); }
         if (matched) { g.fillStyle = '#2bd47a'; g.beginPath(); g.arc(w - 38, 38, 24, 0, Math.PI * 2); g.fill(); g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = font(32); g.fillText('✓', w - 38, 40); }
     }
     if (gift) giftImageUrl(gift.id).then(url => {
@@ -1087,9 +1076,13 @@ function syncTags(marks, colorOf) {
     camera.updateMatrixWorld(); root.updateWorldMatrix(true, true);
     const cells = anchors.map(a => scr(anchorWorld(a.n)));
     const boxes = [], PAD = 6, CELL = 26;
+    // vùng THẤY ĐƯỢC của sân khấu (khung overlay/cửa sổ có thể hẹp hơn canvas) → nhãn không bị cắt mép
+    const sr = hostStage.getBoundingClientRect(), sx = W / Math.max(1, sr.width);
+    const vx0 = Math.max(0, -sr.left) * sx + 8, vx1 = Math.min(sr.width, window.innerWidth - sr.left) * sx - 8;
+    const vy0 = Math.max(0, -sr.top) * sx + 8, vy1 = Math.min(sr.height, window.innerHeight - sr.top) * sx - 8;
     const free = (r) => !boxes.some(b => r.x < b.x + b.w + PAD && r.x + r.w + PAD > b.x && r.y < b.y + b.h + PAD && r.y + r.h + PAD > b.y)
         && !cells.some(c => c.x > r.x - CELL && c.x < r.x + r.w + CELL && c.y > r.y - CELL && c.y < r.y + r.h + CELL)
-        && r.x >= 0 && r.y >= 0 && r.x + r.w <= W && r.y + r.h <= H;
+        && r.x >= vx0 && r.y >= vy0 && r.x + r.w <= vx1 && r.y + r.h <= vy1;
     for (const m of marks) {
         const a = anchors.find(x => String(x.n) === String(m.n));
         if (!a) continue;
@@ -1113,10 +1106,18 @@ function syncTags(marks, colorOf) {
             if (!pick) { const local = a.label(1.5); pick = { local, p: scr(a.ref.localToWorld(local.clone())) }; }
             t.local = pick.local;
         } else {
+            // vòng dần ra quanh ô: ưu tiên phía trên, rồi xiên, ngang, dưới — chỗ gần nhất còn trống và nằm trong khung
             const c = scr(anchorWorld(a.n));
-            for (let lift = h / 2 + CELL; lift < 420 && !pick; lift += 12) { const p = { x: c.x, y: c.y - lift }; if (free(box(p))) pick = { lift, p }; }
-            if (!pick) pick = { lift: h / 2 + CELL, p: { x: c.x, y: c.y - h / 2 - CELL } };
-            t.lift = pick.lift;
+            const DIRS = [-90, -60, -120, -30, -150, 0, 180, 30, 150, 90].map(d => d * Math.PI / 180);
+            for (let r = h / 2 + CELL; r < 360 && !pick; r += 12) {
+                for (const d of DIRS) {
+                    const off = { x: Math.cos(d) * (r + (Math.abs(Math.cos(d)) > 0.3 ? w / 2 - h / 2 : 0)), y: Math.sin(d) * r };
+                    const p = { x: c.x + off.x, y: c.y + off.y };
+                    if (free(box(p))) { pick = { off, p }; break; }
+                }
+            }
+            if (!pick) { const off = { x: 0, y: -(h / 2 + CELL) }; pick = { off, p: { x: c.x, y: c.y + off.y } }; }
+            t.off = pick.off;
         }
         boxes.push(box(pick.p));
         tags.push(t);
@@ -1125,11 +1126,12 @@ function syncTags(marks, colorOf) {
 }
 function placeTags() {
     for (const t of tags) {
-        // chân que: mép ô (hà mã: mép ngoài răng; ô khác: mép trên) để không đè số trên ô
-        const c0 = scr(anchorWorld(t.a.n));
-        const c = t.a.edge ? scr(t.a.ref.localToWorld(t.a.edge())) : { x: c0.x, y: c0.y - 22 };
         if (t.onCell) { t.a.obj.updateWorldMatrix(true, false); const q = scr(_l.copy(t.a.onCell).applyMatrix4(t.a.obj.matrixWorld)); t.el.style.transform = `translate(${q.x.toFixed(1)}px, ${q.y.toFixed(1)}px)`; continue; }
-        const p = t.local ? scr(t.a.ref.localToWorld(_l.copy(t.local))) : { x: c0.x, y: c0.y - t.lift };
+        const c0 = scr(anchorWorld(t.a.n));
+        const p0 = t.local ? null : { x: c0.x + t.off.x, y: c0.y + t.off.y };
+        // chân que ở MÉP ô phía nhãn (hà mã: mép ngoài răng) → không đè số trên ô
+        const c = t.a.edge ? scr(t.a.ref.localToWorld(t.a.edge())) : (() => { const dx = p0.x - c0.x, dy = p0.y - c0.y, L = Math.hypot(dx, dy) || 1; return { x: c0.x + dx / L * 22, y: c0.y + dy / L * 22 }; })();
+        const p = t.local ? scr(t.a.ref.localToWorld(_l.copy(t.local))) : p0;
         t.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
         const dx = p.x - c.x, dy = p.y - c.y, len = Math.hypot(dx, dy);
         t.stem.style.width = len.toFixed(1) + 'px';
