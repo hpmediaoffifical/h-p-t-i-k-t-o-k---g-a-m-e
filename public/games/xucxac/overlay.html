@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>Xúc Xắc 3D</title>
+<style>
+    html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; user-select: none;
+        font-family: 'Be Vietnam Pro', 'Segoe UI', system-ui, sans-serif; color: #fff; }
+    body.xucxac-bg { background: radial-gradient(ellipse at 50% 40%, #23314f 0%, #0f1424 70%); }
+    body.xucxac-shot * { transition: none !important; }
+    #xucxac-stage { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: 0 0; }
+    #xucxac-box { position: absolute; width: 760px; height: 1080px; transform-origin: 50% 50%; }
+    #xucxac-box.off { display: none; }
+    #xucxac-cv { position: absolute; left: 0; top: 110px; width: 760px; height: 720px; }
+    .xucxac-who { position: absolute; left: 50%; top: 150px; z-index: 2; transform: translate(-50%, -12px); display: flex; align-items: center; gap: 12px;
+        padding: 8px 22px 8px 8px; border-radius: 40px; background: rgba(12, 18, 36, .84); border: 2px solid rgba(255,255,255,.25);
+        font-size: 32px; font-weight: 800; white-space: nowrap; max-width: 640px; opacity: 0; transition: opacity .2s, transform .2s; }
+    .xucxac-who.on { opacity: 1; transform: translate(-50%, 0); }
+    .xucxac-who img.av, .xucxac-card img.av { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; background: #334; flex: none; }
+    .xucxac-who img.gi { width: 44px; height: 44px; }
+    .xucxac-who span { overflow: hidden; text-overflow: ellipsis; }
+    .xucxac-card { position: absolute; left: 50%; top: 770px; width: 640px; transform: translate(-50%, 20px) scale(.7); opacity: 0;
+        padding: 22px 26px 26px; border-radius: 32px; text-align: center; color: #10203a;
+        background: linear-gradient(180deg, #ffffff, #e3ecff); box-shadow: 0 18px 50px rgba(0,0,0,.45), 0 0 0 6px rgba(255,255,255,.55) inset;
+        transition: opacity .18s, transform .28s cubic-bezier(.2,1.6,.4,1); }
+    .xucxac-card.on { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    .xucxac-card .nums { display: flex; justify-content: center; align-items: center; gap: 14px; font-size: 64px; font-weight: 900; line-height: 1.1; }
+    .xucxac-card .nums b { display: inline-grid; place-items: center; width: 92px; height: 92px; border-radius: 22px; background: #10203a; color: #fff; }
+    .xucxac-card .nums b.one { background: #d32f2f; }
+    .xucxac-card .nums i { font-style: normal; opacity: .55; font-size: 52px; }
+    .xucxac-card .nums em { font-style: normal; color: #d32f2f; }
+    .xucxac-card .say { font-size: 42px; font-weight: 900; line-height: 1.18; margin-top: 12px;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .xucxac-card .say.long { font-size: 34px; }
+    .xucxac-card::after { content: ''; position: absolute; left: 12px; right: 12px; top: 8px; height: 45%; pointer-events: none;
+        border-radius: 26px 26px 50% 50% / 26px 26px 22px 22px; background: linear-gradient(rgba(255,255,255,.7), rgba(255,255,255,0)); }
+    .xucxac-card .nums b { box-shadow: inset 0 -6px 0 rgba(0,0,0,.25), inset 0 3px 0 rgba(255,255,255,.18), 0 6px 14px rgba(0,0,0,.25); }
+    .xucxac-hint { position: absolute; left: 50%; top: 735px; transform: translateX(-50%); font-size: 28px; font-weight: 800; opacity: .8;
+        padding: 6px 18px; border-radius: 26px; background: rgba(0,0,0,.45); white-space: nowrap; transition: opacity .3s; }
+    .xucxac-hint.hide { opacity: 0; }
+    .xucxac-q { position: absolute; left: 50%; top: 1040px; transform: translateX(-50%); padding: 6px 20px; border-radius: 30px;
+        background: rgba(0,0,0,.55); font-size: 28px; font-weight: 800; white-space: nowrap; }
+    .xucxac-q[hidden] { display: none; }
+</style>
+<script type="importmap">{ "imports": {
+  "three": "/games/quaivat/vendor/three.module.min.js",
+  "three/addons/": "/games/quaivat/vendor/addons/"
+} }</script>
+</head>
+<body>
+<div id="xucxac-stage">
+    <div id="xucxac-box">
+        <div class="xucxac-who" id="xucxac-who"></div>
+        <canvas id="xucxac-cv"></canvas>
+        <div class="xucxac-hint" id="xucxac-hint">🎁 Tặng quà để tung xúc xắc</div>
+        <div class="xucxac-card" id="xucxac-card"></div>
+        <div class="xucxac-q" id="xucxac-q" hidden></div>
+    </div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/lib/overlay-hello.js" data-game="xucxac"></script>
+<script type="module">
+/* 🎲 Xúc Xắc 3D — overlay OBS 1080×1920 trong suốt (Three r160 dùng chung /games/quaivat/vendor/).
+ * Server tung số (socket 'xucxac:turn'); overlay xoay xúc xắc rơi nảy rồi dừng ĐÚNG mặt đã nhận.
+ * Rảnh thì ngừng vẽ (nhẹ OBS). ?review=1 xem thử, ?demo=1 tự tung, ?shot=0.4&v=3,5 đóng băng 1 khung, ?q=low, ?mute=1, ?bg=1.
+ * Spec docs/superpowers/specs/2026-11-12-gapthu-xucxac-design.md §4.2 */
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const qs = new URLSearchParams(location.search);
+const isReview = qs.get('review') === '1', isDemo = qs.get('demo') === '1', muted = qs.get('mute') === '1', low = qs.get('q') === 'low';
+const shotSpec = qs.get('shot');
+if (qs.get('bg') === '1') document.body.classList.add('xucxac-bg');
+if (shotSpec) document.body.classList.add('xucxac-shot');
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const stage = $('xucxac-stage'), box = $('xucxac-box'), cv = $('xucxac-cv');
+let cfg = { enabled: true, dice: 1, display: { x: 50, y: 55, scale: 100, color: 'white', showQueue: true }, sound: { enabled: true, volume: 0.6 } };
+let disabled = false;
+
+function fit() {
+    const k = Math.min(innerWidth / 1080, innerHeight / 1920);
+    stage.style.transform = `scale(${k})`;
+    stage.style.left = ((innerWidth - 1080 * k) / 2) + 'px';
+    stage.style.top = ((innerHeight - 1920 * k) / 2) + 'px';
+}
+addEventListener('resize', fit); fit();
+
+// ---------- Three ----------
+const W = 760, H = 720;
+const renderer = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true, preserveDrawingBuffer: !!shotSpec });
+renderer.setPixelRatio(low ? 1 : Math.min(2, devicePixelRatio || 1));
+renderer.setSize(W, H, false);
+renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = !low;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+// môi trường phản chiếu dựng từ cảnh phòng có sẵn (không tải ảnh ngoài) — cho nhựa bóng / vàng có ánh phản chiếu thật
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+pmrem.dispose();
+const camera = new THREE.PerspectiveCamera(32, W / H, 0.1, 100);
+camera.position.set(0, 7.7, 6.9);
+camera.lookAt(0, 0, 0.35);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x3a3048, 0.55));
+const sun = new THREE.DirectionalLight(0xfff4e6, 2.4);
+sun.position.set(3.2, 9, 4.2);
+sun.castShadow = !low;
+sun.shadow.mapSize.set(low ? 512 : 2048, low ? 512 : 2048);
+sun.shadow.radius = 4;
+sun.shadow.bias = -0.0004;
+Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 1, far: 25 });
+scene.add(sun);
+const rim = new THREE.DirectionalLight(0xff8cc6, 0.9);   // viền sáng hồng phía sau cho khối nổi khỏi nền
+rim.position.set(-4, 3, -5); scene.add(rim);
+// bóng đổ của cả khay xuống "bàn" vô hình (nền vẫn trong suốt cho OBS)
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), new THREE.ShadowMaterial({ opacity: 0.35 }));
+floor.rotation.x = -Math.PI / 2; floor.position.y = -0.17; floor.receiveShadow = true; scene.add(floor);
+// khay xúc xắc: lòng nỉ (vân sợi vẽ canvas) + viền gỗ bóng
+function feltTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 512;
+    const g = c.getContext('2d');
+    const gr = g.createRadialGradient(256, 256, 40, 256, 256, 256);
+    gr.addColorStop(0, '#1d7a5c'); gr.addColorStop(.75, '#11553f'); gr.addColorStop(1, '#0a3527');
+    g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+    const img = g.getImageData(0, 0, 512, 512), d = img.data;
+    for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - .5) * 22; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+    g.putImageData(img, 0, 0);
+    g.strokeStyle = 'rgba(255,230,160,.35)'; g.lineWidth = 3; g.setLineDash([10, 8]);
+    g.beginPath(); g.arc(256, 256, 236, 0, Math.PI * 2); g.stroke();
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    return t;
+}
+const tray = new THREE.Group();
+const felt = new THREE.Mesh(new THREE.CircleGeometry(2.7, 96), new THREE.MeshStandardMaterial({ map: feltTexture(), roughness: 0.95, metalness: 0 }));
+felt.rotation.x = -Math.PI / 2; felt.receiveShadow = true; tray.add(felt);
+const rimWood = new THREE.Mesh(new THREE.TorusGeometry(2.82, 0.17, 24, 128),
+    new THREE.MeshPhysicalMaterial({ color: 0x6b3a1f, roughness: 0.38, metalness: 0.05, clearcoat: 0.8, clearcoatRoughness: 0.2 }));
+rimWood.rotation.x = -Math.PI / 2; rimWood.position.y = 0.05; rimWood.castShadow = !low; rimWood.receiveShadow = true; tray.add(rimWood);
+const base = new THREE.Mesh(new THREE.CylinderGeometry(2.98, 3.05, 0.14, 96), new THREE.MeshStandardMaterial({ color: 0x2b170c, roughness: 0.6 }));
+base.position.y = -0.09; base.castShadow = !low; tray.add(base);
+scene.add(tray);
+
+// mặt xúc xắc: màu + chấm khắc lõm (map) và bản đồ lồi lõm (bumpMap) vẽ bằng canvas
+const COLORS = {
+    white: { bg: '#fbfaf5', pip: '#1d1d24', one: '#8c0010', metal: 0, rough: 0.3 },
+    red: { bg: '#d42f2d', pip: '#ffffff', one: '#ffe082', metal: 0, rough: 0.28 },
+    black: { bg: '#1e1e26', pip: '#f4f4f4', one: '#e8101e', metal: 0, rough: 0.25 },
+    gold: { bg: '#e9b93c', pip: '#3a2600', one: '#b71c1c', metal: 0.55, rough: 0.3 }
+};
+const PIPS = { 1: [[.5, .5]], 2: [[.27, .27], [.73, .73]], 3: [[.27, .27], [.5, .5], [.73, .73]], 4: [[.27, .27], [.73, .27], [.27, .73], [.73, .73]],
+    5: [[.27, .27], [.73, .27], [.5, .5], [.27, .73], [.73, .73]], 6: [[.27, .25], [.73, .25], [.27, .5], [.73, .5], [.27, .75], [.73, .75]] };
+const pipR = v => v === 1 ? 46 : 24;
+function faceTexture(v, col) {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d');
+    g.fillStyle = col.bg; g.fillRect(0, 0, 256, 256);
+    // tối nhẹ sát mép (mặt bo cong hứng ít sáng hơn)
+    const vg = g.createRadialGradient(128, 128, 90, 128, 128, 182);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.14)');
+    g.fillStyle = vg; g.fillRect(0, 0, 256, 256);
+    for (const [x, y] of PIPS[v]) {
+        const r = pipR(v), px = x * 256, py = y * 256, base = v === 1 ? col.one : col.pip;
+        // lõm: màu chấm + bóng trong phía trên trái, sáng mép dưới phải
+        g.fillStyle = base; g.beginPath(); g.arc(px, py, r, 0, Math.PI * 2); g.fill();
+        const sh = g.createRadialGradient(px + r * .35, py + r * .35, r * .2, px, py, r);
+        sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(.75, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.45)');
+        g.fillStyle = sh; g.beginPath(); g.arc(px, py, r, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = v === 1 ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.55)'; g.lineWidth = 2.5; g.beginPath(); g.arc(px, py, r - 1, Math.PI * .05, Math.PI * .7); g.stroke();
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+    return t;
+}
+function bumpTexture(v) {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, 256, 256);
+    for (const [x, y] of PIPS[v]) {
+        const r = pipR(v), gr = g.createRadialGradient(x * 256, y * 256, r * .2, x * 256, y * 256, r);
+        gr.addColorStop(0, '#000'); gr.addColorStop(.8, '#222'); gr.addColorStop(1, '#fff');
+        g.fillStyle = gr; g.beginPath(); g.arc(x * 256, y * 256, r, 0, Math.PI * 2); g.fill();
+    }
+    return new THREE.CanvasTexture(c);
+}
+// thứ tự nhóm của BoxGeometry: +X, -X, +Y, -Y, +Z, -Z → giá trị (mặt đối diện cộng 7)
+const FACE_VALUES = [3, 4, 1, 6, 2, 5];
+const FACE_NORMALS = { 3: [1, 0, 0], 4: [-1, 0, 0], 1: [0, 1, 0], 6: [0, -1, 0], 2: [0, 0, 1], 5: [0, 0, -1] };
+let materials = [];
+function buildMaterials() {
+    materials.forEach(m => { m.map?.dispose(); m.bumpMap?.dispose(); m.dispose(); });
+    const col = COLORS[cfg.display?.color] || COLORS.white;
+    materials = FACE_VALUES.map(v => new THREE.MeshPhysicalMaterial({
+        map: faceTexture(v, col), bumpMap: bumpTexture(v), bumpScale: 1.2,
+        roughness: col.rough, metalness: col.metal, clearcoat: 1, clearcoatRoughness: 0.12
+    }));
+    dice.forEach(d => { d.mesh.material = materials; });
+}const geo = new RoundedBoxGeometry(1, 1, 1, 6, 0.16);
+const dice = [];   // [{ mesh, from, to, qFinal, axis, turns }]
+function ensureDice(n) {
+    while (dice.length < n) {
+        const mesh = new THREE.Mesh(geo, materials);
+        mesh.castShadow = true;
+        scene.add(mesh);
+        dice.push({ mesh });
+    }
+    dice.forEach((d, i) => { d.mesh.visible = i < n; });
+}
+const UP = new THREE.Vector3(0, 1, 0);
+function finalQuat(v, yaw) {
+    const n = new THREE.Vector3(...FACE_NORMALS[v]);
+    const q = new THREE.Quaternion().setFromUnitVectors(n, UP);
+    return new THREE.Quaternion().setFromAxisAngle(UP, yaw).multiply(q);
+}
+const SLOTS = { 1: [[0, 0]], 2: [[-1.05, 0.1], [1.05, -0.1]], 3: [[-1.5, 0.25], [0, -0.35], [1.5, 0.25]] };
+function restDice(values) {
+    const n = values.length; ensureDice(n);
+    values.forEach((v, i) => {
+        const [x, z] = SLOTS[n][i];
+        dice[i].mesh.position.set(x, 0.5, z);
+        dice[i].mesh.quaternion.copy(finalQuat(v, (i - 1) * 0.35 + 0.3));
+    });
+}
+
+// ---------- hoạt cảnh tung ----------
+let turn = null;   // { values, t0, ms, rollMs, plans }
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+function bounce(t) {   // độ cao 0..1 → 3 lần nảy nhỏ dần
+    const n1 = 7.5625, d1 = 2.75;
+    if (t < 1 / d1) return n1 * t * t;
+    if (t < 2 / d1) return n1 * (t -= 1.5 / d1) * t + 0.75;
+    if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375;
+    return n1 * (t -= 2.625 / d1) * t + 0.984375;
+}
+function planRoll(values, seed) {
+    const n = values.length; ensureDice(n);
+    let s = seed || 1;
+    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    return values.map((v, i) => {
+        const [x, z] = SLOTS[n][i];
+        const axis = new THREE.Vector3(rnd() - .5, rnd() * .3, rnd() - .5).normalize();
+        return { from: new THREE.Vector3(x * .4 - 2.6 + rnd() * .6, 5.5 + rnd(), -3.2 + rnd()), to: new THREE.Vector3(x, 0.5, z),
+            qFinal: finalQuat(v, (rnd() - .5) * 1.4), axis, turns: 3 + Math.floor(rnd() * 3), delay: i * 0.06 };
+    });
+}
+const tmpQ = new THREE.Quaternion();
+let bounced = 0;
+function poseAt(elapsed) {
+    if (!turn) return false;
+    const plans = turn.plans;
+    let moving = false;
+    plans.forEach((p, i) => {
+        const t = clamp((elapsed / turn.rollMs) - p.delay, 0, 1);
+        if (t < 1) moving = true;
+        const m = dice[i].mesh;
+        const k = easeOutCubic(t);
+        m.position.x = p.from.x + (p.to.x - p.from.x) * k;
+        m.position.z = p.from.z + (p.to.z - p.from.z) * k;
+        m.position.y = 0.5 + (p.from.y - 0.5) * (1 - bounce(t));
+        const spin = (1 - easeOutCubic(t)) * p.turns * Math.PI * 2;
+        tmpQ.setFromAxisAngle(p.axis, spin);
+        m.quaternion.copy(p.qFinal).premultiply(tmpQ);
+    });
+    // tiếng lách cách mỗi lần chạm bàn
+    const t0 = clamp(elapsed / turn.rollMs, 0, 1);
+    const hits = [0.364, 0.727, 0.909, 0.98];
+    while (bounced < hits.length && t0 >= hits[bounced]) { sfx('hit', 1 - bounced * 0.22); bounced++; }
+    return moving;
+}
+
+// ---------- DOM ----------
+function avatar(url) { return url ? `<img class="av" src="${esc(url)}" alt="" onerror="this.style.visibility='hidden'">` : ''; }
+function showWho(t) {
+    const w = $('xucxac-who');
+    w.innerHTML = `${avatar(t.avatar)}<span>${esc(t.nickname || 'Ẩn danh')}</span>${t.giftImage ? `<img class="gi" src="${esc(t.giftImage)}" alt="">` : ''}`;
+    w.classList.add('on');
+}
+let cardTimer = 0;
+function showCard(t) {
+    const r = t.result, vals = r.values;
+    const nums = vals.map(v => `<b class="${v === 1 ? 'one' : ''}">${v}</b>`).join('<i>+</i>') + (vals.length > 1 ? `<i>=</i><em>${r.total}</em>` : '');
+    $('xucxac-card').innerHTML = `<div class="nums">${nums}</div>${r.text ? `<div class="say${r.text.length > 34 ? ' long' : ''}">${esc(r.text)}</div>` : ''}`;
+    $('xucxac-card').classList.add('on');
+    clearTimeout(cardTimer);
+    cardTimer = setTimeout(hideCard, Math.max(1400, t.ms * 0.4 + 1400));
+}
+function hideCard() { $('xucxac-card').classList.remove('on'); }
+let queueLeft = 0;
+function renderQueue() {
+    const q = $('xucxac-q');
+    q.hidden = !(cfg.display?.showQueue !== false && queueLeft > 0);
+    q.textContent = `⏳ còn ${queueLeft} lượt`;
+}
+
+function startTurn(t, at) {
+    if (disabled || !t || !t.result || !Array.isArray(t.result.values)) return;
+    hideCard();
+    $('xucxac-hint').classList.add('hide');
+    const rollMs = Math.max(1100, Math.min(2400, t.ms * 0.55));
+    turn = { ...t, t0: at ?? performance.now(), rollMs, plans: planRoll(t.result.values, (t.id || 1) * 7919 + t.result.total) };
+    bounced = 0;
+    queueLeft = t.left || 0; renderQueue();
+    showWho(t);
+    sfx('throw');
+    const me = turn;
+    setTimeout(() => { if (turn === me) { showCard(t); sfx('done'); } }, rollMs + 120);
+    setTimeout(() => { if (turn === me) { turn = null; $('xucxac-who').classList.remove('on'); } }, t.ms + 200);
+    kick();
+}
+
+// ---------- vòng vẽ theo nhu cầu ----------
+let looping = false;
+function frame(now) {
+    const moving = turn ? poseAt(now - turn.t0) : false;
+    renderer.render(scene, camera);
+    if (moving) requestAnimationFrame(frame); else looping = false;
+}
+function kick() { if (!looping && !shotSpec) { looping = true; requestAnimationFrame(frame); } }
+
+// ---------- âm thanh ----------
+let ac = null;
+function noise(dur, vol, freq) {
+    if (muted || !cfg.sound || cfg.sound.enabled === false) return;
+    try {
+        ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+        const len = Math.floor(ac.sampleRate * dur), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+        const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+        src.buffer = buf; f.type = 'bandpass'; f.frequency.value = freq || 2400; f.Q.value = 1.2;
+        g.gain.value = (Number(cfg.sound.volume) || 0.6) * (vol || 0.5);
+        src.connect(f); f.connect(g); g.connect(ac.destination); src.start();
+    } catch (e) { /* không có âm thanh vẫn chơi được */ }
+}
+function sfx(kind, k) {
+    if (kind === 'throw') noise(0.25, 0.25, 900);
+    else if (kind === 'hit') noise(0.07, 0.6 * (k || 1), 2600);
+    else if (kind === 'done') { noise(0.05, 0.4, 3600); setTimeout(() => noise(0.05, 0.3, 4200), 90); }
+}
+
+// ---------- cấu hình + socket ----------
+function layout() {
+    const d = cfg.display || {};
+    box.style.left = (1080 * (d.x ?? 50) / 100 - 380) + 'px';
+    box.style.top = (1920 * (d.y ?? 55) / 100 - 540) + 'px';
+    box.style.transform = `scale(${(Number(d.scale) || 100) / 100})`;
+    box.classList.toggle('off', disabled);
+}
+let lastColor = null, lastCount = 0;
+function applyConfig(c) {
+    if (!c) return;
+    cfg = c; disabled = c.enabled === false && !isReview && !isDemo && !shotSpec;
+    layout(); renderQueue();
+    if (c.display?.color !== lastColor) { lastColor = c.display?.color; buildMaterials(); }
+    const n = Math.min(3, Math.max(1, Number(c.dice) || 1));
+    if (!turn && n !== lastCount) { lastCount = n; restDice(Array.from({ length: n }, (_, i) => [1, 6, 3][i])); }
+    if (!turn && !shotSpec) renderer.render(scene, camera);
+}
+buildMaterials();
+restDice([1]);
+renderer.render(scene, camera);
+const cfgReady = fetch('/api/games/xucxac/config', { cache: 'no-store' }).then(r => r.json()).then(applyConfig).catch(() => {});
+
+if (typeof io === 'function') {
+    const token = qs.get('token') || '';
+    const socket = io({ query: { role: 'aux' }, transports: ['websocket', 'polling'], auth: token ? { token } : undefined });
+    socket.on('connect', () => socket.emit('subscribe', isReview ? 'preview' : 'overlay'));
+    if (!isDemo && !shotSpec) socket.on('xucxac:turn', t => startTurn(t));
+    socket.on('gameConfig', d => { if (d && d.gameId === 'xucxac') applyConfig(d.config); });
+    socket.on('overlay:reload', d => { if (!isReview && (!d || !d.gameId || d.gameId === 'xucxac')) location.reload(); });
+}
+if (isDemo) {
+    const names = ['Mây Hồng', 'Tí Nị', 'Anh Ba Khía', 'Bé Na'];
+    let k = 0;
+    const fake = () => {
+        const n = Math.min(3, Math.max(1, Number(cfg.dice) || 1));
+        const values = Array.from({ length: n }, () => 1 + Math.floor(Math.random() * 6));
+        const total = values.reduce((a, b) => a + b, 0);
+        const row = (cfg.outcomes || []).find(o => total >= o.from && total <= o.to);
+        startTurn({ id: ++k, ms: 4000, left: 0, nickname: names[k % names.length], result: { values, total, text: row ? row.text : '' } });
+    };
+    setTimeout(fake, 700); setInterval(fake, 4600);
+}
+// ?shot=0.45&v=3,5 — đóng băng 1 khung (tài liệu / kiểm tra khi trình duyệt bị ẩn, rAF đứng)
+if (shotSpec) {
+    cfgReady.then(() => {
+        const n = Math.min(3, Math.max(1, Number(cfg.dice) || 1));
+        const values = (qs.get('v') || '').split(',').map(Number).filter(v => v >= 1 && v <= 6).slice(0, 3);
+        const vals = values.length ? values : Array.from({ length: n }, (_, i) => [4, 6, 2][i]);
+        const total = vals.reduce((a, b) => a + b, 0);
+        const row = (cfg.outcomes || []).find(o => total >= o.from && total <= o.to);
+        const t = { id: 3, ms: 4000, left: 2, nickname: 'Mây Hồng', result: { values: vals, total, text: row ? row.text : '' } };
+        startTurn(t, 0);
+        const p = clamp(Number(shotSpec) || 0.5, 0, 1);
+        poseAt(p * t.ms);
+        if (p * t.ms >= turn.rollMs) { showCard(t); clearTimeout(cardTimer); }
+        renderer.render(scene, camera);
+    });
+}
+window.__xucxac = { startTurn, render: () => renderer.render(scene, camera), get cfg() { return cfg; } };
+</script>
+</body>
+</html>

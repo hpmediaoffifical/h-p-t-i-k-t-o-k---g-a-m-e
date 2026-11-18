@@ -365,6 +365,9 @@ function makeDefaultDapMuoiConfig() { return DapMuoi.defaultConfig(); }
 // 🏸 Đá Cầu — engine thuần UMD (port từ HP LIVE NPC): quà tung cầu, đỡ bằng đầu / đùi qua pose camera.
 const DaCau = require('./public/games/dacau/game.js');
 const SutBong = require('./public/games/sutbong/game.js');
+// 🕹️ Gắp Thú + 🎲 Xúc Xắc 3D — luật thuần (lib/gapthu.js, lib/xucxac.js) + hàng chờ/route ở lib/gapthu-xucxac-server.js.
+const GapThu = require('./lib/gapthu');
+const XucXac = require('./lib/xucxac');
 // 🧍 Bộ Tách Người — module server riêng (port HP LIVE NPC): route /overlay/body, /api/body/*, ẩn cam OBS, quà → body:run.
 const BodyServer = require('./lib/body-server');
 
@@ -792,6 +795,24 @@ const GAMES = {
         icon: '⚽',
         overlayPath: '/overlay/sutbong',
         defaultConfig: SutBong.defaultConfig()
+    },
+    // 🕹️ GẮP THÚ — quà = 1 lượt máy gắp, tỉ lệ trúng + giải thưởng do streamer đặt (server quyết kết quả).
+    gapthu: {
+        id: 'gapthu',
+        name: 'Gắp Thú',
+        description: 'Tặng quà là máy gắp hạ càng: trúng thì nhận giải streamer đặt sẵn, tên người tặng hiện trên tủ.',
+        icon: '🕹️',
+        overlayPath: '/overlay/gapthu',
+        defaultConfig: GapThu.defaultConfig()
+    },
+    // 🎲 XÚC XẮC 3D — quà = 1 lần tung (1–3 viên), tổng điểm ra việc streamer phải làm.
+    xucxac: {
+        id: 'xucxac',
+        name: 'Xúc Xắc 3D',
+        description: 'Tặng quà là tung xúc xắc 3D: ra bao nhiêu điểm thì streamer làm theo bảng kết quả.',
+        icon: '🎲',
+        overlayPath: '/overlay/xucxac',
+        defaultConfig: XucXac.defaultConfig()
     },
     // 🧍 BỘ TÁCH NGƯỜI — khe 'body' (lớp dưới cùng overlay mẹ): tách nền người rồi vẽ lại cho Hậu Cảnh, Rơi Hố, Bị Đuổi,
     // Video Hành Động, Khóc Lóc, Bắn Tim, Bắt NPC, Biến Hình. Logic ở lib/body-server.js + public/games/body/.
@@ -2604,6 +2625,8 @@ if (appConfig.games.chemtraicay) {
 if (appConfig.games.dapmuoi) appConfig.games.dapmuoi = DapMuoi.normalizeConfig(appConfig.games.dapmuoi);
 if (appConfig.games.dacau) appConfig.games.dacau = DaCau.normalizeConfig(appConfig.games.dacau);
 if (appConfig.games.sutbong) appConfig.games.sutbong = SutBong.normalizeConfig(appConfig.games.sutbong);
+if (appConfig.games.gapthu) appConfig.games.gapthu = GapThu.normalizeConfig(appConfig.games.gapthu);
+if (appConfig.games.xucxac) appConfig.games.xucxac = XucXac.normalizeConfig(appConfig.games.xucxac);
 // 🎥 Bộ quà mẫu Game Camera (lib/camgames-gift-seed.js): một lần, chỉ điền game còn trống quà.
 try {
     const seeded = require('./lib/camgames-gift-seed').applyGiftSeed(appConfig.games,
@@ -4229,6 +4252,7 @@ function handleTikTokChat(data, { test = false } = {}) {
     }
     try { handleVoteCommentChat({ uniqueId, comment }); } catch (e) {}
     try { handleTrongCayChat({ uniqueId, nickname, profilePicture, comment }); } catch (e) {}
+    try { gapXucServer?.onChat({ uniqueId, nickname, comment }); } catch (e) {}   // 🕹️ Gắp Thú: người đang tự lái ra lệnh
     return { blocked: '', nickname };
 }
 
@@ -5420,6 +5444,7 @@ function emitGift(g) {
     if (coFanChange) io.emit('creatoronline:fan', coFanChange);
     try { if (giftStats.add(enriched)) giftStatsChanged(); } catch (e) { console.warn('[gift-stats] lỗi:', e?.message || e); }
     setLiveDashboardGift(enriched);
+    try { gapXucServer?.onGift(enriched); } catch (e) { console.warn('[gapthu/xucxac] gift lỗi:', e?.message || e); }
     try { leagueOnGift(enriched); } catch (e) { console.warn('[leaguecard] gift lỗi:', e?.message || e); }
     try { rankGamesOnGift(enriched); } catch (e) { console.warn('[daugia/top3tran] gift lỗi:', e?.message || e); }
     try { if (qvStore && qvStore.alive()) qvStore.addGift({ uid: String(enriched.uniqueId || enriched.userId || ''), name: enriched.nickname || enriched.uniqueId, avatar: enriched.profilePictureUrl || enriched.profilePicture || '', coins: (Number(enriched.coinValue) || 0) * Math.max(1, parseInt(enriched.repeatCount, 10) || 1) }); } catch (e) { console.warn('[quaivat] sổ tuần lỗi:', e?.message || e); }
@@ -6488,6 +6513,8 @@ app.post('/api/games/:id/config', (req, res) => {
         rankEmit(g.id, true);
     }
     if (g.id === 'body') appConfig.games.body = BodyServer.normalizeConfig(appConfig.games.body);
+    if (g.id === 'gapthu') appConfig.games.gapthu = GapThu.normalizeConfig(appConfig.games.gapthu);
+    if (g.id === 'xucxac') appConfig.games.xucxac = XucXac.normalizeConfig(appConfig.games.xucxac);
     if (g.id === 'thuytinh') cleanThuyTinhConfig(appConfig.games.thuytinh);   // app cũ POST config lẫn key game khác
     if (g.id === 'pktiktok') {
         appConfig.games.pktiktok = normalizePkTiktokConfig(appConfig.games.pktiktok);
@@ -10702,6 +10729,12 @@ app.post('/api/dapmuoi/control', (req, res) => {
 app.get('/overlay/dacau', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(__dirname, 'public', 'games', 'dacau', 'overlay.html'));
+});
+// ====== 🕹️ GẮP THÚ + 🎲 XÚC XẮC 3D ======
+// Route /overlay/gapthu|xucxac, /api/gapthu|xucxac/{state,test,control}; quà vào qua emitGift → gapXucServer.onGift.
+const gapXucServer = require('./lib/gapthu-xucxac-server').install({
+    app, io, express, publicDir: path.join(__dirname, 'public'), dataDir: DATA_DIR,
+    getConfig: id => appConfig.games[id] || GAMES[id]?.defaultConfig
 });
 function daCauCfg() { return DaCau.normalizeConfig(appConfig.games.dacau || DaCau.defaultConfig()); }
 function emitDaCau(type, count, base) {
