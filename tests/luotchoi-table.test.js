@@ -418,3 +418,11 @@ test('giao diện LIVE: khung neo dưới, nền kính mờ 35%, cỡ 85% mặc 
     const { tb } = make({ layout: 'middle', glass: 20, cardScale: 70 });
     assert.deepEqual([snap(tb).cfg.layout, snap(tb).cfg.glass, snap(tb).cfg.cardScale], ['middle', 20, 70]);
 });
+
+test('kiểu hiển thị: HUD nổi mặc định (không khung nền to), chọn được khung kính; có trong snapshot', () => {
+    assert.equal(normalizeConfig({}).frame, 'hud');
+    assert.equal(normalizeConfig({ frame: 'card' }).frame, 'card');
+    assert.equal(normalizeConfig({ frame: 'abc' }).frame, 'hud');
+    const { tb } = make({ frame: 'card' });
+    assert.equal(snap(tb).cfg.frame, 'card');
+});

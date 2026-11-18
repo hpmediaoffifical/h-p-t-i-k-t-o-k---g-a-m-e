@@ -124,6 +124,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                 <div class="lc-line"><label>${hpT('Tên Chủ LIVE')}</label><input data-t="hostName" value="${esc(cfg.hostName || 'Chủ LIVE')}" maxlength="30"></div>
             </div>
             <div class="lc-box"><div class="lc-h">${hpT('🖼️ Hiển thị trên LIVE')} <span class="lc-muted">${hpT('không che creator')}</span></div>
+                <div class="lc-line"><label>${hpT('Kiểu hiển thị')}</label><select data-s="frame">${[['hud', 'HUD nổi (mặc định)'], ['card', 'Khung kính']].map(([v, l]) => `<option value="${v}" ${(cfg.frame || 'hud') === v ? 'selected' : ''}>${hpT(l)}</option>`).join('')}</select></div>
                 <div class="lc-line"><label>${hpT('Vị trí khung')}</label><select data-s="layout">${[['bottom', 'Dưới (mặc định)'], ['middle', 'Giữa'], ['top', 'Trên']].map(([v, l]) => `<option value="${v}" ${(cfg.layout || 'bottom') === v ? 'selected' : ''}>${hpT(l)}</option>`).join('')}</select></div>
                 <div class="lc-line"><label>${hpT('Nền mờ')}</label><input type="range" data-k="glass" min="0" max="90" value="${esc(cfg.glass ?? 35)}" style="flex:1"><span id="lc-glass">${esc(cfg.glass ?? 35)}%</span></div>
                 <div class="lc-line"><label>${hpT('Cỡ khung')}</label><input type="range" data-k="cardScale" min="55" max="100" value="${esc(cfg.cardScale ?? 85)}" style="flex:1"><span id="lc-scale">${esc(cfg.cardScale ?? 85)}%</span></div>

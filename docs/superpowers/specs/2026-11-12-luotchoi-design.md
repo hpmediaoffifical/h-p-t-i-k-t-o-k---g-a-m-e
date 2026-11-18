@@ -98,7 +98,10 @@ Sforum (cellphones.com.vn). Chỗ các nguồn khác nhau → chọn cách phổ
 
 Khung game **nền kính mờ xám trong suốt** (`glass` 0–90%, mặc định 35%), **neo dưới** (`layout: bottom|middle|top`,
 mặc định dưới — mặt creator thường ở nửa trên khung dọc), **cỡ khung** `cardScale` 55–100% (mặc định 85%); Ô Ăn Quan
-vùng bàn thấp lại (470 px). Chỉnh trong panel "🖼️ Hiển thị trên LIVE"; link OBS có thể ghi đè `?layout=&glass=&scale=`.
+vùng bàn thấp lại (470 px). **Kiểu hiển thị `frame`** (mặc định `hud`): học nguyên tắc bố cục của các overlay game LIVE
+chuyên nghiệp — KHÔNG khung nền to, bàn 3D nổi thẳng trên hình creator (chỉ bóng đổ), chữ nằm trong các viên kính mờ tách
+rời (tên trò, người chơi, bảng điểm, dòng nhắc); 2 người = thanh đối đầu **A – VS – B**. `frame: card` = khung kính cũ.
+Chỉnh trong panel "🖼️ Hiển thị trên LIVE"; link OBS có thể ghi đè `?layout=&glass=&scale=`.
 
 ### 2.3 Bàn tay + con cóc vẽ lại (18/11/2026)
 

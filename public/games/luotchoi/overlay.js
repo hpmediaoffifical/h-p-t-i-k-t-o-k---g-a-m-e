@@ -246,21 +246,25 @@
         var sc = params.has('scale') ? Number(params.get('scale')) : (c.cardScale ?? 85);
         var card = $('card'), res = $('result');
         card.dataset.layout = lay; res.dataset.layout = lay;
+        card.dataset.frame = params.get('frame') || c.frame || 'hud';
         if (st && st.game) card.dataset.game = st.game.id;   // vùng bàn cao theo trò (Ô Ăn Quan dẹt → thấp hơn)
         document.documentElement.style.setProperty('--lc-glass', String(Math.max(0, Math.min(90, glass)) / 100));
         document.documentElement.style.setProperty('--lc-scale', String(Math.max(55, Math.min(100, sc)) / 100));
     }
 
     function renderSeats(s) {
-        var n = s.cfg.seats, html = '';
+        var n = s.cfg.seats, cells = [];
         for (var i = 0; i < n; i++) {
             var x = s.seats[i];
-            if (!x) { html += '<div class="lc-seat empty"><div class="lc-av" style="background:rgba(255,255,255,.08)">🪑</div><div class="nm">' + T('Ghế trống') + '</div><div class="sub"></div></div>'; continue; }
+            if (!x) { cells.push('<div class="lc-seat empty"><div class="lc-av" style="background:rgba(255,255,255,.08)">🪑</div><div class="txt"><div class="nm">' + T('Ghế trống') + '</div><div class="sub"></div></div></div>'); continue; }
             var sub = (x.shields ? '🛡️'.repeat(x.shields) : '') + (s.game.kind === 'score' && s.phase !== 'lobby' ? ' ' + x.score + ' ' + T(s.game.id === 'oanquan' ? 'điểm' : 'cặp') : '') + (x.host ? ' 🎙️' : '');
-            html += '<div class="lc-seat' + (x.turn ? ' turn' : '') + (x.out ? ' out' : '') + '" data-k="' + esc(x.key) + '"><span class="no">' + (i + 1) + '</span>' +
-                (x.out ? '<span class="bin">🗑️</span>' : '') + avatar(x) + '<div class="nm">' + esc(x.nickname) + '</div><div class="sub">' + sub + '</div></div>';
+            cells.push('<div class="lc-seat' + (x.turn ? ' turn' : '') + (x.out ? ' out' : '') + '" data-k="' + esc(x.key) + '"><span class="no">' + (i + 1) + '</span>' +
+                (x.out ? '<span class="bin">🗑️</span>' : '') + avatar(x) + '<div class="txt"><div class="nm">' + esc(x.nickname) + '</div><div class="sub">' + sub + '</div></div></div>');
         }
-        $('seats').innerHTML = html;
+        // 2 người: thanh đối đầu A – VS – B
+        if (n === 2) cells.splice(1, 0, '<div class="lc-vs">VS</div>');
+        $('seats').classList.toggle('vs2', n === 2);
+        $('seats').innerHTML = cells.join('');
     }
 
     function rangeText(s) {

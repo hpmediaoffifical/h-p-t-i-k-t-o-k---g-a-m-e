@@ -273,3 +273,33 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 
 /* bàn Ô Ăn Quan dẹt ngang → vùng bàn thấp lại, khung gọn, lộ creator nhiều hơn */
 .lc-card[data-game="oanquan"] .lc-stage { height: 470px; }
+
+/* ── Kiểu "HUD nổi" (mặc định): không khung nền to — bàn 3D nổi thẳng trên hình creator, chữ nằm trong các viên kính
+   mờ tách rời (người chơi / trạng thái / dòng nhắc / bảng điểm) → che ít nhất, vẫn đọc rõ trên mọi nền video. ── */
+.lc-card[data-frame="hud"] { background: none; border: 0; box-shadow: none; padding: 0 10px; gap: 12px; }
+.lc-card[data-frame="hud"] .lc-top { justify-content: center; gap: 14px; }
+.lc-card[data-frame="hud"] .lc-title, .lc-card[data-frame="hud"] .lc-champs span, .lc-card[data-frame="hud"] .lc-prompt,
+.lc-card[data-frame="hud"] .lc-queue, .lc-card[data-frame="hud"] .oq-score {
+  background: rgba(16, 18, 30, max(.62, var(--lc-glass))); border: 1.5px solid rgba(255, 255, 255, .18); border-radius: 99px; box-shadow: 0 6px 18px rgba(0, 0, 0, .3); }
+.lc-card[data-frame="hud"] .lc-title { font-size: 34px; padding: 6px 22px; }
+.lc-card[data-frame="hud"] .lc-prompt { align-self: center; padding: 10px 26px; font-size: 32px; }
+.lc-card[data-frame="hud"] .lc-queue { align-self: center; padding: 4px 18px; }
+.lc-card[data-frame="hud"] .oq-score { border-radius: 22px; }
+.lc-card[data-frame="hud"] .lc-seat { background: rgba(16, 18, 30, max(.62, var(--lc-glass))); border-color: rgba(255, 255, 255, .18); }
+/* 2 người: thanh đối đầu ngang — ảnh + tên trên 1 dòng, VS ở giữa */
+.lc-seats.vs2 { grid-template-columns: 1fr auto 1fr; align-items: center; }
+.lc-seats.vs2 .lc-seat { flex-direction: row; padding: 8px 16px 8px 10px; gap: 12px; border-radius: 99px; justify-content: flex-start; }
+.lc-seats.vs2 .lc-seat:last-child { flex-direction: row-reverse; padding: 8px 10px 8px 16px; text-align: right; }
+.lc-seats.vs2 .lc-seat .lc-av, .lc-seats.vs2 .lc-seat .lc-av img { width: 72px; height: 72px; font-size: 32px; }
+.lc-seats.vs2 .lc-seat .lc-av svg { inset: -7px; width: 86px; height: 86px; }
+.lc-seats.vs2 .lc-seat .no, .lc-seats.vs2 .lc-seat .bin { display: none; }
+.lc-seats.vs2 .lc-seat .nm { font-size: 26px; }
+.lc-seats.vs2 .lc-seat .sub { font-size: 20px; min-height: 0; }
+.lc-seats.vs2 .lc-seat.turn { transform: none; }
+.lc-vs { width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; font-weight: 800; color: #2b1d05;
+  background: radial-gradient(circle at 35% 30%, #fff3b0, #ffd54a 55%, #e8a417); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); }
+.lc-card[data-game="oanquan"] .lc-seats.vs2 .lc-seat:first-child { border-color: #FE2C55; }
+.lc-card[data-game="oanquan"] .lc-seats.vs2 .lc-seat:last-child { border-color: #25F4EE; }
+.lc-seat .txt { display: flex; flex-direction: column; align-items: center; min-width: 0; max-width: 100%; }
+.lc-seats.vs2 .lc-seat .txt { align-items: flex-start; }
+.lc-seats.vs2 .lc-seat:last-child .txt { align-items: flex-end; }
