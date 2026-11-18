@@ -582,19 +582,37 @@ const CC = {
             normal.lerp(radial.setY(0.12).normalize(), 0.3).normalize();   // nghiêng nhẹ ra ngoài cho số dễ đọc khi xoay tới
             const pos = hit.point.clone().addScaledVector(normal, 0.045);
             if (spots.some(s => s.pos.distanceTo(pos) < gap)) continue;
-            spots.push({ pos, normal });
+            // mặt đá quanh vành có nhô cao hơn mặt hốc không (mặt vát kế bên)? đo 12 điểm trên vành → nâng hốc lên vừa đủ
+            const t1 = new THREE.Vector3().crossVectors(normal, Math.abs(normal.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).normalize();
+            const t2 = new THREE.Vector3().crossVectors(normal, t1);
+            let lift = 0;
+            for (let a = 0; a < 12; a++) {
+                const ang = a / 12 * Math.PI * 2, rr = size + 0.06;
+                const q = pos.clone().addScaledVector(t1, Math.cos(ang) * rr).addScaledVector(t2, Math.sin(ang) * rr);
+                rc.set(q.clone().addScaledVector(normal, 0.8), normal.clone().negate());
+                const h2 = rc.intersectObject(jar, false)[0];
+                if (h2 && h2.distance < 0.8) lift = Math.max(lift, 0.8 - h2.distance + 0.03);
+            }
+            if (lift > 0.14) continue;   // chỗ gồ ghề (phải nâng nhiều, gờ lòi ra như ống) → bỏ, tìm chỗ bằng hơn
+            pos.addScaledVector(normal, lift);
+            spots.push({ pos, normal, lift });
         }
         // số xáo trộn: hoán vị xác định theo số hốc
         const order = spots.map((_, i) => i);
         for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rnd01() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
         const holes = [];
         const rim = new THREE.MeshStandardMaterial({ color: 0x5f5850, flatShading: true, roughness: 0.85 });
+        const collarM = new THREE.MeshStandardMaterial({ color: 0x7b746b, flatShading: true, roughness: 0.92 });   // màu đá núi → gờ hoà vào vách
         spots.forEach((sp, idx) => {
             const n = order[idx] + 1;
             const hole = new THREE.Group(); hole.position.copy(sp.pos); hole.lookAt(sp.pos.clone().add(sp.normal));
             const disc = decal(numberTex(n, '#fff1d6', '#17110c'), size * 2, size * 2); disc.material.depthWrite = true;
             const ring = new THREE.Mesh(new THREE.TorusGeometry(size, 0.035, 10, 32), rim); ring.castShadow = true;
-            hole.add(disc, ring); g.add(hole);
+            // gờ đá hình ống từ vành ăn sâu vào núi → hốc như đục vào đá, không phải đĩa dán lơ lửng
+            const depth = sp.lift + 0.3;
+            const collar = new THREE.Mesh(new THREE.CylinderGeometry(size + 0.03, size + 0.1, depth, 14, 1, true), collarM);
+            collar.rotation.x = Math.PI / 2; collar.position.z = -depth / 2; collar.castShadow = true; collar.receiveShadow = true;
+            hole.add(disc, ring, collar); g.add(hole);
             holes.push({ n, g: hole, disc, normal: sp.normal, stick: null, size });
         });
         holes.sort((a, c) => a.n - c.n);
