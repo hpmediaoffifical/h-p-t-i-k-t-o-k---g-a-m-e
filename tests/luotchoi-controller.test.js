@@ -67,3 +67,13 @@ test('rotate: creator xoay mô hình 3D — phát luotchoi:rotate với dir -1/0
     const rot = io.sent.filter(([ev]) => ev === 'luotchoi:rotate').map(([, d]) => d.dir);
     assert.deepEqual(rot, [1, -1, 0]);
 });
+
+test('rotate theo góc (kéo chuột): angle độ được chặn ±3600, làm tròn; số lạ bị chặn', () => {
+    const io = fakeIo();
+    const c = createLuotChoiController({ io, getConfig: () => ({ enabled: true }), log: () => {} });
+    assert.equal(c.control('rotate', { angle: 37.6 }).ok, true);
+    assert.equal(c.control('rotate', { angle: 99999 }).ok, true);
+    assert.equal(c.control('rotate', { angle: 'abc' }).ok, false);
+    const got = io.sent.filter(([ev]) => ev === 'luotchoi:rotate').map(([, d]) => d.angle);
+    assert.deepEqual(got, [38, 3600]);
+});

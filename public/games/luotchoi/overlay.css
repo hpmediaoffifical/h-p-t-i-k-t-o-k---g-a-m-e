@@ -202,7 +202,7 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 .tt-meter.hot b { color: #ff6b5a; animation: lcAim .35s ease-in-out infinite alternate; }
 
 /* ── bàn 3D (board3d.js): canvas trong suốt + lớp neo HTML đặt theo vị trí chiếu từ 3D ── */
-.lc3-canvas { position: absolute; inset: 0; display: block;
+.lc3-canvas { position: absolute; inset: 0; display: block; touch-action: none;
   /* mép khung vẽ mờ dần: vật văng ra (tháp đổ, sỏi…) tan mềm thay vì bị cắt thành đường thẳng */
   -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent), linear-gradient(to bottom, transparent, #000 3%, #000 96%, transparent);
   -webkit-mask-composite: source-in; mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent), linear-gradient(to bottom, transparent, #000 3%, #000 96%, transparent); mask-composite: intersect; }

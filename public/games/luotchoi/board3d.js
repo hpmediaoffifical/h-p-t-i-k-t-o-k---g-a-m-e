@@ -187,13 +187,26 @@ function tagHtml(m, colorOf) {
 // (hà mã, núi đá, tháp); bàn phẳng (lật thẻ, Ô Ăn Quan) xoay sẽ ngược số → bỏ qua. Xoay xong xếp lại nhãn tên.
 let spinY = 0, tagArgs = null;
 const SPIN_KINDS = { hama: 1, chumcoc: 1, thaptre: 1 };
-function rotate(dir) {
+function rotate(dir, angleDeg) {
     if (!root || !SPIN_KINDS[game]) return;
-    const to = dir === 0 ? 0 : spinY + dir * Math.PI / 4;
-    const from = root.rotation.y;
+    const to = angleDeg != null ? angleDeg * Math.PI / 180 : dir === 0 ? 0 : spinY + dir * Math.PI / 4;
+    spinTo(to, angleDeg != null ? 140 : 650);
+}
+let spinTw = 0;
+function spinTo(to, ms, done) {
+    if (!root) { if (done) done(); return; }
+    const from = root.rotation.y, my = ++spinTw, r = root;
     spinY = to;
-    tween(650, k => { root.rotation.y = from + (to - from) * k; }, ease.inOut, () => { if (tagArgs) syncTags(tagArgs[0], tagArgs[1]); kick(); });
+    tween(ms, k => { if (my === spinTw && root === r) root.rotation.y = from + (to - from) * k; }, ease.inOut, () => { if (my === spinTw && tagArgs) syncTags(tagArgs[0], tagArgs[1]); kick(); if (done) done(); });
     kick();
+}
+// kéo chuột ngay trên overlay (OBS: chuột phải nguồn → Tương tác) → xoay mô hình
+function bindDragSpin(el) {
+    let x0 = null, a0 = 0;
+    el.addEventListener('pointerdown', e => { if (!root || !SPIN_KINDS[game]) return; x0 = e.clientX; a0 = root.rotation.y; try { el.setPointerCapture(e.pointerId); } catch (er) {} });
+    el.addEventListener('pointermove', e => { if (x0 == null || !root) return; root.rotation.y = spinY = a0 + (e.clientX - x0) * 0.012; kick(); });
+    const end = () => { if (x0 == null) return; x0 = null; if (tagArgs) syncTags(tagArgs[0], tagArgs[1]); kick(); };
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
 }
 function disposeRoot() {
     if (hand3d) hand3d.visible = false;
@@ -550,47 +563,41 @@ const CC = {
         }
         const rc = new THREE.Raycaster();
         // lỗ: các hàng ở nửa trước, mỗi lỗ = đĩa tối có số + vành đất sáng
-        // chỉ ở MẶT TRƯỚC núi (góc dàn ≤ ~45° mỗi bên) — thêm hàng thay vì dàn ra hai sườn khuất
-        const rows = Math.max(3, Math.ceil(b.n / 4.5));
-        const rowY = (r) => 2.4 - (1.75 * r) / (rows - 1);
-        // số hốc mỗi hàng tỉ lệ bề ngang núi ở độ cao đó (đỉnh hẹp ít hốc, chân rộng nhiều hốc) — tổng đúng b.n
-        const widths = Array.from({ length: rows }, (_, r) => rockProfile(rowY(r)));
-        const wsum = widths.reduce((a, c) => a + c, 0);
-        const counts = widths.map(w => Math.floor(b.n * w / wsum));
-        for (let left = b.n - counts.reduce((a, c) => a + c, 0), r = rows - 1; left > 0; left--, r = (r - 1 + rows) % rows) counts[r]++;
-        const gap = b.n > 20 ? 0.4 : 0.47;   // khoảng cách 2 tâm hốc theo vòng (đơn vị cảnh) → không đè nhau
+        // hốc RẢI KHẮP núi (cả mặt khuất — creator xoay cho người xem tìm), cách nhau đủ xa đo trên MẶT ĐÁ THẬT (không đè nhau),
+        // số xáo trộn rời rạc. Cùng số hốc → cùng bố cục (bộ sinh số xác định), không nhảy lung tung giữa các lượt.
+        const size = b.n > 20 ? 0.15 : 0.18;
+        let gap = size * 2 + 0.2;
+        let seed = 0;
+        const rnd01 = () => hash(++seed * 7.13 + b.n * 101.7);
+        const spots = [];
+        for (let tries = 0; spots.length < b.n && tries < 6000; tries++) {
+            if (tries && tries % 1500 === 0) gap *= 0.9;   // núi nhỏ chưa đủ chỗ → nới khoảng cách dần
+            const th = (rnd01() * 2 - 1) * Math.PI, y = 0.5 + rnd01() * 1.95;
+            rc.set(new THREE.Vector3(6 * Math.sin(th), y, 6 * Math.cos(th)), new THREE.Vector3(-Math.sin(th), 0, -Math.cos(th)));
+            const hit = rc.intersectObject(jar, false)[0];
+            if (!hit) continue;
+            const radial = new THREE.Vector3(Math.sin(th), 0, Math.cos(th));
+            const normal = hit.face.normal.clone().normalize();
+            if (normal.y < -0.15 || normal.dot(radial) < 0.3) continue;   // mặt úp xuống / quá xiên → bỏ
+            normal.lerp(radial.setY(0.12).normalize(), 0.3).normalize();   // nghiêng nhẹ ra ngoài cho số dễ đọc khi xoay tới
+            const pos = hit.point.clone().addScaledVector(normal, 0.045);
+            if (spots.some(s => s.pos.distanceTo(pos) < gap)) continue;
+            spots.push({ pos, normal });
+        }
+        // số xáo trộn: hoán vị xác định theo số hốc
+        const order = spots.map((_, i) => i);
+        for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rnd01() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
         const holes = [];
         const rim = new THREE.MeshStandardMaterial({ color: 0x5f5850, flatShading: true, roughness: 0.85 });
-        let k = 0;
-        for (let r = 0; r < rows; r++) {
-            const y = rowY(r), cnt = counts[r];
-            const spread = Math.min(0.85, (gap / rockProfile(y)) * (cnt - 1) / 2);
-            for (let i = 0; i < cnt; i++, k++) {
-                const th = cnt === 1 ? 0 : -spread + (2 * spread * i) / (cnt - 1);
-                // dò tia từ ngoài vào trục núi → điểm chạm + pháp tuyến đúng MẶT VÁT đá → hốc áp sát mặt đá
-                rc.set(new THREE.Vector3(6 * Math.sin(th), y, 6 * Math.cos(th)), new THREE.Vector3(-Math.sin(th), 0, -Math.cos(th)));
-                const hit = rc.intersectObject(jar, false)[0];
-                const normal = hit ? hit.face.normal.clone().normalize() : new THREE.Vector3(Math.sin(th), 0.2, Math.cos(th)).normalize();
-                if (normal.dot(new THREE.Vector3(Math.sin(th), 0, Math.cos(th))) < 0.35) normal.lerp(new THREE.Vector3(Math.sin(th), 0.15, Math.cos(th)), 0.5).normalize();   // mặt quá xiên → nghiêng về phía người xem cho dễ đọc số
-                const base = hit ? hit.point : new THREE.Vector3(rockProfile(y) * Math.sin(th), y, rockProfile(y) * Math.cos(th));
-                const toCam = CC_CAM.clone().sub(base).normalize();
-                normal.lerp(toCam, 0.55).normalize();   // mặt số quay gần về người xem → số luôn tròn, đọc được
-                const pos = base.clone().addScaledVector(normal, 0.04);
-                for (let tries = 0; tries < 10; tries++) {   // máy quay → tâm hốc có vướng đá không? vướng thì đẩy nhô ra thêm
-                    const d = pos.clone().sub(CC_CAM), len = d.length();
-                    rc.set(CC_CAM, d.normalize());
-                    const blk = rc.intersectObject(jar, false)[0];
-                    if (!blk || blk.distance > len - 0.3) break;   // cả vành hốc (không chỉ tâm) phải lộ ra
-                    pos.addScaledVector(normal, 0.06);
-                }
-                const hole = new THREE.Group(); hole.position.copy(pos); hole.lookAt(pos.clone().add(normal));
-                const size = b.n > 20 ? 0.15 : 0.18;
-                const disc = decal(numberTex(k + 1, '#fff1d6', '#17110c'), size * 2, size * 2); disc.material.depthWrite = true;
-                const ring = new THREE.Mesh(new THREE.TorusGeometry(size, 0.035, 10, 32), rim); ring.castShadow = true;
-                hole.add(disc, ring); g.add(hole);
-                holes.push({ n: k + 1, g: hole, disc, normal, stick: null, size });
-            }
-        }
+        spots.forEach((sp, idx) => {
+            const n = order[idx] + 1;
+            const hole = new THREE.Group(); hole.position.copy(sp.pos); hole.lookAt(sp.pos.clone().add(sp.normal));
+            const disc = decal(numberTex(n, '#fff1d6', '#17110c'), size * 2, size * 2); disc.material.depthWrite = true;
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(size, 0.035, 10, 32), rim); ring.castShadow = true;
+            hole.add(disc, ring); g.add(hole);
+            holes.push({ n, g: hole, disc, normal: sp.normal, stick: null, size });
+        });
+        holes.sort((a, c) => a.n - c.n);
         const mascot = makeGoat(); mascot.position.set(0, 2.3, 0); mascot.visible = false; mascot.scale.setScalar(0.85); g.add(mascot);   // 🐐 dê con năm Đinh Mùi
         jar.castShadow = true; jar.receiveShadow = true;
         return { g, holes, mascot, jar };
@@ -627,7 +634,7 @@ const CC = {
         }
     },
     camera() { frameCamera(CC_CAM.clone(), new THREE.Vector3(0, 2.0, 0), 30); },   // đủ cả chân núi (đá vụn, cỏ) lẫn dê núi đứng trên đỉnh (cả sừng)
-    anchors(st) { return st.holes.map(h => ({ n: h.n, obj: h.g, offset: new THREE.Vector3(0, 0, 0.02) })); }
+    anchors(st) { return st.holes.map(h => ({ n: h.n, obj: h.g, offset: new THREE.Vector3(0, 0, 0.02), face: true })); }
 };
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -1149,6 +1156,18 @@ function anchorWorld(key) {
     return a.pos.clone();
 }
 function fly(key, tool, ms) {
+    // Dê Núi: hốc nằm mặt khuất → quay núi đưa hốc ra phía người xem (đường ngắn nhất) rồi mới cho tay bay vào
+    if (game === 'chumcoc' && root && state && state.holes) {
+        const h = state.holes.find(x => String(x.n) === String(key));
+        if (h) {
+            const want = -Math.atan2(h.g.position.x, h.g.position.z);   // góc quay để hốc nằm trên trục +Z (về máy quay)
+            let d = want - root.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d));
+            if (Math.abs(d) > 0.35) return new Promise(res => spinTo(root.rotation.y + d, Math.min(700, 260 + Math.abs(d) * 220), () => flyNow(key, tool, ms).then(res)));
+        }
+    }
+    return flyNow(key, tool, ms);
+}
+function flyNow(key, tool, ms) {
     return new Promise(res => {
         const tgt = renderer && anchorWorld(key);
         if (!tgt) return setTimeout(res, ms);
@@ -1273,6 +1292,12 @@ function placeTags() {
     for (const t of tags) {
         if (!anchorWorld(t.a.n)) continue;   // ô không còn (đổi trò / bàn nhỏ hơn)
         if (t.onCell) { t.a.obj.updateWorldMatrix(true, false); const q = scr(_l.copy(t.a.onCell).applyMatrix4(t.a.obj.matrixWorld)); t.el.style.transform = `translate(${q.x.toFixed(1)}px, ${q.y.toFixed(1)}px)`; continue; }
+        if (t.a.face) {   // hốc quay lưng về máy quay (mặt khuất của núi) → ẩn nhãn + que
+            t.a.obj.updateWorldMatrix(true, false);
+            const nrm = _l.set(0, 0, 1).transformDirection(t.a.obj.matrixWorld), wp = new THREE.Vector3().setFromMatrixPosition(t.a.obj.matrixWorld);
+            const vis = nrm.dot(camera.position.clone().sub(wp).normalize()) > 0.15;
+            t.el.style.opacity = t.stem.style.opacity = vis ? '' : '0';
+        }
         const c0 = scr(anchorWorld(t.a.n));
         const p0 = t.local ? null : { x: c0.x + t.off.x, y: c0.y + t.off.y };
         // chân que ở MÉP ô phía nhãn (hà mã: mép ngoài răng) → không đè số trên ô
@@ -1342,6 +1367,7 @@ async function boot() {
     if (!init()) return;
     try { await document.fonts.load(font(64)); } catch (e) {}
     window.LcBoards3D = { ready: true, render, fly, away, rotate };
+    bindDragSpin(canvas);
     window.dispatchEvent(new Event('lc3d:ready'));
 }
 boot();

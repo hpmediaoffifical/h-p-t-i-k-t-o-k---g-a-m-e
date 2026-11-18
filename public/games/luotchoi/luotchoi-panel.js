@@ -27,7 +27,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                     <button id="lc-btn-host" class="ghost small">${hpT('🙋 Tôi vào chơi')}</button>
                     <button id="lc-btn-start" class="primary small">${hpT('▶ Bắt đầu')}</button>
                     <button id="lc-btn-cancel" class="danger small">${hpT('Huỷ ván')}</button>
-                    <span class="lc-rot" style="display:inline-flex;gap:4px" title="${hpT('Xoay mô hình trên LIVE (Hà Mã, Dê Núi, Tháp Tre) để người xem thấy số phía sau')}"><button class="ghost small" data-rot="-1">⟲</button><button class="ghost small" data-rot="0">${hpT('Chính diện')}</button><button class="ghost small" data-rot="1">⟳</button></span>
+                    <span class="lc-rot" style="display:inline-flex;gap:4px" title="${hpT('Xoay mô hình trên LIVE (Hà Mã, Dê Núi, Tháp Tre) để người xem thấy số phía sau')}"><button class="ghost small" data-rot="-1">⟲</button><button class="ghost small" data-rot="0">${hpT('Chính diện')}</button><button class="ghost small" data-rot="1">⟳</button><span class="lc-drag" style="display:inline-flex;align-items:center;padding:0 12px;border-radius:99px;border:1px dashed currentColor;cursor:ew-resize;user-select:none;touch-action:none;opacity:.85" title="${hpT('Giữ chuột và kéo trái / phải để xoay mô hình trên LIVE')}">${hpT('🖱️ Kéo để xoay')}</span></span>
                     <span class="nd-bar-spacer"></span>
                     <button id="lc-btn-obs" class="obs-link small">${hpT('Thêm vào OBS')}</button>
                     <button id="lc-btn-pop" class="ghost small">${hpT('Xem mẫu')}</button>
@@ -279,7 +279,19 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         $('#lc-btn-host').addEventListener('click', () => API('host'));
         $('#lc-btn-start').addEventListener('click', () => API('start'));
         $('#lc-btn-cancel').addEventListener('click', () => API('cancel'));
-        document.querySelectorAll('#view-luotchoi [data-rot]').forEach(el => el.addEventListener('click', () => API('rotate', { dir: Number(el.dataset.rot) })));
+        // 🔄 xoay mô hình trên LIVE: nút = ±45° / về 0; kéo chuột = xoay liên tục (gửi góc tuyệt đối, tối đa ~12 lần/giây)
+        let spinDeg = 0, lastSend = 0, sendTm = null;
+        const sendAngle = () => { lastSend = Date.now(); sendTm = null; API('rotate', { angle: spinDeg }); };
+        const queueAngle = () => { if (sendTm) return; const w = Math.max(0, 80 - (Date.now() - lastSend)); sendTm = setTimeout(sendAngle, w); };
+        document.querySelectorAll('#view-luotchoi [data-rot]').forEach(el => el.addEventListener('click', () => { const d = Number(el.dataset.rot); spinDeg = d === 0 ? 0 : spinDeg + d * 45; API('rotate', { dir: d }); }));
+        const drag = document.querySelector('#view-luotchoi .lc-drag');
+        if (drag) {
+            let x0 = null, d0 = 0;
+            drag.addEventListener('pointerdown', e => { x0 = e.clientX; d0 = spinDeg; try { drag.setPointerCapture(e.pointerId); } catch (er) {} });
+            drag.addEventListener('pointermove', e => { if (x0 == null) return; spinDeg = Math.round(d0 + (e.clientX - x0) * 0.8); queueAngle(); });
+            const end = () => { if (x0 == null) return; x0 = null; queueAngle(); };
+            drag.addEventListener('pointerup', end); drag.addEventListener('pointercancel', end);
+        }
         $('#lc-btn-obs').addEventListener('click', () => {
             const url = window.buildOverlayURL('/overlay/luotchoi');
             if (window.hpObsQuick) { window.hpObsQuick(url, 'Đấu Trường Mini'); return; }
