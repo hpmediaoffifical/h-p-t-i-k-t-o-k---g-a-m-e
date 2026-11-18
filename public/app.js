@@ -1062,6 +1062,7 @@
         else if (gameId === 'giftboard') showView('view-giftboard');
         else if (gameId === 'pokemon') { if (!window.__giftSheet) window.__giftSheet = giftSheet; showView('view-pokemon'); window.HpPokemonPanel?.open(socket, game); }
         else if (gameId === 'leaguecard') { if (!window.__giftSheet) window.__giftSheet = giftSheet; showView('view-leaguecard'); window.HpLeagueCardPanel?.open(socket); }
+        else if (gameId === 'luotchoi') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpLuotChoiPanel?.open(socket); }
         else if (gameId === 'touchplay') showView('view-touchplay');
         else if (gameId === 'camgames') { showView('view-camgames'); window.HpCamGamesPanel?.open(socket); }
         else if (gameId === TT_HUB_ID) { showView('view-gametuongtac'); window.HpTuongTacPanel?.open(socket); }
