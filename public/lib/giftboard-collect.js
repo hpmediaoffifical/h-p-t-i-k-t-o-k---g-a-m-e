@@ -109,7 +109,7 @@
         for (const g of c.gifts || []) push('goibai', 'pass', g.giftId, g, 'Gọi bài', '🎧');
         if (Object.keys(c).length && c.songGifts !== false) push('goibai', 'music', 'music', { giftName: 'Ca khúc (mọi bài)' }, 'Ca khúc vào hàng', '🎧'); }
       // 🎥 Game Camera (trừ Bắn Cung — đã đọc ở trên): server dựng sẵn nhãn. Mục không có giftId = dòng "mọi quà/theo xu".
-      const srvLists = [['touchplay', camData], ['chemtraicay', camData], ['dapmuoi', camData], ['dacau', camData], ['body', camData],
+      const srvLists = [['touchplay', camData], ['chemtraicay', camData], ['dapmuoi', camData], ['dacau', camData], ['sutbong', camData], ['body', camData],
         ...[...TT_IDS].map(id => [id, ttData])];
       for (const [id, src] of srvLists) {
         if (!src || !src.games) continue;

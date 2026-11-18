@@ -12,7 +12,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
     'use strict';
     const $ = (s, r = document) => r.querySelector(s);
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const GAMES = [['touchplay', '🖐 Touch & Play'], ['chemtraicay', hpT('🍉 Chém Trái Cây')], ['dapmuoi', hpT('🦟 Đập Muỗi')], ['bancung', hpT('🏹 Bắn Cung')], ['dacau', hpT('🏸 Đá Cầu')]];
+    const GAMES = [['touchplay', '🖐 Touch & Play'], ['chemtraicay', hpT('🍉 Chém Trái Cây')], ['dapmuoi', hpT('🦟 Đập Muỗi')], ['bancung', hpT('🏹 Bắn Cung')], ['dacau', hpT('🏸 Đá Cầu')], ['sutbong', hpT('⚽ Sút Bóng')]];
     // 🚦 Game bị Ẩn theo game (gs 'hidden' của HP KEY - camgames-panel.js đặt window.HpCamLicenseStates) không có trong ô chọn; trừ
     // game mà một quà đang dùng sẵn (giữ nguyên lựa chọn cũ, không tự đổi cấu hình).
     const shownGames = keep => GAMES.filter(([id]) => id === keep || (window.HpCamLicenseStates || {})[id] !== 'hidden');

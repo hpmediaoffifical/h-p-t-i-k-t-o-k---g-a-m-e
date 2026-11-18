@@ -60,4 +60,7 @@ test('gameGiftList: quà từng game hiện trên overlay, tra ảnh trong catal
     const tp = S.gameGiftList('touchplay', { tpCfg: { gifts: [{ giftId: '9', giftName: 'X', action: 'rain' }], tiers: [] } }, []);
     assert.deepEqual(tp.map(x => x.label), ['🌧 Mưa bóng']);
     assert.ok(S.gameGiftList('touchplay', {}, []).length >= 5, 'chưa có tpCfg → mốc xu mặc định');
+    const sb = S.gameGiftList('sutbong', { gifts: [{ giftId: '5658', shot: 'rocket' }, { giftId: '7', giftName: 'B' }] }, cat);
+    assert.deepEqual(sb.map(x => x.label), ['⚡ Sấm sét', '⚽ Sút']);
+    assert.ok(S.TRIGGER_GAMES.includes('sutbong'), 'Sút Bóng chơi được theo phiên quà');
 });

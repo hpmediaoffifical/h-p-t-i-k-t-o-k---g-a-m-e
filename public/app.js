@@ -1040,7 +1040,7 @@
         // Nhặt Lá giữ batch lá đang chạy trong RAM; chỉ reload thủ công khi cần nạp asset mới.
         // Đập Muỗi cũng vậy: reload là mất sạch muỗi + điểm đang chơi giữa live (có nút 🔄 Reload riêng).
         // 🎥 Game Camera: overlay mẹ chứa mọi game camera đang chạy (muỗi, chuỗi Đá Cầu, phiên quà…) — mở lại màn này không tải lại OBS.
-        if (gameId !== 'nhatla' && gameId !== 'dapmuoi' && gameId !== 'dacau' && gameId !== 'body' && gameId !== 'camgames' && gameId !== TT_HUB_ID) {
+        if (gameId !== 'nhatla' && gameId !== 'dapmuoi' && gameId !== 'dacau' && gameId !== 'sutbong' && gameId !== 'body' && gameId !== 'camgames' && gameId !== TT_HUB_ID) {
             try { socket && socket.emit('overlay:reload', { gameId }); } catch (e) {}
         }
         // Đóng các popup Hũ khi rời sang game khác (tránh popup mở treo)
@@ -1063,6 +1063,7 @@
         else if (gameId === 'dapmuoi') openDapMuoi(game);
         else if (gameId === 'body') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpBodyPanel?.open(socket); }
         else if (gameId === 'dacau') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpDaCauPanel?.open(socket); }
+        else if (gameId === 'sutbong') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpSutBongPanel?.open(socket); }
         else if (gameId === 'trongcay') openTrongCay(game);
         else if (gameId === 'nhatla') openNhatLa(game);
         else if (gameId === 'liveTranslate') openLiveTranslateView();
