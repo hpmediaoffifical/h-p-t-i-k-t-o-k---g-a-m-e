@@ -73,3 +73,18 @@ Logic thuần `lib/vipwelcome/fan-tiers.js` (test `tests/vipwelcome-fan-tiers.te
 - Thuần: `tests/vipwelcome-fan-tiers.test.js` (normalize, classify từng bậc + thứ tự ưu tiên, enigma, fanMatch,
   accent, câu đọc biến mới, buildFanBook), bổ sung `tests/vipwelcome-visits.test.js` (prevAt, fansLevel, list).
 - Chạy thử: server cổng riêng + `HP_DATA_DIR` riêng, giả lập vào phòng qua API có sẵn, xem thẻ và `/api/vipwelcome/fanbook`.
+
+## 7. Đồ họa huy hiệu (18/11/2026)
+
+- `public/games/vipwelcome/fan-badge.js` (test `tests/vipwelcome-fan-badge.test.js`) — 1 module dùng chung thanh chào,
+  thẻ to và danh sách panel; CSS tự chèn 1 lần (`#hp-fan-badge-css`), không qua `style.css`.
+- Huân chương lục giác SVG 46 px: vành kim loại vát cạnh (gradient sáng→tối + mặt vát ngược), mặt đá quý gradient tròn,
+  4 giác cắt sáng/tối, biểu tượng vẽ bằng path (không emoji) có bóng lệch 1,4 px, vệt phản chiếu, viền sáng cạnh trên.
+  Chủ đề: sộp = vành vàng + kim cương xanh băng; lâu = bạc + đá lam + trăng khuyết vàng; fan cứng = vàng hồng +
+  thạch anh tím + tim hồng; quen = đồng + hổ phách + sao; mới = bạc ngọc + ngọc bích + mầm cây.
+- Tấm chữ kim loại (dải sáng/tối giữa, gờ trên sáng, gờ dưới tối, viền đậm + bóng đổ).
+- Chuyển động (chỉ transform/opacity/clip-path, không filter động): huân chương lật 3D vào (`rotateY`) đúng lúc thanh giãn,
+  tấm chữ mở từ trái, 1 vệt sáng quét (sộp/fan cứng 3 lần), 2 tia lấp lánh cho sộp + fan cứng. Mỗi thanh 1 SVG ~3 KB, sống ~6–8 s.
+- Gradient id theo `uid` từng huy hiệu → nhiều thanh cùng lúc không giẫm `url(#…)`.
+- Người chỉ được chào nhờ bậc fan: `title` rỗng (không lặp tên bậc); Khách sộp đi thanh vàng (`skin: amber`).
+- Không cần ảnh raster → không có brief đặt vẽ.

@@ -292,15 +292,8 @@
     background: rgba(255,255,255,.14); border: 1px solid var(--jc-edge);
     text-shadow: 0 1px 3px rgba(0,0,0,.7); white-space: nowrap;
 }
-/* Sổ Fan — huy hiệu bậc fan */
-.jc-fan {
-    padding: 1px 8px; border-radius: 5px; font-weight: 900; font-size: 13px; letter-spacing: .4px; white-space: nowrap;
-    text-shadow: 0 1px 3px rgba(0,0,0,.6); color: #fff; background: linear-gradient(180deg, #a78bfa, #6d28d9); border: 1px solid #ddd6fe;
-}
-.jc-fan.fan-sop { background: linear-gradient(180deg, #fde68a, #d97706); border-color: #fef3c7; color: #3b1d00; text-shadow: none; }
-.jc-fan.fan-lau { background: linear-gradient(180deg, #67e8f9, #0e7490); border-color: #cffafe; }
-.jc-fan.fan-quen { background: linear-gradient(180deg, #fcd34d, #b45309); border-color: #fde68a; }
-.jc-fan.fan-moi { background: linear-gradient(180deg, #86efac, #15803d); border-color: #dcfce7; }
+/* Sổ Fan — huy hiệu (fan-badge.js) nằm đầu dòng phụ, cao hơn chip thường → kéo lề để dòng không giãn */
+.jc-sub .fb { margin: -5px 2px -5px -2px; }
 .jc-visit.first { background: linear-gradient(180deg, #4ade80, #16a34a); border-color: #bbf7d0; }
 .jc-visit.streak { background: linear-gradient(180deg, #ffb347, #ff5e3a); border-color: #ffe0b8; }
 

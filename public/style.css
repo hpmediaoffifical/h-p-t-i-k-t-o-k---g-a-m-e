@@ -5634,7 +5634,7 @@ body.game-caro #caught-popup {
 .vw-fan-rule input[type="number"] { width: 90px; }
 .vw-fan-tts { flex: 1; min-width: 220px; }
 .vw-fans-listhead { margin-top: 12px; }
-.vw-fan-badge { flex: 0 0 auto; min-width: 128px; font-weight: 800; white-space: nowrap; }
+.vw-fan-badge { flex: 0 0 auto; min-width: 170px; font-weight: 800; white-space: nowrap; }
 .vw-fan-num { flex: 0 0 auto; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .9; }
 .vw-fan-ago { min-width: 84px; text-align: right; opacity: .65; }
 

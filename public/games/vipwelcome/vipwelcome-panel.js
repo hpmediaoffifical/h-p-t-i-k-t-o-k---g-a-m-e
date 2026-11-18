@@ -1367,11 +1367,13 @@
             if (!$('#vw-fans-tiers').childElementCount) renderFanTiers();
             const hostEl = $('#vw-fans-host'); if (hostEl) hostEl.textContent = (!j.host || j.host === '_') ? '(chưa kết nối LIVE)' : '@' + j.host;
             const items = j.items || [];
+            const FB = window.HpFanBadge;
+            if (FB) FB.injectCss();
             list.innerHTML = items.length === 0
                 ? '<div class="vw-empty">Sổ còn trống — người xem được ghi khi thẻ vào phòng hiện trên OBS hoặc khi tặng quà thật.</div>'
                 : items.map((it, i) => `<div class="vw-ledger-row">
                     <span class="vw-q-idx">#${i + 1}</span>
-                    <span class="vw-fan-badge">${it.tier ? escapeHtml(((it.tier.icon || '') + ' ' + it.tier.label).trim()) : '—'}</span>
+                    <span class="vw-fan-badge">${!it.tier ? '—' : FB ? FB.badgeHtml(it.tier, { size: 'sm' }) : escapeHtml(((it.tier.icon || '') + ' ' + it.tier.label).trim())}</span>
                     <span class="vw-ledger-name">${escapeHtml(it.nickname || it.uniqueId || it.key)}</span>
                     <span class="vw-q-user">${it.uniqueId ? '@' + escapeHtml(it.uniqueId) : ''}</span>
                     <span class="vw-fan-num" title="Tổng xu đã tặng kênh">💎 ${(it.xu || 0).toLocaleString('vi-VN')}</span>

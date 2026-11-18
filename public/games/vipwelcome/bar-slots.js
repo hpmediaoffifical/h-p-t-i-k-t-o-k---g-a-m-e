@@ -81,13 +81,20 @@
         return Math.round(base * HOLD_MULT[r] + (early ? 0 : 1000));
     }
 
+    // Sổ Fan: bậc fan chiếm ô điểm nhấn (overlay vẽ thành huy hiệu); riêng Khách quen nhường chuỗi buổi liền (cụ thể hơn).
+    function fanAccent(card) {
+        if (!card || card.late) return null;
+        const f = card.fanTier, v = card.visit;
+        if (!f || !f.label || (f.id === 'quen' && v && v.streak >= 3)) return null;
+        return f;
+    }
+
     // Điểm nhấn thay chữ "VÀO PHÒNG" — chỉ 1 cái, theo độ hiếm.
     function accentOf(card) {
         if (!card) return '';
         if (card.late) return '';
-        const v = card.visit, r = card.roles || {}, f = card.fanTier;
-        // Sổ Fan: 1 huy hiệu bậc fan; riêng Khách quen nhường chuỗi buổi liền (cụ thể hơn)
-        if (f && f.label && !(f.id === 'quen' && v && v.streak >= 3)) return ((f.icon ? f.icon + ' ' : '') + String(f.label).toUpperCase()).trim();
+        const v = card.visit, r = card.roles || {}, f = fanAccent(card);
+        if (f) return ((f.icon ? f.icon + ' ' : '') + String(f.label).toUpperCase()).trim();
         if (v && v.isFirst) return '🎉 LẦN ĐẦU GHÉ';
         if (v && v.streak >= 3) return '🔥 ' + v.streak + ' BUỔI LIỀN';
         if (r.top > 0) return '👑 TOP ' + r.top;
@@ -95,5 +102,5 @@
         return '';
     }
 
-    return { createBarSlots, holdMs, accentOf, HOLD_MULT };
+    return { createBarSlots, holdMs, accentOf, fanAccent, HOLD_MULT };
 });

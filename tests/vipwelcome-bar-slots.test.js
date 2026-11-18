@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createBarSlots, holdMs, accentOf } = require('../public/games/vipwelcome/bar-slots.js');
+const { createBarSlots, holdMs, accentOf, fanAccent } = require('../public/games/vipwelcome/bar-slots.js');
 
 const it = (id, priority) => ({ id, priority });
 const ids = (s) => s.snapshot().slots.map(x => (x ? x.id : '-')).join(',');
@@ -84,6 +84,15 @@ test('accentOf: lần đầu > chuỗi > TOP > MOD; thẻ muộn không có', ()
     assert.equal(accentOf({ roles: { mod: true } }), '🛡 MOD');
     assert.equal(accentOf({ roles: {} }), '');
     assert.equal(accentOf({ late: true, visit: { isFirst: true } }), '');
+});
+
+test('fanAccent: trả bậc fan khi huy hiệu fan thắng ô điểm nhấn, không thì null', () => {
+    const sop = { id: 'sop', icon: '💎', label: 'Khách sộp' };
+    const quen = { id: 'quen', icon: '⭐', label: 'Khách quen' };
+    assert.equal(fanAccent({ fanTier: sop, roles: {} }), sop);
+    assert.equal(fanAccent({ fanTier: quen, visit: { streak: 3 }, roles: {} }), null);
+    assert.equal(fanAccent({ late: true, fanTier: sop }), null);
+    assert.equal(fanAccent({ roles: {} }), null);
 });
 
 test('accentOf: huy hiệu Sổ Fan thắng; Khách quen nhường chuỗi ≥3; thẻ muộn vẫn trống', () => {

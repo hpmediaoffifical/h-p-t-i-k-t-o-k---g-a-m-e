@@ -54,7 +54,9 @@ test('fanMatch: dựng match chào cho bậc có forceGreet, bậc không forceG
     const m = ft.fanMatch(sop, 100);
     assert.equal(m.kind, 'fan');
     assert.equal(m.priority, 125);
-    assert.equal(m.title, 'Khách sộp');
+    assert.equal(m.title, '');                      // huy hiệu đã ghi bậc → không lặp tên bậc ở chip/tiêu đề
+    assert.equal(m.skin, 'amber');                  // khách sộp: thanh vàng
+    assert.equal(ft.fanMatch(tiers[1], 100).skin, 'violet');
     assert.equal(m.media, null);
     assert.equal(m.cooldownSec, 0);
     assert.equal(m.ruleId, 'fan:sop');
