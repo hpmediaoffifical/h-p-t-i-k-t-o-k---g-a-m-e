@@ -81,6 +81,10 @@
       {
         "from": "seed",
         "to": "seed"
+      },
+      {
+        "from": "streamdeck",
+        "to": "streamdeck"
       }
     ],
     "win": {

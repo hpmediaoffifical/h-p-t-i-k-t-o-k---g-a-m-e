@@ -7629,6 +7629,133 @@ app.post('/api/test-gift', (req, res) => {
     res.json({ ok: true, gift: emitTestGift(req.body || {}) });
 });
 
+// ====== 🎛️ STREAM DECK — plugin Node.js gọi từ chính máy này (lib/streamdeck-actions.js) ======
+// Plugin gửi HTTP không Origin, Host 127.0.0.1 → đúng đường "client không phải trình duyệt" đã cho phép; KHÔNG nới gì.
+// Mọi route đòi requestIsTrusted (trạng thái có @ID). Bấm nút → planRun() → gọi ROUTE THẬT qua 127.0.0.1 để giữ
+// nguyên mọi middleware (khoá game theo KEY, kiểm bản quyền khi kết nối…). Spec 2026-11-12-streamdeck-plugin-design.md
+const StreamDeck = require('./lib/streamdeck-actions');
+const ZipWriter = require('./lib/zip-writer');
+const STREAMDECK_PLUGIN_UUID = 'media.hpvn.actionlive';
+function streamDeckCtx() {
+    // Game KEY đặt "không hiện" thì Stream Deck cũng không thấy (giống Thư viện).
+    const games = Object.values(GAMES).filter(g => licenseStateOf(g.id) !== 'hidden').map(g => ({
+        id: g.id, name: g.name, icon: g.icon,
+        enabled: !!(appConfig.games[g.id] && appConfig.games[g.id].enabled !== false),
+        locked: !featureOn(g.id)
+    }));
+    const dm = appConfig.games.dapmuoi;
+    return {
+        games, gifts: giftList,
+        dapmuoiActions: Array.isArray(dm && dm.actions) ? dm.actions : [],
+        pkEvents: PKTIKTOK_EVENT_DEFS,
+        lastUsername: appConfig.lastUsername || '',
+        connected: isTikTokLiveConnected(), connecting: !!connecting,
+        username: currentUsername || '',
+        captionStatus: (captionListener.snapshot() || {}).status
+    };
+}
+function streamDeckGuard(req, res, next) {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'untrusted' });
+    next();
+}
+// Gọi route thật của chính server (không Origin, Host 127.0.0.1) → { status, json }.
+function streamDeckCallRoute(method, routePath, body) {
+    return new Promise((resolve) => {
+        const data = Buffer.from(JSON.stringify(body || {}), 'utf8');
+        const r = http.request({ host: '127.0.0.1', port: PORT, path: routePath, method,
+            headers: { 'Content-Type': 'application/json', 'Content-Length': data.length } }, (resp) => {
+            const chunks = [];
+            resp.on('data', c => chunks.push(c));
+            resp.on('end', () => {
+                let json = null;
+                try { json = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch (_) {}
+                resolve({ status: resp.statusCode, json });
+            });
+        });
+        r.setTimeout(30000, () => r.destroy(new Error('timeout')));
+        r.on('error', (e) => resolve({ status: 0, json: { ok: false, error: e.message } }));
+        r.end(data);
+    });
+}
+const SD_ERROR_TEXT = {
+    unknown_game: 'Không tìm thấy game', feature_locked: 'KEY chưa mở game này', missing_username: 'Chưa có TikTok ID — nhập trong cài đặt nút hoặc kết nối 1 lần trong app',
+    missing_comment: 'Chưa nhập câu bình luận', unknown_key: 'Phím này không còn — chọn lại', unknown_group: 'Game không có phím',
+    action_disabled: 'Hành động này đang tắt trong game', unknown_kind: 'Loại nút lạ'
+};
+app.get('/api/streamdeck/catalog', streamDeckGuard, (req, res) => res.json(StreamDeck.buildCatalog(streamDeckCtx())));
+app.get('/api/streamdeck/state', streamDeckGuard, (req, res) => res.json(StreamDeck.buildState(streamDeckCtx())));
+// SSE: 1 vòng chung tính trạng thái 400 ms/lần khi có plugin nghe, chỉ gửi khi đổi.
+const streamDeckClients = new Set();
+let streamDeckTimer = null, streamDeckLast = '';
+function streamDeckTick() {
+    let s;
+    try { s = JSON.stringify(StreamDeck.buildState(streamDeckCtx())); } catch (e) { return; }
+    if (s === streamDeckLast) return;
+    streamDeckLast = s;
+    for (const res of streamDeckClients) { try { res.write('event: state\ndata: ' + s + '\n\n'); } catch (_) {} }
+}
+app.get('/api/streamdeck/events', streamDeckGuard, (req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+    res.write('retry: 2000\n\n');
+    try { res.write('event: state\ndata: ' + JSON.stringify(StreamDeck.buildState(streamDeckCtx())) + '\n\n'); } catch (_) {}
+    streamDeckClients.add(res);
+    const ping = setInterval(() => { try { res.write(': ping\n\n'); } catch (_) {} }, 15000);
+    if (!streamDeckTimer) { streamDeckLast = ''; streamDeckTimer = setInterval(streamDeckTick, 400); streamDeckTimer.unref?.(); }
+    req.on('close', () => {
+        clearInterval(ping);
+        streamDeckClients.delete(res);
+        if (!streamDeckClients.size && streamDeckTimer) { clearInterval(streamDeckTimer); streamDeckTimer = null; }
+    });
+});
+app.post('/api/streamdeck/run', streamDeckGuard, async (req, res) => {
+    const plan = StreamDeck.planRun(req.body || {}, streamDeckCtx());
+    if (plan.error) return res.status(400).json({ ok: false, error: plan.error, message: SD_ERROR_TEXT[plan.error] || plan.error, state: StreamDeck.buildState(streamDeckCtx()) });
+    const r = await streamDeckCallRoute(plan.method, plan.path, plan.body);
+    const ok = r.status >= 200 && r.status < 300 && !(r.json && r.json.ok === false);
+    const message = ok ? '' : String((r.json && (r.json.message || r.json.error)) || ('HTTP ' + r.status)).slice(0, 300);
+    res.status(ok ? 200 : 502).json({ ok, label: plan.label, status: r.status, message, result: r.json, state: StreamDeck.buildState(streamDeckCtx()) });
+});
+// Cài plugin: zip thư mục plugin đi kèm bộ cài → <DATA_DIR>/streamdeck/*.streamDeckPlugin → mở file (Stream Deck tự cài).
+function streamDeckPluginDir() { return bundledResourcePath('streamdeck', STREAMDECK_PLUGIN_UUID + '.sdPlugin'); }
+function streamDeckAppExe() {
+    if (process.platform !== 'win32') return '';
+    const bases = [process.env.ProgramFiles, process.env.ProgramW6432, process.env['ProgramFiles(x86)']].filter(Boolean);
+    for (const b of bases) { const p = path.join(b, 'Elgato', 'StreamDeck', 'StreamDeck.exe'); if (fs.existsSync(p)) return p; }
+    return '';
+}
+function streamDeckInstalledVersion() {
+    const appData = process.env.APPDATA;
+    if (!appData) return '';
+    try { return String(JSON.parse(fs.readFileSync(path.join(appData, 'Elgato', 'StreamDeck', 'Plugins', STREAMDECK_PLUGIN_UUID + '.sdPlugin', 'manifest.json'), 'utf8')).Version || '?'); }
+    catch (_) { return ''; }
+}
+function streamDeckBundledVersion() {
+    const dir = streamDeckPluginDir();
+    try { return dir ? String(JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')).Version || '') : ''; } catch (_) { return ''; }
+}
+app.get('/api/streamdeck/plugin', streamDeckGuard, (req, res) => {
+    res.json({ ok: true, bundled: streamDeckBundledVersion(), installed: streamDeckInstalledVersion(), streamDeckApp: !!streamDeckAppExe(), listening: streamDeckClients.size });
+});
+app.post('/api/streamdeck/install', streamDeckGuard, (req, res) => {
+    const dir = streamDeckPluginDir();
+    if (!dir) return res.status(404).json({ ok: false, error: 'Không tìm thấy plugin trong bộ cài' });
+    const outDir = path.join(DATA_DIR, 'streamdeck');
+    const file = path.join(outDir, 'HP-Action-LIVE.streamDeckPlugin');
+    try {
+        fs.mkdirSync(outDir, { recursive: true });
+        fs.writeFileSync(file, ZipWriter.zipDirectory(dir, STREAMDECK_PLUGIN_UUID + '.sdPlugin/'));
+    } catch (e) { return res.status(500).json({ ok: false, error: 'Không đóng gói được plugin: ' + e.message }); }
+    const hasApp = !!streamDeckAppExe();
+    const reveal = req.body && req.body.reveal === true;
+    if (process.platform === 'win32' && (hasApp || reveal)) {
+        // Có Stream Deck: mở file → Stream Deck hỏi cài. Không có / xin mở thư mục: chọn sẵn file trong Explorer.
+        const args = hasApp && !reveal ? [file] : ['/select,', file];
+        try { const child = spawn('explorer.exe', args, { detached: true, stdio: 'ignore' }); child.on('error', () => {}); child.unref(); } catch (_) {}
+    }
+    console.log(`[streamdeck] đóng gói plugin ${streamDeckBundledVersion()} → ${file}${hasApp ? ' (mở bằng Stream Deck)' : ''}`);
+    res.json({ ok: true, file, opened: hasApp && !reveal, needApp: !hasApp, downloadUrl: 'https://www.elgato.com/downloads' });
+});
+
 // OBS overlay (transparent fullpage)
 // 🔴 Săn Pokemon — overlay game + bảng quà (nguồn OBS riêng). Game nhận sự kiện qua socket, không có route API riêng.
 app.get('/overlay/pokemon', (req, res) => {

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "Name": "HP Action LIVE",
+  "UUID": "media.hpvn.actionlive",
+  "Version": "1.0.0.0",
+  "Author": "HP Media",
+  "Description": "Điều khiển HP Action LIVE từ Stream Deck: bật/tắt game, kết nối LIVE, thả quà / bình luận thử, phím hành động game. Cần mở app HP Action LIVE.",
+  "URL": "https://hpvn.media",
+  "Icon": "imgs/plugin",
+  "Category": "HP Action LIVE",
+  "CategoryIcon": "imgs/category",
+  "CodePath": "bin/plugin.js",
+  "PropertyInspectorPath": "pi/index.html",
+  "SDKVersion": 2,
+  "Software": { "MinimumVersion": "6.5" },
+  "OS": [{ "Platform": "windows", "MinimumVersion": "10" }],
+  "Nodejs": { "Version": "20" },
+  "Actions": [
+    {
+      "Name": "Bật / tắt game",
+      "UUID": "media.hpvn.actionlive.game",
+      "Icon": "imgs/actions/game",
+      "Tooltip": "Bật hoặc tắt 1 game của HP Action LIVE — icon xanh khi game đang bật",
+      "Controllers": ["Keypad"],
+      "SupportedInMultiActions": true,
+      "States": [{ "Image": "imgs/keys/game", "ShowTitle": false }]
+    },
+    {
+      "Name": "Kết nối LIVE",
+      "UUID": "media.hpvn.actionlive.live",
+      "Icon": "imgs/actions/live",
+      "Tooltip": "Kết nối / ngắt TikTok LIVE — icon đỏ khi đang LIVE",
+      "Controllers": ["Keypad"],
+      "SupportedInMultiActions": true,
+      "States": [{ "Image": "imgs/keys/live", "ShowTitle": false }]
+    },
+    {
+      "Name": "Thả quà thử",
+      "UUID": "media.hpvn.actionlive.gift",
+      "Icon": "imgs/actions/gift",
+      "Tooltip": "Thả 1 quà thử vào mọi game như quà thật",
+      "Controllers": ["Keypad"],
+      "SupportedInMultiActions": true,
+      "States": [{ "Image": "imgs/keys/gift", "ShowTitle": false }]
+    },
+    {
+      "Name": "Bình luận thử",
+      "UUID": "media.hpvn.actionlive.chat",
+      "Icon": "imgs/actions/chat",
+      "Tooltip": "Gửi 1 bình luận thử đi đúng đường bình luận thật",
+      "Controllers": ["Keypad"],
+      "SupportedInMultiActions": true,
+      "States": [{ "Image": "imgs/keys/chat", "ShowTitle": false }]
+    },
+    {
+      "Name": "Phím hành động game",
+      "UUID": "media.hpvn.actionlive.hotkey",
+      "Icon": "imgs/actions/hotkey",
+      "Tooltip": "Phím của game: Đường Về Quê, Bắn Cung, Đập Muỗi, hiệu ứng PK, phụ đề giọng nói",
+      "Controllers": ["Keypad"],
+      "SupportedInMultiActions": true,
+      "States": [{ "Image": "imgs/keys/hotkey", "ShowTitle": false }]
+    }
+  ]
+}

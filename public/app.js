@@ -5285,8 +5285,41 @@
     // ===== Settings popup =====
     const settingsPopup = document.getElementById('settings-popup');
     const stToast = (msg, kind) => (typeof window.toast === 'function' ? window.toast(msg, kind || 'success', 2500) : toastInfo(msg));
+    // 🎛️ Stream Deck: trạng thái plugin (bản đi kèm / bản đã cài / có app Stream Deck / số plugin đang nối).
+    async function loadStreamDeckBlock() {
+        const $id = (id) => document.getElementById(id);
+        const pill = $id('st-sd-pill'), plug = $id('st-sd-plugin'), appEl = $id('st-sd-app');
+        if (!pill) return;
+        try {
+            const s = await (await fetch('/api/streamdeck/plugin')).json();
+            const connected = s.listening > 0;
+            pill.textContent = connected ? 'đang nối' : s.installed ? 'đã cài' : 'chưa cài';
+            pill.className = 'st-pill' + (connected ? ' ok' : '');
+            plug.textContent = s.installed
+                ? 'Đã cài v' + s.installed + (s.bundled && s.bundled !== s.installed ? ' · có bản mới v' + s.bundled + ' — bấm Cài để cập nhật' : '')
+                : (s.bundled ? 'Chưa cài (đi kèm v' + s.bundled + ')' : 'Bộ cài không có plugin');
+            appEl.textContent = s.streamDeckApp ? '✓ Đã có app Elgato Stream Deck' : 'Chưa thấy app Elgato Stream Deck';
+        } catch (e) { pill.textContent = '—'; }
+    }
+    async function streamDeckInstall(reveal) {
+        try {
+            const r = await (await fetch('/api/streamdeck/install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reveal: !!reveal }) })).json();
+            if (!r.ok) return stToast(r.error || 'Không cài được plugin', 'error');
+            if (reveal) stToast('📂 Đã mở thư mục chứa file plugin');
+            else if (r.opened) stToast('🎛️ Đã mở plugin — bấm "Install" trong cửa sổ Stream Deck');
+            else {
+                stToast('Chưa có app Elgato Stream Deck — cài app trước, rồi bấm lại', 'error');
+                if (r.downloadUrl) window.open(r.downloadUrl, '_blank');
+            }
+            setTimeout(loadStreamDeckBlock, 3000);
+        } catch (e) { stToast('Lỗi: ' + e.message, 'error'); }
+    }
+    document.getElementById('st-sd-install')?.addEventListener('click', () => streamDeckInstall(false));
+    document.getElementById('st-sd-reveal')?.addEventListener('click', () => streamDeckInstall(true));
+
     async function loadSettingsPanel() {
         const $id = (id) => document.getElementById(id);
+        loadStreamDeckBlock();
         const sel = $id('st-overlay-res'); if (sel) sel.value = getOverlayResolution();
         try {
             const s = await (await fetch('/api/settings')).json();
