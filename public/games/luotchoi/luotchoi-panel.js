@@ -136,10 +136,15 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
             <div class="lc-box"><div class="lc-h">${hpT('🔊 Giọng đọc')} <span class="lc-muted">${hpT('phát trong OBS: tới lượt, số đã chọn, dính bẫy')}</span></div>
                 <div class="lc-line"><label><input type="checkbox" data-c="voice" ${cfg.voice !== false ? 'checked' : ''}> ${hpT('Đọc tên người chơi')}</label></div>
                 <div class="lc-line"><label>${hpT('Âm lượng')}</label><input type="range" data-k="voiceVolume" min="0" max="100" value="${esc(cfg.voiceVolume ?? 80)}" style="flex:1"><span id="lc-vol">${esc(cfg.voiceVolume ?? 80)}%</span></div>
+            </div>
+            <div class="lc-box"><div class="lc-h">${hpT('🎵 Âm thanh hiệu ứng')} <span class="lc-muted">${hpT('tiếng ấn, ngoạm, cóc bật, tháp đổ, lật thẻ, sỏi rơi… — không nhạc nền')}</span></div>
+                <div class="lc-line"><label><input type="checkbox" data-c="sfx" ${cfg.sfx !== false ? 'checked' : ''}> ${hpT('Bật âm thanh hiệu ứng')}</label></div>
+                <div class="lc-line"><label>${hpT('Âm lượng')}</label><input type="range" data-k="sfxVolume" min="0" max="100" value="${esc(cfg.sfxVolume ?? 70)}" style="flex:1"><span id="lc-sfxvol">${esc(cfg.sfxVolume ?? 70)}%</span></div>
             </div>`;
         box.querySelectorAll('input[data-k]').forEach(el => el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
             cfg[el.dataset.k] = Number(el.value);
             if (el.dataset.k === 'voiceVolume') $('#lc-vol').textContent = el.value + '%';
+            if (el.dataset.k === 'sfxVolume') $('#lc-sfxvol').textContent = el.value + '%';
             if (el.dataset.k === 'glass') $('#lc-glass').textContent = el.value + '%';
             if (el.dataset.k === 'cardScale') $('#lc-scale').textContent = el.value + '%';
             schedulePersist();

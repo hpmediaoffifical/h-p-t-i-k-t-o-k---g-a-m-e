@@ -63,6 +63,8 @@
         audio.play().catch(done);
     }
 
+    function sfx(name, o) { try { window.LcSfx && window.LcSfx.play(name, o); } catch (e) {} }
+    var TRAP_SFX = { hama: 'chomp', chumcoc: 'boing', thaptre: 'clatter' };   // bản 2D (không WebGL): 3D tự kêu đúng lúc diễn
     function toast(text, kind) {
         var el = document.createElement('div');
         el.className = 'lc-toast' + (kind ? ' ' + kind : '');
@@ -102,13 +104,13 @@
             lastSeq = Math.max(lastSeq, e.seq);
             var who = '<b>' + esc(e.nickname || '') + '</b>', nm = speakName(e.nickname || seatName(s, e.key));
             switch (e.type) {
-                case 'pick': fresh = true; if (e.outcome === 'trap') toast(T(TRAP_WORD[g] || '💥'), 'bad'); break;
-                case 'seat': toast('🪑 ' + who + ' ' + T('vào ghế')); break;
+                case 'pick': fresh = true; if (e.outcome === 'trap') { toast(T(TRAP_WORD[g] || '💥'), 'bad'); if (!(window.LcBoards3D && window.LcBoards3D.ready)) sfx(TRAP_SFX[g]); } break;
+                case 'seat': toast('🪑 ' + who + ' ' + T('vào ghế')); sfx('seat'); break;
                 case 'queue': toast('⏳ ' + who + ' ' + T('chờ ván sau')); break;
-                case 'shieldAdd': toast('🛡️ ' + who + ' ' + T('+1 khiên'), 'good'); say(T('{n} có thêm khiên', { n: nm }), true); break;
-                case 'shield': toast('🛡️ ' + who + ' ' + T(SAVE_WORD[g] || 'được khiên cứu'), 'good'); say(T('{n} được khiên cứu!', { n: nm })); break;
-                case 'match': toast('✨ ' + T('Trúng cặp! +1'), 'good'); say(T('{n} lật trúng cặp!', { n: nm })); break;
-                case 'miss': say(T('Trượt rồi!')); break;
+                case 'shieldAdd': sfx('shield'); toast('🛡️ ' + who + ' ' + T('+1 khiên'), 'good'); say(T('{n} có thêm khiên', { n: nm }), true); break;
+                case 'shield': sfx('shield'); toast('🛡️ ' + who + ' ' + T(SAVE_WORD[g] || 'được khiên cứu'), 'good'); say(T('{n} được khiên cứu!', { n: nm })); break;
+                case 'match': sfx('match', { delay: 0.35 }); toast('✨ ' + T('Trúng cặp! +1'), 'good'); say(T('{n} lật trúng cặp!', { n: nm })); break;
+                case 'miss': sfx('miss', { delay: 0.4 }); say(T('Trượt rồi!')); break;
                 case 'move': {   // Ô Ăn Quan: tổng quân ăn được trong nước vừa rải
                     var tr = (s.board && s.board.lastMove && s.board.lastMove.trace) || [], dan = 0, quan = 0;
                     tr.forEach(function (x) { if (x.k === 'cap') { dan += x.dan; quan += x.quan; } });
@@ -120,13 +122,14 @@
                     toast('🪨 ' + who + ' ' + T('hết dân — rải lại 5 quân') + (e.borrowed ? ' (' + T('vay {b}', { b: e.borrowed }) + ')' : ''));
                     say(T('{n} hết dân, rải lại 5 quân', { n: nm }), true);
                     break;
-                case 'start': toast('🎲 ' + T('Bắt đầu!')); say(T('Bắt đầu!')); break;
-                case 'turn': if (e.key) say(T('Tới lượt {n}', { n: nm }), true); break;
-                case 'win': say(T('{n} vô địch!', { n: (e.winners || []).map(function (w) { return speakName(w.nickname); }).join(' và ') })); break;
-                case 'draw': say(T('Hoà rồi!')); break;
+                case 'start': sfx('start'); toast('🎲 ' + T('Bắt đầu!')); say(T('Bắt đầu!')); break;
+                case 'turn': if (e.key) sfx('turn'); if (e.key) say(T('Tới lượt {n}', { n: nm }), true); break;
+                case 'win': sfx('win', { delay: 0.3 }); say(T('{n} vô địch!', { n: (e.winners || []).map(function (w) { return speakName(w.nickname); }).join(' và ') })); break;
+                case 'draw': sfx('draw'); say(T('Hoà rồi!')); break;
                 case 'out':
                     if (e.kicked) toast('👋 ' + who + ' ' + T('rời ghế'));
                     else {
+                        sfx('trash', { delay: 0.6 });
                         toast('🗑️ ' + (e.byNickname ? '<b>' + esc(e.byNickname) + '</b> ' + T('ném') + ' ' : '') + who + ' ' + T('vào thùng rác!'), 'bad');
                         say(T(TRAP_SAY[g] || '{n} dính bẫy!', { n: nm }));
                     }
@@ -342,6 +345,8 @@
         var show = s.cfg.enabled || s.demo;
         $('card').classList.toggle('lc-hidden', !show);
         applyLayout(s.cfg);
+        // 🔊 âm thanh hiệu ứng: bật/tắt + âm lượng từ panel; ?mute=1 tắt hết; bàn mẫu ?demo chỉ kêu khi thêm &sfx=1
+        if (window.LcSfx) window.LcSfx.config({ on: s.cfg.sfx !== false && params.get('mute') !== '1' && (!demo || params.get('sfx') === '1'), volume: (s.cfg.sfxVolume ?? 70) / 100 });
         if (!show) { $('result').classList.add('lc-hidden'); firstState = false; lastSeq = Math.max(lastSeq, ((s.events || []).slice(-1)[0] || {}).seq || 0); return; }
         var fresh = handleEvents(s, evs || [], spokenPicks);
         $('g-icon').textContent = s.game.icon;
@@ -363,7 +368,22 @@
         renderResult(s);
     }
 
-    setInterval(function () { renderPrompt(); renderRing(); }, 200);
+    // ?sfxtest=1 → bảng nút nghe thử từng tiếng hiệu ứng (bấm = mở khoá âm thanh của trình duyệt)
+    if (params.get('sfxtest') === '1' && window.LcSfx) {
+        var LBL = { press: '👆 Ấn răng', stick: '🎋 Cắm que', pull: '🪵 Rút thanh', chomp: '🦛 Ngoạm', boing: '🐸 Cóc bật', clatter: '💥 Tháp đổ', flip: '🃏 Lật thẻ', match: '✨ Trúng cặp', miss: '😕 Trật', pebble: '🪨 Sỏi rơi', take: '✊ Bốc sỏi', capture: '💰 Ăn quân', quan: '👑 Ăn quan', shield: '🛡️ Khiên', trash: '🗑️ Thùng rác', seat: '🪑 Vào ghế', start: '🎲 Bắt đầu', turn: '🔔 Tới lượt', tick: '⏱️ Đếm giây', win: '🏆 Vô địch', draw: '🤝 Hoà' };
+        var pad = document.createElement('div');
+        pad.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:99;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px;border-radius:18px;background:rgba(12,14,30,.92);font:700 26px system-ui;color:#fff';
+        Object.keys(LBL).forEach(function (k) { var b = document.createElement('button'); b.textContent = LBL[k]; b.style.cssText = 'padding:14px 6px;border-radius:12px;border:0;background:#2b2f55;color:#fff;font:inherit;cursor:pointer'; b.onclick = function () { window.LcSfx.config({ on: true, volume: 0.8 }); window.LcSfx.unlock(); window.LcSfx.play(k); }; pad.appendChild(b); });
+        document.body.appendChild(pad);
+    }
+    var lastTick = '';
+    function tickSfx() {   // mõ gỗ 5 giây cuối của lượt (giây cuối cao hơn)
+        var s = st;
+        if (!s || s.phase !== 'playing' || s.holdUntil || staging || !s.turnUntil) return;
+        var left = secLeft(s.turnUntil), key = s.turnKey + ':' + s.turnUntil + ':' + left;
+        if (left >= 1 && left <= 5 && key !== lastTick) { lastTick = key; sfx('tick', { last: left === 1 }); }
+    }
+    setInterval(function () { renderPrompt(); renderRing(); tickSfx(); }, 200);
     // bàn 3D nạp xong sau trạng thái đầu → vẽ lại trạng thái đang hiện bằng 3D
     window.addEventListener('lc3d:ready', function () { if (st && !staging) apply(st, [], true); });
     window.__lcOverlay = { get state() { return st; }, get staging() { return staging; } };   // gỡ lỗi / chụp ảnh

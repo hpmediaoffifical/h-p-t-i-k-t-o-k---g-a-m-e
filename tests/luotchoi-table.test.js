@@ -344,6 +344,15 @@ test('giọng đọc: mặc định bật, âm lượng chặn 0–100, có tron
     assert.deepEqual([snap(tb).cfg.voice, snap(tb).cfg.voiceVolume], [false, 30]);
 });
 
+test('âm thanh hiệu ứng: mặc định bật 70%, chặn 0–100, có trong snapshot cho overlay', () => {
+    assert.equal(normalizeConfig({}).sfx, true);
+    assert.equal(normalizeConfig({ sfx: false }).sfx, false);
+    assert.equal(normalizeConfig({}).sfxVolume, 70);
+    assert.equal(normalizeConfig({ sfxVolume: -5 }).sfxVolume, 0);
+    const { tb } = make({ sfx: false, sfxVolume: 40 });
+    assert.deepEqual([snap(tb).cfg.sfx, snap(tb).cfg.sfxVolume], [false, 40]);
+});
+
 test('boardId: đổi mỗi lần dựng bàn (bắt đầu / loại người) để overlay 3D biết dựng lại cảnh', () => {
     const { tb, clock } = make({ seats: 3 });
     seat(tb, 'a', 'b', 'c'); clock.go(3100);

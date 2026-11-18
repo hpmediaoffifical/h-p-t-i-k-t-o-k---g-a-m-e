@@ -135,6 +135,8 @@ function numberTex(n, fg, bg, ring) {
         g.fillText(String(n), w / 2, h / 2 + 5);
     });
 }
+// 🔊 âm thanh hiệu ứng (public/games/luotchoi/sfx.js) — chỉ phát khi đang diễn (animate), không phát lúc dựng lại cảnh
+const sfx = (name, o) => { try { window.LcSfx && window.LcSfx.play(name, o); } catch (e) {} };
 const decal = (tex, w, h, opacity) => new THREE.Mesh(new THREE.PlaneGeometry(w, h),
     new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: opacity ?? 1, depthWrite: false, toneMapped: false }));
 const shadowed = (m) => { m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); return m; };
@@ -329,6 +331,7 @@ const HM = {
             const r0 = st.pivot.rotation.x;
             if (animate && b.sprung) {
                 // ngoạm: máy quay dí sát vào mặt rồi lùi lại
+                sfx('chomp');
                 tween(200, k => { st.pivot.rotation.x = r0 + (target - r0) * k; }, ease.in, () => { shake(root, 0.1, 420); zoomPunch(0.82, 900); });
             } else if (animate) tween(500, k => { st.pivot.rotation.x = r0 + (target - r0) * k; }, ease.inOut);
             else st.pivot.rotation.x = target;
@@ -514,6 +517,7 @@ const CC = {
         if (b.sprung && !st.frog.visible) {
             st.frog.visible = true;
             if (animate) {
+                sfx('boing');
                 tween(1300, k => {
                     const y = 2.3 + Math.sin(Math.min(1, k * 1.25) * Math.PI) * 1.6 + (k > 0.8 ? 0 : 0) + 0.85 * ease.out(k);
                     st.frog.position.set(0, k < 0.8 ? y : 3.4, 0.2 * k);
@@ -597,6 +601,7 @@ const TT = {
                 const dir = r.pl.alongX ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
                 const from = r.mesh.position.clone(), to = from.clone().add(dir.multiplyScalar(2.6));
                 if (animate && !b.fallen) {
+                    sfx('pull');
                     tween(520, k => { r.mesh.position.lerpVectors(from, to, k); }, ease.inOut, () => {
                         tween(260, k => { r.mesh.scale.setScalar(1 - k); }, ease.in, () => { r.mesh.visible = false; });
                     });
@@ -608,7 +613,7 @@ const TT = {
                 if (animate) tween(380, k => { r.mesh.position.lerpVectors(from, r.home, k); }, ease.out); else r.mesh.position.copy(r.home);
             }
         }
-        if (b.fallen && !st.fallen) { st.fallen = true; TT.collapse(st, animate); }
+        if (b.fallen && !st.fallen) { st.fallen = true; if (animate) sfx('clatter'); TT.collapse(st, animate); }
         if (!b.fallen && st.wobble > 0.05 && !st.wobbling) {
             st.wobbling = true;
             updaters.push((dt, t) => {
@@ -759,6 +764,7 @@ const LP = {
             if (wantUp !== k.up) {
                 k.up = wantUp;
                 const r0 = k.flip.rotation.z, r1 = wantUp ? Math.PI : 0;
+                if (animate) sfx('flip');
                 if (animate) tween(460, t => { k.flip.rotation.z = r0 + (r1 - r0) * t; k.grp.position.y = CARD.t / 2 + Math.sin(t * Math.PI) * 0.55; }, ease.inOut);
                 else k.flip.rotation.z = r1;
             }
@@ -928,16 +934,18 @@ const OQ = {
             const s = steps.shift();
             if (!s) { cl.visible = false; st.busy = false; OQ.handAt(null); if (done) done(); kick(); return; }
             if (s.k === 'take') {
-                inHand = s.n; cnt[s.i].dan = 0; OQ.fill(st, s.i, 0, cnt[s.i].quan);
+                inHand = s.n; cnt[s.i].dan = 0; OQ.fill(st, s.i, 0, cnt[s.i].quan); sfx('take');
                 cl.position.copy(pitPos(s.i)).setY(0.2); setCluster(inHand);
                 tween(OQ_STEP, k => { cl.position.y = 0.2 + 0.7 * k; OQ.handAt(cl.position); }, ease.out, next);
             } else if (s.k === 'drop') {
                 const to = pitPos(s.i).setY(0.9), from = cl.position.clone();
                 tween(OQ_STEP, k => { cl.position.lerpVectors(from, to, k); cl.position.y = 0.9 + Math.sin(k * Math.PI) * 0.35; OQ.handAt(cl.position); }, ease.inOut, () => {
+                    sfx('pebble');
                     inHand = Math.max(0, inHand - 1); cnt[s.i].dan++; OQ.fill(st, s.i, cnt[s.i].dan, cnt[s.i].quan); setCluster(inHand); next();
                 });
             } else if (s.k === 'cap') {
                 const pit = st.pits[s.i], dir = s.side === 1 ? -1 : 1;
+                sfx(s.quan ? 'quan' : 'capture');
                 const g0 = pit.pebs.position.clone();
                 OQ.handAt(null);
                 tween(OQ_STEP * 2.4, k => { pit.pebs.position.set(g0.x, g0.y + Math.sin(k * Math.PI) * 1.2, g0.z + dir * 2.6 * k); pit.pebs.scale.setScalar(1 - 0.7 * k); }, ease.in, () => {
@@ -1054,7 +1062,7 @@ function fly(key, tool, ms) {
         hand.visible = true; handPose(hand, 0.25);
         hand.position.copy(start);
         tween(ms * 0.62, k => { hand.position.lerpVectors(start, hover, k); handPose(hand, 0.25 * (1 - k)); }, ease.out, () => {
-            tween(ms * 0.38, k => { hand.position.lerpVectors(hover, press, k); }, ease.in, res);
+            tween(ms * 0.38, k => { hand.position.lerpVectors(hover, press, k); }, ease.in, () => { if (tool === 'stick') sfx('stick'); else if (tool !== 'pull') sfx('press'); res(); });
         });
     });
 }
