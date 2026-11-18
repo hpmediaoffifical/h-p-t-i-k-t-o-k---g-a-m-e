@@ -177,3 +177,9 @@ test('gõ liền 2 chữ số "52" = ô 5 rải phải, "31" = ô 3 rải trái;
     assert.deepEqual(G.parseComment('53'), []);
     assert.deepEqual(G.parseComment('10'), []);
 });
+
+test('chỉ chữ hướng khi CHƯA chọn ô thì bỏ qua; đã chọn ô thì là hướng', () => {
+    assert.deepEqual(G.parseComment('phải', { sel: null }), []);
+    assert.deepEqual(G.parseComment('trái', { sel: 3 }), [1]);
+    assert.deepEqual(G.parseComment('5 phải', { sel: null }), [5, 2]);
+});

@@ -462,3 +462,49 @@ test('Dê Núi giữ lượt lâu hơn đúng leadMs (overlay xoay núi tới h�
     assert.equal(GAMES_BY_ID.chumcoc.leadMs, 1600);
     assert.equal(holdAfterPick1('chumcoc') - holdAfterPick1('hama'), 1600);
 });
+
+// QA 19/11: mời người khỏi ghế ĐÚNG LÚC bàn giữ hoạt cảnh từng ghi đè việc đang chờ → ván treo cứng
+function mkSeeded(game, seed, extra) {
+    let t = 1e9, s0 = seed; const rng = () => { s0 = (s0 * 16807) % 2147483647; return (s0 - 1) / 2147483646; };
+    const tb = createTable({ config: Object.assign({ enabled: true, game, seats: 3, minPlayers: 2 }, extra || {}), now: () => t, rng });
+    const run = (ms) => { for (let i = 0; i < ms / 250; i++) { t += 250; tb.tick(); } };
+    ['a', 'b', 'c'].forEach(k => tb.addGift({ user: { key: k, nickname: k }, as: 'seat' }));
+    run(4000);
+    return { tb, run };
+}
+test('mời ra lúc 2 thẻ lật trật đang chờ úp lại: thẻ vẫn úp lại, lượt chuyển cho người kế, ván không treo', () => {
+    const { tb, run } = mkSeeded('latcap', 3);
+    const who = tb.snapshot().turnKey; const b = tb._board();
+    const i2 = b.faces.findIndex((f, i) => i > 0 && f !== b.faces[0]);
+    tb.comment({ user: { key: who }, text: '1 ' + (i2 + 1) });
+    assert.equal(tb.kick(who).ok, true);
+    run(8000);
+    const s = tb.snapshot();
+    assert.equal(s.phase, 'playing');
+    assert.notEqual(s.turnKey, who);
+    assert.equal(!!s.board.pendingMiss, false);
+    assert.ok(s.options.length > 0, 'còn thẻ để chọn');
+});
+test('mời ra ngay sau khi lật trúng cặp cuối: ván vẫn kết thúc', () => {
+    const { tb, run } = mkSeeded('latcap', 9, { pairs: 4 });
+    const b = tb._board();
+    const pairs = () => { const m = new Map(); b.faces.forEach((f, i) => { if (!b.matched[i]) (m.get(f) || m.set(f, []).get(f)).push(i + 1); }); return [...m.values()]; };
+    while (pairs().length > 1) { tb.comment({ user: { key: tb.snapshot().turnKey }, text: pairs()[0].join(' ') }); run(3000); }
+    const who = tb.snapshot().turnKey;
+    tb.comment({ user: { key: who }, text: pairs()[0].join(' ') });
+    tb.kick(who);
+    run(30000);
+    assert.notEqual(tb.snapshot().phase, 'playing');
+});
+test('Hà Mã: khiên đang cứu mà bị mời ra → ván chạy tiếp (lượt người kế, có ô để chọn)', () => {
+    const { tb, run } = mkSeeded('hama', 5);
+    ['a', 'b', 'c'].forEach(k => tb.addGift({ user: { key: k }, as: 'shield' }));
+    const who = tb.snapshot().turnKey;
+    tb.comment({ user: { key: who }, text: String(tb._board().trap) });
+    tb.kick(who);
+    run(8000);
+    const s = tb.snapshot();
+    assert.equal(s.phase, 'playing');
+    assert.notEqual(s.turnKey, who);
+    assert.ok(s.options.length > 0);
+});

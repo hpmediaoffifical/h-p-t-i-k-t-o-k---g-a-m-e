@@ -44,7 +44,7 @@
     .sb-sub b, .sb-top .pt { color: #ffd54a; }
     .sb-top { max-width: 1000px; overflow: hidden; text-overflow: ellipsis; font-size: 25px; }
     .sb-top .lb { color: #9fb1c8; font-weight: 700; margin-right: 8px; letter-spacing: 1px; }
-    .sb-top .nm { color: #fff; } .sb-top .pt { margin-left: 8px; } .sb-top .it + .it { margin-left: 22px; }
+    .sb-top .nm { color: #fff; display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; } .sb-top .pt { margin-left: 8px; } .sb-top .it + .it { margin-left: 22px; }
     .sb-top .md { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; margin-right: 8px; vertical-align: -5px;
         font-size: 18px; font-weight: 900; color: #2b1d00; box-shadow: inset 0 -3px 0 rgba(0,0,0,.25), inset 0 2px 0 rgba(255,255,255,.65), 0 2px 4px rgba(0,0,0,.4); }
     .sb-top .m1 { background: radial-gradient(circle at 35% 30%, #fff7c8, #ffcc33 55%, #b27a00); }
@@ -387,11 +387,20 @@
 
     // ---------- HUD ----------
     let hudKey = '', lastK = 0, lastV = 0, placeKey = '';
+    // 🎥 Trong Game Camera: Level Quest đang chạy cùng (iframe của hub mẹ, cùng origin) → hạ bảng tỷ số khỏi đè thanh KPI.
+    let lqAt = 0, lqOn = false;
+    function lqBeside() {
+        const now = Date.now();
+        if (now - lqAt < 2000) return lqOn;
+        lqAt = now;
+        try { lqOn = window.parent !== window && !!window.parent.document.querySelector('iframe[data-id="level-quest"]:not(.out)'); } catch (_) { lqOn = false; }
+        return lqOn;
+    }
     function applyHud(s) {
         const D = cfg.display;
         const board = $('sb-board');
         board.style.display = D.showHud ? '' : 'none';
-        board.style.top = D.hudY + '%';
+        board.style.top = (D.hudY + (lqBeside() ? 9 : 0)) + '%';   // chơi chung Level Quest (thanh KPI mặc định ở đỉnh) → nhường chỗ
         const pk = [view.w, view.h, D.listXPercent, D.listYPercent, D.listScale].join('|');
         if (pk !== placeKey) { placeKey = pk; feedList.place({ x: 0, y: 0, w: view.w, h: view.h }, { x: D.listXPercent, y: D.listYPercent, scale: D.listScale }); }
         if (s.keeper !== lastK) { $('sb-k').textContent = s.keeper; pop('sb-k'); lastK = s.keeper; }
@@ -460,7 +469,7 @@
                 addText(hpT('VÀOOO!'), view.x + view.w / 2, view.y + view.h * 0.3, Math.min(165, view.w * 0.15), 'goal', 1700);
                 addLabel(e.x, e.y - 60, `+${e.points}`, '#ff6b6b', 56, 1100);
                 flashAt = now; flashColor = '#ff3b3b';
-                notice('⚽', e.by ? hpT('@{by} ghi bàn!', { by: e.by }) : hpT('Bàn thắng!'), e.avatar, 'bad');
+                notice('⚽', e.by ? hpT('@{by} ghi bàn!', { by: Array.from(e.by).length > 18 ? Array.from(e.by).slice(0, 17).join('') + '…' : e.by }) : hpT('Bàn thắng!'), e.avatar, 'bad');   // tên dài không kéo kín ngang khung
             } else if (e.type === 'queueFull') notice('⏳', hpT('Hàng chờ sút đã đầy'));
         }
     }
@@ -615,7 +624,7 @@
         if (disabled || !d) return;
         audioInit(); audioResume();
         const type = Game.SHOT_IDS.includes(d.type) ? d.type : 'normal';
-        const n = engine.enqueue(type, d.count || 1, { nickname: d.nickname || '', avatar: d.profilePicture || '' });
+        const n = engine.enqueue(type, d.count || 1, { nickname: d.nickname || '', uniqueId: d.uniqueId || '', avatar: d.profilePicture || '' });
         if (!n) return;
         sfx.gift();
         notice(Game.SHOT_TYPES[type].icon, (n > 1 ? hpT('{n} cú ', { n }) : '') + NAME(type).toLowerCase(), d.profilePicture, type === 'normal' ? '' : 'good', d.nickname || '');

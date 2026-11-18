@@ -41,7 +41,7 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 .lc-queue { font-size: 22px; opacity: .8; text-align: center; min-height: 0; }
 .lc-queue:empty { display: none; }
 /* chân thẻ CAO CỐ ĐỊNH (thanh nhắc tối đa 2 dòng + hàng chờ): nhắc hiện/ẩn, dài/ngắn không xô bàn chơi lên xuống */
-.lc-foot { flex: none; height: 108px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px; overflow: hidden; }
+.lc-foot { flex: none; height: 124px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px; overflow: hidden; }
 .lc-foot .lc-prompt { max-width: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .lc-prompt .cd { white-space: nowrap; }
 

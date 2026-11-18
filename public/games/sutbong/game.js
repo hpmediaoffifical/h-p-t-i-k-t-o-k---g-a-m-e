@@ -184,7 +184,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                 id: ++seq, type: item.type, phase: 'spot', t: 0, T: diff().flight * T.time, u: 0,
                 sx, sy, tx, ty, cx, cy: A.y + A.h * 0.4, r0: R0 * T.size, r1, arc: ARC,
                 curve: T.curve ? (tx >= cx ? -1 : 1) * T.curve : 0,
-                by: item.meta.nickname, avatar: item.meta.avatar, hist: [], arriveAt: -1, vx: 0, vy: 0, alpha: 1, spin: 0
+                by: item.meta.nickname, byId: item.meta.uniqueId || item.meta.nickname || '', avatar: item.meta.avatar, hist: [], arriveAt: -1, vx: 0, vy: 0, alpha: 1, spin: 0
             };
             Object.assign(b, shotPos(b, 0));
             balls.push(b);
@@ -208,9 +208,10 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
             viewers += T.mult; goals++; streak = 0;
             const name = b.by || '';
             if (name) {
-                const s = scorers.get(name) || { name, avatar: b.avatar || '', points: 0, goals: 0, at: 0 };
+                const key = b.byId || name;   // gộp theo người (uniqueId), không theo tên — 2 người trùng tên không bị cộng chung
+                const s = scorers.get(key) || { name, avatar: b.avatar || '', points: 0, goals: 0, at: 0 };
                 s.points += T.mult; s.goals++; s.at = ++seq; if (b.avatar) s.avatar = b.avatar;
-                scorers.set(name, s);
+                s.name = name; scorers.set(key, s);
             }
             events.push({ type: 'goal', id: b.id, shot: b.type, x: b.x, y: b.y, by: b.by, avatar: b.avatar, points: T.mult, viewers, keeper });
             nextLaunchAt = Math.max(nextLaunchAt, clock + 700);
