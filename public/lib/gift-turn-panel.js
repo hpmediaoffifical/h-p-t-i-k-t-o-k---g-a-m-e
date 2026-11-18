@@ -15,6 +15,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         const st = document.createElement('style');
         st.textContent = `
             .hp-gtp-body { display: flex; flex-direction: column; gap: 10px; padding: 12px; min-height: 0; flex: 1; overflow: auto; }
+            .hp-gtp-body > .ctc-status { flex-shrink: 0; align-items: center; gap: 6px; }
             .hp-gtp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
             .hp-gtp-grid.noprev { grid-template-columns: minmax(0, 1fr); } .hp-gtp-grid.noprev .hp-gtp-prev { display: none; }
             .hp-gtp-prev { position: sticky; top: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -79,9 +80,17 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
             return sec;
         }
 
+        let statusTimer = 0;
+        // live = state server (hàng chờ, lịch sử, …); _at = lúc nhận, để đồng hồ trên panel tự đếm
+        const setLive = s => { live = s || live; live._at = Date.now(); renderStatus(); renderHistory(); if (opts.onLive) opts.onLive(live, cfg, api); };
+        function refreshLive() { fetch(`/api/${id}/state`, { cache: 'no-store' }).then(r => r.json()).then(setLive).catch(() => {}); }
+
         const api = {
             get cfg() { return cfg; },
+            get live() { return live; },
+            refreshLive: () => refreshLive(),
             save: () => schedulePersist(),
+            saveNow: async () => { clearTimeout(persistTimer); await persistConfig(); },
             rerender: () => renderSettings(),
             esc
         };
@@ -98,11 +107,18 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                     if (cfg && JSON.stringify(config) === JSON.stringify(cfg)) return;
                     cfg = config; renderSettings();
                 });
-                socket.on(id + ':state', s => { live = s || live; renderStatus(); renderHistory(); });
+                socket.on(id + ':state', setLive);
             }
             if (socket) socket.emit('subscribe', 'preview');
             loadConfig();
-            fetch(`/api/${id}/state`, { cache: 'no-store' }).then(r => r.json()).then(s => { live = s; renderStatus(); renderHistory(); }).catch(() => {});
+            refreshLive();
+            // đồng hồ trên panel (vd 💃 đang nhảy / hồi) tự đếm mỗi giây; rời màn thì dừng
+            clearInterval(statusTimer);
+            if (opts.statusExtra) statusTimer = setInterval(() => {
+                const v = $('#view-' + id);
+                if (!v || !v.classList.contains('active')) { clearInterval(statusTimer); return; }
+                renderStatus(); if (opts.onLive) opts.onLive(live, cfg, api);
+            }, 1000);
             reloadPreview();
         }
         async function loadConfig() {
@@ -148,6 +164,12 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                 flash(btn, hpT('Đã copy'));
             });
             $(`#${P}-reload`).addEventListener('click', e => { if (socket) socket.emit('overlay:reload', { gameId: id }); flash(e.currentTarget, '✓'); });
+            // nút lệnh trong dòng trạng thái (vd 💃 Xong / Bỏ qua): <button data-gtp-cmd="…">
+            $(`#${P}-status`).addEventListener('click', e => {
+                const b = e.target.closest('[data-gtp-cmd]'); if (!b) return;
+                fetch(`/api/${id}/control`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: b.dataset.gtpCmd }) })
+                    .then(r => r.json()).then(setLive).catch(() => {});
+            });
             $(`#${P}-prev`).addEventListener('click', () => { prevOn = !prevOn; const f = $(`#${P}-frame`); if (f) f.dataset.hpOff = prevOn ? '0' : '1'; reloadPreview(); });
             $(`#${P}-frame`).addEventListener('hp-preview-off', () => { prevOn = false; reloadPreview(); });
         }
@@ -158,6 +180,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
             chips.push(cfg.enabled === false ? `<span class="ctc-chip warn">${hpT('Đang tắt - quà thật không chạy')}</span>` : `<span class="ctc-chip ok">${hpT('Đang nhận quà')}</span>`);
             chips.push(`<span class="ctc-chip ${live.queue ? 'warn' : 'dim'}">${hpT('⏳ Hàng chờ: {n} lượt', { n: live.queue || 0 })}</span>`);
             if (cfg.anyGift === false && !(cfg.gifts || []).length) chips.push(`<span class="ctc-chip warn">${hpT('Chưa chọn quà nào - bật "Mọi quà" hoặc thêm quà')}</span>`);
+            if (opts.statusExtra) chips.push(opts.statusExtra(live, cfg, api));
             el.innerHTML = chips.join(' ');
         }
         function renderHistory() {
@@ -197,6 +220,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
             host.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { cfg.gifts.splice(Number(b.dataset.del), 1); renderSettings(); schedulePersist(); }));
             $(`#${P}-gift-add`).addEventListener('click', openPicker);
             opts.bindCards(host, cfg, api);
+            if (opts.onLive) opts.onLive(live, cfg, api);
             renderStatus(); renderHistory();
         }
 

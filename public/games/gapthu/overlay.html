@@ -52,7 +52,28 @@
     .gapthu-bar { width: 200px; height: 12px; border-radius: 6px; background: rgba(255,255,255,.18); overflow: hidden; }
     .gapthu-bar > div { height: 100%; width: 100%; background: linear-gradient(90deg, #ffd54a, #ff3d8b); transition: width .25s linear; }
     .gapthu-steps { font-size: 24px; font-weight: 800; opacity: .9; }
-    body.gapthu-shot * { transition: none !important; }
+    /* 💃 khung "Streamer nhảy" phủ giữa khung hình */
+    #gapthu-fx { position: absolute; inset: 0; width: 1080px; height: 1920px; pointer-events: none; }
+    .gapthu-dance { position: absolute; left: 50%; top: 50%; width: 900px; transform: translate(-50%, -50%) scale(.6); opacity: 0;
+        padding: 40px 40px 46px; box-sizing: border-box; border-radius: 48px; text-align: center; color: #fff;
+        background: radial-gradient(circle at 50% 0%, #ff4fa3 0%, #7b3cff 60%, #2b1a6b 100%);
+        box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 8px rgba(255,255,255,.85), 0 0 60px 10px rgba(255,79,163,.6);
+        transition: opacity .25s, transform .4s cubic-bezier(.2,1.5,.4,1); }
+    .gapthu-dance.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    .gapthu-dance .pic { width: 300px; height: 300px; margin: -150px auto 6px; display: grid; place-items: center; animation: gapthu-bop .5s ease-in-out infinite alternate; }
+    .gapthu-dance .pic img, .gapthu-dance .pic canvas { max-width: 300px; max-height: 300px; filter: drop-shadow(0 10px 20px rgba(0,0,0,.45)); }
+    .gapthu-dance .who { display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 40px; font-weight: 800; }
+    .gapthu-dance .who img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; border: 4px solid #fff; }
+    .gapthu-dance .say { font-size: 64px; font-weight: 900; line-height: 1.12; margin: 14px 0 22px; text-shadow: 0 4px 0 rgba(0,0,0,.25); }
+    .gapthu-dance .clock { position: relative; width: 260px; height: 260px; margin: 0 auto; }
+    .gapthu-dance .clock svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+    .gapthu-dance .clock b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 120px; font-weight: 900; }
+    .gapthu-dance .clock.hurry b { color: #ffe14d; animation: gapthu-pulse .5s ease-in-out infinite alternate; }
+    .gapthu-dance .sub { font-size: 34px; font-weight: 800; margin-top: 14px; opacity: .92; }
+    .gapthu-dance.bye .clock, .gapthu-dance.bye .say { display: none; }
+    @keyframes gapthu-bop { from { transform: translateY(0) rotate(-6deg); } to { transform: translateY(-18px) rotate(6deg); } }
+    @keyframes gapthu-pulse { from { transform: scale(1); } to { transform: scale(1.12); } }
+    body.gapthu-shot * { transition: none !important; animation: none !important; }
 </style>
 </head>
 <body>
@@ -74,6 +95,18 @@
             </div>
         </div>
         <div class="gapthu-q" id="gapthu-q" hidden></div>
+    </div>
+    <canvas id="gapthu-fx" width="1080" height="1920"></canvas>
+    <div class="gapthu-dance" id="gapthu-dance">
+        <div class="pic" id="gapthu-dance-pic"></div>
+        <div class="who" id="gapthu-dance-who"></div>
+        <div class="say" id="gapthu-dance-say"></div>
+        <div class="clock" id="gapthu-dance-clock">
+            <svg viewBox="0 0 260 260"><circle cx="130" cy="130" r="116" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="18"/>
+                <circle id="gapthu-dance-ring" cx="130" cy="130" r="116" fill="none" stroke="#ffe14d" stroke-width="18" stroke-linecap="round" stroke-dasharray="728.85" stroke-dashoffset="0"/></svg>
+            <b id="gapthu-dance-sec">30</b>
+        </div>
+        <div class="sub" id="gapthu-dance-sub">💃 Nhảy đi nào!</div>
     </div>
 </div>
 <script src="/socket.io/socket.io.js"></script>
@@ -134,7 +167,40 @@
     const colX = col => G.pileL + (col + 0.5) / COLS * (G.pileR - G.pileL);
     const downYOf = cell => cellXY(cell).y - 70;
     let layout = null;          // id giải mỗi ô (server gửi)
-    const iconOf = id => ((cfg.prizes || []).find(p => p.id === id) || {}).icon || (id ? '🎁' : '');
+    const DANCE = '__dance';
+    const iconOf = id => id === DANCE ? DANCE : (((cfg.prizes || []).find(p => p.id === id) || {}).icon || (id ? '🎁' : ''));
+    // ảnh giải Streamer (streamer tải lên); chưa có / lỗi → huy hiệu tự vẽ
+    let danceImg = null, danceImgSrc = '';
+    function loadDanceImg() {
+        const src = cfg.dance && cfg.dance.image || '';
+        if (src === danceImgSrc) return;
+        danceImgSrc = src; danceImg = null;
+        if (!src) return;
+        const im = new Image(); im.onload = () => { if (danceImgSrc === src) danceImg = im; }; im.src = src;
+    }
+    function drawDanceToken(g, x, y, size, t) {
+        g.save(); g.translate(x, y);
+        // hào quang nhấp nháy
+        const glow = g.createRadialGradient(0, 0, size * .1, 0, 0, size * .75);
+        glow.addColorStop(0, 'rgba(255,225,77,.85)'); glow.addColorStop(1, 'rgba(255,225,77,0)');
+        g.fillStyle = glow; g.globalAlpha = .7 + Math.sin((t || 0) / 200) * .3; g.beginPath(); g.arc(0, 0, size * .75, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;
+        if (danceImg) {
+            const k = Math.min(size * 1.15 / danceImg.width, size * 1.15 / danceImg.height);
+            g.drawImage(danceImg, -danceImg.width * k / 2, -danceImg.height * k / 2, danceImg.width * k, danceImg.height * k);
+        } else {
+            // sao vàng 5 cánh + 💃 + nhãn LIVE
+            g.fillStyle = '#ffd23f'; g.strokeStyle = '#fff'; g.lineWidth = Math.max(2, size * .05);
+            g.beginPath();
+            for (let i = 0; i < 10; i++) { const r = i % 2 ? size * .26 : size * .55, a = -Math.PI / 2 + i * Math.PI / 5; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+            g.closePath(); g.fill(); g.stroke();
+            g.font = `${size * .5}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+            g.fillText('💃', 0, size * .02);
+            g.fillStyle = '#ff2e63'; const w = size * .62, h = size * .2;
+            g.beginPath(); g.roundRect ? g.roundRect(-w / 2, size * .36, w, h, h / 2) : g.rect(-w / 2, size * .36, w, h); g.fill();
+            g.fillStyle = '#fff'; g.font = `900 ${h * .78}px "Be Vietnam Pro","Segoe UI",sans-serif`; g.fillText('LIVE', 0, size * .36 + h * .55);
+        }
+        g.restore();
+    }
     function localLayout() {     // demo / chụp ảnh / chưa nhận được từ server
         const ps = (cfg.prizes || []).filter(p => p && p.weight > 0);
         const ids = ps.length ? ps.map(p => p.id) : [null];
@@ -195,6 +261,7 @@
     function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
     function emoji(icon, x, y, size, rot) {
         if (!icon) return;
+        if (icon === DANCE) { drawDanceToken(ctx, x, y, size * 1.1, performance.now()); return; }
         ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot);
         ctx.font = `${size}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(icon, 0, 0); ctx.restore();
@@ -298,7 +365,9 @@
         card.classList.toggle('lose', !r.win);
         const head = `<div class="top">${avatarImg(t.avatar)}<span>${esc(t.nickname || 'Ẩn danh')}</span></div>`;
         const pity = r.pityLeft ? `<div class="sub">Còn ${r.pityLeft} lượt trượt nữa là chắc trúng</div>` : '';
-        card.innerHTML = r.win
+        card.innerHTML = r.win && r.prize.dance
+            ? `${head}<div class="big">💃</div><div class="say">gắp trúng STREAMER!</div>`
+            : r.win
             ? `${head}<div class="big">${esc(r.prize.icon)}</div><div class="say">gắp được ${esc(r.prize.name)}!</div>${r.pityHit ? '<div class="sub">🍀 Bảo hiểm gắp trúng</div>' : (t.mode === 'steer' ? '<div class="sub">🎮 Tay lái lụa!</div>' : '')}`
             : r.kind === 'empty'
                 ? `${head}<div class="big">🫣</div><div class="say">Hụt rồi - khép vào khoảng không!</div>${pity}`
@@ -414,13 +483,78 @@
     function applyConfig(c) {
         if (!c) return;
         cfg = c; disabled = c.enabled === false && !isReview && !isDemo && !shotSpec;
-        layoutBox(); renderQueue();
+        layoutBox(); renderQueue(); loadDanceImg();
     }
+
+    // ---------- 💃 khung "Streamer nhảy" ----------
+    const fx = $('gapthu-fx'), fctx = fx.getContext('2d');
+    let dance = null, danceTick = 0, confetti = [], fxRaf = 0;
+    function danceSound(on, kind) {
+        if (!on) return;
+        if (kind === 'start') [523, 659, 784, 1047, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, .14, 'square', .16), i * 120));
+        else [1047, 784, 659, 523].forEach((f, i) => setTimeout(() => tone(f, .18, 'triangle', .18), i * 140));
+    }
+    function showDance(d) {
+        if (disabled || !d) return;
+        hideCard();
+        dance = { ...d, endsAt: performance.now() + (Number(d.secLeft ?? d.sec) || 30) * 1000, sec: Number(d.sec) || 30 };
+        const box = $('gapthu-dance');
+        box.classList.remove('bye');
+        const pic = $('gapthu-dance-pic'); pic.innerHTML = '';
+        if (d.image) { const im = new Image(); im.alt = ''; im.src = d.image; im.onerror = () => { pic.innerHTML = ''; pic.appendChild(defaultPic()); }; pic.appendChild(im); }
+        else pic.appendChild(defaultPic());
+        $('gapthu-dance-who').innerHTML = `${d.avatar ? `<img src="${esc(d.avatar)}" alt="" onerror="this.remove()">` : ''}<span>${esc(d.nickname || 'Ẩn danh')}</span>`;
+        $('gapthu-dance-say').textContent = d.text || '';
+        $('gapthu-dance-sub').textContent = '💃 Nhảy đi nào!';
+        box.classList.add('on');
+        burst(160);
+        if (!shotSpec) { danceSound(d.sound !== false, 'start'); clearInterval(danceTick); danceTick = setInterval(renderDanceClock, 200); }
+        renderDanceClock();
+    }
+    function defaultPic() { const c = document.createElement('canvas'); c.width = c.height = 300; drawDanceToken(c.getContext('2d'), 150, 150, 230, 0); return c; }
+    function renderDanceClock() {
+        if (!dance) return;
+        const left = Math.max(0, (dance.endsAt - performance.now()) / 1000);
+        $('gapthu-dance-sec').textContent = Math.ceil(left);
+        $('gapthu-dance-clock').classList.toggle('hurry', left <= 5);
+        $('gapthu-dance-ring').style.strokeDashoffset = String(728.85 * (1 - clamp(left / dance.sec, 0, 1)));
+        if (Math.random() < .3) burst(6);
+    }
+    function endDance(d) {
+        if (!dance) return;
+        clearInterval(danceTick); danceTick = 0;
+        const sound = d && d.sound !== false;
+        dance = null;
+        const box = $('gapthu-dance');
+        box.classList.add('bye');
+        $('gapthu-dance-sub').textContent = d && d.reason === 'skip' ? '⏭ Để lần sau nhé!' : '🎉 Cảm ơn cả nhà!';
+        danceSound(sound, 'end'); burst(90);
+        setTimeout(() => { if (!dance) box.classList.remove('on'); }, 1800);
+    }
+    // pháo giấy vẽ bằng canvas (chỉ chạy khi có hạt)
+    function burst(n) {
+        const cols = ['#ff4fa3', '#ffe14d', '#62f6ff', '#7bff8a', '#ffffff', '#b98cff'];
+        for (let i = 0; i < n; i++) confetti.push({ x: 540 + (Math.random() - .5) * 700, y: 700 + (Math.random() - .5) * 300, vx: (Math.random() - .5) * 900, vy: -400 - Math.random() * 900,
+            r: Math.random() * Math.PI, vr: (Math.random() - .5) * 12, w: 12 + Math.random() * 14, h: 6 + Math.random() * 8, c: cols[i % cols.length], life: 2.4 });
+        if (!fxRaf && !shotSpec) { let last = performance.now(); const step = now => { const dt = Math.min(.05, (now - last) / 1000); last = now; fxStep(dt); fxRaf = confetti.length ? requestAnimationFrame(step) : 0; }; fxRaf = requestAnimationFrame(step); }
+        if (shotSpec) for (let k = 0; k < 40; k++) fxStep(.016);
+    }
+    function fxStep(dt) {
+        fctx.clearRect(0, 0, 1080, 1920);
+        confetti = confetti.filter(p => (p.life -= dt) > 0 && p.y < 2000);
+        for (const p of confetti) {
+            p.vy += 1500 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt;
+            fctx.save(); fctx.translate(p.x, p.y); fctx.rotate(p.r); fctx.globalAlpha = Math.min(1, p.life);
+            fctx.fillStyle = p.c; fctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); fctx.restore();
+        }
+    }
+    function onDance(d) { if (!d) return; if (d.phase === 'start') showDance(d); else if (d.phase === 'end') endDance(d); }
     const cfgReady = fetch('/api/games/gapthu/config', { cache: 'no-store' }).then(r => r.json()).then(applyConfig).catch(() => layoutBox());
     function syncState() {
         if (isDemo || shotSpec) return;
         fetch('/api/gapthu/state', { cache: 'no-store' }).then(r => r.json()).then(s => {
             if (Array.isArray(s.layout) && !turn) layout = s.layout.slice();
+            if (s.dance && s.dance.phase === 'on' && !dance) showDance({ ...s.dance, sound: false });
             if (s.steer && !steer && s.current && s.current.id === s.steer.id) {
                 startTurn({ ...s.current, layout: s.layout, steer: { pos: s.steer.pos, stepsLeft: s.steer.stepsLeft, steps: s.current.steer?.steps, sec: s.current.steer?.sec, secLeft: s.steer.secLeft } });
             }
@@ -434,6 +568,7 @@
             socket.on('gapthu:turn', startTurn);
             socket.on('gapthu:steer', onSteer);
             socket.on('gapthu:drop', onDrop);
+            socket.on('gapthu:dance', onDance);
         }
         socket.on('gameConfig', d => { if (d && d.gameId === 'gapthu') applyConfig(d.config); });
         socket.on('overlay:reload', d => { if (!isReview && (!d || !d.gameId || d.gameId === 'gapthu')) location.reload(); });
@@ -468,6 +603,12 @@
         const p = Math.min(1, Math.max(0, Number(pStr) || 0.5));
         const prize = fakePrize(0);
         getLayout();
+        if (!layout.includes(DANCE)) layout[9] = DANCE;
+        if (kind === 'dance') {
+            for (let x = 0; x <= 400; x += 16) draw(x);
+            showDance({ nickname: 'Mây Hồng', sec: 30, secLeft: 21, text: (cfg.dance && cfg.dance.text || '{name} gắp trúng! Streamer nhảy ngay!').replace(/\{name\}/g, 'Mây Hồng'), image: cfg.dance && cfg.dance.image });
+            return;
+        }
         if (kind === 'steer' || kind === 'steerdrop') {
             const pos = { col: 1, row: 2 };
             startTurn({ id: 's', mode: 'steer', ms: 4000, left: 2, nickname: 'Mây Hồng', steer: { pos: { col: 3, row: 1 }, stepsLeft: 8, steps: 8, sec: 15, secLeft: 11 } });
@@ -489,7 +630,7 @@
         for (let x = 0; x <= p * ms; x += 16) draw(x);
         if (p >= P_AUTO.card) { showCard(turn); clearTimeout(cardTimer); }
     }
-    window.__gapthu = { startTurn, onSteer, onDrop, shot, get cfg() { return cfg; }, draw: () => draw(performance.now()) };
+    window.__gapthu = { startTurn, onSteer, onDrop, onDance, shot, get cfg() { return cfg; }, draw: () => draw(performance.now()) };
     layoutBox();
     if (shotSpec) cfgReady.then(() => shot(shotSpec));
     else requestAnimationFrame(loop);

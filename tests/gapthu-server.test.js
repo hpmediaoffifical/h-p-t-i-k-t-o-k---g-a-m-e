@@ -22,10 +22,13 @@ function harness(cfgOver) {
     const room = { emit: (ev, data) => events.push([ev, data]) };
     const io = { to: () => ({ to: () => room, emit: room.emit }) };
     const app = { get() {}, post() {} };
-    const cfgs = { gapthu: { anyGift: true, steerMinCoins: 99, steerSec: 15, steerSteps: 8, pity: 0, ...cfgOver }, xucxac: { enabled: false } };
+    const cfgs = { gapthu: { anyGift: true, steerMinCoins: 99, steerSec: 15, steerSteps: 8, pity: 0, dance: { enabled: false }, ...cfgOver }, xucxac: { enabled: false } };
+    const routes = {};
+    app.post = (p, ...h) => { routes['POST ' + p] = h[h.length - 1]; };
     const s = Srv.install({ app, io, getConfig: id => cfgs[id], publicDir: '.', clock });
+    const call = (p, body) => { let out; routes['POST ' + p]({ body }, { json: j => { out = j; }, status: () => ({ json: j => { out = j; } }) }); return out; };
     const of = ev => events.filter(e => e[0] === ev).map(e => e[1]);
-    return { s, clock, events, of };
+    return { s, clock, events, of, call, cfgs };
 }
 const gift = (coins, extra) => ({ giftId: '1', coinValue: coins, repeatCount: 1, uniqueId: 'bena', nickname: 'Bé Na', ...extra });
 
@@ -90,4 +93,42 @@ test('ngưỡng 0 = tắt tự lái', () => {
     const h = harness({ steerMinCoins: 0 });
     h.s.onGift(gift(30000));
     assert.strictEqual(h.of('gapthu:turn')[0].mode, 'auto');
+});
+
+test('💃 ép trúng Streamer: hàng chờ đứng tới hết giờ, rồi hồi; Xong kết thúc sớm', () => {
+    const h = harness({ dance: { enabled: true, pct: 0, sec: 30, cooldownSec: 120 } });
+    h.call('/api/gapthu/control', { cmd: 'forceDance' });
+    h.s.onGift(gift(1, { uniqueId: 'sau', nickname: 'Người sau' }));
+    const t = h.of('gapthu:turn')[0];
+    assert.strictEqual(t.result.prize.dance, true);
+    h.clock.advance(t.ms);
+    const start = h.of('gapthu:dance')[0];
+    assert.strictEqual(start.phase, 'start');
+    assert.ok(start.text.includes('Thử nghiệm'));
+    h.clock.advance(29000);
+    assert.strictEqual(h.of('gapthu:turn').length, 1, 'đang nhảy: lượt sau chưa chạy');
+    assert.strictEqual(h.call('/api/gapthu/control', { cmd: 'danceDone' }).danceLog[0].reason, 'done');
+    assert.strictEqual(h.of('gapthu:dance')[1].phase, 'end');
+    h.clock.advance(600);   // release 300 ms + nghỉ 250 ms
+    assert.strictEqual(h.of('gapthu:turn')[1].nickname, 'Người sau');
+    const st = h.s.snapshot('gapthu');
+    assert.ok(st.danceCooldown > 100 && st.danceCooldown <= 120, 'đang hồi ' + st.danceCooldown);
+    assert.ok(!st.layout.includes('__dance'), 'đang hồi: lưới không có ô Streamer');
+});
+
+test('💃 hết giờ tự kết thúc; trong lúc hồi tỉ lệ 100% cũng không ra', () => {
+    const h = harness({ winRate: 0, dance: { enabled: true, pct: 30, sec: 5, cooldownSec: 120 } });
+    h.call('/api/gapthu/control', { cmd: 'forceDance' });
+    h.clock.advance(h.of('gapthu:turn')[0].ms + 5000);
+    assert.strictEqual(h.of('gapthu:dance')[1].reason, 'timeout');
+    for (let i = 0; i < 30; i++) h.s.onGift(gift(1, { uniqueId: 'k' + i }));
+    h.clock.advance(60000);
+    assert.ok(h.of('gapthu:turn').slice(1).every(t => !(t.result.prize && t.result.prize.dance)));
+    assert.strictEqual(h.of('gapthu:dance').length, 2);
+});
+
+test('💃 sẵn sàng thì lưới tự lái có đúng 1 ô Streamer', () => {
+    const h = harness({ dance: { enabled: true } });
+    h.s.onGift(gift(199));
+    assert.strictEqual(h.of('gapthu:turn')[0].layout.filter(x => x === '__dance').length, 1);
 });

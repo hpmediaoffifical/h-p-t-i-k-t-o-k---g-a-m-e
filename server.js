@@ -10390,7 +10390,7 @@ app.get('/overlay/dacau', (req, res) => {
 // ====== 🕹️ GẮP THÚ + 🎲 XÚC XẮC 3D ======
 // Route /overlay/gapthu|xucxac, /api/gapthu|xucxac/{state,test,control}; quà vào qua emitGift → gapXucServer.onGift.
 const gapXucServer = require('./lib/gapthu-xucxac-server').install({
-    app, io, publicDir: path.join(__dirname, 'public'),
+    app, io, express, publicDir: path.join(__dirname, 'public'), dataDir: DATA_DIR,
     getConfig: id => appConfig.games[id] || GAMES[id]?.defaultConfig
 });
 function daCauCfg() { return DaCau.normalizeConfig(appConfig.games.dacau || DaCau.defaultConfig()); }

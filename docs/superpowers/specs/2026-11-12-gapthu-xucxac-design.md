@@ -75,6 +75,20 @@ Quà có giá **≥ `steerMinCoins`** (mặc định **99 xu** / 1 món, 0 = t�
 
 Sự kiện: `gapthu:turn` (`mode: steer`, `steer: { pos, stepsLeft, secLeft }`) → `gapthu:steer` sau mỗi lệnh hợp lệ (`pos, stepsLeft, secLeft, dir`) → `gapthu:drop` (`result`, `ms` diễn thả càng) → runner `release`. Overlay: chip người lái + đồng hồ + "còn N bước" + bảng mũi tên gợi ý lệnh ở bệ máy, vòng đích trên ô dưới càng, càng trượt mượt tới ô mới, cần gạt nghiêng theo lệnh.
 
+### 3.4 💃 Giải "Streamer nhảy" — thêm 18/11/2026
+
+Trong máy có 1 giải đặc biệt là hình streamer. Ai gắp trúng → overlay hiện khung lớn "<tên> gắp trúng! Streamer nhảy ngay!" + đồng hồ đếm ngược; streamer nhảy thật tới hết giờ.
+
+- Cấu hình `dance = { enabled (mặc định bật), pct (6 %, 0–30), sec (30, 5–120), cooldownSec (120, 0–3600), text ("{name} gắp trúng! Streamer nhảy ngay!", ≤ 80 ký tự, `{name}` = người gắp), sound (bật), image }`.
+- **Sẵn sàng** (`danceReady(cfg, { now, lastEndAt, active })`): bật, không đang nhảy, đã qua `cooldownSec` kể từ lần nhảy trước **kết thúc**. Không sẵn sàng thì giải này không ra (cả tự gắp lẫn tự lái).
+- **Tự gắp**: `rollGrab(cfg, { …, dance: true }, rng)` tung thêm 1 số ngay sau vị trí càng: `< pct %` → trúng giải Streamer (bỏ qua winRate). Không truyền `dance` thì thứ tự rng như cũ.
+- **Tự lái**: lưới có đúng **1 ô** giải Streamer (`DANCE_ID`) khi sẵn sàng (`syncDance(layout, prizes, on, rng)` đặt / gỡ); trúng hay không theo `resolveSteer` như mọi ô (nhắm + lực kẹp). Trúng xong ô đó bù giải thường.
+- **Khi trúng**: diễn xong lượt gắp → `gapthu:dance {phase: start, nickname, avatar, text, sec, endsAt, image}`; **hàng chờ đứng** (runner giữ lượt) tới hết giờ hoặc panel bấm **Xong** / **Bỏ qua** (`POST /api/gapthu/control {cmd: danceDone|danceSkip}`) → `gapthu:dance {phase: end, reason}` → hồi bắt đầu tính, runner chạy tiếp. Âm báo bắt đầu / kết thúc theo `dance.sound`.
+- **🧪 Ép trúng** (`cmd: forceDance`): thêm 1 lượt thử chắc trúng Streamer, bỏ qua hồi — để streamer tập trước.
+- **Ảnh**: `POST /api/gapthu/dance-image` (thân = file PNG, ≤ 2 MB, ≤ 2048×2048, kiểm chữ ký PNG + khung IHDR bằng hàm thuần `checkPng`) → lưu `<DATA_DIR>/gapthu/dance.png`, `cfg.dance.image = /api/gapthu/dance-image?v=…`; `DELETE` gỡ. Không có ảnh → hình mặc định vẽ bằng canvas (huy hiệu sao vàng + 💃 + chữ LIVE).
+- Panel: thẻ 💃 cài đặt + tải ảnh + 🧪 Ép trúng; dòng trạng thái "💃 Đang nhảy… còn Ns" với nút Xong / Bỏ qua, "⏳ hồi còn Ns"; danh sách ai đã gắp trúng trong buổi (`danceLog`, giữ trong RAM server).
+- Chưa làm: phím tắt toàn cục cho nút Xong.
+
 ### 3.2 Overlay `/overlay/gapthu` (Canvas 2D, 1080×1920 trong suốt)
 
 - Một tủ gắp (khung bo tròn, kính, đèn viền nhấp nháy, cửa nhả quà góc trái dưới) vẽ bằng canvas, đống thú/giải ở đáy = icon các giải.
@@ -121,5 +135,6 @@ Mỗi game 1 file `public/games/<id>/<id>-panel.js` tự chèn `<section id="vie
 - `tests/gapthu.test.js`: normalize, `pickPrize` theo trọng số (rng cố định), winRate 0/100, bảo hiểm, `sure`, weight toàn 0, `clawX/slipAt` trong khoảng.
 - `tests/gapthu-steer.test.js`: ngưỡng quà, lưới 7×3 (`fixLayout/refillCell/autoCell`), `parseSteer` (có/không dấu, số bước, wasd, trò chuyện = null, trần 5), `applyMoves` (ngân sách, vách), `resolveSteer` (đúng ô / lệch / hụt / chắc trúng / bảo hiểm, tỉ lệ trung bình 4 000 lượt).
 - `tests/gapthu-server.test.js`: io/app/đồng hồ giả — quà lớn giữ hàng chờ, chỉ người tặng điều khiển, gắp / hết giờ → drop rồi sang lượt kế, đồng hồ rút theo hàng chờ, ngưỡng 0 = tắt.
+- `tests/gapthu-dance.test.js`: `danceReady` (tắt / đang nhảy / hồi), `rollGrab` có giải Streamer, `syncDance` đúng 1 ô, `resolveSteer` trúng ô Streamer, `checkPng` (chữ ký, kích thước file, khung).
 - `tests/xucxac.test.js`: `rollDice` 1–6 & số viên, `outcomeFor` biên, bảng mặc định phủ kín [n, 6n], normalize.
 - Chạy thử: server cổng riêng + `HP_DATA_DIR` riêng, `POST /api/test-gift` → chụp overlay ở giữa lượt và lúc hiện kết quả.
