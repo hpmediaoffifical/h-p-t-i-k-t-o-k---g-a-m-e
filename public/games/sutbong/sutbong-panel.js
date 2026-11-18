@@ -216,6 +216,8 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
                 <label class="ctc-toggle"><input type="checkbox" data-d="showTop" ${D.showTop ? 'checked' : ''}> ${hpT('Top 3 người ghi bàn')}</label>
                 <label class="ctc-toggle"><input type="checkbox" data-d="showNames" ${D.showNames ? 'checked' : ''}> ${hpT('Tên người tặng trên quả bóng')}</label>
                 <label class="ctc-toggle"><input type="checkbox" data-d="showHands" ${D.showHands ? 'checked' : ''}> ${hpT('Hiện găng 🧤 ở chỗ tay')}</label>
+                <label class="ctc-toggle"><input type="checkbox" data-d="showPitch" ${D.showPitch ? 'checked' : ''}> ${hpT('Thảm cỏ dưới vạch vôi (che phần chân)')}</label>
+                <label class="ctc-toggle"><input type="checkbox" data-d="showLights" ${D.showLights ? 'checked' : ''}> ${hpT('Dàn đèn sân vận động 2 góc trên')}</label>
                 <label class="ctc-toggle"><input type="checkbox" id="sb-sound" ${cfg.sound.enabled ? 'checked' : ''}> ${hpT('Âm thanh')}</label>
                 ${row('volume', hpT('Âm lượng'), 0, 1, 0.05, cfg.sound.volume, '')}
             </div>`;

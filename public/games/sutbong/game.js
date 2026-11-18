@@ -53,7 +53,8 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
             latencyMs: 120,            // bù trễ camera
             goal: { width: 86, top: 34, bottom: 86 },   // khung thành, % vùng thấy: rộng (giữa) · xà ngang · vạch vôi
             display: { showHud: true, hudY: 3, showTop: true, showNames: true, showAim: true, showHands: true, showZones: false,
-                listXPercent: 50, listYPercent: 92, listScale: 90 },
+                showPitch: true, showLights: true,           // thảm cỏ dưới vạch vôi · dàn đèn sân 2 góc trên
+                listXPercent: 50, listYPercent: 19, listScale: 90 },   // list*: thông báo quà (dưới bảng tỷ số)
             sound: { enabled: true, volume: 0.6 }
         };
     }
@@ -124,12 +125,13 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         for (const [side, wi, fingers] of [['L', 15, [17, 19]], ['R', 16, [18, 20]]]) {
             if (!ok(wi)) continue;
             const w = P[wi], fs = fingers.filter(ok).map(i => P[i]);
-            let x = w.x, y = w.y;
+            let x = w.x, y = w.y, a = -Math.PI / 2;     // a = hướng cổ tay → ngón (găng vẽ xoay theo); không thấy ngón: chĩa lên
             if (fs.length) {
                 const fx = fs.reduce((s, p) => s + p.x, 0) / fs.length, fy = fs.reduce((s, p) => s + p.y, 0) / fs.length;
                 x += (fx - w.x) * 0.6; y += (fy - w.y) * 0.6;
+                if (Math.hypot(fx - w.x, fy - w.y) > 1) a = Math.atan2(fy - w.y, fx - w.x);
             }
-            out.push({ side, x, y, r });
+            out.push({ side, x, y, r, a });
         }
         return out;
     }
@@ -176,7 +178,8 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
             const tx = ix + iw * (col + 0.15 + 0.7 * random()) / 3;
             const ty = iy + ih * (row + 0.15 + 0.7 * random()) / 2;
             const cx = A.x + A.w / 2;
-            const sx = cx + (random() - 0.5) * 120, sy = A.y + A.h - R0 * 0.6;
+            // chấm phạt đền: cả quả bóng (kể cả lúc nảy) nằm trong khung thấy
+            const sx = cx + (random() - 0.5) * 120, sy = A.y + A.h - R0 * 1.2;
             const b = {
                 id: ++seq, type: item.type, phase: 'spot', t: 0, T: diff().flight * T.time, u: 0,
                 sx, sy, tx, ty, cx, cy: A.y + A.h * 0.4, r0: R0 * T.size, r1, arc: ARC,

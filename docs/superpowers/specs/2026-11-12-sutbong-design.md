@@ -80,3 +80,17 @@ Chưa thấy người (`setReady(false)`) thì giữ hàng, quá 8 s vẫn sút 
 - Test `tests/sutbong-engine.test.js`: chuẩn hoá config, quà → cú sút, phối cảnh (đầu/cuối/đơn điệu, bán kính nhỏ dần),
   cong lệch giữa đường, cản trong cửa sổ / không cản sớm, bù trễ bằng lịch sử, vào lưới khi không chạm, điểm/chuỗi/top,
   hàng chờ, `handsFromPose`.
+
+## 9. Đồ họa 2.5D (18/11/2026)
+
+Bộ vẽ `public/games/sutbong/render.js` (canvas 2D, không thư viện, nền trong suốt cho camera). Hình học thuần có test `tests/sutbong-render.test.js`.
+
+- **Khung gôn 3D:** mặt sau = mặt trước co về tâm phối cảnh (`goalBox`, cùng tâm với engine: giữa vùng thấy, 40 % cao). Cột/xà là khối trụ tô dải sáng + bóng đổ; lưới mắt cáo trên 4 mặt, **phồng + rung** 0,9 s quanh chỗ bóng lọt.
+- **Sân:** thảm cỏ sọc cắt hội tụ về tâm phối cảnh từ vạch vôi xuống (`display.showPitch`, che phần chân), dàn đèn sân 2 góc trên + tia rọi (`display.showLights`).
+- **Bóng:** khối cầu 32 mặt (60 đỉnh, 90 cạnh, 12 ngũ giác) xoay 3D thật — xoáy lên khi bay, ⚡ xoáy nhanh, 🌀 thêm xoáy ngang; đèn rọi + tối viền; bóng đổ bám mặt sân theo cùng phép chiếu. Màu theo kiểu sút.
+- **Găng thủ môn** vector xoay theo hướng ngón (`handsFromPose` trả thêm góc `a`).
+- **Thứ tự lớp:** đèn + cỏ → lưới → bóng đã lọt lưới → cột/xà → người giả → găng → bóng đang bay / bật ra → tên người tặng → hiệu ứng. Bóng bay từ phía camera nên luôn nằm TRƯỚC tay.
+- **Hiệu ứng:** chữ khối 3D (VÀOOO! / CẢN PHÁ! / mốc chuỗi), pháo giấy khi vào lưới, tia sáng + vòng sóng khi cản. Mốc thời gian hiệu ứng lấy theo đồng hồ khung hình (`clockNow`) để `__sb.step` (đồng hồ giả) chụp được.
+- **Bảng tỷ số** kiểu truyền hình: khối nghiêng nhẹ, huy hiệu găng/bóng vẽ SVG (font OBS thiếu emoji 🧤), huy chương 1-2-3 bằng CSS.
+- **Hiệu năng:** đèn + cỏ + lưới phẳng vẽ sẵn ra canvas phụ, chỉ vẽ lại khi khung gôn / vùng thấy / tuỳ chọn đổi; lưới vẽ trực tiếp chỉ lúc đang phồng.
+- **Ảnh bìa** thẻ Game Camera: `public/games/camgames/thumb/sutbong.webp` (tạm, dựng từ bộ vẽ); đơn đặt vẽ bản đẹp `art-requests/sutbong/BRIEF.md`.
