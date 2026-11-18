@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('hpQuickLaunch', {
     setFit: (on) => ipcRenderer.send('quick-launch:setFit', !!on),
     setAutoOpen: (on) => ipcRenderer.send('quick-launch:setAutoOpen', !!on),
     getPrefs: () => ipcRenderer.invoke('quick-launch:getPrefs'),
+    // ⌨ Phím tắt toàn cục mở/ẩn cửa sổ ('' = tắt) → { ok, hotkey, error? }
+    setHotkey: (accel) => ipcRenderer.invoke('quick-launch:setHotkey', String(accel || '')),
     // Main báo user vừa kéo tay đổi chiều cao → fit của bố cục hiện tại đã tắt (renderer ngừng ép chiều cao)
     onFitChanged: (cb) => {
         ipcRenderer.removeAllListeners('quick-launch:fitChanged');

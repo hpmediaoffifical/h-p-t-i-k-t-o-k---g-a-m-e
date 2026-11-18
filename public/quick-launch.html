@@ -155,6 +155,25 @@
         background: linear-gradient(90deg, var(--bg-22171a, #22171a) 0%, var(--surface) 70%);
         box-shadow: 0 0 0 1px rgba(255, 107, 61, .1);
     }
+    .stg-hotkey {
+        width: 150px; height: 30px; flex-shrink: 0; text-align: center; cursor: pointer;
+        background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 7px;
+        color: var(--text); font: 600 12px inherit; outline: none;
+    }
+    .stg-hotkey:focus { border-color: var(--blue); }
+    .lstrip {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
+        padding: 5px 9px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px;
+        font-size: 12px; color: var(--muted);
+    }
+    .ls-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .lstrip .ico { width: 14px; height: 14px; flex-shrink: 0; }
+    .lstrip b { color: var(--text); font-variant-numeric: tabular-nums; }
+    .ls-obs .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: var(--faint); }
+    .ls-obs.is-on .dot { background: var(--green); }
+    .ls-obs.is-off { color: var(--red); }
+    .ls-obs.is-off .dot { background: var(--red); }
+    .ls-gift { flex: 1 1 100%; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
     .conn-lead {
         flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
         padding: 0 2px; color: var(--live); font-weight: 800; font-size: 11px; letter-spacing: .3px;
@@ -484,6 +503,13 @@
                 <button id="conn-btn" class="conn-btn">Kết nối</button>
                 <p id="conn-err" class="conn-err"></p>
             </section>
+            <!-- 📊 Bảng gọn: số liệu LIVE + quà gần nhất, chỉ hiện khi đang kết nối -->
+            <section id="live-strip" class="lstrip" hidden aria-live="polite">
+                <span class="ls-item" title="Người xem"><svg class="ico" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><b id="ls-viewer">0</b></span>
+                <span class="ls-item" title="Kim cương buổi này"><svg class="ico" viewBox="0 0 24 24"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20"/></svg><b id="ls-coins">0</b></span>
+                <span id="ls-obs" class="ls-item ls-obs" title="OBS"><span class="dot"></span>OBS</span>
+                <span id="ls-gift" class="ls-gift" hidden></span>
+            </section>
             <div id="grid"></div>
         </div>
     </main>
@@ -518,6 +544,14 @@
                         <input type="checkbox" id="stg-autoopen" class="sw-input" />
                         <span class="sw"></span>
                     </label>
+                    <div class="stg-row" id="stg-hotkey-row" hidden>
+                        <div class="stg-text">
+                            <span class="stg-name">Phím tắt mở/ẩn cửa sổ</span>
+                            <span class="stg-desc">Dùng được cả khi đang ở OBS hay TikTok LIVE Studio. Bấm vào ô rồi nhấn tổ hợp phím; Backspace để tắt.</span>
+                            <span id="stg-hotkey-err" class="stg-desc" style="color:var(--red)" hidden></span>
+                        </div>
+                        <input type="text" id="stg-hotkey" class="stg-hotkey" placeholder="Chưa đặt" readonly />
+                    </div>
                     <p class="stg-note">Vị trí và kích thước được lưu <b>riêng</b> cho bố cục Dọc và Ngang. Kéo chỉnh xong là tự lưu — chuyển qua lại luôn về đúng chỗ đã chỉnh.</p>
                 </div>
                 <div class="stg-section">
@@ -685,6 +719,45 @@
             tiktokConnected = !!s?.connected;
             tiktokUsername  = s?.username || '';
             updateConnUi();
+            updateLiveStrip();
+        });
+        // 📊 Bảng gọn — số liệu LIVE (chỉ hiện khi đang kết nối)
+        const lsEl = $('live-strip');
+        const fmtN = (n) => { n = Number(n) || 0; return n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K' : n.toLocaleString('vi-VN'); };
+        let obsTimer = null, obsEver = false;
+        async function pollObsStrip() {
+            try {
+                const st = ((await (await fetch('/api/obs-bridge/config')).json()) || {}).status || {};
+                if (st.connected) obsEver = true;
+                const el = $('ls-obs');
+                el.classList.toggle('is-on', !!st.connected);
+                el.classList.toggle('is-off', !st.connected && obsEver);
+                el.title = st.connected ? 'OBS đã kết nối' : obsEver ? 'OBS mất kết nối!' : 'OBS chưa kết nối';
+            } catch (_) {}
+        }
+        function updateLiveStrip() {
+            if (!lsEl) return;
+            const show = tiktokConnected && !EMBED;   // nhúng trong Trang chủ: Trang chủ đã có số liệu riêng
+            if (lsEl.hidden === !show) return;
+            lsEl.hidden = !show;
+            clearInterval(obsTimer); obsTimer = null;
+            if (show) { pollObsStrip(); obsTimer = setInterval(pollObsStrip, 10000); }
+            fitWindow();
+        }
+        socket.on('roomUser', (r) => { if (typeof r?.viewerCount === 'number') $('ls-viewer').textContent = fmtN(r.viewerCount); });
+        socket.on('liveStats', (st) => {
+            if (!st) return;
+            $('ls-viewer').textContent = fmtN(st.viewerCount);
+            $('ls-coins').textContent = fmtN(st.totalDiamond);
+        });
+        socket.on('gift', (g) => {
+            if (!g || !lsEl || lsEl.hidden) return;
+            const el = $('ls-gift');
+            const who = g.nickname || g.uniqueId || 'Ai đó';
+            const n = Number(g.repeatCount) > 1 ? ' ×' + g.repeatCount : '';
+            el.textContent = '🎁 ' + who + ' tặng ' + (g.giftName || 'quà') + n;
+            el.title = el.textContent;
+            if (el.hidden) { el.hidden = false; fitWindow(); }
         });
 
         function setRunning(gameId, isRunning) {
@@ -1416,6 +1489,7 @@
                     const p = await ipc.getPrefs();
                     stgAutoOpen.checked = p?.autoOpen !== false;
                     stgAutoOpenRow.hidden = false;
+                    if (ipc.setHotkey) { stgHotkey.value = p?.hotkey || ''; stgHotkeyRow.hidden = false; }
                 } catch (_) {}
             }
             settingsOverlay.classList.add('show');
@@ -1438,6 +1512,37 @@
             if (fitMode) fitWindow();
         });
         stgAutoOpen.addEventListener('change', () => { if (ipc?.setAutoOpen) ipc.setAutoOpen(stgAutoOpen.checked); });
+        // ⌨ Phím tắt mở/ẩn — cùng định dạng phím tắt phụ đề ở app chính (Control+Shift+K)
+        const stgHotkeyRow = $('stg-hotkey-row');
+        const stgHotkey = $('stg-hotkey');
+        const stgHotkeyErr = $('stg-hotkey-err');
+        function hotkeyFromEvent(ev) {
+            if (['Control', 'Shift', 'Alt', 'Meta'].includes(ev.key)) return null;
+            let key = '';
+            if (/^Key[A-Z]$/.test(ev.code)) key = ev.code.slice(3);
+            else if (/^Digit[0-9]$/.test(ev.code)) key = ev.code.slice(5);
+            else if (/^F(?:[1-9]|1[0-2])$/.test(ev.key)) key = ev.key.toUpperCase();
+            else if (ev.key === ' ') key = 'Space';
+            if (!key) return null;
+            const mods = [];
+            if (ev.ctrlKey || ev.metaKey) mods.push('Control');
+            if (ev.altKey) mods.push('Alt');
+            if (ev.shiftKey) mods.push('Shift');
+            // Phím trơn (không Ctrl/Alt) sẽ cướp mất phím đó ở mọi app → bắt buộc có Ctrl hoặc Alt, trừ F1–F12
+            if (!/^F\d+$/.test(key) && !mods.some(m => m === 'Control' || m === 'Alt')) return null;
+            return [...mods, key].join('+');
+        }
+        stgHotkey?.addEventListener('keydown', async (ev) => {
+            ev.preventDefault();
+            let next = null;
+            if (['Backspace', 'Delete', 'Escape'].includes(ev.key)) next = '';
+            else next = hotkeyFromEvent(ev);
+            if (next == null || !ipc?.setHotkey) return;
+            const r = await ipc.setHotkey(next).catch(() => ({ ok: false, error: 'Không đặt được phím tắt' }));
+            stgHotkeyErr.hidden = !!r.ok;
+            stgHotkeyErr.textContent = r.ok ? '' : (r.error || 'Không đặt được phím tắt');
+            if (r.ok) { stgHotkey.value = r.hotkey; toast(r.hotkey ? '⌨ Phím tắt: ' + r.hotkey : 'Đã tắt phím tắt'); }
+        });
         // Bật/tắt hiện — cập nhật ngay localStorage + vẽ lại lưới
         settingsBody.addEventListener('change', (e) => {
             const cb = e.target.closest('input[type="checkbox"][data-game-id]');

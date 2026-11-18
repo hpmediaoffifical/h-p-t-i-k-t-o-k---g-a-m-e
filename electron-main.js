@@ -915,13 +915,36 @@ ipcMain.handle('quick-launch:getPrefs', () => {
         layout: qlLayout,
         alwaysOnTop: p.alwaysOnTop !== false,
         autoOpen: p.autoOpen !== false,
-        fit: qlFitOf(p, qlLayout)
+        fit: qlFitOf(p, qlLayout),
+        hotkey: p.hotkey || ''
     };
 });
 ipcMain.on('quick-launch:close', () => {
     if (quickLaunchWindow && !quickLaunchWindow.isDestroyed()) quickLaunchWindow.close();
 });
 ipcMain.on('open-quick-launch', () => openQuickLaunchWindow());
+// ⌨ Phím tắt toàn cục mở/ẩn Bảng gọn (Khởi động nhanh) — đặt trong ⚙ của cửa sổ, lưu prefs.hotkey ('' = tắt)
+let qlHotkeyAccel = '';
+function toggleQuickLaunchWindow() {
+    const w = quickLaunchWindow;
+    if (w && !w.isDestroyed() && w.isVisible() && w.isFocused()) { w.hide(); return; }
+    openQuickLaunchWindow();
+}
+function applyQuickLaunchHotkey(accel) {
+    const next = String(accel == null ? (loadQuickLaunchPrefs().hotkey || '') : accel).trim();
+    if (qlHotkeyAccel) { try { globalShortcut.unregister(qlHotkeyAccel); } catch (_) {} qlHotkeyAccel = ''; }
+    if (!next) return { ok: true, hotkey: '' };
+    let ok = false;
+    try { ok = globalShortcut.register(next, toggleQuickLaunchWindow); } catch (_) { ok = false; }
+    if (ok) qlHotkeyAccel = next;
+    return ok ? { ok: true, hotkey: next } : { ok: false, hotkey: next, error: 'Phím này đang bị app khác giữ — chọn tổ hợp khác' };
+}
+ipcMain.handle('quick-launch:setHotkey', (e, accel) => {
+    const r = applyQuickLaunchHotkey(String(accel || ''));
+    if (r.ok) saveQuickLaunchPrefs({ hotkey: r.hotkey });
+    else applyQuickLaunchHotkey();   // khôi phục phím cũ
+    return r;
+});
 
 // ============================================================
 // 🎯 Caro Overlay Review — cửa sổ trong suốt + frameless cho OBS Window Capture
@@ -1487,6 +1510,7 @@ app.whenReady().then(async () => {
     setTimeout(() => {
         try {
             const prefs = loadQuickLaunchPrefs();
+            applyQuickLaunchHotkey();
             if (prefs.autoOpen === false) return;   // user explicitly disabled
             openQuickLaunchWindow();
         } catch (e) {}
