@@ -280,7 +280,8 @@
     }
 
     var giftImg = {};   // id quà → ảnh (bảng quà của app), cho quà gắn thiếu ảnh
-    fetch('/api/gifts').then(function (r) { return r.json(); }).then(function (list) { (list || []).forEach(function (g) { if (g && g.image) giftImg[String(g.id)] = g.image; }); renderPrompt(); }).catch(function () {});
+    function loadGiftImg() { fetch('/api/gifts').then(function (r) { return r.json(); }).then(function (list) { (list || []).forEach(function (g) { if (g && g.image) giftImg[String(g.id)] = g.image; }); if (!Object.keys(giftImg).length) setTimeout(loadGiftImg, 15000); renderPrompt(); }).catch(function () { setTimeout(loadGiftImg, 15000); }); }
+    loadGiftImg();
     function renderPrompt() {
         var s = st, el = $('prompt');
         if (!s) return;
@@ -300,7 +301,7 @@
             if (s.game.id === 'oanquan') {
                 var hint = s.board && s.board.sel != null
                     ? T('Bước 2 · chọn hướng rải: gõ') + ' <b>trái</b> ⬅ ' + T('hoặc') + ' <b>phải</b> ➡'
-                    : T('gõ ô + hướng, vd') + ' <b>52</b> = ' + T('ô 5 rải phải') + ' <small>(' + T('1 trái · 2 phải') + ')</small>';
+                    : T('gõ ô+hướng, vd') + ' <b>52</b> <small>(' + T('1 trái · 2 phải') + ')</small>';
                 el.innerHTML = T('Tới lượt') + ' <b>' + esc(cur.nickname) + '</b> · ' + hint + ' <span class="cd">' + secLeft(s.turnUntil) + 's</span>';
                 return;
             }

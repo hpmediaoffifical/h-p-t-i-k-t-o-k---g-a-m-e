@@ -87,8 +87,9 @@
             var s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
             s.buffer = noiseBuf; s.loop = true; f.type = 'bandpass'; f.Q.value = 4; f.frequency.setValueAtTime(900, t); f.frequency.linearRampToValueAtTime(1500, t + 0.45);
             g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.32, t + 0.04); g.gain.setValueAtTime(0.32, t + 0.38); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
-            lfo.frequency.value = 38; lg.gain.value = 0.14; lfo.connect(lg); lg.connect(g.gain);
-            s.connect(f); f.connect(g); out(g); s.start(t); s.stop(t + 0.55); lfo.start(t); lfo.stop(t + 0.55);
+            var trem = ctx.createGain(); trem.gain.value = 1;   // rung cạ gỗ nhân SAU đường bao → không lọt tiếng trước/sau
+            lfo.frequency.value = 38; lg.gain.value = 0.45; lfo.connect(lg); lg.connect(trem.gain);
+            s.connect(f); f.connect(g); g.connect(trem); out(trem); s.start(t); s.stop(t + 0.55); lfo.start(t); lfo.stop(t + 0.55);
             knock(t + 0.46, 300, 0.4);
         },
         slide: function (t) { S.pull(t); },
@@ -182,7 +183,7 @@
         if (!on || vol <= 0 || !S[name]) return;
         var c = init();
         if (!c) return;
-        if (c.state === 'suspended') c.resume().catch(function () {});
+        if (c.state !== 'running') { c.resume().catch(function () {}); return; }   // chưa được phát (trình duyệt chặn) → bỏ, không dồn tiếng
         var nowMs = performance.now();
         if (lastAt[name] && nowMs - lastAt[name] < 28) return;
         lastAt[name] = nowMs;

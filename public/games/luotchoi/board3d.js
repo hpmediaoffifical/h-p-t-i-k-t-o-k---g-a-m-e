@@ -149,6 +149,7 @@ let anchors = [];   // { n, obj (Object3D), offset (Vector3), el }
 const _v = new THREE.Vector3();
 function setAnchors(list, marks, colorOf) {
     layer.innerHTML = '';
+    tags = [];   // nhãn tên thuộc bàn/điểm neo cũ (đã xoá khỏi DOM ở trên) — syncTags dựng lại sau
     const mk = {};
     (marks || []).forEach(m => { mk[m.n] = m; });
     anchors = list.map(a => {
@@ -303,6 +304,8 @@ const HM = {
         const st = { g, body, teeth, pivot, mats: { ivory, ivoryDown, red }, t0: 0 };
         updaters.push((dt, t) => {
             if (!root || root !== g) return false;
+            // khung game ẩn (tắt game) / trang ẩn → thôi ép vẽ liên tục (giữ hàm, lần kick sau chạy lại)
+            if (document.hidden || (hostStage && hostStage.closest('.lc-hidden'))) return undefined;
             if (hand3d && hand3d.visible) return true;
             body.rotation.y = Math.sin(t * 0.0007) * 0.14;
             body.position.y = Math.sin(t * 0.0021) * 0.03;
@@ -678,7 +681,8 @@ const TT = {
 const TT_PINK = '#fe2c55', TT_CYAN = '#25f4ee';
 let giftImgUrls = null;   // Promise<Map id → url ảnh>
 function giftImageUrl(id) {
-    if (!giftImgUrls) giftImgUrls = fetch('/api/gifts').then(r => r.json()).then(list => new Map((list || []).filter(g => g && g.image).map(g => [String(g.id), g.image]))).catch(() => new Map());
+    if (!giftImgUrls) giftImgUrls = fetch('/api/gifts').then(r => r.json()).then(list => new Map((list || []).filter(g => g && g.image).map(g => [String(g.id), g.image]))).catch(() => new Map())
+        .then(m => { if (!m.size) setTimeout(() => { giftImgUrls = null; }, 15000); return m; });   // server chưa có bảng quà → 15 s sau hỏi lại
     return giftImgUrls.then(m => m.get(String(id)) || null);
 }
 function cardBackTex(n) {
@@ -1035,7 +1039,7 @@ function makeHand3D() {
     return wrap;
 }
 const HAND_SCALE = { hama: 0.75, chumcoc: 0.9, thaptre: 0.85, latcap: 1.05, oanquan: 0.8 };
-let hand3d = null, handPress = null;
+let hand3d = null, handPress = null, handExit = null;
 function getHand() {
     if (!hand3d) { hand3d = makeHand3D(); scene.add(hand3d); }
     hand3d.scale.setScalar(HAND_SCALE[game] || 0.85);
@@ -1060,15 +1064,43 @@ function fly(key, tool, ms) {
         const press = tgt.clone().add(new THREE.Vector3(0, 0.04, 0.02));
         handPress = press.clone();
         hand.visible = true; handPose(hand, 0.25);
+        const done = () => { if (tool === 'stick') sfx('stick'); else if (tool !== 'pull') sfx('press'); res(); };
+        // 🦛 hà mã: nắp đầu ngửa ra sau che phía trên răng trong → tay KHÔNG bổ từ trên xuống (xuyên mỏ) mà luồn vào từ
+        // phía trước qua khe miệng, ngón trỏ chĩa vào trong (nghiêng mạnh), thân tay nằm ngoài miệng về phía máy quay
+        if (game === 'hama') {
+            const R = HM.RING, mouth = root.localToWorld(new THREE.Vector3(0, R.y, 0));
+            const out = tgt.clone().sub(mouth).setY(0).normalize();
+            const from = tgt.clone().add(new THREE.Vector3(2.2, 1.6, 5.2));
+            const gate = mouth.clone().add(new THREE.Vector3(out.x * 1.2, 0.75, 2.5));   // trước môi dưới, dưới vành mỏ trên
+            const hov = tgt.clone().add(new THREE.Vector3(0, 0.3, 0.12));
+            const LEAN = 0.88;
+            hand.position.copy(from); handPose(hand, LEAN);
+            tween(ms * 0.42, k => { hand.position.lerpVectors(from, gate, k); }, ease.out, () => {
+                tween(ms * 0.3, k => { hand.position.lerpVectors(gate, hov, k); }, ease.inOut, () => {
+                    tween(ms * 0.28, k => { hand.position.lerpVectors(hov, press, k); }, ease.in, done);
+                });
+            });
+            handExit = gate.clone().add(new THREE.Vector3(0, 0, 0.6));
+            return;
+        }
+        handExit = null;
         hand.position.copy(start);
         tween(ms * 0.62, k => { hand.position.lerpVectors(start, hover, k); handPose(hand, 0.25 * (1 - k)); }, ease.out, () => {
-            tween(ms * 0.38, k => { hand.position.lerpVectors(hover, press, k); }, ease.in, () => { if (tool === 'stick') sfx('stick'); else if (tool !== 'pull') sfx('press'); res(); });
+            tween(ms * 0.38, k => { hand.position.lerpVectors(hover, press, k); }, ease.in, done);
         });
     });
 }
 function away(tool) {
     if (!hand3d || !hand3d.visible) return;
     const from = hand3d.position.clone();
+    if (handExit) {   // hà mã: rút ra đúng khe miệng rồi mới bay đi (không xuyên mỏ)
+        const ex = handExit.clone(), far = ex.clone().add(new THREE.Vector3(2.4, 1.2, 3.5));
+        handExit = null;
+        tween(260, k => { hand3d.position.lerpVectors(from, ex, k); }, ease.out, () => {
+            tween(320, k => { hand3d.position.lerpVectors(ex, far, k); }, ease.in, () => { hand3d.visible = false; });
+        });
+        return;
+    }
     const to = tool === 'pull' ? from.clone().add(new THREE.Vector3(2.2, 0.3, 1.2)) : from.clone().add(new THREE.Vector3(2.6, 3.2, 2.4));
     tween(tool === 'pull' ? 650 : 420, k => { hand3d.position.lerpVectors(from, to, k); }, ease.in, () => { hand3d.visible = false; });
 }
@@ -1144,6 +1176,7 @@ function syncTags(marks, colorOf) {
 }
 function placeTags() {
     for (const t of tags) {
+        if (!anchorWorld(t.a.n)) continue;   // ô không còn (đổi trò / bàn nhỏ hơn)
         if (t.onCell) { t.a.obj.updateWorldMatrix(true, false); const q = scr(_l.copy(t.a.onCell).applyMatrix4(t.a.obj.matrixWorld)); t.el.style.transform = `translate(${q.x.toFixed(1)}px, ${q.y.toFixed(1)}px)`; continue; }
         const c0 = scr(anchorWorld(t.a.n));
         const p0 = t.local ? null : { x: c0.x + t.off.x, y: c0.y + t.off.y };
@@ -1176,7 +1209,7 @@ function render(stage, b, o) {
     o = o || {};
     if (!renderer) return;
     ensureMounted(stage);
-    if (!b || !KINDS[b.kind]) { if (root) { disposeRoot(); kick(); } layer.innerHTML = ''; anchors = []; meterEl.hidden = true; return; }
+    if (!b || !KINDS[b.kind]) { if (root) { disposeRoot(); kick(); } layer.innerHTML = ''; anchors = []; tags = []; meterEl.hidden = true; return; }
     const K = KINDS[b.kind];
     // Tháp Tre: số tầng đổi khi chồng thanh lên đỉnh → KHÔNG dùng làm khoá (nếu không mỗi lần rút là dựng lại cả tháp)
     const id = b.kind + ':' + (o.boardId ?? 'x') + ':' + (b.kind === 'thaptre' ? 0 : (b.n || (b.cards && b.cards.length) || 0));
