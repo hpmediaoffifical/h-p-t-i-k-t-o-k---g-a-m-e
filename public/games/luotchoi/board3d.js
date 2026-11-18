@@ -1180,7 +1180,9 @@ function fly(key, tool, ms) {
         if (h) {
             const want = -Math.atan2(h.g.position.x, h.g.position.z);   // góc quay để hốc nằm trên trục +Z (về máy quay)
             let d = want - root.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d));
-            if (Math.abs(d) > 0.35) return new Promise(res => spinTo(root.rotation.y + d, Math.min(700, 260 + Math.abs(d) * 220), () => flyNow(key, tool, ms).then(res)));
+            // xoay đúng mặt có hốc (≤ 0,7 s) → DỪNG ~0,9 s (vòng sáng quanh hốc, người xem thấy số) → mới cắm. Tổng ≤ chumcoc.leadMs (1,6 s)
+            const spinMs = Math.abs(d) > 0.05 ? Math.min(700, 260 + Math.abs(d) * 220) : 0;
+            return new Promise(res => spinTo(root.rotation.y + d, spinMs || 1, () => setTimeout(() => flyNow(key, tool, ms).then(res), 900)));
         }
     }
     return flyNow(key, tool, ms);

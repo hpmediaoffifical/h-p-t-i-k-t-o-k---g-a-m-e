@@ -449,3 +449,16 @@ test('kiểu hiển thị: HUD nổi mặc định (không khung nền to), ch�
     const { tb } = make({ frame: 'card' });
     assert.equal(snap(tb).cfg.frame, 'card');
 });
+
+test('Dê Núi giữ lượt lâu hơn đúng leadMs (overlay xoay núi tới hốc + dừng ~1 giây rồi mới cắm)', () => {
+    const holdAfterPick1 = (game) => {
+        const { tb, clock } = make({ game, seats: 2 });
+        seat(tb, 'a', 'b'); clock.go(3100);
+        const s = snap(tb);
+        tb.comment({ user: u(s.turnKey), text: '1' });   // ô 1: không phải bẫy với rng 0.5
+        return snap(tb).holdUntil - clock.now();
+    };
+    const { GAMES_BY_ID } = require('../lib/luot-choi/games');
+    assert.equal(GAMES_BY_ID.chumcoc.leadMs, 1600);
+    assert.equal(holdAfterPick1('chumcoc') - holdAfterPick1('hama'), 1600);
+});
