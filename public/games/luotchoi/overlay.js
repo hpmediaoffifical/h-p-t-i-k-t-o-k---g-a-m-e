@@ -414,6 +414,7 @@
     }
     var socket = io({ transports: ['websocket', 'polling'] });
     socket.on('luotchoi:state', incoming);
+    socket.on('luotchoi:rotate', function (d) { if (window.LcBoards3D && window.LcBoards3D.rotate) window.LcBoards3D.rotate(Number(d && d.dir) || 0); });
     socket.on('overlay:reload', function (d) { if (!d || !d.gameId || d.gameId === 'luotchoi') location.reload(); });
     socket.on('connect', function () { fetch('/api/luotchoi/state', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(incoming).catch(function () {}); });
 })();

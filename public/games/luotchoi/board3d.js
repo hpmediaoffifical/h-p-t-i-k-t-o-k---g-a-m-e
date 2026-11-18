@@ -183,6 +183,18 @@ function tagHtml(m, colorOf) {
     return `<span class="lc-tag"><i style="background:${color}">${av}</i><em>${escH(short)}</em></span>`;
 }
 
+// 🔄 creator xoay mô hình (panel ⟲ ⊙ ⟳ → socket luotchoi:rotate): mỗi lần 45°, 0 = về chính diện. Chỉ trò có vật đứng
+// (hà mã, núi đá, tháp); bàn phẳng (lật thẻ, Ô Ăn Quan) xoay sẽ ngược số → bỏ qua. Xoay xong xếp lại nhãn tên.
+let spinY = 0, tagArgs = null;
+const SPIN_KINDS = { hama: 1, chumcoc: 1, thaptre: 1 };
+function rotate(dir) {
+    if (!root || !SPIN_KINDS[game]) return;
+    const to = dir === 0 ? 0 : spinY + dir * Math.PI / 4;
+    const from = root.rotation.y;
+    spinY = to;
+    tween(650, k => { root.rotation.y = from + (to - from) * k; }, ease.inOut, () => { if (tagArgs) syncTags(tagArgs[0], tagArgs[1]); kick(); });
+    kick();
+}
 function disposeRoot() {
     if (hand3d) hand3d.visible = false;
     if (!root) return;
@@ -472,6 +484,7 @@ loadGoatModel();
 // ⛰️ MỎM ĐÁ NÚI (trò 🐐 Dê Núi): khối đá nhiều mặt vát góc cạnh (low-poly, đổ bóng phẳng), màu đá xám nâu loang theo mặt,
 // thu nhỏ dần lên đỉnh, đỉnh bằng có hang tối cho dê núi bật ra. Hốc có số nằm áp đúng mặt vát (dò bằng tia chiếu).
 const ROCK_H = 2.95;
+const CC_CAM = new THREE.Vector3(0, 4.7, 10.6);   // máy quay trò Dê Núi (dùng cả để kiểm hốc có bị đá che không)
 function rockProfile(y) {   // bán kính trung bình theo độ cao: chân núi loe, lưng núi phình, đỉnh thu nhỏ
     const t = clamp(y / ROCK_H, 0, 1);
     return 1.85 - 0.5 * t - 0.55 * t * t * t;
@@ -488,7 +501,8 @@ function buildRock() {
             const y = (v.y * 0.5 + 0.5) * ROCK_H * 1.08;
             const h = hash(Math.round((v.x + 2) * 97) * 7 + Math.round((v.y + 2) * 89) * 13 + Math.round((v.z + 2) * 83) * 31);
             const flat = Math.hypot(v.x, v.z) || 1;
-            let r = rockProfile(y) * (0.74 + 0.48 * h);
+            const front = Math.max(0, v.z / Math.max(0.0001, Math.hypot(v.x, v.y, v.z)));   // 1 = mặt hướng người xem
+            let r = rockProfile(y) * (0.74 + 0.48 * h - (0.74 + 0.48 * h - 0.98) * 0.7 * front);   // mặt trước gần nhẵn (vẫn vát) → hốc không bị gờ che
             let yy = y + (h - 0.5) * 0.34;
             if (yy > ROCK_H) { yy = ROCK_H + (h - 0.5) * 0.05; r = Math.min(r, 0.95 + h * 0.15); }   // đỉnh bằng (miệng hang)
             if (yy < 0) yy = 0;   // đáy phẳng chạm đất
@@ -536,15 +550,21 @@ const CC = {
         }
         const rc = new THREE.Raycaster();
         // lỗ: các hàng ở nửa trước, mỗi lỗ = đĩa tối có số + vành đất sáng
-        const rows = b.n <= 10 ? 2 : b.n <= 18 ? 3 : b.n <= 24 ? 4 : 5;
-        const per = Math.ceil(b.n / rows);
+        // chỉ ở MẶT TRƯỚC núi (góc dàn ≤ ~45° mỗi bên) — thêm hàng thay vì dàn ra hai sườn khuất
+        const rows = Math.max(3, Math.ceil(b.n / 4.5));
+        const rowY = (r) => 2.4 - (1.75 * r) / (rows - 1);
+        // số hốc mỗi hàng tỉ lệ bề ngang núi ở độ cao đó (đỉnh hẹp ít hốc, chân rộng nhiều hốc) — tổng đúng b.n
+        const widths = Array.from({ length: rows }, (_, r) => rockProfile(rowY(r)));
+        const wsum = widths.reduce((a, c) => a + c, 0);
+        const counts = widths.map(w => Math.floor(b.n * w / wsum));
+        for (let left = b.n - counts.reduce((a, c) => a + c, 0), r = rows - 1; left > 0; left--, r = (r - 1 + rows) % rows) counts[r]++;
+        const gap = b.n > 20 ? 0.4 : 0.47;   // khoảng cách 2 tâm hốc theo vòng (đơn vị cảnh) → không đè nhau
         const holes = [];
         const rim = new THREE.MeshStandardMaterial({ color: 0x5f5850, flatShading: true, roughness: 0.85 });
         let k = 0;
         for (let r = 0; r < rows; r++) {
-            const y = rows === 1 ? 1.3 : 2.05 - (1.45 * r) / (rows - 1);
-            const cnt = Math.min(per, b.n - k);
-            const spread = Math.min(1.25, 0.24 * (cnt - 1) + 0.1);
+            const y = rowY(r), cnt = counts[r];
+            const spread = Math.min(0.85, (gap / rockProfile(y)) * (cnt - 1) / 2);
             for (let i = 0; i < cnt; i++, k++) {
                 const th = cnt === 1 ? 0 : -spread + (2 * spread * i) / (cnt - 1);
                 // dò tia từ ngoài vào trục núi → điểm chạm + pháp tuyến đúng MẶT VÁT đá → hốc áp sát mặt đá
@@ -553,7 +573,16 @@ const CC = {
                 const normal = hit ? hit.face.normal.clone().normalize() : new THREE.Vector3(Math.sin(th), 0.2, Math.cos(th)).normalize();
                 if (normal.dot(new THREE.Vector3(Math.sin(th), 0, Math.cos(th))) < 0.35) normal.lerp(new THREE.Vector3(Math.sin(th), 0.15, Math.cos(th)), 0.5).normalize();   // mặt quá xiên → nghiêng về phía người xem cho dễ đọc số
                 const base = hit ? hit.point : new THREE.Vector3(rockProfile(y) * Math.sin(th), y, rockProfile(y) * Math.cos(th));
+                const toCam = CC_CAM.clone().sub(base).normalize();
+                normal.lerp(toCam, 0.55).normalize();   // mặt số quay gần về người xem → số luôn tròn, đọc được
                 const pos = base.clone().addScaledVector(normal, 0.04);
+                for (let tries = 0; tries < 10; tries++) {   // máy quay → tâm hốc có vướng đá không? vướng thì đẩy nhô ra thêm
+                    const d = pos.clone().sub(CC_CAM), len = d.length();
+                    rc.set(CC_CAM, d.normalize());
+                    const blk = rc.intersectObject(jar, false)[0];
+                    if (!blk || blk.distance > len - 0.3) break;   // cả vành hốc (không chỉ tâm) phải lộ ra
+                    pos.addScaledVector(normal, 0.06);
+                }
                 const hole = new THREE.Group(); hole.position.copy(pos); hole.lookAt(pos.clone().add(normal));
                 const size = b.n > 20 ? 0.15 : 0.18;
                 const disc = decal(numberTex(k + 1, '#fff1d6', '#17110c'), size * 2, size * 2); disc.material.depthWrite = true;
@@ -597,7 +626,7 @@ const CC = {
             } else { st.mascot.position.set(0, 3.38, 0.15); st.mascot.rotation.set(0, GOAT_TURN, 0); st.mascot.scale.setScalar(1.15); }
         }
     },
-    camera() { frameCamera(new THREE.Vector3(0, 4.7, 10.6), new THREE.Vector3(0, 2.0, 0), 30); },   // đủ cả chân núi (đá vụn, cỏ) lẫn dê núi đứng trên đỉnh (cả sừng)
+    camera() { frameCamera(CC_CAM.clone(), new THREE.Vector3(0, 2.0, 0), 30); },   // đủ cả chân núi (đá vụn, cỏ) lẫn dê núi đứng trên đỉnh (cả sừng)
     anchors(st) { return st.holes.map(h => ({ n: h.n, obj: h.g, offset: new THREE.Vector3(0, 0, 0.02) })); }
 };
 
@@ -1295,7 +1324,9 @@ function render(stage, b, o) {
     setAnchors(K.anchors(state, o), [], o.colorOf);   // nhãn tên: syncTags (thẻ có que nối, tự né nhau)
     // tháp đổ / hà mã ngậm miệng → ẩn nhãn (ai dính bẫy đã có thông báo + giọng đọc)
     tags = [];
-    if (b.kind !== 'oanquan') syncTags(b.fallen || (b.kind === 'hama' && b.sprung) ? [] : o.marks, o.colorOf);
+    tagArgs = b.kind !== 'oanquan' ? [b.fallen || (b.kind === 'hama' && b.sprung) ? [] : o.marks, o.colorOf] : null;
+    if (tagArgs) syncTags(tagArgs[0], tagArgs[1]);
+    if (fresh) { spinY = 0; if (root) root.rotation.y = 0; }   // bàn mới → về chính diện
     layer.style.opacity = b.fallen ? '0' : '';   // tháp đổ: chỗ thanh đã rút không còn → ẩn nhãn tên
     // Tháp Tre: thanh "Lung lay %"
     if (b.kind === 'thaptre') {
@@ -1310,7 +1341,7 @@ function render(stage, b, o) {
 async function boot() {
     if (!init()) return;
     try { await document.fonts.load(font(64)); } catch (e) {}
-    window.LcBoards3D = { ready: true, render, fly, away };
+    window.LcBoards3D = { ready: true, render, fly, away, rotate };
     window.dispatchEvent(new Event('lc3d:ready'));
 }
 boot();

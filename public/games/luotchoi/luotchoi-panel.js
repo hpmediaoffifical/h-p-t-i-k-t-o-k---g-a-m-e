@@ -27,6 +27,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                     <button id="lc-btn-host" class="ghost small">${hpT('🙋 Tôi vào chơi')}</button>
                     <button id="lc-btn-start" class="primary small">${hpT('▶ Bắt đầu')}</button>
                     <button id="lc-btn-cancel" class="danger small">${hpT('Huỷ ván')}</button>
+                    <span class="lc-rot" style="display:inline-flex;gap:4px" title="${hpT('Xoay mô hình trên LIVE (Hà Mã, Dê Núi, Tháp Tre) để người xem thấy số phía sau')}"><button class="ghost small" data-rot="-1">⟲</button><button class="ghost small" data-rot="0">${hpT('Chính diện')}</button><button class="ghost small" data-rot="1">⟳</button></span>
                     <span class="nd-bar-spacer"></span>
                     <button id="lc-btn-obs" class="obs-link small">${hpT('Thêm vào OBS')}</button>
                     <button id="lc-btn-pop" class="ghost small">${hpT('Xem mẫu')}</button>
@@ -278,6 +279,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         $('#lc-btn-host').addEventListener('click', () => API('host'));
         $('#lc-btn-start').addEventListener('click', () => API('start'));
         $('#lc-btn-cancel').addEventListener('click', () => API('cancel'));
+        document.querySelectorAll('#view-luotchoi [data-rot]').forEach(el => el.addEventListener('click', () => API('rotate', { dir: Number(el.dataset.rot) })));
         $('#lc-btn-obs').addEventListener('click', () => {
             const url = window.buildOverlayURL('/overlay/luotchoi');
             if (window.hpObsQuick) { window.hpObsQuick(url, 'Đấu Trường Mini'); return; }

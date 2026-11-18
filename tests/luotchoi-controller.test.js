@@ -56,3 +56,14 @@ test('bàn mẫu ?demo: chạy luật thật trên bàn tạm, bàn thật khôn
     }
     assert.equal(c.publicState().seats.length, 0);
 });
+
+test('rotate: creator xoay mô hình 3D — phát luotchoi:rotate với dir -1/0/1, dir lạ bị chặn', () => {
+    const io = fakeIo();
+    const c = createLuotChoiController({ io, getConfig: () => ({ enabled: true }), log: () => {} });
+    assert.equal(c.control('rotate', { dir: 1 }).ok, true);
+    assert.equal(c.control('rotate', { dir: -1 }).ok, true);
+    assert.equal(c.control('rotate', { dir: 0 }).ok, true);
+    assert.equal(c.control('rotate', { dir: 'x' }).ok, false);
+    const rot = io.sent.filter(([ev]) => ev === 'luotchoi:rotate').map(([, d]) => d.dir);
+    assert.deepEqual(rot, [1, -1, 0]);
+});
