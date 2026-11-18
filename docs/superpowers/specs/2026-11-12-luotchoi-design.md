@@ -1,4 +1,4 @@
-# 🎲 Bộ Trò Chơi Theo Lượt (`luotchoi`) — thiết kế
+# 🎲 Đấu Trường Mini (`luotchoi`, tên cũ Bộ Trò Chơi Theo Lượt) — thiết kế
 
 Ngày: 12/11/2026 · Nhánh `feature/luotchoi` (từ v1.26.0) · Trạng thái: đã làm (chưa release)
 
@@ -12,10 +12,10 @@ Chỉ lấy CƠ CHẾ của các trò "đoán bẫy" quen thuộc; tên, hình, 
 
 | id | Tên | Cơ chế | Kiểu |
 |---|---|---|---|
-| `hama` | 🦛 Hà Mã Cắn | ấn răng; trúng răng đau → hà mã ngoạm | bẫy |
-| `chumcoc` | 🐸 Chum Cóc | cắm que tre vào lỗ chum (8–30 lỗ); trúng lỗ → cóc nhảy vọt ra | bẫy |
-| `thaptre` | 🎋 Tháp Tre | rút thanh tre; tháp đổ → thua | bẫy (xác suất) |
-| `latcap` | 🍉 Lật Cặp | lật 2 ô tìm cặp hình trái cây giống nhau | điểm |
+| `hama` | 🦛 Hà Mã Đau Răng | ấn răng; trúng răng đau → hà mã ngoạm | bẫy |
+| `chumcoc` | 🐸 Cóc Trốn Chum | cắm que tre vào lỗ chum (8–30 lỗ); trúng lỗ → cóc nhảy vọt ra | bẫy |
+| `thaptre` | 🎋 Tháp Tre Chao Đảo | rút thanh tre; tháp đổ → thua | bẫy (xác suất) |
+| `latcap` | 🍉 Săn Cặp Trái Cây | lật 2 ô tìm cặp hình trái cây giống nhau | điểm |
 
 ## 2. Luật chung (khung ghế + lượt)
 
@@ -107,6 +107,21 @@ kèm ảnh quà, đếm ngược. Kết quả: băng rôn vô địch + người
 `?demo=<trò>[&step=n][&freeze=1]` → overlay hỏi `GET /api/luotchoi/demo?game&step`: server dựng bàn TẠM với 4 người
 giả, chạy `step` bước bằng đúng luật thật trên đồng hồ giả (tất định, không đụng bàn thật); `freeze=1` đứng yên 1 cảnh
 để chụp. Nút "Xem mẫu" trong panel mở link này.
+
+### 5.0 Bàn 3D (18/11/2026)
+
+Theo yêu cầu "đẹp, chuyên nghiệp, 2.5–3D, đúng logic trò chơi", 4 bàn vẽ lại bằng Three.js r160 dùng chung
+(`public/games/quaivat/vendor/`, import map trong overlay) — file `public/games/luotchoi/board3d.js`:
+- 1 canvas trong suốt, ánh sáng môi trường `RoomEnvironment` + đèn chính đổ bóng mềm xuống "mặt bàn vô hình"
+  (`ShadowMaterial`) → vật đứng trên nền OBS. Chất liệu PBR: nhựa bóng (hà mã, cóc), đất nung có men + hoa văn sóng
+  (chum), tre có đốt (tháp), giấy thẻ + thảm nỉ viền vàng (lật cặp). Mọi hình dựng bằng khối cơ bản + texture canvas tự vẽ.
+- Hình kể đúng câu chuyện tên trò: hà mã dán băng cá nhân trên má (đau răng), răng ngà có số trên mặt răng; cóc
+  trốn trong chum nhảy lên ngồi miệng chum; tháp xếp chéo trên đế gỗ, số in ở đầu thanh, đổ = vật lý rơi/nảy đơn
+  giản; thẻ nhấc lên lật 180°, cặp đúng viền xanh + ✓.
+- **Vẽ theo nhu cầu**: chỉ vẽ khi có hoạt cảnh (tháp lung lay thì vẽ liên tục). Đo trong khung xem thử ~0,4 ms CPU/khung.
+- Bàn mới ↔ cùng bàn: `boardId` trong snapshot (tăng mỗi lần `setup`) → khác thì dựng lại, giống thì so khác biệt và
+  chạy hoạt cảnh. Điểm neo HTML `[data-n]` chiếu từ 3D ra màn hình → tay bay vào + nhãn tên dùng lại nguyên cơ chế 5.1.
+- Không có WebGL → giữ bản 2D `boards.js`. Chụp ảnh trong khung xem thử không có rAF: `window.__lc3d.step(ms)`.
 
 ### 5.1 Phần diễn (18/11/2026)
 

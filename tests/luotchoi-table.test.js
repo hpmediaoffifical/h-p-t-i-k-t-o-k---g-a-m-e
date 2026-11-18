@@ -337,3 +337,16 @@ test('giọng đọc: mặc định bật, âm lượng chặn 0–100, có tron
     const { tb } = make({ voice: false, voiceVolume: 30 });
     assert.deepEqual([snap(tb).cfg.voice, snap(tb).cfg.voiceVolume], [false, 30]);
 });
+
+test('boardId: đổi mỗi lần dựng bàn (bắt đầu / loại người) để overlay 3D biết dựng lại cảnh', () => {
+    const { tb, clock } = make({ seats: 3 });
+    seat(tb, 'a', 'b', 'c'); clock.go(3100);
+    const id1 = snap(tb).boardId;
+    assert.ok(id1 > 0);
+    tb.comment({ user: u('a'), text: String(tb._board().trap === 1 ? 2 : 1) });
+    settle(tb, clock);
+    assert.equal(snap(tb).boardId, id1, 'chọn an toàn không đổi bàn');
+    tb.comment({ user: u('b'), text: String(tb._board().trap) });
+    settle(tb, clock);
+    assert.ok(snap(tb).boardId > id1, 'loại người → bàn mới');
+});

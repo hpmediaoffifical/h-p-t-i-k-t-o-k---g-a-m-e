@@ -1,6 +1,6 @@
 // 🌐 hpT(): ngôn ngữ giao diện; trang chưa nạp thì giữ tiếng Việt (chỉ thay {biến}).
 var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, v) { return String(s).replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, function (m, k) { return v && v[k] != null ? String(v[k]) : m; }); };
-/* 🎲 Trò Chơi Theo Lượt — panel trong app. Tự chèn <section id="view-luotchoi"> (khuôn goibai/dacau).
+/* 🎲 Đấu Trường Mini — panel trong app. Tự chèn <section id="view-luotchoi"> (khuôn goibai/dacau).
  * Cột trái: chọn trò + bàn (ghế, bấm số cho Chủ LIVE) + hàng chờ + vô địch + 🧪 thử.
  * Cột phải: cài đặt, lưu debounce 350 ms qua /api/games/luotchoi/config. Trạng thái sống: socket 'luotchoi:state'.
  * Spec docs/superpowers/specs/2026-11-12-luotchoi-design.md. */
@@ -21,7 +21,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         sec.id = 'view-luotchoi'; sec.className = 'view game-view lc-view';
         sec.innerHTML = `
             <header class="game-header">
-                <div><h2>${hpT('🎲 Trò Chơi Theo Lượt')}</h2><div class="game-sub">${hpT('Tặng quà vào ghế · tới lượt bình luận số')}</div></div>
+                <div><h2>${hpT('🎲 Đấu Trường Mini')}</h2><div class="game-sub">${hpT('Tặng quà vào ghế · tới lượt bình luận số')}</div></div>
                 <div class="overlay-bar">
                     <label class="lc-switch"><input type="checkbox" id="lc-enabled"> <span>${hpT('Bật')}</span></label>
                     <button id="lc-btn-host" class="ghost small">${hpT('🙋 Tôi vào chơi')}</button>
@@ -256,7 +256,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         $('#lc-btn-cancel').addEventListener('click', () => API('cancel'));
         $('#lc-btn-obs').addEventListener('click', () => {
             const url = window.buildOverlayURL('/overlay/luotchoi');
-            if (window.hpObsQuick) { window.hpObsQuick(url, 'Trò Chơi Theo Lượt'); return; }
+            if (window.hpObsQuick) { window.hpObsQuick(url, 'Đấu Trường Mini'); return; }
             navigator.clipboard?.writeText(url);
         });
         $('#lc-btn-pop').addEventListener('click', () => window.open(window.buildOverlayURL('/overlay/luotchoi') + '?demo=' + encodeURIComponent(cfg?.game || 'hama'), '_blank', 'width=540,height=960'));

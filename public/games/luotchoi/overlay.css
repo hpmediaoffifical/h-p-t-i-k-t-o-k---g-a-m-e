@@ -1,4 +1,4 @@
-/* 🎲 Trò Chơi Theo Lượt — overlay OBS 1080×1920 nền trong. Tiền tố .lc-* */
+/* 🎲 Đấu Trường Mini — overlay OBS 1080×1920 nền trong. Tiền tố .lc-* */
 @font-face { font-family: 'LcFont'; font-weight: 500; src: url('/fonts/be-vietnam-pro/be-vietnam-pro-500-vietnamese.woff2') format('woff2'), url('/fonts/be-vietnam-pro/be-vietnam-pro-500-latin.woff2') format('woff2'); }
 @font-face { font-family: 'LcFont'; font-weight: 700; src: url('/fonts/be-vietnam-pro/be-vietnam-pro-600-vietnamese.woff2') format('woff2'), url('/fonts/be-vietnam-pro/be-vietnam-pro-600-latin.woff2') format('woff2'); }
 html, body { margin: 0; width: 1080px; height: 1920px; background: transparent; overflow: hidden; }
@@ -62,7 +62,7 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 @keyframes lcPop { from { transform: scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes lcBob { 50% { transform: translateY(-14px); } }
 
-/* ── 🦛 Hà Mã Cắn ─────────────────────────────────────────────────── */
+/* ── 🦛 Hà Mã Đau Răng ─────────────────────────────────────────────────── */
 .hm { position: absolute; left: 50%; bottom: 40px; width: 760px; height: 620px; transform: translateX(-50%); }
 .hm .upper { position: absolute; left: 40px; right: 40px; top: 0; height: 300px; border-radius: 300px 300px 120px 120px; transform-origin: 50% 100%;
   background: radial-gradient(ellipse at 50% 30%, #b49ad8, #7e64a8 70%); box-shadow: inset 0 -16px 0 rgba(0, 0, 0, .18); transition: transform .18s cubic-bezier(.5, 0, .9, .4); z-index: 3; }
@@ -89,7 +89,7 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 @keyframes lcPress { 30% { transform: translateY(26px) scaleY(.6); } }
 @keyframes lcShake { 20%, 60% { transform: translateX(calc(-50% - 16px)); } 40%, 80% { transform: translateX(calc(-50% + 16px)); } }
 
-/* ── 🐸 Chum Cóc ──────────────────────────────────────────────────── */
+/* ── 🐸 Cóc Trốn Chum ──────────────────────────────────────────────────── */
 .cc { position: absolute; left: 50%; bottom: 24px; width: 640px; height: 520px; transform: translateX(-50%); }
 .cc .neck { position: absolute; left: 190px; width: 260px; top: 30px; height: 70px; border-radius: 30px 30px 10px 10px; background: linear-gradient(90deg, #8a4b26, #b8703e 40%, #7a3f1e); }
 .cc .rim { position: absolute; left: 170px; width: 300px; top: 14px; height: 40px; border-radius: 50%; background: #5a2c12; box-shadow: inset 0 -8px 0 #3b1a08; }
@@ -113,7 +113,7 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
   60% { transform: translate(-50%, -64px) scale(1) rotate(8deg); } 100% { transform: translate(-50%, -78px) scale(1.05) rotate(0); opacity: 1; } }
 @keyframes lcJar { 30% { transform: scale(1.04, .95); } 60% { transform: scale(.98, 1.03); } }
 
-/* ── 🎋 Tháp Tre ──────────────────────────────────────────────────── */
+/* ── 🎋 Tháp Tre Chao Đảo ──────────────────────────────────────────────────── */
 .tt { position: absolute; left: 50%; bottom: 36px; width: 540px; transform: translateX(-50%); display: flex; flex-direction: column-reverse; gap: 4px; transform-origin: 50% 100%; }
 .tt.wob { animation: lcWob var(--wobT, 2.4s) ease-in-out infinite; }
 .tt .lv { display: flex; gap: 4px; height: 48px; }
@@ -134,7 +134,7 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 @keyframes lcWob { 25% { transform: translateX(-50%) rotate(calc(var(--wob, .5) * -1.6deg)); } 75% { transform: translateX(-50%) rotate(calc(var(--wob, .5) * 1.6deg)); } 0%, 50%, 100% { transform: translateX(-50%); } }
 @keyframes lcPull { from { background: linear-gradient(180deg, #d6ef8a, #93c24a); transform: translateX(0); } to { transform: translateX(260px); opacity: 0; } }
 
-/* ── 🍉 Lật Cặp ───────────────────────────────────────────────────── */
+/* ── 🍉 Săn Cặp Trái Cây ───────────────────────────────────────────────────── */
 .lp { position: absolute; inset: 14px; display: grid; gap: 14px; align-content: center; justify-content: center; }
 .lp .cardc { perspective: 900px; }
 .lp .flip { position: relative; width: 100%; height: 100%; transition: transform .45s; transform-style: preserve-3d; }
@@ -186,3 +186,16 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 .tt-meter .bar-in { grid-column: 1 / -1; height: 14px; border-radius: 8px; background: rgba(255, 255, 255, .14); overflow: hidden; }
 .tt-meter .bar-in i { display: block; height: 100%; border-radius: 8px; transition: width .6s ease, background .6s; }
 .tt-meter.hot b { color: #ff6b5a; animation: lcAim .35s ease-in-out infinite alternate; }
+
+/* ── bàn 3D (board3d.js): canvas trong suốt + lớp neo HTML đặt theo vị trí chiếu từ 3D ── */
+.lc3-canvas { position: absolute; inset: 0; display: block; }
+.lc3-layer { position: absolute; inset: 0; pointer-events: none; }
+.lc3-anchor { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+/* nhãn dán ngay trên ô (giữa điểm neo), gọn để không đè ô bên cạnh */
+.lc3-anchor .lc-tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); flex-direction: column; gap: 1px; padding: 2px 3px 3px; border-radius: 10px; width: 62px; font-size: 13px; background: rgba(12, 14, 30, .82); }
+.lc3-anchor .lc-tag i, .lc3-anchor .lc-tag i img { width: 26px; height: 26px; font-size: 13px; }
+.lc3-anchor .lc-tag em { max-width: 56px; text-align: center; }
+.lc3-anchor.aim::before { content: ''; position: absolute; left: -38px; top: -38px; width: 76px; height: 76px; border-radius: 50%;
+  border: 5px solid #ffd54a; box-shadow: 0 0 24px rgba(255, 213, 74, .85); animation: lcAim .5s ease-in-out infinite alternate; }
+.lc3-meter { z-index: 3; }
+.lc3-meter[hidden] { display: none; }

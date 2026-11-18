@@ -1,4 +1,4 @@
-/* 🎲 Trò Chơi Theo Lượt — overlay OBS: CHỈ hiển thị trạng thái 'luotchoi:state' (lib/luot-choi/controller.js).
+/* 🎲 Đấu Trường Mini — overlay OBS: CHỈ hiển thị trạng thái 'luotchoi:state' (lib/luot-choi/controller.js).
  * Đếm ngược tự chạy theo giờ server (bù lệch). Sự kiện (seq tăng dần) → thông báo nổi + hiệu ứng bàn + giọng đọc.
  *
  * PHẦN DIỄN: trạng thái có lượt chọn mới KHÔNG vẽ ngay. Tay (hoặc que tre) bay vào đúng ô trên bàn ĐANG HIỆN,
@@ -278,7 +278,9 @@
         var stage = $('stage');
         var b = s.board || s.preview;
         stage.classList.toggle('idle', !s.board);
-        window.LcBoards.render(stage, b, { fresh: fresh, marks: s.board ? s.marks : [], colorOf: colorOf });
+        // 3D (board3d.js, Three.js) khi đã nạp xong; chưa xong / máy không có WebGL → bản 2D (boards.js)
+        var R = window.LcBoards3D && window.LcBoards3D.ready ? window.LcBoards3D : window.LcBoards;
+        R.render(stage, b, { fresh: fresh, marks: s.board ? s.marks : [], colorOf: colorOf, boardId: s.board ? s.boardId : 'preview' });
         if (!s.board) {
             var w = document.createElement('div');
             w.className = 'wait';
@@ -292,6 +294,8 @@
     }
 
     setInterval(function () { renderPrompt(); renderRing(); }, 200);
+    // bàn 3D nạp xong sau trạng thái đầu → vẽ lại trạng thái đang hiện bằng 3D
+    window.addEventListener('lc3d:ready', function () { if (st && !staging) apply(st, [], true); });
     window.__lcOverlay = { get state() { return st; }, get staging() { return staging; } };   // gỡ lỗi / chụp ảnh
 
     if (demo) {

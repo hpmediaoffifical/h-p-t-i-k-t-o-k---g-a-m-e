@@ -2,10 +2,13 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<title>🎲 Trò Chơi Theo Lượt — overlay</title>
+<title>🎲 Đấu Trường Mini — overlay</title>
 <meta name="viewport" content="width=1080, initial-scale=1">
 <script src="/i18n/hp-i18n.js" data-scope="overlay"></script>
 <link rel="stylesheet" href="/games/luotchoi/overlay.css">
+<script type="importmap">
+  { "imports": { "three": "/games/quaivat/vendor/three.module.min.js", "three/addons/": "/games/quaivat/vendor/addons/" } }
+</script>
 </head>
 <body>
 <div class="lc-card lc-hidden" id="card">
@@ -25,5 +28,6 @@
 <script src="/lib/overlay-hello.js" data-game="luotchoi"></script>
 <script src="/games/luotchoi/boards.js"></script>
 <script src="/games/luotchoi/overlay.js"></script>
+<script type="module" src="/games/luotchoi/board3d.js"></script>
 </body>
 </html>

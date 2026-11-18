@@ -1,4 +1,4 @@
-/* 🎲 Trò Chơi Theo Lượt — vẽ bàn của 4 trò từ `board` (view() phía server, không lộ bẫy khi đang chơi).
+/* 🎲 Đấu Trường Mini — vẽ bàn của 4 trò từ `board` (view() phía server, không lộ bẫy khi đang chơi).
  * LcBoards.render(stage, board, { fresh, marks, colorOf })
  *  - fresh = vừa có lượt chọn mới → chạy hiệu ứng; false → vẽ tĩnh (đẩy lại trạng thái không chạy lại hiệu ứng).
  *  - marks = nhãn tên người đã chọn ô ([{ n, key, nickname, avatar }]) → dán lên đúng ô, giữ tới hết bàn.

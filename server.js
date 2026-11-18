@@ -114,7 +114,7 @@ const { createCamObs } = require('./lib/camgames-obs');
 const LicFeat = require('./lib/license-features');   // tính năng theo KEY (HP KEY ft) — xem applyLicenseLocks()
 const MusicGifts = require('./lib/music-gifts');
 const CommentFilter = require('./lib/comment-filter');   // 🚫 từ cấm chung cho mọi game
-const { createLuotChoiController } = require('./lib/luot-choi/controller');   // 🎲 Trò Chơi Theo Lượt
+const { createLuotChoiController } = require('./lib/luot-choi/controller');   // 🎲 Đấu Trường Mini
 const { DEFAULTS: LUOTCHOI_DEFAULTS } = require('./lib/luot-choi/table');
 const { LuaSync } = require('./lib/lua-sync');
 const { OBSSettings } = require('./lib/obs-settings');
@@ -641,8 +641,8 @@ const GAMES = {
     },
     luotchoi: {
         id: 'luotchoi',
-        name: 'Trò Chơi Theo Lượt',
-        description: 'Tặng quà để vào ghế (2–4 người), tới lượt bình luận số: Hà Mã Cắn, Chum Cóc, Tháp Tre, Lật Cặp. Trúng bẫy là bị loại.',
+        name: 'Đấu Trường Mini',
+        description: 'Tặng quà để vào ghế (2–4 người), tới lượt bình luận số: Hà Mã Đau Răng, Cóc Trốn Chum, Tháp Tre Chao Đảo, Săn Cặp Trái Cây. Trúng bẫy là bị loại.',
         icon: '🎲',
         overlayPath: '/overlay/luotchoi',
         defaultConfig: { ...LUOTCHOI_DEFAULTS, seatGifts: [], shieldGifts: [] }
@@ -12658,7 +12658,7 @@ io.on('connection', (socket) => {
     socket.data.trusted = socketIsTrusted(socket);
     const onTrusted = (event, handler) => socket.on(event, (...args) => { if (socket.data.trusted === true) handler(...args); });
     touchplayFeed.attach(socket);
-    luotChoi.attachSocket(socket);   // 🎲 Trò Chơi Theo Lượt: trạng thái bàn
+    luotChoi.attachSocket(socket);   // 🎲 Đấu Trường Mini: trạng thái bàn
     socket.emit('giftboard:active', { on: giftboardActiveLast });   // 📋 overlay mới mở biết ngay có ẩn bảng quà riêng không
     // Default emits
     socket.emit('giftSheet', giftList);
