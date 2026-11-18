@@ -89,6 +89,10 @@ body.offline #jb-stack { display: none; }
 #jb-stack .vb-enter { display: inline-block; font-size: 21px; font-weight: 900; letter-spacing: 1.5px; color: #fff; padding-left: 14px;
     text-shadow: 0 0 10px var(--c1), 0 1px 2px rgba(0,0,0,.5); }
 #jb-stack .vb-enter.accent { color: #fff6c8; }
+/* Sổ Fan: huy hiệu huân chương thay chữ — tự có nhịp lật/ánh quét riêng (fan-badge.js), rộng hơn chữ nên mở dài hơn */
+#jb-stack .vb-x.vb-fanx { animation-name: vbRevealFan; }
+@keyframes vbRevealFan { from { max-width: 0; opacity: 0; } to { max-width: 440px; opacity: 1; } }
+#jb-stack .vb-enter.vb-fan, #jb-stack.wow .vb-enter.vb-fan { padding-left: 12px; text-shadow: none; letter-spacing: normal; animation: none; }
 #jb-stack .vb-cap { width: 12px; height: 12px; margin-left: 12px; flex-shrink: 0; transform: rotate(45deg); background: #fff; box-shadow: 0 0 10px 3px var(--c1);
     animation: vbReveal 520ms ease 2550ms both, vbTwinkle 1.4s ease-in-out 3050ms infinite; }
 @keyframes vbTwinkle { 50% { box-shadow: 0 0 16px 6px var(--c1); transform: rotate(45deg) scale(1.25); } }

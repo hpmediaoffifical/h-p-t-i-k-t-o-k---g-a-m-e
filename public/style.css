@@ -5626,6 +5626,17 @@ body.game-caro #caught-popup {
 }
 .vw-ledger-name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vw-ledger-row input[type="number"] { width: 110px; }
+/* Sổ Fan */
+.vw-fan-tier .vw-setting-title { display: flex; align-items: center; gap: 8px; }
+.vw-fan-icon { width: 52px; text-align: center; }
+.vw-fan-label { flex: 1; min-width: 0; }
+.vw-fan-rule { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 6px; }
+.vw-fan-rule input[type="number"] { width: 90px; }
+.vw-fan-tts { flex: 1; min-width: 220px; }
+.vw-fans-listhead { margin-top: 12px; }
+.vw-fan-badge { flex: 0 0 auto; min-width: 170px; font-weight: 800; white-space: nowrap; }
+.vw-fan-num { flex: 0 0 auto; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .9; }
+.vw-fan-ago { min-width: 84px; text-align: right; opacity: .65; }
 
 /* Status indicator trên rule card — countdown / ready */
 .vw-rule-status {

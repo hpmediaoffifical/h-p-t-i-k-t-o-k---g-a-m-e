@@ -483,6 +483,7 @@
                 });
                 if (currentTab === 'stats') { fetchQueueSnapshot(); fetchLedger(); fetchVisits(); }
                 if (currentTab === 'overview') renderOverviewTab();
+                if (currentTab === 'fans') fetchFanBook();
             });
         });
     }
@@ -585,6 +586,7 @@
         renderSettingsTab();
         renderLedgerShell();
         renderVisitsShell();
+        renderFansShell();
     }
 
     // ============================================================
@@ -1269,6 +1271,119 @@
         document.body.appendChild(inp);
         inp.onchange = () => { const f = inp.files?.[0]; inp.remove(); if (f) onFile(f); };
         inp.click();
+    }
+
+    // ============================================================
+    // TAB: SỔ FAN — bậc fan theo lịch sử với kênh (dùng chung sổ xu + sổ ghé phòng)
+    // ============================================================
+    const FAN_RULE_FIELDS = {
+        sop: [['minXu', 'Tổng xu từ', 'xu']],
+        lau: [['minAwayDays', 'Vắng từ', 'ngày'], ['minPastSessions', 'đã ghé từ', 'buổi trước đó']],
+        fan: [['minFans', 'Cấp đội fan từ', '']],
+        quen: [['minSessions', 'Ghé từ', 'buổi (tính cả buổi này)']],
+        moi: []
+    };
+    let fanTiersCache = null;   // bậc đã chuẩn hoá từ server (khi config chưa có fanTiers)
+    function fanTiersOf() {
+        cfg.joinCard = cfg.joinCard || window.HpGame.vipwelcome.defaultJoinCard();
+        if (!Array.isArray(cfg.joinCard.fanTiers) || cfg.joinCard.fanTiers.length !== 5) {
+            if (!fanTiersCache) return null;
+            cfg.joinCard.fanTiers = JSON.parse(JSON.stringify(fanTiersCache));
+        }
+        return cfg.joinCard.fanTiers;
+    }
+    function renderFansShell() {
+        const host = $('#vw-fans-pane');
+        if (!host || host._vwWired) return;
+        host._vwWired = true;
+        host.innerHTML = `
+            <div class="vw-pane-head">
+                <div class="vw-pane-hint">App nhớ từng người xem của kênh <b id="vw-fans-host">…</b> qua mọi buổi LIVE (💎 xu đã tặng, số buổi ghé, lần cuối gặp, cấp đội fan) rồi xếp bậc. Thẻ vào phòng hiện <b>1 huy hiệu</b> — bậc đứng trên thắng.</div>
+            </div>
+            <label class="vw-inline"><input type="checkbox" id="vw-fans-on" /> Bật huy hiệu Sổ Fan trên thẻ vào phòng</label>
+            <div id="vw-fans-tiers"></div>
+            <div class="vw-pane-head vw-fans-listhead">
+                <input type="text" id="vw-fans-q" class="vw-search-input" placeholder="🔍 Tìm theo tên / @id" />
+                <select id="vw-fans-sort">
+                    <option value="xu">💎 Xu nhiều nhất</option>
+                    <option value="sessions">📅 Ghé nhiều buổi nhất</option>
+                    <option value="recent">🕒 Gặp gần nhất</option>
+                </select>
+                <button id="vw-fans-refresh" class="ghost small">🔄 Tải lại</button>
+            </div>
+            <div id="vw-fans-list" class="vw-ledger-list"></div>`;
+        let t = null;
+        $('#vw-fans-q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(fetchFanBook, 250); });
+        $('#vw-fans-sort').addEventListener('change', fetchFanBook);
+        $('#vw-fans-refresh').addEventListener('click', fetchFanBook);
+        $('#vw-fans-on').addEventListener('change', (e) => {
+            cfg.joinCard = cfg.joinCard || window.HpGame.vipwelcome.defaultJoinCard();
+            cfg.joinCard.fanTiersOn = !!e.target.checked;
+            schedulePersist();
+        });
+    }
+    function renderFanTiers() {
+        const box = $('#vw-fans-tiers');
+        const tiers = cfg && fanTiersOf();
+        if (!box || !tiers) return;
+        $('#vw-fans-on').checked = cfg.joinCard.fanTiersOn !== false;
+        box.innerHTML = tiers.map((ft, i) => `
+            <div class="vw-setting-block vw-fan-tier" data-fan-i="${i}">
+                <div class="vw-setting-title">
+                    <label class="vw-inline"><input type="checkbox" data-f="enabled" ${ft.enabled !== false ? 'checked' : ''} /> #${i + 1}</label>
+                    <input type="text" class="vw-fan-icon" maxlength="8" data-f="icon" value="${escapeHtml(ft.icon || '')}" title="Biểu tượng" />
+                    <input type="text" class="vw-fan-label" maxlength="24" data-f="label" value="${escapeHtml(ft.label || '')}" title="Tên huy hiệu" />
+                </div>
+                <div class="vw-fan-rule">
+                    ${(FAN_RULE_FIELDS[ft.id] || []).map(([k, a, b]) => `<label class="vw-inline">${a} <input type="number" min="0" step="1" data-f="${k}" value="${Number(ft[k]) || 0}" /> ${b}</label>`).join('') || '<span class="vw-hint">Buổi đầu tiên ghé kênh</span>'}
+                    ${ft.id === 'quen' || ft.id === 'moi' ? '' : `<label class="vw-inline" title="Không khớp bậc cấp TikTok / ID nào vẫn hiện thanh chào"><input type="checkbox" data-f="forceGreet" ${ft.forceGreet ? 'checked' : ''} /> Chào cả khi cấp TikTok thấp</label>`}
+                </div>
+                <div class="vw-fan-rule">
+                    <label class="vw-inline"><input type="checkbox" data-f="tts.enabled" ${ft.tts?.enabled ? 'checked' : ''} /> 🗣 Đọc</label>
+                    <input type="text" class="vw-fan-tts" maxlength="120" data-f="tts.template" value="${escapeHtml(ft.tts?.template || '')}" placeholder="{tên} {xu} {buổi} {ngày}" />
+                </div>
+            </div>`).join('') + '<div class="vw-hint">💡 Câu đọc dùng được {tên} {xu} {buổi} {ngày} (số ngày vắng) {fan}. Người chỉ định theo ID giữ câu đọc riêng.</div>';
+        box.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('change', () => {
+            const ft = fanTiersOf()[Number(inp.closest('[data-fan-i]').dataset.fanI)];
+            const f = inp.dataset.f;
+            const val = inp.type === 'checkbox' ? inp.checked : inp.type === 'number' ? Math.max(0, parseInt(inp.value, 10) || 0) : inp.value;
+            if (f.startsWith('tts.')) { ft.tts = ft.tts || {}; ft.tts[f.slice(4)] = val; } else ft[f] = val;
+            schedulePersist();
+        }));
+    }
+    function fanAgo(ts) {
+        if (!ts) return '';
+        const d = Math.floor((Date.now() - ts) / 86400000);
+        return d <= 0 ? 'hôm nay' : d + ' ngày trước';
+    }
+    async function fetchFanBook() {
+        const list = $('#vw-fans-list');
+        if (!list) return;
+        try {
+            const q = encodeURIComponent($('#vw-fans-q')?.value || '');
+            const sort = encodeURIComponent($('#vw-fans-sort')?.value || 'xu');
+            const j = await (await fetch(`/api/vipwelcome/fanbook?q=${q}&sort=${sort}&limit=200`)).json();
+            if (Array.isArray(j.tiers)) fanTiersCache = j.tiers;
+            if (!$('#vw-fans-tiers').childElementCount) renderFanTiers();
+            const hostEl = $('#vw-fans-host'); if (hostEl) hostEl.textContent = (!j.host || j.host === '_') ? '(chưa kết nối LIVE)' : '@' + j.host;
+            const items = j.items || [];
+            const FB = window.HpFanBadge;
+            if (FB) FB.injectCss();
+            list.innerHTML = items.length === 0
+                ? '<div class="vw-empty">Sổ còn trống — người xem được ghi khi thẻ vào phòng hiện trên OBS hoặc khi tặng quà thật.</div>'
+                : items.map((it, i) => `<div class="vw-ledger-row">
+                    <span class="vw-q-idx">#${i + 1}</span>
+                    <span class="vw-fan-badge">${!it.tier ? '—' : FB ? FB.badgeHtml(it.tier, { size: 'sm' }) : escapeHtml(((it.tier.icon || '') + ' ' + it.tier.label).trim())}</span>
+                    <span class="vw-ledger-name">${escapeHtml(it.nickname || it.uniqueId || it.key)}</span>
+                    <span class="vw-q-user">${it.uniqueId ? '@' + escapeHtml(it.uniqueId) : ''}</span>
+                    <span class="vw-fan-num" title="Tổng xu đã tặng kênh">💎 ${(it.xu || 0).toLocaleString('vi-VN')}</span>
+                    <span class="vw-fan-num" title="Số buổi LIVE đã ghé">📅 ${it.sessions || 0}</span>
+                    ${it.fansLevel ? `<span class="vw-fan-num" title="Cấp đội fan">💜 ${it.fansLevel}</span>` : ''}
+                    <span class="vw-fan-num vw-fan-ago" title="Lần cuối gặp">${fanAgo(it.lastAt)}</span>
+                </div>`).join('');
+        } catch (e) {
+            list.innerHTML = '<div class="vw-empty">Không tải được Sổ Fan.</div>';
+        }
     }
 
     // ============================================================

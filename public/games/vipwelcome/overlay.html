@@ -183,6 +183,7 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="/games/vipwelcome/bar-slots.js"></script>
+    <script src="/games/vipwelcome/fan-badge.js"></script>
     <script>
     (function () {
         const debugEl = document.getElementById('debug');
@@ -481,6 +482,9 @@
             card.appendChild(body);
             // Dòng phụ: @id + vai trò
             const sub = el('div', 'jc-sub');
+            // Sổ Fan: huy hiệu bậc fan đứng đầu dòng phụ (không bị bỏ khi chật)
+            const ft = c.fanTier;
+            if (ft && ft.label && window.HpFanBadge) sub.appendChild(HpFanBadge.badgeEl(ft, { size: 'sm', delayMs: 350 }));
             if (u.uniqueId) sub.appendChild(el('span', 'jc-uid', '@' + u.uniqueId));
             const r = c.roles || {};
             if (r.top > 0) sub.appendChild(el('span', 'jc-role top', 'TOP ' + r.top));
@@ -625,8 +629,15 @@
                 bar.appendChild(barName(c.user?.nickname || c.user?.uniqueId));
             }
             const accent = group ? '' : HpBarSlots.accentOf(c);
-            const xe = el('span', 'vb-x');
-            xe.appendChild(el('span', 'vb-enter' + (accent ? ' accent' : ''), c.late ? 'ĐANG Ở TRONG PHÒNG' : (accent || c.enterText || 'VÀO PHÒNG')));
+            const fanT = group || !window.HpFanBadge ? null : HpBarSlots.fanAccent(c);   // Sổ Fan: huân chương thay chữ
+            const xe = el('span', 'vb-x' + (fanT ? ' vb-fanx' : ''));
+            if (fanT) {
+                const en = el('span', 'vb-enter vb-fan');
+                en.appendChild(HpFanBadge.badgeEl(fanT, { delayMs: early ? 750 : 2350 }));
+                xe.appendChild(en);
+            } else {
+                xe.appendChild(el('span', 'vb-enter' + (accent ? ' accent' : ''), c.late ? 'ĐANG Ở TRONG PHÒNG' : (accent || c.enterText || 'VÀO PHÒNG')));
+            }
             bar.append(xe, el('span', 'vb-cap'));
             [[22, 8], [48, 70], [63, 18], [80, 64], [92, 26]].forEach(([x, y], i) => {   // bụi sao (CSS chỉ bật từ Đại gia + WOW)
                 const sp = el('span', 'vb-spk', '✦');
