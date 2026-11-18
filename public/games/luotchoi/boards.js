@@ -79,7 +79,7 @@
         const last = new Set(b.last || []);
         const cards = b.cards.map(c => {
             const cls = ['cardc', c.face ? 'up' : '', c.matched ? 'matched' : '', b.pendingMiss && c.open ? 'miss' : '', o.fresh && c.matched && last.has(c.n) ? 'just' : ''].join(' ');
-            return `<div class="${cls}" data-n="${c.n}" style="width:${cw}px;height:${ch}px"><div class="flip"><div class="back">${c.n}</div><div class="face">${esc(c.face || '')}${tagHtml(mk[c.n], o, 8)}</div></div></div>`;
+            return `<div class="${cls}" data-n="${c.n}" style="width:${cw}px;height:${ch}px"><div class="flip"><div class="back">${c.n}</div><div class="face">${c.gift ? `<span class="gem">${esc(c.gift.emoji)}</span><small>${esc(c.gift.name)}</small>` : esc(c.face || '')}${tagHtml(mk[c.n], o, 8)}</div></div></div>`;
         }).join('');
         return `<div class="lp" style="grid-template-columns:repeat(${cols}, ${cw}px)">${cards}</div>`;
     }

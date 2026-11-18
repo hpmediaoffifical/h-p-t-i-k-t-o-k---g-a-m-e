@@ -143,6 +143,8 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 .lp .back { background: repeating-linear-gradient(45deg, #2f6fd6 0 14px, #2a62bf 14px 28px); border: 3px solid rgba(255, 255, 255, .7); font-size: 40px; font-weight: 700;
   text-shadow: 0 2px 0 rgba(0, 0, 0, .3); }
 .lp .face { background: #fff9ea; transform: rotateY(180deg); font-size: 76px; border: 3px solid #ffd54a; }
+.lp .face { align-content: center; gap: 4px; }
+.lp .face small { font-size: 18px; font-weight: 700; color: #3b2a5a; }
 .lp .cardc.matched .face { background: #dcfbe8; border-color: #39d98a; }
 .lp .cardc.miss .face { border-color: #ff5a5a; animation: lcNo .5s .45s; }
 .lp .cardc.matched.just .flip { animation: lcYes .6s .45s; }
@@ -198,6 +200,14 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 .lc3-anchor.aim::before { content: ''; position: absolute; left: -38px; top: -38px; width: 76px; height: 76px; border-radius: 50%;
   border: 5px solid #ffd54a; box-shadow: 0 0 24px rgba(255, 213, 74, .85); animation: lcAim .5s ease-in-out infinite alternate; }
 .lc3-meter { z-index: 3; }
+/* nhãn tên 3D: viên thuốc avatar + tên, que màu người chơi nối về ô (vị trí do syncTags xếp để không đè ô nào) */
+.lc3-tag { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 2; }
+.lc3-tag .lc-tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); gap: 6px; padding: 3px 12px 3px 3px; font-size: 19px;
+  max-width: 170px; border-width: 3px; background: rgba(14, 12, 30, .9); box-shadow: 0 4px 14px rgba(0, 0, 0, .45); }
+.lc3-tag .lc-tag i, .lc3-tag .lc-tag i img { width: 32px; height: 32px; font-size: 16px; }
+.lc3-stem { position: absolute; left: 0; top: 0; height: 3px; margin-top: -1.5px; transform-origin: 0 50%; border-radius: 2px; z-index: 1; opacity: .9;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .35); }
+.lc3-stem::before { content: ''; position: absolute; left: -5px; top: -3.5px; width: 10px; height: 10px; border-radius: 50%; background: inherit; box-shadow: 0 0 0 2px #fff; }
 .lc3-meter[hidden] { display: none; }
 
 /* bàn tay ảnh vẽ tay (assets/manifest.json "hand") — đầu ngón ở giữa mép trên ảnh */

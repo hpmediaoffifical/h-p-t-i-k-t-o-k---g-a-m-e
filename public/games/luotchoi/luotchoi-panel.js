@@ -208,7 +208,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         if (b.kind === 'oanquan') cells = b.sel != null
             ? [{ n: 1, label: '⬅ Trái' }, { n: 2, label: 'Phải ➡' }]
             : [1, 2, 3, 4, 5].map(n => ({ n, label: 'Ô ' + n }));
-        else if (b.kind === 'latcap') cells = b.cards.map(c => ({ n: c.n, label: c.face ? `<span class="face">${c.face}</span>` : c.n }));
+        else if (b.kind === 'latcap') cells = b.cards.map(c => ({ n: c.n, label: c.face ? `<span class="face">${c.gift ? c.gift.emoji : c.face}</span>` : c.n }));
         else if (b.kind === 'thaptre') cells = b.bars.filter(x => x.level < b.levels).map(x => ({ n: x.n, label: x.n }));
         else cells = Array.from({ length: b.n }, (_, i) => ({ n: i + 1, label: i + 1 }));
         el.innerHTML = `<div class="lc-nums">${cells.map(c => `<button class="ghost small" data-n="${c.n}" ${hostTurn && opts.has(c.n) ? '' : 'disabled'}>${c.label}</button>`).join('')}</div>`
