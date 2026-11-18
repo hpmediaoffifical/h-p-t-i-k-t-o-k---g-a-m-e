@@ -30,6 +30,24 @@
         const countEl = doc.getElementById('home-games-count');
         const COLORS = { gift: '#FF5C8A', chat: '#7A5CFF', member: '#1FB357', social: '#2F6FEB', blocked: '#C9B8BC' };
 
+        // ➕ OBS: game đang bật mà chưa có trong OBS (overlay:presence) → nút thêm thẳng vào Scene đang phát
+        let presence = {};
+        let obsConnected = false;
+        fetch('/api/overlay-presence').then(r => r.json()).then(p => { presence = p || {}; renderGames(); }).catch(() => {});
+        async function addToObs(id, btn) {
+            btn.disabled = true; btn.textContent = 'Đang thêm…';
+            try {
+                const r = await fetch('/api/obs/add-overlay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gameId: id }) });
+                const j = await r.json();
+                if (!j.ok) throw new Error(j.error || 'Không thêm được');
+                btn.textContent = j.state === 'exists' ? 'Đã có' : 'Đã thêm ✓';
+                btn.title = 'Scene: ' + (j.scene || '') + ' — nguồn: ' + (j.inputName || '');
+            } catch (e) {
+                btn.disabled = false; btn.textContent = '➕ OBS';
+                btn.title = e.message;
+                if (typeof root.toast === 'function') root.toast(e.message, 'error', 3500);
+            }
+        }
         function renderGames() {
             if (!gamesEl || !root.hpGameIndex) return;
             // Game con của Game Camera chơi qua 1 link chung /overlay/camgames → không liệt kê link riêng
@@ -61,6 +79,14 @@
                     (navigator.clipboard ? navigator.clipboard.writeText(live) : Promise.reject()).then(ok).catch(() => root.prompt && root.prompt('Link OBS', live));
                 });
                 chip.append(cp);
+                const p = presence[g.id] || {};
+                if (obsConnected && !(p.open > 0) && !p.inObs) {
+                    const add = doc.createElement('button'); add.type = 'button'; add.className = 'hl-copy hl-add';
+                    add.textContent = '➕ OBS';
+                    add.title = 'Chưa có trong OBS — bấm để thêm vào Scene đang phát (1080×1920, lớp trên cùng)';
+                    add.addEventListener('click', () => addToObs(g.id, add));
+                    chip.prepend(add);
+                }
                 const sw = doc.createElement('input'); sw.type = 'checkbox'; sw.className = 'ui-switch'; sw.checked = true;
                 sw.title = 'Tắt ' + g.name;
                 sw.addEventListener('change', () => {
@@ -152,6 +178,7 @@
                 const r = await fetch('/api/obs-bridge/config');
                 const st = (await r.json()).status || {};
                 if (st.connected) obsEver = true;
+                if (obsConnected !== !!st.connected) { obsConnected = !!st.connected; renderGames(); }
                 const alert = obsAlert(obsEver, st);
                 if (sbObs) {
                     sbObs.hidden = !obsEver && !st.connected;
@@ -171,6 +198,7 @@
             bind(socket) {
                 if (!socket) return;
                 socket.on('gift', g => push('gift', g));
+                socket.on('overlay:presence', p => { presence = p || {}; renderGames(); });
                 socket.on('chat', c => push('chat', c));
                 socket.on('chat:blocked', () => push('blocked', {}));
                 socket.on('member', m => push('member', m));

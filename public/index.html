@@ -129,8 +129,9 @@
                 <div class="hero home-hero">
                     <!-- 🎨 Giao diện mới: lời chào + dải sẵn sàng (app.js renderHomeReady) -->
                     <div class="home-welcome">
-                        <h1>Bảng điều khiển LIVE</h1>
-                        <p class="hero-sub">Sẵn sàng trước khi lên sóng</p>
+                        <div><h1>Bảng điều khiển LIVE</h1>
+                        <p class="hero-sub">Sẵn sàng trước khi lên sóng</p></div>
+                        <button type="button" id="btn-preflight" class="pf-btn" title="Kiểm tra TikTok, OBS, overlay từng game, camera, bản quyền">✅ Kiểm tra trước LIVE</button>
                     </div>
                     <div class="home-ready">
                         <div class="hr-card idle" id="hr-tiktok"><span class="hr-ico"><svg class="ui-i" aria-hidden="true"><use href="#ui-tiktok"/></svg></span><div class="hr-txt"><b>TikTok</b><span class="hr-sub">Chưa kết nối</span></div></div>
@@ -3209,5 +3210,7 @@
     <script src="/app.js"></script>
     <script src="/ui/live-presets.js"></script>
     <script src="/ui/live-tools.js"></script>
+    <script src="/ui/preflight-ui.js"></script>
+    <script src="/ui/game-preview.js"></script>
 </body>
 </html>

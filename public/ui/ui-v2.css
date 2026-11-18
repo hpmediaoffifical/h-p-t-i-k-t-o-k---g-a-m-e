@@ -519,3 +519,36 @@ body.ui-v2 .mx-val { font-size: 12px; text-align: right; font-variant-numeric: t
 body.ui-v2 .mx-mute { width: 28px; height: 26px; border: 1px solid var(--ui-line); border-radius: 6px; background: none; cursor: pointer; font-size: 13px; }
 body.ui-v2 .mx-mute.is-muted { background: var(--ui-muted-bg); }
 body.ui-v2 .mx-empty { padding: 10px 4px; font-size: 13px; color: var(--ui-muted); }
+
+/* ✅ Kiểm tra trước LIVE (public/ui/preflight-ui.js) + ➕ OBS ở Game đang bật */
+body.ui-v2 .home-welcome { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+body.ui-v2 .pf-btn { flex: none; height: 34px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--ui-line-strong); background: var(--ui-surface); color: var(--ui-ink); font-weight: 700; font-size: 13px; cursor: pointer; }
+body.ui-v2 .pf-btn:hover { border-color: var(--ui-brand); color: var(--ui-brand-ink); }
+body.ui-v2 .pf-btn[data-level="bad"] { border-color: var(--ui-bad); color: var(--ui-bad-ink); background: var(--ui-bad-bg); }
+body.ui-v2 .pf-btn[data-level="warn"] { border-color: var(--ui-warn); color: var(--ui-warn-ink); background: var(--ui-warn-bg); }
+body.ui-v2 .pf-box { position: fixed; z-index: 9100; top: 72px; right: 18px; width: min(460px, calc(100vw - 32px)); max-height: calc(100vh - 120px); display: flex; flex-direction: column; background: var(--ui-surface); color: var(--ui-ink); border: 1px solid var(--ui-line-strong); border-radius: 12px; box-shadow: var(--ui-shadow-lg); }
+body.ui-v2 .pf-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--ui-line); }
+body.ui-v2 .pf-title { flex: 1; font-size: 14px; }
+body.ui-v2 .pf-again { height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--ui-line-strong); background: none; color: var(--ui-ink-2); font-size: 12px; cursor: pointer; }
+body.ui-v2 .pf-x { width: 26px; height: 26px; border: 0; border-radius: 6px; background: none; color: var(--ui-ink-2); font-size: 18px; line-height: 1; cursor: pointer; }
+body.ui-v2 .pf-body { overflow: auto; padding: 4px 12px 10px; }
+body.ui-v2 .pf-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--ui-line); }
+body.ui-v2 .pf-row:first-child { border-top: 0; }
+body.ui-v2 .pf-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+body.ui-v2 .pf-detail { font-size: 12px; color: var(--ui-muted); }
+body.ui-v2 .pf-bad .pf-txt b { color: var(--ui-bad-ink); }
+body.ui-v2 .pf-warn .pf-txt b { color: var(--ui-warn-ink); }
+body.ui-v2 .pf-ok .pf-txt b { font-weight: 500; color: var(--ui-ink-2); }
+body.ui-v2 .pf-fix { flex: none; height: 28px; padding: 0 12px; border-radius: 8px; border: 0; background: var(--ui-grad); color: #fff; font-weight: 700; font-size: 12px; cursor: pointer; white-space: nowrap; }
+body.ui-v2 .pf-fix:disabled { opacity: .6; cursor: default; }
+body.ui-v2 .hl-link { gap: 6px; }
+body.ui-v2 .hl-add { background: var(--ui-brand-soft); color: var(--ui-brand-ink); border-color: transparent; }
+
+/* 🖼 Xem trước game khi rê chuột ở Thư viện (public/ui/game-preview.js) */
+body.ui-v2 .gp-card { position: fixed; z-index: 9200; width: 200px; padding: 10px; background: var(--ui-surface); color: var(--ui-ink); border: 1px solid var(--ui-line-strong); border-radius: 12px; box-shadow: var(--ui-shadow-lg); pointer-events: none; }
+body.ui-v2 .gp-card[hidden] { display: none; }
+body.ui-v2 .gp-pic { width: 180px; height: 320px; border-radius: 8px; overflow: hidden; background: #181B22; display: grid; place-items: center; }
+body.ui-v2 .gp-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+body.ui-v2 .gp-pic.gp-icon { height: 110px; color: var(--ui-brand); background: var(--ui-brand-soft); }
+body.ui-v2 .gp-name { display: block; margin: 8px 2px 0; font-size: 14px; }
+body.ui-v2 .gp-desc { margin: 4px 2px 0; font-size: 12px; line-height: 1.45; color: var(--ui-muted); }

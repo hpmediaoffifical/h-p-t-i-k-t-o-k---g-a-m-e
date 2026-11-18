@@ -7314,6 +7314,49 @@ app.post('/api/giftboard/obs/add', async (req, res) => {
         res.json(r);
     } catch (e) { res.status(500).json({ ok: false, error: e?.message || String(e) }); }
 });
+// ➕ Thêm overlay của 1 game vào Scene OBS (dùng chung lib/obs-add-overlay.js như Bảng Quà Tổng).
+// Nguồn của game = Browser Source có link /overlay/<id> (đúng cổng app, kể cả bản ?query) — OverlayPresence nhận diện.
+app.post('/api/obs/add-overlay', async (req, res) => {
+    if (!requestIsTrusted(req)) return res.status(403).json({ ok: false, error: 'Chỉ bấm được trên máy chạy app' });
+    const id = String(req.body?.gameId || '');
+    const g = GAMES[id];
+    if (!g || !g.overlayPath) return res.status(404).json({ ok: false, error: 'Game không có link OBS' });
+    if (CAM_GAME_IDS.includes(id)) return res.status(400).json({ ok: false, error: 'Game camera chạy chung link 🎥 Game Camera — thêm Game Camera vào OBS' });
+    if (!obsBridge.isConnected()) return res.status(409).json({ ok: false, error: 'Chưa kết nối OBS WebSocket - vào ⚙ Cài đặt / Hiệu ứng OBS → Kết nối' });
+    try {
+        const r = await addOverlayToScene((type, data) => obsBridge.obs.call(type, data), {
+            // Bảng Quà Tổng có link + cách nhận diện riêng (giống POST /api/giftboard/obs/add)
+            url: overlayPublicUrl(id === 'giftboard' ? '/_prototype/giftboard.html?mode=overlay' : g.overlayPath),   // hpaction.obs: TikTok LIVE Studio chặn localhost
+            isMine: id === 'giftboard' ? giftboardObsUrlIsMine : (u) => OverlayPresence.gameIdFromOverlayUrl(u, PORT) === id,
+            inputName: 'HP ' + String(g.name || id).slice(0, 60),
+            scene: typeof req.body?.scene === 'string' ? req.body.scene.slice(0, 200) : ''
+        });
+        setTimeout(() => overlayObsScan(), 500);
+        res.json(r);
+    } catch (e) { res.status(500).json({ ok: false, error: e?.message || String(e) }); }
+});
+// ✅ Kiểm tra trước khi LIVE (luật thuần lib/preflight.js)
+const preflight = require('./lib/preflight');
+app.get('/api/preflight', (req, res) => {
+    const lic = trustedLicense.get();
+    let daysLeft;
+    if (lic && lic.expiresAt > 0) daysLeft = ((lic.expiresAt < 1e12 ? lic.expiresAt * 1000 : lic.expiresAt) - Date.now()) / 86400000;
+    const games = Object.values(GAMES).filter(g => g && g.overlayPath).map(g => {
+        const cfg = appConfig.games[g.id] || {};
+        return { id: g.id, name: g.name || g.id, on: cfg.enabled === true, locked: !featureOn(g.id), overlay: !CAM_GAME_IDS.includes(g.id) };
+    });
+    const camCfg = appConfig.games.camgames || {};
+    let camStat = {};
+    try { camStat = touchplayFeed.status() || {}; } catch (_) {}
+    res.json(preflight.check({
+        tiktok: { username: currentUsername || appConfig.lastUsername || '', connected: isTikTokLiveConnected() },
+        obs: { connected: obsBridge.isConnected() },
+        license: { ok: Boolean(lic || licenseGrace()), daysLeft },
+        games,
+        presence: overlayPresenceSnapshot(),
+        cam: { on: camCfg.enabled === true && featureOn('camgames'), source: camCfg.source || '', live: !!camStat.live, error: camStat.error || '' }
+    }));
+});
 app.get('/api/touchplay/obs-sources', async (req, res) => {
     try {
         const r = await touchplayFeed.listSources();
