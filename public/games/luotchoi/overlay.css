@@ -152,3 +152,37 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 /* sảnh: hình mẫu mờ */
 .lc-stage.idle > * { opacity: .55; }
 .lc-stage .wait { position: absolute; inset: 0; display: grid; place-items: center; font-size: 40px; text-align: center; z-index: 9; opacity: 1 !important; text-shadow: 0 3px 10px rgba(0, 0, 0, .7); }
+
+/* ── phần diễn: tay / que bay vào ô, nhãn tên, ô đang nhắm, thanh lung lay ── */
+.lc-hand { position: absolute; left: 0; top: 0; z-index: 4; pointer-events: none; margin-left: -41px; transform-origin: 41px 0; filter: drop-shadow(0 10px 14px rgba(0, 0, 0, .45)); will-change: transform; }
+.lc-hand.stick { margin-left: -42px; margin-top: -324px; transform-origin: 42px 324px; }
+.lc-hand.stick svg { width: 84px; height: 330px; display: block; }
+.lc-hand[hidden] { display: none; }
+.lc-stage .aim { animation: lcAim .5s ease-in-out infinite alternate; }
+.lc-stage .tw.aim .tooth, .lc-stage .hole.aim, .lc-stage .bar.aim, .lc-stage .cardc.aim .back { box-shadow: 0 0 0 5px #ffd54a, 0 0 26px rgba(255, 213, 74, .8); }
+@keyframes lcAim { to { filter: brightness(1.25); } }
+.lc-wait-dots::after { content: '…'; animation: lcDots 1s steps(3) infinite; }
+@keyframes lcDots { 0% { opacity: .2; } 100% { opacity: 1; } }
+
+.lc-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 2px; border-radius: 99px; background: rgba(12, 14, 30, .88);
+  border: 2px solid rgba(255, 255, 255, .55); font-size: 16px; font-weight: 700; line-height: 1; color: #fff; white-space: nowrap; max-width: 150px; pointer-events: none; }
+.lc-tag i { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 13px; overflow: hidden; flex: none; }
+.lc-tag i img { width: 24px; height: 24px; object-fit: cover; }
+.lc-tag em { font-style: normal; overflow: hidden; text-overflow: ellipsis; }
+.hm .tw { position: relative; display: flex; flex-direction: column; align-items: center; }
+/* răng / lỗ hẹp: nhãn dựng đứng (avatar trên, tên dưới) để vừa bề ngang 1 ô, không đè ô bên cạnh */
+.hm .tw .lc-tag, .cc .hole .lc-tag { position: absolute; left: 50%; transform: translateX(-50%); z-index: 3; flex-direction: column; gap: 2px;
+  padding: 3px 3px 4px; border-radius: 12px; width: 70px; font-size: 16px; }
+.hm .tw .lc-tag i, .cc .hole .lc-tag i, .hm .tw .lc-tag i img, .cc .hole .lc-tag i img { width: 32px; height: 32px; font-size: 16px; }
+.hm .tw .lc-tag em, .cc .hole .lc-tag em { max-width: 64px; text-align: center; }
+.hm .tw .lc-tag { top: 64px; }
+.cc .hole .lc-tag { top: -6px; }
+.hm .teeth { row-gap: 70px; }
+.tt .bar.out .lc-tag { font-size: 14px; }
+.lp .face .lc-tag { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font-size: 15px; }
+
+.tt-meter { position: absolute; left: 22px; top: 18px; width: 230px; z-index: 3; font-size: 22px; display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: baseline; }
+.tt-meter b { font-size: 30px; }
+.tt-meter .bar-in { grid-column: 1 / -1; height: 14px; border-radius: 8px; background: rgba(255, 255, 255, .14); overflow: hidden; }
+.tt-meter .bar-in i { display: block; height: 100%; border-radius: 8px; transition: width .6s ease, background .6s; }
+.tt-meter.hot b { color: #ff6b5a; animation: lcAim .35s ease-in-out infinite alternate; }

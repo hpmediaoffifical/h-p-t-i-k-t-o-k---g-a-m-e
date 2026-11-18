@@ -173,3 +173,32 @@ test('thaptre: thanh rút ra chồng lên đỉnh; rút mãi không bao giờ h�
         G.pick(b, opts[Math.floor(r() * opts.length)], () => 0.999);
     }
 });
+
+test('thaptre.wobblePct: 0% lúc dựng, tăng dần theo thanh đã rút, ≤ 99, đổ = 100', () => {
+    const G = GAMES_BY_ID.thaptre;
+    const b = G.setup(G.normalize({ levels: 9 }), mulberry(1));
+    assert.equal(G.wobblePct(b), 0);
+    let last = 0;
+    const r = mulberry(5);
+    for (let i = 0; i < 12; i++) {
+        const opts = G.options(b).filter(n => G.risk(b, n) < 1);
+        G.pick(b, opts[Math.floor(r() * opts.length)], () => 0.999);
+        const w = G.wobblePct(b);
+        assert.ok(w > last, `bước ${i}: ${w} phải > ${last}`);
+        assert.ok(w <= 99);
+        last = w;
+    }
+    assert.equal(G.view(b).wobblePct, last);
+    G.pick(b, G.options(b)[0], () => 0);
+    assert.equal(G.wobblePct(b), 100);
+});
+
+test('latcap.marked: ô ngửa / đã ghép giữ nhãn, ô úp lại thì bỏ nhãn', () => {
+    const G = GAMES_BY_ID.latcap;
+    const b = G.setup(G.normalize({ pairs: 4 }), mulberry(6));
+    const other = b.faces.findIndex((f, i) => i !== 0 && f !== b.faces[0]) + 1;
+    G.pick(b, 1);
+    assert.equal(G.marked(b, 1), true);
+    G.pick(b, other); G.settle(b);
+    assert.equal(G.marked(b, 1), false);
+});

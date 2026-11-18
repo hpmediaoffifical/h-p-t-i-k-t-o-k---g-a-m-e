@@ -283,3 +283,57 @@ test('người xem trùng khoá Chủ LIVE không vào ghế / chọn số thay 
     assert.equal(tb.addGift({ user: fake, giftId: SEAT.giftId }).action, 'ignored');
     assert.equal(snap(tb).board.used.length, 0);
 });
+
+test('nhãn tên: ô đã chọn ghi người chọn, giữ qua lượt; bàn dựng lại thì xoá', () => {
+    const { tb, clock } = make({ seats: 3 });
+    seat(tb, 'a', 'b', 'c'); clock.go(3100);
+    const trap = tb._board().trap;
+    const safe = trap === 1 ? 2 : 1;
+    tb.comment({ user: u('a'), text: String(safe) });
+    settle(tb, clock);
+    assert.deepEqual(snap(tb).marks, [{ n: safe, key: 'a', nickname: 'Tên a', avatar: '' }]);
+    tb.comment({ user: u('b'), text: String(trap) });
+    assert.equal(snap(tb).marks.length, 2, 'ô bẫy cũng có nhãn người dính');
+    settle(tb, clock);
+    assert.deepEqual(snap(tb).marks, [], 'bàn mới');
+});
+
+test('Lật Cặp: lật trượt thì bỏ nhãn 2 ô, ghép đúng thì giữ nhãn', () => {
+    const { tb, clock } = make({ seats: 2, game: 'latcap', pairs: 4 });
+    seat(tb, 'a', 'b'); clock.go(3100);
+    const f = tb._board().faces;
+    const miss = f.findIndex((x, k) => k > 0 && x !== f[0]);
+    tb.comment({ user: u('a'), text: `1 ${miss + 1}` });
+    assert.equal(snap(tb).marks.length, 2);
+    settle(tb, clock);
+    assert.equal(snap(tb).marks.length, 0);
+    const mate = f.findIndex((x, k) => k !== 0 && x === f[0]);
+    tb.comment({ user: u('b'), text: `1 ${mate + 1}` });
+    settle(tb, clock);
+    assert.deepEqual(snap(tb).marks.map(m => [m.n, m.key]), [[1, 'b'], [mate + 1, 'b']]);
+});
+
+test('nhịp hồi hộp: sau khi chọn, lượt kế chưa bắt đầu ngay (đủ thời gian tay bay vào + lộ kết quả)', () => {
+    const { tb, clock } = make({ seats: 2 }, () => 0.99);
+    seat(tb, 'a', 'b'); clock.go(3100);
+    const safe = tb._board().trap === 1 ? 2 : 1;
+    tb.comment({ user: u('a'), text: String(safe) });
+    const { SUSPENSE_MS } = require('../lib/luot-choi/table');
+    assert.ok(SUSPENSE_MS >= 600 && SUSPENSE_MS <= 1000);
+    clock.go(SUSPENSE_MS + 500);
+    assert.equal(turnKey(tb), 'a', 'vẫn đang diễn');
+    settle(tb, clock);
+    assert.equal(turnKey(tb), 'b');
+    const pick = snap(tb).events.find(e => e.type === 'pick');
+    assert.equal(pick.avatar, '');
+    assert.equal(pick.nickname, 'Tên a');
+});
+
+test('giọng đọc: mặc định bật, âm lượng chặn 0–100, có trong snapshot cho overlay', () => {
+    assert.equal(normalizeConfig({}).voice, true);
+    assert.equal(normalizeConfig({ voice: false }).voice, false);
+    assert.equal(normalizeConfig({ voiceVolume: 500 }).voiceVolume, 100);
+    assert.equal(normalizeConfig({}).voiceVolume, 80);
+    const { tb } = make({ voice: false, voiceVolume: 30 });
+    assert.deepEqual([snap(tb).cfg.voice, snap(tb).cfg.voiceVolume], [false, 30]);
+});

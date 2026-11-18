@@ -122,8 +122,17 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                 ${numField(size[0], hpT(size[1]), size[2], size[3])}
                 ${numField('maxQueue', hpT('Hàng chờ tối đa'), 0, 30)}
                 <div class="lc-line"><label>${hpT('Tên Chủ LIVE')}</label><input data-t="hostName" value="${esc(cfg.hostName || 'Chủ LIVE')}" maxlength="30"></div>
+            </div>
+            <div class="lc-box"><div class="lc-h">${hpT('🔊 Giọng đọc')} <span class="lc-muted">${hpT('phát trong OBS: tới lượt, số đã chọn, dính bẫy')}</span></div>
+                <div class="lc-line"><label><input type="checkbox" data-c="voice" ${cfg.voice !== false ? 'checked' : ''}> ${hpT('Đọc tên người chơi')}</label></div>
+                <div class="lc-line"><label>${hpT('Âm lượng')}</label><input type="range" data-k="voiceVolume" min="0" max="100" value="${esc(cfg.voiceVolume ?? 80)}" style="flex:1"><span id="lc-vol">${esc(cfg.voiceVolume ?? 80)}%</span></div>
             </div>`;
-        box.querySelectorAll('input[data-k]').forEach(el => el.addEventListener('change', () => { cfg[el.dataset.k] = Number(el.value); schedulePersist(); }));
+        box.querySelectorAll('input[data-k]').forEach(el => el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
+            cfg[el.dataset.k] = Number(el.value);
+            if (el.dataset.k === 'voiceVolume') $('#lc-vol').textContent = el.value + '%';
+            schedulePersist();
+        }));
+        box.querySelectorAll('input[data-c]').forEach(el => el.addEventListener('change', () => { cfg[el.dataset.c] = el.checked; schedulePersist(); }));
         box.querySelectorAll('input[data-t]').forEach(el => el.addEventListener('change', () => { cfg[el.dataset.t] = el.value.trim(); schedulePersist(); }));
         box.querySelectorAll('[data-del]').forEach(el => el.addEventListener('click', () => {
             const [k, i] = el.dataset.del.split(':'); cfg[k].splice(Number(i), 1); renderSettings(); schedulePersist();

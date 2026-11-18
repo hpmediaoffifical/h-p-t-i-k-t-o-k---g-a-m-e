@@ -108,6 +108,27 @@ kèm ảnh quà, đếm ngược. Kết quả: băng rôn vô địch + người
 giả, chạy `step` bước bằng đúng luật thật trên đồng hồ giả (tất định, không đụng bàn thật); `freeze=1` đứng yên 1 cảnh
 để chụp. Nút "Xem mẫu" trong panel mở link này.
 
+### 5.1 Phần diễn (18/11/2026)
+
+Cho ván hấp dẫn hơn trên sóng mà không chậm đi:
+
+- **Nhịp hồi hộp:** trạng thái có lượt chọn mới không vẽ ngay. Overlay cho tay (Hà Mã: ngón trỏ ấn răng; Lật Cặp: chạm
+  thẻ; Tháp Tre: kẹp đầu phải thanh rồi kéo ra; Chum Cóc: que tre cắm chéo vào lỗ) bay tới đúng ô (`data-n`) trên bàn
+  đang hiện, đợi `SUSPENSE_MS` = 800 ms rồi mới vẽ bàn mới → kết quả lộ sau nhịp hồi hộp. Server cộng đúng khoảng này
+  vào mọi khoảng giữ sau một lượt chọn (`table.js`), nên lượt kế không bắt đầu khi tay còn đang bấm. Trạng thái đến
+  trong lúc diễn chỉ giữ cái mới nhất. Trang bị ẩn (không vẽ khung) thì bỏ qua phần diễn.
+- **Nhãn tên:** snapshot có `marks` = `[{n, key, nickname, avatar}]` của bàn hiện tại (bàn dựng lại thì xoá). Lật Cặp
+  chỉ giữ nhãn trên ô đang ngửa / đã ghép (`latcap.marked`). Nhãn = avatar tròn (hoặc chữ cái đầu trên màu riêng) + tên
+  rút gọn; răng / lỗ hẹp dùng nhãn dựng đứng dán lên ô.
+- **Giọng đọc:** overlay phát `/api/live-translate/tts?lang=vi` (cùng đường Chào Mừng VIP, OBS bắt tiếng Browser Source):
+  "{tên} chọn số 7" (Lật Cặp "số 3 và 9"), "Tới lượt {tên}", dính bẫy theo trò, "được khiên cứu", "lật trúng cặp",
+  "{tên} vô địch!". Tên bỏ emoji/ký hiệu, tối đa 24 ký tự. Hàng đọc tối đa 4 câu; câu phụ ("Tới lượt…", "+1 khiên")
+  chỉ đọc khi loa rảnh. Cấu hình `voice` (mặc định bật), `voiceVolume` 0–100 (mặc định 80) trong panel. `?mute=1` tắt;
+  bàn mẫu chỉ đọc khi `&voice=1`.
+- **Tháp Tre "Lung lay %":** hàm thuần `thaptre.wobblePct(b)` = `(0,02·số thanh đã rút + 0,04·số tầng dưới bị khoét) / 1,2`,
+  chặn 99, đổ = 100 (~20 thanh ≈ 60%). Chỉ để xem; xác suất đổ thật vẫn là `risk()`. Overlay vẽ thanh màu xanh → đỏ.
+- Chụp ảnh: `?slow=n` diễn chậm n lần.
+
 ## 6. Kiểm thử
 
 - `tests/luotchoi-games.test.js`: từng trò — số trong khoảng, không lộ bẫy, trúng bẫy, khiên cứu, Tháp đổ chắc khi
