@@ -46,20 +46,21 @@
             for (const g of list) {
                 const row = doc.createElement('div');
                 row.className = 'hl-game';
-                const ico = doc.createElement('span'); ico.className = 'hl-ico'; ico.textContent = g.icon || '';
+                const ico = doc.createElement('span'); ico.className = 'hl-ico';
+                if (root.HpGameIcons) ico.innerHTML = root.HpGameIcons.svg(g.id, 18); else ico.textContent = g.icon || '';
                 const name = doc.createElement('button'); name.type = 'button'; name.className = 'hl-name'; name.textContent = g.name;
                 name.title = 'Mở cài đặt ' + g.name;
                 name.addEventListener('click', () => root.hpOpenGame && root.hpOpenGame(g.id));
                 const url = root.buildOverlayURL ? root.buildOverlayURL(g.overlayPath) : g.overlayPath;
                 const chip = doc.createElement('div'); chip.className = 'hl-link';
-                const code = doc.createElement('code'); code.textContent = url.replace(/^https?:\/\//, ''); code.title = url;
-                const cp = doc.createElement('button'); cp.type = 'button'; cp.className = 'hl-copy'; cp.textContent = 'Copy';
+                chip.title = url;   // tên game đủ chỗ: link chỉ hiện khi rê chuột vào nút
+                const cp = doc.createElement('button'); cp.type = 'button'; cp.className = 'hl-copy'; cp.textContent = 'Link OBS';
                 cp.addEventListener('click', () => {
                     const live = root.buildOverlayURL ? root.buildOverlayURL(g.overlayPath) : url;   // tính lúc BẤM
-                    const ok = () => { cp.textContent = 'Đã copy'; setTimeout(() => { cp.textContent = 'Copy'; }, 1300); };
+                    const ok = () => { cp.textContent = 'Đã copy'; setTimeout(() => { cp.textContent = 'Link OBS'; }, 1300); };
                     (navigator.clipboard ? navigator.clipboard.writeText(live) : Promise.reject()).then(ok).catch(() => root.prompt && root.prompt('Link OBS', live));
                 });
-                chip.append(code, cp);
+                chip.append(cp);
                 const sw = doc.createElement('input'); sw.type = 'checkbox'; sw.className = 'ui-switch'; sw.checked = true;
                 sw.title = 'Tắt ' + g.name;
                 sw.addEventListener('change', () => {

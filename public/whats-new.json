@@ -1,0 +1,19 @@
+{
+  "1.26.0": {
+    "title": "Bảng Quà theo game đang chạy",
+    "items": [
+      "Bảng Quà Tổng chỉ hiện quà của các game đang mở trên OBS",
+      "Cảnh báo ⚠ khi 1 quà bị gán trùng ở nhiều game",
+      "Thêm Bảng Quà vào OBS bằng 1 nút ➕ OBS"
+    ]
+  },
+  "1.27.0": {
+    "title": "Game tải riêng",
+    "items": [
+      "🔫 Sinh Tồn và HP Đại Chiến: tải về ngay trong 🎮 Game Tương Tác",
+      "Game tải riêng có kiểm tra toàn vẹn khi tải, không làm nặng bản cập nhật",
+      "Biểu tượng riêng cho từng game ở thanh bên",
+      "Bảng điều khiển: tên game hiện đủ, nút Link OBS gọn"
+    ]
+  }
+}

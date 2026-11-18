@@ -585,7 +585,9 @@
                 : g.lstate === 'admin' ? ' <span class="lock-badge" title="Thử nghiệm — mới mở cho một số KEY dùng thử">🧪</span>' : '';
             // 🎨 Biểu tượng ô chữ cái (màu theo nhóm) thay emoji lệch cỡ — emoji vẫn giữ ở tooltip
             const NG = window.HpNavGroups;
-            const icoHtml = NG ? `<span class="ico ico-chip tone-${NG.groupOf(g.id)}" title="${escHtml(g.icon || '')}">${escHtml(NG.initials(g.name))}</span>` : `<span class="ico">${g.icon}</span>`;
+            const GI = window.HpGameIcons;
+            const icoInner = GI ? GI.svg(g.id, 16) : (NG ? escHtml(NG.initials(g.name)) : '');
+            const icoHtml = NG ? `<span class="ico ico-chip tone-${NG.groupOf(g.id)}">${icoInner}</span>` : `<span class="ico">${g.icon}</span>`;
             div.innerHTML = `${icoHtml}
                 <div class="meta">
                     <div class="gn">${g.name}${badge}</div>
