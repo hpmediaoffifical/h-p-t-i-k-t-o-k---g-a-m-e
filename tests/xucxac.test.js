@@ -30,10 +30,11 @@ test('outcomeFor: dòng đầu chứa tổng, không có → rỗng', () => {
 
 test('normalizeConfig: kẹp số viên, cắt chữ, bỏ dòng sai, tối đa 12 dòng', () => {
     const long = 'a'.repeat(100);
-    const c = X.normalizeConfig({ dice: 7, turnSec: 1, outcomes: [
+    assert.strictEqual(X.normalizeConfig({ dice: 7 }).dice, 3);
+    const c = X.normalizeConfig({ dice: 1, turnSec: 1, outcomes: [
         { from: 5, to: 2, text: 'sai' }, { from: 2, to: 2, text: long }, { from: '3', to: '4', text: '  ok ' }, { from: 1, to: 1, text: '' }
     ], display: { color: 'tím' } });
-    assert.strictEqual(c.dice, 3);
+    assert.strictEqual(c.dice, 1);
     assert.strictEqual(c.turnSec, 3);
     assert.deepStrictEqual(c.outcomes.map(o => [o.from, o.to, o.text.length]), [[2, 2, 60], [3, 4, 2]]);
     assert.strictEqual(c.display.color, 'white');
@@ -56,4 +57,18 @@ test('rollTurn: số + tổng + dòng kết quả', () => {
     assert.strictEqual(r.total, 12);
     assert.strictEqual(r.text, X.outcomeFor(cfg, 12));
     assert.ok(r.text);
+});
+
+test('normalizeConfig: đổi số viên mà bảng cũ chỉ hợp số viên ít hơn → bảng mặc định của số viên mới', () => {
+    // bảng 1 viên (tổng ≤ 6) dùng cho 2 viên: tổng 7–12 không có việc → thay bảng 2 viên
+    assert.deepStrictEqual(X.normalizeConfig({ dice: 2, outcomes: X.defaultOutcomes(1) }).outcomes, X.defaultOutcomes(2));
+    assert.deepStrictEqual(X.normalizeConfig({ dice: 3, outcomes: X.defaultOutcomes(2) }).outcomes, X.defaultOutcomes(3));
+    // bảng 3 viên (tổng ≥ 7 hết) dùng cho 1 viên: không dòng nào trúng 1–6 → thay bảng 1 viên
+    assert.deepStrictEqual(X.normalizeConfig({ dice: 1, outcomes: X.defaultOutcomes(3).filter(o => o.from > 6) }).outcomes, X.defaultOutcomes(1));
+    // bảng dựng cho NHIỀU viên hơn (tổng nhỏ nhất bỏ trống, vượt quá tổng tối đa) → bảng của số viên hiện tại
+    assert.deepStrictEqual(X.normalizeConfig({ dice: 2, outcomes: X.defaultOutcomes(3) }).outcomes, X.defaultOutcomes(2));
+    assert.deepStrictEqual(X.normalizeConfig({ dice: 1, outcomes: X.defaultOutcomes(2) }).outcomes, X.defaultOutcomes(1));
+    // bảng tự đặt có phủ một phần vùng mới thì GIỮ (streamer cố ý)
+    const mine = [{ from: 2, to: 12, text: 'Mọi số: hát' }];
+    assert.deepStrictEqual(X.normalizeConfig({ dice: 2, outcomes: mine }).outcomes, mine);
 });

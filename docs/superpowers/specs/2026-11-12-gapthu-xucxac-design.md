@@ -98,6 +98,13 @@ Trong máy có 1 giải đặc biệt là hình streamer. Ai gắp trúng → ov
 - `display`: `x`, `y` (% tâm tủ), `scale` (%), `theme` `pink|mint|night`, `showQueue`.
 - `?review=1` (khung xem thử, phòng preview), `?demo=1` (tự sinh lượt giả mỗi 4 s để xem không cần server/quà), `?mute=1`.
 
+### 3.5 Đồ họa 2.5D (18/11/2026)
+
+- Tủ gắp vẽ canvas 2.5D: thân sơn bóng có mặt bên, lòng tủ phối cảnh (vách sau, vách bên, sàn nỉ kẻ ô, dải LED, đèn trần), 2 thanh ray kim loại, kính có vệt phản chiếu + nẹp chrome, cửa nhả quà bằng mica, bệ máy nổi khối (mặt trên + mặt trước, cần gạt bóng, nút GẮP vòm). Lớp tĩnh vẽ sẵn vào canvas đệm theo màu tủ; mỗi khung chỉ vẽ phần động (~1 ms/khung).
+- Giải = **viên nang gacha** trong suốt (nửa dưới màu theo biểu tượng, vòm kính, điểm sáng, bóng tiếp xúc) chứa emoji streamer chọn, cache theo biểu tượng + cỡ. Càng 3 chấu mạ chrome, bóng đổ trên đống giải đậm dần khi hạ.
+- Ảnh vẽ tay (thú bông 3D, hình streamer mặc định) là tuỳ chọn: brief ở `art-requests/gapthu/BRIEF.md`.
+- Xúc Xắc: tone mapping ACES + môi trường phản chiếu `RoomEnvironment` (vendor), nhựa phủ bóng (`MeshPhysicalMaterial` clearcoat) có chấm khắc lõm (map + bumpMap canvas), khay nỉ viền gỗ thay vòng phẳng, viền sáng phía sau; thẻ kết quả bóng kính, chữ dài tối đa 2 dòng.
+
 ## 4. 🎲 Xúc Xắc 3D (`xucxac`)
 
 ### 4.1 Luật (`lib/xucxac.js`)

@@ -9,17 +9,17 @@
     body.xucxac-bg { background: radial-gradient(ellipse at 50% 40%, #23314f 0%, #0f1424 70%); }
     body.xucxac-shot * { transition: none !important; }
     #xucxac-stage { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: 0 0; }
-    #xucxac-box { position: absolute; width: 760px; height: 1000px; transform-origin: 50% 50%; }
+    #xucxac-box { position: absolute; width: 760px; height: 1080px; transform-origin: 50% 50%; }
     #xucxac-box.off { display: none; }
-    #xucxac-cv { position: absolute; left: 0; top: 120px; width: 760px; height: 640px; }
-    .xucxac-who { position: absolute; left: 50%; top: 190px; transform: translate(-50%, -12px); display: flex; align-items: center; gap: 12px;
+    #xucxac-cv { position: absolute; left: 0; top: 110px; width: 760px; height: 720px; }
+    .xucxac-who { position: absolute; left: 50%; top: 150px; z-index: 2; transform: translate(-50%, -12px); display: flex; align-items: center; gap: 12px;
         padding: 8px 22px 8px 8px; border-radius: 40px; background: rgba(12, 18, 36, .84); border: 2px solid rgba(255,255,255,.25);
         font-size: 32px; font-weight: 800; white-space: nowrap; max-width: 640px; opacity: 0; transition: opacity .2s, transform .2s; }
     .xucxac-who.on { opacity: 1; transform: translate(-50%, 0); }
     .xucxac-who img.av, .xucxac-card img.av { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; background: #334; flex: none; }
     .xucxac-who img.gi { width: 44px; height: 44px; }
     .xucxac-who span { overflow: hidden; text-overflow: ellipsis; }
-    .xucxac-card { position: absolute; left: 50%; top: 700px; width: 640px; transform: translate(-50%, 20px) scale(.7); opacity: 0;
+    .xucxac-card { position: absolute; left: 50%; top: 770px; width: 640px; transform: translate(-50%, 20px) scale(.7); opacity: 0;
         padding: 22px 26px 26px; border-radius: 32px; text-align: center; color: #10203a;
         background: linear-gradient(180deg, #ffffff, #e3ecff); box-shadow: 0 18px 50px rgba(0,0,0,.45), 0 0 0 6px rgba(255,255,255,.55) inset;
         transition: opacity .18s, transform .28s cubic-bezier(.2,1.6,.4,1); }
@@ -29,11 +29,16 @@
     .xucxac-card .nums b.one { background: #d32f2f; }
     .xucxac-card .nums i { font-style: normal; opacity: .55; font-size: 52px; }
     .xucxac-card .nums em { font-style: normal; color: #d32f2f; }
-    .xucxac-card .say { font-size: 42px; font-weight: 900; line-height: 1.18; margin-top: 12px; }
-    .xucxac-hint { position: absolute; left: 50%; top: 640px; transform: translateX(-50%); font-size: 28px; font-weight: 800; opacity: .8;
+    .xucxac-card .say { font-size: 42px; font-weight: 900; line-height: 1.18; margin-top: 12px;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .xucxac-card .say.long { font-size: 34px; }
+    .xucxac-card::after { content: ''; position: absolute; left: 12px; right: 12px; top: 8px; height: 45%; pointer-events: none;
+        border-radius: 26px 26px 50% 50% / 26px 26px 22px 22px; background: linear-gradient(rgba(255,255,255,.7), rgba(255,255,255,0)); }
+    .xucxac-card .nums b { box-shadow: inset 0 -6px 0 rgba(0,0,0,.25), inset 0 3px 0 rgba(255,255,255,.18), 0 6px 14px rgba(0,0,0,.25); }
+    .xucxac-hint { position: absolute; left: 50%; top: 735px; transform: translateX(-50%); font-size: 28px; font-weight: 800; opacity: .8;
         padding: 6px 18px; border-radius: 26px; background: rgba(0,0,0,.45); white-space: nowrap; transition: opacity .3s; }
     .xucxac-hint.hide { opacity: 0; }
-    .xucxac-q { position: absolute; left: 50%; top: 960px; transform: translateX(-50%); padding: 6px 20px; border-radius: 30px;
+    .xucxac-q { position: absolute; left: 50%; top: 1040px; transform: translateX(-50%); padding: 6px 20px; border-radius: 30px;
         background: rgba(0,0,0,.55); font-size: 28px; font-weight: 800; white-space: nowrap; }
     .xucxac-q[hidden] { display: none; }
 </style>
@@ -61,6 +66,7 @@
  * Spec docs/superpowers/specs/2026-11-12-gapthu-xucxac-design.md §4.2 */
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const qs = new URLSearchParams(location.search);
 const isReview = qs.get('review') === '1', isDemo = qs.get('demo') === '1', muted = qs.get('mute') === '1', low = qs.get('q') === 'low';
@@ -82,67 +88,117 @@ function fit() {
 addEventListener('resize', fit); fit();
 
 // ---------- Three ----------
-const W = 760, H = 640;
+const W = 760, H = 720;
 const renderer = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true, preserveDrawingBuffer: !!shotSpec });
 renderer.setPixelRatio(low ? 1 : Math.min(2, devicePixelRatio || 1));
 renderer.setSize(W, H, false);
 renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = !low;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
+// môi trường phản chiếu dựng từ cảnh phòng có sẵn (không tải ảnh ngoài) — cho nhựa bóng / vàng có ánh phản chiếu thật
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+pmrem.dispose();
 const camera = new THREE.PerspectiveCamera(32, W / H, 0.1, 100);
-camera.position.set(0, 6.3, 5.6);
-camera.lookAt(0, 0.2, 0);
-scene.add(new THREE.HemisphereLight(0xffffff, 0x445066, 1.5));
-const sun = new THREE.DirectionalLight(0xffffff, 2.3);
-sun.position.set(3, 9, 4);
+camera.position.set(0, 7.7, 6.9);
+camera.lookAt(0, 0, 0.35);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x3a3048, 0.55));
+const sun = new THREE.DirectionalLight(0xfff4e6, 2.4);
+sun.position.set(3.2, 9, 4.2);
 sun.castShadow = !low;
-sun.shadow.mapSize.set(1024, 1024);
-Object.assign(sun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 1, far: 25 });
+sun.shadow.mapSize.set(low ? 512 : 2048, low ? 512 : 2048);
+sun.shadow.radius = 4;
+sun.shadow.bias = -0.0004;
+Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 1, far: 25 });
 scene.add(sun);
-// bàn: chỉ bóng đổ + vòng mờ (nền vẫn trong suốt cho OBS)
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), new THREE.ShadowMaterial({ opacity: 0.38 }));
-floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-const ring = new THREE.Mesh(new THREE.RingGeometry(2.45, 2.58, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22 }));
-ring.rotation.x = -Math.PI / 2; ring.position.y = 0.01; scene.add(ring);
+const rim = new THREE.DirectionalLight(0xff8cc6, 0.9);   // viền sáng hồng phía sau cho khối nổi khỏi nền
+rim.position.set(-4, 3, -5); scene.add(rim);
+// bóng đổ của cả khay xuống "bàn" vô hình (nền vẫn trong suốt cho OBS)
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), new THREE.ShadowMaterial({ opacity: 0.35 }));
+floor.rotation.x = -Math.PI / 2; floor.position.y = -0.17; floor.receiveShadow = true; scene.add(floor);
+// khay xúc xắc: lòng nỉ (vân sợi vẽ canvas) + viền gỗ bóng
+function feltTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 512;
+    const g = c.getContext('2d');
+    const gr = g.createRadialGradient(256, 256, 40, 256, 256, 256);
+    gr.addColorStop(0, '#1d7a5c'); gr.addColorStop(.75, '#11553f'); gr.addColorStop(1, '#0a3527');
+    g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+    const img = g.getImageData(0, 0, 512, 512), d = img.data;
+    for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - .5) * 22; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+    g.putImageData(img, 0, 0);
+    g.strokeStyle = 'rgba(255,230,160,.35)'; g.lineWidth = 3; g.setLineDash([10, 8]);
+    g.beginPath(); g.arc(256, 256, 236, 0, Math.PI * 2); g.stroke();
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    return t;
+}
+const tray = new THREE.Group();
+const felt = new THREE.Mesh(new THREE.CircleGeometry(2.7, 96), new THREE.MeshStandardMaterial({ map: feltTexture(), roughness: 0.95, metalness: 0 }));
+felt.rotation.x = -Math.PI / 2; felt.receiveShadow = true; tray.add(felt);
+const rimWood = new THREE.Mesh(new THREE.TorusGeometry(2.82, 0.17, 24, 128),
+    new THREE.MeshPhysicalMaterial({ color: 0x6b3a1f, roughness: 0.38, metalness: 0.05, clearcoat: 0.8, clearcoatRoughness: 0.2 }));
+rimWood.rotation.x = -Math.PI / 2; rimWood.position.y = 0.05; rimWood.castShadow = !low; rimWood.receiveShadow = true; tray.add(rimWood);
+const base = new THREE.Mesh(new THREE.CylinderGeometry(2.98, 3.05, 0.14, 96), new THREE.MeshStandardMaterial({ color: 0x2b170c, roughness: 0.6 }));
+base.position.y = -0.09; base.castShadow = !low; tray.add(base);
+scene.add(tray);
 
-// mặt xúc xắc: vẽ chấm bằng canvas
+// mặt xúc xắc: màu + chấm khắc lõm (map) và bản đồ lồi lõm (bumpMap) vẽ bằng canvas
 const COLORS = {
-    white: { bg: '#fbfbf8', pip: '#1d1d24', one: '#d32f2f', edge: '#e2e2dc' },
-    red: { bg: '#d8312f', pip: '#ffffff', one: '#ffe082', edge: '#b02420' },
-    black: { bg: '#202028', pip: '#ffffff', one: '#ff5252', edge: '#121218' },
-    gold: { bg: '#f3c64f', pip: '#4a3200', one: '#c62828', edge: '#d9a92e' }
+    white: { bg: '#fbfaf5', pip: '#1d1d24', one: '#8c0010', metal: 0, rough: 0.3 },
+    red: { bg: '#d42f2d', pip: '#ffffff', one: '#ffe082', metal: 0, rough: 0.28 },
+    black: { bg: '#1e1e26', pip: '#f4f4f4', one: '#e8101e', metal: 0, rough: 0.25 },
+    gold: { bg: '#e9b93c', pip: '#3a2600', one: '#b71c1c', metal: 0.55, rough: 0.3 }
 };
 const PIPS = { 1: [[.5, .5]], 2: [[.27, .27], [.73, .73]], 3: [[.27, .27], [.5, .5], [.73, .73]], 4: [[.27, .27], [.73, .27], [.27, .73], [.73, .73]],
     5: [[.27, .27], [.73, .27], [.5, .5], [.27, .73], [.73, .73]], 6: [[.27, .25], [.73, .25], [.27, .5], [.73, .5], [.27, .75], [.73, .75]] };
+const pipR = v => v === 1 ? 46 : 24;
 function faceTexture(v, col) {
     const c = document.createElement('canvas'); c.width = c.height = 256;
     const g = c.getContext('2d');
     g.fillStyle = col.bg; g.fillRect(0, 0, 256, 256);
-    g.strokeStyle = col.edge; g.lineWidth = 10; g.strokeRect(5, 5, 246, 246);
+    // tối nhẹ sát mép (mặt bo cong hứng ít sáng hơn)
+    const vg = g.createRadialGradient(128, 128, 90, 128, 128, 182);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.14)');
+    g.fillStyle = vg; g.fillRect(0, 0, 256, 256);
     for (const [x, y] of PIPS[v]) {
-        const r = v === 1 ? 46 : 24;
-        const grd = g.createRadialGradient(x * 256 - r * .3, y * 256 - r * .3, r * .1, x * 256, y * 256, r);
-        const base = v === 1 ? col.one : col.pip;
-        grd.addColorStop(0, base); grd.addColorStop(1, base);
-        g.fillStyle = grd; g.beginPath(); g.arc(x * 256, y * 256, r, 0, Math.PI * 2); g.fill();
-        g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 3; g.stroke();
+        const r = pipR(v), px = x * 256, py = y * 256, base = v === 1 ? col.one : col.pip;
+        // lõm: màu chấm + bóng trong phía trên trái, sáng mép dưới phải
+        g.fillStyle = base; g.beginPath(); g.arc(px, py, r, 0, Math.PI * 2); g.fill();
+        const sh = g.createRadialGradient(px + r * .35, py + r * .35, r * .2, px, py, r);
+        sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(.75, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.45)');
+        g.fillStyle = sh; g.beginPath(); g.arc(px, py, r, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = v === 1 ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.55)'; g.lineWidth = 2.5; g.beginPath(); g.arc(px, py, r - 1, Math.PI * .05, Math.PI * .7); g.stroke();
     }
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
     return t;
+}
+function bumpTexture(v) {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, 256, 256);
+    for (const [x, y] of PIPS[v]) {
+        const r = pipR(v), gr = g.createRadialGradient(x * 256, y * 256, r * .2, x * 256, y * 256, r);
+        gr.addColorStop(0, '#000'); gr.addColorStop(.8, '#222'); gr.addColorStop(1, '#fff');
+        g.fillStyle = gr; g.beginPath(); g.arc(x * 256, y * 256, r, 0, Math.PI * 2); g.fill();
+    }
+    return new THREE.CanvasTexture(c);
 }
 // thứ tự nhóm của BoxGeometry: +X, -X, +Y, -Y, +Z, -Z → giá trị (mặt đối diện cộng 7)
 const FACE_VALUES = [3, 4, 1, 6, 2, 5];
 const FACE_NORMALS = { 3: [1, 0, 0], 4: [-1, 0, 0], 1: [0, 1, 0], 6: [0, -1, 0], 2: [0, 0, 1], 5: [0, 0, -1] };
 let materials = [];
 function buildMaterials() {
-    materials.forEach(m => { m.map?.dispose(); m.dispose(); });
+    materials.forEach(m => { m.map?.dispose(); m.bumpMap?.dispose(); m.dispose(); });
     const col = COLORS[cfg.display?.color] || COLORS.white;
-    materials = FACE_VALUES.map(v => new THREE.MeshStandardMaterial({ map: faceTexture(v, col), roughness: 0.35, metalness: cfg.display?.color === 'gold' ? 0.35 : 0.02 }));
+    materials = FACE_VALUES.map(v => new THREE.MeshPhysicalMaterial({
+        map: faceTexture(v, col), bumpMap: bumpTexture(v), bumpScale: 1.2,
+        roughness: col.rough, metalness: col.metal, clearcoat: 1, clearcoatRoughness: 0.12
+    }));
     dice.forEach(d => { d.mesh.material = materials; });
-}
-const geo = new RoundedBoxGeometry(1, 1, 1, 5, 0.14);
+}const geo = new RoundedBoxGeometry(1, 1, 1, 6, 0.16);
 const dice = [];   // [{ mesh, from, to, qFinal, axis, turns }]
 function ensureDice(n) {
     while (dice.length < n) {
@@ -227,7 +283,7 @@ let cardTimer = 0;
 function showCard(t) {
     const r = t.result, vals = r.values;
     const nums = vals.map(v => `<b class="${v === 1 ? 'one' : ''}">${v}</b>`).join('<i>+</i>') + (vals.length > 1 ? `<i>=</i><em>${r.total}</em>` : '');
-    $('xucxac-card').innerHTML = `<div class="nums">${nums}</div>${r.text ? `<div class="say">${esc(r.text)}</div>` : ''}`;
+    $('xucxac-card').innerHTML = `<div class="nums">${nums}</div>${r.text ? `<div class="say${r.text.length > 34 ? ' long' : ''}">${esc(r.text)}</div>` : ''}`;
     $('xucxac-card').classList.add('on');
     clearTimeout(cardTimer);
     cardTimer = setTimeout(hideCard, Math.max(1400, t.ms * 0.4 + 1400));
@@ -289,7 +345,7 @@ function sfx(kind, k) {
 function layout() {
     const d = cfg.display || {};
     box.style.left = (1080 * (d.x ?? 50) / 100 - 380) + 'px';
-    box.style.top = (1920 * (d.y ?? 55) / 100 - 500) + 'px';
+    box.style.top = (1920 * (d.y ?? 55) / 100 - 540) + 'px';
     box.style.transform = `scale(${(Number(d.scale) || 100) / 100})`;
     box.classList.toggle('off', disabled);
 }
