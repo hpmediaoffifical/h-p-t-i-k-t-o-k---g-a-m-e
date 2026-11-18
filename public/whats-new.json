@@ -15,14 +15,21 @@
     ]
   },
   "1.28.0": {
-    "title": "Chuyên nghiệp hơn, nhẹ hơn",
+    "title": "Đấu Trường Mini",
     "items": [
-      "✅ Kiểm tra trước LIVE: 1 nút soát TikTok, OBS, overlay từng game, camera — có nút sửa nhanh",
-      "➕ Thêm overlay vào OBS bằng 1 nút cho mọi game",
-      "🎬 Kiểu buổi LIVE: bấm 1 chip bật đúng bộ game · 🎚 Trộn âm từng game",
-      "🌙 Giao diện Tối · biểu tượng riêng từng game · rê chuột xem trước game",
-      "🫙 Hũ Thủy Tinh chứa nhiều quà hơn: xếp sát theo hình thật, quà trượt tự bay về, gộp quà rẻ thành chồng ×N",
-      "Bảng gọn nổi trên cùng có số liệu LIVE + phím tắt mở/ẩn; app nhẹ hơn khi mở"
+      "🎲 Đấu Trường Mini: 5 trò theo lượt 3D (Hà Mã, Dê Núi, Tháp Tre, Săn Cặp Quà, Ô Ăn Quan)",
+      "Tặng quà vào ghế, tới lượt bình luận số; trúng bẫy bị loại, quà khiên đỡ 1 lần"
+    ]
+  },
+  "1.29.0": {
+    "title": "Game mới + app chuyên nghiệp hơn",
+    "items": [
+      "🎧 Gọi Bài: tặng quà gọi bài, phát đoạn hay nhất, ⚔️ Đấu Bài",
+      "🕹️ Gắp Thú · 🎲 Xúc Xắc 3D · 🔨 Đấu Giá · 🥇 Top 3 Kết Thúc Trận · ⚽ Sút Bóng · 📒 Sổ Fan",
+      "✅ Kiểm tra trước LIVE · ➕ Thêm overlay vào OBS bằng 1 nút cho mọi game",
+      "🎬 Kiểu buổi LIVE · 🎚 Trộn âm từng game · 🌙 Giao diện Tối · Bảng gọn nổi trên cùng",
+      "🫙 Hũ chứa nhiều quà hơn, quà trượt tự bay về hũ; app nhẹ hơn khi mở",
+      "🎛️ Plugin Stream Deck; sửa lỗi treo ván Đấu Trường Mini khi mời người khỏi ghế"
     ]
   }
 }
