@@ -66,6 +66,16 @@ const FILES = [
     ['public/games/gametuongtac/registry.js', 'danh sách Game Tương Tác (thiếu = menu rỗng)'],
     // 🎮 Game tải riêng (Sinh Tồn, HP Đại Chiến): server require lib/game-download lúc khởi động
     ['lib/game-download.js', 'tải game riêng (thiếu = server không khởi động)'],
+    // 🎲 Đấu Trường Mini: server require lib/luot-choi/controller lúc khởi động
+    ['lib/luot-choi/controller.js', 'điều phối Đấu Trường Mini (thiếu = server không khởi động)'],
+    ['lib/luot-choi/table.js', 'khung ghế + lượt Đấu Trường Mini'],
+    ['lib/luot-choi/games/index.js', '5 trò Đấu Trường Mini'],
+    ['lib/luot-choi/games/oanquan.js', 'luật Ô Ăn Quan'],
+    ['public/games/luotchoi/overlay.html', 'overlay Đấu Trường Mini'],
+    ['public/games/luotchoi/board3d.js', 'bàn 3D Đấu Trường Mini'],
+    ['public/games/luotchoi/sfx.js', 'âm thanh hiệu ứng Đấu Trường Mini'],
+    ['public/games/luotchoi/luotchoi-panel.js', 'panel Đấu Trường Mini'],
+    ['public/games/luotchoi/assets/goat.glb', 'mô hình dê núi (CC BY 3.0)'],
     ['public/games/gametuongtac/download-card.js', 'thẻ Tải về / Mở game của game tải riêng'],
     ['public/games/nhatu/overlay.html', 'overlay Nhà Tù Online'],
     ['public/games/nhatu/js/game.js', 'engine Nhà Tù Online'],

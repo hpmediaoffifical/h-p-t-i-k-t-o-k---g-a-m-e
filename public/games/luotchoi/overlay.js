@@ -14,11 +14,12 @@
     var $ = function (id) { return document.getElementById(id); };
     var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
     var COLORS = ['#ff6b8b', '#4fb3ff', '#ffb547', '#39d98a', '#b388ff', '#ff8a4c'];
-    var TRAP_WORD = { hama: '🦛 NGOẠM!', chumcoc: '🐸 CÓC NHẢY RA!', thaptre: '🎋 THÁP ĐỔ!' };
-    var SAVE_WORD = { hama: 'rụt tay kịp', chumcoc: 'giữ được nắp chum', thaptre: 'đỡ được tháp' };
-    var TRAP_SAY = { hama: '{n} bị hà mã cắn rồi!', chumcoc: 'Cóc nhảy ra! {n} dính bẫy!', thaptre: 'Tháp đổ! {n} thua rồi!' };
-    var VERB = { hama: 'ấn răng', chumcoc: 'cắm lỗ', thaptre: 'rút thanh', latcap: 'lật ô' };
-    var TOOL = { hama: 'press', chumcoc: 'stick', thaptre: 'pull', latcap: 'tap' };
+    var TRAP_WORD = { hama: '🦛 NGOẠM!', chumcoc: '🐐 DÊ NÚI NHẢY RA!', thaptre: '🎋 THÁP ĐỔ!' };
+    var SAVE_WORD = { hama: 'rụt tay kịp', chumcoc: 'bám được vách đá', thaptre: 'đỡ được tháp' };
+    var TRAP_SAY = { hama: '{n} bị hà mã cắn rồi!', chumcoc: 'Dê núi nhảy ra! {n} dính bẫy!', thaptre: 'Tháp đổ! {n} thua rồi!' };
+    var VERB = { hama: 'ấn răng', chumcoc: 'cắm hốc', thaptre: 'rút thanh', latcap: 'lật ô', oanquan: 'bốc quân' };
+    var DIR = { 1: 'sang trái', 2: 'sang phải' };
+    var TOOL = { hama: 'press', chumcoc: 'stick', thaptre: 'pull', latcap: 'tap', oanquan: 'press' };
     var SUSPENSE_MS = 800;   // = lib/luot-choi/table.js SUSPENSE_MS
     var RING = 2 * Math.PI * 50;
 
@@ -62,6 +63,8 @@
         audio.play().catch(done);
     }
 
+    function sfx(name, o) { try { window.LcSfx && window.LcSfx.play(name, o); } catch (e) {} }
+    var TRAP_SFX = { hama: 'chomp', chumcoc: 'boing', thaptre: 'clatter' };   // bản 2D (không WebGL): 3D tự kêu đúng lúc diễn
     function toast(text, kind) {
         var el = document.createElement('div');
         el.className = 'lc-toast' + (kind ? ' ' + kind : '');
@@ -79,6 +82,12 @@
     }
     function sayPicks(s, picks) {
         if (!picks.length) return;
+        if (s.game.id === 'oanquan') {
+            var nm0 = speakName(picks[0].nickname);
+            var cell = picks.find(function (p) { return p.outcome === 'pending'; }), mv = picks.find(function (p) { return p.outcome === 'move'; });
+            say(cell && mv ? T('{n} chọn ô {c}, rải {d}', { n: nm0, c: cell.n, d: DIR[mv.n] }) : cell ? T('{n} chọn ô {c}', { n: nm0, c: cell.n }) : T('{n} rải {d}', { n: nm0, d: DIR[mv.n] }));
+            return;
+        }
         var name = speakName(picks[0].nickname);
         var nums = picks.map(function (p) { return p.n; }).join(' và ');
         say(T('{n} chọn số {x}', { n: name, x: nums }));
@@ -95,20 +104,32 @@
             lastSeq = Math.max(lastSeq, e.seq);
             var who = '<b>' + esc(e.nickname || '') + '</b>', nm = speakName(e.nickname || seatName(s, e.key));
             switch (e.type) {
-                case 'pick': fresh = true; if (e.outcome === 'trap') toast(T(TRAP_WORD[g] || '💥'), 'bad'); break;
-                case 'seat': toast('🪑 ' + who + ' ' + T('vào ghế')); break;
+                case 'pick': fresh = true; if (e.outcome === 'trap') { toast(T(TRAP_WORD[g] || '💥'), 'bad'); if (!(window.LcBoards3D && window.LcBoards3D.ready)) sfx(TRAP_SFX[g]); } break;
+                case 'seat': toast('🪑 ' + who + ' ' + T('vào ghế')); sfx('seat'); break;
                 case 'queue': toast('⏳ ' + who + ' ' + T('chờ ván sau')); break;
-                case 'shieldAdd': toast('🛡️ ' + who + ' ' + T('+1 khiên'), 'good'); say(T('{n} có thêm khiên', { n: nm }), true); break;
-                case 'shield': toast('🛡️ ' + who + ' ' + T(SAVE_WORD[g] || 'được khiên cứu'), 'good'); say(T('{n} được khiên cứu!', { n: nm })); break;
-                case 'match': toast('✨ ' + T('Trúng cặp! +1'), 'good'); say(T('{n} lật trúng cặp!', { n: nm })); break;
-                case 'miss': say(T('Trượt rồi!')); break;
-                case 'start': toast('🎲 ' + T('Bắt đầu!')); say(T('Bắt đầu!')); break;
-                case 'turn': if (e.key) say(T('Tới lượt {n}', { n: nm }), true); break;
-                case 'win': say(T('{n} vô địch!', { n: (e.winners || []).map(function (w) { return speakName(w.nickname); }).join(' và ') })); break;
-                case 'draw': say(T('Hoà rồi!')); break;
+                case 'shieldAdd': sfx('shield'); toast('🛡️ ' + who + ' ' + T('+1 khiên'), 'good'); say(T('{n} có thêm khiên', { n: nm }), true); break;
+                case 'shield': sfx('shield'); toast('🛡️ ' + who + ' ' + T(SAVE_WORD[g] || 'được khiên cứu'), 'good'); say(T('{n} được khiên cứu!', { n: nm })); break;
+                case 'match': sfx('match', { delay: 0.35 }); toast('✨ ' + T('Trúng cặp! +1'), 'good'); say(T('{n} lật trúng cặp!', { n: nm })); break;
+                case 'miss': sfx('miss', { delay: 0.4 }); say(T('Trượt rồi!')); break;
+                case 'move': {   // Ô Ăn Quan: tổng quân ăn được trong nước vừa rải
+                    var tr = (s.board && s.board.lastMove && s.board.lastMove.trace) || [], dan = 0, quan = 0;
+                    tr.forEach(function (x) { if (x.k === 'cap') { dan += x.dan; quan += x.quan; } });
+                    if (quan) { toast('👑 ' + who + ' ' + T('ăn QUAN!'), 'good'); say(T('{n} ăn quan!', { n: nm })); }
+                    else if (dan) { toast('🪨 ' + who + ' ' + T('ăn {d} quân', { d: dan }), 'good'); say(T('{n} ăn được {d} quân', { n: nm, d: dan })); }
+                    break;
+                }
+                case 'refill':
+                    toast('🪨 ' + who + ' ' + T('hết dân — rải lại 5 quân') + (e.borrowed ? ' (' + T('vay {b}', { b: e.borrowed }) + ')' : ''));
+                    say(T('{n} hết dân, rải lại 5 quân', { n: nm }), true);
+                    break;
+                case 'start': sfx('start'); toast('🎲 ' + T('Bắt đầu!')); say(T('Bắt đầu!')); break;
+                case 'turn': if (e.key) sfx('turn'); if (e.key) say(T('Tới lượt {n}', { n: nm }), true); break;
+                case 'win': sfx('win', { delay: 0.3 }); say(T('{n} vô địch!', { n: (e.winners || []).map(function (w) { return speakName(w.nickname); }).join(' và ') })); break;
+                case 'draw': sfx('draw'); say(T('Hoà rồi!')); break;
                 case 'out':
                     if (e.kicked) toast('👋 ' + who + ' ' + T('rời ghế'));
                     else {
+                        sfx('trash', { delay: 0.6 });
                         toast('🗑️ ' + (e.byNickname ? '<b>' + esc(e.byNickname) + '</b> ' + T('ném') + ' ' : '') + who + ' ' + T('vào thùng rác!'), 'bad');
                         say(T(TRAP_SAY[g] || '{n} dính bẫy!', { n: nm }));
                     }
@@ -119,21 +140,17 @@
     }
 
     // ── tay bay vào ô vừa chọn ─────────────────────────────────────────────
-    function handHtml(tool) {
-        if (tool === 'stick') return '<svg viewBox="0 0 60 236" width="60" height="236"><rect x="24" y="0" width="12" height="220" rx="6" fill="#8fc24a"/>' +
-            '<rect x="24" y="52" width="12" height="5" fill="#5f8a26"/><rect x="24" y="118" width="12" height="5" fill="#5f8a26"/><rect x="24" y="184" width="12" height="5" fill="#5f8a26"/>' +
-            '<path d="M24 214 L30 232 L36 214 Z" fill="#c9a86a"/></svg>';
-        // găng tay hoạt hình chỉ ngón trỏ xuống (đầu ngón ở góc trên-trái của khung + lề âm trong CSS)
-        return '<svg viewBox="0 0 120 170" width="120" height="170">' +
-            '<rect x="28" y="0" width="26" height="78" rx="13" fill="#fff" stroke="#2b2f4a" stroke-width="5"/>' +
-            '<path d="M14 70 Q14 58 28 58 L96 58 Q112 58 112 76 L112 120 Q112 160 70 160 L46 160 Q14 160 14 124 Z" fill="#fff" stroke="#2b2f4a" stroke-width="5"/>' +
-            '<path d="M58 62 L58 92 M78 62 L78 92 M96 64 L96 92" stroke="#2b2f4a" stroke-width="4" stroke-linecap="round"/>' +
-            '<rect x="22" y="150" width="78" height="20" rx="8" fill="#ff4f8b" stroke="#2b2f4a" stroke-width="5"/></svg>';
-    }
+    // bàn tay / que tre vẽ ở hand-art.js (window.LcHandArt), có thể thay bằng ảnh vẽ tay qua assets/manifest.json
+    function handHtml(tool) { return window.LcHandArt ? window.LcHandArt(tool === 'stick' ? 'stick' : 'point') : ''; }
     var lastPress = '';
     function stopHand(hand) { try { hand.getAnimations().forEach(function (a) { a.cancel(); }); } catch (e) {} }
     function cellOf(n) { return $('stage').querySelector('[data-n="' + n + '"]'); }
     function flyTo(n, tool, ms) {
+        // bàn 3D: bàn tay 3D dựng trong cảnh (ánh sáng + bóng đổ cùng bàn chơi)
+        if (window.LcBoards3D && window.LcBoards3D.ready && window.LcBoards3D.fly) {
+            var c3 = cellOf(n); if (c3) c3.classList.add('aim');
+            return window.LcBoards3D.fly(n, tool, ms);
+        }
         return new Promise(function (res) {
             var cell = cellOf(n), hand = $('hand'), card = $('card');
             if (!cell || !hand) return setTimeout(res, ms);
@@ -156,6 +173,7 @@
         });
     }
     function handAway(tool) {
+        if (window.LcBoards3D && window.LcBoards3D.ready && window.LcBoards3D.away) { window.LcBoards3D.away(tool); return; }
         var hand = $('hand');
         if (!hand || hand.hidden) return;
         var out = tool === 'pull' ? ' translate(240px, 0)' : ' translate(260px, 420px) rotate(-20deg)';
@@ -166,6 +184,13 @@
     }
 
     // ── trạng thái vào → (diễn) → vẽ ───────────────────────────────────────
+    // ô tay cần bay tới cho 1 lượt chọn: số ô; Ô Ăn Quan = "bên:ô" (bước chọn hướng không bay)
+    function targetOf(s, p) {
+        if (s.game.id !== 'oanquan') return String(p.n);
+        if (p.outcome !== 'pending') return null;
+        var side = (s.seats || []).findIndex(function (x) { return x.key === p.key; });
+        return (side < 0 ? 0 : side) + ':' + p.n;
+    }
     function incoming(s) {
         pending = s;
         if (!staging) pump();
@@ -178,15 +203,16 @@
         var picks = evs.filter(function (e) { return e.type === 'pick'; });
         var rebuilt = evs.some(function (e) { return e.type === 'start' || e.type === 'rebuild'; });
         var shown = st && st.board;
-        var canStage = picks.length && shown && !rebuilt && s.board && st.board.kind === s.board.kind && !document.hidden;
+        var targets = picks.map(function (p) { return targetOf(s, p); }).filter(Boolean);
+        var canStage = targets.length && shown && !rebuilt && s.board && st.board.kind === s.board.kind && !document.hidden;
         if (!canStage) { apply(s, evs, false); return; }
         // Diễn: tay bay vào từng ô (Lật Cặp có thể 2 ô trong 1 bình luận) trên bàn cũ → đợi → lộ kết quả
         staging = true;
         sayPicks(s, picks);
         var tool = TOOL[s.board.kind] || 'press';
-        var per = Math.max(380, Math.round(SUSPENSE_MS / picks.length)) * SLOW;
+        var per = Math.max(380, Math.round(SUSPENSE_MS / targets.length)) * SLOW;
         var chain = Promise.resolve();
-        picks.forEach(function (p) { chain = chain.then(function () { return flyTo(p.n, tool, per); }); });
+        targets.forEach(function (t) { chain = chain.then(function () { return flyTo(t, tool, per); }); });
         chain.then(function () {
             apply(s, evs, true);
             handAway(tool);
@@ -195,16 +221,55 @@
         });
     }
 
+    // 🪨 Ô Ăn Quan: bảng tính điểm — quân đã ăn của từng người (dân × 1đ + quan × 10đ − vay = tổng)
+    function renderOqScore(s) {
+        var el = $('oqscore');
+        if (!el) return;
+        // lúc chờ người cũng hiện (bàn mẫu, điểm 0) → bắt đầu ván không làm cả khung nhảy vị trí
+        var b = s.board || s.preview;
+        if (s.game.id !== 'oanquan' || !b) { el.hidden = true; return; }
+        b = Object.assign({ captured: [{ dan: 0, quan: 0 }, { dan: 0, quan: 0 }], scores: [0, 0] }, b);
+        var qv = b.quanValue || 10;
+        el.hidden = false;
+        el.innerHTML = '<div class="oqs-h">' + T('Quân đã ăn → điểm') + ' <small>(' + T('dân 1đ · quan {q}đ', { q: qv }) + ')</small></div>' +
+            [0, 1].map(function (i) {
+                var x = s.seats[i] || {}, c = b.captured[i] || { dan: 0, quan: 0 }, debt = (b.debt || [0, 0])[i] - (b.debt || [0, 0])[1 - i];
+                var total = (b.scores || [])[i] || 0;
+                return '<div class="oqs-row s' + i + (x.turn ? ' turn' : '') + '"><b class="nm">' + (i === 0 ? '▲ ' : '▼ ') + esc(x.nickname || '') + '</b>' +
+                    '<span>🪨 ' + c.dan + ' ' + T('dân') + '</span><span>👑 ' + c.quan + ' ' + T('quan') + ' × ' + qv + '</span>' +
+                    (debt ? '<span class="debt">' + (debt > 0 ? '− ' + T('vay') + ' ' + debt : '+ ' + T('cho vay') + ' ' + (-debt)) + '</span>' : '') +
+                    '<b class="tot">= ' + total + ' ' + T('điểm') + '</b></div>';
+            }).join('');
+    }
+
+    // Giao diện LIVE: khung neo dưới/giữa/trên, nền kính mờ xám (độ mờ %), cỡ khung % — để vẫn thấy creator phía sau.
+    // ?layout=bottom|middle|top&glass=0-90&scale=55-100 trên link OBS thắng cấu hình panel.
+    function applyLayout(c) {
+        c = c || {};
+        var lay = params.get('layout') || c.layout || 'bottom';
+        var glass = params.has('glass') ? Number(params.get('glass')) : (c.glass ?? 35);
+        var sc = params.has('scale') ? Number(params.get('scale')) : (c.cardScale ?? 85);
+        var card = $('card'), res = $('result');
+        card.dataset.layout = lay; res.dataset.layout = lay;
+        card.dataset.frame = params.get('frame') || c.frame || 'hud';
+        if (st && st.game) card.dataset.game = st.game.id;   // vùng bàn cao theo trò (Ô Ăn Quan dẹt → thấp hơn)
+        document.documentElement.style.setProperty('--lc-glass', String(Math.max(0, Math.min(90, glass)) / 100));
+        document.documentElement.style.setProperty('--lc-scale', String(Math.max(55, Math.min(100, sc)) / 100));
+    }
+
     function renderSeats(s) {
-        var n = s.cfg.seats, html = '';
+        var n = s.cfg.seats, cells = [];
         for (var i = 0; i < n; i++) {
             var x = s.seats[i];
-            if (!x) { html += '<div class="lc-seat empty"><div class="lc-av" style="background:rgba(255,255,255,.08)">🪑</div><div class="nm">' + T('Ghế trống') + '</div><div class="sub"></div></div>'; continue; }
-            var sub = (x.shields ? '🛡️'.repeat(x.shields) : '') + (s.game.kind === 'score' && s.phase !== 'lobby' ? ' ' + x.score + ' ' + T('cặp') : '') + (x.host ? ' 🎙️' : '');
-            html += '<div class="lc-seat' + (x.turn ? ' turn' : '') + (x.out ? ' out' : '') + '" data-k="' + esc(x.key) + '"><span class="no">' + (i + 1) + '</span>' +
-                (x.out ? '<span class="bin">🗑️</span>' : '') + avatar(x) + '<div class="nm">' + esc(x.nickname) + '</div><div class="sub">' + sub + '</div></div>';
+            if (!x) { cells.push('<div class="lc-seat empty"><div class="lc-av" style="background:rgba(255,255,255,.08)">🪑</div><div class="txt"><div class="nm">' + T('Ghế trống') + '</div><div class="sub"></div></div></div>'); continue; }
+            var sub = (x.shields ? '🛡️'.repeat(x.shields) : '') + (s.game.kind === 'score' && s.phase !== 'lobby' ? ' ' + x.score + ' ' + T(s.game.id === 'oanquan' ? 'điểm' : 'cặp') : '') + (x.host ? ' 🎙️' : '');
+            cells.push('<div class="lc-seat' + (x.turn ? ' turn' : '') + (x.out ? ' out' : '') + '" data-k="' + esc(x.key) + '"><span class="no">' + (i + 1) + '</span>' +
+                (x.out ? '<span class="bin">🗑️</span>' : '') + avatar(x) + '<div class="txt"><div class="nm">' + esc(x.nickname) + '</div><div class="sub">' + sub + '</div></div></div>');
         }
-        $('seats').innerHTML = html;
+        // 2 người: thanh đối đầu A – VS – B
+        if (n === 2) cells.splice(1, 0, '<div class="lc-vs">VS</div>');
+        $('seats').classList.toggle('vs2', n === 2);
+        $('seats').innerHTML = cells.join('');
     }
 
     function rangeText(s) {
@@ -214,11 +279,15 @@
         return lo === hi ? String(lo) : lo + '–' + hi;
     }
 
+    var giftImg = {};   // id quà → ảnh (bảng quà của app), cho quà gắn thiếu ảnh
+    function loadGiftImg() { fetch('/api/gifts').then(function (r) { return r.json(); }).then(function (list) { (list || []).forEach(function (g) { if (g && g.image) giftImg[String(g.id)] = g.image; }); if (!Object.keys(giftImg).length) setTimeout(loadGiftImg, 15000); renderPrompt(); }).catch(function () { setTimeout(loadGiftImg, 15000); }); }
+    loadGiftImg();
     function renderPrompt() {
         var s = st, el = $('prompt');
         if (!s) return;
-        var gift = (s.cfg.seatGifts || [])[0];
-        var giftHtml = gift ? (gift.giftImage ? '<img src="' + esc(gift.giftImage) + '" alt=""> ' : '🎁 ') + '<b>' + esc(gift.giftName || T('quà')) + '</b>' : '🎁';
+        // CHỈ icon quà vào ghế đã gắn ở panel (tối đa 3), không tên / không xu; thiếu ảnh → tra /api/gifts theo id
+        var gifts = (s.cfg.seatGifts || []).slice(0, 3);
+        var giftHtml = gifts.length ? gifts.map(function (g) { var img = g.giftImage || giftImg[String(g.giftId)]; return img ? '<img src="' + esc(img) + '" alt="">' : '🎁'; }).join('') : '🎁';
         if (staging) { el.innerHTML = '<span class="lc-wait-dots">' + T('Đang {v}', { v: T(VERB[s.game.id] || 'chọn') }) + '</span>'; return; }
         if (s.phase === 'lobby') {
             var free = s.cfg.seats - s.seats.length;
@@ -228,11 +297,18 @@
             el.innerHTML = line;
         } else if (s.phase === 'playing') {
             var cur = s.seats.find(function (x) { return x.turn; });
-            if (s.holdUntil || !cur) { el.innerHTML = '&nbsp;'; return; }
+            if (s.holdUntil || !cur) { el.innerHTML = ''; return; }
+            if (s.game.id === 'oanquan') {
+                var hint = s.board && s.board.sel != null
+                    ? T('Bước 2 · chọn hướng rải: gõ') + ' <b>trái</b> ⬅ ' + T('hoặc') + ' <b>phải</b> ➡'
+                    : T('gõ ô+hướng, vd') + ' <b>52</b> <small>(' + T('1 trái · 2 phải') + ')</small>';
+                el.innerHTML = T('Tới lượt') + ' <b>' + esc(cur.nickname) + '</b> · ' + hint + ' <span class="cd">' + secLeft(s.turnUntil) + 's</span>';
+                return;
+            }
             var oneOpen = s.board && s.board.cards && s.board.cards.some(function (c) { return c.open && !c.matched; });
             var how = oneOpen ? T('lật thêm 1 số') + ' <b>' + rangeText(s) + '</b>' : s.game.perTurn === 2 ? T('bình luận 2 số, vd {a}', { a: '<b>3 9</b>' }) : T('bình luận số còn trống') + ' <b>' + rangeText(s) + '</b>';
             el.innerHTML = T('Tới lượt') + ' <b>' + esc(cur.nickname) + '</b> · ' + how + ' <span class="cd">' + secLeft(s.turnUntil) + 's</span>';
-        } else el.innerHTML = '&nbsp;';
+        } else el.innerHTML = '';
     }
 
     function renderRing() {
@@ -258,7 +334,7 @@
         var by = r.winners[0];
         box.innerHTML = r.draw
             ? '<div class="crown">🤝</div><div class="who">' + T('HOÀ!') + '</div><div class="sub">' + T('Bằng điểm, không ai vào thùng rác') + '</div>'
-            : '<div class="crown">👑</div><div class="who">' + names + '</div><div class="sub">' + T('VÔ ĐỊCH') + (s.game.kind === 'score' ? ' · ' + r.winners[0].score + ' ' + T('cặp') : '') + '</div>' +
+            : '<div class="crown">👑</div><div class="who">' + names + '</div><div class="sub">' + T('VÔ ĐỊCH') + (s.game.kind === 'score' ? ' · ' + r.winners[0].score + ' ' + T(s.game.id === 'oanquan' ? 'điểm' : 'cặp') : '') + '</div>' +
               (loser ? '<div class="sub">' + (by ? '<b>' + esc(by.nickname) + '</b> ' + T('vác') + ' ' : '') + '<b>' + esc(loser.nickname) + '</b> ' + T('ném vào thùng rác') + '</div>' +
                 '<div class="trash"><div class="loser"><span>' + esc(loser.nickname) + '</span></div><div class="can">🗑️</div></div>' : '');
         box.classList.remove('lc-hidden');
@@ -269,6 +345,9 @@
         off = (s.now || Date.now()) - Date.now();
         var show = s.cfg.enabled || s.demo;
         $('card').classList.toggle('lc-hidden', !show);
+        applyLayout(s.cfg);
+        // 🔊 âm thanh hiệu ứng: bật/tắt + âm lượng từ panel; ?mute=1 tắt hết; bàn mẫu ?demo chỉ kêu khi thêm &sfx=1
+        if (window.LcSfx) window.LcSfx.config({ on: s.cfg.sfx !== false && params.get('mute') !== '1' && (!demo || params.get('sfx') === '1'), volume: (s.cfg.sfxVolume ?? 70) / 100, song: s.cfg.oqSong || 'happy' });
         if (!show) { $('result').classList.add('lc-hidden'); firstState = false; lastSeq = Math.max(lastSeq, ((s.events || []).slice(-1)[0] || {}).seq || 0); return; }
         var fresh = handleEvents(s, evs || [], spokenPicks);
         $('g-icon').textContent = s.game.icon;
@@ -280,26 +359,44 @@
         stage.classList.toggle('idle', !s.board);
         // 3D (board3d.js, Three.js) khi đã nạp xong; chưa xong / máy không có WebGL → bản 2D (boards.js)
         var R = window.LcBoards3D && window.LcBoards3D.ready ? window.LcBoards3D : window.LcBoards;
-        R.render(stage, b, { fresh: fresh, marks: s.board ? s.marks : [], colorOf: colorOf, boardId: s.board ? s.boardId : 'preview' });
-        if (!s.board) {
-            var w = document.createElement('div');
-            w.className = 'wait';
-            w.innerHTML = s.seats.length ? T('Chờ người vào ghế…') : T('Tặng quà để ngồi vào bàn chơi');
-            stage.appendChild(w);
-        }
+        R.render(stage, b, { fresh: fresh, marks: s.board ? s.marks : [], colorOf: colorOf, boardId: s.board ? s.boardId : 'preview', players: (s.seats || []).map(function (x) { return x.nickname; }),
+            turnSide: s.phase === 'playing' && !s.holdUntil ? (s.seats || []).findIndex(function (x) { return x.turn; }) : -1, sel: s.board ? s.board.sel : null });
+        renderOqScore(s);
+        // chờ người: KHÔNG in chữ đè lên bàn mẫu — thanh nhắc phía dưới đã ghi "Tặng quà để vào ghế · còn N ghế"
         $('queue').innerHTML = s.queue && s.queue.length ? T('Chờ ván sau') + ': ' + s.queue.slice(0, 6).map(function (q) { return esc(q.nickname); }).join(' · ') + (s.queue.length > 6 ? ' +' + (s.queue.length - 6) : '') : '';
         renderPrompt();
         renderRing();
         renderResult(s);
     }
 
-    setInterval(function () { renderPrompt(); renderRing(); }, 200);
+    // ?sfxtest=1 → bảng nút nghe thử từng tiếng hiệu ứng (bấm = mở khoá âm thanh của trình duyệt)
+    if (params.get('sfxtest') === '1' && window.LcSfx) {
+        var LBL = { press: '👆 Ấn răng', stick: '🎋 Cắm que', pull: '🪵 Rút thanh', chomp: '🦛 Ngoạm', boing: '🐐 Dê bật', bleat: '🐐 Dê kêu', clatter: '💥 Tháp đổ', flip: '🃏 Lật thẻ', match: '✨ Trúng cặp', miss: '😕 Trật', pebble: '🪨 Sỏi rơi', take: '✊ Bốc sỏi', capture: '💰 Ăn quân', quan: '👑 Ăn quan', shield: '🛡️ Khiên', trash: '🗑️ Thùng rác', seat: '🪑 Vào ghế', start: '🎲 Bắt đầu', turn: '🔔 Tới lượt', tick: '⏱️ Đếm giây', win: '🏆 Vô địch', draw: '🤝 Hoà' };
+        var pad = document.createElement('div');
+        pad.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:99;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px;border-radius:18px;background:rgba(12,14,30,.92);font:700 26px system-ui;color:#fff';
+        Object.keys(LBL).forEach(function (k) { var b = document.createElement('button'); b.textContent = LBL[k]; b.style.cssText = 'padding:14px 6px;border-radius:12px;border:0;background:#2b2f55;color:#fff;font:inherit;cursor:pointer'; b.onclick = function () { window.LcSfx.config({ on: true, volume: 0.8 }); window.LcSfx.unlock(); window.LcSfx.play(k); }; pad.appendChild(b); });
+        // 🎹 nghe thử bài rải sỏi: 1 nốt mỗi 170 ms (= nhịp rải trên bàn)
+        [['happy', '🎂 Happy Birthday'], ['twinkle', '⭐ Twinkle'], ['buom', '🦋 Bướm vàng']].forEach(function (sg) {
+            var b = document.createElement('button'); b.textContent = sg[1]; b.style.cssText = 'padding:14px 6px;border-radius:12px;border:0;background:#5a2b55;color:#fff;font:inherit;cursor:pointer';
+            b.onclick = function () { var L = window.LcSfx; L.config({ on: true, volume: 0.8, song: sg[0] }); L.unlock(); L.melodyStart(); var i = 0; var tm = setInterval(function () { L.melodyDrop(); if (++i >= 32) clearInterval(tm); }, 170); };
+            pad.appendChild(b);
+        });
+        document.body.appendChild(pad);
+    }
+    var lastTick = '';
+    function tickSfx() {   // mõ gỗ 5 giây cuối của lượt (giây cuối cao hơn)
+        var s = st;
+        if (!s || s.phase !== 'playing' || s.holdUntil || staging || !s.turnUntil) return;
+        var left = secLeft(s.turnUntil), key = s.turnKey + ':' + s.turnUntil + ':' + left;
+        if (left >= 1 && left <= 5 && key !== lastTick) { lastTick = key; sfx('tick', { last: left === 1 }); }
+    }
+    setInterval(function () { renderPrompt(); renderRing(); tickSfx(); }, 200);
     // bàn 3D nạp xong sau trạng thái đầu → vẽ lại trạng thái đang hiện bằng 3D
     window.addEventListener('lc3d:ready', function () { if (st && !staging) apply(st, [], true); });
     window.__lcOverlay = { get state() { return st; }, get staging() { return staging; } };   // gỡ lỗi / chụp ảnh
 
     if (demo) {
-        var step = Math.max(0, Number(params.get('step')) || 0), game = /^(hama|chumcoc|thaptre|latcap)$/.test(demo) ? demo : 'hama';
+        var step = Math.max(0, Number(params.get('step')) || 0), game = /^(hama|chumcoc|thaptre|latcap|oanquan)$/.test(demo) ? demo : 'hama';
         var poll = function () {
             fetch('/api/luotchoi/demo?game=' + game + '&step=' + step, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (s) {
                 // bàn mẫu chạy trên đồng hồ giả: đổi giờ về "bây giờ" + lượt còn 12 s cho đẹp
@@ -317,6 +414,7 @@
     }
     var socket = io({ transports: ['websocket', 'polling'] });
     socket.on('luotchoi:state', incoming);
+    socket.on('luotchoi:rotate', function (d) { if (window.LcBoards3D && window.LcBoards3D.rotate) window.LcBoards3D.rotate(Number(d && d.dir) || 0, d && d.angle != null ? Number(d.angle) : null, d && d.delta != null ? Number(d.delta) : null); });
     socket.on('overlay:reload', function (d) { if (!d || !d.gameId || d.gameId === 'luotchoi') location.reload(); });
     socket.on('connect', function () { fetch('/api/luotchoi/state', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(incoming).catch(function () {}); });
 })();

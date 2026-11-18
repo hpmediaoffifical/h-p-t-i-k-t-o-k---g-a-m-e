@@ -18,14 +18,16 @@
   </div>
   <div class="lc-seats" id="seats"></div>
   <div class="lc-stage" id="stage"></div>
-  <div class="lc-prompt" id="prompt"></div>
-  <div class="lc-queue" id="queue"></div>
+  <div class="oq-score" id="oqscore" hidden></div>
+  <div class="lc-foot"><div class="lc-prompt" id="prompt"></div><div class="lc-queue" id="queue"></div></div>
   <div class="lc-hand" id="hand" hidden></div>
 </div>
 <div class="lc-toasts" id="toasts"></div>
 <div class="lc-result lc-hidden" id="result"></div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/lib/overlay-hello.js" data-game="luotchoi"></script>
+<script src="/games/luotchoi/hand-art.js"></script>
+<script src="/games/luotchoi/sfx.js"></script>
 <script src="/games/luotchoi/boards.js"></script>
 <script src="/games/luotchoi/overlay.js"></script>
 <script type="module" src="/games/luotchoi/board3d.js"></script>

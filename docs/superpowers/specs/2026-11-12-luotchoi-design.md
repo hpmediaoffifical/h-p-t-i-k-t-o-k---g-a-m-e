@@ -13,9 +13,10 @@ Chỉ lấy CƠ CHẾ của các trò "đoán bẫy" quen thuộc; tên, hình, 
 | id | Tên | Cơ chế | Kiểu |
 |---|---|---|---|
 | `hama` | 🦛 Hà Mã Đau Răng | ấn răng; trúng răng đau → hà mã ngoạm | bẫy |
-| `chumcoc` | 🐸 Cóc Trốn Chum | cắm que tre vào lỗ chum (8–30 lỗ); trúng lỗ → cóc nhảy vọt ra | bẫy |
+| `chumcoc` | 🐐 Dê Núi (tên cũ Cóc Trốn Chum; 18/11/2026 đổi thành dê núi — con giáp năm Đinh Mùi 2027 — trốn trong mỏm đá núi góc cạnh nhiều hốc) | cắm que tre vào lỗ chum (8–30 lỗ); trúng lỗ → cóc nhảy vọt ra | bẫy |
 | `thaptre` | 🎋 Tháp Tre Chao Đảo | rút thanh tre; tháp đổ → thua | bẫy (xác suất) |
-| `latcap` | 🍉 Săn Cặp Trái Cây | lật 2 ô tìm cặp hình trái cây giống nhau | điểm |
+| `latcap` | 🎁 Săn Cặp Quà | lật 2 ô tìm cặp QUÀ TIKTOK giống nhau (8 quà chủ LIVE chọn từ sheet quà: 5655 Hoa hồng, 7934 Thả tim, 5269 TikTok, 7122 Súng đá quý, 7168 Súng bắn tiền, 6369 Sư tử, 9092 Phượng hoàng lửa, 9072 TikTok Universe → tối đa 8 cặp; mặt thẻ CHỈ ảnh quà) | điểm |
+| `oanquan` | 🪨 Ô Ăn Quan | trò dân gian 2 người: rải quân, ăn dân, ăn quan (§2.2) | điểm |
 
 ## 2. Luật chung (khung ghế + lượt)
 
@@ -53,6 +54,62 @@ rút thanh cuối cùng của một tầng (hiếm khi hết lựa chọn thì n
 - Ngược lại `p = base(0.04) + 0.02·số thanh đã rút + 0.05·(1 − L/levels)` (tầng thấp đỡ nhiều hơn → rủi ro hơn), nhân
   `0.6` nếu rút thanh giữa khi 2 bên còn đủ, nhân `1.6` nếu rút xong tầng chỉ còn thanh giữa; chặn trên 0.9.
 - Đổ → loại; có khiên → thanh được nhét lại, tháp lung lay nhưng đứng.
+
+### 2.2 🪨 Ô Ăn Quan (`oanquan`) — thêm 18/11/2026
+
+Trò dân gian Việt Nam, luật **thống nhất từ nhiều nguồn**: avakids.com (hướng dẫn chi tiết), Wikipedia "Ô ăn quan",
+Sforum (cellphones.com.vn). Chỗ các nguồn khác nhau → chọn cách phổ biến nhất, ghi rõ bên dưới.
+
+- **Bàn:** 10 ô dân (2 hàng × 5), mỗi ô 5 dân; 2 ô quan bán nguyệt ở 2 đầu, mỗi ô 1 quan. **2 người** (`maxSeats: 2`):
+  ghế 1 giữ hàng dưới, ghế 2 giữ hàng trên. Thường Chủ LIVE đấu 1 người xem.
+- **Một nước:** chọn 1 ô dân bên mình còn quân + hướng → bốc hết, rải mỗi ô 1 viên (ô quan cũng được rải vào,
+  nhưng **không bao giờ bốc ô quan**). Hết quân trong tay → xét ô kế tiếp N:
+  - N là ô dân còn quân → bốc lên rải tiếp.
+  - N là ô quan (còn quân) → **mất lượt**.
+  - N trống → ô liền sau M có quân thì **ăn M**; sau đó nếu lại "trống rồi có quân" → **ăn liên tiếp**; N và M đều trống → mất lượt.
+- **Quan non** (bật mặc định, `quanNon`): ô quan còn quan mà **dưới 5 dân** thì không được ăn (mất lượt) — tránh hết ván quá sớm.
+- **Hết dân bên mình** (đầu lượt): lấy 5 dân đã ăn rải lại mỗi ô 1; thiếu thì **vay** đối thủ, cuối ván người vay bị trừ, người
+  cho vay được cộng. Không đủ 5 để rải (cả 2 bên cạn) → hết ván.
+- **Kết thúc:** cả 2 ô quan trống → dân còn trên mỗi hàng về chủ hàng đó. **Điểm = dân + quan × `quanValue`** (10, tuỳ chọn 5).
+  Hơn điểm thắng, kém điểm vào thùng rác; bằng điểm = hoà.
+- **Bình luận:** mỗi hàng đánh số **1–5 trái → phải màn hình**; hướng **1 = sang trái, 2 = sang phải** màn hình.
+  `3 2` = ô 3 rải sang phải (1 bình luận); gõ `3` rồi `2` cũng được. Hết giờ → máy đi hộ trọn 1 nước.
+- **Luật thuần:** `lib/luot-choi/games/oanquan.js` — vòng ô 0–11 (0–4 hàng dưới trái→phải, 5 quan phải, 6–10 hàng trên phải→trái,
+  11 quan trái); `pick()` 2 bước (`pending` → `move`), `startTurn()` (rải lại / vay), `scores()`, `lastMove.trace`
+  (`take`/`drop`/`cap`/`end`) để overlay diễn lại từng viên; `holdMs` = 600 + 170 ms × số bước (tối đa 14 s).
+  Test `tests/luotchoi-oanquan.test.js` + 4 test tích hợp trong `luotchoi-table.test.js`.
+- **Khung bàn mở rộng cho trò này:** `maxSeats` (số ghế thật = min(cấu hình, giới hạn trò)), `ctx {side}` truyền vào
+  `pick/options`, kết quả `move` (giữ lượt theo `holdMs`), `startTurn` đầu lượt (sự kiện `refill`), điểm lấy từ `scores()`.
+- **Hình:** bàn gỗ vân 3D, ô lõm, sỏi dân bóng nhiều màu, quan = ngọc vàng; bong bóng "số ô · số quân" trên mỗi ô, tên chủ hàng
+  2 bên; rải quân = cụm sỏi bay hình cung từ ô sang ô + bàn tay úp xuống đi theo; ăn = cả ô bay về phía người ăn.
+
+
+### 2.2b Ô Ăn Quan — chỉnh sau khi chơi thử cùng user (18/11/2026)
+
+- **Cách gõ chính: 2 chữ số liền** `52` = ô 5 rải phải (ô 1–5 hàng của mình đếm trái→phải màn hình, hướng 1 = trái,
+  2 = phải). Nhận thêm `5 2`, `5 phải`, `5p`, gõ `5` rồi `phải` (có/không dấu) — `oanquan.parseComment()`, bàn dùng
+  hàm này thay `parseNumbers` khi trò có. Creator (Chủ LIVE) bấm chuột trong panel: nút **Ô 1…Ô 5** → **⬅ Trái / Phải ➡**.
+- Trên bàn: mũi tên **⬅ trái 1 · phải 2 ➡** ở 2 đầu hàng đang tới lượt (sáng nhấp nháy khi đã chọn ô); số ô 2 phe theo
+  màu TikTok — hàng dưới (ghế 1) hồng `#FE2C55`, hàng trên (ghế 2) xanh `#25F4EE`; dòng nhắc "gõ ô + hướng, vd 52".
+- **Bảng "Quân đã ăn → điểm"** dưới bàn: mỗi người `dân × 1đ + quan × 10đ (− vay / + cho vay) = tổng điểm`.
+- Ô quan dời ra xa (mép phẳng cách ô dân 0,21), to hơn → sỏi quan không lấn ô 1 / ô 5; bàn gỗ rộng 9,7.
+
+### 2.4 Giao diện LIVE không che creator (18/11/2026)
+
+Khung game **nền kính mờ xám trong suốt** (`glass` 0–90%, mặc định 35%), **neo dưới** (`layout: bottom|middle|top`,
+mặc định dưới — mặt creator thường ở nửa trên khung dọc), **cỡ khung** `cardScale` 55–100% (mặc định 85%); Ô Ăn Quan
+vùng bàn thấp lại (470 px). **Kiểu hiển thị `frame`** (mặc định `hud`): học nguyên tắc bố cục của các overlay game LIVE
+chuyên nghiệp — KHÔNG khung nền to, bàn 3D nổi thẳng trên hình creator (chỉ bóng đổ), chữ nằm trong các viên kính mờ tách
+rời (tên trò, người chơi, bảng điểm, dòng nhắc); 2 người = thanh đối đầu **A – VS – B**. `frame: card` = khung kính cũ.
+Chỉnh trong panel "🖼️ Hiển thị trên LIVE"; link OBS có thể ghi đè `?layout=&glass=&scale=`.
+
+### 2.3 Bàn tay + con cóc vẽ lại (18/11/2026)
+
+**Bàn tay 3D** dựng trong cảnh (`board3d.js` makeHand3D: lòng tay, ngón trỏ 3 đốt có móng, 3 ngón co, ngón cái, tay áo hồng —
+cùng ánh sáng + bóng đổ với bàn chơi; `LcBoards3D.fly/away`, Ô Ăn Quan tay đi theo cụm sỏi). Bản SVG `hand-art.js` giữ cho
+máy không WebGL; cóc 3D dựng lại theo dáng cóc thật (thân dẹt có đốm, mắt lồi tròng vàng con ngươi ngang, miệng cười rộng, chân gập).
+Ảnh/model vẽ tay thay thế được qua `public/games/luotchoi/assets/manifest.json` (`hand`, `stick`, `frog`); brief gửi
+ChatGPT / AI 3D: `art-requests/dau-truong-mini/BRIEF-DAU-TRUONG-MINI.md`.
 
 ## 3. Kiến trúc
 

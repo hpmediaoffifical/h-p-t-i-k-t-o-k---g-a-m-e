@@ -23,7 +23,7 @@ test('quà vào ghế + bình luận số của người tới lượt đi qua b
     const last = io.sent.filter(x => x[0] === 'luotchoi:state').pop()[1];
     assert.equal(last.phase, 'playing');
     assert.deepEqual(last.board.used, [safe]);
-    assert.equal(last.games.length, 4);
+    assert.equal(last.games.length, 5);
     assert.equal(last.board.trap, undefined, 'không lộ bẫy');
 });
 
@@ -46,8 +46,8 @@ test('lệnh lạ bị từ chối', () => {
 
 test('bàn mẫu ?demo: chạy luật thật trên bàn tạm, bàn thật không đổi, ván tới được kết quả', () => {
     const c = createLuotChoiController({ io: fakeIo(), getConfig: () => ({ enabled: true }), log: () => {} });
-    for (const g of ['hama', 'chumcoc', 'thaptre', 'latcap']) {
-        assert.equal(c.demoState(g, 0).seats.length, 4);
+    for (const g of ['hama', 'chumcoc', 'thaptre', 'latcap', 'oanquan']) {
+        assert.equal(c.demoState(g, 0).seats.length, g === 'oanquan' ? 2 : 4);
         assert.equal(c.demoState(g, 1).phase, 'playing', g);
         let reached = false;
         for (let step = 2; step < 300 && !reached; step += 3) reached = c.demoState(g, step).phase === 'result';
@@ -55,4 +55,35 @@ test('bàn mẫu ?demo: chạy luật thật trên bàn tạm, bàn thật khôn
         assert.deepEqual(c.demoState(g, 9).events, c.demoState(g, 9).events, 'tất định');
     }
     assert.equal(c.publicState().seats.length, 0);
+});
+
+test('rotate: creator xoay mô hình 3D — phát luotchoi:rotate với dir -1/0/1, dir lạ bị chặn', () => {
+    const io = fakeIo();
+    const c = createLuotChoiController({ io, getConfig: () => ({ enabled: true }), log: () => {} });
+    assert.equal(c.control('rotate', { dir: 1 }).ok, true);
+    assert.equal(c.control('rotate', { dir: -1 }).ok, true);
+    assert.equal(c.control('rotate', { dir: 0 }).ok, true);
+    assert.equal(c.control('rotate', { dir: 'x' }).ok, false);
+    const rot = io.sent.filter(([ev]) => ev === 'luotchoi:rotate').map(([, d]) => d.dir);
+    assert.deepEqual(rot, [1, -1, 0]);
+});
+
+test('rotate theo góc (kéo chuột): angle độ được chặn ±3600, làm tròn; số lạ bị chặn', () => {
+    const io = fakeIo();
+    const c = createLuotChoiController({ io, getConfig: () => ({ enabled: true }), log: () => {} });
+    assert.equal(c.control('rotate', { angle: 37.6 }).ok, true);
+    assert.equal(c.control('rotate', { angle: 99999 }).ok, true);
+    assert.equal(c.control('rotate', { angle: 'abc' }).ok, false);
+    const got = io.sent.filter(([ev]) => ev === 'luotchoi:rotate').map(([, d]) => d.angle);
+    assert.deepEqual(got, [38, 3600]);
+});
+
+test('rotate theo góc xoay thêm (delta, kéo chuột): chặn ±720, làm tròn; số lạ bị chặn', () => {
+    const io = fakeIo();
+    const c = createLuotChoiController({ io, getConfig: () => ({ enabled: true }), log: () => {} });
+    assert.equal(c.control('rotate', { delta: 12.4 }).ok, true);
+    assert.equal(c.control('rotate', { delta: -5000 }).ok, true);
+    assert.equal(c.control('rotate', { delta: 'x' }).ok, false);
+    const got = io.sent.filter(([ev]) => ev === 'luotchoi:rotate').map(([, d]) => d.delta);
+    assert.deepEqual(got, [12, -720]);
 });

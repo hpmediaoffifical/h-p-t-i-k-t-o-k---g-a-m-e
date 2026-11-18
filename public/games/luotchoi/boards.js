@@ -41,8 +41,8 @@
             return `<div class="${cls}" data-n="${n}" style="width:${size}px;height:${size}px">${n}${tagHtml(mk[n], o, 6)}</div>`;
         }).join('');
         return `<div class="cc${b.sprung ? ' pop' : ''}${b.sprung && !o.fresh ? ' still' : ''}">
-            <div class="body"><div class="band"></div></div><div class="neck"></div><div class="rim"></div>
-            <div class="holes">${holes}</div><div class="frog">🐸</div></div>`;
+            <div class="body">${'<i></i>'.repeat(9)}</div><div class="rim"></div>
+            <div class="holes">${holes}</div><div class="frog">🐐</div></div>`;
     }
 
     function thaptre(b, o) {
@@ -79,12 +79,21 @@
         const last = new Set(b.last || []);
         const cards = b.cards.map(c => {
             const cls = ['cardc', c.face ? 'up' : '', c.matched ? 'matched' : '', b.pendingMiss && c.open ? 'miss' : '', o.fresh && c.matched && last.has(c.n) ? 'just' : ''].join(' ');
-            return `<div class="${cls}" data-n="${c.n}" style="width:${cw}px;height:${ch}px"><div class="flip"><div class="back">${c.n}</div><div class="face">${esc(c.face || '')}${tagHtml(mk[c.n], o, 8)}</div></div></div>`;
+            return `<div class="${cls}" data-n="${c.n}" style="width:${cw}px;height:${ch}px"><div class="flip"><div class="back">${c.n}</div><div class="face">${c.gift ? `<span class="gem">${esc(c.gift.emoji)}</span>` : esc(c.face || '')}${tagHtml(mk[c.n], o, 8)}</div></div></div>`;
         }).join('');
         return `<div class="lp" style="grid-template-columns:repeat(${cols}, ${cw}px)">${cards}</div>`;
     }
 
-    const R = { hama, chumcoc, thaptre, latcap };
+    // 🪨 Ô Ăn Quan (bản 2D dự phòng khi máy không có WebGL): lưới số quân, đánh số theo màn hình
+    function oanquan(b) {
+        const q = (c, lbl) => `<div class="c q"><small>${lbl}</small>${c.quan ? '👑' : ''}${c.dan}</div>`;
+        const cell = (c) => `<div class="c" data-n="${c.side}:${c.n}"><small>${c.n}</small>${c.dan}</div>`;
+        const top = b.rows[1].map(c => cell(Object.assign({ side: 1 }, c))).join('');
+        const bot = b.rows[0].map(c => cell(Object.assign({ side: 0 }, c))).join('');
+        return `<div class="oq2">${q(b.quanL, 'QUAN')}${top}${q(b.quanR, 'QUAN')}${bot}</div>`;
+    }
+
+    const R = { hama, chumcoc, thaptre, latcap, oanquan };
     function render(stage, b, o) {
         if (!b || !R[b.kind]) { stage.innerHTML = ''; return; }
         stage.innerHTML = R[b.kind](b, o || {});

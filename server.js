@@ -692,7 +692,7 @@ const GAMES = {
     luotchoi: {
         id: 'luotchoi',
         name: 'Đấu Trường Mini',
-        description: 'Tặng quà để vào ghế (2–4 người), tới lượt bình luận số: Hà Mã Đau Răng, Cóc Trốn Chum, Tháp Tre Chao Đảo, Săn Cặp Trái Cây. Trúng bẫy là bị loại.',
+        description: 'Tặng quà để vào ghế (2–4 người), tới lượt bình luận số: Hà Mã Đau Răng, Dê Núi, Tháp Tre Chao Đảo, Săn Cặp Quà. Trúng bẫy là bị loại.',
         icon: '🎲',
         overlayPath: '/overlay/luotchoi',
         defaultConfig: { ...LUOTCHOI_DEFAULTS, seatGifts: [], shieldGifts: [] }

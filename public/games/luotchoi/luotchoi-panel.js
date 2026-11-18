@@ -10,7 +10,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const COIN = '<img class="hp-coin-ico" src="/coin.svg" alt="">';
     const PHASE = { lobby: 'Sảnh chờ', playing: 'Đang chơi', result: 'Kết quả' };
-    const SIZE = { hama: ['teeth', 'Số răng', 6, 16], chumcoc: ['holes', 'Số lỗ chum', 8, 30], thaptre: ['levels', 'Số tầng', 6, 12], latcap: ['pairs', 'Số cặp', 4, 12] };
+    const SIZE = { hama: ['teeth', 'Số răng', 6, 16], chumcoc: ['holes', 'Số hốc đá', 8, 30], thaptre: ['levels', 'Số tầng', 6, 12], latcap: ['pairs', 'Số cặp', 4, 8], oanquan: ['quanValue', 'Quan = mấy dân (5 hoặc 10)', 5, 10] };
     const API = (cmd, extra) => fetch('/api/luotchoi/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ cmd }, extra || {})) }).then(r => r.json()).catch(() => ({ ok: false }));
     let cfg = null, st = null, socket = null, bound = false, persistTimer = null, clockOff = 0, cdTimer = null;
 
@@ -27,6 +27,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                     <button id="lc-btn-host" class="ghost small">${hpT('🙋 Tôi vào chơi')}</button>
                     <button id="lc-btn-start" class="primary small">${hpT('▶ Bắt đầu')}</button>
                     <button id="lc-btn-cancel" class="danger small">${hpT('Huỷ ván')}</button>
+                    <span class="lc-rot" style="display:inline-flex;gap:4px" title="${hpT('Xoay mô hình trên LIVE (Hà Mã, Dê Núi, Tháp Tre) để người xem thấy số phía sau')}"><button class="ghost small" data-rot="-1">⟲</button><button class="ghost small" data-rot="0">${hpT('Chính diện')}</button><button class="ghost small" data-rot="1">⟳</button><span class="lc-drag" style="display:inline-flex;align-items:center;padding:0 12px;border-radius:99px;border:1px dashed currentColor;cursor:ew-resize;user-select:none;touch-action:none;opacity:.85" title="${hpT('Giữ chuột và kéo trái / phải để xoay mô hình trên LIVE')}">${hpT('🖱️ Kéo để xoay')}</span></span>
                     <span class="nd-bar-spacer"></span>
                     <button id="lc-btn-obs" class="obs-link small">${hpT('Thêm vào OBS')}</button>
                     <button id="lc-btn-pop" class="ghost small">${hpT('Xem mẫu')}</button>
@@ -92,6 +93,10 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         cfg = cfg || {};
         if (!Array.isArray(cfg.seatGifts)) cfg.seatGifts = [];
         if (!Array.isArray(cfg.shieldGifts)) cfg.shieldGifts = [];
+        // mã quà trơn ("5655") → {giftId} như server (lib/luot-choi/table.js giftList)
+        const obj = (g) => (typeof g === 'string' || typeof g === 'number') ? { giftId: String(g) } : g;
+        cfg.seatGifts = cfg.seatGifts.map(obj).filter(g => g && g.giftId != null);
+        cfg.shieldGifts = cfg.shieldGifts.map(obj).filter(g => g && g.giftId != null);
     }
     function schedulePersist() { clearTimeout(persistTimer); persistTimer = setTimeout(persistConfig, 350); }
     async function persistConfig() {
@@ -123,15 +128,31 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                 ${numField('maxQueue', hpT('Hàng chờ tối đa'), 0, 30)}
                 <div class="lc-line"><label>${hpT('Tên Chủ LIVE')}</label><input data-t="hostName" value="${esc(cfg.hostName || 'Chủ LIVE')}" maxlength="30"></div>
             </div>
+            <div class="lc-box"><div class="lc-h">${hpT('🖼️ Hiển thị trên LIVE')} <span class="lc-muted">${hpT('không che creator')}</span></div>
+                <div class="lc-line"><label>${hpT('Kiểu hiển thị')}</label><select data-s="frame">${[['hud', 'HUD nổi (mặc định)'], ['card', 'Khung kính']].map(([v, l]) => `<option value="${v}" ${(cfg.frame || 'hud') === v ? 'selected' : ''}>${hpT(l)}</option>`).join('')}</select></div>
+                <div class="lc-line"><label>${hpT('Vị trí khung')}</label><select data-s="layout">${[['bottom', 'Dưới (mặc định)'], ['middle', 'Giữa'], ['top', 'Trên']].map(([v, l]) => `<option value="${v}" ${(cfg.layout || 'bottom') === v ? 'selected' : ''}>${hpT(l)}</option>`).join('')}</select></div>
+                <div class="lc-line"><label>${hpT('Nền mờ')}</label><input type="range" data-k="glass" min="0" max="90" value="${esc(cfg.glass ?? 35)}" style="flex:1"><span id="lc-glass">${esc(cfg.glass ?? 35)}%</span></div>
+                <div class="lc-line"><label>${hpT('Cỡ khung')}</label><input type="range" data-k="cardScale" min="55" max="100" value="${esc(cfg.cardScale ?? 85)}" style="flex:1"><span id="lc-scale">${esc(cfg.cardScale ?? 85)}%</span></div>
+            </div>
             <div class="lc-box"><div class="lc-h">${hpT('🔊 Giọng đọc')} <span class="lc-muted">${hpT('phát trong OBS: tới lượt, số đã chọn, dính bẫy')}</span></div>
                 <div class="lc-line"><label><input type="checkbox" data-c="voice" ${cfg.voice !== false ? 'checked' : ''}> ${hpT('Đọc tên người chơi')}</label></div>
                 <div class="lc-line"><label>${hpT('Âm lượng')}</label><input type="range" data-k="voiceVolume" min="0" max="100" value="${esc(cfg.voiceVolume ?? 80)}" style="flex:1"><span id="lc-vol">${esc(cfg.voiceVolume ?? 80)}%</span></div>
+            </div>
+            <div class="lc-box"><div class="lc-h">${hpT('🎵 Âm thanh hiệu ứng')} <span class="lc-muted">${hpT('tiếng ấn, ngoạm, dê bật, tháp đổ, lật thẻ, sỏi rơi… — không nhạc nền')}</span></div>
+                <div class="lc-line"><label><input type="checkbox" data-c="sfx" ${cfg.sfx !== false ? 'checked' : ''}> ${hpT('Bật âm thanh hiệu ứng')}</label></div>
+                <div class="lc-line"><label>${hpT('Âm lượng')}</label><input type="range" data-k="sfxVolume" min="0" max="100" value="${esc(cfg.sfxVolume ?? 70)}" style="flex:1"><span id="lc-sfxvol">${esc(cfg.sfxVolume ?? 70)}%</span></div>
+                <div class="lc-line"><label>${hpT('🎹 Ô Ăn Quan: rải sỏi thành nhạc')}</label><select data-s="oqSong">${[['happy', 'Happy Birthday'], ['twinkle', 'Twinkle Twinkle Little Star'], ['buom', 'Kìa con bướm vàng'], ['off', hpT('Tắt (tiếng sỏi thường)')]].map(([v, l]) => `<option value="${v}" ${(cfg.oqSong || 'happy') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+                <div class="lc-line lc-muted">${hpT('Mỗi viên sỏi rơi = 1 nốt piano của bài; nắm càng nhiều sỏi, càng nghe ra bài.')}</div>
             </div>`;
         box.querySelectorAll('input[data-k]').forEach(el => el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
             cfg[el.dataset.k] = Number(el.value);
             if (el.dataset.k === 'voiceVolume') $('#lc-vol').textContent = el.value + '%';
+            if (el.dataset.k === 'sfxVolume') $('#lc-sfxvol').textContent = el.value + '%';
+            if (el.dataset.k === 'glass') $('#lc-glass').textContent = el.value + '%';
+            if (el.dataset.k === 'cardScale') $('#lc-scale').textContent = el.value + '%';
             schedulePersist();
         }));
+        box.querySelectorAll('select[data-s]').forEach(el => el.addEventListener('change', () => { cfg[el.dataset.s] = el.value; schedulePersist(); }));
         box.querySelectorAll('input[data-c]').forEach(el => el.addEventListener('change', () => { cfg[el.dataset.c] = el.checked; schedulePersist(); }));
         box.querySelectorAll('input[data-t]').forEach(el => el.addEventListener('change', () => { cfg[el.dataset.t] = el.value.trim(); schedulePersist(); }));
         box.querySelectorAll('[data-del]').forEach(el => el.addEventListener('click', () => {
@@ -195,7 +216,11 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         const hostTurn = !!(st.seats.find(s => s.turn) || {}).host;
         const opts = new Set(st.options || []);
         let cells = [];
-        if (b.kind === 'latcap') cells = b.cards.map(c => ({ n: c.n, label: c.face ? `<span class="face">${c.face}</span>` : c.n }));
+        // Ô Ăn Quan: chưa chọn ô → nút ô 1–5 hàng của mình; đã chọn ô → 2 nút hướng
+        if (b.kind === 'oanquan') cells = b.sel != null
+            ? [{ n: 1, label: '⬅ Trái' }, { n: 2, label: 'Phải ➡' }]
+            : [1, 2, 3, 4, 5].map(n => ({ n, label: 'Ô ' + n }));
+        else if (b.kind === 'latcap') cells = b.cards.map(c => ({ n: c.n, label: c.face ? `<span class="face">${c.gift ? c.gift.emoji : c.face}</span>` : c.n }));
         else if (b.kind === 'thaptre') cells = b.bars.filter(x => x.level < b.levels).map(x => ({ n: x.n, label: x.n }));
         else cells = Array.from({ length: b.n }, (_, i) => ({ n: i + 1, label: i + 1 }));
         el.innerHTML = `<div class="lc-nums">${cells.map(c => `<button class="ghost small" data-n="${c.n}" ${hostTurn && opts.has(c.n) ? '' : 'disabled'}>${c.label}</button>`).join('')}</div>`
@@ -254,6 +279,20 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         $('#lc-btn-host').addEventListener('click', () => API('host'));
         $('#lc-btn-start').addEventListener('click', () => API('start'));
         $('#lc-btn-cancel').addEventListener('click', () => API('cancel'));
+        // 🔄 xoay mô hình trên LIVE: nút = ±45° / về 0; kéo chuột = xoay liên tục (gửi góc tuyệt đối, tối đa ~12 lần/giây)
+        // kéo: gửi phần xoay THÊM (delta) cộng dồn giữa 2 lần gửi → overlay quay tiếp từ góc đang đứng, không nảy
+        let pendDeg = 0, lastSend = 0, sendTm = null;
+        const sendAngle = () => { lastSend = Date.now(); sendTm = null; const dl = Math.round(pendDeg); if (!dl) return; pendDeg -= dl; API('rotate', { delta: dl }); };
+        const queueAngle = () => { if (sendTm) return; const w = Math.max(0, 80 - (Date.now() - lastSend)); sendTm = setTimeout(sendAngle, w); };
+        document.querySelectorAll('#view-luotchoi [data-rot]').forEach(el => el.addEventListener('click', () => API('rotate', { dir: Number(el.dataset.rot) })));
+        const drag = document.querySelector('#view-luotchoi .lc-drag');
+        if (drag) {
+            let x0 = null;
+            drag.addEventListener('pointerdown', e => { x0 = e.clientX; try { drag.setPointerCapture(e.pointerId); } catch (er) {} });
+            drag.addEventListener('pointermove', e => { if (x0 == null) return; pendDeg += (e.clientX - x0) * 0.8; x0 = e.clientX; queueAngle(); });
+            const end = () => { if (x0 == null) return; x0 = null; queueAngle(); };
+            drag.addEventListener('pointerup', end); drag.addEventListener('pointercancel', end);
+        }
         $('#lc-btn-obs').addEventListener('click', () => {
             const url = window.buildOverlayURL('/overlay/luotchoi');
             if (window.hpObsQuick) { window.hpObsQuick(url, 'Đấu Trường Mini'); return; }

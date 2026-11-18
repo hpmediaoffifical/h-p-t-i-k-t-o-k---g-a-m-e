@@ -20,6 +20,12 @@ const turnKey = (tb) => snap(tb).turnKey;
 // chạy tới khi hết khoảng giữ (hiệu ứng) để lượt kế bắt đầu
 const settle = (tb, clock) => { for (let i = 0; i < 20 && snap(tb).holdUntil; i++) clock.go(500); };
 
+test('normalizeConfig: quà ghi dạng mã trơn ("5655" / 5655) cũng nhận như {giftId}', () => {
+    const c = normalizeConfig({ seatGifts: ['5655', 7934, '', null], shieldGifts: [{ giftId: '5269' }] });
+    assert.deepEqual(c.seatGifts.map(g => g.giftId), ['5655', '7934']);
+    assert.deepEqual(c.shieldGifts.map(g => g.giftId), ['5269']);
+});
+
 test('normalizeConfig: chặn khoảng, trò lạ về hama', () => {
     const c = normalizeConfig({ seats: 9, minPlayers: 0, turnSec: 1, game: 'xyz', seatGifts: [{ giftId: 1 }, {}] });
     assert.equal(c.seats, 4);
@@ -338,6 +344,23 @@ test('giọng đọc: mặc định bật, âm lượng chặn 0–100, có tron
     assert.deepEqual([snap(tb).cfg.voice, snap(tb).cfg.voiceVolume], [false, 30]);
 });
 
+test('âm thanh hiệu ứng: mặc định bật 70%, chặn 0–100, có trong snapshot cho overlay', () => {
+    assert.equal(normalizeConfig({}).sfx, true);
+    assert.equal(normalizeConfig({ sfx: false }).sfx, false);
+    assert.equal(normalizeConfig({}).sfxVolume, 70);
+    assert.equal(normalizeConfig({ sfxVolume: -5 }).sfxVolume, 0);
+    const { tb } = make({ sfx: false, sfxVolume: 40 });
+    assert.deepEqual([snap(tb).cfg.sfx, snap(tb).cfg.sfxVolume], [false, 40]);
+});
+
+test('Ô Ăn Quan rải sỏi thành nhạc: oqSong mặc định happy, chỉ nhận bài có sẵn hoặc off, có trong snapshot', () => {
+    assert.equal(normalizeConfig({}).oqSong, 'happy');
+    for (const id of ['happy', 'twinkle', 'buom', 'off']) assert.equal(normalizeConfig({ oqSong: id }).oqSong, id);
+    assert.equal(normalizeConfig({ oqSong: 'xyz' }).oqSong, 'happy');
+    const { tb } = make({ oqSong: 'buom' });
+    assert.equal(snap(tb).cfg.oqSong, 'buom');
+});
+
 test('boardId: đổi mỗi lần dựng bàn (bắt đầu / loại người) để overlay 3D biết dựng lại cảnh', () => {
     const { tb, clock } = make({ seats: 3 });
     seat(tb, 'a', 'b', 'c'); clock.go(3100);
@@ -349,4 +372,93 @@ test('boardId: đổi mỗi lần dựng bàn (bắt đầu / loại người) �
     tb.comment({ user: u('b'), text: String(tb._board().trap) });
     settle(tb, clock);
     assert.ok(snap(tb).boardId > id1, 'loại người → bàn mới');
+});
+
+test('Ô Ăn Quan: chỉ 2 ghế (người thứ 3 vào hàng chờ), đủ 2 là chạy', () => {
+    const { tb, clock } = make({ game: 'oanquan', seats: 4, minPlayers: 3 });
+    assert.deepEqual(seat(tb, 'a', 'b', 'c'), ['seat', 'seat', 'queue']);
+    assert.equal(snap(tb).cfg.seats, 2);
+    clock.go(3100);
+    assert.equal(snap(tb).phase, 'playing');
+});
+
+test('Ô Ăn Quan: bình luận "3 2" = ô 3 rải phải; lượt sang người kia sau khi diễn rải xong; điểm đồng bộ lên ghế', () => {
+    const { tb, clock } = make({ game: 'oanquan', seats: 2 });
+    seat(tb, 'a', 'b'); clock.go(3100);
+    assert.deepEqual(snap(tb).options, [1, 2, 3, 4, 5]);
+    assert.equal(tb.comment({ user: u('a'), text: '3 2' }), true);
+    const mv = snap(tb).board.lastMove;
+    assert.ok(mv && mv.trace.length > 3);
+    assert.ok(snap(tb).holdUntil > 0);
+    settle(tb, clock);
+    assert.equal(turnKey(tb), 'b');
+    const sc = snap(tb).board.scores;
+    assert.deepEqual(snap(tb).seats.map(s => s.score), sc);
+});
+
+test('Ô Ăn Quan: gõ từng số (ô rồi hướng) cũng được; hết giờ máy đi hộ trọn 1 nước', () => {
+    const { tb, clock } = make({ game: 'oanquan', seats: 2, turnSec: 15 });
+    seat(tb, 'a', 'b'); clock.go(3100);
+    assert.equal(tb.comment({ user: u('a'), text: '1' }), true);
+    assert.deepEqual(snap(tb).options, [1, 2]);
+    assert.equal(tb.comment({ user: u('a'), text: '1' }), true);
+    settle(tb, clock);
+    assert.equal(turnKey(tb), 'b');
+    clock.go(15500);
+    assert.ok(snap(tb).board.lastMove.side === 1, 'máy đi hộ bên 1');
+});
+
+test('Ô Ăn Quan: để máy tự đi tới hết ván → có kết quả theo điểm', () => {
+    let x = 7;
+    const rng = () => { x = (x * 16807) % 2147483647; return (x - 1) / 2147483646; };
+    const { tb, clock } = make({ game: 'oanquan', seats: 2, turnSec: 8 }, rng);
+    seat(tb, 'a', 'b'); clock.go(3100);
+    for (let i = 0; i < 4000 && snap(tb).phase === 'playing'; i++) clock.go(1000);
+    const s = snap(tb);
+    assert.equal(s.phase, 'result');
+    const [p0, p1] = s.seats.map(q => q.score);
+    if (p0 === p1) assert.equal(s.result.draw, true);
+    else assert.equal(s.result.winners[0].key, p0 > p1 ? 'a' : 'b');
+});
+
+test('Ô Ăn Quan: bình luận "2 phải" đi được (bàn dùng parseComment riêng của trò)', () => {
+    const { tb, clock } = make({ game: 'oanquan', seats: 2 });
+    seat(tb, 'a', 'b'); clock.go(3100);
+    assert.equal(tb.comment({ user: u('a'), text: '2 phải' }), true);
+    assert.equal(snap(tb).board.lastMove.dir, 2);
+    settle(tb, clock);
+    assert.equal(tb.comment({ user: u('b'), text: String(snap(tb).options[0]) }), true);   // 1 ô còn quân
+    assert.equal(tb.comment({ user: u('b'), text: 'trái' }), true);
+    assert.equal(snap(tb).board.lastMove.dir, 1);
+});
+
+test('giao diện LIVE: khung neo dưới, nền kính mờ 35%, cỡ 85% mặc định; giá trị lạ bị chặn; có trong snapshot', () => {
+    const c = normalizeConfig({});
+    assert.deepEqual([c.layout, c.glass, c.cardScale], ['bottom', 35, 85]);
+    const d = normalizeConfig({ layout: 'xyz', glass: 500, cardScale: 10 });
+    assert.deepEqual([d.layout, d.glass, d.cardScale], ['bottom', 90, 55]);
+    assert.equal(normalizeConfig({ layout: 'top' }).layout, 'top');
+    const { tb } = make({ layout: 'middle', glass: 20, cardScale: 70 });
+    assert.deepEqual([snap(tb).cfg.layout, snap(tb).cfg.glass, snap(tb).cfg.cardScale], ['middle', 20, 70]);
+});
+
+test('kiểu hiển thị: HUD nổi mặc định (không khung nền to), chọn được khung kính; có trong snapshot', () => {
+    assert.equal(normalizeConfig({}).frame, 'hud');
+    assert.equal(normalizeConfig({ frame: 'card' }).frame, 'card');
+    assert.equal(normalizeConfig({ frame: 'abc' }).frame, 'hud');
+    const { tb } = make({ frame: 'card' });
+    assert.equal(snap(tb).cfg.frame, 'card');
+});
+
+test('Dê Núi giữ lượt lâu hơn đúng leadMs (overlay xoay núi tới hốc + dừng ~1 giây rồi mới cắm)', () => {
+    const holdAfterPick1 = (game) => {
+        const { tb, clock } = make({ game, seats: 2 });
+        seat(tb, 'a', 'b'); clock.go(3100);
+        const s = snap(tb);
+        tb.comment({ user: u(s.turnKey), text: '1' });   // ô 1: không phải bẫy với rng 0.5
+        return snap(tb).holdUntil - clock.now();
+    };
+    const { GAMES_BY_ID } = require('../lib/luot-choi/games');
+    assert.equal(GAMES_BY_ID.chumcoc.leadMs, 1600);
+    assert.equal(holdAfterPick1('chumcoc') - holdAfterPick1('hama'), 1600);
 });
