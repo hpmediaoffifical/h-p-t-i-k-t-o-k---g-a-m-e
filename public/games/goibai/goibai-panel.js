@@ -68,6 +68,7 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
             .gob-now b { display: block; font-size: 15px; } .gob-bar { height: 5px; border-radius: 4px; background: rgba(127,127,127,.25); margin-top: 6px; overflow: hidden; }
             .gob-bar i { display: block; height: 100%; background: #ff4f8b; }
             .gob-row { display: grid; grid-template-columns: 26px 1fr auto auto; gap: 8px; align-items: center; padding: 5px 0; border-top: 1px solid rgba(127,127,127,.15); }
+            .gob-sc { font-style: normal; }
             .gob-row:first-child { border-top: 0; } .gob-row .t { min-width: 0; } .gob-row .t b, .gob-row .t span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
             .gob-row .t span { opacity: .65; font-size: 12px; } .gob-row .acts { display: flex; gap: 4px; }
             .gob-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
@@ -222,16 +223,20 @@ var hpTA = function (s, v) { return hpT(s, v).replace(/"/g, '&quot;'); };
         }
         $('#gob-qn').textContent = st.queueTotal ? hpT('{n} bài', { n: st.queueTotal }) : '';
         const qHtml = (st.queue || []).map((r, i) => `<div class="gob-row"><span>${r.locked ? '🔒' : i + 1}</span>
-            <div class="t"><b>${esc(r.status === 'searching' ? hpT('đang tìm “{q}”…', { q: r.query }) : r.title)}</b><span>${esc(r.nickname)}${r.backers && r.backers.length ? ' +' + r.backers.length : ''}${r.source === 'music' ? ' · 🎵' : ''}${r.sunk ? ' · ' + hpT('⬇ thua đấu') : ''} · ${hpT('{n} điểm', { n: r.score })}</span></div>
+            <div class="t"><b>${esc(r.status === 'searching' ? hpT('đang tìm “{q}”…', { q: r.query }) : r.title)}</b><span>${esc(r.nickname)}${r.backers && r.backers.length ? ' +' + r.backers.length : ''}${r.source === 'music' ? ' · 🎵' : ''}${r.sunk ? ' · ' + hpT('⬇ thua đấu') : ''} · <i class="gob-sc" data-sc="${esc(r.id)}">${hpT('{n} điểm', { n: r.score })}</i></span></div>
             <span>${esc(r.coins)} ${COIN}</span>
             <span class="acts"><button class="ghost small" data-top="${esc(r.id)}" title="${hpTA('Đưa lên đầu hàng')}">⏫</button><button class="ghost small" data-rm="${esc(r.id)}" title="${hpTA('Xoá khỏi hàng chờ')}">✕</button></span></div>`).join('')
             || `<span class="gob-muted">${hpT('Hàng chờ trống')}</span>`;
         const qEl = $('#gob-queue');
-        if (qEl.dataset.sig !== qHtml) {   // trạng thái tới vài lần/giây khi đang phát → chỉ dựng lại khi hàng chờ thật sự đổi
-            qEl.dataset.sig = qHtml;
+        const qSig = qHtml.replace(/<i class="gob-sc"[^>]*>[^<]*<\/i>/g, '');   // điểm chờ tăng mỗi 2 s → không tính vào chữ ký
+        if (qEl.dataset.sig !== qSig) {   // trạng thái tới vài lần/giây khi đang phát → chỉ dựng lại khi hàng chờ thật sự đổi
+            qEl.dataset.sig = qSig;
             qEl.innerHTML = qHtml;
             qEl.querySelectorAll('[data-top]').forEach(b => b.addEventListener('click', () => control('pinTop', { id: b.dataset.top })));
             qEl.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => control('remove', { id: b.dataset.rm })));
+        } else {
+            const byId = new Map((st.queue || []).map(r => [String(r.id), r]));
+            qEl.querySelectorAll('[data-sc]').forEach(el => { const r = byId.get(el.dataset.sc); if (r) { const t = hpT('{n} điểm', { n: r.score }); if (el.textContent !== t) el.textContent = t; } });
         }
         const now = st.now || Date.now();   // giờ server lúc gửi trạng thái
         const passes = st.passes || [];

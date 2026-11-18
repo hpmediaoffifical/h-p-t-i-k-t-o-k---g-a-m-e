@@ -479,3 +479,26 @@ test('QA 19/11: bài vừa vào phát mà không phát được → trả lượ
     assert.ok(p, 'có lượt trả lại');
     assert.equal(p.coins, 5);
 });
+
+test('QA 19/11: bài không phát được → mỗi người góp nhận lại xu của mình; tìm lại bỏ qua video hỏng', () => {
+    const { so } = make({ clipOn: true });
+    const r1 = callSong(so, 'a', 5, 'bad');
+    so.beginPlay(r1.id);
+    so.addGift({ user: U('b'), giftId: '5655', coins: 30 });
+    const rb = so.addComment({ user: U('b'), text: 'bad' });
+    so.applySearch(rb.id, [item('bad')]);   // góp vào bài đang phát
+    so.refundPlaying('error');
+    const pa = so.snapshot().passes.find(g => g.key === 'a'), pb = so.snapshot().passes.find(g => g.key === 'b');
+    assert.equal(pa.coins, 5);
+    assert.equal(pb.coins, 30);
+    const row = so.addComment({ user: U('a'), text: 'bad' });
+    const r = so.applySearch(row.id, [item('bad'), item('good')]);
+    assert.equal(r.ok, true);
+    assert.equal(r.row.videoId, 'good', 'bỏ qua video vừa hỏng');
+});
+test('QA 19/11: "#1 Lạc trôi" vẫn là tên bài; "#4823" trơn thì không', () => {
+    const { so } = make();
+    so.addGift({ user: U('a'), giftId: '5655', coins: 1 });
+    assert.equal(so.addComment({ user: U('a'), text: '#4823' }), null);
+    assert.ok(so.addComment({ user: U('a'), text: '#1 Lạc trôi' }));
+});
