@@ -5599,6 +5599,7 @@ function emitGift(g) {
     // ⚽ Sút Bóng — quà gán đích danh (cfg.gifts, so theo id) → sút; combo ×N = N cú
     try {
         handleSutBongGift({
+            uniqueId: g.uniqueId || '',
             nickname: g.nickname,
             profilePicture: g.profilePicture || '',
             giftId: g.giftId,
@@ -10797,7 +10798,7 @@ app.get('/overlay/sutbong', (req, res) => {
 });
 function sutBongCfg() { return SutBong.normalizeConfig(appConfig.games.sutbong || SutBong.defaultConfig()); }
 function emitSutBong(type, count, base) {
-    io.to('overlay').to('preview').emit('sutbong:gift', { type, count, nickname: base.nickname || '', profilePicture: base.profilePicture || '',
+    io.to('overlay').to('preview').emit('sutbong:gift', { type, count, uniqueId: base.uniqueId || '', nickname: base.nickname || '', profilePicture: base.profilePicture || '',
         giftName: base.giftName || '', image: base.giftImage || '', source: base.source || 'tiktok', ts: Date.now() });
 }
 function handleSutBongGift(base) {

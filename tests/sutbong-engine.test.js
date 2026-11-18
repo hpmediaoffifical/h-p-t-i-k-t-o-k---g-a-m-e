@@ -261,3 +261,15 @@ test('clear xoá bóng + hàng chờ nhưng giữ tỷ số', () => {
     assert.equal(e.snapshot().queue, 0);
     assert.equal(e.stats().keeper, 3);
 });
+
+test('QA 19/11: 2 người trùng tên (khác uniqueId) ghi bàn → 2 dòng riêng; lưu/nạp lại vẫn tách', () => {
+    const e = mk();
+    for (const id of ['uA', 'uB']) {
+        e.enqueue('normal', 1, { nickname: 'Trùng Tên', uniqueId: id });
+        runUntil(e, 'goal');
+    }
+    assert.equal(e.topScorers(5).length, 2);
+    const e2 = mk();
+    e2.loadStats(e.stats());
+    assert.equal(e2.topScorers(5).length, 2, 'nạp lại không gộp theo tên');
+});

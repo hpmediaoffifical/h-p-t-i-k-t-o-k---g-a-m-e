@@ -162,7 +162,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
             let added = 0;
             for (let i = 0; i < n; i++) {
                 if (queue.length >= cfg.queueMax) { events.push({ type: 'queueFull' }); break; }
-                queue.push({ type: SHOT_IDS.includes(type) ? type : 'normal', meta: { nickname: meta.nickname || '', avatar: meta.avatar || '' } });
+                queue.push({ type: SHOT_IDS.includes(type) ? type : 'normal', meta: { nickname: meta.nickname || '', uniqueId: meta.uniqueId || '', avatar: meta.avatar || '' } });
                 added++;
             }
             if (added && waitSince < 0) waitSince = clock;
@@ -310,7 +310,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                 .map(s => ({ name: s.name, avatar: s.avatar, points: s.points, goals: s.goals }));
         }
         function stats() {
-            return { keeper, viewers, streak, best, saves, goals, scorers: [...scorers.values()].map(s => ({ name: s.name, avatar: s.avatar, points: s.points, goals: s.goals })) };
+            return { keeper, viewers, streak, best, saves, goals, scorers: [...scorers.entries()].map(([key, s]) => ({ key, name: s.name, avatar: s.avatar, points: s.points, goals: s.goals })) };
         }
         function loadStats(s) {
             s = obj(s);
@@ -322,7 +322,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
             for (const x of Array.isArray(s.scorers) ? s.scorers.slice(0, 500) : []) {
                 if (!x || !x.name) continue;
                 const name = String(x.name).slice(0, 80);
-                scorers.set(name, { name, avatar: String(x.avatar || '').slice(0, 1000), points: int(x.points), goals: int(x.goals), at: ++at });
+                scorers.set(String(x.key || name).slice(0, 120), { name, avatar: String(x.avatar || '').slice(0, 1000), points: int(x.points), goals: int(x.goals), at: ++at });
             }
             seq = Math.max(seq, at);
         }
