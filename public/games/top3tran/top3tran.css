@@ -1,0 +1,142 @@
+/* 🏆 Top 3 Kết Thúc Trận — overlay OBS 1080×1920 (nền trong suốt), sân khấu bục 2.5D.
+   Chỉ animate transform/opacity; không backdrop-filter (nhẹ cho OBS). */
+@font-face { font-family: 'HPT3'; font-weight: 700; src: url('/fonts/be-vietnam-pro/be-vietnam-pro-700-vietnamese.woff2') format('woff2'); unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB; }
+@font-face { font-family: 'HPT3'; font-weight: 700; src: url('/fonts/be-vietnam-pro/be-vietnam-pro-700-latin.woff2') format('woff2'); }
+@font-face { font-family: 'HPT3'; font-weight: 500; src: url('/fonts/be-vietnam-pro/be-vietnam-pro-500-vietnamese.woff2') format('woff2'); unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB; }
+@font-face { font-family: 'HPT3'; font-weight: 500; src: url('/fonts/be-vietnam-pro/be-vietnam-pro-500-latin.woff2') format('woff2'); }
+
+.t3-root { position: absolute; inset: 0; font-family: 'HPT3', 'Segoe UI', sans-serif; color: #fff; }
+.t3-off { opacity: 0; pointer-events: none; }
+.t3-bar, .t3-pod { position: absolute; left: 50%; transform-origin: 50% 0; transition: opacity .45s ease; }
+
+/* ===== Thanh "Top trận": viên nang kính viền vàng ===== */
+.t3-bar { display: flex; align-items: center; gap: 12px; max-width: 1040px; overflow: hidden; padding: 10px 22px 10px 10px; border-radius: 999px; white-space: nowrap;
+  background: linear-gradient(180deg, rgba(60, 50, 110, .92), rgba(16, 14, 38, .94) 55%, rgba(30, 24, 70, .94));
+  box-shadow: 0 0 0 2px #f2c14e, 0 0 0 5px rgba(80, 50, 0, .55), 0 14px 30px rgba(0,0,0,.5), inset 0 2px 0 rgba(255,255,255,.25), inset 0 -4px 10px rgba(0,0,0,.4); }
+.t3-bar-tag { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; font-weight: 700; font-size: 20px; letter-spacing: .08em; color: #3a2000;
+  background: linear-gradient(180deg, #fff3c2, #f2c14e 50%, #c48a17); box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 2px 4px rgba(0,0,0,.4); }
+.t3-bar-tag i { font-style: normal; }
+.t3-it { display: inline-flex; align-items: center; gap: 6px; font-size: 20px; }
+.t3-it b { max-width: 100px; overflow: hidden; text-overflow: ellipsis; font-weight: 700; text-shadow: 0 2px 3px rgba(0,0,0,.6); }
+.t3-it em { font-style: normal; color: #ffd34d; font-weight: 700; font-variant-numeric: tabular-nums; }
+.t3-medal { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-style: normal; font-weight: 700; font-size: 16px; color: #2b1800;
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.7), inset 0 -2px 3px rgba(0,0,0,.35), 0 2px 3px rgba(0,0,0,.5); }
+.m1 .t3-medal { background: radial-gradient(circle at 35% 30%, #fff3b0, #e3a925 55%, #8a5a06); }
+.m2 .t3-medal { background: radial-gradient(circle at 35% 30%, #ffffff, #b9c2cc 55%, #5d6670); }
+.m3 .t3-medal { background: radial-gradient(circle at 35% 30%, #ffd7b0, #c9773a 55%, #6a3510); }
+.t3-wait, .t3-left { font-size: 22px; color: #cfd0ea; font-variant-numeric: tabular-nums; }
+
+.t3-ava { position: relative; display: inline-block; flex: none; width: 44px; height: 44px; border-radius: 50%; overflow: hidden; background: #333; }
+.t3-ava img, .t3-ava-fb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.t3-ava-fb { display: grid; place-items: center; font-weight: 700; font-size: 17px; background: radial-gradient(circle at 35% 30%, hsl(var(--h) 70% 62%), hsl(var(--h) 60% 32%)); text-shadow: 0 2px 3px rgba(0,0,0,.4); }
+.t3-ava.xs { width: 34px; height: 34px; box-shadow: 0 0 0 2px rgba(255,255,255,.7); }
+.t3-ava.xs .t3-ava-fb { font-size: 14px; }
+
+/* ===== Sân khấu công bố ===== */
+.t3-pod { width: 1000px; height: 1180px; text-align: center; }
+.t3-glow { position: absolute; left: -40px; right: -40px; top: -40px; bottom: -20px; pointer-events: none;
+  background: radial-gradient(60% 55% at 50% 52%, rgba(20, 10, 50, .82), rgba(10, 6, 30, .55) 60%, rgba(0,0,0,0) 85%); }
+.t3-rays { position: absolute; left: 50%; top: 210px; width: 1100px; height: 1100px; margin-left: -550px; border-radius: 50%; pointer-events: none; opacity: 0;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 220, 120, .28) 0deg 6deg, rgba(255, 220, 120, 0) 6deg 18deg);
+  -webkit-mask-image: radial-gradient(closest-side, #000 18%, rgba(0,0,0,.6) 45%, transparent 75%); mask-image: radial-gradient(closest-side, #000 18%, rgba(0,0,0,.6) 45%, transparent 75%); }
+.t3-beams { position: absolute; left: 0; right: 0; top: -120px; height: 1000px; pointer-events: none; }
+.t3-beams i { position: absolute; top: 0; width: 340px; height: 100%; transform-origin: 50% 0; mix-blend-mode: screen; opacity: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .42), rgba(255, 240, 200, .12) 60%, rgba(255, 240, 200, 0));
+  clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%); }
+.t3-beams .b1 { left: 330px; background: linear-gradient(180deg, rgba(255, 236, 160, .6), rgba(255, 214, 90, .16) 60%, rgba(255, 214, 90, 0)); }
+.t3-beams .b2 { left: 70px; transform: rotate(10deg); }
+.t3-beams .b3 { left: 590px; transform: rotate(-10deg); }
+
+.t3-banner { position: relative; margin-top: 10px; }
+.t3-kick { display: inline-block; padding: 6px 26px; border-radius: 999px; font-size: 24px; letter-spacing: .32em; color: #e9e4ff;
+  background: linear-gradient(180deg, rgba(120, 90, 220, .55), rgba(60, 40, 140, .55)); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 4px 10px rgba(0,0,0,.4); }
+.t3-ttl { margin-top: 10px; font-weight: 700; font-size: 82px; line-height: 1.05; letter-spacing: .03em;
+  background: linear-gradient(180deg, #ffffff 8%, #fff2b8 30%, #ffc531 55%, #b8780c 78%, #ffe28a 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 3px 0 #5a3500) drop-shadow(0 8px 12px rgba(0,0,0,.6)); }
+
+.t3-scene { position: relative; margin-top: 30px; height: 860px; }
+.t3-cols { position: absolute; left: 0; right: 0; bottom: 70px; display: flex; align-items: flex-end; justify-content: center; gap: 0; }
+.t3-col { position: relative; width: 300px; display: flex; flex-direction: column; align-items: center; }
+.t3-col.p1 { z-index: 2; width: 320px; }
+
+/* Khối bục: mặt trên hình thang + mặt trước kim loại xước */
+.t3-block { position: relative; width: 100%; }
+.t3-top { position: relative; height: 54px; clip-path: polygon(7% 0, 93% 0, 100% 100%, 0 100%); }
+.t3-pool { position: absolute; inset: 0; background: radial-gradient(50% 70% at 50% 55%, rgba(255,255,255,.75), rgba(255,255,255,0)); mix-blend-mode: screen; }
+.t3-front { position: relative; display: grid; place-items: start center; padding-top: 18px; box-shadow: inset 0 3px 0 rgba(255,255,255,.55), inset 0 -10px 18px rgba(0,0,0,.35), inset 14px 0 18px rgba(0,0,0,.18), inset -14px 0 18px rgba(0,0,0,.25); }
+.t3-front span { font-weight: 700; font-size: 120px; line-height: 1; color: rgba(0,0,0,.26); text-shadow: 0 3px 0 rgba(255,255,255,.45), 0 -1px 0 rgba(0,0,0,.4); }
+.p1 .t3-front { height: 330px; background: linear-gradient(90deg, #6b4304 0%, #c48a17 12%, #ffe58a 30%, #f5c23f 46%, #fff3b8 56%, #d39a20 74%, #7a4e06 100%); }
+.p1 .t3-top { background: linear-gradient(180deg, #fff6cc, #f1c450 70%, #c88f1d); }
+.p2 .t3-front { height: 240px; background: linear-gradient(90deg, #4c535b 0%, #9aa4ae 14%, #f2f5f8 32%, #c7ced6 48%, #ffffff 58%, #a6b0ba 76%, #4f565e 100%); }
+.p2 .t3-top { background: linear-gradient(180deg, #ffffff, #d6dde4 70%, #9ea8b2); }
+.p3 .t3-front { height: 170px; background: linear-gradient(90deg, #5a2a0a 0%, #a85c24 14%, #f3b07a 32%, #d98b4e 48%, #ffd1a6 58%, #b0632a 76%, #5c2c0c 100%); }
+.p3 .t3-top { background: linear-gradient(180deg, #ffe0c2, #e3955a 70%, #a9592a); }
+.t3-col.p2 .t3-block { margin-right: -6px; }
+.t3-col.p3 .t3-block { margin-left: -6px; }
+
+/* Bệ đá cẩm thạch chung */
+.t3-base { position: absolute; left: 50%; bottom: 0; width: 1000px; height: 120px; margin-left: -500px; }
+.t3-base-top { position: absolute; left: 0; right: 0; top: 0; height: 90px; border-radius: 50%;
+  background:
+    repeating-linear-gradient(115deg, rgba(255,255,255,0) 0 38px, rgba(150, 140, 190, .18) 38px 40px, rgba(255,255,255,0) 40px 90px),
+    radial-gradient(ellipse at 50% 40%, #f4f1ff, #b9b2d8 55%, #6d6595 90%);
+  box-shadow: inset 0 -6px 14px rgba(0,0,0,.25); }
+.t3-base-front { position: absolute; left: 0; right: 0; top: 45px; height: 75px; border-radius: 0 0 50% 50% / 0 0 60% 60%; z-index: -1;
+  background: linear-gradient(180deg, #4a4270, #231d42 70%, #120e26); box-shadow: 0 26px 40px rgba(0,0,0,.6); }
+
+/* Người đứng bục */
+.t3-who { position: relative; margin-bottom: -6px; padding-bottom: 6px; }
+.t3-medallion { position: relative; width: 168px; height: 168px; margin: 0 auto; display: grid; place-items: center; }
+.p1 .t3-medallion { width: 204px; height: 204px; }
+.t3-ring { position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 10px 22px rgba(0,0,0,.55); }
+.p1 .t3-ring { background: conic-gradient(from 210deg, #8a5a06, #fff3b0, #e3a925, #7a4e06, #ffe58a, #c48a17, #8a5a06); }
+.p2 .t3-ring { background: conic-gradient(from 210deg, #5d6670, #ffffff, #b9c2cc, #4f565e, #eef2f6, #9aa4ae, #5d6670); }
+.p3 .t3-ring { background: conic-gradient(from 210deg, #6a3510, #ffd7b0, #c9773a, #5c2c0c, #f3b07a, #a85c24, #6a3510); }
+.t3-ava.big { width: calc(100% - 22px); height: calc(100% - 22px); box-shadow: inset 0 0 0 3px rgba(0,0,0,.35); }
+.t3-ava.big .t3-ava-fb { font-size: 58px; }
+.p1 .t3-ava.big .t3-ava-fb { font-size: 70px; }
+.t3-crown { position: absolute; left: 50%; top: -66px; transform: translateX(-50%); font-size: 72px; z-index: 2; filter: drop-shadow(0 6px 6px rgba(0,0,0,.5)); }
+.t3-ribbon { position: relative; margin: 12px auto 0; width: 270px; padding: 9px 30px 11px; font-weight: 700; font-size: 28px; color: #2b1800;
+  clip-path: polygon(0 0, 100% 0, 94% 50%, 100% 100%, 0 100%, 6% 50%); filter: drop-shadow(0 4px 0 rgba(0,0,0,.35)); }
+.t3-ribbon span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p1 .t3-ribbon { width: 300px; font-size: 32px; background: linear-gradient(180deg, #fff6cc, #f2c14e 55%, #c48a17); }
+.p2 .t3-ribbon { background: linear-gradient(180deg, #ffffff, #cfd6de 55%, #8e98a3); }
+.p3 .t3-ribbon { background: linear-gradient(180deg, #ffe3c8, #e09155 55%, #a5582a); }
+.t3-xu { margin-top: 8px; font-weight: 700; font-size: 34px; color: #ffd34d; text-shadow: 0 3px 6px rgba(0,0,0,.8); font-variant-numeric: tabular-nums; }
+.p1 .t3-xu { font-size: 40px; }
+.t3-xu small { margin-left: 6px; font-size: .55em; color: #e6e1ff; font-weight: 500; }
+
+.t3-sum { position: relative; display: inline-block; margin-top: 4px; padding: 12px 34px; border-radius: 18px; font-size: 30px; color: #ebe7ff;
+  background: linear-gradient(180deg, rgba(90, 70, 170, .6), rgba(30, 22, 70, .7)); box-shadow: 0 0 0 2px rgba(255, 211, 77, .5), 0 10px 20px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.25); }
+.t3-sum b { color: #ffd34d; }
+
+/* Confetti lật 3D */
+.t3-conf { position: absolute; left: -40px; right: -40px; top: 0; height: 1200px; pointer-events: none; overflow: hidden; }
+.t3-conf i { position: absolute; left: var(--x); top: -40px; width: var(--w); height: var(--hh); border-radius: var(--r); background: var(--c); opacity: 0;
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.18); }
+
+/* Thứ tự diễn: bệ → bậc 3 → bậc 2 → bậc 1 → đèn/tia/confetti */
+.go .t3-banner { animation: t3-in .6s ease-out both; }
+.go .t3-base { animation: t3-fade .6s ease-out both .1s; }
+.go .t3-col .t3-block { animation: t3-rise .8s cubic-bezier(.2,1.2,.4,1) both; transform-origin: 50% 100%; }
+.go .t3-col .t3-who { animation: t3-pop .6s cubic-bezier(.2,1.5,.4,1) both; }
+.go .p3 .t3-block { animation-delay: .35s; } .go .p3 .t3-who { animation-delay: .9s; }
+.go .p2 .t3-block { animation-delay: .9s; } .go .p2 .t3-who { animation-delay: 1.45s; }
+.go .p1 .t3-block { animation-delay: 1.5s; } .go .p1 .t3-who { animation-delay: 2.1s; }
+.go .t3-beams i { animation: t3-beam .8s ease-out both; }
+.go .t3-beams .b3 { animation-delay: .6s; } .go .t3-beams .b2 { animation-delay: 1.15s; } .go .t3-beams .b1 { animation-delay: 1.8s; }
+.go .t3-rays { animation: t3-rays-in .8s ease-out both 2.1s, t3-spin 48s linear infinite 2.1s; }
+.go .t3-sum { animation: t3-in .5s ease-out both 2.6s; }
+.go .t3-conf i { animation: t3-fall var(--t) cubic-bezier(.3,.1,.6,1) both calc(2.2s + var(--d)); }
+
+@keyframes t3-in { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: none; } }
+@keyframes t3-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes t3-rise { from { opacity: 0; transform: translateY(80px) scaleY(.2); } to { opacity: 1; transform: none; } }
+@keyframes t3-pop { from { opacity: 0; transform: translateY(40px) scale(.5); } to { opacity: 1; transform: none; } }
+@keyframes t3-beam { from { opacity: 0; } to { opacity: 1; } }
+@keyframes t3-rays-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes t3-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes t3-fall {
+  0% { opacity: 1; transform: translate3d(0, 0, 0) rotate3d(1, .4, .2, 0deg); }
+  100% { opacity: .9; transform: translate3d(calc(var(--sx) * 40px), 1240px, 0) rotate3d(1, .4, .2, 1080deg); }
+}

@@ -328,6 +328,36 @@
                 </div>
             </section>
 
+            <!-- GAME VIEW: 🔨 ĐẤU GIÁ — nội dung do public/games/daugia/daugia-panel.js dựng -->
+            <section id="view-daugia" class="view game-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🔨 Đấu Giá</h2>
+                        <div class="game-sub">Bán 1 món · quà = trả giá theo xu · hết giờ ai nhiều xu nhất thắng</div>
+                    </div>
+                    <div class="overlay-bar">
+                        <button class="obs-link small" id="btn-daugia-copy" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
+                        <button class="ghost small" id="btn-daugia-pop" title="Mở overlay thật trong cửa sổ riêng">🪟 Xem overlay</button>
+                    </div>
+                </header>
+                <div id="daugia-panel" class="daugia-panel"></div>
+            </section>
+
+            <!-- GAME VIEW: 🥇 TOP 3 KẾT THÚC TRẬN — nội dung do public/games/top3tran/top3tran-panel.js dựng -->
+            <section id="view-top3tran" class="view game-view">
+                <header class="game-header">
+                    <div>
+                        <h2>🥇 Top 3 Kết Thúc Trận</h2>
+                        <div class="game-sub">Mỗi trận (tay hoặc theo PK) cộng xu quà · hết trận bục vàng / bạc / đồng</div>
+                    </div>
+                    <div class="overlay-bar">
+                        <button class="obs-link small" id="btn-top3tran-copy" title="Copy link overlay OBS vào clipboard">📋 Link OBS</button>
+                        <button class="ghost small" id="btn-top3tran-pop" title="Mở overlay thật trong cửa sổ riêng">🪟 Xem overlay</button>
+                    </div>
+                </header>
+                <div id="top3tran-panel" class="top3tran-panel"></div>
+            </section>
+
             <!-- GAME VIEW: 🏆 THẺ GIẢI ĐẤU — nội dung do public/games/leaguecard/leaguecard-panel.js dựng -->
             <section id="view-leaguecard" class="view game-view">
                 <header class="game-header">
@@ -3184,6 +3214,8 @@
     <script src="/games/caro/game.js"></script>
     <script src="/games/leaguecard/league-card.js"></script>
     <script src="/games/leaguecard/leaguecard-panel.js"></script>
+    <script src="/games/daugia/daugia-panel.js"></script>
+    <script src="/games/top3tran/top3tran-panel.js"></script>
     <script src="/games/pokemon/pokemon-panel.js"></script>
     <script src="/games/caro/caro-panel.js"></script>
     <script src="/games/pktiktok/game.js"></script>

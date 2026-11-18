@@ -123,6 +123,8 @@ const PORT = process.env.PORT || 3000;
 const CaptionListener = require('./lib/caption-listener');
 const { createRankLog } = require('./lib/rank-log');
 const LeagueCard = require('./lib/league-card');
+const DauGia = require('./lib/dau-gia');        // 🔨 Đấu Giá — luật thuần
+const Top3Tran = require('./lib/top3-tran');    // 🏆 Top 3 Kết Thúc Trận — luật thuần
 
 // Domain giả trỏ về loopback (127.0.0.1) qua hosts file — cố định "hpaction.obs" cho mọi máy
 // (không suy từ tên máy, để URL giống nhau trên mọi cài đặt HP Action LIVE). Lý do đầy đủ +
@@ -720,6 +722,26 @@ const GAMES = {
         icon: '🏆',
         overlayPath: '/overlay/leaguecard',
         defaultConfig: makeDefaultLeagueCardConfig()
+    },
+    // 🔨 ĐẤU GIÁ: streamer bán 1 món, quà = trả giá (theo xu), hết giờ ai nhiều xu nhất thắng; hoà → hiệp phụ;
+    // chống cướp giây chót (chỉ khi đổi người dẫn). Luật thuần lib/dau-gia.js, server giữ state (RAM), overlay chỉ vẽ.
+    // Spec: docs/superpowers/specs/2026-11-12-daugia-top3tran-design.md
+    'daugia': {
+        id: 'daugia',
+        name: 'Đấu Giá',
+        description: 'Bán 1 món trên LIVE: người xem tặng quà để trả giá, hết giờ ai nhiều xu nhất thắng. Bảng xếp hạng trên OBS, hoà có hiệp phụ, chống cướp giây chót.',
+        icon: '🔨',
+        overlayPath: '/overlay/daugia',
+        defaultConfig: { ...DauGia.DEFAULTS }
+    },
+    // 🏆 TOP 3 KẾT THÚC TRẬN: mở/đóng trận (tay hoặc theo PK thật) → công bố bục vàng/bạc/đồng. Luật lib/top3-tran.js.
+    'top3tran': {
+        id: 'top3tran',
+        name: 'Top 3 Kết Thúc Trận',
+        description: 'Mỗi trận (bấm tay hoặc tự theo PK) cộng xu quà cho người tặng. Hết trận: bục vàng / bạc / đồng vinh danh 3 người góp nhiều nhất trên OBS.',
+        icon: '🥇',
+        overlayPath: '/overlay/top3tran',
+        defaultConfig: { ...Top3Tran.DEFAULTS }
     },
     // TOUCH & PLAY (prototype): game webcam — overlay nhận hình nguồn camera trong scene OBS
     // (lib/touchplay-obs-feed.js) + MediaPipe (public/lib/mediapipe), chạm bóng / gắp đồ ăn đưa lên
@@ -4076,6 +4098,98 @@ function leagueOnGift(g) {
 // Mở app chưa LIVE: hiện ngay số nhập tay (nếu bật) để streamer canh vị trí thẻ trên OBS.
 try { leagueApplyManual(); } catch (e) {}
 
+// ====== 🔨 Đấu Giá + 🏆 Top 3 Kết Thúc Trận — state trong RAM (dữ liệu tạm của buổi LIVE), overlay chỉ vẽ ======
+// Đổi pha / bấm nút → đẩy ngay; quà → gom 150 ms (combo ×999 bắn hàng trăm lượt). Snapshot có serverNow để overlay
+// tự đếm ngược từ endsAt — server không đẩy mỗi giây.
+const dauGia = DauGia.createAuction();
+const top3Tran = Top3Tran.createMatchTop();
+function rankGameOn(id) { return !!(appConfig.games[id] && appConfig.games[id].enabled !== false); }
+function rankGamesApplyCfg(id) {
+    if (!id || id === 'daugia') dauGia.setConfig(appConfig.games.daugia);
+    if (!id || id === 'top3tran') top3Tran.setConfig(appConfig.games.top3tran);
+}
+const rankEmitT = {};
+function rankEmit(id, now) {
+    const send = () => {
+        rankEmitT[id] = null;
+        io.emit(id + ':state', id === 'daugia' ? dauGia.snapshot() : top3Tran.snapshot());
+    };
+    if (now) { clearTimeout(rankEmitT[id]); send(); return; }
+    if (!rankEmitT[id]) rankEmitT[id] = setTimeout(send, 150);
+}
+try { rankGamesApplyCfg(); } catch (e) { console.warn('[daugia/top3tran] cfg lỗi:', e?.message || e); }
+setInterval(() => {
+    try { if (dauGia.tick().changed) rankEmit('daugia', true); } catch (e) {}
+    try { if (top3Tran.tick().changed) rankEmit('top3tran', true); } catch (e) {}
+}, 250);
+// Quà đã gộp combo ở emitGift → coins = coinValue × repeatCount.
+function rankGamesOnGift(g) {
+    const n = Math.max(1, parseInt(g.repeatCount, 10) || 1);
+    const base = {
+        uniqueId: String(g.uniqueId || g.userId || ''), nickname: g.nickname || g.uniqueId,
+        avatar: g.profilePictureUrl || g.profilePicture || '', coins: (Number(g.coinValue) || 0) * n,
+        giftName: g.giftName || '', giftIcon: g.image || g.giftPicture || '', count: n
+    };
+    if (rankGameOn('daugia')) {
+        const r = dauGia.gift(base);
+        if (r.changed) rankEmit('daugia', r.extended);
+    }
+    if (rankGameOn('top3tran') && top3Tran.gift(base).changed) rankEmit('top3tran', false);
+}
+// PK thật (emitPkState): start → mở trận, end → đóng + công bố. Không cướp trận tay (luật trong lib).
+function top3OnPk(phase) {
+    if (!rankGameOn('top3tran')) return;
+    const changed = phase === 'start' ? top3Tran.pkStart() : phase === 'end' ? top3Tran.pkEnd() : false;
+    if (changed) rankEmit('top3tran', true);
+}
+let rankFakeN = 0;
+function rankFakeGift(body) {
+    rankFakeN++;
+    const name = String(body?.name || ('Khách thử ' + rankFakeN)).slice(0, 40);
+    return { uniqueId: 'test:' + name, nickname: name, avatar: '',
+        coins: Math.max(1, Math.round(Number(body?.coins) || 10)), giftName: 'Quà thử', giftIcon: '', count: 1 };
+}
+app.get('/api/daugia/state', (req, res) => res.json({ ok: true, state: dauGia.snapshot() }));
+app.post('/api/daugia/cmd', (req, res) => {
+    const b = req.body || {};
+    switch (String(b.cmd || '')) {
+        case 'start': dauGia.start(b.title); break;
+        case 'end': dauGia.end(); break;
+        case 'reset': dauGia.reset(); break;
+        case 'title': dauGia.setTitle(b.title); break;
+        case 'bid': {   // quà thử: đi đúng đường luật (chống cướp, min xu…)
+            if (!dauGia.isRunning()) return res.status(409).json({ ok: false, error: 'Chưa mở phiên đấu giá' });
+            dauGia.gift(rankFakeGift(b));
+            break;
+        }
+        default: return res.status(400).json({ ok: false, error: 'cmd phải là start|end|reset|title|bid' });
+    }
+    rankEmit('daugia', true);
+    res.json({ ok: true, state: dauGia.snapshot() });
+});
+app.get('/api/top3tran/state', (req, res) => res.json({ ok: true, state: top3Tran.snapshot() }));
+app.post('/api/top3tran/cmd', (req, res) => {
+    const b = req.body || {};
+    switch (String(b.cmd || '')) {
+        case 'start': top3Tran.open({ source: 'manual' }); break;
+        case 'end': top3Tran.close(); break;
+        case 'hide': top3Tran.hide(); break;
+        case 'reset': top3Tran.reset(); break;
+        case 'demo': top3Tran.demo(); break;
+        // Giả lập PK: đi đúng đường top3OnPk như emitPkState('start'|'end') của PK thật (thử khi không LIVE).
+        case 'pkstart': top3OnPk('start'); return res.json({ ok: true, state: top3Tran.snapshot() });
+        case 'pkend': top3OnPk('end'); return res.json({ ok: true, state: top3Tran.snapshot() });
+        case 'bid': {
+            if (!top3Tran.isOpen()) return res.status(409).json({ ok: false, error: 'Chưa mở trận' });
+            top3Tran.gift(rankFakeGift(b));
+            break;
+        }
+        default: return res.status(400).json({ ok: false, error: 'cmd phải là start|end|hide|reset|demo|bid|pkstart|pkend' });
+    }
+    rankEmit('top3tran', true);
+    res.json({ ok: true, state: top3Tran.snapshot() });
+});
+
 // Chống spam toast: lib bắn ERROR cho cả lỗi decode message WebSocket lặp lại giữa buổi live.
 let lastTikTokErrorToast = { message: '', ts: 0 };
 // 💬 Một bình luận (TikTok thật hoặc /api/test-chat): lọc từ cấm → phát cho mọi game + Dịch Thuật + Chào VIP / Bình chọn /
@@ -4444,6 +4558,7 @@ function attachConnectionEvents(conn, lib) {
         const hi = pkHostTeamIndex >= 0 ? pkHostTeamIndex : 0;
         const others = snap.filter((_, i) => i !== hi);
         io.emit('pk:state', { phase, active: pkActive, host: snap[hi] || 0, opp: others.length ? Math.max(...others) : 0, ts: Date.now(), ...extra });
+        try { top3OnPk(phase); } catch (e) { console.warn('[top3tran] PK lỗi:', e?.message || e); }   // 🏆 Top 3: trận theo PK thật
     }
     function resetPkState() {
         pkActive = false;
@@ -5306,6 +5421,7 @@ function emitGift(g) {
     try { if (giftStats.add(enriched)) giftStatsChanged(); } catch (e) { console.warn('[gift-stats] lỗi:', e?.message || e); }
     setLiveDashboardGift(enriched);
     try { leagueOnGift(enriched); } catch (e) { console.warn('[leaguecard] gift lỗi:', e?.message || e); }
+    try { rankGamesOnGift(enriched); } catch (e) { console.warn('[daugia/top3tran] gift lỗi:', e?.message || e); }
     try { if (qvStore && qvStore.alive()) qvStore.addGift({ uid: String(enriched.uniqueId || enriched.userId || ''), name: enriched.nickname || enriched.uniqueId, avatar: enriched.profilePictureUrl || enriched.profilePicture || '', coins: (Number(enriched.coinValue) || 0) * Math.max(1, parseInt(enriched.repeatCount, 10) || 1) }); } catch (e) { console.warn('[quaivat] sổ tuần lỗi:', e?.message || e); }
     // Push to all game overlays
     io.to('overlay').emit('gameGift', enriched);
@@ -6366,6 +6482,11 @@ app.post('/api/games/:id/config', (req, res) => {
         }
     }
     appConfig.games[g.id] = { ...appConfig.games[g.id], ...incoming };
+    if (g.id === 'daugia' || g.id === 'top3tran') {   // chuẩn hoá + áp luật mới cho phiên đang chạy (không xoá bảng)
+        appConfig.games[g.id] = { ...appConfig.games[g.id], ...(g.id === 'daugia' ? DauGia : Top3Tran).normalizeCfg(appConfig.games[g.id]) };
+        rankGamesApplyCfg(g.id);
+        rankEmit(g.id, true);
+    }
     if (g.id === 'body') appConfig.games.body = BodyServer.normalizeConfig(appConfig.games.body);
     if (g.id === 'thuytinh') cleanThuyTinhConfig(appConfig.games.thuytinh);   // app cũ POST config lẫn key game khác
     if (g.id === 'pktiktok') {
@@ -7479,6 +7600,12 @@ app.get('/overlay/pktiktok', (req, res) => {
 });
 app.get('/overlay/leaguecard', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'leaguecard', 'overlay.html'));
+});
+app.get('/overlay/daugia', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'daugia', 'overlay.html'));
+});
+app.get('/overlay/top3tran', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'games', 'top3tran', 'overlay.html'));
 });
 app.get('/overlay/vipwelcome', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'games', 'vipwelcome', 'overlay.html'));

@@ -1071,6 +1071,8 @@
         else if (gameId === 'timer') showView('view-timer');
         else if (gameId === 'giftboard') showView('view-giftboard');
         else if (gameId === 'pokemon') { if (!window.__giftSheet) window.__giftSheet = giftSheet; showView('view-pokemon'); window.HpPokemonPanel?.open(socket, game); }
+        else if (gameId === 'daugia') { showView('view-daugia'); window.HpDauGiaPanel?.open(socket); }
+        else if (gameId === 'top3tran') { showView('view-top3tran'); window.HpTop3TranPanel?.open(socket); }
         else if (gameId === 'leaguecard') { if (!window.__giftSheet) window.__giftSheet = giftSheet; showView('view-leaguecard'); window.HpLeagueCardPanel?.open(socket); }
         else if (gameId === 'goibai') { if (!window.__giftSheet) window.__giftSheet = giftSheet; window.HpGoiBaiPanel?.open(socket); }
         else if (gameId === 'touchplay') showView('view-touchplay');

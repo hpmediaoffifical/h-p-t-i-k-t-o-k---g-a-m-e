@@ -9872,3 +9872,41 @@ details.st-adv > summary .hint-inline { margin-left: 8px; text-transform: none; 
 .dvq-x:hover { color: var(--fg-ff4d5e, #ff4d5e); }
 .dvq-giftbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 #dvq-btn-demo.dvq-on { border-color: var(--bd-7dff6a, #7dff6a); color: var(--fg-7dff6a, #7dff6a); }
+
+/* ============================================================
+   🔨 ĐẤU GIÁ + 🥇 TOP 3 KẾT THÚC TRẬN — trang cài đặt (daugia-panel.js / top3tran-panel.js, cùng khung .rkp-*)
+   ============================================================ */
+#view-daugia .daugia-panel, #view-top3tran .top3tran-panel { flex: 1; min-height: 0; overflow-y: auto; }
+.daugia-panel .rkp-grid, .top3tran-panel .rkp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 10px; align-items: start; }
+@media (max-width: 1000px) { .daugia-panel .rkp-grid, .top3tran-panel .rkp-grid { grid-template-columns: minmax(0, 1fr); } }
+.daugia-panel .rkp-col, .top3tran-panel .rkp-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.daugia-panel .rkp-side, .top3tran-panel .rkp-side { position: sticky; top: 0; }
+.daugia-panel .rkp-card, .top3tran-panel .rkp-card { background: var(--bg-0f1218, #0f1218); border: 1px solid var(--bd-1f2533, #1f2533); border-radius: 12px; padding: 10px 12px; }
+.daugia-panel .rkp-card h4, .top3tran-panel .rkp-card h4 { margin: 2px 0 8px; font-size: 13px; color: var(--fg-cfd6e4, #cfd6e4); }
+.daugia-panel .rkp-switch, .top3tran-panel .rkp-switch { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; color: var(--fg-dfe4ee, #dfe4ee); cursor: pointer; }
+.daugia-panel .rkp-switch small, .top3tran-panel .rkp-switch small { font-weight: 400; color: var(--fg-8e97ab, #8e97ab); }
+.daugia-panel .rkp-field, .top3tran-panel .rkp-field { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 12px; color: var(--fg-8e97ab, #8e97ab); }
+.daugia-panel .rkp-field input { padding: 8px 10px; font-size: 15px; font-weight: 600; }
+.daugia-panel .rkp-btns, .top3tran-panel .rkp-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
+.daugia-panel .rkp-btns button, .top3tran-panel .rkp-btns button { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--bd-2a3142, #2a3142); background: var(--bg-161b25, #161b25); color: var(--fg-dfe4ee, #dfe4ee); font: 600 12.5px inherit; cursor: pointer; }
+.daugia-panel .rkp-btns button:hover, .top3tran-panel .rkp-btns button:hover { border-color: var(--bd-3d4760, #3d4760); background: var(--bg-1c2230, #1c2230); }
+.daugia-panel .rkp-btns button.rkp-go, .top3tran-panel .rkp-btns button.rkp-go { background: var(--bg-ffd36b, #ffd36b); border-color: var(--bd-ffd36b, #ffd36b); color: #2a1c00; }
+.daugia-panel .rkp-btns button.ghost, .top3tran-panel .rkp-btns button.ghost { background: transparent; color: var(--fg-8e97ab, #8e97ab); }
+.daugia-panel .rkp-btns input, .top3tran-panel .rkp-btns input { padding: 6px 8px; min-width: 0; }
+.daugia-panel .rkp-nums, .top3tran-panel .rkp-nums { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 4px 0 8px; }
+.daugia-panel .rkp-nums.off { opacity: .45; }
+.daugia-panel .rkp-num, .top3tran-panel .rkp-num { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--fg-8e97ab, #8e97ab); }
+.daugia-panel .rkp-num input, .top3tran-panel .rkp-num input { width: 120px; }
+.daugia-panel .rkp-num small, .top3tran-panel .rkp-num small { font-size: 11px; color: var(--fg-6b7387, #6b7387); }
+.daugia-panel .rkp-row, .top3tran-panel .rkp-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 13px; color: var(--fg-cfd6e4, #cfd6e4); }
+.daugia-panel .rkp-row input[type=range], .top3tran-panel .rkp-row input[type=range] { flex: 1; }
+.daugia-panel .rkp-row span, .top3tran-panel .rkp-row span { min-width: 42px; text-align: right; color: var(--fg-ffd36b, #ffd36b); font-variant-numeric: tabular-nums; }
+.daugia-panel .rkp-note, .top3tran-panel .rkp-note { margin: 8px 0 0; font-size: 12px; color: var(--fg-8e97ab, #8e97ab); line-height: 1.5; }
+.daugia-panel .rkp-status, .top3tran-panel .rkp-status { margin-top: 6px; font-size: 13px; color: var(--fg-8e97ab, #8e97ab); }
+.daugia-panel .rkp-status.live, .top3tran-panel .rkp-status.live { color: var(--fg-dfe4ee, #dfe4ee); }
+.daugia-panel .rkp-status.warn, .top3tran-panel .rkp-status.warn { color: var(--fg-ff6b78, #ff6b78); }
+.daugia-panel .rkp-list, .top3tran-panel .rkp-list { margin: 6px 0 0; padding-left: 22px; font-size: 13px; color: var(--fg-cfd6e4, #cfd6e4); }
+.daugia-panel .rkp-list li, .top3tran-panel .rkp-list li { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+.daugia-panel .rkp-list li span, .top3tran-panel .rkp-list li span { color: var(--fg-ffd36b, #ffd36b); font-variant-numeric: tabular-nums; }
+.daugia-panel .rkp-preview, .top3tran-panel .rkp-preview { width: 300px; height: 533px; border-radius: 10px; overflow: hidden; border: 1px solid var(--bd-1f2533, #1f2533); }
+.daugia-panel .rkp-preview iframe, .top3tran-panel .rkp-preview iframe { width: 100%; height: 100%; border: 0; display: block; }
