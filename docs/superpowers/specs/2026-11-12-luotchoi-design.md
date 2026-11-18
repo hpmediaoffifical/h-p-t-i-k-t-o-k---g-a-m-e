@@ -16,6 +16,7 @@ Chỉ lấy CƠ CHẾ của các trò "đoán bẫy" quen thuộc; tên, hình, 
 | `chumcoc` | 🐸 Cóc Trốn Chum | cắm que tre vào lỗ chum (8–30 lỗ); trúng lỗ → cóc nhảy vọt ra | bẫy |
 | `thaptre` | 🎋 Tháp Tre Chao Đảo | rút thanh tre; tháp đổ → thua | bẫy (xác suất) |
 | `latcap` | 🍉 Săn Cặp Trái Cây | lật 2 ô tìm cặp hình trái cây giống nhau | điểm |
+| `oanquan` | 🪨 Ô Ăn Quan | trò dân gian 2 người: rải quân, ăn dân, ăn quan (§2.2) | điểm |
 
 ## 2. Luật chung (khung ghế + lượt)
 
@@ -53,6 +54,42 @@ rút thanh cuối cùng của một tầng (hiếm khi hết lựa chọn thì n
 - Ngược lại `p = base(0.04) + 0.02·số thanh đã rút + 0.05·(1 − L/levels)` (tầng thấp đỡ nhiều hơn → rủi ro hơn), nhân
   `0.6` nếu rút thanh giữa khi 2 bên còn đủ, nhân `1.6` nếu rút xong tầng chỉ còn thanh giữa; chặn trên 0.9.
 - Đổ → loại; có khiên → thanh được nhét lại, tháp lung lay nhưng đứng.
+
+### 2.2 🪨 Ô Ăn Quan (`oanquan`) — thêm 18/11/2026
+
+Trò dân gian Việt Nam, luật **thống nhất từ nhiều nguồn**: avakids.com (hướng dẫn chi tiết), Wikipedia "Ô ăn quan",
+Sforum (cellphones.com.vn). Chỗ các nguồn khác nhau → chọn cách phổ biến nhất, ghi rõ bên dưới.
+
+- **Bàn:** 10 ô dân (2 hàng × 5), mỗi ô 5 dân; 2 ô quan bán nguyệt ở 2 đầu, mỗi ô 1 quan. **2 người** (`maxSeats: 2`):
+  ghế 1 giữ hàng dưới, ghế 2 giữ hàng trên. Thường Chủ LIVE đấu 1 người xem.
+- **Một nước:** chọn 1 ô dân bên mình còn quân + hướng → bốc hết, rải mỗi ô 1 viên (ô quan cũng được rải vào,
+  nhưng **không bao giờ bốc ô quan**). Hết quân trong tay → xét ô kế tiếp N:
+  - N là ô dân còn quân → bốc lên rải tiếp.
+  - N là ô quan (còn quân) → **mất lượt**.
+  - N trống → ô liền sau M có quân thì **ăn M**; sau đó nếu lại "trống rồi có quân" → **ăn liên tiếp**; N và M đều trống → mất lượt.
+- **Quan non** (bật mặc định, `quanNon`): ô quan còn quan mà **dưới 5 dân** thì không được ăn (mất lượt) — tránh hết ván quá sớm.
+- **Hết dân bên mình** (đầu lượt): lấy 5 dân đã ăn rải lại mỗi ô 1; thiếu thì **vay** đối thủ, cuối ván người vay bị trừ, người
+  cho vay được cộng. Không đủ 5 để rải (cả 2 bên cạn) → hết ván.
+- **Kết thúc:** cả 2 ô quan trống → dân còn trên mỗi hàng về chủ hàng đó. **Điểm = dân + quan × `quanValue`** (10, tuỳ chọn 5).
+  Hơn điểm thắng, kém điểm vào thùng rác; bằng điểm = hoà.
+- **Bình luận:** mỗi hàng đánh số **1–5 trái → phải màn hình**; hướng **1 = sang trái, 2 = sang phải** màn hình.
+  `3 2` = ô 3 rải sang phải (1 bình luận); gõ `3` rồi `2` cũng được. Hết giờ → máy đi hộ trọn 1 nước.
+- **Luật thuần:** `lib/luot-choi/games/oanquan.js` — vòng ô 0–11 (0–4 hàng dưới trái→phải, 5 quan phải, 6–10 hàng trên phải→trái,
+  11 quan trái); `pick()` 2 bước (`pending` → `move`), `startTurn()` (rải lại / vay), `scores()`, `lastMove.trace`
+  (`take`/`drop`/`cap`/`end`) để overlay diễn lại từng viên; `holdMs` = 600 + 170 ms × số bước (tối đa 14 s).
+  Test `tests/luotchoi-oanquan.test.js` + 4 test tích hợp trong `luotchoi-table.test.js`.
+- **Khung bàn mở rộng cho trò này:** `maxSeats` (số ghế thật = min(cấu hình, giới hạn trò)), `ctx {side}` truyền vào
+  `pick/options`, kết quả `move` (giữ lượt theo `holdMs`), `startTurn` đầu lượt (sự kiện `refill`), điểm lấy từ `scores()`.
+- **Hình:** bàn gỗ vân 3D, ô lõm, sỏi dân bóng nhiều màu, quan = ngọc vàng; bong bóng "số ô · số quân" trên mỗi ô, tên chủ hàng
+  2 bên; rải quân = cụm sỏi bay hình cung từ ô sang ô + bàn tay úp xuống đi theo; ăn = cả ô bay về phía người ăn.
+
+
+### 2.3 Bàn tay + con cóc vẽ lại (18/11/2026)
+
+Bàn tay mới `public/games/luotchoi/hand-art.js` (SVG tự vẽ: tay người da đổ bóng, móng, nếp đốt, tay áo hồng) thay găng tay
+hoạt hình; cóc 3D dựng lại theo dáng cóc thật (thân dẹt có đốm, mắt lồi tròng vàng con ngươi ngang, miệng cười rộng, chân gập).
+Ảnh/model vẽ tay thay thế được qua `public/games/luotchoi/assets/manifest.json` (`hand`, `stick`, `frog`); brief gửi
+ChatGPT / AI 3D: `art-requests/dau-truong-mini/BRIEF-DAU-TRUONG-MINI.md`.
 
 ## 3. Kiến trúc
 

@@ -350,3 +350,50 @@ test('boardId: đổi mỗi lần dựng bàn (bắt đầu / loại người) �
     settle(tb, clock);
     assert.ok(snap(tb).boardId > id1, 'loại người → bàn mới');
 });
+
+test('Ô Ăn Quan: chỉ 2 ghế (người thứ 3 vào hàng chờ), đủ 2 là chạy', () => {
+    const { tb, clock } = make({ game: 'oanquan', seats: 4, minPlayers: 3 });
+    assert.deepEqual(seat(tb, 'a', 'b', 'c'), ['seat', 'seat', 'queue']);
+    assert.equal(snap(tb).cfg.seats, 2);
+    clock.go(3100);
+    assert.equal(snap(tb).phase, 'playing');
+});
+
+test('Ô Ăn Quan: bình luận "3 2" = ô 3 rải phải; lượt sang người kia sau khi diễn rải xong; điểm đồng bộ lên ghế', () => {
+    const { tb, clock } = make({ game: 'oanquan', seats: 2 });
+    seat(tb, 'a', 'b'); clock.go(3100);
+    assert.deepEqual(snap(tb).options, [1, 2, 3, 4, 5]);
+    assert.equal(tb.comment({ user: u('a'), text: '3 2' }), true);
+    const mv = snap(tb).board.lastMove;
+    assert.ok(mv && mv.trace.length > 3);
+    assert.ok(snap(tb).holdUntil > 0);
+    settle(tb, clock);
+    assert.equal(turnKey(tb), 'b');
+    const sc = snap(tb).board.scores;
+    assert.deepEqual(snap(tb).seats.map(s => s.score), sc);
+});
+
+test('Ô Ăn Quan: gõ từng số (ô rồi hướng) cũng được; hết giờ máy đi hộ trọn 1 nước', () => {
+    const { tb, clock } = make({ game: 'oanquan', seats: 2, turnSec: 15 });
+    seat(tb, 'a', 'b'); clock.go(3100);
+    assert.equal(tb.comment({ user: u('a'), text: '1' }), true);
+    assert.deepEqual(snap(tb).options, [1, 2]);
+    assert.equal(tb.comment({ user: u('a'), text: '1' }), true);
+    settle(tb, clock);
+    assert.equal(turnKey(tb), 'b');
+    clock.go(15500);
+    assert.ok(snap(tb).board.lastMove.side === 1, 'máy đi hộ bên 1');
+});
+
+test('Ô Ăn Quan: để máy tự đi tới hết ván → có kết quả theo điểm', () => {
+    let x = 7;
+    const rng = () => { x = (x * 16807) % 2147483647; return (x - 1) / 2147483646; };
+    const { tb, clock } = make({ game: 'oanquan', seats: 2, turnSec: 8 }, rng);
+    seat(tb, 'a', 'b'); clock.go(3100);
+    for (let i = 0; i < 4000 && snap(tb).phase === 'playing'; i++) clock.go(1000);
+    const s = snap(tb);
+    assert.equal(s.phase, 'result');
+    const [p0, p1] = s.seats.map(q => q.score);
+    if (p0 === p1) assert.equal(s.result.draw, true);
+    else assert.equal(s.result.winners[0].key, p0 > p1 ? 'a' : 'b');
+});

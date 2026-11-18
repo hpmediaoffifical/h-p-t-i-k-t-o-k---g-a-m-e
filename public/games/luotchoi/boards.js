@@ -84,7 +84,16 @@
         return `<div class="lp" style="grid-template-columns:repeat(${cols}, ${cw}px)">${cards}</div>`;
     }
 
-    const R = { hama, chumcoc, thaptre, latcap };
+    // 🪨 Ô Ăn Quan (bản 2D dự phòng khi máy không có WebGL): lưới số quân, đánh số theo màn hình
+    function oanquan(b) {
+        const q = (c, lbl) => `<div class="c q"><small>${lbl}</small>${c.quan ? '👑' : ''}${c.dan}</div>`;
+        const cell = (c) => `<div class="c" data-n="${c.side}:${c.n}"><small>${c.n}</small>${c.dan}</div>`;
+        const top = b.rows[1].map(c => cell(Object.assign({ side: 1 }, c))).join('');
+        const bot = b.rows[0].map(c => cell(Object.assign({ side: 0 }, c))).join('');
+        return `<div class="oq2">${q(b.quanL, 'QUAN')}${top}${q(b.quanR, 'QUAN')}${bot}</div>`;
+    }
+
+    const R = { hama, chumcoc, thaptre, latcap, oanquan };
     function render(stage, b, o) {
         if (!b || !R[b.kind]) { stage.innerHTML = ''; return; }
         stage.innerHTML = R[b.kind](b, o || {});

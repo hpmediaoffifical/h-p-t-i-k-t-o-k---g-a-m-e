@@ -17,8 +17,9 @@
     var TRAP_WORD = { hama: '🦛 NGOẠM!', chumcoc: '🐸 CÓC NHẢY RA!', thaptre: '🎋 THÁP ĐỔ!' };
     var SAVE_WORD = { hama: 'rụt tay kịp', chumcoc: 'giữ được nắp chum', thaptre: 'đỡ được tháp' };
     var TRAP_SAY = { hama: '{n} bị hà mã cắn rồi!', chumcoc: 'Cóc nhảy ra! {n} dính bẫy!', thaptre: 'Tháp đổ! {n} thua rồi!' };
-    var VERB = { hama: 'ấn răng', chumcoc: 'cắm lỗ', thaptre: 'rút thanh', latcap: 'lật ô' };
-    var TOOL = { hama: 'press', chumcoc: 'stick', thaptre: 'pull', latcap: 'tap' };
+    var VERB = { hama: 'ấn răng', chumcoc: 'cắm lỗ', thaptre: 'rút thanh', latcap: 'lật ô', oanquan: 'bốc quân' };
+    var DIR = { 1: 'sang trái', 2: 'sang phải' };
+    var TOOL = { hama: 'press', chumcoc: 'stick', thaptre: 'pull', latcap: 'tap', oanquan: 'press' };
     var SUSPENSE_MS = 800;   // = lib/luot-choi/table.js SUSPENSE_MS
     var RING = 2 * Math.PI * 50;
 
@@ -79,6 +80,12 @@
     }
     function sayPicks(s, picks) {
         if (!picks.length) return;
+        if (s.game.id === 'oanquan') {
+            var nm0 = speakName(picks[0].nickname);
+            var cell = picks.find(function (p) { return p.outcome === 'pending'; }), mv = picks.find(function (p) { return p.outcome === 'move'; });
+            say(cell && mv ? T('{n} chọn ô {c}, rải {d}', { n: nm0, c: cell.n, d: DIR[mv.n] }) : cell ? T('{n} chọn ô {c}', { n: nm0, c: cell.n }) : T('{n} rải {d}', { n: nm0, d: DIR[mv.n] }));
+            return;
+        }
         var name = speakName(picks[0].nickname);
         var nums = picks.map(function (p) { return p.n; }).join(' và ');
         say(T('{n} chọn số {x}', { n: name, x: nums }));
@@ -102,6 +109,17 @@
                 case 'shield': toast('🛡️ ' + who + ' ' + T(SAVE_WORD[g] || 'được khiên cứu'), 'good'); say(T('{n} được khiên cứu!', { n: nm })); break;
                 case 'match': toast('✨ ' + T('Trúng cặp! +1'), 'good'); say(T('{n} lật trúng cặp!', { n: nm })); break;
                 case 'miss': say(T('Trượt rồi!')); break;
+                case 'move': {   // Ô Ăn Quan: tổng quân ăn được trong nước vừa rải
+                    var tr = (s.board && s.board.lastMove && s.board.lastMove.trace) || [], dan = 0, quan = 0;
+                    tr.forEach(function (x) { if (x.k === 'cap') { dan += x.dan; quan += x.quan; } });
+                    if (quan) { toast('👑 ' + who + ' ' + T('ăn QUAN!'), 'good'); say(T('{n} ăn quan!', { n: nm })); }
+                    else if (dan) { toast('🪨 ' + who + ' ' + T('ăn {d} quân', { d: dan }), 'good'); say(T('{n} ăn được {d} quân', { n: nm, d: dan })); }
+                    break;
+                }
+                case 'refill':
+                    toast('🪨 ' + who + ' ' + T('hết dân — rải lại 5 quân') + (e.borrowed ? ' (' + T('vay {b}', { b: e.borrowed }) + ')' : ''));
+                    say(T('{n} hết dân, rải lại 5 quân', { n: nm }), true);
+                    break;
                 case 'start': toast('🎲 ' + T('Bắt đầu!')); say(T('Bắt đầu!')); break;
                 case 'turn': if (e.key) say(T('Tới lượt {n}', { n: nm }), true); break;
                 case 'win': say(T('{n} vô địch!', { n: (e.winners || []).map(function (w) { return speakName(w.nickname); }).join(' và ') })); break;
@@ -119,17 +137,8 @@
     }
 
     // ── tay bay vào ô vừa chọn ─────────────────────────────────────────────
-    function handHtml(tool) {
-        if (tool === 'stick') return '<svg viewBox="0 0 60 236" width="60" height="236"><rect x="24" y="0" width="12" height="220" rx="6" fill="#8fc24a"/>' +
-            '<rect x="24" y="52" width="12" height="5" fill="#5f8a26"/><rect x="24" y="118" width="12" height="5" fill="#5f8a26"/><rect x="24" y="184" width="12" height="5" fill="#5f8a26"/>' +
-            '<path d="M24 214 L30 232 L36 214 Z" fill="#c9a86a"/></svg>';
-        // găng tay hoạt hình chỉ ngón trỏ xuống (đầu ngón ở góc trên-trái của khung + lề âm trong CSS)
-        return '<svg viewBox="0 0 120 170" width="120" height="170">' +
-            '<rect x="28" y="0" width="26" height="78" rx="13" fill="#fff" stroke="#2b2f4a" stroke-width="5"/>' +
-            '<path d="M14 70 Q14 58 28 58 L96 58 Q112 58 112 76 L112 120 Q112 160 70 160 L46 160 Q14 160 14 124 Z" fill="#fff" stroke="#2b2f4a" stroke-width="5"/>' +
-            '<path d="M58 62 L58 92 M78 62 L78 92 M96 64 L96 92" stroke="#2b2f4a" stroke-width="4" stroke-linecap="round"/>' +
-            '<rect x="22" y="150" width="78" height="20" rx="8" fill="#ff4f8b" stroke="#2b2f4a" stroke-width="5"/></svg>';
-    }
+    // bàn tay / que tre vẽ ở hand-art.js (window.LcHandArt), có thể thay bằng ảnh vẽ tay qua assets/manifest.json
+    function handHtml(tool) { return window.LcHandArt ? window.LcHandArt(tool === 'stick' ? 'stick' : 'point') : ''; }
     var lastPress = '';
     function stopHand(hand) { try { hand.getAnimations().forEach(function (a) { a.cancel(); }); } catch (e) {} }
     function cellOf(n) { return $('stage').querySelector('[data-n="' + n + '"]'); }
@@ -166,6 +175,13 @@
     }
 
     // ── trạng thái vào → (diễn) → vẽ ───────────────────────────────────────
+    // ô tay cần bay tới cho 1 lượt chọn: số ô; Ô Ăn Quan = "bên:ô" (bước chọn hướng không bay)
+    function targetOf(s, p) {
+        if (s.game.id !== 'oanquan') return String(p.n);
+        if (p.outcome !== 'pending') return null;
+        var side = (s.seats || []).findIndex(function (x) { return x.key === p.key; });
+        return (side < 0 ? 0 : side) + ':' + p.n;
+    }
     function incoming(s) {
         pending = s;
         if (!staging) pump();
@@ -178,15 +194,16 @@
         var picks = evs.filter(function (e) { return e.type === 'pick'; });
         var rebuilt = evs.some(function (e) { return e.type === 'start' || e.type === 'rebuild'; });
         var shown = st && st.board;
-        var canStage = picks.length && shown && !rebuilt && s.board && st.board.kind === s.board.kind && !document.hidden;
+        var targets = picks.map(function (p) { return targetOf(s, p); }).filter(Boolean);
+        var canStage = targets.length && shown && !rebuilt && s.board && st.board.kind === s.board.kind && !document.hidden;
         if (!canStage) { apply(s, evs, false); return; }
         // Diễn: tay bay vào từng ô (Lật Cặp có thể 2 ô trong 1 bình luận) trên bàn cũ → đợi → lộ kết quả
         staging = true;
         sayPicks(s, picks);
         var tool = TOOL[s.board.kind] || 'press';
-        var per = Math.max(380, Math.round(SUSPENSE_MS / picks.length)) * SLOW;
+        var per = Math.max(380, Math.round(SUSPENSE_MS / targets.length)) * SLOW;
         var chain = Promise.resolve();
-        picks.forEach(function (p) { chain = chain.then(function () { return flyTo(p.n, tool, per); }); });
+        targets.forEach(function (t) { chain = chain.then(function () { return flyTo(t, tool, per); }); });
         chain.then(function () {
             apply(s, evs, true);
             handAway(tool);
@@ -200,7 +217,7 @@
         for (var i = 0; i < n; i++) {
             var x = s.seats[i];
             if (!x) { html += '<div class="lc-seat empty"><div class="lc-av" style="background:rgba(255,255,255,.08)">🪑</div><div class="nm">' + T('Ghế trống') + '</div><div class="sub"></div></div>'; continue; }
-            var sub = (x.shields ? '🛡️'.repeat(x.shields) : '') + (s.game.kind === 'score' && s.phase !== 'lobby' ? ' ' + x.score + ' ' + T('cặp') : '') + (x.host ? ' 🎙️' : '');
+            var sub = (x.shields ? '🛡️'.repeat(x.shields) : '') + (s.game.kind === 'score' && s.phase !== 'lobby' ? ' ' + x.score + ' ' + T(s.game.id === 'oanquan' ? 'điểm' : 'cặp') : '') + (x.host ? ' 🎙️' : '');
             html += '<div class="lc-seat' + (x.turn ? ' turn' : '') + (x.out ? ' out' : '') + '" data-k="' + esc(x.key) + '"><span class="no">' + (i + 1) + '</span>' +
                 (x.out ? '<span class="bin">🗑️</span>' : '') + avatar(x) + '<div class="nm">' + esc(x.nickname) + '</div><div class="sub">' + sub + '</div></div>';
         }
@@ -229,6 +246,13 @@
         } else if (s.phase === 'playing') {
             var cur = s.seats.find(function (x) { return x.turn; });
             if (s.holdUntil || !cur) { el.innerHTML = '&nbsp;'; return; }
+            if (s.game.id === 'oanquan') {
+                var hint = s.board && s.board.sel != null
+                    ? T('chọn hướng') + ' <b>1</b> ⬅ ' + T('hoặc') + ' <b>2</b> ➡'
+                    : T('bình luận ô + hướng, vd') + ' <b>3 2</b> <small>(1 ⬅ · 2 ➡)</small>';
+                el.innerHTML = T('Tới lượt') + ' <b>' + esc(cur.nickname) + '</b> · ' + hint + ' <span class="cd">' + secLeft(s.turnUntil) + 's</span>';
+                return;
+            }
             var oneOpen = s.board && s.board.cards && s.board.cards.some(function (c) { return c.open && !c.matched; });
             var how = oneOpen ? T('lật thêm 1 số') + ' <b>' + rangeText(s) + '</b>' : s.game.perTurn === 2 ? T('bình luận 2 số, vd {a}', { a: '<b>3 9</b>' }) : T('bình luận số còn trống') + ' <b>' + rangeText(s) + '</b>';
             el.innerHTML = T('Tới lượt') + ' <b>' + esc(cur.nickname) + '</b> · ' + how + ' <span class="cd">' + secLeft(s.turnUntil) + 's</span>';
@@ -258,7 +282,7 @@
         var by = r.winners[0];
         box.innerHTML = r.draw
             ? '<div class="crown">🤝</div><div class="who">' + T('HOÀ!') + '</div><div class="sub">' + T('Bằng điểm, không ai vào thùng rác') + '</div>'
-            : '<div class="crown">👑</div><div class="who">' + names + '</div><div class="sub">' + T('VÔ ĐỊCH') + (s.game.kind === 'score' ? ' · ' + r.winners[0].score + ' ' + T('cặp') : '') + '</div>' +
+            : '<div class="crown">👑</div><div class="who">' + names + '</div><div class="sub">' + T('VÔ ĐỊCH') + (s.game.kind === 'score' ? ' · ' + r.winners[0].score + ' ' + T(s.game.id === 'oanquan' ? 'điểm' : 'cặp') : '') + '</div>' +
               (loser ? '<div class="sub">' + (by ? '<b>' + esc(by.nickname) + '</b> ' + T('vác') + ' ' : '') + '<b>' + esc(loser.nickname) + '</b> ' + T('ném vào thùng rác') + '</div>' +
                 '<div class="trash"><div class="loser"><span>' + esc(loser.nickname) + '</span></div><div class="can">🗑️</div></div>' : '');
         box.classList.remove('lc-hidden');
@@ -280,7 +304,7 @@
         stage.classList.toggle('idle', !s.board);
         // 3D (board3d.js, Three.js) khi đã nạp xong; chưa xong / máy không có WebGL → bản 2D (boards.js)
         var R = window.LcBoards3D && window.LcBoards3D.ready ? window.LcBoards3D : window.LcBoards;
-        R.render(stage, b, { fresh: fresh, marks: s.board ? s.marks : [], colorOf: colorOf, boardId: s.board ? s.boardId : 'preview' });
+        R.render(stage, b, { fresh: fresh, marks: s.board ? s.marks : [], colorOf: colorOf, boardId: s.board ? s.boardId : 'preview', players: (s.seats || []).map(function (x) { return x.nickname; }) });
         if (!s.board) {
             var w = document.createElement('div');
             w.className = 'wait';
@@ -299,7 +323,7 @@
     window.__lcOverlay = { get state() { return st; }, get staging() { return staging; } };   // gỡ lỗi / chụp ảnh
 
     if (demo) {
-        var step = Math.max(0, Number(params.get('step')) || 0), game = /^(hama|chumcoc|thaptre|latcap)$/.test(demo) ? demo : 'hama';
+        var step = Math.max(0, Number(params.get('step')) || 0), game = /^(hama|chumcoc|thaptre|latcap|oanquan)$/.test(demo) ? demo : 'hama';
         var poll = function () {
             fetch('/api/luotchoi/demo?game=' + game + '&step=' + step, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (s) {
                 // bàn mẫu chạy trên đồng hồ giả: đổi giờ về "bây giờ" + lượt còn 12 s cho đẹp

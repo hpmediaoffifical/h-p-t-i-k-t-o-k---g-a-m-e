@@ -23,7 +23,7 @@ test('quà vào ghế + bình luận số của người tới lượt đi qua b
     const last = io.sent.filter(x => x[0] === 'luotchoi:state').pop()[1];
     assert.equal(last.phase, 'playing');
     assert.deepEqual(last.board.used, [safe]);
-    assert.equal(last.games.length, 4);
+    assert.equal(last.games.length, 5);
     assert.equal(last.board.trap, undefined, 'không lộ bẫy');
 });
 
@@ -46,8 +46,8 @@ test('lệnh lạ bị từ chối', () => {
 
 test('bàn mẫu ?demo: chạy luật thật trên bàn tạm, bàn thật không đổi, ván tới được kết quả', () => {
     const c = createLuotChoiController({ io: fakeIo(), getConfig: () => ({ enabled: true }), log: () => {} });
-    for (const g of ['hama', 'chumcoc', 'thaptre', 'latcap']) {
-        assert.equal(c.demoState(g, 0).seats.length, 4);
+    for (const g of ['hama', 'chumcoc', 'thaptre', 'latcap', 'oanquan']) {
+        assert.equal(c.demoState(g, 0).seats.length, g === 'oanquan' ? 2 : 4);
         assert.equal(c.demoState(g, 1).phase, 'playing', g);
         let reached = false;
         for (let step = 2; step < 300 && !reached; step += 3) reached = c.demoState(g, step).phase === 'result';

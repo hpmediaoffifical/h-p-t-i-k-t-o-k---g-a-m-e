@@ -10,7 +10,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const COIN = '<img class="hp-coin-ico" src="/coin.svg" alt="">';
     const PHASE = { lobby: 'Sảnh chờ', playing: 'Đang chơi', result: 'Kết quả' };
-    const SIZE = { hama: ['teeth', 'Số răng', 6, 16], chumcoc: ['holes', 'Số lỗ chum', 8, 30], thaptre: ['levels', 'Số tầng', 6, 12], latcap: ['pairs', 'Số cặp', 4, 12] };
+    const SIZE = { hama: ['teeth', 'Số răng', 6, 16], chumcoc: ['holes', 'Số lỗ chum', 8, 30], thaptre: ['levels', 'Số tầng', 6, 12], latcap: ['pairs', 'Số cặp', 4, 12], oanquan: ['quanValue', 'Quan = mấy dân (5 hoặc 10)', 5, 10] };
     const API = (cmd, extra) => fetch('/api/luotchoi/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ cmd }, extra || {})) }).then(r => r.json()).catch(() => ({ ok: false }));
     let cfg = null, st = null, socket = null, bound = false, persistTimer = null, clockOff = 0, cdTimer = null;
 
@@ -195,7 +195,11 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
         const hostTurn = !!(st.seats.find(s => s.turn) || {}).host;
         const opts = new Set(st.options || []);
         let cells = [];
-        if (b.kind === 'latcap') cells = b.cards.map(c => ({ n: c.n, label: c.face ? `<span class="face">${c.face}</span>` : c.n }));
+        // Ô Ăn Quan: chưa chọn ô → nút ô 1–5 hàng của mình; đã chọn ô → 2 nút hướng
+        if (b.kind === 'oanquan') cells = b.sel != null
+            ? [{ n: 1, label: '⬅ 1' }, { n: 2, label: '2 ➡' }]
+            : [1, 2, 3, 4, 5].map(n => ({ n, label: n }));
+        else if (b.kind === 'latcap') cells = b.cards.map(c => ({ n: c.n, label: c.face ? `<span class="face">${c.face}</span>` : c.n }));
         else if (b.kind === 'thaptre') cells = b.bars.filter(x => x.level < b.levels).map(x => ({ n: x.n, label: x.n }));
         else cells = Array.from({ length: b.n }, (_, i) => ({ n: i + 1, label: i + 1 }));
         el.innerHTML = `<div class="lc-nums">${cells.map(c => `<button class="ghost small" data-n="${c.n}" ${hostTurn && opts.has(c.n) ? '' : 'disabled'}>${c.label}</button>`).join('')}</div>`
