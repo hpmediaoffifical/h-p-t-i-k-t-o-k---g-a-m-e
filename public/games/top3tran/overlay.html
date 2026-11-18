@@ -30,9 +30,11 @@
 
   if (DEMO) {
     document.body.classList.add('demo');
-    let k = 0;
+    // ?scene=N giữ cố định 1 cảnh (chụp ảnh / căn vị trí); không có thì tự chuyển cảnh.
+    const SCENE = qs.get('scene');
+    let k = SCENE != null ? Number(SCENE) || 0 : 0;
     R.update(window.HpTop3Tran.demoState(k));
-    setInterval(() => { k++; R.update(window.HpTop3Tran.demoState(k)); }, 6000);
+    if (SCENE == null) setInterval(() => { k++; R.update(window.HpTop3Tran.demoState(k)); }, 6000);
     window.addEventListener('message', (e) => {
       if (e.origin !== location.origin) return;
       if (e.data && e.data.type === 'top3tran:cfg') R.setCfg(Object.assign({}, e.data.cfg, { enabled: true }));

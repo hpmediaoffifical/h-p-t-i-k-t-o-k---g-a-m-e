@@ -4065,12 +4065,15 @@ app.post('/api/top3tran/cmd', (req, res) => {
         case 'hide': top3Tran.hide(); break;
         case 'reset': top3Tran.reset(); break;
         case 'demo': top3Tran.demo(); break;
+        // Giả lập PK: đi đúng đường top3OnPk như emitPkState('start'|'end') của PK thật (thử khi không LIVE).
+        case 'pkstart': top3OnPk('start'); return res.json({ ok: true, state: top3Tran.snapshot() });
+        case 'pkend': top3OnPk('end'); return res.json({ ok: true, state: top3Tran.snapshot() });
         case 'bid': {
             if (!top3Tran.isOpen()) return res.status(409).json({ ok: false, error: 'Chưa mở trận' });
             top3Tran.gift(rankFakeGift(b));
             break;
         }
-        default: return res.status(400).json({ ok: false, error: 'cmd phải là start|end|hide|reset|demo|bid' });
+        default: return res.status(400).json({ ok: false, error: 'cmd phải là start|end|hide|reset|demo|bid|pkstart|pkend' });
     }
     rankEmit('top3tran', true);
     res.json({ ok: true, state: top3Tran.snapshot() });

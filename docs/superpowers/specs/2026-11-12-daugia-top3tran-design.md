@@ -75,7 +75,7 @@ Theo mẫu 🏆 Thứ Hạng LIVE: **luật ở server, overlay chỉ vẽ**.
 
 Route lệnh (tránh `/api/games/:id/*`):
 - `GET /api/daugia/state`, `POST /api/daugia/cmd {cmd}`: `start {title?}` · `end` · `reset` · `title {title}` · `bid {name, coins}` (quà thử đi đúng đường luật).
-- `GET /api/top3tran/state`, `POST /api/top3tran/cmd {cmd}`: `start` · `end` · `hide` · `reset` · `bid {name, coins}` · `demo` (công bố giả 3 tên).
+- `GET /api/top3tran/state`, `POST /api/top3tran/cmd {cmd}`: `start` · `end` · `hide` · `reset` · `bid {name, coins}` · `demo` (công bố giả 3 tên) · `pkstart` / `pkend` (giả lập PK, đi đúng `top3OnPk` như `emitPkState`).
 
 Đẩy state: đổi pha / bấm nút → đẩy ngay; quà → gom 150 ms. Snapshot có `serverNow` để overlay tự đếm ngược
 từ `endsAt` (bù lệch giờ), server không phải đẩy mỗi giây.
@@ -91,6 +91,13 @@ dòng gợi ý ("Giành đầu bảng ở 10s cuối: +10s") · `rows` hàng (h�
 mọc lần lượt 3 → 2 → 1, tổng xu cả trận.
 
 Chữ giao diện tự đặt, gọn. Ảnh đại diện lỗi → ô chữ cái đầu.
+
+## 6.1 Đồ họa 2.5D (18/11/2026)
+
+Chỉ CSS + SVG nội tuyến, không ảnh raster, không thư viện ngoài, không `backdrop-filter`; animate transform/opacity.
+
+- **Đấu Giá — sân khấu đấu giá:** khung đồng nhiều lớp + nền nhung, 2 đèn sân khấu chiếu xuống, ruy băng "ĐẤU GIÁ", tên món chữ ánh kim, mặt đồng hồ viền đồng (đỏ khi ≤10 giây). Búa gỗ đai đồng (SVG) nằm cạnh đồng hồ, gõ nhẹ mỗi lần gia hạn. Hàng = tấm bảng nổi, huy chương vàng/bạc/đồng cho hạng 1–3, hạng 1 có vệt sáng lướt; hàng giữ theo id, trượt khi đổi hạng, số xu chạy dần. Chốt đơn: huy chương nguyệt quế + vương miện trên bệ vàng, búa đập xuống khối gõ (sóng va chạm), dấu triện "CHỐT ĐƠN", người về nhì bay vào thùng rác kim loại (SVG, nắp bật).
+- **Top 3 — sân khấu bục:** 3 khối kim loại xước (vàng/bạc/đồng) có mặt trên hình thang + mặt trước khắc số, đứng trên bệ đá cẩm thạch elip; đèn chiếu riêng từng bậc, tia sáng xoay sau hạng 1; huy chương viền kim loại conic + ruy băng tên theo hạng; mọc lần lượt 3 → 2 → 1 rồi confetti lật 3D. Thanh "Top trận" = viên nang kính viền vàng, huy chương số.
 
 ## 7. Bảng Quà Tổng
 

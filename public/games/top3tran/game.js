@@ -1,7 +1,8 @@
-/* 🏆 Top 3 Kết Thúc Trận — bộ vẽ overlay (dùng chung overlay OBS + khung xem trước ?demo=1).
+/* 🏆 Top 3 Kết Thúc Trận — bộ vẽ overlay 2.5D (dùng chung overlay OBS + khung xem trước ?demo=1).
    Luật ở server (lib/top3-tran.js); file này CHỈ vẽ snapshot 'top3tran:state':
-   · trận đang mở + liveBar → thanh "Top trận" nhỏ (3 người dẫn, đồng hồ nếu trận tay có hẹn giờ);
-   · announce → bục 2-1-3 mọc lần lượt 3 → 2 → 1, diễn lại mỗi khi announce.seq đổi. */
+   · trận đang mở + liveBar → thanh "Top trận" (viên nang kính, cập nhật tại chỗ, đồng hồ nếu trận tay hẹn giờ);
+   · announce → sân khấu bục 2-1-3: khối kim loại có mặt trên/mặt trước, bệ đá, đèn chiếu từng bậc, tia sáng sau
+     hạng 1, huy chương + ruy băng tên, confetti lật 3D. Diễn lại mỗi khi announce.seq đổi. Chỉ CSS/HTML. */
 (function (root) {
     'use strict';
 
@@ -10,7 +11,7 @@
     const HUES = [12, 38, 160, 200, 262, 320, 95, 280];
     function hue(id) { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return HUES[h % HUES.length]; }
     function initials(name) {
-        const w = String(name || '?').trim().split(/\s+/).filter(Boolean);
+        const w = String(name || '?').replace(/[^\p{L}\p{N}\s]/gu, '').trim().split(/\s+/).filter(Boolean);
         const s = w.length > 1 ? w[0][0] + w[1][0] : (w[0] || '?').slice(0, 2);
         return s.toLocaleUpperCase('vi');
     }
@@ -18,17 +19,17 @@
         const fb = `<span class="t3-ava-fb" style="--h:${hue(p.id)}">${esc(initials(p.name))}</span>`;
         return `<span class="t3-ava ${cls || ''}">${fb}${p.avatar ? `<img src="${esc(p.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>`;
     }
-    const MEDAL = ['🥇', '🥈', '🥉'];
     const PLACE = [
         { cls: 'p2', idx: 1, label: '2' },
         { cls: 'p1', idx: 0, label: '1' },
         { cls: 'p3', idx: 2, label: '3' }
     ];
+    const CONF_COLORS = ['#ffd34d', '#ff6fa8', '#5fd3ff', '#7dff9a', '#ffffff', '#c38bff'];
 
     function createRenderer(el, opts) {
         const o = opts || {};
         let cfg = { enabled: true, liveBar: true, yPercent: 30, barYPercent: 4, scale: 100 };
-        let st = null, skew = 0, shownSeq = 0, timer = null;
+        let st = null, skew = 0, shownSeq = 0, timer = null, barKey = '';
 
         el.classList.add('t3-root');
         el.innerHTML = '<div class="t3-bar t3-off"></div><div class="t3-pod t3-off"></div>';
@@ -48,8 +49,20 @@
             const on = cfg.enabled !== false && cfg.liveBar !== false && s && s.open && !s.announce;
             bar.classList.toggle('t3-off', !on);
             if (!on) return;
-            const items = (s.top || []).map((p, i) => `<span class="t3-it">${MEDAL[i]}${avatar(p, 'xs')}<b>${esc(p.name)}</b><em>${fmt(p.coins)}</em></span>`).join('');
-            bar.innerHTML = `<span class="t3-bar-tag">🏆 TOP TRẬN</span>${items || '<span class="t3-wait">Tặng quà để lên bục</span>'}${s.endsAt ? '<span class="t3-left"></span>' : ''}`;
+            // Dựng lại chỉ khi đổi người/thứ tự (ảnh không tải lại mỗi lượt quà); số xu cập nhật tại chỗ.
+            const top = s.top || [];
+            const key = top.map((p) => p.id + '|' + p.avatar).join(',') + '|' + !!s.endsAt;
+            if (key !== barKey) {
+                barKey = key;
+                const items = top.map((p, i) => `<span class="t3-it m${i + 1}"><i class="t3-medal">${i + 1}</i>${avatar(p, 'xs')}<b></b><em></em></span>`).join('');
+                bar.innerHTML = `<span class="t3-bar-tag"><i>🏆</i>TOP TRẬN</span>${items || '<span class="t3-wait">Tặng quà để lên bục</span>'}${s.endsAt ? '<span class="t3-left"></span>' : ''}`;
+            }
+            bar.querySelectorAll('.t3-it').forEach((n, i) => {
+                const p = top[i];
+                if (!p) return;
+                n.querySelector('b').textContent = p.name;
+                n.querySelector('em').textContent = fmt(p.coins);
+            });
             tickClock();
         }
 
@@ -62,21 +75,34 @@
             shownSeq = a.seq;
             const cols = PLACE.map((P) => {
                 const p = a.rows[P.idx];
-                if (!p) return `<div class="t3-col ${P.cls} empty"></div>`;
+                const block = `<div class="t3-block"><div class="t3-top"><i class="t3-pool"></i></div><div class="t3-front"><span>${P.label}</span></div></div>`;
+                if (!p) return `<div class="t3-col ${P.cls} empty"><div class="t3-who"></div>${block}</div>`;
                 return `
 <div class="t3-col ${P.cls}">
-  <div class="t3-who">${P.idx === 0 ? '<span class="t3-crown">👑</span>' : ''}${avatar(p, 'big')}
-    <div class="t3-nm">${esc(p.name)}</div><div class="t3-xu">${fmt(p.coins)} <small>xu</small></div></div>
-  <div class="t3-step"><span>${P.label}</span></div>
+  <div class="t3-who">
+    <div class="t3-medallion">${P.idx === 0 ? '<span class="t3-crown">👑</span>' : ''}<span class="t3-ring"></span>${avatar(p, 'big')}</div>
+    <div class="t3-ribbon"><span>${esc(p.name)}</span></div>
+    <div class="t3-xu">${fmt(p.coins)}<small>xu</small></div>
+  </div>
+  ${block}
 </div>`;
             }).join('');
-            const conf = Array.from({ length: 26 }, (_, i) => `<i style="--x:${(i * 37) % 100}%;--d:${(i % 7) * 0.18}s;--c:${['#ffd34d', '#ff6fa8', '#5fd3ff', '#7dff9a', '#ffffff'][i % 5]}"></i>`).join('');
+            let conf = '';
+            for (let i = 0; i < 44; i++) {
+                const x = (i * 23.7) % 100, d = (i % 11) * 0.16, dur = 2.6 + (i % 5) * 0.35, w = i % 3 === 0 ? 10 : 14, h = i % 3 === 0 ? 10 : 24;
+                conf += `<i style="--x:${x.toFixed(1)}%;--d:${d.toFixed(2)}s;--t:${dur.toFixed(2)}s;--w:${w}px;--hh:${h}px;--c:${CONF_COLORS[i % CONF_COLORS.length]};--r:${i % 3 === 0 ? '50%' : '3px'};--sx:${(i % 7) - 3}"></i>`;
+            }
             pod.innerHTML = `
-<div class="t3-conf">${conf}</div>
-<div class="t3-kick">TRẬN ĐẤU KẾT THÚC</div>
-<div class="t3-ttl">TOP 3 GÓP SỨC</div>
-<div class="t3-cols">${cols}</div>
-<div class="t3-sum">Cả trận: <b>${fmt(a.total)}</b> xu từ người xem</div>`;
+<div class="t3-glow"></div>
+<div class="t3-rays"></div>
+<div class="t3-beams"><i class="b2"></i><i class="b1"></i><i class="b3"></i></div>
+<div class="t3-banner"><div class="t3-kick">TRẬN ĐẤU KẾT THÚC</div><div class="t3-ttl">TOP 3 GÓP SỨC</div></div>
+<div class="t3-scene">
+  <div class="t3-base"><i class="t3-base-top"></i><i class="t3-base-front"></i></div>
+  <div class="t3-cols">${cols}</div>
+</div>
+<div class="t3-sum">Cả trận <b>${fmt(a.total)}</b> xu từ người xem</div>
+<div class="t3-conf">${conf}</div>`;
             pod.classList.remove('go'); void pod.offsetWidth; pod.classList.add('go');
         }
 
@@ -91,7 +117,7 @@
         timer = setInterval(tickClock, 250);
         place();
         return {
-            setCfg(c) { cfg = Object.assign({}, cfg, c || {}); place(); shownSeq = 0; render(); },
+            setCfg(c) { cfg = Object.assign({}, cfg, c || {}); place(); shownSeq = 0; barKey = ''; render(); },
             update(s) {
                 if (!s) return;
                 if (s.serverNow) skew = s.serverNow - Date.now();

@@ -67,8 +67,10 @@
         <input type="number" id="t3p-tc" value="100" min="1" style="width:90px">
         <button id="t3p-bid">🎁 Quà thử</button>
         <button id="t3p-demo">🎬 Công bố mẫu trên OBS</button>
+        <button id="t3p-pkstart">⚔ Giả lập PK bắt đầu</button>
+        <button id="t3p-pkend">🏁 Giả lập PK kết thúc</button>
       </div>
-      <p class="rkp-note">Công bố mẫu dùng 3 tên giả, không đụng điểm trận đang tính.</p>
+      <p class="rkp-note">Công bố mẫu dùng 3 tên giả, không đụng điểm trận đang tính. Giả lập PK đi đúng đường của PK thật (cần bật Tự theo PK).</p>
     </div>
   </div>
   <div class="rkp-col rkp-side">
@@ -114,6 +116,8 @@
         else if (b.id === 't3p-hide') cmd('hide');
         else if (b.id === 't3p-reset') cmd('reset');
         else if (b.id === 't3p-demo') cmd('demo');
+        else if (b.id === 't3p-pkstart') cmd('pkstart');
+        else if (b.id === 't3p-pkend') cmd('pkend');
         else if (b.id === 't3p-bid') {
             cmd('bid', { name: $('#t3p-tn').value || undefined, coins: Number($('#t3p-tc').value) || 10 }).then((d) => { if (d && !d.ok) flash(d.error || 'Lỗi'); });
         }
