@@ -110,7 +110,7 @@ function frame() {
     dirty = false;
     if (tweens.length || keep) kick();
 }
-window.__lc3d = { step(ms) { skew += ms || 16; frame(); }, frame, get tweens() { return tweens.length; } };
+window.__lc3d = { step(ms) { skew += ms || 16; frame(); }, frame, get tweens() { return tweens.length; }, get root() { return root; } };
 
 // ── chất liệu + chữ trên mặt vật (canvas texture, có bộ nhớ đệm) ─────────────
 const texCache = new Map();
@@ -199,68 +199,85 @@ function frameCamera(pos, target, fov) {
 // ═════════════════════════════════════════════════════════════════════════
 // 🦛 HÀ MÃ CẮN — đầu hà mã nhựa bóng, hàm trên bản lề phía sau, răng ngà xếp vòng quanh hàm dưới
 // ═════════════════════════════════════════════════════════════════════════
+// da hà mã: tím oải hương chuyển sắc + đốm nhạt + vùng sáng (tự vẽ canvas)
+function hippoSkinTex() {
+    return canvasTex('hipposkin', 512, 256, (g, w, h) => {
+        const gr = g.createLinearGradient(0, 0, 0, h);
+        gr.addColorStop(0, '#b9a6ee'); gr.addColorStop(0.5, '#9a84d8'); gr.addColorStop(1, '#7f69c2');
+        g.fillStyle = gr; g.fillRect(0, 0, w, h);
+        for (let i = 0; i < 60; i++) {
+            const x = hash(i + 7) * w, y = hash(i + 13) * h, r = 3 + hash(i + 2) * 7;
+            g.fillStyle = `rgba(${hash(i) > 0.5 ? '90,70,160' : '225,215,255'},${0.18 + hash(i + 5) * 0.2})`;
+            g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+        }
+    });
+}
 const HM = {
     build(b) {
         const g = new THREE.Group();
-        const skin = phys(0x9a84d8), skinDark = phys(0x7d68bd), gum = std(0xb73552, { roughness: 0.6 }), tongue = std(0xe86b88, { roughness: 0.55 });
-        // thân phía sau
-        const body = sphere(skin, 2.15, 1.25, 1.5); body.position.set(0, 0.95, -2.0); g.add(body);
-        // hàm dưới: nửa dưới khối elip + môi + nền miệng + lưỡi
+        // pastel mịn, bóng nhẹ (kiểu đồ chơi vinyl chibi) — không đốm, không nanh
+        const skin = phys(0xb9a5f3, { roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3 });
+        const skinLight = phys(0xd9ccff, { roughness: 0.4, clearcoat: 0.4 });
+        const inside = std(0xff8fb1, { roughness: 0.6, side: THREE.DoubleSide }), gum = std(0xff9dbb, { roughness: 0.5 }), tongue = std(0xff6f97, { roughness: 0.45 });
+        const white = std(0xffffff, { roughness: 0.08 }), pupil = std(0x20183a, { roughness: 0.05 }), blush = std(0xff9cc4, { roughness: 0.8, transparent: true, opacity: 0.7 });
+        // ── đầu tròn to ĐỨNG YÊN phía sau: mắt to nhìn thẳng người xem, tai, má hồng ──
+        const head = sphere(skin, 1.8, 1.5, 1.35); head.position.set(0, 2.65, -1.85); g.add(head);
+        [-1, 1].forEach(s => {
+            const ear = sphere(skin, 0.32, 0.36, 0.2); ear.position.set(1.32 * s, 3.9, -2.1); ear.rotation.z = -0.5 * s; g.add(ear);
+            const earIn = sphere(blush, 0.18, 0.22, 0.08); earIn.position.set(1.32 * s, 3.9, -1.96); earIn.rotation.z = -0.5 * s; g.add(earIn);
+            const e = sphere(white, 0.46, 0.5, 0.36); e.position.set(0.66 * s, 3.33, -0.72); g.add(e);
+            const p = sphere(pupil, 0.3, 0.34, 0.16); p.position.set(0.62 * s, 3.29, -0.43); g.add(p);
+            const h1 = sphere(white, 0.1); h1.position.set(0.52 * s, 3.45, -0.3); g.add(h1);
+            const h2 = sphere(white, 0.05); h2.position.set(0.7 * s, 3.17, -0.3); g.add(h2);
+            const ck = sphere(blush, 0.36, 0.2, 0.12); ck.position.set(1.3 * s, 2.62, -0.85); g.add(ck);
+            // 2 bàn chân trước tròn
+            const foot = sphere(skinLight, 0.55, 0.4, 0.6); foot.position.set(1.55 * s, 0.38, 0.35); g.add(foot);
+        });
+        // ── hàm dưới (cái bát) + lòng miệng hồng + lưỡi + lợi; răng xếp trên lợi ──
         const jaw = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), skin);
-        jaw.scale.set(1.85, 0.88, 1.45); jaw.position.y = 0.92; g.add(jaw);
-        const floor = new THREE.Mesh(new THREE.CircleGeometry(1, 48), gum); floor.rotation.x = -Math.PI / 2; floor.scale.set(1.7, 1.32, 1); floor.position.y = 0.9; g.add(floor);
-        const tg = sphere(tongue, 0.85, 0.2, 0.62); tg.position.set(0, 0.92, 0.15); g.add(tg);
-        const lip = new THREE.Mesh(new THREE.TorusGeometry(1, 0.1, 14, 72), skinDark); lip.rotation.x = Math.PI / 2; lip.scale.set(1.8, 1.4, 1); lip.position.y = 0.92; g.add(lip);
-        // răng: vòng 300° quanh mép hàm, mặt trên có số (đọc được từ góc máy cao)
+        jaw.scale.set(1.9, 1.0, 1.55); jaw.position.y = 1.1; g.add(jaw);
+        const chin = sphere(skinLight, 1.45, 0.45, 1.15); chin.position.set(0, 0.42, 0.3); g.add(chin);
+        const cav = new THREE.Mesh(new THREE.CircleGeometry(1, 48), inside); cav.rotation.x = -Math.PI / 2; cav.scale.set(1.72, 1.4, 1); cav.position.y = 1.08; g.add(cav);
+        const throat = sphere(inside, 1.5, 0.9, 0.4); throat.position.set(0, 1.4, -1.2); g.add(throat);
+        const tg = sphere(tongue, 0.95, 0.22, 0.75); tg.position.set(0, 1.12, -0.1); g.add(tg);
+        const ridge = new THREE.Mesh(new THREE.TorusGeometry(1, 0.12, 14, 80), gum); ridge.rotation.x = Math.PI / 2; ridge.scale.set(1.6, 1.27, 1); ridge.position.y = 1.16; g.add(ridge);
+        const lip = new THREE.Mesh(new THREE.TorusGeometry(1, 0.16, 16, 80), skin); lip.rotation.x = Math.PI / 2; lip.scale.set(1.86, 1.52, 1); lip.position.y = 1.02; g.add(lip);
         const teeth = [];
-        const ivory = phys(0xfff7ea, { roughness: 0.22, clearcoat: 0.5 }), ivoryDown = phys(0xd9d0c0, { roughness: 0.5, clearcoat: 0 }), red = phys(0xff4a4a);
+        const ivory = phys(0xffffff, { roughness: 0.18, clearcoat: 0.8 }), ivoryDown = phys(0xe4ddd0, { roughness: 0.45, clearcoat: 0.2 }), red = phys(0xff4a4a, { clearcoat: 0.6 });
         const span = Math.min(300, 120 + b.n * 12) * Math.PI / 180;
-        const step = (span * 1.34) / Math.max(1, b.n - 1);   // khoảng cách 2 răng trên vòng hàm
-        const tw = clamp(step * 0.8, 0.3, 0.46);
+        const step = (span * 1.42) / Math.max(1, b.n - 1);
+        const tw = clamp(step * 0.78, 0.3, 0.46);
         for (let i = 0; i < b.n; i++) {
             const a = Math.PI / 2 - span / 2 + span * (b.n === 1 ? 0.5 : i / (b.n - 1));
-            const x = 1.52 * Math.cos(a), z = 1.16 * Math.sin(a);
-            const tooth = new THREE.Group(); tooth.position.set(x, 1.02, z);
-            const body = new THREE.Mesh(new RoundedBoxGeometry(tw, 0.44, tw * 0.75, 3, 0.08), ivory);
-            body.rotation.y = -a + Math.PI / 2; body.castShadow = true;
-            const lbl = decal(numberTex(i + 1, '#3d2c6e'), tw * 1.05, tw * 1.05); lbl.rotation.x = -Math.PI / 2; lbl.position.y = 0.226;
-            tooth.add(body, lbl); g.add(tooth);
-            teeth.push({ n: i + 1, g: tooth, body, lbl, baseY: 1.02, pressed: false });
+            const x = 1.6 * Math.cos(a), z = 1.27 * Math.sin(a);
+            const tooth = new THREE.Group(); tooth.position.set(x, 1.44, z);
+            const body2 = new THREE.Mesh(new THREE.CapsuleGeometry(tw * 0.5, 0.26, 6, 16), ivory);
+            body2.scale.z = 0.8; body2.rotation.y = -a + Math.PI / 2; body2.castShadow = true;
+            const lbl = decal(numberTex(i + 1, '#4a3a86'), tw * 1.02, tw * 1.02); lbl.rotation.x = -Math.PI / 2; lbl.position.y = 0.39;
+            tooth.add(body2, lbl); g.add(tooth);
+            teeth.push({ n: i + 1, g: tooth, body: body2, lbl, baseY: 1.44, pressed: false });
         }
-        // hàm trên + đầu: xoay quanh bản lề sau
-        const pivot = new THREE.Group(); pivot.position.set(0, 0.92, -1.3); g.add(pivot);
-        const up = new THREE.Group(); up.position.z = 1.3; pivot.add(up);
-        const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2), skin); shell.scale.set(1.85, 0.8, 1.45); up.add(shell);
-        const roof = new THREE.Mesh(new THREE.CircleGeometry(1, 48), gum); roof.rotation.x = Math.PI / 2; roof.scale.set(1.7, 1.32, 1); roof.position.y = -0.005; up.add(roof);
+        // ── mõm trên (bản lề sát đầu): trơn, 2 lỗ mũi nhỏ, mặt dưới hồng ──
+        const pivot = new THREE.Group(); pivot.position.set(0, 1.12, -1.25); g.add(pivot);
+        const up = new THREE.Group(); up.position.z = 1.25; pivot.add(up);
+        const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2), skin); shell.scale.set(1.9, 0.62, 1.55); up.add(shell);
+        const roof = new THREE.Mesh(new THREE.CircleGeometry(1, 48), inside); roof.rotation.x = Math.PI / 2; roof.scale.set(1.72, 1.4, 1); roof.position.y = -0.02; up.add(roof);
+        const ridge2 = ridge.clone(); ridge2.position.y = -0.04; up.add(ridge2);
         const lip2 = lip.clone(); lip2.position.y = 0; up.add(lip2);
-        const fang = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.3, 0.18, 2, 0.06), ivory);
-        [-0.55, 0.55].forEach(x => { const f = fang.clone(); f.position.set(x, -0.12, 1.15); up.add(f); });
-        const head = sphere(skin, 1.4, 1.05, 1.0); head.position.set(0, 0.95, -0.55); up.add(head);
-        const white = std(0xffffff, { roughness: 0.15 }), pupil = std(0x161226, { roughness: 0.1 }), ear = std(0xf4a0c0, { roughness: 0.45 });
-        [-1, 1].forEach(s => {
-            // mắt + tai nằm trên đỉnh đầu, đủ cao để vẫn thấy khi hàm trên đang mở
-            // hàm trên ngửa ra sau → mắt đặt lệch về trước sống mũi để vẫn nhìn về phía máy quay
-            const eb = sphere(skin, 0.4, 0.4, 0.4); eb.position.set(0.62 * s, 1.5, 0.55); up.add(eb);
-            const e = sphere(white, 0.31); e.position.set(0.62 * s, 1.6, 0.78); up.add(e);
-            const p = sphere(pupil, 0.15); p.position.set(0.6 * s, 1.7, 1.03); up.add(p);
-            const hl = sphere(white, 0.05); hl.position.set(0.54 * s, 1.8, 1.12); up.add(hl);
-            const er = sphere(skinDark, 0.24, 0.17, 0.13); er.position.set(1.08 * s, 1.85, -0.75); up.add(er);
-            const ei = sphere(ear, 0.14, 0.1, 0.06); ei.position.set(1.08 * s, 1.85, -0.66); up.add(ei);
-            const no = sphere(std(0x4a3a7a, { roughness: 0.6 }), 0.13, 0.08, 0.1); no.position.set(0.42 * s, 0.7, 1.08); up.add(no);
-            const ck = sphere(std(0xff9cc4, { roughness: 0.8, transparent: true, opacity: 0.55 }), 0.26, 0.12, 0.12); ck.position.set(1.3 * s, 0.38, 0.7); up.add(ck);
-        });
-        // miếng băng cá nhân trên má (hà mã đang đau răng)
+        [-1, 1].forEach(s => { const nose = sphere(std(0x8f78d8, { roughness: 0.5 }), 0.13, 0.07, 0.1); nose.position.set(0.42 * s, 0.6, 0.85); nose.rotation.x = -0.6; up.add(nose); });
+        // băng cá nhân dán trên má (đang đau răng) — trên đầu (đứng yên) cho luôn thấy
         const band = new THREE.Group();
-        const strip = new THREE.Mesh(new RoundedBoxGeometry(0.62, 0.2, 0.04, 2, 0.05), std(0xf2c99a, { roughness: 0.7 }));
-        const pad = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.16, 0.05, 2, 0.03), std(0xfff3e2, { roughness: 0.8 }));
+        const strip = new THREE.Mesh(new RoundedBoxGeometry(0.6, 0.2, 0.05, 2, 0.05), std(0xf7b98a, { roughness: 0.7 }));
+        const pad = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.16, 0.06, 2, 0.03), std(0xfff3e2, { roughness: 0.8 }));
         const strip2 = strip.clone(); strip2.rotation.z = Math.PI / 2;
-        strip.material.color.set(0xf7b98a); band.add(strip, strip2, pad); band.position.set(1.32, 0.55, 0.72); band.rotation.set(0, 0.95, 0.5);
-        up.add(band);
+        band.add(strip, strip2, pad); band.position.set(-1.38, 2.9, -0.85); band.rotation.set(0, -0.7, 0.5);
+        g.add(band);
         shadowed(g);
         teeth.forEach(t => { t.lbl.castShadow = false; t.lbl.receiveShadow = false; });
+        [cav, roof].forEach(m => { m.castShadow = false; });
         return { g, teeth, pivot, mats: { ivory, ivoryDown, red } };
     },
-    OPEN: -0.72,
+    OPEN: -0.85,
     apply(st, b, prev, animate) {
         const used = new Set(b.used);
         for (const t of st.teeth) {
@@ -283,8 +300,8 @@ const HM = {
             else st.pivot.rotation.x = target;
         }
     },
-    camera() { frameCamera(new THREE.Vector3(0, 6.3, 8.4), new THREE.Vector3(0, 1.72, 0.1), 28); },
-    anchors(st) { return st.teeth.map(t => ({ n: t.n, obj: t.g, offset: new THREE.Vector3(0, 0.3, 0) })); }
+    camera() { frameCamera(new THREE.Vector3(0, 8.4, 10.8), new THREE.Vector3(0, 2.15, -0.55), 29); },
+    anchors(st) { return st.teeth.map(t => ({ n: t.n, obj: t.g, offset: new THREE.Vector3(0, 0.42, 0) })); }
 };
 
 function shake(obj, amp, ms) {
@@ -460,7 +477,7 @@ const CC = {
             } else { st.frog.position.set(0, 3.38, 0.15); st.frog.scale.setScalar(0.95); }
         }
     },
-    camera() { frameCamera(new THREE.Vector3(0, 4.6, 9.6), new THREE.Vector3(0, 1.85, 0), 30); },
+    camera() { frameCamera(new THREE.Vector3(0, 4.3, 8.2), new THREE.Vector3(0, 1.72, 0), 30); },
     anchors(st) { return st.holes.map(h => ({ n: h.n, obj: h.g, offset: new THREE.Vector3(0, 0, 0.02) })); }
 };
 
@@ -970,6 +987,65 @@ function handFollow(pos) {
     hand.position.set(pos.x, pos.y + 0.32, pos.z + 0.05);
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+// 🏷️ NHÃN DÁN 3D: avatar + tên người đã chọn, gắn ngay trên răng / lỗ / thanh / thẻ (sprite trong cảnh — luôn quay về
+// người xem, bị che đúng như vật thật). Thay thẻ chữ HTML nổi lơ lửng trong bản 3D.
+// ═════════════════════════════════════════════════════════════════════════
+const MARK_SIZE = { hama: 0.4, chumcoc: 0.44, thaptre: 0.44, latcap: 0.5 };
+const markTexCache = new Map();
+function markTex(m, color) {
+    const key = (m.key || '') + '|' + (m.nickname || '') + '|' + color + '|' + (m.avatar || '');
+    if (markTexCache.has(key)) return markTexCache.get(key);
+    const c = document.createElement('canvas'); c.width = 320; c.height = 120;
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    const name = Array.from(String(m.nickname || '')); const short = name.length > 9 ? name.slice(0, 8).join('') + '…' : name.join('');
+    const draw = (img) => {
+        const g = c.getContext('2d');
+        g.clearRect(0, 0, c.width, c.height);
+        // viên thuốc trắng viền màu người chơi + bóng nhẹ
+        g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 10; g.shadowOffsetY = 4;
+        g.fillStyle = '#ffffff'; g.beginPath(); g.roundRect(8, 10, 304, 96, 48); g.fill();
+        g.shadowColor = 'transparent';
+        g.lineWidth = 8; g.strokeStyle = color; g.beginPath(); g.roundRect(8, 10, 304, 96, 48); g.stroke();
+        // avatar tròn (ảnh thật nếu tải được, không thì chữ cái đầu trên màu riêng)
+        g.save(); g.beginPath(); g.arc(58, 58, 38, 0, Math.PI * 2); g.clip();
+        if (img) g.drawImage(img, 20, 20, 76, 76);
+        else { g.fillStyle = color; g.fillRect(20, 20, 76, 76); g.fillStyle = '#fff'; g.font = font(44); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText((name[0] || '?').toUpperCase(), 58, 62); }
+        g.restore();
+        g.fillStyle = '#1f1d33'; g.font = font(40); g.textAlign = 'left'; g.textBaseline = 'middle';
+        g.fillText(short, 108, 60, 196);
+        tex.needsUpdate = true;
+        kick();
+    };
+    draw(null);
+    if (m.avatar) {
+        const img = new Image(); img.crossOrigin = 'anonymous';
+        img.onload = () => { try { draw(img); } catch (e) { draw(null); } };   // ảnh không cho CORS → giữ chữ cái đầu
+        img.src = m.avatar;
+    }
+    markTexCache.set(key, tex);
+    if (markTexCache.size > 120) markTexCache.delete(markTexCache.keys().next().value);
+    return tex;
+}
+let markGroup = null;
+function syncMarks(marks, colorOf) {
+    if (!root) return;
+    if (!markGroup || markGroup.parent !== root) { markGroup = new THREE.Group(); root.add(markGroup); }
+    markGroup.children.slice().forEach(s => { markGroup.remove(s); s.material.dispose(); });
+    const size = MARK_SIZE[game] || 0.6;
+    for (const m of marks || []) {
+        const p = anchorWorld(m.n);
+        if (!p) continue;
+        root.worldToLocal(p);
+        const color = colorOf ? colorOf(m.key || '') : '#4fb3ff';
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: markTex(m, color), depthTest: false, depthWrite: false, toneMapped: false }));
+        sp.scale.set(size * 2.67, size, 1);
+        sp.position.copy(p).add(new THREE.Vector3(0, size * 0.15, 0.08));   // dán sát mặt ô (không nổi cao)
+        sp.renderOrder = 5;
+        markGroup.add(sp);
+    }
+}
+
 const KINDS = { hama: HM, chumcoc: CC, thaptre: TT, latcap: LP, oanquan: OQ };
 let state = null;
 
@@ -1005,7 +1081,9 @@ function render(stage, b, o) {
         K.apply(state, b, lastBoard, true);
     }
     lastBoard = b;
-    setAnchors(K.anchors(state, o), b.kind === 'oanquan' ? [] : o.marks, o.colorOf);
+    setAnchors(K.anchors(state, o), [], o.colorOf);   // 3D: nhãn tên là sprite dán trong cảnh (syncMarks), không dùng thẻ HTML
+    // tháp đổ / hà mã ngậm miệng → ẩn nhãn (ai dính bẫy đã có thông báo + giọng đọc)
+    if (b.kind !== 'oanquan') syncMarks(b.fallen || (b.kind === 'hama' && b.sprung) ? [] : o.marks, o.colorOf);
     layer.style.opacity = b.fallen ? '0' : '';   // tháp đổ: chỗ thanh đã rút không còn → ẩn nhãn tên
     // Tháp Tre: thanh "Lung lay %"
     if (b.kind === 'thaptre') {

@@ -303,3 +303,8 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 .lc-seat .txt { display: flex; flex-direction: column; align-items: center; min-width: 0; max-width: 100%; }
 .lc-seats.vs2 .lc-seat .txt { align-items: flex-start; }
 .lc-seats.vs2 .lc-seat:last-child .txt { align-items: flex-end; }
+
+/* dòng nhắc rỗng (đang diễn) → ẩn viên kính, giữ chỗ để không nhảy bố cục */
+.lc-card[data-frame="hud"] .lc-prompt:empty { visibility: hidden; }
+/* HUD: thanh "Lung lay %" trong viên kính mờ như các viên khác */
+.lc-card[data-frame="hud"] .lc3-meter { background: rgba(16, 18, 30, .7); border: 1.5px solid rgba(255, 255, 255, .18); border-radius: 16px; padding: 8px 14px; }

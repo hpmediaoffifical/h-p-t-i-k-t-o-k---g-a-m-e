@@ -288,7 +288,7 @@
             el.innerHTML = line;
         } else if (s.phase === 'playing') {
             var cur = s.seats.find(function (x) { return x.turn; });
-            if (s.holdUntil || !cur) { el.innerHTML = '&nbsp;'; return; }
+            if (s.holdUntil || !cur) { el.innerHTML = ''; return; }
             if (s.game.id === 'oanquan') {
                 var hint = s.board && s.board.sel != null
                     ? T('Bước 2 · chọn hướng rải: gõ') + ' <b>trái</b> ⬅ ' + T('hoặc') + ' <b>phải</b> ➡'
@@ -299,7 +299,7 @@
             var oneOpen = s.board && s.board.cards && s.board.cards.some(function (c) { return c.open && !c.matched; });
             var how = oneOpen ? T('lật thêm 1 số') + ' <b>' + rangeText(s) + '</b>' : s.game.perTurn === 2 ? T('bình luận 2 số, vd {a}', { a: '<b>3 9</b>' }) : T('bình luận số còn trống') + ' <b>' + rangeText(s) + '</b>';
             el.innerHTML = T('Tới lượt') + ' <b>' + esc(cur.nickname) + '</b> · ' + how + ' <span class="cd">' + secLeft(s.turnUntil) + 's</span>';
-        } else el.innerHTML = '&nbsp;';
+        } else el.innerHTML = '';
     }
 
     function renderRing() {
