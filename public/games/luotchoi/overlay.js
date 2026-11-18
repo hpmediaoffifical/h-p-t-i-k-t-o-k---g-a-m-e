@@ -347,7 +347,7 @@
         $('card').classList.toggle('lc-hidden', !show);
         applyLayout(s.cfg);
         // 🔊 âm thanh hiệu ứng: bật/tắt + âm lượng từ panel; ?mute=1 tắt hết; bàn mẫu ?demo chỉ kêu khi thêm &sfx=1
-        if (window.LcSfx) window.LcSfx.config({ on: s.cfg.sfx !== false && params.get('mute') !== '1' && (!demo || params.get('sfx') === '1'), volume: (s.cfg.sfxVolume ?? 70) / 100 });
+        if (window.LcSfx) window.LcSfx.config({ on: s.cfg.sfx !== false && params.get('mute') !== '1' && (!demo || params.get('sfx') === '1'), volume: (s.cfg.sfxVolume ?? 70) / 100, song: s.cfg.oqSong || 'happy' });
         if (!show) { $('result').classList.add('lc-hidden'); firstState = false; lastSeq = Math.max(lastSeq, ((s.events || []).slice(-1)[0] || {}).seq || 0); return; }
         var fresh = handleEvents(s, evs || [], spokenPicks);
         $('g-icon').textContent = s.game.icon;
@@ -375,6 +375,12 @@
         var pad = document.createElement('div');
         pad.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:99;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px;border-radius:18px;background:rgba(12,14,30,.92);font:700 26px system-ui;color:#fff';
         Object.keys(LBL).forEach(function (k) { var b = document.createElement('button'); b.textContent = LBL[k]; b.style.cssText = 'padding:14px 6px;border-radius:12px;border:0;background:#2b2f55;color:#fff;font:inherit;cursor:pointer'; b.onclick = function () { window.LcSfx.config({ on: true, volume: 0.8 }); window.LcSfx.unlock(); window.LcSfx.play(k); }; pad.appendChild(b); });
+        // 🎹 nghe thử bài rải sỏi: 1 nốt mỗi 170 ms (= nhịp rải trên bàn)
+        [['happy', '🎂 Happy Birthday'], ['twinkle', '⭐ Twinkle'], ['buom', '🦋 Bướm vàng']].forEach(function (sg) {
+            var b = document.createElement('button'); b.textContent = sg[1]; b.style.cssText = 'padding:14px 6px;border-radius:12px;border:0;background:#5a2b55;color:#fff;font:inherit;cursor:pointer';
+            b.onclick = function () { var L = window.LcSfx; L.config({ on: true, volume: 0.8, song: sg[0] }); L.unlock(); L.melodyStart(); var i = 0; var tm = setInterval(function () { L.melodyDrop(); if (++i >= 32) clearInterval(tm); }, 170); };
+            pad.appendChild(b);
+        });
         document.body.appendChild(pad);
     }
     var lastTick = '';

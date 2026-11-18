@@ -179,6 +179,31 @@
         draw: function (t) { tone(t, 'triangle', 523, 523, 0.25, 0.01, 0.25); tone(t + 0.18, 'triangle', 523, 523, 0.25, 0.01, 0.4); }
     };
 
+    // 🎹 Ô Ăn Quan: rải sỏi thành nhạc — mỗi viên rơi = nốt kế tiếp của bài (bài dân gian / hết bản quyền). Mỗi nước rải
+    // bắt đầu lại từ đầu bài → nắm càng nhiều sỏi, càng nghe ra bài. Số = nốt MIDI (60 = Đô giữa).
+    var SONGS = {
+        happy: [67, 67, 69, 67, 72, 71, 67, 67, 69, 67, 74, 72, 67, 67, 79, 76, 72, 71, 69, 77, 77, 76, 72, 74, 72],   // Happy Birthday
+        twinkle: [60, 60, 67, 67, 69, 69, 67, 65, 65, 64, 64, 62, 62, 60, 67, 67, 65, 65, 64, 64, 62, 67, 67, 65, 65, 64, 64, 62, 60, 60, 67, 67, 69, 69, 67, 65, 65, 64, 64, 62, 62, 60],   // Twinkle Twinkle
+        buom: [60, 62, 64, 60, 60, 62, 64, 60, 64, 65, 67, 64, 65, 67, 67, 69, 67, 65, 64, 60, 67, 69, 67, 65, 64, 60, 60, 55, 60, 60, 55, 60]   // Kìa con bướm vàng (Frère Jacques)
+    };
+    var song = 'happy', songAt = 0;
+    // nốt piano: búa gõ (nhiễu ngắn) + 4 hoạ âm tắt dần, hoạ âm cao tắt nhanh hơn, hơi lệch cao độ cho ấm
+    function piano(t, midi, peak) {
+        var f = 440 * Math.pow(2, (midi - 69) / 12), p = peak || 0.75;
+        noise(t, 'bandpass', f * 6, f * 3, 1.5, p * 0.25, 0.001, 0.02);
+        [[1, 1, 1.6], [2, 0.42, 0.9], [3, 0.2, 0.55], [4.02, 0.08, 0.3]].forEach(function (h, i) {
+            var o = ctx.createOscillator(), g = ctx.createGain();
+            o.type = i ? 'sine' : 'triangle'; o.frequency.value = f * h[0]; o.detune.value = i ? rnd(-4, 4) : 0;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(p * h[1], t + 0.006);
+            g.gain.exponentialRampToValueAtTime(p * h[1] * 0.35, t + 0.18);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + h[2]);
+            o.connect(g); out(g, (midi - 66) / 30);
+            o.start(t); o.stop(t + h[2] + 0.05);
+        });
+    }
+    S.note = function (t, o) { piano(t, o.midi || 72, o.peak); };
+
     function play(name, o) {
         if (!on || vol <= 0 || !S[name]) return;
         var c = init();
@@ -193,6 +218,7 @@
         if (!c) return;
         if (c.on != null) on = !!c.on;
         if (c.volume != null) vol = Math.max(0, Math.min(1, Number(c.volume)));
+        if (c.song != null) song = SONGS[c.song] || c.song === 'off' ? c.song : 'happy';
         if (master) master.gain.value = vol;
     }
     // kiểm thử: dựng 1 tiếng trong OfflineAudioContext → { peak, rms, ms có tiếng } (không phát ra loa)
@@ -211,5 +237,14 @@
             return { name: name, peak: +peak.toFixed(3), rms: +Math.sqrt(sum / x.length).toFixed(4), ms: Math.round(last / 44.1) };
         });
     }
-    window.LcSfx = { play: play, config: config, unlock: unlock, measure: measure, names: Object.keys(S) };
+    // sỏi rơi: có bài → nốt kế tiếp (+ tiếng sỏi rất nhỏ cho chân thật); off → tiếng sỏi thường
+    function melodyStart() { songAt = 0; }
+    function melodyDrop() {
+        var notes = SONGS[song];
+        if (!notes) { play('pebble'); return; }
+        play('note', { midi: notes[songAt % notes.length] });
+        songAt++;
+        if (on && ctx && ctx.state === 'running') clack(ctx.currentTime + 0.01, 0.1, rnd(-0.3, 0.3));
+    }
+    window.LcSfx = { play: play, config: config, unlock: unlock, measure: measure, names: Object.keys(S), melodyStart: melodyStart, melodyDrop: melodyDrop, songs: Object.keys(SONGS) };
 })();

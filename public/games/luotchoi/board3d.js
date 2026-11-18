@@ -934,6 +934,7 @@ const OQ = {
             cl.visible = n > 0;
         };
         const steps = trace.slice();
+        try { window.LcSfx && window.LcSfx.melodyStart(); } catch (e) {}   // 🎹 mỗi nước rải: bài nhạc chơi lại từ đầu
         const next = () => {
             const s = steps.shift();
             if (!s) { cl.visible = false; st.busy = false; OQ.handAt(null); if (done) done(); kick(); return; }
@@ -944,7 +945,7 @@ const OQ = {
             } else if (s.k === 'drop') {
                 const to = pitPos(s.i).setY(0.9), from = cl.position.clone();
                 tween(OQ_STEP, k => { cl.position.lerpVectors(from, to, k); cl.position.y = 0.9 + Math.sin(k * Math.PI) * 0.35; OQ.handAt(cl.position); }, ease.inOut, () => {
-                    sfx('pebble');
+                    try { window.LcSfx && window.LcSfx.melodyDrop(); } catch (e) {}   // 1 viên sỏi = 1 nốt
                     inHand = Math.max(0, inHand - 1); cnt[s.i].dan++; OQ.fill(st, s.i, cnt[s.i].dan, cnt[s.i].quan); setCluster(inHand); next();
                 });
             } else if (s.k === 'cap') {

@@ -353,6 +353,14 @@ test('âm thanh hiệu ứng: mặc định bật 70%, chặn 0–100, có trong
     assert.deepEqual([snap(tb).cfg.sfx, snap(tb).cfg.sfxVolume], [false, 40]);
 });
 
+test('Ô Ăn Quan rải sỏi thành nhạc: oqSong mặc định happy, chỉ nhận bài có sẵn hoặc off, có trong snapshot', () => {
+    assert.equal(normalizeConfig({}).oqSong, 'happy');
+    for (const id of ['happy', 'twinkle', 'buom', 'off']) assert.equal(normalizeConfig({ oqSong: id }).oqSong, id);
+    assert.equal(normalizeConfig({ oqSong: 'xyz' }).oqSong, 'happy');
+    const { tb } = make({ oqSong: 'buom' });
+    assert.equal(snap(tb).cfg.oqSong, 'buom');
+});
+
 test('boardId: đổi mỗi lần dựng bàn (bắt đầu / loại người) để overlay 3D biết dựng lại cảnh', () => {
     const { tb, clock } = make({ seats: 3 });
     seat(tb, 'a', 'b', 'c'); clock.go(3100);

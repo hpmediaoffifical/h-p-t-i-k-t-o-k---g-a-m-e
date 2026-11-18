@@ -140,6 +140,8 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
             <div class="lc-box"><div class="lc-h">${hpT('🎵 Âm thanh hiệu ứng')} <span class="lc-muted">${hpT('tiếng ấn, ngoạm, cóc bật, tháp đổ, lật thẻ, sỏi rơi… — không nhạc nền')}</span></div>
                 <div class="lc-line"><label><input type="checkbox" data-c="sfx" ${cfg.sfx !== false ? 'checked' : ''}> ${hpT('Bật âm thanh hiệu ứng')}</label></div>
                 <div class="lc-line"><label>${hpT('Âm lượng')}</label><input type="range" data-k="sfxVolume" min="0" max="100" value="${esc(cfg.sfxVolume ?? 70)}" style="flex:1"><span id="lc-sfxvol">${esc(cfg.sfxVolume ?? 70)}%</span></div>
+                <div class="lc-line"><label>${hpT('🎹 Ô Ăn Quan: rải sỏi thành nhạc')}</label><select data-s="oqSong">${[['happy', 'Happy Birthday'], ['twinkle', 'Twinkle Twinkle Little Star'], ['buom', 'Kìa con bướm vàng'], ['off', hpT('Tắt (tiếng sỏi thường)')]].map(([v, l]) => `<option value="${v}" ${(cfg.oqSong || 'happy') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+                <div class="lc-line lc-muted">${hpT('Mỗi viên sỏi rơi = 1 nốt piano của bài; nắm càng nhiều sỏi, càng nghe ra bài.')}</div>
             </div>`;
         box.querySelectorAll('input[data-k]').forEach(el => el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
             cfg[el.dataset.k] = Number(el.value);
