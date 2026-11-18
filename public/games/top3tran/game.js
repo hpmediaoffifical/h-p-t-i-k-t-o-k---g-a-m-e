@@ -8,6 +8,8 @@
 
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('vi-VN');
+    // thanh Top trận gọn: ≥ 100.000 xu → 299,9K / 1,2M (thanh có đồng hồ không bị cắt chữ)
+    const fmtShort = (n) => { n = Math.round(Number(n) || 0); return n >= 1e6 ? (n / 1e6).toFixed(1).replace('.', ',').replace(/,0$/, '') + 'M' : n >= 1e5 ? (n / 1e3).toFixed(1).replace('.', ',').replace(/,0$/, '') + 'K' : fmt(n); };
     const HUES = [12, 38, 160, 200, 262, 320, 95, 280];
     function hue(id) { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return HUES[h % HUES.length]; }
     function initials(name) {
@@ -61,7 +63,7 @@
                 const p = top[i];
                 if (!p) return;
                 n.querySelector('b').textContent = p.name;
-                n.querySelector('em').textContent = fmt(p.coins);
+                n.querySelector('em').textContent = fmtShort(p.coins);
             });
             tickClock();
         }
@@ -117,7 +119,7 @@
         timer = setInterval(tickClock, 250);
         place();
         return {
-            setCfg(c) { cfg = Object.assign({}, cfg, c || {}); place(); shownSeq = 0; barKey = ''; render(); },
+            setCfg(c) { cfg = Object.assign({}, cfg, c || {}); place(); barKey = ''; render(); },   // không đặt lại shownSeq: lưu cấu hình không được diễn lại bục + confetti
             update(s) {
                 if (!s) return;
                 if (s.serverNow) skew = s.serverNow - Date.now();

@@ -8,6 +8,8 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
 (function () {
     'use strict';
     const $ = (sel, root) => (root || document).querySelector(sel);
+    // so nội dung không phụ thuộc thứ tự khoá (server trả object theo thứ tự khác panel)
+    const stableJson = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x)) ? Object.keys(x).sort().reduce((o, key) => (o[key] = x[key], o), {}) : x);
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     let cssDone = false;
     function injectCss() {
@@ -104,7 +106,7 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
                 socket['__gtp_' + id] = true;
                 socket.on('gameConfig', ({ gameId, config }) => {
                     if (gameId !== id || persistTimer) return;
-                    if (cfg && JSON.stringify(config) === JSON.stringify(cfg)) return;
+                    if (cfg && stableJson(config) === stableJson(cfg)) return;
                     cfg = config; renderSettings();
                 });
                 socket.on(id + ':state', setLive);
@@ -131,7 +133,11 @@ var hpT = (typeof globalThis !== 'undefined' && globalThis.hpT) || function (s, 
             try {
                 const r = await fetch(`/api/games/${id}/config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) });
                 const j = await r.json().catch(() => null);
-                if (j && j.config) cfg = j.config;
+                // Các ô trên panel (bindCards) giữ THAM CHIẾU tới object cfg đang hiện. Thay cfg bằng bản server trả về
+                // mà không vẽ lại → mọi lần sửa sau ghi vào object cũ, lần lưu sau gửi object mới → mất âm thầm.
+                // Nên: server giữ nguyên nội dung → giữ object cũ (không mất chỗ đang gõ); server đổi nội dung
+                // (bỏ dòng rỗng, chuẩn hoá, đổi bảng…) → nhận bản server + vẽ lại để panel khớp đúng cái đã lưu.
+                if (j && j.config && stableJson(j.config) !== stableJson(cfg)) { cfg = j.config; renderSettings(); }
             } catch (e) { console.error(`[${id}] lưu config lỗi`, e); }
         }
         function flash(btn, text) { const old = btn.textContent; btn.textContent = text; setTimeout(() => { btn.textContent = old; }, 1200); }

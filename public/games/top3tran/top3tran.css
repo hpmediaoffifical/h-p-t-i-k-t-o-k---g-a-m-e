@@ -10,7 +10,7 @@
 .t3-bar, .t3-pod { position: absolute; left: 50%; transform-origin: 50% 0; transition: opacity .45s ease; }
 
 /* ===== Thanh "Top trận": viên nang kính viền vàng ===== */
-.t3-bar { display: flex; align-items: center; gap: 12px; max-width: 1040px; overflow: hidden; padding: 10px 22px 10px 10px; border-radius: 999px; white-space: nowrap;
+.t3-bar { display: flex; align-items: center; gap: 12px; max-width: 1040px; box-sizing: border-box; overflow: hidden; padding: 10px 22px 10px 10px; border-radius: 999px; white-space: nowrap;
   background: linear-gradient(180deg, rgba(60, 50, 110, .92), rgba(16, 14, 38, .94) 55%, rgba(30, 24, 70, .94));
   box-shadow: 0 0 0 2px #f2c14e, 0 0 0 5px rgba(80, 50, 0, .55), 0 14px 30px rgba(0,0,0,.5), inset 0 2px 0 rgba(255,255,255,.25), inset 0 -4px 10px rgba(0,0,0,.4); }
 .t3-bar-tag { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; font-weight: 700; font-size: 20px; letter-spacing: .08em; color: #3a2000;

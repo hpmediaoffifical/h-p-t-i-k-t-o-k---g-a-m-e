@@ -238,7 +238,7 @@
             const ru = s.runnerUp;
             const trash = cfg.trashOn !== false && ru ? `
 <div class="dg-trash">
-  <div class="dg-trash-cap"><b>${esc(ru.name)}</b><span>hụt món · ${fmt(ru.coins)} xu</span><em>→ vào thùng rác!</em></div>
+  <div class="dg-trash-cap"><b>${esc(ru.name)}</b><span>hụt món · ${fmt(ru.coins)} xu</span><em> → vào thùng rác!</em></div>
   <div class="dg-fly"><span class="dg-ava sm">${avatarInner(ru)}</span></div>
   <div class="dg-bin">${BIN}</div>
 </div>` : '';
@@ -268,7 +268,7 @@
             board.className = 'dg-board ph-' + s.phase;
             if (want === 'done') {
                 // Chỉ dựng lại (và diễn lại búa/thùng rác) khi sang lượt chốt mới hoặc đổi cấu hình hiển thị.
-                const key = [s.seq, s.title, cfg.trashOn].join('|');
+                const key = [s.title, s.winner && s.winner.id, s.winner && s.winner.coins, s.runnerUp && s.runnerUp.id, cfg.trashOn].join('|');   // không dùng s.seq: lưu cấu hình cũng tăng seq → diễn lại búa
                 if (view !== 'done' || key !== doneKey) { buildDone(s); doneKey = key; }
             } else if (want === 'live') {
                 if (view !== 'live') { buildLive(); lastExtend = s.lastExtendAt || 0; }
@@ -291,7 +291,7 @@
         timer = setInterval(tickClock, 200);
         place();
         return {
-            setCfg(c) { cfg = Object.assign({}, cfg, c || {}); place(); if (view === 'live' && st) updateLive(st); else { view = ''; render(); } },
+            setCfg(c) { cfg = Object.assign({}, cfg, c || {}); place(); if (view === 'live' && st) { updateLive(st); el.classList.toggle('dg-hidden', !visible()); } else render(); },   // bật/tắt game giữa phiên → ẩn/hiện ngay; không xoá view để khỏi diễn lại búa
             update(s) {
                 if (!s) return;
                 if (s.serverNow) skew = s.serverNow - Date.now();

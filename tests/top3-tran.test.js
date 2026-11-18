@@ -169,3 +169,17 @@ test('reset(): đóng, xoá sổ, xoá công bố', () => {
     assert.equal(s.players, 0);
     assert.equal(s.announce, null);
 });
+
+test('PK trước kẹt mở (mất gói kết thúc) > 90 s: PK sau mở trận MỚI, không cộng dồn; gói mở lặp < 90 s vẫn giữ sổ', () => {
+    const { m, clock } = mk();
+    assert.equal(m.pkStart(), true);
+    gift(m, 'u1', 500);
+    clock.go(30_000);
+    assert.equal(m.pkStart(), false, 'gói mở lặp trong cùng PK không xoá sổ');
+    clock.go(300_000);   // PK trước đã hết mà không nhận gói end
+    assert.equal(m.pkStart(), true, 'PK mới mở trận mới');
+    gift(m, 'u2', 10);
+    m.pkEnd();
+    const rows = (m.snapshot().announce || {}).rows || [];
+    assert.deepEqual(rows.map(r => r.id || r.uniqueId), ['u2']);
+});

@@ -4171,7 +4171,8 @@ function rankGamesOnGift(g) {
 }
 // PK thật (emitPkState): start → mở trận, end → đóng + công bố. Không cướp trận tay (luật trong lib).
 function top3OnPk(phase) {
-    if (!rankGameOn('top3tran')) return;
+    // 'end' chạy cả khi game đang tắt: tắt giữa PK rồi bật lại không được để trận PK kẹt mở
+    if (phase !== 'end' && !rankGameOn('top3tran')) return;
     const changed = phase === 'start' ? top3Tran.pkStart() : phase === 'end' ? top3Tran.pkEnd() : false;
     if (changed) rankEmit('top3tran', true);
 }
@@ -4305,6 +4306,7 @@ function attachConnectionEvents(conn, lib) {
         streamEnded = true;
         cancelAutoReconnect();
         resetPkState(); clearPkAutoQueue();
+        try { top3OnPk('end'); } catch (_) {}   // hết LIVE giữa PK: đóng trận Top 3 do PK mở
         broadcast('status', { connected: false, username: currentUsername, reason: 'streamEnd' });
         setLiveDashboardStatus(false, { username: currentUsername });
         console.log('[tiktok] LIVE đã kết thúc (streamEnd)');
@@ -6611,6 +6613,7 @@ app.post('/api/games/:id/config', (req, res) => {
 // KHÔNG xoá dữ liệu người dùng — vườn Trồng Cây còn nguyên, mở khoá là chơi tiếp.
 function emitGameStopped(id, opts) {
     const keepData = !!(opts && opts.keepData);
+    if (id === 'gapthu' || id === 'xucxac') { try { gapXucServer?.stopGame(id); } catch (e) {} }
     if (id === 'pktiktok') {
         io.emit('pktiktok:stop', { ts: Date.now(), reason: 'gameDisabled' });
     } else if (id === 'vipwelcome') {
@@ -11579,7 +11582,7 @@ function vipHandleJoinSignal(signal) {
     if (jc.tts?.enabled !== false && tts) {
         ttsText = vipRenderTts(tts.template, {
             nickname: user.nickname, uniqueId: user.uniqueId, title: fanTts ? fan.tier.label : match.title, level: user.level,
-            fansLevel: user.fansLevel, visitNo: card.visitNo, isEnigma: user.isEnigma,
+            fansLevel: Math.max(Number(user.fansLevel) || 0, Number(fan?.stats?.fansLevel) || 0), visitNo: card.visitNo, isEnigma: user.isEnigma,   // {fan}: như lúc xếp bậc — lấy cấp đã lưu nếu sự kiện thiếu
             xu: fan?.stats.xu ?? card.xu, awayDays: fan ? vwFan.awayDays(fan.stats.prevAt, fan.stats.now) : 0
         });
     }

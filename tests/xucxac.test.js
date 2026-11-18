@@ -72,3 +72,10 @@ test('normalizeConfig: đổi số viên mà bảng cũ chỉ hợp số viên �
     const mine = [{ from: 2, to: 12, text: 'Mọi số: hát' }];
     assert.deepStrictEqual(X.normalizeConfig({ dice: 2, outcomes: mine }).outcomes, mine);
 });
+test('bảng streamer tự soạn (2 viên, mọi dòng ≤ 6) KHÔNG bị thay bằng bảng mặc định', () => {
+    const X = require('../lib/xucxac');
+    const rows = [{ from: 2, to: 4, text: 'Việc A' }, { from: 5, to: 6, text: 'Việc B' }];
+    require('node:assert').deepStrictEqual(X.normalizeConfig({ dice: 2, outcomes: rows }).outcomes, rows);
+    const rows3 = [{ from: 3, to: 12, text: 'Việc C' }];
+    require('node:assert').deepStrictEqual(X.normalizeConfig({ dice: 3, outcomes: rows3 }).outcomes, rows3);
+});
