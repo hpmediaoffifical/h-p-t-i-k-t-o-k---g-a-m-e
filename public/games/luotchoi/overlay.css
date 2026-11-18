@@ -212,9 +212,11 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 .lc3-anchor .lc-tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); flex-direction: column; gap: 1px; padding: 2px 3px 3px; border-radius: 10px; width: 62px; font-size: 13px; background: rgba(12, 14, 30, .82); }
 .lc3-anchor .lc-tag i, .lc3-anchor .lc-tag i img { width: 26px; height: 26px; font-size: 13px; }
 .lc3-anchor .lc-tag em { max-width: 56px; text-align: center; }
-.lc3-anchor.aim::before { content: ''; position: absolute; left: -38px; top: -38px; width: 76px; height: 76px; border-radius: 50%;
+.lc3-anchor.aim::before { content: ''; position: absolute; left: -38px; top: -38px; width: 76px; height: 76px; border-radius: 50%; box-sizing: border-box;   /* gồm cả viền → tâm vòng trùng tâm ô */
   border: 5px solid #ffd54a; box-shadow: 0 0 24px rgba(255, 213, 74, .85); animation: lcAim .5s ease-in-out infinite alternate; }
 .lc3-meter { z-index: 3; }
+/* Dê Núi: vòng nhắm là vòng sáng 3D gắn vào hốc (đồng tâm + nghiêng theo mặt hốc) → ẩn vòng phẳng HTML */
+.lc3-layer.aim3d .lc3-anchor.aim::before { display: none; }
 /* nhãn tên 3D: viên thuốc avatar + tên, que màu người chơi nối về ô (vị trí do syncTags xếp để không đè ô nào) */
 .lc3-tag { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 2; }
 .lc3-tag .lc-tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); gap: 6px; padding: 3px 12px 3px 3px; font-size: 19px;

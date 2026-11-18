@@ -147,7 +147,36 @@ const sphere = (mat, sx, sy, sz, seg) => { const m = new THREE.Mesh(new THREE.Sp
 // ── điểm neo HTML (data-n) cho tay bay vào + nhãn tên ─────────────────────
 let anchors = [];   // { n, obj (Object3D), offset (Vector3), el }
 const _v = new THREE.Vector3();
+// 🎯 vòng nhắm 3D cho hốc Dê Núi: con của chính nhóm hốc → luôn đồng tâm, nghiêng theo mặt đá; nhấp nháy nhẹ
+let aimMesh = null;
+function clearAim() { if (aimMesh) { aimMesh.parent && aimMesh.parent.remove(aimMesh); aimMesh.geometry.dispose(); aimMesh.material.dispose(); aimMesh = null; } }
+function showAim(h) {
+    clearAim();
+    const m = new THREE.Mesh(new THREE.TorusGeometry(h.size + 0.075, 0.038, 10, 48), new THREE.MeshBasicMaterial({ color: 0xffd54a, transparent: true, toneMapped: false }));
+    m.position.z = 0.03; h.g.add(m); aimMesh = m;
+    updaters.push((dt, t) => { if (aimMesh !== m) return false; m.material.opacity = 0.8 + 0.2 * Math.sin(t * 0.012); return true; });
+    kick();
+}
+// khung sáng bo góc nằm phẳng ôm mặt trên vật (thẻ / răng) — cùng kiểu vòng nhắm, theo đúng hình vật
+function roundRectRing(w, d, r, t) {
+    const rr = (s, W, D, R) => { s.moveTo(-W / 2 + R, -D / 2); s.lineTo(W / 2 - R, -D / 2); s.quadraticCurveTo(W / 2, -D / 2, W / 2, -D / 2 + R); s.lineTo(W / 2, D / 2 - R); s.quadraticCurveTo(W / 2, D / 2, W / 2 - R, D / 2); s.lineTo(-W / 2 + R, D / 2); s.quadraticCurveTo(-W / 2, D / 2, -W / 2, D / 2 - R); s.lineTo(-W / 2, -D / 2 + R); s.quadraticCurveTo(-W / 2, -D / 2, -W / 2 + R, -D / 2); return s; };
+    const shape = rr(new THREE.Shape(), w, d, r), hole = rr(new THREE.Path(), w - 2 * t, d - 2 * t, Math.max(0.005, r - t));
+    shape.holes.push(hole);
+    const geo = new THREE.ShapeGeometry(shape, 8); geo.rotateX(-Math.PI / 2);
+    return geo;
+}
+function showAimFrame(obj, w, d, y) {
+    clearAim();
+    const m = new THREE.Mesh(roundRectRing(w, d, Math.min(w, d) * 0.18, 0.075), new THREE.MeshBasicMaterial({ color: 0xffd54a, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }));
+    // quầng sáng mờ bên ngoài viền → nổi trên mọi nền
+    const glow = new THREE.Mesh(roundRectRing(w + 0.2, d + 0.2, Math.min(w, d) * 0.24, 0.16), new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.28, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }));
+    glow.position.y = -0.002; m.add(glow);
+    m.position.y = y; m.renderOrder = 4; obj.add(m); aimMesh = m;
+    updaters.push((dt, t) => { if (aimMesh !== m) return false; const k = 0.5 + 0.5 * Math.sin(t * 0.012); m.material.opacity = 0.8 + 0.2 * k; glow.material.opacity = 0.15 + 0.25 * k; m.scale.setScalar(1 + 0.025 * k); return true; });
+    kick();
+}
 function setAnchors(list, marks, colorOf) {
+    clearAim();
     layer.innerHTML = '';
     tags = [];   // nhãn tên thuộc bàn/điểm neo cũ (đã xoá khỏi DOM ở trên) — syncTags dựng lại sau
     const mk = {};
@@ -209,6 +238,7 @@ function bindDragSpin(el) {
     el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
 }
 function disposeRoot() {
+    clearAim();
     if (hand3d) hand3d.visible = false;
     if (!root) return;
     scene.remove(root);
@@ -1174,10 +1204,14 @@ function anchorWorld(key) {
     return a.pos.clone();
 }
 function fly(key, tool, ms) {
+    // 🎯 chỉ báo chọn theo đúng hình vật: thẻ = khung bo góc ôm viền thẻ, răng = khung vuông ôm mặt răng
+    if (game === 'latcap' && state && state.cards) { const k = state.cards.find(x => String(x.n) === String(key)); if (k) showAimFrame(k.grp, CARD.w + 0.14, CARD.d + 0.14, CARD.t / 2 + 0.015); }
+    if (game === 'hama' && state && state.teeth) { const t = state.teeth.find(x => String(x.n) === String(key)); if (t) showAimFrame(t.g, t.tw + 0.16, t.tw * 0.82 + 0.16, t.th / 2 + 0.012); }
     // Dê Núi: hốc nằm mặt khuất → quay núi đưa hốc ra phía người xem (đường ngắn nhất) rồi mới cho tay bay vào
     if (game === 'chumcoc' && root && state && state.holes) {
         const h = state.holes.find(x => String(x.n) === String(key));
         if (h) {
+            showAim(h);
             const want = -Math.atan2(h.g.position.x, h.g.position.z);   // góc quay để hốc nằm trên trục +Z (về máy quay)
             let d = want - root.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d));
             // xoay đúng mặt có hốc (≤ 0,7 s) → DỪNG ~0,9 s (vòng sáng quanh hốc, người xem thấy số) → mới cắm. Tổng ≤ chumcoc.leadMs (1,6 s)
@@ -1366,6 +1400,7 @@ function render(stage, b, o) {
         K.apply(state, b, lastBoard, true);
     }
     lastBoard = b;
+    layer.classList.toggle('aim3d', b.kind === 'chumcoc' || b.kind === 'latcap' || b.kind === 'hama');   // trò có chỉ báo chọn 3D theo hình vật → ẩn vòng phẳng HTML
     setAnchors(K.anchors(state, o), [], o.colorOf);   // nhãn tên: syncTags (thẻ có que nối, tự né nhau)
     // tháp đổ / hà mã ngậm miệng → ẩn nhãn (ai dính bẫy đã có thông báo + giọng đọc)
     tags = [];
