@@ -434,7 +434,7 @@ function bambooTex() {
 // (tròng hổ phách, con ngươi NGANG như dê thật), tai dài chĩa ngang, sừng cong vút ra sau có vân, chòm râu cằm,
 // thân lông ngắn mượt (không xoăn như cừu), chân thon móng chẻ, đuôi vểnh; vòng cổ đỏ chuông vàng (Tết).
 // Gốc toạ độ ≈ giữa thân, móng chạm y ≈ −0.45 — mặt quay +Z về máy quay.
-const GOAT_TURN = 0.6;   // dê đứng nghiêng 3/4 → thấy rõ mặt dài nhọn + sừng cong (nhìn thẳng thì mặt bị dồn ngắn)
+const GOAT_TURN = 0.85;   // dê đứng nghiêng 3/4 → thấy rõ mặt dài nhọn + sừng cong (nhìn thẳng thì mặt bị dồn ngắn)
 function makeGoat() {
     const gltf = goatModel && goatModel.clone(true);
     if (gltf) return shadowed(gltf);
@@ -511,15 +511,24 @@ function makeGoat() {
 }
 // model vẽ tay thay thế (assets/manifest.json "goat": "goat.glb", hoặc "mascot") — nạp 1 lần, mọi bàn sau dùng bản sao
 let goatModel = null;
+const GOAT_H = 1.85;   // chiều cao dê (cả sừng) trong cảnh, trước khi nhân scale lúc đứng trên đỉnh
 function loadGoatModel() {
     const A = window.__lcAssets || {}, url = A.goat || A.mascot;
     if (!url || goatModel) return;
     import('three/addons/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load(url, (g) => {
         const m = g.scene;
-        const box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3());
-        m.scale.setScalar(1.35 / Math.max(size.x, size.y, size.z));   // vừa khung ~1.35 đơn vị như bản dựng sẵn
-        const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()); m.position.sub(c);
+        const size = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3());
+        m.scale.setScalar(GOAT_H / size.y);   // cao (cả sừng) ≈ GOAT_H như bản dựng sẵn
+        const box = new THREE.Box3().setFromObject(m), c = box.getCenter(new THREE.Vector3());
+        m.position.x -= c.x; m.position.z -= c.z; m.position.y += -0.45 - box.min.y;   // móng chạm y = −0.45 (cùng gốc bản dựng sẵn)
+        m.traverse(o => { if (o.isMesh && o.material) { o.material.roughness = Math.min(o.material.roughness ?? 1, 0.78); o.material.needsUpdate = true; } });   // hơi bóng cho hợp ánh sáng cảnh
         const wrap = new THREE.Group(); wrap.add(m); goatModel = wrap;
+        // bàn Dê Núi đã dựng trước khi model tải xong → thay con dê tại chỗ (giữ vị trí / góc / ẩn hiện)
+        if (game === 'chumcoc' && state && state.mascot && root) {
+            const old = state.mascot, nu = makeGoat();
+            nu.position.copy(old.position); nu.rotation.copy(old.rotation); nu.scale.copy(old.scale); nu.visible = old.visible;
+            old.parent.add(nu); old.parent.remove(old); state.mascot = nu; kick();
+        }
     })).catch(() => {});
 }
 window.addEventListener('lc:assets', loadGoatModel);

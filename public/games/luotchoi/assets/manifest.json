@@ -1,3 +1,7 @@
 {
-  "_note": "Ảnh/model vẽ thay (không bắt buộc). Xem art-requests/dau-truong-mini/BRIEF-DAU-TRUONG-MINI.md. Ví dụ: \"hand\": \"hand.png\", \"goat\": \"goat.glb\" (dê con chum)"
+  "_note": "Ảnh/model vẽ thay (không bắt buộc). Xem art-requests/dau-truong-mini/BRIEF-DAU-TRUONG-MINI.md. Ví dụ: \"hand\": \"hand.png\", \"goat\": \"goat.glb\" (dê con chum)",
+  "goat": "goat.glb",
+  "_credits": {
+    "goat.glb": "\"Goat\" by Poly by Google — CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/) — via Poly Pizza https://poly.pizza/m/bSetPnvQB5G"
+  }
 }

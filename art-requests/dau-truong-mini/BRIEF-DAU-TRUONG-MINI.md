@@ -53,7 +53,9 @@ Gợi ý công cụ:
 
 ---
 
-## 3. Dê núi — `goat.glb` **[TỰ DÙNG]** (trò 🐐 Dê Núi — con giáp năm Đinh Mùi 2027)
+## 3. Dê núi — `goat.glb` **[ĐANG DÙNG model có sẵn]** (trò 🐐 Dê Núi — con giáp năm Đinh Mùi 2027)
+
+> 18/11/2026: đang dùng `public/games/luotchoi/assets/goat.glb` = "Goat" by Poly by Google, **CC BY 3.0** (ghi công bắt buộc), tải từ https://poly.pizza/m/bSetPnvQB5G (low-poly ibex sừng cong). Muốn đổi: thay file, giữ tên `goat.glb` (code tự co theo chiều cao, đặt móng chạm đỉnh núi).
 
 - **Dùng ở:** dê núi trốn trong mỏm đá, trúng hốc thì **nhảy vọt lên đứng trên đỉnh đá** (đứng nghiêng 3/4) nhìn ra người xem (thay con cóc cũ từ 18/11/2026).
 - **Định dạng:** GLB, Y hướng lên, **mặt dê nhìn về +Z**, gốc toạ độ ở giữa đáy; ≤ 15k tam giác; PBR (base color, roughness, normal) 1024 px.
