@@ -41,7 +41,7 @@
             return `<div class="${cls}" data-n="${n}" style="width:${size}px;height:${size}px">${n}${tagHtml(mk[n], o, 6)}</div>`;
         }).join('');
         return `<div class="cc${b.sprung ? ' pop' : ''}${b.sprung && !o.fresh ? ' still' : ''}">
-            <div class="body"><div class="band"></div></div><div class="neck"></div><div class="rim"></div>
+            <div class="body">${'<i></i>'.repeat(9)}</div><div class="rim"></div>
             <div class="holes">${holes}</div><div class="frog">🐐</div></div>`;
     }
 

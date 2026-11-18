@@ -95,14 +95,23 @@ body { font-family: 'LcFont', 'Be Vietnam Pro', system-ui, sans-serif; color: #f
 
 /* ── 🐸 Cóc Trốn Chum ──────────────────────────────────────────────────── */
 .cc { position: absolute; left: 50%; bottom: 24px; width: 640px; height: 520px; transform: translateX(-50%); }
-.cc .neck { position: absolute; left: 190px; width: 260px; top: 30px; height: 70px; border-radius: 30px 30px 10px 10px; background: linear-gradient(90deg, #8a4b26, #b8703e 40%, #7a3f1e); }
-.cc .rim { position: absolute; left: 170px; width: 300px; top: 14px; height: 40px; border-radius: 50%; background: #5a2c12; box-shadow: inset 0 -8px 0 #3b1a08; }
-.cc .body { position: absolute; left: 0; right: 0; top: 80px; bottom: 0; border-radius: 48% 48% 40% 40% / 40% 40% 34% 34%;
-  background: radial-gradient(ellipse at 35% 30%, #d58c52, #a35a2b 55%, #6e3415); box-shadow: inset -30px -20px 60px rgba(0, 0, 0, .35); }
-.cc .band { position: absolute; left: 30px; right: 30px; top: 150px; height: 14px; border-radius: 8px; background: rgba(255, 220, 160, .22); }
+/* 🐐 Dê Núi bản 2D (máy không WebGL): mỏm đá nhiều mặt vát vẽ bằng clip-path + các mặt tam giác sáng/tối, hang tối trên đỉnh */
+.cc .rim { position: absolute; left: 50%; width: 190px; top: 34px; height: 36px; transform: translateX(-50%); border-radius: 50%; background: #15110d; box-shadow: inset 0 -6px 0 #2c2622; z-index: 1; }
+.cc .body { position: absolute; left: 0; right: 0; top: 30px; bottom: 0; background: linear-gradient(165deg, #8c857c, #625c56 50%, #45413d);
+  clip-path: polygon(34% 4%, 50% 0, 66% 3%, 76% 13%, 86% 22%, 91% 38%, 99% 58%, 97% 84%, 89% 100%, 11% 100%, 2% 86%, 4% 60%, 10% 38%, 20% 20%); }
+.cc .body i { position: absolute; inset: 0; }
+.cc .body i:nth-child(1) { background: rgba(255, 255, 255, .16); clip-path: polygon(34% 4%, 50% 0, 44% 30%, 20% 20%); }
+.cc .body i:nth-child(2) { background: rgba(255, 255, 255, .1); clip-path: polygon(50% 0, 66% 3%, 76% 13%, 58% 34%, 44% 30%); }
+.cc .body i:nth-child(3) { background: rgba(0, 0, 0, .18); clip-path: polygon(76% 13%, 86% 22%, 91% 38%, 72% 52%, 58% 34%); }
+.cc .body i:nth-child(4) { background: rgba(255, 255, 255, .07); clip-path: polygon(20% 20%, 44% 30%, 36% 58%, 10% 38%); }
+.cc .body i:nth-child(5) { background: rgba(0, 0, 0, .08); clip-path: polygon(44% 30%, 58% 34%, 72% 52%, 52% 66%, 36% 58%); }
+.cc .body i:nth-child(6) { background: rgba(0, 0, 0, .26); clip-path: polygon(91% 38%, 99% 58%, 97% 84%, 78% 76%, 72% 52%); }
+.cc .body i:nth-child(7) { background: rgba(255, 255, 255, .05); clip-path: polygon(10% 38%, 36% 58%, 26% 86%, 2% 86%, 4% 60%); }
+.cc .body i:nth-child(8) { background: rgba(0, 0, 0, .14); clip-path: polygon(36% 58%, 52% 66%, 78% 76%, 64% 100%, 26% 86%); }
+.cc .body i:nth-child(9) { background: rgba(80, 120, 50, .35); clip-path: polygon(2% 86%, 26% 86%, 40% 100%, 11% 100%); }
 .cc .holes { position: absolute; left: 70px; right: 70px; top: 180px; bottom: 50px; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; gap: 14px 18px; }
-.cc .hole { position: relative; width: 62px; height: 62px; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #1d0d04, #3b1c0a 70%);
-  box-shadow: 0 3px 0 rgba(255, 220, 160, .25); display: grid; place-items: center; font-size: 24px; font-weight: 700; color: #ffd9a8; }
+.cc .hole { position: relative; width: 62px; height: 62px; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #17110c, #2c2622 70%);
+  border: 5px solid #5f5850; box-shadow: 0 3px 0 rgba(255, 255, 255, .18); display: grid; place-items: center; font-size: 24px; font-weight: 700; color: #fff1d6; }
 .cc .hole.used { color: transparent; }
 .cc .hole.used::after { content: ''; position: absolute; left: 26px; bottom: 26px; width: 10px; height: 110px; border-radius: 5px; transform-origin: 50% 100%; transform: rotate(-24deg);
   background: repeating-linear-gradient(180deg, #9ccf4f 0 26px, #6f9c2c 26px 30px); box-shadow: 1px 0 0 rgba(0, 0, 0, .3); }
